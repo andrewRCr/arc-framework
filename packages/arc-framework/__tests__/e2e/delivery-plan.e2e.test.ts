@@ -302,6 +302,30 @@ describe("arc delivery", () => {
       head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
       base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
     }));
+    const terminal = state.members.at(-1)!;
+    const terminalRequestResponse = JSON.stringify({
+      number: Number(terminal.changeRequest!.changeRequestId),
+      state: "open",
+      merged: false,
+      draft: false,
+      head: {
+        ref: terminal.ref!.replace(/^refs\/heads\//u, ""),
+        sha: terminal.coordinates!.head,
+        repo: { full_name: "owner/repo" },
+      },
+      base: {
+        ref: nativeMembers.at(-1)!.headRef,
+        repo: { full_name: "owner/repo" },
+      },
+    });
+    const listResponses = nativeMembers.map((member) => JSON.stringify([{
+      number: Number(member.changeRequestId),
+      url: `https://github.com/owner/repo/pull/${member.changeRequestId}`,
+      state: "OPEN",
+      baseRefName: member.baseRef,
+      headRefName: member.headRef,
+      headRefOid: member.headSha,
+    }]));
     const flattenedRequestResponses = nativeMembers.map((member) => JSON.stringify({
       number: Number(member.changeRequestId),
       state: "open",
@@ -325,10 +349,6 @@ describe("arc delivery", () => {
     await mkdir(fakeBin);
     await writeFile(fakeGh, [
       "#!/bin/sh",
-      "if [ \"${ARC_FAKE_GH_MODE:-registered}\" = \"unsupported\" ]; then",
-      "  echo 'HTTP 404' >&2",
-      "  exit 1",
-      "fi",
       "if [ \"${ARC_FAKE_GH_MODE:-registered}\" = \"degrade\" ]; then",
       "  case \"$*\" in *unstack*) printf '{}\\n'; exit 0;; esac",
       "  if [ ! -f \"$ARC_FAKE_GH_COUNTER\" ]; then",
@@ -356,6 +376,7 @@ describe("arc delivery", () => {
       `    printf '%s\\n' '{"tree":{"sha":"${baseTree}"}}'`,
       "    ;;",
       "  repos/owner/repo/stacks)",
+      "    if [ \"${ARC_FAKE_GH_MODE:-registered}\" = \"unsupported\" ]; then echo 'HTTP 404' >&2; exit 1; fi",
       `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedStackResponse}'; else printf '%s\\n' '${stackResponse}'; fi`,
       "    ;;",
       ...nativeMembers.flatMap((member, index) => [
@@ -363,6 +384,9 @@ describe("arc delivery", () => {
         `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedRequestResponses[index]}'; else printf '%s\\n' '${requestResponses[index]}'; fi`,
         "    ;;",
       ]),
+      `  repos/owner/repo/pulls/${terminal.changeRequest!.changeRequestId})`,
+      `    printf '%s\\n' '${terminalRequestResponse}'`,
+      "    ;;",
       `  repos/owner/repo/pulls/${nativeMembers.at(-1)!.changeRequestId}/merge-async)`,
       `    printf '%s\\n' '${mergeResponse}'`,
       "    ;;",
@@ -374,14 +398,8 @@ describe("arc delivery", () => {
     const env = { PATH: `${fakeBin}:${process.env.PATH ?? ""}` };
     const request = {
       planId: plan.planId,
-      facts: {
-        target: state.target,
-        members: state.members.map(({ deliverableId, ref, changeRequest, coordinates }) => ({
-          deliverableId, ref, changeRequest, coordinates,
-        })),
-        landedDeliverableIds: [],
-      },
       repository: "owner/repo",
+      remote: "origin",
       mergeAction: "direct",
       explicitAtomic: false,
     };
@@ -429,7 +447,7 @@ describe("arc delivery", () => {
       `${JSON.stringify(request)}\n`,
       { env },
     );
-    expect(singleton.exitCode, singleton.stderr).toBe(0);
+    expect(singleton.exitCode, `${singleton.stderr}\n${singleton.stdout}`).toBe(0);
     expect(JSON.parse(singleton.stdout)).toMatchObject({
       status: "selected",
       arm: "linked-single",
@@ -468,6 +486,24 @@ describe("arc delivery", () => {
     expect(unsupported.exitCode, unsupported.stderr).toBe(1);
     expect(JSON.parse(unsupported.stdout)).toMatchObject({ status: "blocked", reason: "unsupported" });
 
+    const unreviewedSequential = await runArcWithStdin(
+      ["delivery", "land", "prepare", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        planId: plan.planId,
+        selectedDeliverableId: nativeMembers[0]!.deliverableId,
+        repository: "owner/repo",
+        remote: "origin",
+        baseRef: "refs/heads/main",
+        targetRef: "refs/heads/main",
+        releaseMergeLock: false,
+        treeRoot: repository,
+      })}\n`,
+      { env },
+    );
+    expect(unreviewedSequential.exitCode, unreviewedSequential.stderr).toBe(1);
+    expect(JSON.parse(unreviewedSequential.stdout)).toMatchObject({ status: "refused" });
+
     const operationId = "native-operation-1";
     const prepareRequest = {
       planId: plan.planId,
@@ -478,8 +514,8 @@ describe("arc delivery", () => {
         members: atomicResult.members,
         recommendedActionText: atomicResult.recommendedActionText,
       },
-      facts: request.facts,
       repository: "owner/repo",
+      remote: "origin",
       baseRef: "main",
       targetRef: "refs/heads/main",
       treeRoot: repository,
@@ -502,7 +538,7 @@ describe("arc delivery", () => {
       `${JSON.stringify(prepareRequest)}\n`,
       { env },
     );
-    expect(prepared.exitCode, prepared.stderr).toBe(0);
+    expect(prepared.exitCode, `${prepared.stderr}\n${prepared.stdout}`).toBe(0);
     expect(JSON.parse(prepared.stdout)).toMatchObject({
       status: "prepared",
       operationId,
