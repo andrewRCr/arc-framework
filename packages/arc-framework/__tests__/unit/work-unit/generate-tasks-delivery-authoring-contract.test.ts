@@ -48,4 +48,22 @@ describe("generate-tasks delivery authoring contract", () => {
     expect(commit).toBeGreaterThan(finalize);
     expect(installed).toBe(packaged);
   });
+
+  it("authors member close-outs as scoped verification tasks with the canonical suffix", () => {
+    const packaged = readFileSync(
+      join(PACKAGE_ROOT, "arc/system/workflows/arc/generate-tasks.template.md"),
+      "utf8",
+    );
+    const installed = readFileSync(
+      join(PROJECT_ROOT, ".arc/system/workflows/arc/generate-tasks.md"),
+      "utf8",
+    );
+
+    for (const workflow of [packaged, installed]) {
+      expect(workflow).toContain("member-scope verification parent");
+      expect(workflow).toContain("— validate criteria at member scope");
+      expect(workflow).toContain("sole terminal work-unit verification task");
+      expect(workflow).not.toContain("ordinary implementation parent");
+    }
+  });
 });

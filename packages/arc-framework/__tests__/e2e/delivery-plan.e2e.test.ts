@@ -1039,10 +1039,13 @@ describe("arc delivery", () => {
       expect(JSON.parse(compose.stdout)).toMatchObject({
         status: "refused",
         reason: "coverage-refused",
-        issues: [{
-          kind: "member-task-order",
-          memberIndices: run.members.map((_, index) => index),
-        }],
+        issues: [
+          {
+            kind: "member-task-order",
+            memberIndices: run.members.map((_, index) => index),
+          },
+          { kind: "member-verification-task-unbound", taskIds: ["1.1"] },
+        ],
       });
     },
   );
@@ -1204,8 +1207,8 @@ describe("arc delivery", () => {
       "",
     ].join("\n");
     const twoPhaseTasks = onePhaseTasks.replace(
-      "### `[ ]` **1.2 Implement the companion**",
-      `${phaseHeading}### \`[ ]\` **1.2 Implement the companion**`,
+      "### `[ ]` **1.2 Implement the companion** — validate criteria at member scope",
+      `${phaseHeading}### \`[ ]\` **1.2 Implement the companion** — validate criteria at member scope`,
     );
     await writeFile(taskListPath, twoPhaseTasks);
     const author = await runArc([
@@ -1408,12 +1411,12 @@ async function installTaskFixture(repository: string, includeSecondTask = false)
     "",
     "## **Phase alpha:** Implementation",
     "",
-    "### `[ ]` **1.1 Implement the contract**",
+    "### `[ ]` **1.1 Implement the contract** — validate criteria at member scope",
     "",
     "- _Goal:_ Implement the delivery contract.",
     "",
     ...(includeSecondTask ? [
-      "### `[ ]` **1.2 Implement the companion**",
+      "### `[ ]` **1.2 Implement the companion** — validate criteria at member scope",
       "",
       "- _Goal:_ Implement the companion behavior.",
       "",

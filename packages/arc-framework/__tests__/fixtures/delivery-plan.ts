@@ -36,7 +36,7 @@ function buildDeliveryPlanFixture(
   const assignableParents = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
     semanticDigest: canonicalDigest({ goal: ["First", "Second", "Third", "Fourth"][index] }),
-    role: { kind: "implementation" as const },
+    role: { kind: "verification" as const, scope: "member" },
   }));
   const parents = [
     ...assignableParents,
