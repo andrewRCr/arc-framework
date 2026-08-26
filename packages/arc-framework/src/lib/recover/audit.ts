@@ -422,7 +422,7 @@ function candidatePrepublicationProjection(
   const slug = options.seed.activeWorkUnit;
   if (slug === null
     || options.seed.sessionType !== "execution"
-    || options.seed.currentWorkflow !== "process-task-loop"
+    || options.seed.currentWorkflow !== "verify-work-unit"
     || options.seed.taskCursor !== null
     || !verdict.diverged
     || !options.recover.loadSet.ok
@@ -444,16 +444,14 @@ function candidatePrepublicationProjection(
     || entering.row.context.integrationBoundary === null
     || entering.row.context.taskCursor?.status !== "no-open-task") return null;
 
-  const taskEntries = options.seed.loadSet.entries.filter((entry) => entry.readMode.kind === "partial-strategic");
-  const processPath = ".arc/system/workflows/arc/process-task-loop.md";
+  const verifyPath = ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md";
   const preparePath = ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
-  if (taskEntries.length !== 1
-    || options.seed.loadSet.entries.filter((entry) => entry.path === processPath).length !== 1) return null;
+  if (options.seed.loadSet.entries.some((entry) => entry.readMode.kind === "partial-strategic")
+    || options.seed.loadSet.entries.filter((entry) => entry.path === verifyPath).length !== 1) return null;
   const projected = {
     manifestVersion: options.seed.loadSet.manifestVersion,
     entries: options.seed.loadSet.entries.flatMap((entry) => {
-      if (entry.readMode.kind === "partial-strategic") return [];
-      if (entry.path === processPath) return [{ path: preparePath, readMode: { kind: "full" as const } }];
+      if (entry.path === verifyPath) return [{ path: preparePath, readMode: { kind: "full" as const } }];
       return [entry];
     }),
   };
@@ -658,6 +656,15 @@ function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
     ? options.recover.recoveryFrame.value.sessionType
     : null;
   const freshCursor = options.recover.taskCursor;
+  if (options.seed.sessionType === "execution"
+    && options.seed.currentWorkflow === "verify-work-unit"
+    && options.seed.taskCursor === null
+    && freshSessionType === "execution"
+    && options.recover.recoveryFrame.ok
+    && options.recover.recoveryFrame.value.kind !== "none"
+    && options.recover.recoveryFrame.value.workflow === "verify-work-unit"
+    && freshCursor?.ok
+    && freshCursor.value.status === "no-open-task") return false;
   if (freshSessionType === "prepublication"
     && options.seed.taskCursor === null
     && freshCursor?.ok
