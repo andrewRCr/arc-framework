@@ -977,7 +977,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1334,11 +1334,44 @@ structural guarantee rather than operator discipline.
               require an explicitly selected owning member for every approved bound-delivery correction, treat an
               already-authored terminal correction only as authoring input, and preserve both mutation routes.
 
-        - `[ ]` **6.11.R.m Revalidate the amended Member 6 boundary** — validate criteria at member scope
+        - `[x]` **6.11.R.m Revalidate the amended Member 6 boundary** — validate criteria at member scope
 
             - _Goal:_ Re-run the Member 6 criteria over the correction-entry amendment and retain prior evidence
               for unchanged refresh, landing, cleanup, and recovery loci.
-            - _Approach:_ Apply `validate-criteria` at delivery-member scope after the correction-entry task closes.
+            - _Outcome:_ Member 6 criteria report.
+                - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+                - _Span:_ retained Member 6 evidence through Task 6.11.R.k plus correction-entry amendment
+                  `4ed049abd..f9412a2a3`; reachability is `f9412a2a3`. Boundary-order deviation: the amendment
+                  landed after the original Member 6 boundary, and the bounded diff excludes unrelated later and
+                  dogfood corrections.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+                  _Evidence:_ protected-base movement remains advisory and creates no refresh obligation by itself.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+                  _Evidence:_ D5.9 still intentionally supersedes only the external-only invocation clause;
+                  attended external observation and adoption remain executable through exact settlement.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+                  _Evidence:_ native landing still reconciles and structurally proves every rewritten remaining
+                  member before admitting its new head.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+                  _Evidence:_ canonical plan/state selects the current non-terminal remainder, while exact semantic
+                  no-effect returns sequential landing to fresh native selection without authorizing stale-suffix
+                  refresh.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+                  _Evidence:_ registration remains exactly non-terminal, filters the dependent top, and degrades a
+                  singleton registered remainder to the host-silent unlinked route.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+                  _Evidence:_ native-link still discloses review invalidation before opt-in, while decline remains
+                  an accepted zero-host-call result.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+                  _Evidence:_ provider refresh preparation, reservation, bottom-up publication, contiguous-prefix
+                  recovery, terminal settlement, cleanup, attended fallback, and provider neutrality remain intact.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`; _State:_ `[x]`;
+                  _Evidence:_ public position remains caller-fact free and exact. Proved append-only terminal
+                  authoring now returns a typed route into review-fix planning without inferring an owning member;
+                  unavailable observation and active-operation recovery remain typed stops.
+                - _Summary:_ seven met, one intentionally superseded, zero unresolved. Fresh Heavy companion pass
+                  one re-ran the complete eight-criterion rubric, returned no findings, and converged cleanly.
+                  Success Criteria markers remain unchanged for terminal verification.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
