@@ -232,6 +232,22 @@ export const DeliveryRecoveryResultV1Schema = z.union([
   z.strictObject({
     status: z.literal("applied"),
     state: DeliveryRecoveryStateRecordV1Schema,
+    nextAction: z.literal("teardown-member"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+  }),
+  z.strictObject({
+    status: z.literal("applied"),
+    state: DeliveryRecoveryStateRecordV1Schema,
+    nextAction: z.literal("execute-provider-refresh"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    verification: z.strictObject({
+      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).length(1).readonly(),
+      tier1Required: z.literal(true),
+    }),
+  }),
+  z.strictObject({
+    status: z.literal("applied"),
+    state: DeliveryRecoveryStateRecordV1Schema,
     nextAction: z.literal("terminal-checkpoint"),
     top: DeliveryRecoveryReadyTopV1Schema,
   }),
@@ -787,10 +803,45 @@ export async function reconcileDeliveryExecution(input: {
       recommendedActionText: "The reserved operation result is ambiguous; inspect it explicitly.",
     };
   }
+  const landedDeliverableId = operation?.kind === "land" && operation.mode === "sequential"
+    ? operation.affectedDeliverableIds.length === 1
+      ? operation.affectedDeliverableIds[0]
+      : undefined
+    : null;
+  const selectedChangeDeliverableId = operation?.kind === "rewrite" && operation.mode === "selected-change"
+    ? operation.affectedDeliverableIds.length === 1
+      ? operation.affectedDeliverableIds[0]
+      : undefined
+    : null;
+  if (landedDeliverableId === undefined || selectedChangeDeliverableId === undefined) {
+    return {
+      status: "blocked",
+      reason: "operation-result-ambiguous",
+      recommendedActionText: "The reserved operation result is ambiguous; inspect it explicitly.",
+    };
+  }
   const persisted = await input.stateStore.publish(input.planId, reconciled.state, input.current.revision);
   return persisted.status === "ok"
-    ? observed.continuation === undefined
-      ? { status: "applied", state: persisted.value, nextAction: "read-position" }
+    ? selectedChangeDeliverableId !== null
+      ? {
+          status: "applied",
+          state: persisted.value,
+          nextAction: "execute-provider-refresh",
+          selectedDeliverableId: selectedChangeDeliverableId,
+          verification: {
+            memberDeliverableIds: [selectedChangeDeliverableId],
+            tier1Required: true,
+          },
+        }
+      : observed.continuation === undefined
+      ? landedDeliverableId === null
+        ? { status: "applied", state: persisted.value, nextAction: "read-position" }
+        : {
+            status: "applied",
+            state: persisted.value,
+            nextAction: "teardown-member",
+            selectedDeliverableId: landedDeliverableId,
+          }
       : { status: "applied", state: persisted.value, ...observed.continuation }
     : {
         status: "blocked",
