@@ -584,6 +584,22 @@ describe("session-init E2E — sessionType across type variants", () => {
     };
 
     const task = "Task 1.1 — Repair lifecycle recovery";
+    const mismatched = await runArc(
+      ["reopen", "foo", "--keep-pr", "--task", "Task 1.1 — Invented narrative"],
+      tmpDir,
+      { env },
+    );
+    expect(mismatched.exitCode).toBe(1);
+    expect(mismatched.stdout + mismatched.stderr).toContain(task);
+    expect(await readFile(ghLog, "utf8")).toBe("pr view feat/foo --json state\n");
+    await writeFile(ghLog, "");
+
+    const missingTask = await runArc(["reopen", "foo", "--keep-pr"], tmpDir, { env });
+    expect(missingTask.exitCode).toBe(1);
+    expect(missingTask.stdout + missingTask.stderr).toContain(task);
+    expect(await readFile(ghLog, "utf8")).toBe("pr view feat/foo --json state\n");
+    await writeFile(ghLog, "");
+
     const reopened = await runArc(["reopen", "foo", "--keep-pr", "--task", task], tmpDir, { env });
     expect(reopened.exitCode, reopened.stdout + reopened.stderr).toBe(0);
 
@@ -626,6 +642,61 @@ describe("session-init E2E — sessionType across type variants", () => {
       status: "ready",
       ready: true,
       stopReasons: [],
+    });
+
+    await writeFile(
+      join(activeDir, "tasks-foo.md"),
+      taskListFixture("Repair lifecycle recovery").replace("`[ ]`", "`[x]`"),
+    );
+    await git(tmpDir, ["add", "-A"]);
+
+    const closeoutSeeded = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+      { env },
+    );
+    expect(closeoutSeeded.exitCode, closeoutSeeded.stdout + closeoutSeeded.stderr).toBe(0);
+    const closeout = parseJsonEnvelope(closeoutSeeded.stdout);
+    expect(closeout.active).toMatchObject({
+      ok: true,
+      value: { currentWorkflow: "verify-work-unit", sessionType: "execution" },
+    });
+    expect(closeout.taskCursor).toEqual({ ok: true, value: { status: "no-open-task" } });
+    expect(closeout.loadSet?.value?.entries).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      readMode: { kind: "full" },
+    });
+    expect(closeout.loadSet?.value?.entries.map((entry) => entry.path))
+      .not.toContain(".arc/active/tasks-foo.md");
+
+    const closeoutRecovered = await runArc(["status", "--recover", "--json"], tmpDir, { env });
+    expect(closeoutRecovered.exitCode, closeoutRecovered.stdout + closeoutRecovered.stderr).toBe(0);
+    expect(parseJsonEnvelope(closeoutRecovered.stdout).recoveryFrame).toMatchObject({
+      ok: true,
+      value: { workflow: "verify-work-unit", sessionType: "execution" },
+    });
+
+    const closeoutAudit = await runArc(["recover", "audit", "--json"], tmpDir, { env });
+    expect(closeoutAudit.exitCode, closeoutAudit.stdout + closeoutAudit.stderr).toBe(0);
+    expect(parseRecoverAuditReport(closeoutAudit.stdout).verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+      taskCursor: null,
+    });
+
+    const attested = await runArc(["attest", "foo", "--json"], tmpDir, { env });
+    expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+    expect(parseJsonEnvelope(attested.stdout)).toMatchObject({
+      status: "attested",
+      locus: { locus: "candidate-review-pending" },
+    });
+
+    const prepublication = await runArc(["status", "--session-init", "--json"], tmpDir, { env });
+    expect(prepublication.exitCode, prepublication.stdout + prepublication.stderr).toBe(0);
+    expect(parseJsonEnvelope(prepublication.stdout).active).toMatchObject({
+      ok: true,
+      value: { currentWorkflow: "prepare-work-unit", sessionType: "prepublication" },
     });
   });
 

@@ -27,6 +27,9 @@ export type LoadSetSessionType = "planning" | "execution" | "prepublication" | "
 /** Planning-stage workflow basename resolved from `Current Workflow`. */
 export type LoadSetPlanningStage = "draft-design" | "create-spec" | "generate-tasks";
 
+/** Deterministic execution substage derived from the canonical task-list cursor. */
+export type LoadSetExecutionStage = "task-work" | "verification-closeout";
+
 /** Already-resolved pointers needed to project the session load set. */
 export interface LoadSetProjectionInput {
   /** ARC identity, or `null` when identity is absent. */
@@ -44,6 +47,8 @@ export interface LoadSetProjectionInput {
   sessionType: LoadSetSessionType | null;
   /** Planning lifecycle stage; used only when `sessionType === "planning"`. */
   planningStage: LoadSetPlanningStage | null;
+  /** Execution substage; defaults to task work for compatibility with non-execution projections. */
+  executionStage?: LoadSetExecutionStage | null;
   /** Active task-list path relative to the repo root, or `null` when none applies. */
   taskListPath: string | null;
   /**
@@ -124,10 +129,14 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
   }
 
   if (input.sessionType === "execution") {
-    if (input.taskListPath !== null) {
-      entries.push(partialStrategic(input.taskListPath));
+    if (input.executionStage === "verification-closeout") {
+      entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/verify-work-unit.md`));
+    } else {
+      if (input.taskListPath !== null) {
+        entries.push(partialStrategic(input.taskListPath));
+      }
+      entries.push(full(`${workflowRoot}/arc/process-task-loop.md`));
     }
-    entries.push(full(`${workflowRoot}/arc/process-task-loop.md`));
   }
 
   if (input.sessionType === "prepublication") {

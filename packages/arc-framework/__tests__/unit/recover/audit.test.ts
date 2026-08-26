@@ -25,6 +25,17 @@ const LOAD_SET = {
   ],
 } satisfies LoadSetManifest;
 
+const CLOSEOUT_LOAD_SET = {
+  manifestVersion: 1,
+  entries: [
+    LOAD_SET.entries[0]!,
+    {
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      readMode: { kind: "full" },
+    },
+  ],
+} satisfies LoadSetManifest;
+
 const CURSOR = {
   status: "found" as const,
   cursor: {
@@ -382,7 +393,13 @@ describe("auditRecoveryState", () => {
     });
 
     const result = await run({
-      seed: seed({ dirty: false, taskCursor: null, uncommittedFiles: [] }),
+      seed: seed({
+        dirty: false,
+        currentWorkflow: "verify-work-unit",
+        taskCursor: null,
+        loadSet: CLOSEOUT_LOAD_SET,
+        uncommittedFiles: [],
+      }),
       recover: recover({
         derivedLocusState: ok(state),
         recoveryFrame: ok(recoveryFrame({ workflow: "prepare-work-unit", sessionType: "prepublication" })),
@@ -400,6 +417,40 @@ describe("auditRecoveryState", () => {
     expect(result.explainedDrift).toContainEqual(expect.objectContaining({
       kind: "load-set-prepublication-projection",
     }));
+  });
+
+  it("accepts exact cursorless execution verification closeout", async () => {
+    const row = workUnitRow({
+      context: {
+        ...workUnitRow().context!,
+        workflow: "verify-work-unit",
+        taskCursor: { status: "no-open-task" },
+        loadSet: CLOSEOUT_LOAD_SET,
+      },
+    });
+    const state = derivedFrame({
+      roster: [row],
+      entering: { kind: "selected", row },
+      active: { checkoutPath: "/repo", subject: { kind: "work-unit", key: "demo" }, context: row.context! },
+    });
+
+    const result = await run({
+      seed: seed({
+        currentWorkflow: "verify-work-unit",
+        taskCursor: null,
+        loadSet: CLOSEOUT_LOAD_SET,
+      }),
+      recover: recover({
+        derivedLocusState: ok(state),
+        recoveryFrame: ok(recoveryFrame({ workflow: "verify-work-unit" })),
+        loadSet: ok(CLOSEOUT_LOAD_SET),
+        taskCursor: ok({ status: "no-open-task" }),
+      }),
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.taskCursor).toBeNull();
+    expect(result.stopReasons).toEqual([]);
   });
 
   it("accepts the exact active-to-completed meta relocation for an archived integration WU", async () => {
