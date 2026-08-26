@@ -5,7 +5,7 @@ import {
   deriveDeliveryProviderRefreshCandidates,
   executeDeliveryProviderRefresh,
 } from "../../../src/lib/delivery/provider-refresh-execution.js";
-import type { DeliveryOperationSnapshotV1 } from "../../../src/lib/delivery/schema.js";
+import type { DeliveryOperationSnapshotV1, DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import { deriveDeliveryProviderRefreshSubject } from
   "../../../src/lib/delivery/provider-refresh-observation.js";
@@ -115,7 +115,7 @@ describe("provider refresh publication classification", () => {
     });
   });
 
-  it("reserves before bottom-up publication and settles candidates with the terminal top", async () => {
+  it("recovers after candidate cleanup completes before the final state write", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
     const state = {
@@ -145,15 +145,12 @@ describe("provider refresh publication classification", () => {
     const candidateResult = deriveDeliveryProviderRefreshCandidates({ plan, before, requested });
     if (candidateResult.status !== "derived") throw new Error("candidates must derive");
     const remoteHeads = new Map(before.members.map((member) => [member.deliverableId, member.coordinates!.head]));
+    const candidateRefs = new Set(candidateResult.candidates.map(({ ref }) => ref));
     const events: string[] = [];
+    let current: { revision: number; value: DeliveryStateV1 } = { revision: 7, value: state };
+    let rejectFinalStateOnce = true;
 
-    const result = await executeDeliveryProviderRefresh({
-      plan,
-      current: { revision: 7, value: state },
-      repository: "owner/repo",
-      scope: { kind: "complete-remainder" },
-      facts,
-    }, {
+    const dependencies: Parameters<typeof executeDeliveryProviderRefresh>[1] = {
       preparation: { prepare: async () => {
         events.push("prepare");
         return {
@@ -189,17 +186,46 @@ describe("provider refresh publication classification", () => {
         return { status: "published" };
       },
       rewriteLocalRef: async () => ({ status: "adopted" }),
-      cleanupPreparedCandidates: async () => {
+      cleanupPreparedCandidates: async (candidates) => {
         events.push("cleanup");
+        for (const candidate of candidates) candidateRefs.delete(candidate.ref);
         return { status: "cleaned" };
       },
       stateStore: { publish: async (_planId, value, revision) => {
         events.push(value.activeOperation === null ? "final" : "reserve");
-        return { status: "ok", value: { revision: revision + 1, value } };
+        if (revision !== current.revision || (value.activeOperation === null && rejectFinalStateOnce)) {
+          rejectFinalStateOnce = false;
+          return { status: "refused", reason: "version-conflict" };
+        }
+        current = { revision: revision + 1, value };
+        return { status: "ok", value: current };
       } },
-    });
+    };
+
+    const interrupted = await executeDeliveryProviderRefresh({
+      plan,
+      current,
+      repository: "owner/repo",
+      scope: { kind: "complete-remainder" },
+      facts,
+    }, dependencies);
+    expect(interrupted).toEqual({ status: "blocked", reason: "state-conflict" });
+    expect(candidateRefs.size).toBe(0);
+    const operationId = current.value.activeOperation?.operationId;
+    if (operationId === undefined) throw new Error("provider refresh must remain reserved");
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current,
+      repository: "owner/repo",
+      operationId,
+    }, dependencies);
 
     expect(result.status).toBe("applied");
+    expect(current.value.activeOperation).toBeNull();
+    expect(events.filter((event) => event === "cleanup")).toHaveLength(2);
+    expect(events.filter((event) => event === "final")).toHaveLength(2);
+    expect(events.filter((event) => event === "prepare")).toHaveLength(1);
     expect(events.indexOf("reserve")).toBeLessThan(events.indexOf(`rewrite:${before.members[0]!.deliverableId}`));
     expect(events.slice(-4)).toEqual(["absorb", "publish-top", "cleanup", "final"]);
   });
