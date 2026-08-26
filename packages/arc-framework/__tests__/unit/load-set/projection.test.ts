@@ -106,6 +106,26 @@ describe("resolveLoadSetManifest", () => {
     );
   });
 
+  it("resolves execution closeout with verify-work-unit and no task-list slice", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "execution",
+      planningStage: null,
+      executionStage: "verification-closeout",
+    });
+
+    expect(manifest.entries).not.toContainEqual({
+      path: ".arc/active/tasks-loadset-projection.md",
+      readMode: { kind: "partial-strategic" },
+    });
+    expect(manifest.entries).not.toContainEqual(
+      fullEntry(".arc/system/workflows/arc/process-task-loop.md"),
+    );
+    expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"),
+    );
+  });
+
   it("resolves integration sessions with the integration lifecycle workflow", () => {
     const manifest = resolveLoadSetManifest({
       ...BASE_INPUT,
