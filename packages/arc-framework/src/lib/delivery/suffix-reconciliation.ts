@@ -263,7 +263,7 @@ export async function settleReservedDeliverySuffixRefresh(input: {
     || highestMember?.coordinates === null || highestMember?.coordinates === undefined) {
     return { status: "blocked", reason: "terminal-top-unavailable" };
   }
-  let terminalCoordinates = terminal.coordinates;
+  let terminalCoordinates = active.operation.terminalAuthoringMovement?.after ?? terminal.coordinates;
   if (terminalCoordinates.base !== highestMember.coordinates.head) {
     const absorbed = await input.absorbTop({
       topRef: terminal.ref,
