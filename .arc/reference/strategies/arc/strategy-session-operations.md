@@ -57,7 +57,7 @@ what comes next. Always loaded at session start.
 - meta-{name}.md (per-WU tracked project pointer in active/; holds State, Branch,
   Task List, Next Task, Last Completed, Blockers, Next Action)
 - SESSION-NOTES.md (personal session context from prior handoff)
-- Task list overview and current task section during resolved `execution` (strategic partial read)
+- Task list overview and current task section during resolved open-task `execution` (strategic partial read)
 
 **T3 — Procedural.** Step-by-step guidance for specific activities that may or may not happen in
 a given session. Loaded on-demand when the agent enters the relevant workflow phase.
@@ -72,14 +72,16 @@ a given session. Loaded on-demand when the agent enters the relevant workflow ph
 Some T3 content becomes near-certain to be needed based on session state available at init time.
 Content meeting these criteria promotes from T3 to the session-init load set:
 
-| Content             | State Signal                           | Promotes When                           |
-| ------------------- | -------------------------------------- | --------------------------------------- |
-| process-task-loop   | Resolved `sessionType: execution`      | Executable task work is active          |
-| prepare-work-unit   | Resolved `sessionType: prepublication` | Private Candidate preparation is active |
-| integrate-work-unit | Resolved `sessionType: integration`    | Public integration is active            |
+| Content             | State Signal                                              | Promotes When                           |
+| ------------------- | --------------------------------------------------------- | --------------------------------------- |
+| process-task-loop   | `sessionType: execution` with a found task cursor         | Executable task work is active          |
+| verify-work-unit    | `sessionType: execution` with `no-open-task`              | Candidate attestation remains           |
+| prepare-work-unit   | Resolved `sessionType: prepublication`                    | Private Candidate preparation is active |
+| integrate-work-unit | Resolved `sessionType: integration`                       | Public integration is active            |
 
 Planning and prepublication may retain a task-list pointer without loading execution context. The resolved session
-type selects one lifecycle workflow and loads task detail only for execution.
+type plus canonical task cursor selects one lifecycle workflow. Task detail loads only for open-task execution;
+execution closeout loads `verify-work-unit` without a strategic task-list slice.
 
 ### Probe pattern
 

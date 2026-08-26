@@ -217,10 +217,11 @@ vi.mock("../../../src/lib/git/in-flight-derivation.js", () => ({
 
 const mockExpandActiveInFlight = vi.fn();
 const mockRunActiveInFlightExpansion = vi.fn();
+const mockResolveTaskListPath = vi.fn();
 vi.mock("../../../src/commands/active.js", () => ({
   expandActiveInFlight: (...args: unknown[]) => mockExpandActiveInFlight(...args),
   runActiveInFlightExpansion: (...args: unknown[]) => mockRunActiveInFlightExpansion(...args),
-  resolveTaskListPath: () => null,
+  resolveTaskListPath: (...args: unknown[]) => mockResolveTaskListPath(...args),
 }));
 
 const mockFindMaterializableWorkUnits = vi.fn();
@@ -354,6 +355,7 @@ beforeEach(() => {
   mockResolveArcRoot.mockReturnValue("/repo");
   mockReadActiveMetaCandidates.mockResolvedValue({ candidates: [{ filename: "meta-foo.md" }] });
   mockReadFile.mockResolvedValue("{}");
+  mockResolveTaskListPath.mockReturnValue(".arc/active/tasks-foo.md");
   mockReadConfigSettings.mockResolvedValue(configResult());
   mockParseMetaRecord.mockReturnValue({ branch: "feat/foo", state: "Active" });
   mockCollectUnstagedReviewablePaths.mockResolvedValue([]);
