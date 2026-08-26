@@ -90,9 +90,11 @@ Before closing the criteria pass, verify delivery integrity:
 
 Complete the verification task's success-criteria and completion-note edits, then run `arc attest {name} --json`. It
 attests the staged subject as a Candidate, leaves lifecycle `State` unchanged, and returns the typed pre-publication
-locus. It refuses while verified reviewable content is absent from that staged subject, naming what is missing. The
-managed record and meta projection it writes are staged with it, so they ride the verification commit. A repeated
-invocation over the same subject is a no-op.
+locus. It requires the canonical task list to be readable, structurally valid, and closed with `no-open-task`; an
+open, missing, unbound, unreadable, or malformed task list refuses before Candidate authority is written. It also
+refuses while verified reviewable content is absent from the staged subject, naming what is missing. The managed
+record and meta projection it writes are staged with it, so they ride the verification commit. A repeated invocation
+over the same subject is a no-op.
 
 ## Completion Notes
 
