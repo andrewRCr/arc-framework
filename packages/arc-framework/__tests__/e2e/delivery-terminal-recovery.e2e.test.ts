@@ -3,7 +3,7 @@
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -295,6 +295,97 @@ describe("delivery terminal recovery", () => {
     })}\n`);
   }
 
+  async function installTerminalRebindFixture(): Promise<{
+    readonly fixture: Awaited<ReturnType<typeof installFixture>>;
+    readonly envelope: { readonly revision: number };
+    readonly terminal: DeliveryStateV1["members"][number];
+    readonly currentBase: string;
+    readonly currentHead: string;
+    readonly currentTree: string;
+    readonly request: string;
+  }> {
+    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    const plan = deliveryStackPlanFixture();
+    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      planId: string;
+      revision: number;
+      value: DeliveryStateV1;
+    };
+    const terminal = envelope.value.members.at(-1)!;
+    const currentHead = await git(repository, ["rev-parse", "HEAD"]);
+    const currentTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+    const localBase = await git(repository, ["rev-parse", "refs/heads/main"]);
+    const authoritativeBase = await git(repository, ["rev-parse", "refs/remotes/origin/main"]);
+    expect(localBase).not.toBe(authoritativeBase);
+    const currentBase = await git(repository, ["merge-base", currentHead, authoritativeBase]);
+    const subject = createCandidateSubjectSnapshot([]);
+    const attestation = createCandidateAttestation({
+      workUnit: plan.workUnitId,
+      subject,
+      baseRevision: currentHead,
+      attestedBy: "owner",
+      attestedAt: "2026-08-22T12:00:00.000Z",
+      verificationEvidenceRef: "verification://delivery-terminal",
+    });
+    const candidatePath = join(repository, resolveCandidateRecordRelativePath(plan.workUnitId));
+    const boundaryPath = join(repository, resolveSubmissionBoundaryPath(plan.workUnitId));
+    await mkdir(join(candidatePath, ".."), { recursive: true });
+    await Promise.all([
+      writeFile(candidatePath, serializeCandidateManagedRecord({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation,
+        subject,
+        transitions: [],
+        lineageAttestations: [],
+      })),
+      writeFile(boundaryPath, `${JSON.stringify(parseIntegrationBoundaryLocus({
+        schemaVersion: 1,
+        mode: "integration-boundary",
+        workUnit: plan.workUnitId,
+        candidateId: attestation.candidateId,
+        candidateSubjectDigest: subject.subjectDigest,
+        locus: "publication-pending",
+        nextAction: {
+          kind: "continue-publication",
+          command: `arc publish ${plan.workUnitId}`,
+          interactionText: "Continue publication.",
+        },
+        policy: null,
+        reservation: null,
+        terminus: null,
+      }))}\n`),
+      writeFile(join(repository, "top-remedy-mutated"), ""),
+    ]);
+    const stale = DeliveryStateV1Schema.parse({
+      ...envelope.value,
+      members: envelope.value.members.map((member, index, members) => index === members.length - 1
+        ? {
+            ...member,
+            coordinates: {
+              ...member.coordinates!,
+              base: fixture.triggerHead,
+              head: fixture.triggerHead,
+            },
+          }
+        : member),
+    });
+    await writeFile(fixture.statePath, `${JSON.stringify({ ...envelope, value: stale })}\n`);
+    return {
+      fixture,
+      envelope,
+      terminal,
+      currentBase,
+      currentHead,
+      currentTree,
+      request: `${JSON.stringify({
+        planId: fixture.planId,
+        repository: "owner/repo",
+        remote: "origin",
+      })}\n`,
+    };
+  }
+
   it("refuses the top remedy while its triggering member ref is still present", async () => {
     const fixture = await installFixture({ triggerPresent: true, teardownReserved: false });
     const result = await runArcWithStdin(
@@ -476,78 +567,15 @@ describe("delivery terminal recovery", () => {
   });
 
   it("rebinds stale terminal coordinates to the independently settled current Candidate", async () => {
-    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
-    const plan = deliveryStackPlanFixture();
-    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      planId: string;
-      revision: number;
-      value: DeliveryStateV1;
-    };
-    const terminal = envelope.value.members.at(-1)!;
-    const currentHead = await git(repository, ["rev-parse", "HEAD"]);
-    const currentTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
-    const localBase = await git(repository, ["rev-parse", "refs/heads/main"]);
-    const authoritativeBase = await git(repository, ["rev-parse", "refs/remotes/origin/main"]);
-    expect(localBase).not.toBe(authoritativeBase);
-    const currentBase = await git(repository, ["merge-base", currentHead, authoritativeBase]);
-    const subject = createCandidateSubjectSnapshot([]);
-    const attestation = createCandidateAttestation({
-      workUnit: plan.workUnitId,
-      subject,
-      baseRevision: currentHead,
-      attestedBy: "owner",
-      attestedAt: "2026-08-22T12:00:00.000Z",
-      verificationEvidenceRef: "verification://delivery-terminal",
-    });
-    const candidatePath = join(repository, resolveCandidateRecordRelativePath(plan.workUnitId));
-    const boundaryPath = join(repository, resolveSubmissionBoundaryPath(plan.workUnitId));
-    await mkdir(join(candidatePath, ".."), { recursive: true });
-    await Promise.all([
-      writeFile(candidatePath, serializeCandidateManagedRecord({
-        schemaVersion: 1,
-        semanticsVersion: "candidate-attestation/v1",
-        attestation,
-        subject,
-        transitions: [],
-        lineageAttestations: [],
-      })),
-      writeFile(boundaryPath, `${JSON.stringify(parseIntegrationBoundaryLocus({
-        schemaVersion: 1,
-        mode: "integration-boundary",
-        workUnit: plan.workUnitId,
-        candidateId: attestation.candidateId,
-        candidateSubjectDigest: subject.subjectDigest,
-        locus: "publication-pending",
-        nextAction: {
-          kind: "continue-publication",
-          command: `arc publish ${plan.workUnitId}`,
-          interactionText: "Continue publication.",
-        },
-        policy: null,
-        reservation: null,
-        terminus: null,
-      }))}\n`),
-      writeFile(join(repository, "top-remedy-mutated"), ""),
-    ]);
-    const stale = DeliveryStateV1Schema.parse({
-      ...envelope.value,
-      members: envelope.value.members.map((member, index, members) => index === members.length - 1
-        ? {
-            ...member,
-            coordinates: {
-              ...member.coordinates!,
-              base: fixture.triggerHead,
-              head: fixture.triggerHead,
-            },
-          }
-        : member),
-    });
-    await writeFile(fixture.statePath, `${JSON.stringify({ ...envelope, value: stale })}\n`);
-    const request = `${JSON.stringify({
-      planId: fixture.planId,
-      repository: "owner/repo",
-      remote: "origin",
-    })}\n`;
+    const {
+      fixture,
+      envelope,
+      terminal,
+      currentBase,
+      currentHead,
+      currentTree,
+      request,
+    } = await installTerminalRebindFixture();
 
     const result = await runArcWithStdin(
       ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
@@ -579,6 +607,30 @@ describe("delivery terminal recovery", () => {
       status: "rebound",
       state: { revision: envelope.revision + 1 },
       nextAction: "rerun-checkpoint",
+    });
+  });
+
+  it("surfaces repository-state access denial while persisting a terminal rebind", async () => {
+    const { fixture, request } = await installTerminalRebindFixture();
+    const stateDirectory = dirname(fixture.statePath);
+    await chmod(stateDirectory, 0o555);
+    let result: Awaited<ReturnType<typeof runArcWithStdin>>;
+    try {
+      result = await runArcWithStdin(
+        ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+      );
+    } finally {
+      await chmod(stateDirectory, 0o755);
+    }
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "refused",
+      reason: "operational-state-not-writable",
+      storage: "repository-git-common",
+      cause: "permission-denied",
+      recommendedActionText: expect.stringContaining("shared Git directory"),
     });
   });
 

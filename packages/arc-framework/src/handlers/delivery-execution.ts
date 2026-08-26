@@ -2302,7 +2302,8 @@ async function executeDeliveryCommand(
           };
         }
         return { status: "rebound", state: published.value, nextAction: projected.nextAction };
-      } catch {
+      } catch (error) {
+        if (error instanceof GitCommonStateAccessError) throw error;
         return { status: "refused", reason: "terminal-rebind-unavailable" };
       }
     }
