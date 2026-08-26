@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
+import { deleteDeliveryRefreshCandidateRef } from "../../../lib/delivery/git-materialization.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import {
   deriveDeliveryProviderRefreshCandidates,
@@ -172,10 +173,19 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
     { readonly status: "cleaned" } | { readonly status: "refused"; readonly reason: string }
   > {
     try {
+      const exec: GitExec = (command, args, options) => this.options.git(command, args, {
+        ...options,
+        cwd: this.options.checkoutPath,
+      });
       for (const candidate of candidates) {
-        await this.options.git("git", ["update-ref", "-d", candidate.ref, candidate.head], {
-          cwd: this.options.checkoutPath,
+        const deleted = await deleteDeliveryRefreshCandidateRef({
+          exec,
+          ref: candidate.ref,
+          expectedHead: candidate.head,
         });
+        if (deleted.status === "refused") {
+          return { status: "refused", reason: "cleanup-required" };
+        }
       }
       return { status: "cleaned" };
     } catch {
