@@ -8,6 +8,7 @@ import type {
   DeliveryStateV1,
   DeliveryTargetCoordinatesV1,
 } from "./schema.js";
+import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type {
   DeliveryProviderRefreshObservation,
   DeliveryProviderRefreshObservationResult,
@@ -29,25 +30,23 @@ export type DeriveDeliveryProviderRefreshSubjectResult =
 export function deriveDeliveryProviderRefreshSubject(input: {
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryStateV1;
+  readonly facts: DeliveryPositionFactsV1;
 }): DeriveDeliveryProviderRefreshSubjectResult {
   if (input.state.activeOperation !== null
     || validateDeliveryStateAgainstPlan(input.state, input.plan).status === "refused"
     || input.state.target === null || input.state.target.coordinates === null) {
     return { status: "refused", reason: "position-mismatch" };
   }
-  const nonterminal = input.state.members.slice(0, -1);
-  const firstBound = nonterminal.findIndex((member) => (
-    member.ref !== null || member.changeRequest !== null || member.coordinates !== null
-  ));
-  if (firstBound < 0) return { status: "refused", reason: "suffix-empty" };
-  const prefixIsLanded = nonterminal.slice(0, firstBound).every((member) => (
-    member.ref === null && member.changeRequest === null && member.coordinates === null
-  ));
-  const suffixIsBound = nonterminal.slice(firstBound).every((member) => (
+  const position = deriveDeliveryPosition(input.plan, input.state, input.facts);
+  if (position.status !== "derived") return { status: "refused", reason: "position-mismatch" };
+  const landedCount = position.position.landedPrefix.length;
+  const suffix = input.state.members.slice(landedCount, -1);
+  if (suffix.length === 0) return { status: "refused", reason: "suffix-empty" };
+  const suffixIsBound = suffix.every((member) => (
     member.ref !== null && member.changeRequest !== null && member.coordinates !== null
   ));
-  if (!prefixIsLanded || !suffixIsBound) return { status: "refused", reason: "position-mismatch" };
-  const members = nonterminal.slice(firstBound).map((member) => ({
+  if (!suffixIsBound) return { status: "refused", reason: "position-mismatch" };
+  const members = suffix.map((member) => ({
     deliverableId: member.deliverableId,
     ref: member.ref,
     changeRequest: member.changeRequest,
@@ -56,7 +55,7 @@ export function deriveDeliveryProviderRefreshSubject(input: {
   return {
     status: "derived",
     subject: {
-      landedPrefix: input.plan.members.slice(0, firstBound).map(({ deliverableId }) => deliverableId),
+      landedPrefix: position.position.landedPrefix,
       affectedDeliverableIds: members.map(({ deliverableId }) => deliverableId),
       before: { target: input.state.target, members },
     },

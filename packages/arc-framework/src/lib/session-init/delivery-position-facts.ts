@@ -47,6 +47,11 @@ interface DeliveryPositionFactsDependencies {
 
 type RequestState = "open" | "merged" | "closed" | null;
 
+/** Narrow observation policy for an approved review-fix authoring window. */
+export interface DeliveryPositionObservationOptions {
+  readonly terminalAuthoringMovement?: "allow-append-only";
+}
+
 async function retainedCommitIsAvailable(
   ref: string,
   coordinates: NonNullable<DeliveryOperationSnapshotV1["members"][number]["coordinates"]>,
@@ -56,6 +61,23 @@ async function retainedCommitIsAvailable(
   if (recorded !== undefined) return recorded;
   const prefix = "refs/heads/";
   if (!ref.startsWith(prefix) || dependencies.remoteHeads[ref.slice(prefix.length)] !== undefined) return false;
+  const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+    ...options,
+    cwd: dependencies.cwd,
+    objectAccess: "local-only",
+  });
+  const observed = await observeDeliveryEligibilityRef(localOnlyExec, coordinates.head);
+  return observed !== null
+    && observed.head === coordinates.head
+    && observed.tree === coordinates.tree;
+}
+
+async function localCommitMatches(
+  coordinates: NonNullable<DeliveryOperationSnapshotV1["members"][number]["coordinates"]>,
+  dependencies: DeliveryPositionFactsDependencies,
+): Promise<boolean> {
+  const recorded = dependencies.localCommits[coordinates.head];
+  if (recorded !== undefined) return recorded;
   const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
     ...options,
     cwd: dependencies.cwd,
@@ -90,7 +112,12 @@ async function observeTarget(
 async function observeMember(
   member: DeliveryOperationSnapshotV1["members"][number],
   dependencies: DeliveryPositionFactsDependencies,
-): Promise<{ readonly exact: boolean; readonly requestState: RequestState }> {
+  allowAppendOnlyAuthoring = false,
+): Promise<{
+  readonly exact: boolean;
+  readonly requestState: RequestState;
+  readonly terminalAuthoringMovement?: DeliveryPositionFactsV1["terminalAuthoringMovement"];
+}> {
   if ((member.ref === null) !== (member.coordinates === null)) {
     return { exact: false, requestState: null };
   }
@@ -121,7 +148,6 @@ async function observeMember(
       }
     } else {
       if (remoteHead === undefined
-        || remoteHead !== member.coordinates.head
         || dependencies.localCommits[remoteHead] !== true) {
         return { exact: false, requestState: null };
       }
@@ -131,10 +157,26 @@ async function observeMember(
         objectAccess: "local-only",
       });
       const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, remoteHead);
-      if (coordinates === null || coordinates.tree !== member.coordinates.tree
-        || (requestHead !== null && requestHead !== member.coordinates.head)) {
+      if (coordinates === null || (requestHead !== null && requestHead !== remoteHead)) {
         return { exact: false, requestState: null };
       }
+      if (remoteHead !== member.coordinates.head) {
+        if (!allowAppendOnlyAuthoring || requestState !== "open" || requestHead === null
+          || !await localCommitMatches(member.coordinates, dependencies)
+          || await readAncestry(localOnlyExec, member.coordinates.head, remoteHead) !== "ancestor") {
+          return { exact: false, requestState: null };
+        }
+        return {
+          exact: true,
+          requestState,
+          terminalAuthoringMovement: {
+            deliverableId: member.deliverableId,
+            before: member.coordinates,
+            after: { base: member.coordinates.base, head: coordinates.head, tree: coordinates.tree },
+          },
+        };
+      }
+      if (coordinates.tree !== member.coordinates.tree) return { exact: false, requestState: null };
     }
   } else if (requestState === "merged") {
     return { exact: false, requestState: null };
@@ -283,15 +325,21 @@ async function observeFacts(
   plan: DeliveryPlanV1,
   state: DeliveryStateV1,
   dependencies: DeliveryPositionFactsDependencies,
+  options: DeliveryPositionObservationOptions,
 ): Promise<DeliveryPositionFactsV1 | null> {
   const targetMovement = await observeTarget(state.target, dependencies);
   if (targetMovement === null) return null;
-  const members = await Promise.all(state.members.map((member) => observeMember(member, dependencies)));
+  const terminalIndex = state.members.length - 1;
+  const members = await Promise.all(state.members.map((member, index) => observeMember(
+    member,
+    dependencies,
+    index === terminalIndex && options.terminalAuthoringMovement === "allow-append-only",
+  )));
   if (members.some((member) => !member.exact)) return null;
+  const terminalAuthoringMovement = members[terminalIndex]?.terminalAuthoringMovement;
 
   const landedDeliverableIds: string[] = [];
   let unlandedSeen = false;
-  const terminalIndex = state.members.length - 1;
   const nonTerminalCleared = state.members.slice(0, -1).every((member) => (
     member.ref === null && member.changeRequest === null && member.coordinates === null
   ));
@@ -314,6 +362,7 @@ async function observeFacts(
     members: state.members,
     landedDeliverableIds,
     ...(targetMovement === "append-only" ? { targetMovement } : {}),
+    ...(terminalAuthoringMovement === undefined ? {} : { terminalAuthoringMovement }),
   };
 }
 
@@ -324,6 +373,7 @@ async function observeFacts(
  * @param state - Current coherent bound state.
  * @param revision - Store-owned revision paired with the state payload.
  * @param dependencies - Passive Git and host observation ports.
+ * @param options - Optional review-fix-only terminal authoring policy.
  * @returns Recognized facts for orientation, or a closed observation refusal.
  */
 export async function observeRepositoryDeliveryPosition(
@@ -331,10 +381,11 @@ export async function observeRepositoryDeliveryPosition(
   state: DeliveryStateV1,
   revision: number,
   dependencies: DeliveryPositionFactsDependencies,
+  options: DeliveryPositionObservationOptions = {},
 ): Promise<DeliveryPositionObservation> {
   const operation = await observeOperation(state, revision, dependencies);
   if (operation === null) return { status: "refused" };
-  const facts = await observeFacts(plan, operation.projected, dependencies);
+  const facts = await observeFacts(plan, operation.projected, dependencies, options);
   return facts === null
     ? { status: "refused" }
     : {
