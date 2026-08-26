@@ -14,6 +14,10 @@ import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const oid = (digit: string): string => digit.repeat(40);
 
+function positionFacts(state: ReturnType<typeof deliveryStateFixture>, landedDeliverableIds: string[] = []) {
+  return { target: state.target, members: state.members, landedDeliverableIds };
+}
+
 function snapshot(heads: readonly string[]): DeliveryOperationSnapshotV1 {
   return {
     target: {
@@ -121,7 +125,8 @@ describe("provider refresh publication classification", () => {
         changeRequest: { providerId: "github", changeRequestId: String(200 + index) },
       })),
     };
-    const derived = deriveDeliveryProviderRefreshSubject({ plan, state });
+    const facts = positionFacts(state, [state.members[0]!.deliverableId]);
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts });
     if (derived.status !== "derived") throw new Error("refresh subject must derive");
     const before = derived.subject.before;
     const targetHead = before.target?.coordinates?.head;
@@ -147,6 +152,7 @@ describe("provider refresh publication classification", () => {
       current: { revision: 7, value: state },
       repository: "owner/repo",
       scope: { kind: "complete-remainder" },
+      facts,
     }, {
       preparation: { prepare: async () => {
         events.push("prepare");
@@ -198,6 +204,112 @@ describe("provider refresh publication classification", () => {
     expect(events.slice(-4)).toEqual(["absorb", "publish-top", "cleanup", "final"]);
   });
 
+  it("retains an observed terminal-authoring top through provider-refresh recovery", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(250 + index) },
+        coordinates: {
+          ...member.coordinates!,
+          base: index === 0
+            ? fixture.target!.coordinates!.head
+            : fixture.members[index - 1]!.coordinates!.head,
+          head: index === fixture.members.length - 2 ? oid("e") : member.coordinates!.head,
+        },
+      })),
+    };
+    const terminal = state.members.at(-1)!;
+    const liveTop = {
+      base: terminal.coordinates!.base,
+      head: oid("c"),
+      tree: oid("d"),
+    };
+    const facts = {
+      ...positionFacts(state),
+      terminalAuthoringMovement: {
+        deliverableId: terminal.deliverableId,
+        before: terminal.coordinates!,
+        after: liveTop,
+      },
+    };
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts });
+    if (derived.status !== "derived") throw new Error("refresh subject must derive");
+    const selectedDeliverableId = derived.subject.affectedDeliverableIds.at(-1)!;
+    let current = { revision: 7, value: state };
+    const stateStore = {
+      publish: async (_planId: string, value: typeof state, revision: number) => {
+        if (revision !== current.revision) {
+          return { status: "refused" as const, reason: "version-conflict" as const };
+        }
+        current = { revision: revision + 1, value };
+        return { status: "ok" as const, value: current };
+      },
+    };
+    const dependencies = {
+      preparation: { prepare: async () => ({
+        status: "prepared" as const,
+        observation: { snapshot: derived.subject.before, targetMovement: "exact" as const },
+        candidates: [],
+      }) },
+      observePublishedHeads: async (snapshot: DeliveryOperationSnapshotV1) => snapshot.members.map((member) => ({
+        deliverableId: member.deliverableId,
+        head: member.coordinates!.head,
+      })),
+      rewriteMemberRef: async () => ({ status: "rewritten" as const }),
+      observeResult: async () => ({
+        status: "observed" as const,
+        observation: { snapshot: derived.subject.before, targetMovement: "exact" as const },
+      }),
+      proveContribution: async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }),
+      publishTop: async ({ beforeHead }: { readonly beforeHead: string }) => {
+        expect(beforeHead).toBe(liveTop.head);
+        return { status: "published" as const };
+      },
+      rewriteLocalRef: async () => ({ status: "adopted" as const }),
+      cleanupPreparedCandidates: async () => ({ status: "cleaned" as const }),
+      stateStore,
+    };
+
+    await expect(executeDeliveryProviderRefresh({
+      plan,
+      current,
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix", selectedDeliverableId },
+      facts,
+    }, {
+      ...dependencies,
+      absorbTop: async () => { throw new Error("crash before top absorption"); },
+    })).rejects.toThrow("crash before top absorption");
+
+    const operationId = current.value.activeOperation?.operationId;
+    if (operationId === undefined) throw new Error("provider refresh must remain reserved");
+    const recovered = await executeDeliveryProviderRefresh({
+      plan,
+      current,
+      repository: "owner/repo",
+      operationId,
+    }, {
+      ...dependencies,
+      absorbTop: async ({ top }) => {
+        expect(top).toEqual({ head: liveTop.head, tree: liveTop.tree });
+        return { status: "absorbed", head: oid("a"), tree: oid("b") };
+      },
+    });
+
+    expect(recovered).toMatchObject({
+      status: "applied",
+      state: {
+        value: {
+          activeOperation: null,
+          members: [{}, {}, {}, { coordinates: { head: oid("a"), tree: oid("b") } }],
+        },
+      },
+    });
+  });
+
   it("refuses an incoherent prepared predecessor chain before reserving or publishing", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
@@ -208,7 +320,8 @@ describe("provider refresh publication classification", () => {
         changeRequest: { providerId: "github", changeRequestId: String(300 + index) },
       })),
     };
-    const derived = deriveDeliveryProviderRefreshSubject({ plan, state });
+    const facts = positionFacts(state);
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts });
     if (derived.status !== "derived") throw new Error("refresh subject must derive");
     const before = derived.subject.before;
     const requested: DeliveryOperationSnapshotV1 = {
@@ -233,6 +346,7 @@ describe("provider refresh publication classification", () => {
       current: { revision: 7, value: state },
       repository: "owner/repo",
       scope: { kind: "complete-remainder" },
+      facts,
     }, {
       preparation: { prepare: async () => ({
         status: "prepared",
@@ -264,7 +378,7 @@ describe("provider refresh publication classification", () => {
         changeRequest: { providerId: "github", changeRequestId: String(400 + index) },
       })),
     };
-    const derived = deriveDeliveryProviderRefreshSubject({ plan, state });
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts: positionFacts(state) });
     if (derived.status !== "derived") throw new Error("refresh subject must derive");
     const before = derived.subject.before;
     const targetHead = before.target?.coordinates?.head;
