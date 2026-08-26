@@ -1140,14 +1140,12 @@ structural guarantee rather than operator discipline.
           request still required agent-authored observation facts. Compose those facts inside the handler from the
           plan/state and repository locators, leaving the pure router and provider adapter boundary intact.
 
-        - `[ ]` **6.11.R.g Compose fresh facts for the public position read**
+        - `[x]` **6.11.R.g Compose fresh facts for the public position read**
 
-            - Build `test-first` around the public request schema and real handler path: clean exact position,
-              observation refusal, and active-operation recovery.
-            - Accept only plan, repository, and remote locators; reuse the existing bounded Git/host observer and
-              keep provider-specific behavior behind its handler-composed adapter.
-            - Update both shipped `deliver-stack.md` copies to supply those locators and dispatch the returned typed
-              route without serializing facts.
+            - Public position now accepts only plan, repository, and remote locators, composes the existing bounded
+              observer at the handler boundary, and preserves `position-unavailable` plus `operation-active`
+              reconciliation. Built-CLI real-repository coverage pins all three routes, and both shipped workflow
+              copies supply only locators before dispatching the typed result.
 
         - `[ ]` **6.11.R.h Revalidate the executable position seam**
 
