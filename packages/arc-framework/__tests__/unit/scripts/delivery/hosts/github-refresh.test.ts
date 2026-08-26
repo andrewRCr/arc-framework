@@ -65,7 +65,11 @@ describe("GitHub provider refresh adapter", () => {
         changeRequest: { providerId: "github", changeRequestId: String(450 + index) },
       })),
     };
-    const derived = deriveDeliveryProviderRefreshSubject({ plan, state });
+    const derived = deriveDeliveryProviderRefreshSubject({
+      plan,
+      state,
+      facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
+    });
     if (derived.status !== "derived") throw new Error("refresh subject must derive");
 
     await expect(port.prepare({
@@ -87,7 +91,11 @@ describe("GitHub provider refresh adapter", () => {
         changeRequest: { providerId: "github", changeRequestId: String(500 + index) },
       })),
     };
-    const derived = deriveDeliveryProviderRefreshSubject({ plan, state });
+    const derived = deriveDeliveryProviderRefreshSubject({
+      plan,
+      state,
+      facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
+    });
     if (derived.status !== "derived") throw new Error("refresh subject must derive");
     const before = derived.subject.before;
     const target = before.target?.coordinates;
@@ -255,7 +263,11 @@ describe("GitHub provider refresh adapter", () => {
         changeRequest: { providerId: "github", changeRequestId: String(600 + index) },
       })),
     };
-    const derived = deriveDeliveryProviderRefreshSubject({ plan, state });
+    const derived = deriveDeliveryProviderRefreshSubject({
+      plan,
+      state,
+      facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
+    });
     if (derived.status !== "derived") throw new Error("refresh subject must derive");
     const before = derived.subject.before;
     const target = before.target?.coordinates;
