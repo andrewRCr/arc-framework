@@ -93,6 +93,7 @@ export type DeliveryEntryInspectionResult =
       readonly planId: string;
       readonly stateRevision: number;
       readonly selectedDeliverableId: string;
+      readonly entryMode: "execution";
       readonly recommendedActionText: string;
     }
   | {
@@ -146,7 +147,8 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
   z.strictObject({
     status: z.literal("correction-routing-required"), nextAction: z.literal("plan-review-fix"),
     planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
-    selectedDeliverableId: DeliveryCanonicalDigestSchema, recommendedActionText: z.string().min(1),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema, entryMode: z.literal("execution"),
+    recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
     status: z.literal("continue-publication"), nextAction: z.literal("continue-publication"),
@@ -428,6 +430,7 @@ export async function inspectDeliveryEntry(
       planId: plan.planId,
       stateRevision: state.revision,
       selectedDeliverableId: owner.deliverableId,
+      entryMode: "execution",
       recommendedActionText: "Plan the approved correction for the delivery member that owns the open task.",
     };
   }

@@ -165,7 +165,10 @@ describe("packaged delivery workflow", () => {
     expect(reviewSection).toMatch(
       /already-authored terminal correction[\s\S]*authoring\s+movement only[\s\S]*not public position authority[\s\S]*registered route[\s\S]*selected member's derived candidate ref/iu,
     );
-    expect(reviewSection).toContain("plan, repository, remote, and selected-member locators");
+    expect(reviewSection).toContain("plan, repository, remote, selected-member, and entry-mode locators");
+    expect(reviewSection).toMatch(
+      /planned \/ terminal-rebind[\s\S]*reconcileInput[\s\S]*unchanged[\s\S]*arc delivery reconcile[\s\S]*rebound \/ read-position[\s\S]*arc delivery position/iu,
+    );
     expect(reviewSection).toMatch(
       /provider-refresh[\s\S]*selected member[\s\S]*execute-provider-refresh[\s\S]*dependent-suffix/iu,
     );

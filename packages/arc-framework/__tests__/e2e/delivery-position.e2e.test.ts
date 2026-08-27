@@ -406,6 +406,7 @@ describe("arc delivery position", () => {
         selectedDeliverableId: fixture.plan.members[1]!.deliverableId,
         repository: "owner/repo",
         remote: "origin",
+        entryMode: "execution",
       })}\n`,
       { env: fixture.env },
     );
@@ -434,6 +435,7 @@ describe("arc delivery position", () => {
       status: "refused",
       reason: "review-fix-routing-required",
       nextAction: "plan-review-fix",
+      entryMode: "integrating",
       recommendedActionText: "Select the delivery member that owns the approved correction, then run "
         + "`arc delivery review-fix plan` before authoring or publishing replacement content.",
     });
@@ -446,6 +448,7 @@ describe("arc delivery position", () => {
         selectedDeliverableId: fixture.plan.members[0]!.deliverableId,
         repository: "owner/repo",
         remote: "origin",
+        entryMode: "integrating",
       })}\n`,
       { env: fixture.env },
     );
@@ -469,6 +472,7 @@ describe("arc delivery position", () => {
         selectedDeliverableId,
         repository: "owner/repo",
         remote: "origin",
+        entryMode: "integrating",
       })}\n`,
       { env: fixture.env },
     );
@@ -528,6 +532,7 @@ describe("arc delivery position", () => {
         selectedDeliverableId,
         repository: "owner/repo",
         remote: "origin",
+        entryMode: "execution",
       })}\n`,
       { env: fixture.env },
     );
@@ -540,6 +545,39 @@ describe("arc delivery position", () => {
       selectedDeliverableId,
       affectedDeliverableIds: [selectedDeliverableId],
       nextAction: "author-terminal",
+    });
+  });
+
+  it("plans a published terminal correction as exact rebind before resuming position", async () => {
+    const fixture = await positionFixture("terminal-authoring");
+    const selectedDeliverableId = fixture.plan.members.at(-1)!.deliverableId;
+    const result = await runArcWithStdin(
+      ["delivery", "review-fix", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        selectedDeliverableId,
+        repository: "owner/repo",
+        remote: "origin",
+        entryMode: "integrating",
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery review-fix plan",
+      status: "planned",
+      route: "terminal-rebind",
+      selectedDeliverableId,
+      affectedDeliverableIds: [selectedDeliverableId],
+      nextAction: "reconcile-terminal-publication",
+      reconcileInput: {
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        continuation: "read-position",
+      },
     });
   });
 

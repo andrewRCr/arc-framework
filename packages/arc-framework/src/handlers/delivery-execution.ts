@@ -236,6 +236,7 @@ const ReconcileSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
+  continuation: z.enum(["rerun-checkpoint", "read-position"]).default("rerun-checkpoint"),
 });
 const PreparedLandingSchema = z.strictObject({
   operationId: z.string().min(1),
@@ -394,13 +395,16 @@ const RefreshExecuteSchema = z.strictObject({
   scope: RefreshExecutionScopeSchema.optional(),
   operationId: z.string().min(1).optional(),
 });
-const ReviewFixPlanSchema = z.strictObject({
+const ReviewFixBaseSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   selectedDeliverableId: DeliveryCanonicalDigestSchema,
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
 });
-const ReviewFixPublishSchema = ReviewFixPlanSchema.extend({
+const ReviewFixPlanSchema = ReviewFixBaseSchema.extend({
+  entryMode: z.enum(["execution", "integrating"]),
+});
+const ReviewFixPublishSchema = ReviewFixBaseSchema.extend({
   checkoutPath: z.string().min(1),
 });
 
@@ -503,6 +507,7 @@ const ReviewFixRoutingRequiredRefusalSchema = z.strictObject({
   status: z.literal("refused"),
   reason: z.literal("review-fix-routing-required"),
   nextAction: z.literal("plan-review-fix"),
+  entryMode: z.literal("integrating"),
   recommendedActionText: z.string().min(1),
 });
 
@@ -547,7 +552,7 @@ const ResultSchema = z.union([
   z.strictObject({
     status: z.literal("rebound"),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
-    nextAction: z.literal("rerun-checkpoint"),
+    nextAction: z.enum(["rerun-checkpoint", "read-position"]),
   }),
   z.strictObject({
     status: z.literal("position"),
@@ -609,10 +614,40 @@ const ResultSchema = z.union([
   }),
   z.strictObject({
     status: z.literal("planned"),
-    route: z.enum(["provider-refresh", "rematerialize", "terminal-authoring"]),
+    route: z.literal("provider-refresh"),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-    nextAction: z.enum(["publish-selected-member", "rematerialize", "author-terminal"]),
+    nextAction: z.literal("publish-selected-member"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("rematerialize"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("rematerialize"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("terminal-authoring"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("author-terminal"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("terminal-rebind"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("reconcile-terminal-publication"),
+    reconcileInput: z.strictObject({
+      planId: DeliveryPlanIdSchema,
+      repository: z.string().min(1),
+      remote: z.string().min(1),
+      continuation: z.literal("read-position"),
+    }),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
@@ -1407,13 +1442,22 @@ async function executeDeliveryCommand(
       };
     }
     if (command === "review-fix-plan") {
-      return planDeliveryReviewFixRoute({
+      const planRequest = ReviewFixPlanSchema.parse(parsed);
+      const routeInput = {
         plan,
         state: current.value,
         facts: authority.facts,
-        selectedDeliverableId: parsed.selectedDeliverableId,
+        selectedDeliverableId: planRequest.selectedDeliverableId,
         observation: authority.observation,
-      });
+      };
+      return planRequest.entryMode === "integrating"
+        ? planDeliveryReviewFixRoute({
+            ...routeInput,
+            entryMode: "integrating",
+            repository: planRequest.repository,
+            remote: planRequest.remote,
+          })
+        : planDeliveryReviewFixRoute({ ...routeInput, entryMode: "execution" });
     }
 
     const publish = ReviewFixPublishSchema.parse(parsed);
@@ -2251,6 +2295,7 @@ async function executeDeliveryCommand(
         status: "refused",
         reason: "review-fix-routing-required",
         nextAction: "plan-review-fix",
+        entryMode: "integrating",
         recommendedActionText: REVIEW_FIX_ROUTING_REQUIRED_TEXT,
       };
     }
@@ -2490,7 +2535,11 @@ async function executeDeliveryCommand(
               : "state-persistence-failed",
           };
         }
-        return { status: "rebound", state: published.value, nextAction: projected.nextAction };
+        return {
+          status: "rebound",
+          state: published.value,
+          nextAction: parsed.continuation === "read-position" ? "read-position" : projected.nextAction,
+        };
       } catch (error) {
         if (error instanceof GitCommonStateAccessError) throw error;
         return { status: "refused", reason: "terminal-rebind-unavailable" };

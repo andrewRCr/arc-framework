@@ -44,8 +44,8 @@ workflow never parses headings, derives members, or re-decides cohesion:
 - `validate-canonical` advances to eligibility.
 - `continue-publication` invokes `publicationAction.command` unchanged before reading position.
 - `resume-bound` reads delivery position and reconciles any named active operation before continuing.
-- `correction-routing-required` carries its exact `selectedDeliverableId` into the correction route below before
-  authoring or publishing replacement content.
+- `correction-routing-required` carries its exact `selectedDeliverableId` and `entryMode` into the correction route
+  below before authoring or publishing replacement content.
 - `refused` stops before every eligibility or mutation verb after rendering the precomposed refusal.
 
 The inspection is read-only. It never treats the presence of prose as delivery judgment and never binds state.
@@ -318,8 +318,8 @@ Dispatch only on its typed route. `review-member` enters the review and landing 
 exact `selectedDeliverableId`. `terminal-handoff` delegates to the terminal workflow. `operation-active` invokes
 `arc delivery reconcile - --json` with the same locators and follows the recovery dispatch above.
 `review-fix-routing-required` with `nextAction: plan-review-fix` renders its `recommendedActionText`, then enters
-the correction route below only after the correction's approved scope supplies the selected member. Never infer
-that selection from terminal branch movement. Every other refusal stops.
+the correction route below with its returned `entryMode` only after the correction's approved scope supplies the
+selected member. Never infer that selection from terminal branch movement. Every other refusal stops.
 
 For `review-member`, settle exact member review authority above with the returned `selectedDeliverableId`. Only its
 `settled / continue-reconcile` result returns here for ordinary landing preparation.
@@ -414,10 +414,12 @@ from terminal branch movement:
 arc delivery review-fix plan - --json
 ```
 
-Supply only the plan, repository, remote, and selected-member locators. `planned / provider-refresh` means a fresh
-read found the canonical remaining chain exactly registered. An already-authored terminal correction is authoring
-movement only, not public position authority or member selection. On the registered route, project the exact approved
-correction onto the selected member's derived candidate ref, run its ordinary project gates, then invoke:
+Supply only the plan, repository, remote, selected-member, and entry-mode locators. Pass the returned `entryMode`
+unchanged; execution entry returns `execution`, while public position returns `integrating`. Never select the mode
+from branch movement. `planned / provider-refresh` means a fresh read found the canonical remaining chain exactly
+registered. An already-authored terminal correction is authoring movement only, not public position authority or
+member selection. On the registered route, project the exact approved correction onto
+the selected member's derived candidate ref, run its ordinary project gates, then invoke:
 
 ```bash
 arc delivery review-fix publish - --json
@@ -426,6 +428,17 @@ arc delivery review-fix publish - --json
 `planned / terminal-authoring` means the exact selected member is the bound terminal. Return to the calling task loop
 and author the correction on the work-unit branch; do not publish a member ref or rewrite the delivery suffix. The
 ordinary task gates and later work-unit publication own that top-only change.
+
+`planned / terminal-rebind` means ordinary publication has settled the explicitly selected terminal correction.
+Pass its returned `reconcileInput` unchanged to:
+
+```bash
+arc delivery reconcile - --json
+```
+
+Only `rebound / read-position` returns to `arc delivery position`; every other typed result stops. The reconcile
+verb independently revalidates the current Candidate, publication boundary, open terminal request, exact
+coordinates, and state version before rebinding.
 
 The verb derives the candidate ref and lifecycle paths, requires its supplied checkout to be tracked-clean and exact,
 requires the candidate to extend the current bound member, reobserves exact registration immediately before mutation,

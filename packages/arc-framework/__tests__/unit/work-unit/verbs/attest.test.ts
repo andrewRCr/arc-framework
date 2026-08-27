@@ -232,7 +232,103 @@ describe("runAttest", () => {
       status: "blocked",
       candidateId: fixture.state().storedRecord!.attestation.candidateId,
       delta: { added: [], removed: [], changed: ["packages/arc-framework/src/example.ts"] },
-      nextAction: "Run full work-unit verification to establish a new Candidate lineage root.",
+      nextAction: "establish-new-root",
+      recommendedActionText: "Run full work-unit verification, then establish a new Candidate lineage root.",
+      continuation: {
+        argv: [
+          "arc",
+          "attest",
+          "example",
+          "--new-root",
+          "--expected-candidate",
+          fixture.state().storedRecord!.attestation.candidateId,
+          "--expected-subject",
+          subject("unexplained").subjectDigest,
+          "--json",
+        ],
+      },
+    });
+    expect(fixture.state().publicationCount).toBe(1);
+  });
+
+  it("refuses a bound re-root continuation after the staged subject changes", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const refusedTarget = { revision: CHANGED_REVISION, subject: subject("refused") };
+    fixture.setCurrentTarget(refusedTarget);
+    const blocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    if (blocked.status !== "blocked") throw new Error("expected blocked Candidate delta");
+
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("staged-later") });
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: {
+        candidateId: blocked.candidateId,
+        subjectDigest: refusedTarget.subject.subjectDigest,
+      },
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "re-root-subject-mismatch",
+      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+    });
+    expect(fixture.state().publicationCount).toBe(1);
+  });
+
+  it("refuses a bound re-root continuation after the blocked Candidate changes", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const firstTarget = { revision: CHANGED_REVISION, subject: subject("first-refusal") };
+    fixture.setCurrentTarget(firstTarget);
+    const firstBlocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    if (firstBlocked.status !== "blocked") throw new Error("expected first blocked Candidate delta");
+
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active", newRoot: true });
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("second-refusal") });
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: {
+        candidateId: firstBlocked.candidateId,
+        subjectDigest: firstTarget.subject.subjectDigest,
+      },
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "re-root-candidate-mismatch",
+      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+    });
+    expect(fixture.state().publicationCount).toBe(2);
+  });
+
+  it("refuses a bound re-root continuation when the Candidate is no longer blocked", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const refusedTarget = { revision: CHANGED_REVISION, subject: subject("refused") };
+    fixture.setCurrentTarget(refusedTarget);
+    const blocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    if (blocked.status !== "blocked") throw new Error("expected blocked Candidate delta");
+
+    fixture.setCurrentTarget({ revision: REVISION, subject: subject() });
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: {
+        candidateId: blocked.candidateId,
+        subjectDigest: refusedTarget.subject.subjectDigest,
+      },
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "re-root-no-longer-blocked",
+      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
     });
     expect(fixture.state().publicationCount).toBe(1);
   });

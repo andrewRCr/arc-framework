@@ -227,6 +227,7 @@ describe("delivery entry inspection", () => {
         planId: plan.planId,
         stateRevision: 3,
         selectedDeliverableId: plan.members[0]?.deliverableId,
+        entryMode: "execution",
       });
   });
 

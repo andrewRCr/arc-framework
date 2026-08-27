@@ -13,6 +13,22 @@ function positionFacts(state: DeliveryStateV1, landedDeliverableIds: string[] = 
   return { target: state.target, members: state.members, landedDeliverableIds };
 }
 
+function terminalAuthoringFacts(state: DeliveryStateV1) {
+  const terminal = state.members.at(-1)!;
+  return {
+    ...positionFacts(state),
+    terminalAuthoringMovement: {
+      deliverableId: terminal.deliverableId,
+      before: terminal.coordinates!,
+      after: {
+        base: terminal.coordinates!.base,
+        head: "f".repeat(40),
+        tree: "e".repeat(40),
+      },
+    },
+  };
+}
+
 function fixture() {
   const plan = deliveryFourMemberStackPlanFixture();
   const initial = deliveryStateFixture(plan);
@@ -38,6 +54,7 @@ describe("delivery review-fix routing", () => {
       facts,
       selectedDeliverableId,
       observation: { status: "registered", stackNumber: 42 },
+      entryMode: "execution",
     })).toMatchObject({
       status: "planned",
       route: "provider-refresh",
@@ -51,6 +68,7 @@ describe("delivery review-fix routing", () => {
       facts,
       selectedDeliverableId,
       observation: { status: "unregistered" },
+      entryMode: "execution",
     })).toMatchObject({
       status: "planned",
       route: "rematerialize",
@@ -60,7 +78,35 @@ describe("delivery review-fix routing", () => {
     });
   });
 
-  it("routes the bound terminal member to ordinary top authoring", () => {
+  it("routes a published bound terminal correction to exact terminal rebind", () => {
+    const { plan, state } = fixture();
+    const selectedDeliverableId = plan.members.at(-1)!.deliverableId;
+
+    expect(planDeliveryReviewFixRoute({
+      plan,
+      state,
+      facts: terminalAuthoringFacts(state),
+      selectedDeliverableId,
+      observation: null,
+      entryMode: "integrating",
+      repository: "owner/repo",
+      remote: "origin",
+    })).toMatchObject({
+      status: "planned",
+      route: "terminal-rebind",
+      selectedDeliverableId,
+      affectedDeliverableIds: [selectedDeliverableId],
+      nextAction: "reconcile-terminal-publication",
+      reconcileInput: {
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        continuation: "read-position",
+      },
+    });
+  });
+
+  it("keeps an integrating terminal review fix on authoring before publication", () => {
     const { plan, state } = fixture();
     const selectedDeliverableId = plan.members.at(-1)!.deliverableId;
 
@@ -70,6 +116,28 @@ describe("delivery review-fix routing", () => {
       facts: positionFacts(state),
       selectedDeliverableId,
       observation: null,
+      entryMode: "integrating",
+      repository: "owner/repo",
+      remote: "origin",
+    })).toMatchObject({
+      status: "planned",
+      route: "terminal-authoring",
+      selectedDeliverableId,
+      nextAction: "author-terminal",
+    });
+  });
+
+  it("keeps execution-time terminal correction planning on ordinary top authoring", () => {
+    const { plan, state } = fixture();
+    const selectedDeliverableId = plan.members.at(-1)!.deliverableId;
+
+    expect(planDeliveryReviewFixRoute({
+      plan,
+      state,
+      facts: terminalAuthoringFacts(state),
+      selectedDeliverableId,
+      observation: null,
+      entryMode: "execution",
     })).toMatchObject({
       status: "planned",
       route: "terminal-authoring",
@@ -94,6 +162,7 @@ describe("delivery review-fix routing", () => {
     for (const observation of observations) {
       expect(planDeliveryReviewFixRoute({
         plan, state, facts: positionFacts(state), selectedDeliverableId, observation,
+        entryMode: "execution",
       }))
         .toMatchObject({ status: "refused", reason: `presentation-${observation.status}` });
     }

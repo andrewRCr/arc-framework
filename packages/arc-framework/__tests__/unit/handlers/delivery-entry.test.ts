@@ -42,6 +42,7 @@ describe("delivery entry handler", () => {
       status: "correction-routing-required", nextAction: "plan-review-fix",
       planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
       selectedDeliverableId: `sha256:${"b".repeat(64)}`,
+      entryMode: "execution",
       recommendedActionText: "Plan correction.",
     },
     {

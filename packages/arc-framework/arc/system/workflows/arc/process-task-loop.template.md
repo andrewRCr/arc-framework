@@ -24,7 +24,7 @@ printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect --input -
 ```
 
 Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required` carries its exact
-`selectedDeliverableId` into the `plan-review-fix` correction route in
+`selectedDeliverableId` and `entryMode` into the `plan-review-fix` correction route in
 [`supplemental/deliver-stack.md`](supplemental/deliver-stack.md) before authoring or publishing the task's change.
 `resume-bound` enters that workflow's `read-position-and-reconcile` route; after its typed recovery settles the active
 operation, rerun the entry inspection before implementing the task. `canonicalize-provisional` resumes the matching

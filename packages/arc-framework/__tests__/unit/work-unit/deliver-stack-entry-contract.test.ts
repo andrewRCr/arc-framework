@@ -45,7 +45,7 @@ describe("delivery discovered-entry workflow", () => {
     expect(inspect).toBeLessThan(implementation);
     expect(packaged).toContain('{"entryMode":"execution"}');
     expect(packaged).toMatch(
-      /correction-routing-required[\s\S]*selectedDeliverableId[\s\S]*plan-review-fix/iu,
+      /correction-routing-required[\s\S]*selectedDeliverableId[\s\S]*entryMode[\s\S]*plan-review-fix/iu,
     );
     expect(packaged).toMatch(
       /resume-bound[\s\S]*read-position-and-reconcile[\s\S]*rerun the entry inspection/iu,

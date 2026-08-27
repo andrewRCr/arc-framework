@@ -1376,6 +1376,29 @@ describe("handleAttest", () => {
     });
   });
 
+  it("forwards the exact Candidate and subject selectors on a bound re-root", async () => {
+    const expectedCandidate = `sha256:${"a".repeat(64)}`;
+    const expectedSubject = `sha256:${"b".repeat(64)}`;
+
+    await handleAttest("foo", {
+      json: true,
+      newRoot: true,
+      expectedCandidate,
+      expectedSubject,
+    });
+
+    expect(mockRunAttest).toHaveBeenCalledTimes(1);
+    expect(mockRunAttest.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: {
+        candidateId: expectedCandidate,
+        subjectDigest: expectedSubject,
+      },
+    });
+  });
+
   it("refuses without attesting when reviewable content is missing from the index", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     mockCollectUnstagedReviewablePaths.mockResolvedValueOnce([

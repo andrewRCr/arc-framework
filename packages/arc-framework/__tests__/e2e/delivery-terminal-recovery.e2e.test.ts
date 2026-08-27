@@ -582,16 +582,20 @@ describe("delivery terminal recovery", () => {
       currentTree,
       request,
     } = await installTerminalRebindFixture();
+    const readPositionRequest = `${JSON.stringify({
+      ...(JSON.parse(request) as Record<string, unknown>),
+      continuation: "read-position",
+    })}\n`;
 
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+      ["delivery", "reconcile", "-", "--json"], repository, readPositionRequest, { env: fixture.env },
     );
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
       command: "delivery reconcile",
       status: "rebound",
-      nextAction: "rerun-checkpoint",
+      nextAction: "read-position",
       state: {
         value: {
           members: [

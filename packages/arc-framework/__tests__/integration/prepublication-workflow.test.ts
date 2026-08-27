@@ -149,10 +149,14 @@ describe("prepublication workflow boundary", () => {
       const selfReview = verification.indexOf("execute it against the local aggregate diff");
       const tierThree = verification.indexOf("Run the full quality gate suite");
       const attest = verification.indexOf("arc attest {name} --json");
+      const reRoot = verification.indexOf("`blocked / establish-new-root`");
       expect(cleanup).toBeGreaterThan(-1);
       expect(selfReview).toBeGreaterThan(cleanup);
       expect(tierThree).toBeGreaterThan(selfReview);
       expect(attest).toBeGreaterThan(tierThree);
+      expect(reRoot).toBeGreaterThan(attest);
+      expect(verification).toContain("execute its exact `continuation.argv`");
+      expect(verification).toContain("`attested / re-root`");
       expect(preparation).not.toContain("execute it against the local aggregate diff");
       expect(integration).not.toContain("After settlement, clean the WU content");
 

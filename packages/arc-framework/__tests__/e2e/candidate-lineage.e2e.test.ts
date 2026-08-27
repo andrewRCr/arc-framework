@@ -552,13 +552,34 @@ describe("review-fix Candidate lineage", () => {
     // Re-rooting remains the explicit escape when the change is genuinely outside the Candidate.
     const refused = await runArc(["attest", "example", "--json"], root);
     expect(refused.exitCode).toBe(1);
-    expect(JSON.parse(refused.stdout)).toMatchObject({ status: "blocked", candidateId: superseded });
+    const refusal = JSON.parse(refused.stdout) as {
+      status: string;
+      candidateId: string;
+      nextAction: string;
+      continuation: { argv: string[] };
+    };
+    expect(refusal).toMatchObject({
+      status: "blocked",
+      candidateId: superseded,
+      nextAction: "establish-new-root",
+    });
+    expect(refusal.continuation.argv).toEqual([
+      "arc",
+      "attest",
+      "example",
+      "--new-root",
+      "--expected-candidate",
+      superseded,
+      "--expected-subject",
+      expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      "--json",
+    ]);
     await expect(checkpointOver(root)).resolves.toMatchObject({
       state: "candidate-applicability",
       payload: { state: "decision-required", paths: ["reviewed.txt"] },
     });
 
-    const rerooted = await runArc(["attest", "example", "--new-root", "--json"], root);
+    const rerooted = await runArc(refusal.continuation.argv.slice(1), root);
     expect(rerooted.exitCode, rerooted.stderr || rerooted.stdout).toBe(0);
     expect(JSON.parse(rerooted.stdout)).toMatchObject({
       status: "attested",
@@ -573,6 +594,35 @@ describe("review-fix Candidate lineage", () => {
     await expect(checkpointOver(root)).resolves.not.toMatchObject({
       reason: "candidate-unexplained-delta",
     });
+  });
+
+  it("refuses an exact re-root continuation after its staged subject changes", async () => {
+    const root = await fixture();
+    const proposed = await runArc(["attest", "example", "--json"], root);
+    expect(proposed.exitCode, proposed.stderr || proposed.stdout).toBe(0);
+    const candidateId = (JSON.parse(proposed.stdout) as { locus: { candidateId: string } }).locus.candidateId;
+    await git(root, ["commit", "-m", "verification"]);
+
+    await writeFile(join(root, "reviewed.txt"), "first unverified subject\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    const blocked = await runArc(["attest", "example", "--json"], root);
+    expect(blocked.exitCode).toBe(1);
+    const continuation = (JSON.parse(blocked.stdout) as { continuation: { argv: string[] } }).continuation.argv;
+    const recordBeforeReplay = await readCandidateRecord(root, "example");
+
+    await writeFile(join(root, "reviewed.txt"), "later staged subject\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    const replayed = await runArc(continuation.slice(1), root);
+
+    expect(replayed.exitCode).toBe(1);
+    expect(JSON.parse(replayed.stdout)).toEqual({
+      status: "refused",
+      reason: "re-root-subject-mismatch",
+      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+    });
+    expect(await readCandidateRecord(root, "example")).toEqual(recordBeforeReplay);
+    expect(recordBeforeReplay?.attestation.candidateId).toBe(candidateId);
+    expect(recordBeforeReplay?.attestation.supersedes).toBeUndefined();
   });
 
   it("advances the lineage, blocks the checkpoint, and clears through attest", async () => {

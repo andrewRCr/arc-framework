@@ -11,29 +11,64 @@ import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
+type DeliveryReviewFixRouteCommon = {
+  readonly selectedDeliverableId: string;
+  readonly affectedDeliverableIds: readonly string[];
+  readonly recommendedActionText: string;
+};
+
 export type DeliveryReviewFixRouteResult =
   | {
       readonly status: "planned";
-      readonly route: "provider-refresh" | "rematerialize" | "terminal-authoring";
-      readonly selectedDeliverableId: string;
-      readonly affectedDeliverableIds: readonly string[];
-      readonly nextAction: "publish-selected-member" | "rematerialize" | "author-terminal";
-      readonly recommendedActionText: string;
-    }
+      readonly route: "provider-refresh";
+      readonly nextAction: "publish-selected-member";
+    } & DeliveryReviewFixRouteCommon
+  | {
+      readonly status: "planned";
+      readonly route: "rematerialize";
+      readonly nextAction: "rematerialize";
+    } & DeliveryReviewFixRouteCommon
+  | {
+      readonly status: "planned";
+      readonly route: "terminal-authoring";
+      readonly nextAction: "author-terminal";
+    } & DeliveryReviewFixRouteCommon
+  | {
+      readonly status: "planned";
+      readonly route: "terminal-rebind";
+      readonly nextAction: "reconcile-terminal-publication";
+      readonly reconcileInput: {
+        readonly planId: string;
+        readonly repository: string;
+        readonly remote: string;
+        readonly continuation: "read-position";
+      };
+    } & DeliveryReviewFixRouteCommon
   | {
       readonly status: "refused";
       readonly reason: string;
       readonly recommendedActionText: string;
     };
 
-/** Select linked single-member publication or complete unlinked rematerialization from fresh presentation. */
-export function planDeliveryReviewFixRoute(input: {
+type DeliveryReviewFixRouteInput = {
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryStateV1;
   readonly facts: DeliveryPositionFactsV1;
   readonly selectedDeliverableId: string;
   readonly observation: DeliveryNativeStackObservation | null;
-}): DeliveryReviewFixRouteResult {
+} & (
+  | { readonly entryMode: "execution" }
+  | {
+      readonly entryMode: "integrating";
+      readonly repository: string;
+      readonly remote: string;
+    }
+);
+
+/** Select linked single-member publication or complete unlinked rematerialization from fresh presentation. */
+export function planDeliveryReviewFixRoute(
+  input: DeliveryReviewFixRouteInput,
+): DeliveryReviewFixRouteResult {
   if (input.state.activeOperation !== null
     || validateDeliveryStateAgainstPlan(input.state, input.plan).status === "refused") {
     return {
@@ -53,6 +88,30 @@ export function planDeliveryReviewFixRoute(input: {
         status: "refused",
         reason: "position-mismatch",
         recommendedActionText: "Restore one exact bound terminal member before routing its correction.",
+      };
+    }
+    if (input.entryMode === "integrating" && input.facts.terminalAuthoringMovement !== undefined) {
+      if (input.facts.terminalAuthoringMovement.deliverableId !== input.selectedDeliverableId) {
+        return {
+          status: "refused",
+          reason: "position-mismatch",
+          recommendedActionText: "Restore one exact published terminal movement before rebinding its correction.",
+        };
+      }
+      return {
+        status: "planned",
+        route: "terminal-rebind",
+        selectedDeliverableId: input.selectedDeliverableId,
+        affectedDeliverableIds: [input.selectedDeliverableId],
+        nextAction: "reconcile-terminal-publication",
+        reconcileInput: {
+          planId: input.plan.planId,
+          repository: input.repository,
+          remote: input.remote,
+          continuation: "read-position",
+        },
+        recommendedActionText:
+          "Rebind the exact published terminal Candidate, then resume delivery position.",
       };
     }
     return {
@@ -179,6 +238,7 @@ export async function publishSelectedDeliveryReviewFix(input: {
     facts: input.facts,
     selectedDeliverableId: input.selectedDeliverableId,
     observation: input.observation,
+    entryMode: "execution",
   });
   if (route.status === "refused") return route;
   if (route.route !== "provider-refresh") return { status: "refused", reason: "route-moved" };
@@ -231,6 +291,7 @@ export async function publishSelectedDeliveryReviewFix(input: {
     facts: reobserved.facts,
     selectedDeliverableId: input.selectedDeliverableId,
     observation: reobserved.observation,
+    entryMode: "execution",
   });
   if (reobservedRoute.status === "refused" || reobservedRoute.route !== "provider-refresh") {
     return { status: "refused", reason: "route-moved" };

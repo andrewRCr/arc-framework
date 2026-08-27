@@ -346,6 +346,7 @@ describe("delivery execution handler", () => {
       planId: plan.planId,
       selectedDeliverableId,
       repository: "owner/repo",
+      entryMode: "execution",
     });
     const planned = {
       status: "planned" as const,
@@ -380,7 +381,9 @@ describe("delivery execution handler", () => {
     const publishWrite = vi.fn();
     await handleDeliveryExecution("review-fix-publish", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
-        ...JSON.parse(planRequest),
+        planId: plan.planId,
+        selectedDeliverableId,
+        repository: "owner/repo",
         checkoutPath: "/tmp/review-fix",
         remote: "origin",
       })),

@@ -563,6 +563,14 @@ program
     "--new-root",
     "Root a new lineage over the current fully verified subject, superseding a blocked Candidate",
   )
+  .option(
+    "--expected-candidate <candidate-id>",
+    "Require the blocked Candidate selected by a prior attestation refusal",
+  )
+  .option(
+    "--expected-subject <subject-digest>",
+    "Require the staged subject selected by a prior attestation refusal",
+  )
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, name: string, opts: AttestOptions) => handleAttest(name, opts, context),

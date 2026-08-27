@@ -1749,12 +1749,43 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           pending publication precedes member position, and terminal selection returns ordinary top authoring.
           External refresh fallback preserves the selected-member scope and fixed lower prefix through adoption.
 
+- _Forward amendment (2026-08-27):_ Self-delivery completed the terminal-only correction route, fresh whole-unit
+  verification, Candidate re-root, publication, and the idempotent top push. Public position then returned to the
+  same review-fix planner because terminal selection had no typed post-publication continuation into the existing
+  exact Candidate rebind. The documented route therefore looped instead of reaching member review.
+
+    - `[x]` **8.5.R.b Complete terminal-authoring publication re-entry** — validate criteria at member scope
+
+        - _Goal:_ An explicitly terminal-owned correction that has completed ordinary Candidate publication closes
+          through the existing version-checked terminal rebind and resumes delivery position, while every
+          non-terminal correction still requires its selected-member rewrite route.
+
+        - Terminal correction now distinguishes pre-authoring selection from post-publication settlement. Only an
+          integrating entry carrying exact fresh terminal movement reaches the existing version-checked rebind;
+          stale, absent, non-terminal, or mismatched movement retains authoring or refuses before state mutation.
+
+- _Forward amendment (2026-08-27):_ Reopened whole-unit verification completed against a work unit whose prior
+  Candidate correctly made plain attestation refuse, but the typed result exposed only prose and the verification
+  workflow did not consume the deliberate new-root continuation. The safety boundary exists; this task makes that
+  bounded continuation executable without weakening the refusal.
+
+    - `[x]` **8.5.R.c Make reopened verification re-rooting actionable** — validate criteria at member scope
+
+        - _Goal:_ Freshly completed reopened work-unit verification consumes an exact typed continuation from an
+          obsolete-Candidate refusal into a deliberate new Candidate root, while partial, stale, malformed, or
+          still-open verification remains stopped.
+
+        - Plain attestation now returns a closed re-root action whose exact argv binds the refused Candidate and
+          staged subject. Replay reobserves both and the blocked state before writing, while verification consumes
+          only an exact successful re-root and every stale, partial, malformed, or open-task path stops.
+
 - _Outcome:_ Member 8 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
-    - _Span:_ original diff `e11bd763d..270f42c1b`; amendment diff `a374df393..working tree`; reachability through
-      the current working tree; boundary-order deviation: the approved Task 8.5.R.a -
-      `tasks-delivery-native-stack-composition.md` forward amendment reopened Member 8 after its original boundary.
+    - _Span:_ original diff `e11bd763d..270f42c1b`; earlier amendment diff `a374df393..b2d7ec52e`; current amendment
+      diff `530463f72..working tree`; reachability through the current working tree; boundary-order deviation: the
+      approved Tasks 8.5.R.a, 8.5.R.b, and 8.5.R.c - `tasks-delivery-native-stack-composition.md` forward amendments
+      reopened Member 8 after its original boundary.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`; _State:_ `[x]`;
       _Evidence:_ exact plan/state, ref, Candidate, and gate retirement preserves each authority, requires the merged
       terminal request, retains exact closeout identifiers, and leaves every mismatch intact with a refusal.
@@ -1766,14 +1797,26 @@ meta exists and that resolution shape is the exact defect the retired terminal a
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 4`; _State:_ `[x]`;
       _Evidence:_ typed entry inspection maps an exact open parent task to its member, gives coherent active-operation
       recovery precedence, consumes pending publication before position, and leaves unbound and work-unit-verification
-      execution ordinary. Terminal correction planning returns top authoring; dependent external fallback preserves
-      the selected and lower prefix through structural adoption. Unit, workflow-contract, and executable E2E coverage
-      prove the routes without a new state transition or provider-specific plan/state field. Success Criteria markers
-      remain unchanged.
+      execution ordinary. Terminal correction planning returns top authoring before publication, then only an
+      integrating entry with exact fresh terminal movement reaches the existing Candidate-, publication-boundary-,
+      request-, and coordinate-checked rebind. Dependent external fallback preserves the selected and lower prefix
+      through structural adoption. Unit, workflow-contract, and executable E2E coverage prove the routes without a
+      new state transition or provider-specific plan/state field.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 5`; _State:_ `[x]`;
+      _Evidence:_ plain attestation emits a closed action and argv bound to the exact refused Candidate and staged
+      subject. The handler requires paired selectors with deliberate re-rooting; the verb reobserves Candidate,
+      subject, and blocked currentness and refuses every mismatch before publication. Verification executes only the
+      exact continuation after its fresh gates and requires `attested / re-root`. Unit, handler, workflow-contract,
+      and real-CLI tests prove successful replay plus stale replay with no Candidate-record write, without adding a
+      verification ledger, lifecycle state, or Candidate authority. Success Criteria markers remain unchanged.
+    - _Adversarial companion:_ the bounded amendment pass found that the first continuation could be replayed over
+      later staged content. Primary inspection confirmed and repaired that major finding with the exact selectors and
+      pre-write refusals above; the terminal-rebind path and the other three criteria remained clean.
+    - _Summary:_ five met, zero superseded, zero unresolved.
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
   with one skipped (10,945 tests passed with one skipped), the package build, and diff hygiene all passed over the
@@ -2014,11 +2057,16 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 - `[x]` One ADR records the delivery-and-review posture, its considered alternative, and both reopening triggers.
 
-- `[x]` Bound delivery re-entry maps an exact open member task to correction planning before authoring, consumes an
+- `[ ]` Bound delivery re-entry maps an exact open member task to correction planning before authoring, consumes an
   exact pending publication action before member position, and carries a selected member's dependent scope through
   external conflict-fallback planning and adoption. Unbound and work-unit-verification execution remain ordinary;
   the selected and lower prefix stay fixed; typed code owns every route without new durable state or provider-specific
   plan/state fields.
+
+- `[ ]` Reopened whole-unit verification preserves plain attestation's obsolete-Candidate refusal, then consumes its
+  closed `establish-new-root` action and exact machine-readable continuation only after fresh full verification and
+  structural task-list closure. Successful re-rooting is required before Candidate preparation; every other or
+  malformed result stops without new verification evidence, lifecycle state, or Candidate authority.
 
 ### Cross-member seams
 

@@ -93,6 +93,12 @@ refuses while verified reviewable content is absent from the staged subject, nam
 record and meta projection it writes are staged with it, so they ride the verification commit. A repeated invocation
 over the same subject is a no-op.
 
+Dispatch only on the typed result. `attested` and `unchanged` continue to Candidate preparation. At this exact
+closeout point, `blocked / establish-new-root` follows freshly completed Steps 1 and 2 plus structural task-list
+closure: execute its exact `continuation.argv`, then require `attested / re-root` before continuing. A missing or
+malformed continuation, any other action or result, or a blocked result reached without fresh full verification
+stops; never infer or reconstruct a re-root command from prose.
+
 ## Completion Notes
 
 When marking the verification task `[x]`, include completion notes that make the task

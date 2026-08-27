@@ -636,7 +636,24 @@ export const AttestCommandInputSchema = z.object({
   name: SlugSchema,
   json: z.boolean().optional(),
   newRoot: z.boolean().optional(),
-}).strict();
+  expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+}).strict().superRefine((value, refinement) => {
+  if ((value.expectedCandidate === undefined) !== (value.expectedSubject === undefined)) {
+    refinement.addIssue({
+      code: "custom",
+      path: [value.expectedCandidate === undefined ? "expectedCandidate" : "expectedSubject"],
+      message: "--expected-candidate and --expected-subject must be supplied together.",
+    });
+  }
+  if ((value.expectedCandidate !== undefined || value.expectedSubject !== undefined) && value.newRoot !== true) {
+    refinement.addIssue({
+      code: "custom",
+      path: ["newRoot"],
+      message: "Bound re-root selectors require --new-root.",
+    });
+  }
+});
 export const RepointDesignCommandInputSchema = z.object({
   event: z.enum(["draft-created", "spec-finalized"]),
 }).strict();
@@ -754,7 +771,13 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "attest",
     schema: AttestCommandInputSchema,
-    schemaFields: { "operand.name": "name", "option.json": "json", "option.new-root": "newRoot" },
+    schemaFields: {
+      "operand.name": "name",
+      "option.json": "json",
+      "option.new-root": "newRoot",
+      "option.expected-candidate": "expectedCandidate",
+      "option.expected-subject": "expectedSubject",
+    },
   },
   {
     commandPath: "repoint-design",
@@ -2529,6 +2552,8 @@ export async function handleFinalizeStage(
 export interface AttestOptions {
   json?: boolean;
   newRoot?: boolean;
+  expectedCandidate?: string;
+  expectedSubject?: string;
 }
 
 /** Attest the current verified work-unit subject without changing lifecycle State. */
@@ -2540,7 +2565,13 @@ export async function handleAttest(
   if (opts.json !== true) p.intro("arc attest");
   const input = parseLifecycleCommand(
     AttestCommandInputSchema,
-    { name: name?.trim(), json: opts.json, newRoot: opts.newRoot },
+    {
+      name: name?.trim(),
+      json: opts.json,
+      newRoot: opts.newRoot,
+      expectedCandidate: opts.expectedCandidate,
+      expectedSubject: opts.expectedSubject,
+    },
     ["attest"],
     opts.json === true,
   );
@@ -2748,7 +2779,19 @@ export async function handleAttest(
       await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
       return { recordPath, metaPath, locus };
     },
-  }, { name: input.name, lifecycle: meta.state, newRoot: input.newRoot === true });
+  }, {
+    name: input.name,
+    lifecycle: meta.state,
+    newRoot: input.newRoot === true,
+    ...(input.expectedCandidate === undefined || input.expectedSubject === undefined
+      ? {}
+      : {
+          expectedBlocked: {
+            candidateId: input.expectedCandidate,
+            subjectDigest: input.expectedSubject,
+          },
+        }),
+  });
 
   if (result.status === "unchanged") {
     const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name);
@@ -2766,7 +2809,9 @@ export async function handleAttest(
   if (input.json === true) {
     process.stdout.write(`${JSON.stringify(AttestResultSchema.parse(result))}\n`);
   } else if (result.status === "blocked") {
-    p.log.error(`${result.nextAction}\n${JSON.stringify(result.delta)}`);
+    p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
+  } else if (result.status === "refused") {
+    p.log.error(result.recommendedActionText);
   } else {
     const lines = [
       `Work unit: ${result.locus.workUnit}`,
@@ -2776,7 +2821,7 @@ export async function handleAttest(
     p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
     p.outro("Done.");
   }
-  if (result.status === "blocked") process.exitCode = 1;
+  if (result.status === "blocked" || result.status === "refused") process.exitCode = 1;
 }
 
 // ---------------------------------------------------------------------------

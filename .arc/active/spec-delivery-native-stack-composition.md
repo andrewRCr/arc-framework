@@ -209,6 +209,14 @@ the later delivery state records the first external binding and is not the inten
   `no-open-task`, so malformed, missing, unbound, unreadable, or still-open execution cannot enter prepublication.
   These are CLI-derived lifecycle facts over storage-neutral resolved records; workflow prose only invokes the
   typed verbs and follows the projected workflow.
+
+  **Amended 2026-08-27 after reopened verification reached an obsolete Candidate root:** a plain Candidate
+  attestation remains the safe first invocation and still refuses an unexplained delta. That refusal carries a
+  closed `establish-new-root` action and exact machine-readable continuation. `verify-work-unit` may consume it only
+  at the close of its freshly completed full quality and work-unit criteria passes, after the canonical task list
+  has closed; it then requires a successful `re-root` result before preparation. Any other entry, action, malformed
+  continuation, stale or partial verification, or open task remains stopped. This adds no verification ledger,
+  Candidate authority, or lifecycle state.
 - **D1.6 Terminal binding.** The terminal member binds at publish exactly like any other member — `ref`,
   `changeRequest`, and `coordinates` are populated when its pull request opens. This replaces the current
   materialization rule, where the terminal is deliberately left unbound
@@ -715,6 +723,19 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   `terminal-authoring` route. The correction stays on the work-unit branch and enters ordinary task gates and later
   work-unit publication; no member candidate, delivery rewrite, provider presentation, operation, or state mutation
   is required. A terminal member that is no longer in the bound suffix refuses.
+
+  **Amended 2026-08-27 after published terminal authoring looped back to correction planning:** terminal selection
+  before authoring and terminal settlement after publication are distinct typed moments. Before authoring, the
+  planner returns the existing `author-terminal` route without mutating delivery state. After the explicitly
+  terminal-owned correction has completed ordinary verification, Candidate attestation, publication, and the
+  idempotent top push, the planner returns an exact terminal-rebind continuation only from the carried integrating
+  entry mode plus the freshly proven append-only terminal-authoring movement. Integrating terminal review fixes with
+  no movement and reopened execution with older movement both retain `author-terminal`. The continuation invokes
+  the existing version-checked rebind, which independently requires the current Candidate and publication boundary,
+  the retained open terminal request, and its exact current coordinates, then resumes delivery position. A
+  non-terminal selection never receives this continuation, and absent, stale, ambiguous, non-descendant, or
+  mismatched evidence still refuses. No new operation, durable field, provider authority, or terminal proof is
+  introduced.
 
 - **D5.9 ARC-triggered provider-native refresh — amended 2026-08-25 after self-delivery exposed the
   external-only actuation gap.** This amendment supersedes D5.7's external-only rule and D5.8's external-refresh
@@ -1854,6 +1875,12 @@ added.
     adoption, keeps the selected and lower prefix fixed, and proves the freshly observed suffix before settlement.
     No workflow infers those routes and no new durable state or provider-specific plan/state field exists (D5.8,
     D10.3).
+33. Reopened work-unit verification reaches a new Candidate without source inspection or an unsafe inferred retry.
+    Plain attestation first preserves the obsolete-Candidate refusal, whose typed `establish-new-root` action carries
+    the exact machine-readable re-root continuation. `verify-work-unit` consumes that continuation only after its
+    fresh full quality and work-unit criteria passes and a structurally closed task list, requires the resulting
+    `re-root`, and stops every other or malformed result without new verification evidence or Candidate authority
+    (D1.5).
 
 ## Open Questions
 
