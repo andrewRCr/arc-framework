@@ -1850,80 +1850,18 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
-  with one skipped (10,953 tests passed with one skipped), the package build, aggregate self-review, and diff hygiene
-  all passed over the exact code tree. Targeted Markdown and ARC checks passed after the task-list-only closeout.
+- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 851 test files passed
+  with one skipped (10,966 tests passed with one skipped), the package build, aggregate self-review, and diff hygiene
+  all passed over the exact final code tree. Markdown and ARC checks passed again after the task-only closeout.
 - _Success criteria:_ 33 total: 31 met, two superseded, and none unresolved. All eight member reports resolve to
-  their current criteria loci and exact boundary spans; Member 1's implementation-task workaround and Member 6's
+  their current criteria loci and boundary spans; only Member 1's implementation-task workaround and Member 6's
   external-only refresh clause remain intentionally superseded by D7.2b and D5.9. The terminal walk revalidated
-  union coherence and all six cross-member seams over merge base `0b8e87285` through `bfbf5073e`; executable
-  lifecycles force stacked dispatch, provider refresh, member-review conjunction, bound correction re-entry, and
-  closed-task attestation. Terminal rebind and exact Candidate re-root replay are implemented, tested, and exercised
-  through this work unit's self-delivery; stale replay refuses before publication. Prior whole-work-unit review
-  evidence and the declined extra pass retain their recorded disposition.
-- _Amended 2026-08-24 after the self-delivery re-root exposed a recovery discontinuity:_ exact same-Candidate review
-  and convergence loci now remain visible while the work unit stays `Integrating`; both session projectors retain the
-  integration workflow and load set, and the runtime phase contract admits those bounded loci without granting member
-  or gate checkouts recovery authority. Three regressions failed first and then passed (96 focused tests).
-  The live `npx arc status --session-init --write-compaction-seed --json` probe wrote a seed, and
-  `npx arc recover audit --json` returned `ready` with an exact integration frame. Markdown and ARC contracts,
-  TypeScript and shell lint, both typechecks, the production build, and the full suite passed (10,852 tests with one
-  skipped).
-
-- _Amended 2026-08-24 after the interrupted self-delivery publish exposed a containment false-refusal:_ the initial
-  publish materialized all seven non-terminal refs and then stopped before top adoption because the cumulative-prefix
-  reapplication guard conflicted with legitimate later-member edits across 37 paths. The correction classifies exact
-  ancestry from the highest non-terminal member to the final candidate plus exact final-candidate/top equality after
-  lifecycle normalization. It reobserves all coordinates and tree entries at the adoption boundary and retains typed
-  refusal for non-ancestry, divergence, and unavailable evidence. The overlapping-path regression failed first and
-  then passed; the focused containment, ancestry-adoption, and suffix-rematerialization slice passes 15 tests. Both
-  TypeScript typechecks and the complete Tier 3 gate pass (10,855 tests with one skipped). The same interrupted state
-  also proved the remote work-unit head (`afc405348`) ancestral to the exact unpublished top (`8008ba88a`), which the
-  old equality-only publisher would reject next. Top publication now admits only that proven ancestral case through
-  its existing plain push; its integration regression failed first and then passed. Applied to the exact
-  self-delivery coordinates (`0b8e87285` protected base, `08321ce46` highest member, `29989f152` final candidate,
-  `8008ba88a` top), the corrected classifier returns `contained` without moving a ref.
-
-- _Reopened 2026-08-25:_ D5.9 and Task 6.3.R change the verified union and supersede one recorded Member 6
-  criterion disposition. Preserve the prior reports as evidence for unchanged loci, then rerun terminal seam,
-  regression, union-coherence, quality-gate, and review checks after the fresh Member 6 report closes.
-
-- _Reopened 2026-08-25 after Candidate re-root:_ Task 6.11.R.e closes the stale `Next Task` left by completed
-  reopened execution, and Task 6.11.R.f revalidates the recovery return edge before terminal verification and a
-  replacement Candidate root.
-
-- _Reopened 2026-08-25 for forward design amendments:_ Tasks 1.8.R.a-b replace the member-verification type
-  workaround with scoped task roles; Tasks 6.11.R.g-h make the public position route self-observing. Preserve prior
-  evidence for unchanged loci, then rerun the amended member boundaries, cross-member seams, union coherence,
-  quality gates, and work-unit review over the new Candidate root.
-
-- _Reopened 2026-08-25 after final whole-work-unit verification:_ Tasks 5.7.R.f-g preserve the exact teardown
-  continuation after applied sequential recovery, and Tasks 6.11.R.i-j derive post-landing refresh subjects from
-  fresh position rather than cleared bindings. Rerun both affected member boundaries before terminal verification.
-
-- _Reopened 2026-08-25 after terminal-authoring dogfood:_ Task 6.11.R.k restores the D5.8 review-fix and
-  rematerialization path after an append-only top advance while leaving ordinary position exact. Rerun Member 6 and
-  terminal verification over the repaired union.
-
-- _Reopened 2026-08-26 after correction-entry dogfood:_ Tasks 6.11.R.l-m make proved append-only terminal authoring
-  return an actionable, member-selected review-fix route and revalidate the amended Member 6 boundary without
-  relaxing exact public position.
-
-- _Reopened 2026-08-26 after lifecycle closeout dogfood:_ Tasks 6.11.R.n-o make exact task authority, cursorless
-  verification closeout recovery, and closed-task Candidate attestation one deterministic chain. Preserve prior
-  member reports and rerun the new cross-member seam plus terminal quality and union checks.
-
-- _Reopened 2026-08-26 after native-refresh dogfood:_ Tasks 6.11.R.p-q correct the provider-base observation model
-  that blocked the selected-member dependent-refresh transition before restacking. Revalidate Member 6, the exact
-  provider boundary, and the terminal union without re-deriving unchanged member reports.
-
-- _Settled 2026-08-26 after final adversarial verification:_ exact same-highest ancestry adoption now returns the
-  existing top rather than synthesizing another commit behind a preserved terminal publish reservation. Provider
-  refresh cleanup reuses the exact ARC-owned ref deletion primitive, adopting prior absence and refusing foreign-head
-  movement. Real-Git adoption, partial/all-absent cleanup, and cleanup-complete/state-unwritten recovery regressions
-  pass; the complete Tier 3 gate passes with 10,913 tests and one skipped.
+  union coherence and all six cross-member seams over merge base `0b8e87285` through `ad3614ded`. Executable
+  coverage proves stacked dispatch, provider refresh, retained member-review response, correction re-entry,
+  preterminal rebind, seven-member teardown and retarget, closeout, cursorless verification, and exact Candidate
+  re-rooting without a new unresolved gap.
 
 ---
 

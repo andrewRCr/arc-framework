@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:86dfe940ccf40b164b6d05b257bbbe05c09a932b8da7aadd8531f1c8820ae6d9`
+- **Candidate:** `sha256:99225ec5441b688ca658fd69f0e7e70f5a032c8532eaff465b8178e64ac1443d`
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 9.1 — Complete verification
-- **Next Task:** Task 8.5.R.d — Make terminal rebind stack-window exact and rehearse integration
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
