@@ -63,14 +63,17 @@ describe("hosted review fan-out workflow", () => {
     expect(project).toBe(packaged);
     const section = reviewSection(
       packaged,
-      "## Review and land the current member",
-      "## Terminal handoff",
+      "### Settle exact member review authority",
+      "Only the settled native arm advances",
     );
     expectTypedProgression(section);
-    expect(section.indexOf("arc delivery land prepare - --json"))
-      .toBeGreaterThan(section.indexOf("arc review status"));
-    expect(section.indexOf("arc delivery land apply - --json"))
-      .toBeGreaterThan(section.indexOf("arc delivery land prepare - --json"));
+    expect(section).toMatch(/typed settled variant\s+without a conjunction is also authoritative/iu);
+    expect(packaged.indexOf("arc delivery native land-prepare - --json"))
+      .toBeGreaterThan(packaged.indexOf("arc review status"));
+    expect(packaged.indexOf("arc delivery land prepare - --json"))
+      .toBeGreaterThan(packaged.indexOf("arc review status"));
+    expect(packaged.indexOf("arc delivery land apply - --json"))
+      .toBeGreaterThan(packaged.indexOf("arc delivery land prepare - --json"));
   });
 
   it("keeps package/project parity and typed progression in the integration workflow", async () => {
