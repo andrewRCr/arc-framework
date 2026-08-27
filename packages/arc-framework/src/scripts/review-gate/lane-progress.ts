@@ -102,6 +102,7 @@ export async function recordLaneAttempt(
     consumedPass: boolean;
     chunkSeriesComplete?: boolean;
     hosted?: LaneAttempt["hosted"];
+    local?: LaneAttempt["local"];
     now: string;
   },
 ): Promise<LaneProgressState> {
@@ -114,6 +115,7 @@ export async function recordLaneAttempt(
     outcome: input.outcome,
     ...(input.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: input.chunkSeriesComplete }),
     ...(input.hosted === undefined ? {} : { hosted: input.hosted }),
+    ...(input.local === undefined ? {} : { local: input.local }),
   };
   const replay = existing?.attempts.find((candidate) => candidate.attemptId === input.attemptId);
   if (replay !== undefined) {
@@ -176,9 +178,12 @@ export async function recordHostedAwaitAttempt(
     attemptId: hostedLaneAttemptId(handle),
     sourceId: handle.provider,
     outcome,
-    consumedPass: outcome === "clean" || outcome === "findings",
+    consumedPass: handle.effectiveCoverage === "complete"
+      && (outcome === "clean" || outcome === "findings"),
     hosted: {
       target: handle.target,
+      requestedCoverage: handle.requestedCoverage,
+      effectiveCoverage: handle.effectiveCoverage,
       ...(handle.vehicle?.kind === "delivery-member" ? { vehicle: handle.vehicle } : {}),
       reviewTarget: input.reviewTarget,
       requirement: input.requirement,
@@ -218,6 +223,8 @@ export async function recordHostedRequestUnavailableAttempt(
     consumedPass: false,
     hosted: {
       target: input.request.target,
+      requestedCoverage: input.request.coverage,
+      effectiveCoverage: null,
       ...(input.request.vehicle?.kind === "delivery-member" ? { vehicle: input.request.vehicle } : {}),
       reviewTarget: input.reviewTarget,
       requirement: input.requirement,

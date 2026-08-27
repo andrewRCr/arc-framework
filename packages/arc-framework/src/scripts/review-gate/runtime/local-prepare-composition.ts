@@ -4,6 +4,7 @@ import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
+import { canonicalize } from "../../../lib/kernel/index.js";
 import {
   LocalReviewOperationStateStore,
 } from "../hosts/local/operation-state-store.js";
@@ -52,6 +53,8 @@ import { RepositoryLocalReviewSourceSweepAdapter } from "../hosts/local/source-s
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import { sweepLocalReviewSources } from "../core/local-source-sweep.js";
 import type { LocalPrepareDependencies } from "./local-prepare.js";
+import { resolveReviewStatus } from "../status.js";
+import { createReviewStatusPort } from "../status-composition.js";
 
 const LOCAL_STANDARD_SOURCE = {
   sourceKind: "agent",
@@ -119,10 +122,11 @@ export function createLocalPrepareDependencies(input: {
       cwd: input.cwd,
       attemptedTarget: target,
     }),
-    resolveAuthority: (evaluatorIdentity, memberHeadObjectId) => resolveLocalReviewAuthority(
+    resolveAuthority: (evaluatorIdentity, memberHeadObjectId, deliveryAdmission) => resolveLocalReviewAuthority(
       {
         evaluatorIdentity,
         ...(memberHeadObjectId === undefined ? {} : { memberHeadObjectId }),
+        ...(deliveryAdmission === undefined ? {} : { deliveryAdmission }),
       },
       {
         readLiveContext: async () => (await readLive()).context,
@@ -169,6 +173,18 @@ export function createLocalPrepareDependencies(input: {
         source: LOCAL_STANDARD_SOURCE,
         runtimeKind: authority.attestationRuntimeKind,
       });
+    },
+    validateDeliveryAdmission: async (admission) => {
+      const current = await resolveReviewStatus({
+        target: admission.statusTarget,
+        ...(admission.ceilingOverride === undefined
+          ? {}
+          : { ceilingOverride: admission.ceilingOverride }),
+      }, createReviewStatusPort(input));
+      if (current.nextAction !== "review-local-prepare"
+        || canonicalize(current.action) !== canonicalize(admission)) {
+        throw new Error("Local delivery-member review no longer has exact driver admission.");
+      }
     },
     describeSource: (operationId, target) => createLocalReviewSourceDescriptor({
       exec: input.exec,

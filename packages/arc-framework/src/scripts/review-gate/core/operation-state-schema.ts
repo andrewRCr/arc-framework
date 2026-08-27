@@ -17,7 +17,12 @@ import {
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
 import { HostedFindingSchema } from "../hosted/await.js";
-import { HostedTargetSchema } from "../hosted/request.js";
+import {
+  HostedProviderIdSchema,
+  HostedReviewCoverageSchema,
+  HostedTargetSchema,
+} from "../hosted/request.js";
+import { DeliveryLocalReviewAdmissionSchema } from "../policy/delivery-local-review-admission.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -82,6 +87,7 @@ export const LocalReviewStateSchema = z.strictObject({
   requestId: CanonicalDigestSchema,
   /** Configured policy source; distinct from the evaluator that produced the attestation. */
   laneSourceId: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
+  deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
   policyVersion: CanonicalDigestSchema,
   policyBindingDigest: CanonicalDigestSchema,
   attestationRuntimeKind: IdentifierSchema,
@@ -103,6 +109,18 @@ export const LocalReviewStateSchema = z.strictObject({
         code: "custom",
         message: "operation vehicle and target kinds mismatch",
         path: ["vehicle"],
+      });
+    }
+    if (state.deliveryAdmission !== undefined
+      && (state.laneSourceId !== state.deliveryAdmission.sourceId
+        || state.vehicle.kind !== "delivery-member"
+        || state.vehicle.identity !== state.deliveryAdmission.vehicle.deliverableId
+        || target.kind !== "delivery-member"
+        || target.headSha !== state.deliveryAdmission.vehicle.head)) {
+      context.addIssue({
+        code: "custom",
+        message: "local review operation does not match its delivery admission",
+        path: ["deliveryAdmission"],
       });
     }
     if (state.repositoryId !== target.repositoryId || state.targetId !== target.targetId) {
@@ -155,6 +173,8 @@ const LaneAttemptOutcomeSchema = z.enum([
 ]);
 const HostedLaneAttemptBindingSchema = z.strictObject({
   target: HostedTargetSchema,
+  requestedCoverage: HostedReviewCoverageSchema,
+  effectiveCoverage: HostedReviewCoverageSchema.nullable(),
   vehicle: DeliveryReviewMemberVehicleSchema.optional(),
   reviewTarget: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema,
@@ -162,6 +182,41 @@ const HostedLaneAttemptBindingSchema = z.strictObject({
   findings: z.array(HostedFindingSchema),
   dispositionSetId: CanonicalDigestSchema.nullable(),
   settledFindingIds: z.array(z.string().trim().min(1)),
+}).superRefine((hosted, context) => {
+  if (hosted.requestedCoverage === "complete"
+    && hosted.effectiveCoverage !== null
+    && hosted.effectiveCoverage !== "complete") {
+    context.addIssue({
+      code: "custom",
+      path: ["effectiveCoverage"],
+      message: "effective coverage must not weaken requested complete coverage",
+    });
+  }
+});
+
+const LocalLaneAttemptBindingSchema = z.strictObject({
+  vehicle: ReviewVehicleSchema,
+  target: ReviewTargetSchema,
+  deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
+}).superRefine((local, context) => {
+  if ((local.vehicle.kind === "delivery-member") !== (local.target.kind === "delivery-member")) {
+    context.addIssue({
+      code: "custom",
+      path: ["target", "kind"],
+      message: "local delivery-member progress must retain a delivery-member target",
+    });
+  }
+  if (local.deliveryAdmission !== undefined
+    && (local.vehicle.kind !== "delivery-member"
+      || local.vehicle.identity !== local.deliveryAdmission.vehicle.deliverableId
+      || local.target.kind !== "delivery-member"
+      || local.target.headSha !== local.deliveryAdmission.vehicle.head)) {
+    context.addIssue({
+      code: "custom",
+      path: ["deliveryAdmission"],
+      message: "local lane progress does not match its delivery admission",
+    });
+  }
 });
 
 const LaneAttemptSchema = z.strictObject({
@@ -170,7 +225,29 @@ const LaneAttemptSchema = z.strictObject({
   outcome: LaneAttemptOutcomeSchema,
   chunkSeriesComplete: z.boolean().optional(),
   hosted: HostedLaneAttemptBindingSchema.optional(),
+  local: LocalLaneAttemptBindingSchema.optional(),
 }).superRefine((attempt, context) => {
+  if (attempt.hosted !== undefined && attempt.local !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["local"],
+      message: "one lane attempt cannot carry both hosted and local progress",
+    });
+  }
+  if (attempt.local !== undefined && attempt.sourceId !== "delegated-agent") {
+    context.addIssue({
+      code: "custom",
+      path: ["sourceId"],
+      message: "local attempt source must be delegated-agent",
+    });
+  }
+  if (attempt.hosted !== undefined && !HostedProviderIdSchema.safeParse(attempt.sourceId).success) {
+    context.addIssue({
+      code: "custom",
+      path: ["sourceId"],
+      message: "hosted attempt source must be a hosted provider",
+    });
+  }
   if (attempt.hosted === undefined) return;
   try {
     const target = validateReviewTarget(attempt.hosted.reviewTarget);
