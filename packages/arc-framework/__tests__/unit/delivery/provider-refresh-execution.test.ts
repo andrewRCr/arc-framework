@@ -13,6 +13,10 @@ import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const oid = (digit: string): string => digit.repeat(40);
+const exactTargetAncestry = async (
+  ancestor: string,
+  descendant: string,
+): Promise<"ancestor" | "not-ancestor"> => ancestor === descendant ? "ancestor" : "not-ancestor";
 
 function positionFacts(state: ReturnType<typeof deliveryStateFixture>, landedDeliverableIds: string[] = []) {
   return { target: state.target, members: state.members, landedDeliverableIds };
@@ -35,6 +39,64 @@ function snapshot(heads: readonly string[]): DeliveryOperationSnapshotV1 {
       },
     })),
   };
+}
+
+function reservedRefreshTargetMovementFixture() {
+  const plan = deliveryFourMemberStackPlanFixture();
+  const fixture = deliveryStateFixture(plan);
+  const state = {
+    ...fixture,
+    members: fixture.members.map((member, index) => ({
+      ...member,
+      changeRequest: { providerId: "github", changeRequestId: String(500 + index) },
+    })),
+  };
+  const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts: positionFacts(state) });
+  if (derived.status !== "derived") throw new Error("refresh subject must derive");
+  const before = derived.subject.before;
+  const requestedTarget = {
+    ref: before.target!.ref,
+    coordinates: { head: oid("a"), tree: oid("1") },
+  };
+  const requested: DeliveryOperationSnapshotV1 = {
+    target: requestedTarget,
+    members: before.members.map((member, index) => ({
+      ...member,
+      coordinates: member.coordinates === null ? null : {
+        base: index === 0 ? requestedTarget.coordinates.head : oid(String(index + 6)),
+        head: oid(String(index + 7)),
+        tree: oid(String(index + 3)),
+      },
+    })),
+  };
+  const operationId = "provider-refresh-target-advance";
+  const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+    operationId,
+    kind: "rewrite",
+    mode: "provider-refresh",
+    affectedDeliverableIds: before.members.map(({ deliverableId }) => deliverableId),
+    expectedStateRevision: 7,
+    before,
+    requested,
+  });
+  if (reserved.status !== "reserved") throw new Error("refresh must reserve");
+  const liveTarget = {
+    ref: requestedTarget.ref,
+    coordinates: { head: oid("b"), tree: oid("c") },
+  };
+  const observed: DeliveryOperationSnapshotV1 = {
+    target: liveTarget,
+    members: requested.members.map((member, index) => ({
+      ...member,
+      coordinates: member.coordinates === null ? null : {
+        ...member.coordinates,
+        base: index === 0
+          ? liveTarget.coordinates.head
+          : requested.members[index - 1]!.coordinates!.head,
+      },
+    })),
+  };
+  return { plan, before, requested, operationId, reserved, liveTarget, observed };
 }
 
 describe("provider refresh publication classification", () => {
@@ -173,6 +235,7 @@ describe("provider refresh publication classification", () => {
         status: "observed",
         observation: { snapshot: requested, targetMovement: "exact" },
       }),
+      readTargetAncestry: exactTargetAncestry,
       proveContribution: async ({ deliverableId }) => {
         events.push(`prove:${deliverableId}`);
         return { status: "accepted", proof: "mechanical-reapply" };
@@ -289,6 +352,7 @@ describe("provider refresh publication classification", () => {
         status: "observed" as const,
         observation: { snapshot: derived.subject.before, targetMovement: "exact" as const },
       }),
+      readTargetAncestry: exactTargetAncestry,
       proveContribution: async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }),
       publishTop: async ({ beforeHead }: { readonly beforeHead: string }) => {
         expect(beforeHead).toBe(liveTop.head);
@@ -382,6 +446,7 @@ describe("provider refresh publication classification", () => {
       observePublishedHeads: async () => [],
       rewriteMemberRef: rewrite,
       observeResult: async () => ({ status: "refused", reason: "observation-unavailable" }),
+      readTargetAncestry: exactTargetAncestry,
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       absorbTop: async () => ({ status: "refused", reason: "absorption-unavailable" }),
       publishTop: async () => ({ status: "refused", reason: "unavailable" }),
@@ -437,6 +502,21 @@ describe("provider refresh publication classification", () => {
     ]));
     const rewritten: string[] = [];
     const preparation = vi.fn();
+    const liveTarget = {
+      ref: requested.target!.ref,
+      coordinates: { head: oid("b"), tree: oid("c") },
+    };
+    const liveObservation: DeliveryOperationSnapshotV1 = {
+      ...requested,
+      target: liveTarget,
+      members: requested.members.map((member, index) => ({
+        ...member,
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0 ? liveTarget.coordinates.head : requested.members[index - 1]!.coordinates!.head,
+        },
+      })),
+    };
 
     const result = await executeDeliveryProviderRefresh({
       plan,
@@ -457,8 +537,13 @@ describe("provider refresh publication classification", () => {
       },
       observeResult: async () => ({
         status: "observed",
-        observation: { snapshot: requested, targetMovement: "exact" },
+        observation: { snapshot: liveObservation, targetMovement: "append-only" },
       }),
+      readTargetAncestry: async (ancestor, descendant) => (
+        ancestor === requested.target!.coordinates!.head && descendant === liveTarget.coordinates.head
+          ? "ancestor"
+          : "not-ancestor"
+      ),
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       absorbTop: async () => ({ status: "absorbed", head: oid("a"), tree: oid("b") }),
       publishTop: async () => ({ status: "published" }),
@@ -469,8 +554,111 @@ describe("provider refresh publication classification", () => {
       }) },
     });
 
-    expect(result.status).toBe("applied");
+    expect(result).toMatchObject({
+      status: "applied",
+      state: { value: { target: requested.target, activeOperation: null } },
+    });
     expect(preparation).not.toHaveBeenCalled();
     expect(rewritten).toEqual(before.members.slice(1).map(({ deliverableId }) => deliverableId));
   });
+
+  it("settles a reserved refresh when the protected target advances append-only", async () => {
+    const { plan, requested, operationId, reserved, liveTarget, observed } =
+      reservedRefreshTargetMovementFixture();
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current: { revision: 8, value: reserved.state },
+      repository: "owner/repo",
+      operationId,
+    }, {
+      preparation: { prepare: async () => { throw new Error("must not prepare during recovery"); } },
+      observePublishedHeads: async (candidate) => candidate.members.map((member) => ({
+        deliverableId: member.deliverableId,
+        head: member.coordinates!.head,
+      })),
+      rewriteMemberRef: async () => { throw new Error("must not republish an exact requested suffix"); },
+      observeResult: async () => ({
+        status: "observed",
+        observation: { snapshot: observed, targetMovement: "append-only" },
+      }),
+      readTargetAncestry: async (ancestor, descendant) => (
+        ancestor === requested.target!.coordinates!.head && descendant === liveTarget.coordinates.head
+          ? "ancestor"
+          : "not-ancestor"
+      ),
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      absorbTop: async () => ({ status: "absorbed", head: oid("d"), tree: oid("e") }),
+      publishTop: async () => ({ status: "published" }),
+      rewriteLocalRef: async () => ({ status: "adopted" }),
+      cleanupPreparedCandidates: async () => ({ status: "cleaned" }),
+      stateStore: { publish: async (_planId, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    });
+
+    expect(result).toMatchObject({
+      status: "applied",
+      state: { value: { target: requested.target, activeOperation: null } },
+    });
+  });
+
+  for (const targetRelation of ["not-ancestor", null] as const) {
+    it(`blocks reserved refresh settlement when requested-to-live target ancestry is ${
+      targetRelation ?? "unavailable"
+    }`, async () => {
+      const { plan, requested, operationId, reserved, observed } = reservedRefreshTargetMovementFixture();
+      let externalEffects = 0;
+
+      const result = await executeDeliveryProviderRefresh({
+        plan,
+        current: { revision: 8, value: reserved.state },
+        repository: "owner/repo",
+        operationId,
+      }, {
+        preparation: { prepare: async () => { throw new Error("must not prepare during recovery"); } },
+        observePublishedHeads: async (candidate) => candidate.members.map((member) => ({
+          deliverableId: member.deliverableId,
+          head: member.coordinates!.head,
+        })),
+        rewriteMemberRef: async () => { throw new Error("must not republish an exact requested suffix"); },
+        observeResult: async () => ({
+          status: "observed",
+          observation: { snapshot: observed, targetMovement: "append-only" },
+        }),
+        readTargetAncestry: async () => targetRelation,
+        proveContribution: async () => {
+          externalEffects += 1;
+          return { status: "accepted", proof: "mechanical-reapply" };
+        },
+        absorbTop: async () => {
+          externalEffects += 1;
+          return { status: "absorbed", head: oid("d"), tree: oid("e") };
+        },
+        publishTop: async () => {
+          externalEffects += 1;
+          return { status: "published" };
+        },
+        rewriteLocalRef: async () => {
+          externalEffects += 1;
+          return { status: "adopted" };
+        },
+        cleanupPreparedCandidates: async () => {
+          externalEffects += 1;
+          return { status: "cleaned" };
+        },
+        stateStore: { publish: async (_planId, value, revision) => {
+          externalEffects += 1;
+          return { status: "ok", value: { revision: revision + 1, value } };
+        } },
+      });
+
+      expect(result).toEqual({
+        status: "blocked",
+        reason: targetRelation === null ? "observation-unavailable" : "target-rewritten",
+      });
+      expect(externalEffects).toBe(0);
+      expect(reserved.state.activeOperation?.requested.target).toEqual(requested.target);
+    });
+  }
 });

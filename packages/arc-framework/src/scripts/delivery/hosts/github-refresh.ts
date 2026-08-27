@@ -158,6 +158,24 @@ async function isAncestor(git: GitExec, cwd: string, ancestor: string, descendan
   }
 }
 
+async function seedSelectedPredecessorTransition(
+  git: GitExec,
+  cwd: string,
+  before: DeliveryOperationSnapshotV1,
+  selectedIndex: number,
+): Promise<void> {
+  const selected = before.members[selectedIndex];
+  const firstDependent = before.members[selectedIndex + 1];
+  const selectedRef = selected?.ref;
+  const selectedHead = selected?.coordinates?.head;
+  const previousHead = firstDependent?.coordinates?.base;
+  if (selectedRef === null || selectedRef === undefined || selectedHead === undefined
+    || previousHead === undefined || previousHead === selectedHead) return;
+  const message = "provider refresh predecessor transition";
+  await git("git", ["update-ref", "-m", message, selectedRef, previousHead, selectedHead], { cwd });
+  await git("git", ["update-ref", "-m", message, selectedRef, selectedHead, previousHead], { cwd });
+}
+
 async function listCandidateRefs(git: GitExec, cwd: string, planId: string): Promise<DeliveryProviderRefreshCandidate[]> {
   const prefix = `refs/arc/delivery-refresh-candidates/${planId}/`;
   const { stdout } = await git("git", ["for-each-ref", "--format=%(refname) %(objectname)", prefix], { cwd });
@@ -285,6 +303,9 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
             || (input.scope.kind === "dependent-suffix" && targetMovement !== "exact")) {
             result = { status: "refused", reason: "target-mismatch" };
           } else {
+            if (input.scope.kind === "dependent-suffix") {
+              await seedSelectedPredecessorTransition(this.options.git, temporaryPath, input.before, selectedIndex);
+            }
             await this.options.git("git", ["switch", "--", selectedBranch], { cwd: temporaryPath });
             await this.options.gh.run([
               "stack", "rebase", "--upstack",
