@@ -245,8 +245,8 @@ copy together.
 
         - _Criteria slice:_ `Success Criteria > Member 1 — member-boundary-verification`.
         - _Span:_ original diff `45b0e9393..c22890a42`; amendment `f9fac0ea9..adb7de941`; Task 1.8.R.b corrections
-          `adb7de941..working tree`; reachability through the current working tree; boundary-order deviation: the
-          approved forward amendment reopened Member 1 after the original boundary.
+          `adb7de941..d6d842332`; reachability `d6d842332`; boundary-order deviation: the approved forward amendment
+          reopened Member 1 after the original boundary.
         - _Criterion:_ `Success Criteria > Member 1 — member-boundary-verification > 1`; _State:_ `[~]`;
           _Evidence:_ D7.2b supersedes only the ordinary-implementation-task shape from D7.2a. The member-scoped
           criteria walk, grouped evidence, unchanged Success Criteria markers, terminal seam disposition, declared
@@ -1783,9 +1783,9 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
     - _Span:_ original diff `e11bd763d..270f42c1b`; earlier amendment diff `a374df393..b2d7ec52e`; current amendment
-      diff `530463f72..working tree`; reachability through the current working tree; boundary-order deviation: the
-      approved Tasks 8.5.R.a, 8.5.R.b, and 8.5.R.c - `tasks-delivery-native-stack-composition.md` forward amendments
-      reopened Member 8 after its original boundary.
+      diff `530463f72..bfbf5073e`; reachability `bfbf5073e`; boundary-order deviation: the approved Tasks 8.5.R.a,
+      8.5.R.b, and 8.5.R.c - `tasks-delivery-native-stack-composition.md` forward amendments reopened Member 8 after
+      its original boundary.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`; _State:_ `[x]`;
       _Evidence:_ exact plan/state, ref, Candidate, and gate retirement preserves each authority, requires the merged
       terminal request, retains exact closeout identifiers, and leaves every mismatch intact with a refusal.
@@ -1816,19 +1816,19 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
-  with one skipped (10,945 tests passed with one skipped), the package build, and diff hygiene all passed over the
-  exact current code tree. The unchanged-tree rule retains that Tier 3 result through the task-list-only closeout.
-- _Success criteria:_ 32 total: 30 met, two superseded, and none unresolved. All eight member reports resolve to
+  with one skipped (10,953 tests passed with one skipped), the package build, aggregate self-review, and diff hygiene
+  all passed over the exact code tree. Targeted Markdown and ARC checks passed after the task-list-only closeout.
+- _Success criteria:_ 33 total: 31 met, two superseded, and none unresolved. All eight member reports resolve to
   their current criteria loci and exact boundary spans; Member 1's implementation-task workaround and Member 6's
   external-only refresh clause remain intentionally superseded by D7.2b and D5.9. The terminal walk revalidated
-  union coherence and all six cross-member seams over merge base `0b8e87285` through `adff9aa4f`; executable
+  union coherence and all six cross-member seams over merge base `0b8e87285` through `bfbf5073e`; executable
   lifecycles force stacked dispatch, provider refresh, member-review conjunction, bound correction re-entry, and
-  closed-task attestation. Prior whole-work-unit review evidence and the declined extra pass retain their recorded
-  disposition. Provider-native refresh and bound re-entry are implemented, tested, and exercised through this work
-  unit's self-delivery.
+  closed-task attestation. Terminal rebind and exact Candidate re-root replay are implemented, tested, and exercised
+  through this work unit's self-delivery; stale replay refuses before publication. Prior whole-work-unit review
+  evidence and the declined extra pass retain their recorded disposition.
 - _Amended 2026-08-24 after the self-delivery re-root exposed a recovery discontinuity:_ exact same-Candidate review
   and convergence loci now remain visible while the work unit stays `Integrating`; both session projectors retain the
   integration workflow and load set, and the runtime phase contract admits those bounded loci without granting member
@@ -2057,13 +2057,13 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 - `[x]` One ADR records the delivery-and-review posture, its considered alternative, and both reopening triggers.
 
-- `[ ]` Bound delivery re-entry maps an exact open member task to correction planning before authoring, consumes an
+- `[x]` Bound delivery re-entry maps an exact open member task to correction planning before authoring, consumes an
   exact pending publication action before member position, and carries a selected member's dependent scope through
   external conflict-fallback planning and adoption. Unbound and work-unit-verification execution remain ordinary;
   the selected and lower prefix stay fixed; typed code owns every route without new durable state or provider-specific
   plan/state fields.
 
-- `[ ]` Reopened whole-unit verification preserves plain attestation's obsolete-Candidate refusal, then consumes its
+- `[x]` Reopened whole-unit verification preserves plain attestation's obsolete-Candidate refusal, then consumes its
   closed `establish-new-root` action and exact machine-readable continuation only after fresh full verification and
   structural task-list closure. Successful re-rooting is required before Candidate preparation; every other or
   malformed result stops without new verification evidence, lifecycle state, or Candidate authority.

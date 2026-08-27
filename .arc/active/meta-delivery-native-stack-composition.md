@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:060f8f9ca46c19fc2ad4374eac13d062a362d2f41bafd2cc86b901597092598c`
+- **Candidate:** `sha256:86dfe940ccf40b164b6d05b257bbbe05c09a932b8da7aadd8531f1c8820ae6d9`
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 9.1 — Complete verification
-- **Next Task:** Task 8.5.R.b — Complete terminal-authoring publication re-entry
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
