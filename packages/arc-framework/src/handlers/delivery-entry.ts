@@ -218,7 +218,7 @@ async function inspectRepositoryDeliveryEntry(
     readState: async (planId) => {
       const result = await stateStore.read(planId);
       return result.status === "refused"
-        ? { status: "refused" }
+        ? { status: "refused", reason: result.reason }
         : result.value === null
           ? { status: "ok", value: null, revision: null }
           : { status: "ok", value: result.value.value, revision: result.value.revision };
