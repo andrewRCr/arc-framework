@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:1358f5e67919f13ac17445de9beffca7eead3083ddf52a0370d1b15c4e7f2911`
+- **Candidate:** `sha256:2d9df530af28961736115c3dc3da92da8bc45b606bff4e6596fc414bcf84921a`
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 9.1 — Complete verification
-- **Next Task:** Task 6.11.R.p — Validate native refresh against the live provider chain
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]

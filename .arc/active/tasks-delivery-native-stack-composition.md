@@ -1742,17 +1742,18 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
-  with one skipped (10,926 tests passed with one skipped), the package build, and diff hygiene all passed. Focused
-  lifecycle, load-set, recovery, attestation, and real-CLI regressions cover the reopened closeout amendment.
-- _Success criteria:_ 31 total: 29 met, two superseded, and none unresolved. Eight member reports were carried without
-  re-derivation; the terminal walk revalidated union coherence and all cross-member seams over merge base
-  `0b8e87285` plus the current tree. The new seam proves exact task re-entry, cursorless `verify-work-unit` recovery,
-  and closed-list Candidate attestation. Prior whole-work-unit review evidence remains authoritative; no further
-  adversarial pass was added after the Heavy pass cap. Provider refresh is implemented and tested; no live
-  provider-refresh exercise is claimed.
+  with one skipped (10,930 tests passed with one skipped), the package build, and diff hygiene all passed over the
+  exact current code tree. The unchanged-tree rule retains that Tier 3 result through the task-list-only closeout.
+- _Success criteria:_ 31 total: 29 met, two superseded, and none unresolved. Seven unchanged member reports carry
+  forward, and the fresh Member 6 report records seven met and one intentionally superseded. The terminal walk
+  revalidated union coherence and all six cross-member seams over merge base `0b8e87285` through `1cc92013d`; the
+  vertical plan-present/state-absent lifecycle forces stacked dispatch, publication, first-member binding, hosted
+  fan-out, and terminal conjunction. Prior whole-work-unit review evidence remains authoritative, the fresh full-
+  rubric Member 6 pass returned no findings, and the optional extra whole-work-unit pass was declined beyond the
+  Heavy cap. Provider-native refresh is implemented, tested, and exercised through this work unit's self-delivery.
 - _Amended 2026-08-24 after the self-delivery re-root exposed a recovery discontinuity:_ exact same-Candidate review
   and convergence loci now remain visible while the work unit stays `Integrating`; both session projectors retain the
   integration workflow and load set, and the runtime phase contract admits those bounded loci without granting member
