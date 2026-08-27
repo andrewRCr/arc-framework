@@ -77,20 +77,27 @@ function observationMatchesSubject(
   before: DeliveryOperationSnapshotV1,
   observed: DeliveryProviderRefreshObservation,
 ): boolean {
-  const targetMatches = observed.snapshot.target?.ref === before.target?.ref
+  const targetCoordinates = observed.snapshot.target?.coordinates;
+  const targetMatches = targetCoordinates !== null && targetCoordinates !== undefined
+    && observed.snapshot.target?.ref === before.target?.ref
     && (observed.targetMovement === "append-only"
       || canonicalize(observed.snapshot.target) === canonicalize(before.target));
   if (!targetMatches || observed.snapshot.members.length !== before.members.length) return false;
   return before.members.every((member, index) => {
     const result = observed.snapshot.members[index];
+    const expectedBase = index === 0
+      ? targetCoordinates.head
+      : observed.snapshot.members[index - 1]?.coordinates?.head;
     return result !== undefined && result.deliverableId === member.deliverableId
       && result.ref === member.ref
       && canonicalize(result.changeRequest) === canonicalize(member.changeRequest)
-      && result.coordinates !== null;
+      && result.coordinates !== null
+      && result.coordinates.base === expectedBase;
   });
 }
 
-function changedProviderMovements(
+/** Derive every changed member after validating one exact provider-refresh subject. */
+export function changedDeliveryProviderRefreshMovements(
   before: DeliveryOperationSnapshotV1,
   observed: DeliveryProviderRefreshObservation,
 ): DeliveryProviderRefreshMovement[] | null {
@@ -102,7 +109,19 @@ function changedProviderMovements(
   });
 }
 
-async function proveProviderMovements(
+/** Whether the terminal top still records a predecessor older than the refreshed suffix. */
+export function deliveryTerminalAbsorptionOwed(
+  state: DeliveryStateV1,
+  snapshot: DeliveryOperationSnapshotV1,
+): boolean {
+  const terminal = state.members.at(-1)?.coordinates;
+  const highest = snapshot.members.at(-1)?.coordinates;
+  return terminal !== null && terminal !== undefined && highest !== null && highest !== undefined
+    && terminal.base !== highest.head;
+}
+
+/** Prove each changed provider-refresh member through the shared contribution arbiter. */
+export async function proveDeliveryProviderRefreshMovements(
   movements: readonly DeliveryProviderRefreshMovement[],
   proveContribution: (
     movement: DeliveryProviderRefreshMovement,
@@ -153,7 +172,7 @@ type ProviderAdoptionBlockedResult =
       readonly paths?: readonly string[];
     };
 
-interface ProviderAdoptionSettlementDependencies {
+export interface ProviderAdoptionSettlementDependencies {
   readonly observeResult: () => Promise<DeliveryProviderRefreshObservationResult>;
   readonly proveContribution: (
     movement: DeliveryProviderRefreshMovement,
@@ -171,6 +190,18 @@ interface ProviderAdoptionSettlementDependencies {
     | { readonly status: "published" | "adopted" }
     | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
   >;
+  readonly rewriteLocalRef: (input: {
+    readonly ref: string;
+    readonly beforeHead: string;
+    readonly requestedHead: string;
+  }) => Promise<
+    | { readonly status: "rewritten" | "adopted" }
+    | { readonly status: "refused"; readonly reason?: string }
+  >;
+  readonly cleanupPreparedCandidates?: () => Promise<
+    | { readonly status: "cleaned" }
+    | { readonly status: "refused"; readonly reason: string }
+  >;
   readonly stateStore: StateWriter;
 }
 
@@ -184,14 +215,13 @@ export async function settleReservedDeliverySuffixRefresh(input: {
 > {
   const active = validateDeliveryActiveOperation(input.current);
   if (active.status !== "valid" || active.operation.kind !== "rewrite"
-    || active.operation.mode !== "provider-adoption"
+    || (active.operation.mode !== "provider-adoption" && active.operation.mode !== "provider-refresh")
     || !isPlannedNonterminalSuffix(input.plan, active.operation.affectedDeliverableIds)
     || validateDeliveryStateAgainstPlan(active.state, input.plan).status === "refused") {
     return { status: "blocked", reason: "ambiguous" };
   }
   const requested = DeliveryOperationSnapshotV1Schema.safeParse(active.operation.requested);
-  if (!requested.success
-    || canonicalize(requested.data) === canonicalize(active.operation.before)) {
+  if (!requested.success) {
     return { status: "blocked", reason: "ambiguous" };
   }
   const fresh = await input.observeResult();
@@ -203,12 +233,29 @@ export async function settleReservedDeliverySuffixRefresh(input: {
   if (canonicalize(observation.snapshot) !== canonicalize(requested.data)) {
     return { status: "blocked", reason: "ambiguous" };
   }
-  const movements = changedProviderMovements(active.operation.before, observation);
-  if (movements === null || movements.length === 0) {
+  const movements = changedDeliveryProviderRefreshMovements(active.operation.before, observation);
+  if (movements === null || (movements.length === 0
+    && !deliveryTerminalAbsorptionOwed(active.state, observation.snapshot))) {
     return { status: "blocked", reason: "ambiguous" };
   }
-  const refusal = await proveProviderMovements(movements, input.proveContribution);
+  const refusal = await proveDeliveryProviderRefreshMovements(movements, input.proveContribution);
   if (refusal !== null) return { ...refusal, status: "blocked" };
+
+  for (const movement of movements) {
+    if (movement.before.ref === null || movement.after.ref !== movement.before.ref
+      || movement.before.coordinates === null || movement.after.coordinates === null) {
+      return { status: "blocked", reason: "local-ref-subject-mismatch" };
+    }
+    if (movement.before.coordinates.head === movement.after.coordinates.head) continue;
+    const rewritten = await input.rewriteLocalRef({
+      ref: movement.before.ref,
+      beforeHead: movement.before.coordinates.head,
+      requestedHead: movement.after.coordinates.head,
+    });
+    if (rewritten.status === "refused") {
+      return { status: "blocked", reason: `local-ref-${rewritten.reason ?? "refused"}` };
+    }
+  }
 
   const terminal = active.state.members.at(-1);
   const highestMember = observation.snapshot.members.at(-1);
@@ -247,6 +294,15 @@ export async function settleReservedDeliverySuffixRefresh(input: {
       tree: absorbed.tree,
     };
   }
+  if (active.operation.mode === "provider-refresh") {
+    if (input.cleanupPreparedCandidates === undefined) {
+      return { status: "blocked", reason: "candidate-cleanup-unavailable" };
+    }
+    const cleaned = await input.cleanupPreparedCandidates();
+    if (cleaned.status === "refused") {
+      return { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
+    }
+  }
   const applied = applyProviderSettlement(active.state, observation, terminalCoordinates);
   if (applied === null || validateDeliveryStateAgainstPlan(applied, input.plan).status === "refused") {
     return { status: "blocked", reason: "ambiguous" };
@@ -269,6 +325,7 @@ export async function executeDeliverySuffixRewrite(input: {
   readonly requested: DeliveryOperationSnapshotV1;
   /** Selected review fixes are authorized content changes, not false equivalence claims. */
   readonly contributionMode?: "prove-equivalent" | "selected-change";
+  readonly operationMode?: "review-fix" | "selected-change";
   readonly revalidateLifecycle: () => Promise<{ readonly status: "ok" | "refused" }>;
   readonly rewriteRef: (input: {
     readonly ref: string;
@@ -316,7 +373,7 @@ export async function executeDeliverySuffixRewrite(input: {
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: crypto.randomUUID(),
     kind: "rewrite",
-    mode: "review-fix",
+    mode: input.operationMode ?? "review-fix",
     affectedDeliverableIds: [member.deliverableId],
     expectedStateRevision: input.current.revision,
     before,
@@ -397,11 +454,12 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   const parsed = DeliveryOperationSnapshotV1Schema.safeParse(initialObservation.snapshot);
   if (!parsed.success) return { status: "refused", reason: "ambiguous-result" };
   const observed = { ...initialObservation, snapshot: parsed.data };
-  const movements = changedProviderMovements(before, observed);
-  if (movements === null || movements.length === 0) {
+  const movements = changedDeliveryProviderRefreshMovements(before, observed);
+  if (movements === null || (movements.length === 0
+    && !deliveryTerminalAbsorptionOwed(input.current.value, observed.snapshot))) {
     return { status: "refused", reason: "ambiguous-result" };
   }
-  const refusal = await proveProviderMovements(movements, input.proveContribution);
+  const refusal = await proveDeliveryProviderRefreshMovements(movements, input.proveContribution);
   if (refusal !== null) return refusal;
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: crypto.randomUUID(),
@@ -426,6 +484,7 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
     proveContribution: input.proveContribution,
     absorbTop: input.absorbTop,
     publishTop: input.publishTop,
+    rewriteLocalRef: input.rewriteLocalRef,
     stateStore: input.stateStore,
   });
 }
