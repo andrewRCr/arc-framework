@@ -153,12 +153,68 @@ describe("hosted review request", () => {
       deliveryMemberLookup: {
         resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
       },
+      admitDeliveryMemberRequest: async () => undefined,
     });
 
     expect(result).toMatchObject({
       state: "requested",
       handle: { target: input.target, vehicle: input.vehicle },
     });
+  });
+
+  it("rechecks delivery-member admission before invoking the hosted adapter", async () => {
+    let providerCalled = false;
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: {
+        kind: "delivery-member",
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: DELIVERY_MEMBER.head,
+      },
+    }, {
+      adapters: [adapter(async () => {
+        providerCalled = true;
+        return { kind: "rate-limited" };
+      })],
+      deliveryMemberLookup: {
+        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+      },
+      admitDeliveryMemberRequest: async () => {
+        throw new Error("review pass ceiling requires approval");
+      },
+    })).rejects.toThrow(/ceiling requires approval/u);
+    expect(providerCalled).toBe(false);
+  });
+
+  it("refuses delivery-member capacity when no request-time driver admission is bound", async () => {
+    let providerCalled = false;
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: {
+        kind: "delivery-member",
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: DELIVERY_MEMBER.head,
+      },
+    }, {
+      adapters: [adapter(async () => {
+        providerCalled = true;
+        return { kind: "rate-limited" };
+      })],
+      deliveryMemberLookup: {
+        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+      },
+    })).rejects.toThrow(/request-time driver admission/u);
+    expect(providerCalled).toBe(false);
   });
 
   it("rejects a delivery-member request whose exact binding does not match", async () => {

@@ -152,7 +152,15 @@ to that reservation, resolve its exact current `targetRef`, and invoke:
 arc review status --target '{targetRef}' --json
 ```
 
-Dispatch only on `nextAction`. `review-hosted-request` means pass the returned action unchanged to:
+Dispatch only on `nextAction`. `obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
+Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
+with the returned consequence serialized unchanged:
+
+```bash
+arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
+```
+
+`review-hosted-request` means pass the returned action unchanged to:
 
 ```bash
 arc review hosted request -
