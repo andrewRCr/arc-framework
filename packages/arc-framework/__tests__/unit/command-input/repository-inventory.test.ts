@@ -232,6 +232,7 @@ describe("repository command-input inventory", () => {
       "delivery position",
       "delivery publish",
       "delivery reconcile",
+      "delivery refresh execute",
       "delivery rematerialize",
       "delivery rewrite",
       "delivery teardown",
