@@ -22,6 +22,8 @@ import {
 import type {
   ReviewContributionApplicabilityResult,
 } from "./review-contribution-applicability.js";
+import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
 
 export type EarlierHostedAttemptApplicabilityRead =
   | {
@@ -32,6 +34,7 @@ export type EarlierHostedAttemptApplicabilityRead =
       readonly applicability: ReviewApplicabilityConsumerAction;
       readonly projection?: ReviewContributionApplicabilityResult;
       readonly authorityState?: "decision-required" | "blocked";
+      readonly responsePlan?: HostedFindingsResponsePlan;
     }[];
   }
   | { readonly status: "not-found" }
@@ -40,6 +43,7 @@ export type EarlierHostedAttemptApplicabilityRead =
 /** Outcomes whose applicable prior attempt already decides settlement or source fallback. */
 export function earlierAttemptRetainsReservationPosition(outcome: string): boolean {
   return outcome === "clean"
+    || outcome === "findings"
     || outcome === "settled-findings"
     || outcome === "rate-limited"
     || outcome === "transient-unavailable";
@@ -117,6 +121,28 @@ export async function projectEarlierReviewApplicability(
       outcome: candidate.outcome,
       applicability: reviewApplicabilityConsumerAction(authority),
       projection: authority.projection,
+      ...(candidate.outcome !== "findings" || candidate.findings.length === 0
+        ? {}
+        : {
+            responsePlan: {
+              schemaVersion: 1 as const,
+              target: candidate.reviewTarget,
+              source: {
+                kind: "hosted" as const,
+                attemptRef: bindReviewSourceReference({
+                  kind: "hosted",
+                  operationId: candidate.operationId,
+                  durableRef: candidate.attemptId,
+                }),
+              },
+              findings: candidate.findings.map((finding) => ({
+                findingId: finding.findingId,
+                severity: finding.severity,
+                locus: finding.locus,
+                evidenceUrlOrId: finding.url,
+              })),
+            },
+          }),
       ...(authority.state === "decision-required" || authority.state === "blocked"
         ? { authorityState: authority.state }
         : {}),
