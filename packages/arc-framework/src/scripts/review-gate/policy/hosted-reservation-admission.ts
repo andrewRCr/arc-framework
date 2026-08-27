@@ -61,25 +61,39 @@ export function projectHostedReservationPolicyProgress(input: {
   for (const { state } of input.snapshot.records) {
     if (state.kind !== "lane-progress"
       || state.lane !== "standard"
-      || state.repositoryId !== input.repositoryId
-      || state.changeRequestId !== `pull/${String(input.target.pullRequest)}`) continue;
+      || state.repositoryId !== input.repositoryId) continue;
     for (const attempt of state.attempts) {
       const hosted = attempt.hosted;
-      if (hosted === undefined
-        || hosted.vehicle === undefined
-        || hosted.target.repository.toLowerCase() !== input.target.repository.toLowerCase()
-        || hosted.target.pullRequest !== input.target.pullRequest
-        || hosted.target.headSha !== state.headSha
-        || hosted.reviewTarget.repositoryId !== input.repositoryId
-        || hosted.reviewTarget.headSha !== state.headSha
-        || !sameDeliveryReviewMemberIdentity(input.vehicle, hosted.vehicle)) continue;
-      if (attempt.outcome === "clean"
+      const local = attempt.local;
+      const hostedMatches = state.changeRequestId === `pull/${String(input.target.pullRequest)}`
+        && hosted !== undefined
+        && hosted.vehicle !== undefined
+        && (hosted.requestedCoverage === "complete" || hosted.effectiveCoverage === "complete")
+        && hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
+        && hosted.target.pullRequest === input.target.pullRequest
+        && hosted.target.headSha === state.headSha
+        && hosted.reviewTarget.repositoryId === input.repositoryId
+        && hosted.reviewTarget.headSha === state.headSha
+        && sameDeliveryReviewMemberIdentity(input.vehicle, hosted.vehicle);
+      const localMatches = state.changeRequestId === null
+        && local?.deliveryAdmission !== undefined
+        && local.vehicle.kind === "delivery-member"
+        && sameDeliveryReviewMemberIdentity(input.vehicle, local.deliveryAdmission.vehicle)
+        && local.deliveryAdmission.target.repository.toLowerCase() === input.target.repository.toLowerCase()
+        && local.deliveryAdmission.target.pullRequest === input.target.pullRequest
+        && local.target.kind === "delivery-member"
+        && local.target.repositoryId === input.repositoryId
+        && local.target.headSha === state.headSha;
+      if (!hostedMatches && !localMatches) continue;
+      if ((localMatches || hosted?.effectiveCoverage === "complete")
+        && (attempt.outcome === "clean"
         || attempt.outcome === "findings"
-        || attempt.outcome === "settled-findings") {
+        || attempt.outcome === "settled-findings")) {
         completedPasses += 1;
       }
       if (state.headSha === input.target.headSha
-        && sameDeliveryReviewMemberVehicle(input.vehicle, hosted.vehicle)) {
+        && (localMatches || (hosted !== undefined
+          && sameDeliveryReviewMemberVehicle(input.vehicle, hosted.vehicle)))) {
         attempts.push({
           sourceId: attempt.sourceId,
           outcome: attempt.outcome,

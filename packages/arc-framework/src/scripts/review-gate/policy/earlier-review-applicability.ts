@@ -33,11 +33,14 @@ export type EarlierHostedAttemptApplicabilityRead =
     readonly attempts: readonly {
       readonly sourceId: string;
       readonly outcome: string;
+      readonly requestedCoverage: "complete" | "incremental";
+      readonly effectiveCoverage: "complete" | "incremental" | null;
       readonly applicability: ReviewApplicabilityConsumerAction;
       readonly retentionBasis?: "verified-fix-response";
       readonly projection?: ReviewContributionApplicabilityResult;
       readonly authorityState?: "decision-required" | "blocked";
       readonly responsePlan?: HostedFindingsResponsePlan;
+      readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
     }[];
   }
   | { readonly status: "not-found" }
@@ -73,7 +76,8 @@ function verifiedDeliveryMemberFixResponse(input: {
   const priorVehicle = candidate.priorVehicle;
   const currentVehicle = query.currentVehicle;
   const response = record?.deliveryMemberFixResponse;
-  if (candidate.outcome !== "settled-findings"
+  if (candidate.sourceKind !== "hosted"
+    || candidate.outcome !== "settled-findings"
     || record?.operationId !== candidate.attemptId
     || record.source.kind !== "hosted"
     || record.deliveryMember === null
@@ -186,6 +190,8 @@ export async function projectEarlierReviewApplicability(
     return {
       sourceId: candidate.sourceId,
       outcome: candidate.outcome,
+      requestedCoverage: candidate.requestedCoverage,
+      effectiveCoverage: candidate.effectiveCoverage,
       applicability: authority === null
         ? "retain-prior-attempt" as const
         : reviewApplicabilityConsumerAction(authority),
@@ -213,6 +219,9 @@ export async function projectEarlierReviewApplicability(
               })),
             },
           }),
+      ...(candidate.sourceKind === "local" && candidate.outcome === "findings"
+        ? { localResumeAction: { schemaVersion: 1 as const, operationId: candidate.attemptId } }
+        : {}),
       ...(authority !== null && (authority.state === "decision-required" || authority.state === "blocked")
         ? { authorityState: authority.state }
         : {}),

@@ -30,6 +30,10 @@ import {
   type ReviewCeilingOverride,
   type ReviewResolveEnvelope,
 } from "./policy/review-policy-driver.js";
+import {
+  DeliveryLocalReviewAdmissionSchema,
+  DeliveryLocalReviewSelectionSchema,
+} from "./policy/delivery-local-review-admission.js";
 
 const ObjectIdSchema = GitObjectIdSchema;
 const BlockedReviewApplicabilitySchema = ReviewContributionApplicabilityResultSchema.refine(
@@ -66,6 +70,11 @@ export const DeliveryReviewConjunctionSchema = z.strictObject({
 });
 export type DeliveryReviewConjunction = z.infer<typeof DeliveryReviewConjunctionSchema>;
 
+export const DeliveryLocalResumeActionSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  operationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u),
+});
+
 export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
     state: z.enum(["settled", "review-required", "blocked"]),
@@ -93,6 +102,24 @@ export const RoutedReviewObligationSchema = z.union([
     detail: z.string().min(1),
     scope: z.literal("singleton"),
     selectionAction: ReviewApplicabilitySelectionOfferSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    conjunction: DeliveryReviewConjunctionSchema.refine(
+      (conjunction) => conjunction.status === "outstanding",
+      "delivery local review requires an outstanding conjunction",
+    ),
+    localAction: DeliveryLocalReviewSelectionSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    conjunction: DeliveryReviewConjunctionSchema.refine(
+      (conjunction) => conjunction.status === "outstanding",
+      "delivery local review resume requires an outstanding conjunction",
+    ),
+    localResumeAction: DeliveryLocalResumeActionSchema,
   }),
   z.strictObject({
     state: z.literal("review-required"),
@@ -272,6 +299,7 @@ export function composeDeliveryReviewObligation(input: {
     applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
     applicabilityAuthority?: "decision-required" | "blocked";
     responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
+    localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
     requestAdmission?: ReviewResolveEnvelope;
     requestCeilingOverride?: ReviewCeilingOverride;
   }[];
@@ -319,6 +347,14 @@ export function composeDeliveryReviewObligation(input: {
     );
     if (intervention !== null) return intervention;
   }
+  if (discharge?.localResumeAction !== undefined) {
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      conjunction: { kind: "delivery", status: "outstanding", members },
+      localResumeAction: discharge.localResumeAction,
+    });
+  }
   if (discharge?.requestAdmission?.state === "approval-required") {
     return RoutedReviewObligationSchema.parse({
       state: "approval-required",
@@ -330,7 +366,7 @@ export function composeDeliveryReviewObligation(input: {
   if (target === undefined || discharge === undefined || discharge.nextSource === null) {
     return {
       state: "blocked",
-      detail: "The first outstanding delivery member has no admissible reserved hosted source.",
+      detail: "The first outstanding delivery member has no admissible reserved standard-review source.",
     };
   }
   if (discharge.requestAdmission === undefined) {
@@ -340,24 +376,52 @@ export function composeDeliveryReviewObligation(input: {
     };
   }
   if (discharge.requestAdmission.state !== "ready"
-    || discharge.requestAdmission.nextAction !== "hosted-request") {
+    || (discharge.requestAdmission.nextAction !== "hosted-request"
+      && discharge.requestAdmission.nextAction !== "local-prepare")) {
     return {
       state: "blocked",
-      detail: `The standard-review driver refused a hosted request (${discharge.requestAdmission.state}).`,
+      detail: `The standard-review driver refused a member review request (${discharge.requestAdmission.state}).`,
     };
   }
   if (discharge.requestAdmission.payload.sourceId !== discharge.nextSource) {
     return {
       state: "blocked",
-      detail: "The discharge projection and standard-review driver selected different hosted sources.",
+      detail: "The discharge projection and standard-review driver selected different sources.",
     };
   }
   if (discharge.requestAdmission.payload.ceilingOverrideApplied
     !== (discharge.requestCeilingOverride !== undefined)) {
     return {
       state: "blocked",
-      detail: "The standard-review driver and hosted request disagree about ceiling-override admission.",
+      detail: "The standard-review driver and member review action disagree about ceiling-override admission.",
     };
+  }
+  if (discharge.requestAdmission.nextAction === "local-prepare") {
+    if (discharge.nextSource !== "delegated-agent") {
+      return {
+        state: "blocked",
+        detail: "The standard-review driver selected an unsupported local review source.",
+      };
+    }
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      conjunction: { kind: "delivery", status: "outstanding", members },
+      localAction: {
+        schemaVersion: 1,
+        sourceId: "delegated-agent",
+        target: HostedTargetSchema.parse({
+          repository: target.repository,
+          pullRequest: target.pullRequest,
+          headSha: target.headSha,
+        }),
+        vehicle: target.vehicle,
+        pass: discharge.requestAdmission.payload.pass,
+        ...(discharge.requestCeilingOverride === undefined
+          ? {}
+          : { ceilingOverride: discharge.requestCeilingOverride }),
+      },
+    });
   }
   const provider = HostedProviderIdSchema.safeParse(discharge.nextSource);
   if (!provider.success) {
@@ -414,6 +478,18 @@ const ReviewStatusHostedRequestSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("review-hosted-request"),
   action: HostedRequestEnvelopeSchema,
+});
+const ReviewStatusLocalPrepareSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("review-local-prepare"),
+  action: DeliveryLocalReviewAdmissionSchema,
+});
+const ReviewStatusLocalResumeSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("review-local-resume"),
+  action: DeliveryLocalResumeActionSchema,
 });
 const ReviewStatusApplicabilitySelectionSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -485,6 +561,8 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
   | z.infer<typeof ReviewStatusRunReviewSchema>
   | z.infer<typeof ReviewStatusHostedRequestSchema>
+  | z.infer<typeof ReviewStatusLocalPrepareSchema>
+  | z.infer<typeof ReviewStatusLocalResumeSchema>
   | z.infer<typeof ReviewStatusApplicabilitySelectionSchema>
   | z.infer<typeof ReviewStatusFindingsResponseSchema>
   | z.infer<typeof ReviewStatusCeilingApprovalSchema>
@@ -499,6 +577,8 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusSettledSchema,
   ReviewStatusRunReviewSchema,
   ReviewStatusHostedRequestSchema,
+  ReviewStatusLocalPrepareSchema,
+  ReviewStatusLocalResumeSchema,
   ReviewStatusApplicabilitySelectionSchema,
   ReviewStatusFindingsResponseSchema,
   ReviewStatusCeilingApprovalSchema,
@@ -661,6 +741,25 @@ export async function resolveReviewStatus(
         state: "review-required",
         nextAction: "review-hosted-request",
         action: base.routedObligation.action,
+      };
+    }
+    if ("localAction" in base.routedObligation) {
+      return {
+        ...base,
+        state: "review-required",
+        nextAction: "review-local-prepare",
+        action: DeliveryLocalReviewAdmissionSchema.parse({
+          ...base.routedObligation.localAction,
+          statusTarget: request.target,
+        }),
+      };
+    }
+    if ("localResumeAction" in base.routedObligation) {
+      return {
+        ...base,
+        state: "review-required",
+        nextAction: "review-local-resume",
+        action: base.routedObligation.localResumeAction,
       };
     }
     return { ...base, state: "review-required", nextAction: "run-review" };

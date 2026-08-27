@@ -338,6 +338,34 @@ describe("hosted await lane recording", () => {
     expect(state?.completedPasses).toBe(0);
   });
 
+  it("retains incremental coverage without consuming a complete-review pass", async () => {
+    const store = createStore();
+    const incrementalHandle = {
+      ...deliveryHandle,
+      requestedCoverage: "incremental" as const,
+      effectiveCoverage: "incremental" as const,
+    };
+    const state = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: incrementalHandle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.test/review-incremental",
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+
+    expect(state?.completedPasses).toBe(0);
+    expect(state?.attempts[0]?.hosted).toMatchObject({
+      requestedCoverage: "incremental",
+      effectiveCoverage: "incremental",
+    });
+  });
+
   it("retains a delivery selector on the concluded hosted attempt", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
