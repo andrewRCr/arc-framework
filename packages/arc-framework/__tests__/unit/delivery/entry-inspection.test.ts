@@ -14,13 +14,21 @@ import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 const plan = deliveryStackPlanFixture();
 const prefix = "# Task List\n\n";
 const suffix = "## **Phase 1:** Build\n\n### `[ ]` **1.1 Work**\n";
+const stateFailures = [
+  "record-malformed",
+  "identity-mismatch",
+  "version-conflict",
+  "ambiguous-match",
+  "namespace-corrupt",
+] as const;
 
 function dependencies(input: {
   taskList?: string;
   resolvedPlan?: typeof plan | null | "indeterminate";
   authoring?: "match" | "no-match" | "indeterminate";
   authoringPlanDigest?: string | null;
-  state?: ReturnType<typeof deliveryStateFixture> | null | "refused";
+  state?: ReturnType<typeof deliveryStateFixture> | null;
+  stateFailure?: (typeof stateFailures)[number];
 } = {}) {
   return {
     readTaskList: vi.fn().mockResolvedValue(input.taskList ?? `${prefix}${suffix}`),
@@ -38,9 +46,9 @@ function dependencies(input: {
             candidatePlanDigest: input.authoringPlanDigest ?? null,
           }
         : { status: "no-match" }),
-    readState: vi.fn().mockResolvedValue(input.state === "refused"
-      ? { status: "refused" }
-      : { status: "ok", value: input.state ?? null, revision: input.state ? 3 : null }),
+    readState: vi.fn().mockResolvedValue(input.stateFailure === undefined
+      ? { status: "ok", value: input.state ?? null, revision: input.state ? 3 : null }
+      : { status: "refused", reason: input.stateFailure }),
   };
 }
 
@@ -114,6 +122,21 @@ describe("delivery entry inspection", () => {
       provisionalDisposition: "not-applicable",
     }, dependencies({ taskList, resolvedPlan: plan, state: deliveryStateFixture(plan) })))
       .resolves.toMatchObject({ status: "resume-bound", stateRevision: 3 });
+  });
+
+  it.each(stateFailures)("preserves the %s delivery-state refusal", async (stateFailure) => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      boundaryDisposition: "delivery-candidate",
+      provisionalDisposition: "not-applicable",
+    }, dependencies({ taskList, resolvedPlan: plan, stateFailure }))).resolves.toMatchObject({
+      status: "refused",
+      nextAction: "stop",
+      reason: `state-${stateFailure}`,
+      recommendedActionText: expect.stringContaining("delivery state"),
+    });
   });
 
   it("recovers a canonical plan only from its exact authoring receipt", async () => {
