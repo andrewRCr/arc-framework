@@ -44,6 +44,7 @@ import {
   type DeliveryProviderRefreshMovement,
 } from "../../src/lib/delivery/suffix-reconciliation.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { readAncestry } from "../../src/lib/work-unit/git-decomposition-object-readers.js";
 import {
   deliveryStackPlanFixture,
   deliveryThreeMemberStackPlanFixture,
@@ -272,6 +273,10 @@ function revisionStore(initial: { readonly revision: number; readonly value: Del
 function refreshDependencies(fixture: RefreshFixture, stateStore: ReturnType<typeof revisionStore>["store"]) {
   return {
     observeResult: fixture.observeRefresh,
+    readTargetAncestry: async (ancestor: string, descendant: string) => {
+      const result = await readAncestry(fixture.gitExec, ancestor, descendant);
+      return result === "ancestor" || result === "not-ancestor" ? result : null;
+    },
     proveContribution: fixture.proveMovement,
     absorbTop: (input: {
       readonly topRef: string;
@@ -337,6 +342,10 @@ describe("member-six refresh adoption lifecycle", () => {
         return rewriteDeliveryMemberRef({ exec: fixture.gitExec, remote: "origin", ...input });
       },
       observeResult: fixture.observeRefresh,
+      readTargetAncestry: async (ancestor, descendant) => {
+        const result = await readAncestry(fixture.gitExec, ancestor, descendant);
+        return result === "ancestor" || result === "not-ancestor" ? result : null;
+      },
       proveContribution: fixture.proveMovement,
       absorbTop: async (input) => {
         events.push("absorb-top");
