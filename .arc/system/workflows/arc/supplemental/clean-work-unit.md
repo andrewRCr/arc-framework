@@ -72,7 +72,8 @@ Standard task list structure to preserve:
 - Header metadata (`**Design:**` — single pointer to PRD or draft-doc per chain-model header)
 - Overview / Scope (Will Do / Won't Do)
 - Tasks (phases with subtasks)
-- Success Criteria, including delivery-member and cross-member seam subgroups
+- Success Criteria; when the task list carries a Delivery Plan, preserve its delivery-member and cross-member seam
+  subgroups
 
 Non-standard sections — evaluate each:
 
