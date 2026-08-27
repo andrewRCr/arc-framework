@@ -19,6 +19,7 @@ import { queryEarlierReviewAttempts } from
   "../../../../../src/scripts/review-gate/policy/earlier-review-attempts.js";
 import {
   candidateExpectsEarlierReviewAttempt,
+  earlierAttemptRetainsReservationPosition,
   projectEarlierReviewApplicability,
 } from
   "../../../../../src/scripts/review-gate/policy/earlier-review-applicability.js";
@@ -128,6 +129,10 @@ function candidateRecord(transitions: readonly CandidateLineageTransitionV1[] = 
 }
 
 describe("earlier review attempt query", () => {
+  it("retains hosted reservation position for raw findings", () => {
+    expect(earlierAttemptRetainsReservationPosition("findings")).toBe(true);
+  });
+
   it("returns the complete exact candidate set from one complete operation snapshot", () => {
     expect(queryEarlierReviewAttempts(selector(), {
       status: "complete",
@@ -233,6 +238,60 @@ describe("earlier review attempt query", () => {
     });
     expect(result.status === "complete" && result.candidates.map(({ attemptId }) => attemptId))
       .toEqual(["attempt-prior", "attempt-later"]);
+  });
+
+  it("projects an exact hosted response plan for an earlier findings attempt", async () => {
+    const clean = laneState();
+    const findings = LaneProgressStateSchema.parse({
+      ...clean,
+      attempts: clean.attempts.map((attempt) => ({
+        ...attempt,
+        outcome: "findings",
+        hosted: {
+          ...attempt.hosted!,
+          findings: [{
+            findingId: "finding-prior",
+            origin: "review-thread",
+            commentId: "comment-prior",
+            threadId: "thread-prior",
+            settlement: "reply-and-resolve",
+            severity: "major",
+            locus: "src/example.ts:1",
+            url: "https://example.test/finding-prior",
+          }],
+        },
+      })),
+    });
+    const projected = await projectEarlierReviewApplicability({
+      query: selector(),
+      currentBase: oid("2"),
+      snapshot: { status: "complete", records: [{ version: 1, state: findings }] },
+      candidate: candidateRecord(),
+      exec: async () => { throw new Error("injected projection must own Git"); },
+      projectApplicability: async (applicabilitySelector) => classifyReviewContributionApplicability(
+        applicabilitySelector,
+        null,
+      ),
+    });
+
+    expect(projected).toMatchObject({
+      status: "complete",
+      attempts: [{
+        outcome: "findings",
+        responsePlan: {
+          source: {
+            kind: "hosted",
+            attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fprior:attempt-prior",
+          },
+          findings: [{
+            findingId: "finding-prior",
+            severity: "major",
+            locus: "src/example.ts:1",
+            evidenceUrlOrId: "https://example.test/finding-prior",
+          }],
+        },
+      }],
+    });
   });
 
   it("composes the exact query, factual projection, and Candidate selection for both consumers", async () => {
