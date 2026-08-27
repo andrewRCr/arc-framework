@@ -177,6 +177,7 @@ describe("GitHub provider refresh adapter", () => {
     let rebased = false;
     let workspaceRemoved = false;
     let conflict = false;
+    let selectedTransition: "unseeded" | "old" | "current" = "unseeded";
     const rebaseCalls: string[][] = [];
     const imported = new Map<string, string>();
     const treeByHead = new Map<string, string>([
@@ -191,6 +192,21 @@ describe("GitHub provider refresh adapter", () => {
       }
       if (args[0] === "remote" && args[1] === "get-url") return { stdout: "https://github.com/owner/repo.git\n" };
       if (args[0] === "clone" || args[0] === "remote" || args[0] === "switch") return { stdout: "" };
+      if (args[0] === "update-ref" && args[1] === "-m") {
+        const selectedRef = before.members[0]!.ref!;
+        const selectedHead = before.members[0]!.coordinates!.head;
+        const previousHead = before.members[1]!.coordinates!.base;
+        if (args[3] !== selectedRef) throw new Error("unexpected selected transition ref");
+        if (selectedTransition === "unseeded" && args[4] === previousHead && args[5] === selectedHead) {
+          selectedTransition = "old";
+          return { stdout: "" };
+        }
+        if (selectedTransition === "old" && args[4] === selectedHead && args[5] === previousHead) {
+          selectedTransition = "current";
+          return { stdout: "" };
+        }
+        throw new Error("unexpected selected transition coordinates");
+      }
       if (args[0] === "fetch") {
         const refspec = args.at(-1)!;
         const [source, destination] = refspec.split(":");
@@ -232,6 +248,12 @@ describe("GitHub provider refresh adapter", () => {
           if (conflict) {
             throw new DeliveryProviderProcessError("conflict", { stdout: "", stderr: "", exitCode: 3 });
           }
+          if (args.includes("--no-trunk") && selectedTransition !== "current") {
+            throw new DeliveryProviderProcessError(
+              "could not determine the previous base",
+              { stdout: "", stderr: "rebase this branch manually", exitCode: 1 },
+            );
+          }
           rebaseCalls.push([...args]);
           rebased = true;
           return { stdout: "", stderr: "" };
@@ -246,7 +268,10 @@ describe("GitHub provider refresh adapter", () => {
       checkoutPath: "/repo",
       remote: "origin",
       temporaryDirectories: {
-        create: async () => "/tmp/refresh-fixture",
+        create: async () => {
+          selectedTransition = "unseeded";
+          return "/tmp/refresh-fixture";
+        },
         remove: async () => { workspaceRemoved = true; },
       },
     });
