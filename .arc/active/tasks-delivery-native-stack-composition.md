@@ -1773,18 +1773,19 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
-  with one skipped (10,930 tests passed with one skipped), the package build, and diff hygiene all passed over the
+  with one skipped (10,945 tests passed with one skipped), the package build, and diff hygiene all passed over the
   exact current code tree. The unchanged-tree rule retains that Tier 3 result through the task-list-only closeout.
-- _Success criteria:_ 31 total: 29 met, two superseded, and none unresolved. Seven unchanged member reports carry
-  forward, and the fresh Member 6 report records seven met and one intentionally superseded. The terminal walk
-  revalidated union coherence and all six cross-member seams over merge base `0b8e87285` through `1cc92013d`; the
-  vertical plan-present/state-absent lifecycle forces stacked dispatch, publication, first-member binding, hosted
-  fan-out, and terminal conjunction. Prior whole-work-unit review evidence remains authoritative, the fresh full-
-  rubric Member 6 pass returned no findings, and the optional extra whole-work-unit pass was declined beyond the
-  Heavy cap. Provider-native refresh is implemented, tested, and exercised through this work unit's self-delivery.
+- _Success criteria:_ 32 total: 30 met, two superseded, and none unresolved. All eight member reports resolve to
+  their current criteria loci and exact boundary spans; Member 1's implementation-task workaround and Member 6's
+  external-only refresh clause remain intentionally superseded by D7.2b and D5.9. The terminal walk revalidated
+  union coherence and all six cross-member seams over merge base `0b8e87285` through `adff9aa4f`; executable
+  lifecycles force stacked dispatch, provider refresh, member-review conjunction, bound correction re-entry, and
+  closed-task attestation. Prior whole-work-unit review evidence and the declined extra pass retain their recorded
+  disposition. Provider-native refresh and bound re-entry are implemented, tested, and exercised through this work
+  unit's self-delivery.
 - _Amended 2026-08-24 after the self-delivery re-root exposed a recovery discontinuity:_ exact same-Candidate review
   and convergence loci now remain visible while the work unit stays `Integrating`; both session projectors retain the
   integration workflow and load set, and the runtime phase contract admits those bounded loci without granting member
@@ -2013,7 +2014,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 - `[x]` One ADR records the delivery-and-review posture, its considered alternative, and both reopening triggers.
 
-- `[ ]` Bound delivery re-entry maps an exact open member task to correction planning before authoring, consumes an
+- `[x]` Bound delivery re-entry maps an exact open member task to correction planning before authoring, consumes an
   exact pending publication action before member position, and carries a selected member's dependent scope through
   external conflict-fallback planning and adoption. Unbound and work-unit-verification execution remain ordinary;
   the selected and lower prefix stay fixed; typed code owns every route without new durable state or provider-specific

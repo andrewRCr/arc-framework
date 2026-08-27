@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:2d9df530af28961736115c3dc3da92da8bc45b606bff4e6596fc414bcf84921a`
+- **Candidate:** `sha256:060f8f9ca46c19fc2ad4374eac13d062a362d2f41bafd2cc86b901597092598c`
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 9.1 — Complete verification
-- **Next Task:** Task 8.5.R.a — Make bound delivery re-entry consume correction and publication routing
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
