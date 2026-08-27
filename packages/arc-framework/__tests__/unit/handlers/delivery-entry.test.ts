@@ -39,6 +39,22 @@ describe("delivery entry handler", () => {
       recommendedActionText: "Resume.",
     },
     {
+      status: "correction-routing-required", nextAction: "plan-review-fix",
+      planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
+      selectedDeliverableId: `sha256:${"b".repeat(64)}`,
+      recommendedActionText: "Plan correction.",
+    },
+    {
+      status: "continue-publication", nextAction: "continue-publication",
+      planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
+      publicationAction: {
+        kind: "continue-publication",
+        command: "git push -u origin feat/example",
+        interactionText: "Resume publication.",
+      },
+      recommendedActionText: "Resume publication.",
+    },
+    {
       status: "refused", nextAction: "stop", reason: "evidence-conflict",
       recommendedActionText: "Resolve conflict.",
     },
@@ -79,6 +95,20 @@ describe("delivery entry handler", () => {
     await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
 
     expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "integrating" }, undefined);
+    expect(deps.setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("accepts the closed execution-entry arm without attended dispositions", async () => {
+    const deps = dependencies({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: "Continue ordinary task execution.",
+    });
+    vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "execution" }));
+
+    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+
+    expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "execution" }, undefined);
     expect(deps.setExitCode).not.toHaveBeenCalled();
   });
 

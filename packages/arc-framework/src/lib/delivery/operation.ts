@@ -242,7 +242,7 @@ export function validateDeliveryActiveOperation(
     }
   }
   if (operation.kind === "rewrite" && operation.terminalAuthoringMovement !== undefined
-    && (operation.mode !== "provider-refresh"
+    && ((operation.mode !== "provider-refresh" && operation.mode !== "provider-adoption")
       || !terminalAuthoringMovementMatchesState(parsedState.data, operation.terminalAuthoringMovement))) {
     return { status: "blocked", reason: "state-invalid" };
   }
@@ -372,7 +372,7 @@ export function reserveDeliveryOperation(
     }
   }
   if (parsedRequest.data.kind === "rewrite" && parsedRequest.data.terminalAuthoringMovement !== undefined
-    && (parsedRequest.data.mode !== "provider-refresh"
+    && ((parsedRequest.data.mode !== "provider-refresh" && parsedRequest.data.mode !== "provider-adoption")
       || !terminalAuthoringMovementMatchesState(
         parsedState.data,
         parsedRequest.data.terminalAuthoringMovement,

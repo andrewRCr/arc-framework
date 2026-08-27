@@ -47,9 +47,10 @@ interface DeliveryPositionFactsDependencies {
 
 type RequestState = "open" | "merged" | "closed" | null;
 
-/** Narrow observation policy for an approved review-fix authoring window. */
+/** Narrow observation policy for approved correction and external-adoption windows. */
 export interface DeliveryPositionObservationOptions {
   readonly terminalAuthoringMovement?: "allow-append-only";
+  readonly unlandedSuffixMovement?: "allow-external";
 }
 
 async function retainedCommitIsAvailable(
@@ -113,9 +114,11 @@ async function observeMember(
   member: DeliveryOperationSnapshotV1["members"][number],
   dependencies: DeliveryPositionFactsDependencies,
   allowAppendOnlyAuthoring = false,
+  allowExternalMovement = false,
 ): Promise<{
   readonly exact: boolean;
   readonly requestState: RequestState;
+  readonly externalMovement?: true;
   readonly terminalAuthoringMovement?: DeliveryPositionFactsV1["terminalAuthoringMovement"];
 }> {
   if ((member.ref === null) !== (member.coordinates === null)) {
@@ -161,20 +164,22 @@ async function observeMember(
         return { exact: false, requestState: null };
       }
       if (remoteHead !== member.coordinates.head) {
-        if (!allowAppendOnlyAuthoring || requestState !== "open" || requestHead === null
-          || !await localCommitMatches(member.coordinates, dependencies)
-          || await readAncestry(localOnlyExec, member.coordinates.head, remoteHead) !== "ancestor") {
-          return { exact: false, requestState: null };
+        if (allowAppendOnlyAuthoring && requestState === "open" && requestHead !== null
+          && await localCommitMatches(member.coordinates, dependencies)
+          && await readAncestry(localOnlyExec, member.coordinates.head, remoteHead) === "ancestor") {
+          return {
+            exact: true,
+            requestState,
+            terminalAuthoringMovement: {
+              deliverableId: member.deliverableId,
+              before: member.coordinates,
+              after: { base: member.coordinates.base, head: coordinates.head, tree: coordinates.tree },
+            },
+          };
         }
-        return {
-          exact: true,
-          requestState,
-          terminalAuthoringMovement: {
-            deliverableId: member.deliverableId,
-            before: member.coordinates,
-            after: { base: member.coordinates.base, head: coordinates.head, tree: coordinates.tree },
-          },
-        };
+        return allowExternalMovement && requestState === "open"
+          ? { exact: true, requestState, externalMovement: true }
+          : { exact: false, requestState: null };
       }
       if (coordinates.tree !== member.coordinates.tree) return { exact: false, requestState: null };
     }
@@ -334,6 +339,7 @@ async function observeFacts(
     member,
     dependencies,
     index === terminalIndex && options.terminalAuthoringMovement === "allow-append-only",
+    index < terminalIndex && options.unlandedSuffixMovement === "allow-external",
   )));
   if (members.some((member) => !member.exact)) return null;
   const terminalAuthoringMovement = members[terminalIndex]?.terminalAuthoringMovement;
@@ -351,6 +357,7 @@ async function observeFacts(
         candidate.ref !== null || candidate.changeRequest !== null || candidate.coordinates !== null
       )));
     const landed = requestState === "merged" || cleared;
+    if (landed && members[index]?.externalMovement === true) return null;
     if (landed && unlandedSeen) return null;
     if (landed) landedDeliverableIds.push(member.deliverableId);
     else unlandedSeen = true;

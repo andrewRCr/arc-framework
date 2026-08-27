@@ -34,6 +34,7 @@ import {
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 const InputSchema = z.union([
@@ -41,7 +42,7 @@ const InputSchema = z.union([
     boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
     provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
   }),
-  z.strictObject({ entryMode: z.literal("integrating") }),
+  z.strictObject({ entryMode: z.enum(["execution", "integrating"]) }),
 ]);
 const OptionsSchema = z.strictObject({ input: z.string().min(1), json: z.boolean().optional() });
 
@@ -226,5 +227,9 @@ async function inspectRepositoryDeliveryEntry(
           ? { status: "ok", value: null, revision: null }
           : { status: "ok", value: result.value.value, revision: result.value.revision };
     },
+    readIntegrationBoundary: async () => ({
+      status: "ok",
+      value: await readSubmissionBoundary(cwd, active.name),
+    }),
   });
 }

@@ -157,6 +157,32 @@ describe("delivery suffix reconciliation", () => {
     });
   });
 
+  it("refuses dependent adoption when the provider also moved the selected member", async () => {
+    const { plan, state, affected, observed } = providerRefreshFixture();
+    const proveContribution = vi.fn();
+    const publish = vi.fn();
+    const result = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      affectedDeliverableIds: affected,
+      selectedDeliverableId: affected[0]!,
+      observeResult: async () => ({
+        status: "observed",
+        observation: { snapshot: observed, targetMovement: "exact" },
+      }),
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution,
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite"); },
+      stateStore: { publish },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "selected-member-moved" });
+    expect(proveContribution).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("replays the exact reserved settlement after local merge or remote publication", async () => {
     const { plan, reserved, observed } = reservedProviderRefreshFixture();
     const absorbed = { head: "a".repeat(40), tree: "b".repeat(40) };

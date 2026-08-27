@@ -701,6 +701,21 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   `review-fix-routing-required` with `nextAction: plan-review-fix` and precomposed guidance; every other exactness and
   refusal rule remains unchanged.
 
+  **Amended 2026-08-26 after a provider-native conflict exposed an external-fallback discontinuity:** when
+  selected-member publication has completed and provider-invoked dependent refresh refuses before reservation, the
+  external fallback carries the exact `dependent-suffix` scope through refresh planning and adoption. Planning keeps
+  the selected member and lower prefix fixed and returns only members strictly above it. Adoption may read externally
+  assigned heads only in that explicit open unlanded suffix, then reobserves and proves the complete result before
+  reserving; movement of the selected member or lower prefix refuses. Any proven append-only terminal-authoring
+  movement remains the existing provider-adoption settlement baseline. No provider field, new durable state, or new
+  operation kind is introduced.
+
+  **Amended 2026-08-26 after member-scope adversarial re-entry exposed a terminal-selection dead end:** when the
+  approved correction selects the exact bound terminal member, review-fix planning returns a typed
+  `terminal-authoring` route. The correction stays on the work-unit branch and enters ordinary task gates and later
+  work-unit publication; no member candidate, delivery rewrite, provider presentation, operation, or state mutation
+  is required. A terminal member that is no longer in the bound suffix refuses.
+
 - **D5.9 ARC-triggered provider-native refresh — amended 2026-08-25 after self-delivery exposed the
   external-only actuation gap.** This amendment supersedes D5.7's external-only rule and D5.8's external-refresh
   continuation while preserving external refresh observation and adoption as a complete fallback. When refresh
@@ -1345,6 +1360,18 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   delivery-entry inspection in integration mode. `not-applicable` alone continues ordinary singleton integration;
   canonical-plan routes enter the corresponding `Deliver Stack` section; refusal stops. Prose does not infer plan
   presence, reconstruct the route, or bind delivery state.
+  **Amended 2026-08-26 after bound self-delivery re-entry exposed two missing continuations:** the task loop invokes
+  delivery-entry inspection in execution mode before implementing an open task. For a coherent bound plan/state, the
+  CLI maps the exact current parent-task cursor to its unique planned member and returns `plan-review-fix` with that
+  member; unbound and non-member execution remain ordinary, while malformed or ambiguous evidence stops. Integration
+  entry reads the existing typed publication boundary after coherent binding and returns its exact
+  `continue-publication` action before the generic position route. Workflow prose carries those returned actions and
+  never infers task ownership, publication state, or member position. Both continuations reuse current plan, state,
+  cursor, and publication records and add no durable state.
+  **Amended 2026-08-26 after the same pass exposed interrupted-correction re-entry:** a coherent active delivery
+  operation takes precedence over task-member selection. Execution entry returns the existing typed
+  `read-position-and-reconcile` route, and the task loop re-inspects entry after settlement before authoring another
+  correction. It never starts fresh planning around a retained reservation.
 - **D10.4 Guard tests.** Two guards pin the workflows D3.7 changes: `delivery-terminal-workflow.test.ts`, whose
   eleven assertions are anchored on the terminal-attachment block, and `delivery-workflow.test.ts`, which pins a
   `delivery terminal prepare` invocation in `deliver-stack.md`'s handoff. Removing that machinery reddens both —
@@ -1820,6 +1847,13 @@ added.
     cursor, no-task reopen accepts only a closed task list, session init and compaction recovery project
     `verify-work-unit` for the exact `no-open-task` pre-attestation interval, and `arc attest` refuses every task-list
     state except a structurally proven close (D1.5).
+32. Bound delivery re-entry is continuous across correction and publication boundaries. Execution maps one exact open
+    member task to `plan-review-fix` before correction authoring while unbound and work-unit-verification execution
+    remain ordinary; integration consumes an exact pending publication action before member position. After a
+    selected-member publication, external conflict fallback carries the same dependent scope through planning and
+    adoption, keeps the selected and lower prefix fixed, and proves the freshly observed suffix before settlement.
+    No workflow infers those routes and no new durable state or provider-specific plan/state field exists (D5.8,
+    D10.3).
 
 ## Open Questions
 

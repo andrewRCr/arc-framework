@@ -33,15 +33,19 @@ arc delivery entry inspect --input - --json
 ```
 
 The request carries either the attended `assess-boundary-fit` disposition (plus confirmation when a provisional plan
-was reviewed) or the closed `{ "entryMode": "integrating" }` context supplied by ordinary integration's pre-push
-dispatch. Render `laterEntryCostText` and `recommendedActionText` verbatim when present, then dispatch the returned
-route; the workflow never parses headings, derives members, or re-decides cohesion:
+was reviewed), the closed `{ "entryMode": "execution" }` context supplied by the task loop, or the closed
+`{ "entryMode": "integrating" }` context supplied by ordinary integration's pre-push dispatch.
+Render `laterEntryCostText` and `recommendedActionText` verbatim when present, then dispatch the returned route; the
+workflow never parses headings, derives members, or re-decides cohesion:
 
 - `not-applicable` returns to ordinary work-unit execution, including singleton integration from the pre-push door.
 - `authoring-required` enters the existing inventory-schema, `from-tasks`, author-slot, and compose sequence.
 - `canonicalize-provisional` runs that same canonicalization sequence or its receipt-pinned recovery.
 - `validate-canonical` advances to eligibility.
+- `continue-publication` invokes `publicationAction.command` unchanged before reading position.
 - `resume-bound` reads delivery position and reconciles any named active operation before continuing.
+- `correction-routing-required` carries its exact `selectedDeliverableId` into the correction route below before
+  authoring or publishing replacement content.
 - `refused` stops before every eligibility or mutation verb after rendering the precomposed refusal.
 
 The inspection is read-only. It never treats the presence of prose as delivery judgment and never binds state.
@@ -419,6 +423,10 @@ correction onto the selected member's derived candidate ref, run its ordinary pr
 arc delivery review-fix publish - --json
 ```
 
+`planned / terminal-authoring` means the exact selected member is the bound terminal. Return to the calling task loop
+and author the correction on the work-unit branch; do not publish a member ref or rewrite the delivery suffix. The
+ordinary task gates and later work-unit publication own that top-only change.
+
 The verb derives the candidate ref and lifecycle paths, requires its supplied checkout to be tracked-clean and exact,
 requires the candidate to extend the current bound member, reobserves exact registration immediately before mutation,
 then lease-publishes only that member under `rewrite / selected-change`.
@@ -427,6 +435,11 @@ then lease-publishes only that member under `rewrite / selected-change`.
 prepares only its dependents, and still uses the same path when no dependent moves because terminal-top absorption is
 owed. Keep the returned verification selector across that continuation. External operator refresh plus
 `arc delivery refresh adopt` remains a fallback selected by refresh planning, not the registered review-fix default.
+For that external fallback, rerun `arc delivery refresh plan` with `trigger: operator-choice`,
+`mechanics: operator-initiated`, and the same `dependent-suffix` scope returned for the selected member. Continue only
+with the returned `plannedSuffix`, which contains the dependents strictly above that fixed selected member. After the
+operator refreshes exactly that suffix, invoke `arc delivery refresh adopt` with the same scope. The planning and
+adoption verbs reobserve and prove the result; workflow prose does not reconstruct the suffix.
 
 `planned / rematerialize` means a fresh read found the canonical remaining chain exactly unregistered. Apply the
 approved fix to the top authoring locus first, cut the complete suffix from that updated content, and run the ordinary

@@ -1727,10 +1727,34 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - _Goal:_ Member 8's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
 
+- _Forward amendment (2026-08-26):_ Bound self-delivery re-entered integration with a newly published Candidate
+  while the remote terminal ref still carried the prior Candidate. Delivery entry selected the bound position
+  route before consuming the existing idempotent publication action, so member review saw a stale owning
+  Candidate. The same run confirmed that reopened execution did not surface D5.8's pre-authoring correction
+  route at its task-loop fire point.
+
+- _Forward amendment (2026-08-26):_ The first provider-native refresh of that routed correction reached a genuine
+  content conflict before reservation, then the documented external fallback discarded the selected member's
+  dependent-suffix scope and refused the externally refreshed result. This task also carries that exact scope
+  through fallback planning and adoption while keeping the selected and lower prefix fixed.
+
+    - `[x]` **8.5.R.a Make bound delivery re-entry consume correction and publication routing** — validate criteria
+      at member scope
+
+        - _Goal:_ Reopened bound execution identifies the owning delivery member before correction authoring, and
+          bound integration consumes a pending top publication before reading member position, using typed
+          provider-neutral routes with no new durable state.
+
+        - Exact task ownership now routes bound corrections before authoring, retained operations reconcile first,
+          pending publication precedes member position, and terminal selection returns ordinary top authoring.
+          External refresh fallback preserves the selected-member scope and fixed lower prefix through adoption.
+
 - _Outcome:_ Member 8 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
-    - _Span:_ diff `e11bd763d..270f42c1b`; reachability `270f42c1b`; boundary-order deviation: none.
+    - _Span:_ original diff `e11bd763d..270f42c1b`; amendment diff `a374df393..working tree`; reachability through
+      the current working tree; boundary-order deviation: the approved Task 8.5.R.a -
+      `tasks-delivery-native-stack-composition.md` forward amendment reopened Member 8 after its original boundary.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`; _State:_ `[x]`;
       _Evidence:_ exact plan/state, ref, Candidate, and gate retirement preserves each authority, requires the merged
       terminal request, retains exact closeout identifiers, and leaves every mismatch intact with a refusal.
@@ -1738,11 +1762,18 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       _Evidence:_ the integration strategy ships byte-identically through the installation recipe and both indexes.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 3`; _State:_ `[x]`;
       _Evidence:_ ADR-034 records the posture, considered alternative, and both reopening triggers. Fresh pass 2
-      converged after the two approved retirement corrections; Success Criteria markers remain unchanged.
+      converged after the two approved retirement corrections.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 4`; _State:_ `[x]`;
+      _Evidence:_ typed entry inspection maps an exact open parent task to its member, gives coherent active-operation
+      recovery precedence, consumes pending publication before position, and leaves unbound and work-unit-verification
+      execution ordinary. Terminal correction planning returns top authoring; dependent external fallback preserves
+      the selected and lower prefix through structural adoption. Unit, workflow-contract, and executable E2E coverage
+      prove the routes without a new state transition or provider-specific plan/state field. Success Criteria markers
+      remain unchanged.
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
   with one skipped (10,930 tests passed with one skipped), the package build, and diff hygiene all passed over the
@@ -1981,6 +2012,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   synced to the project copy, and is reachable from `STRATEGY-INDEX.md` in both copies.
 
 - `[x]` One ADR records the delivery-and-review posture, its considered alternative, and both reopening triggers.
+
+- `[ ]` Bound delivery re-entry maps an exact open member task to correction planning before authoring, consumes an
+  exact pending publication action before member position, and carries a selected member's dependent scope through
+  external conflict-fallback planning and adoption. Unbound and work-unit-verification execution remain ordinary;
+  the selected and lower prefix stay fixed; typed code owns every route without new durable state or provider-specific
+  plan/state fields.
 
 ### Cross-member seams
 

@@ -365,19 +365,6 @@ const RefreshTriggerSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({ kind: z.literal("operator-choice") }),
 ]);
-const RefreshPlanSchema = z.strictObject({
-  planId: DeliveryPlanIdSchema,
-  repository: z.string().min(1),
-  trigger: RefreshTriggerSchema,
-  mechanics: z.literal("operator-initiated").optional(),
-  remote: z.string().min(1).default("origin"),
-});
-const RefreshAdoptSchema = z.strictObject({
-  planId: DeliveryPlanIdSchema,
-  repository: z.string().min(1),
-  remote: z.string().min(1).default("origin"),
-  operationId: z.string().min(1).optional(),
-});
 const RefreshExecutionScopeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("complete-remainder") }),
   z.strictObject({
@@ -385,6 +372,21 @@ const RefreshExecutionScopeSchema = z.discriminatedUnion("kind", [
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
   }),
 ]);
+const RefreshPlanSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  trigger: RefreshTriggerSchema,
+  mechanics: z.literal("operator-initiated").optional(),
+  scope: RefreshExecutionScopeSchema.optional(),
+  remote: z.string().min(1).default("origin"),
+});
+const RefreshAdoptSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+  scope: RefreshExecutionScopeSchema.optional(),
+  operationId: z.string().min(1).optional(),
+});
 const RefreshExecuteSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
@@ -607,10 +609,10 @@ const ResultSchema = z.union([
   }),
   z.strictObject({
     status: z.literal("planned"),
-    route: z.enum(["provider-refresh", "rematerialize"]),
+    route: z.enum(["provider-refresh", "rematerialize", "terminal-authoring"]),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-    nextAction: z.enum(["publish-selected-member", "rematerialize"]),
+    nextAction: z.enum(["publish-selected-member", "rematerialize", "author-terminal"]),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
@@ -1143,7 +1145,7 @@ async function executeDeliveryCommand(
     current: { readonly revision: number; readonly value: z.infer<typeof DeliveryStateV1Schema> },
     repository: string,
     remote: string,
-    mode: "exact" | "review-fix" = "exact",
+    mode: "exact" | "review-fix" | "refresh-adopt" | "review-fix-adopt" = "exact",
   ) => {
     const host = new GhDeliveryHostPort(hostedGhRunner);
     const refs = new Set<string>();
@@ -1217,7 +1219,14 @@ async function executeDeliveryCommand(
         exec: createRawGitExec(cwd),
         ...endpoints,
       }),
-    }, mode === "review-fix" ? { terminalAuthoringMovement: "allow-append-only" } : {});
+    }, {
+      ...(mode === "review-fix" || mode === "review-fix-adopt"
+        ? { terminalAuthoringMovement: "allow-append-only" as const }
+        : {}),
+      ...(mode === "refresh-adopt" || mode === "review-fix-adopt"
+        ? { unlandedSuffixMovement: "allow-external" as const }
+        : {}),
+    });
     if (observed.status !== "observed") return observed;
     for (const deliverableId of operation?.affectedDeliverableIds ?? []) {
       const index = observed.facts.members.findIndex((member) => member.deliverableId === deliverableId);
@@ -1329,6 +1338,7 @@ async function executeDeliveryCommand(
     current: { readonly revision: number; readonly value: DeliveryStateV1 },
     repository: string,
     remote: string,
+    selectedDeliverableId: string,
   ) => {
     if (current.value.activeOperation !== null) {
       return { status: "refused" as const, reason: "operation-active" as const };
@@ -1336,6 +1346,9 @@ async function executeDeliveryCommand(
     const positioned = await observePosition(plan, current, repository, remote, "review-fix");
     if (positioned.status !== "observed") {
       return { status: "refused" as const, reason: "position-mismatch" as const };
+    }
+    if (plan.members.at(-1)?.deliverableId === selectedDeliverableId) {
+      return { status: "observed" as const, facts: positioned.facts, observation: null };
     }
     const state = positioned.projectedState;
     const subject = deriveDeliveryProviderRefreshSubject({ plan, state, facts: positioned.facts });
@@ -1380,7 +1393,13 @@ async function executeDeliveryCommand(
     }
     const plan = planRead.value;
     const current = stateRead.value;
-    const authority = await observeReviewFixAuthority(plan, current, parsed.repository, parsed.remote);
+    const authority = await observeReviewFixAuthority(
+      plan,
+      current,
+      parsed.repository,
+      parsed.remote,
+      parsed.selectedDeliverableId,
+    );
     if (authority.status === "refused") {
       return {
         ...authority,
@@ -1398,6 +1417,13 @@ async function executeDeliveryCommand(
     }
 
     const publish = ReviewFixPublishSchema.parse(parsed);
+    if (authority.observation === null) {
+      return {
+        status: "refused",
+        reason: "terminal-authoring-only",
+        recommendedActionText: "Author terminal corrections on the work-unit branch; do not publish a member ref.",
+      };
+    }
     const [gitCommonDir, active] = await Promise.all([
       resolveGitCommonDir(exec, cwd),
       resolveActiveWu({ cwd }),
@@ -1448,9 +1474,18 @@ async function executeDeliveryCommand(
         });
         return { status: checked.status };
       },
-      reobserveAuthority: () => observeReviewFixAuthority(
-        plan, current, publish.repository, publish.remote,
-      ),
+      reobserveAuthority: async () => {
+        const reobserved = await observeReviewFixAuthority(
+          plan,
+          current,
+          publish.repository,
+          publish.remote,
+          publish.selectedDeliverableId,
+        );
+        return reobserved.status === "observed" && reobserved.observation !== null
+          ? reobserved
+          : { status: "refused" as const };
+      },
       rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: publish.remote, ...input }),
       observePublishedMember: async ({ ref, head }) => {
         const observed = await observeDeliveryRemoteRef(exec, publish.remote, ref);
@@ -1481,7 +1516,7 @@ async function executeDeliveryCommand(
     const plan = planRead.value;
     const current = stateRead.value;
     const deriveIdleRefreshSubject = async (
-      observationMode: "exact" | "review-fix" = "exact",
+      observationMode: "exact" | "review-fix" | "refresh-adopt" | "review-fix-adopt" = "exact",
     ) => {
       if (current.value.activeOperation !== null) {
         return { status: "refused" as const, reason: "position-mismatch" as const };
@@ -1507,18 +1542,36 @@ async function executeDeliveryCommand(
     };
     if (command === "refresh-plan") {
       const planRequest = RefreshPlanSchema.parse(parsed);
-      const derived = await deriveIdleRefreshSubject();
+      const derived = await deriveIdleRefreshSubject(
+        planRequest.scope?.kind === "dependent-suffix" ? "review-fix" : "exact",
+      );
       if (derived.status === "refused") {
         return {
           ...derived,
           recommendedActionText: "Restore one exact bound non-terminal suffix before planning refresh.",
         };
       }
+      const selectedIndex = planRequest.scope?.kind === "dependent-suffix"
+        ? derived.subject.affectedDeliverableIds.indexOf(planRequest.scope.selectedDeliverableId)
+        : -1;
+      if (planRequest.scope?.kind === "dependent-suffix" && selectedIndex < 0) {
+        return {
+          status: "refused",
+          reason: "selected-member-invalid",
+          recommendedActionText: "Select one currently bound non-terminal delivery member.",
+        };
+      }
+      const landedPrefix = selectedIndex < 0
+        ? derived.subject.landedPrefix
+        : [
+            ...derived.subject.landedPrefix,
+            ...derived.subject.affectedDeliverableIds.slice(0, selectedIndex + 1),
+          ];
       const observed = await observeProviderRefresh(derived.subject, planRequest.repository, planRequest.remote);
       if (observed.status === "refused") {
         return planDeliverySuffixRefresh({
           plan,
-          landedPrefix: derived.subject.landedPrefix,
+          landedPrefix,
           trigger: { ...planRequest.trigger, mechanics: "operator-initiated" },
           providerMovement: observed.reason === "target-rewritten" ? "target-rewritten" : "ambiguous",
         });
@@ -1529,16 +1582,27 @@ async function executeDeliveryCommand(
           && after.coordinates?.head === member.coordinates?.head
           && after.coordinates?.tree === member.coordinates?.tree;
       });
+      const refreshSelectedDeliverableId = planRequest.scope?.kind === "dependent-suffix"
+        ? planRequest.scope.selectedDeliverableId
+        : derived.subject.affectedDeliverableIds[0];
       const reviewFixAuthority = planRequest.mechanics === undefined
-        ? await observeReviewFixAuthority(plan, current, planRequest.repository, planRequest.remote)
+        && refreshSelectedDeliverableId !== undefined
+        ? await observeReviewFixAuthority(
+            plan,
+            current,
+            planRequest.repository,
+            planRequest.remote,
+            refreshSelectedDeliverableId,
+          )
         : null;
       return planDeliverySuffixRefresh({
         plan,
-        landedPrefix: derived.subject.landedPrefix,
+        landedPrefix,
         trigger: {
           ...planRequest.trigger,
           mechanics: planRequest.mechanics
             ?? (reviewFixAuthority?.status === "observed"
+              && reviewFixAuthority.observation !== null
               && reviewFixAuthority.observation.status === "registered"
               ? "provider-invoked"
               : "operator-initiated"),
@@ -1695,17 +1759,34 @@ async function executeDeliveryCommand(
         recommendedActionText: "Omit operationId when adopting an externally initiated refresh.",
       };
     }
-    const derived = await deriveIdleRefreshSubject();
+    const derived = await deriveIdleRefreshSubject(
+      adopt.scope?.kind === "dependent-suffix" ? "review-fix-adopt" : "refresh-adopt",
+    );
     if (derived.status === "refused") {
       return {
         ...derived,
         recommendedActionText: "Restore one exact bound non-terminal suffix before refresh adoption.",
       };
     }
+    const selectedDeliverableId = adopt.scope?.kind === "dependent-suffix"
+      ? adopt.scope.selectedDeliverableId
+      : undefined;
+    if (selectedDeliverableId !== undefined
+      && !derived.subject.affectedDeliverableIds.includes(selectedDeliverableId)) {
+      return {
+        status: "refused",
+        reason: "selected-member-invalid",
+        recommendedActionText: "Select one currently bound non-terminal delivery member.",
+      };
+    }
     const adopted = await adoptExternalDeliverySuffixRefresh({
       plan,
       current,
       affectedDeliverableIds: derived.subject.affectedDeliverableIds,
+      ...(selectedDeliverableId === undefined ? {} : { selectedDeliverableId }),
+      ...(derived.facts.terminalAuthoringMovement === undefined
+        ? {}
+        : { terminalAuthoringMovement: derived.facts.terminalAuthoringMovement }),
       ...refreshSettlementDependencies(derived.subject),
     });
     return providerAdoptionResult(adopted);

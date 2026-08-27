@@ -14,6 +14,7 @@ import {
   type DeliveryOperationSnapshotV1,
   type DeliveryPlanV1,
   type DeliveryStateV1,
+  type DeliveryTerminalAuthoringMovementV1,
 } from "./schema.js";
 import type {
   DeliveryContributionProofResult,
@@ -447,6 +448,8 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   readonly plan: DeliveryPlanV1;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly affectedDeliverableIds: readonly string[];
+  readonly selectedDeliverableId?: string;
+  readonly terminalAuthoringMovement?: DeliveryTerminalAuthoringMovementV1;
 } & ProviderAdoptionSettlementDependencies): Promise<
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
   | DeliveryContributionRefusal
@@ -455,6 +458,8 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
       readonly status: "refused";
       readonly reason:
         | "position-mismatch"
+        | "selected-member-invalid"
+        | "selected-member-moved"
         | "operation-active"
         | "ambiguous-result"
         | "reservation-refused"
@@ -471,6 +476,15 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
     || validateDeliveryStateAgainstPlan(input.current.value, input.plan).status === "refused") {
     return { status: "refused", reason: "position-mismatch" };
   }
+  const selectedIndex = input.selectedDeliverableId === undefined
+    ? -1
+    : input.affectedDeliverableIds.indexOf(input.selectedDeliverableId);
+  if (input.selectedDeliverableId !== undefined && selectedIndex < 0) {
+    return { status: "refused", reason: "selected-member-invalid" };
+  }
+  if (input.terminalAuthoringMovement !== undefined && selectedIndex < 0) {
+    return { status: "refused", reason: "position-mismatch" };
+  }
   const before = snapshotFor(input.current.value, input.affectedDeliverableIds);
   if (before === null || before.target === null || before.target.coordinates === null
     || before.members.some((member) => member.ref === null || member.changeRequest === null
@@ -484,6 +498,11 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   if (!parsed.success) return { status: "refused", reason: "ambiguous-result" };
   const observed = { ...initialObservation, snapshot: parsed.data };
   const movements = changedDeliveryProviderRefreshMovements(before, observed);
+  if (selectedIndex >= 0 && before.members.slice(0, selectedIndex + 1).some((member, index) => (
+    canonicalize(member.coordinates) !== canonicalize(observed.snapshot.members[index]?.coordinates)
+  ))) {
+    return { status: "refused", reason: "selected-member-moved" };
+  }
   if (movements === null || (movements.length === 0
     && !deliveryTerminalAbsorptionOwed(input.current.value, observed.snapshot))) {
     return { status: "refused", reason: "ambiguous-result" };
@@ -498,6 +517,9 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
     expectedStateRevision: input.current.revision,
     before,
     requested: observed.snapshot,
+    ...(input.terminalAuthoringMovement === undefined
+      ? {}
+      : { terminalAuthoringMovement: input.terminalAuthoringMovement }),
   });
   if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
   const persistedReservation = await input.stateStore.publish(

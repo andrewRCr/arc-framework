@@ -60,6 +60,25 @@ describe("delivery review-fix routing", () => {
     });
   });
 
+  it("routes the bound terminal member to ordinary top authoring", () => {
+    const { plan, state } = fixture();
+    const selectedDeliverableId = plan.members.at(-1)!.deliverableId;
+
+    expect(planDeliveryReviewFixRoute({
+      plan,
+      state,
+      facts: positionFacts(state),
+      selectedDeliverableId,
+      observation: null,
+    })).toMatchObject({
+      status: "planned",
+      route: "terminal-authoring",
+      selectedDeliverableId,
+      affectedDeliverableIds: [selectedDeliverableId],
+      nextAction: "author-terminal",
+    });
+  });
+
   it("refuses every uncertain provider presentation before selecting a mutation model", () => {
     const { plan, state } = fixture();
     const selectedDeliverableId = plan.members[0]!.deliverableId;

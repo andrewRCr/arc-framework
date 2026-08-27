@@ -91,7 +91,9 @@ describe("delivery terminal integration handoff", () => {
     expect(inspect).toBeLessThan(push);
     expect(packaged).toContain('{"entryMode":"integrating"}');
     expect(packaged).toMatch(/`not-applicable`[\s\S]*ordinary singleton integration/iu);
-    expect(packaged).toMatch(/`canonicalize-provisional`[\s\S]*`validate-canonical`[\s\S]*`resume-bound`/u);
+    expect(packaged).toMatch(
+      /`canonicalize-provisional`[\s\S]*`validate-canonical`[\s\S]*`continue-publication`[\s\S]*`resume-bound`/u,
+    );
     expect(packaged).toContain("supplemental/deliver-stack.md");
     expect(packaged).toMatch(/`refused`[\s\S]*stop/iu);
   });

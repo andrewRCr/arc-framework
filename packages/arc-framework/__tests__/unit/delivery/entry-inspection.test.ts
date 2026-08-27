@@ -8,6 +8,8 @@ import {
   DELIVERY_PLAN_START_SENTINEL,
   renderDeliveryPlanSection,
 } from "../../../src/lib/delivery/task-list-render.js";
+import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
+import { projectPublicationBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -21,6 +23,8 @@ function dependencies(input: {
   authoring?: "match" | "no-match" | "indeterminate";
   authoringPlanDigest?: string | null;
   state?: ReturnType<typeof deliveryStateFixture> | null | "refused";
+  stateRevision?: number;
+  integrationBoundary?: ReturnType<typeof projectPublicationBoundary> | "refused";
 } = {}) {
   return {
     readTaskList: vi.fn().mockResolvedValue(input.taskList ?? `${prefix}${suffix}`),
@@ -40,8 +44,40 @@ function dependencies(input: {
         : { status: "no-match" }),
     readState: vi.fn().mockResolvedValue(input.state === "refused"
       ? { status: "refused" }
-      : { status: "ok", value: input.state ?? null, revision: input.state ? 3 : null }),
+      : {
+          status: "ok",
+          value: input.state ?? null,
+          revision: input.state ? input.stateRevision ?? 3 : null,
+        }),
+    readIntegrationBoundary: vi.fn().mockResolvedValue(input.integrationBoundary === "refused"
+      ? { status: "refused" }
+      : { status: "ok", value: input.integrationBoundary ?? null }),
   };
+}
+
+function stateWithActiveCorrection() {
+  const state = deliveryStateFixture(plan);
+  const selected = state.members[0]!;
+  const before = {
+    target: state.target,
+    members: [{
+      deliverableId: selected.deliverableId,
+      ref: selected.ref,
+      changeRequest: selected.changeRequest,
+      coordinates: selected.coordinates,
+    }],
+  };
+  const reserved = reserveDeliveryOperation({ revision: 3, value: state }, plan, {
+    operationId: "interrupted-entry-correction",
+    kind: "rewrite",
+    mode: "selected-change",
+    affectedDeliverableIds: [selected.deliverableId],
+    expectedStateRevision: 3,
+    before,
+    requested: before,
+  });
+  if (reserved.status !== "reserved") throw new Error("entry correction fixture must reserve");
+  return reserved.state;
 }
 
 describe("delivery entry inspection", () => {
@@ -132,6 +168,111 @@ describe("delivery entry inspection", () => {
       entryMode: "integrating",
     }, dependencies({ taskList, resolvedPlan: plan, state: deliveryStateFixture(plan) })))
       .resolves.toMatchObject({ status: "resume-bound", stateRevision: 3 });
+  });
+
+  it("consumes an exact pending publication action before bound position routing", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    const boundary = projectPublicationBoundary({
+      workUnit: plan.workUnitId,
+      branch: "feat/delivery-plan-record",
+      candidateId: `sha256:${"a".repeat(64)}`,
+      candidateSubjectDigest: `sha256:${"b".repeat(64)}`,
+      reservation: null,
+      changeRequest: null,
+    });
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      state: deliveryStateFixture(plan),
+      integrationBoundary: boundary,
+    }))).resolves.toMatchObject({
+      status: "continue-publication",
+      nextAction: "continue-publication",
+      planId: plan.planId,
+      stateRevision: 3,
+      publicationAction: boundary.nextAction,
+    });
+  });
+
+  it("refuses an unreadable pending-publication boundary before bound position routing", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      state: deliveryStateFixture(plan),
+      integrationBoundary: "refused",
+    }))).resolves.toMatchObject({
+      status: "refused",
+      reason: "evidence-unavailable",
+    });
+  });
+
+  it("routes bound execution from the exact open parent task to its owning delivery member", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}`
+      + "## **Phase 1:** Build\n\n### `[ ]` **1.1 Work**\n\n"
+      + "    - `[ ]` **1.1.R.a Repair the member**\n";
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "execution",
+    }, dependencies({ taskList, resolvedPlan: plan, state: deliveryStateFixture(plan) })))
+      .resolves.toMatchObject({
+        status: "correction-routing-required",
+        nextAction: "plan-review-fix",
+        planId: plan.planId,
+        stateRevision: 3,
+        selectedDeliverableId: plan.members[0]?.deliverableId,
+      });
+  });
+
+  it("resumes an active correction before planning another bound execution change", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}`
+      + "## **Phase 1:** Build\n\n### `[ ]` **1.1 Work**\n";
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "execution",
+    }, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      state: stateWithActiveCorrection(),
+      stateRevision: 4,
+    })))
+      .resolves.toMatchObject({
+        status: "resume-bound",
+        nextAction: "read-position-and-reconcile",
+        planId: plan.planId,
+        stateRevision: 4,
+      });
+  });
+
+  it("keeps unbound and work-unit-verification execution on the ordinary task route", async () => {
+    const implementationTaskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "execution",
+    }, dependencies({ taskList: implementationTaskList, resolvedPlan: plan }))).resolves.toMatchObject({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+    });
+
+    const verificationTaskList = `${prefix}${renderDeliveryPlanSection(plan)}`
+      + "## **Phase 2:** Verification\n\n### `[ ]` **2.1 Verify**\n";
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "execution",
+    }, dependencies({
+      taskList: verificationTaskList,
+      resolvedPlan: plan,
+      state: deliveryStateFixture(plan),
+    }))).resolves.toMatchObject({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+    });
   });
 
   it("continues singleton integration only from exact authored-evidence absence", async () => {

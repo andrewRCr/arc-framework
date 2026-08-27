@@ -3,7 +3,7 @@
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type { DeliveryEligibilityCoordinates } from "./eligibility.js";
 import type { DeliveryNativeStackObservation } from "./native-stack.js";
-import type { DeliveryPositionFactsV1 } from "./position.js";
+import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
 import { deriveDeliveryProviderRefreshSubject } from "./provider-refresh-observation.js";
 import { executeDeliverySuffixRewrite } from "./suffix-reconciliation.js";
@@ -14,10 +14,10 @@ type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 export type DeliveryReviewFixRouteResult =
   | {
       readonly status: "planned";
-      readonly route: "provider-refresh" | "rematerialize";
+      readonly route: "provider-refresh" | "rematerialize" | "terminal-authoring";
       readonly selectedDeliverableId: string;
       readonly affectedDeliverableIds: readonly string[];
-      readonly nextAction: "publish-selected-member" | "rematerialize";
+      readonly nextAction: "publish-selected-member" | "rematerialize" | "author-terminal";
       readonly recommendedActionText: string;
     }
   | {
@@ -32,7 +32,7 @@ export function planDeliveryReviewFixRoute(input: {
   readonly state: DeliveryStateV1;
   readonly facts: DeliveryPositionFactsV1;
   readonly selectedDeliverableId: string;
-  readonly observation: DeliveryNativeStackObservation;
+  readonly observation: DeliveryNativeStackObservation | null;
 }): DeliveryReviewFixRouteResult {
   if (input.state.activeOperation !== null
     || validateDeliveryStateAgainstPlan(input.state, input.plan).status === "refused") {
@@ -40,6 +40,30 @@ export function planDeliveryReviewFixRoute(input: {
       status: "refused",
       reason: input.state.activeOperation === null ? "position-mismatch" : "operation-active",
       recommendedActionText: "Restore one exact idle delivery state before routing the review fix.",
+    };
+  }
+  const terminalDeliverableId = input.plan.members.at(-1)?.deliverableId;
+  if (input.selectedDeliverableId === terminalDeliverableId) {
+    const position = deriveDeliveryPosition(input.plan, input.state, input.facts);
+    if (position.status !== "derived"
+      || !position.position.boundSuffix.some(
+        (deliverableId) => deliverableId === input.selectedDeliverableId,
+      )) {
+      return {
+        status: "refused",
+        reason: "position-mismatch",
+        recommendedActionText: "Restore one exact bound terminal member before routing its correction.",
+      };
+    }
+    return {
+      status: "planned",
+      route: "terminal-authoring",
+      selectedDeliverableId: input.selectedDeliverableId,
+      affectedDeliverableIds: [input.selectedDeliverableId],
+      nextAction: "author-terminal",
+      recommendedActionText:
+        "Author the approved correction on the exact terminal work-unit branch; no delivery member rewrite is "
+        + "required.",
     };
   }
   const subject = deriveDeliveryProviderRefreshSubject({
@@ -60,6 +84,13 @@ export function planDeliveryReviewFixRoute(input: {
       status: "refused",
       reason: "selected-member-invalid",
       recommendedActionText: "Select one currently bound non-terminal delivery member.",
+    };
+  }
+  if (input.observation === null) {
+    return {
+      status: "refused",
+      reason: "presentation-unavailable",
+      recommendedActionText: "Restore one exact provider presentation before routing the review fix.",
     };
   }
   const affectedDeliverableIds = subject.subject.affectedDeliverableIds.slice(selectedIndex);

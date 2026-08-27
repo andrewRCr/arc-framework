@@ -170,6 +170,9 @@ describe("packaged delivery workflow", () => {
       /provider-refresh[\s\S]*selected member[\s\S]*execute-provider-refresh[\s\S]*dependent-suffix/iu,
     );
     expect(reviewSection).toMatch(
+      /external fallback[\s\S]*refresh plan[\s\S]*same `dependent-suffix` scope[\s\S]*plannedSuffix[\s\S]*strictly above[\s\S]*refresh adopt[\s\S]*same scope/iu,
+    );
+    expect(reviewSection).toMatch(
       /planned \/ rematerialize[\s\S]*top authoring locus[\s\S]*complete suffix/iu,
     );
     expect(reviewSection).toMatch(

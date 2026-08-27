@@ -64,9 +64,9 @@ printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect --input
 ```
 
 Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.
-`canonicalize-provisional`, `validate-canonical`, and `resume-bound` leave this workflow and enter the matching
-route in [`supplemental/deliver-stack.md`](../supplemental/deliver-stack.md); that workflow owns publication,
-state binding, member pull requests, and the landing window. `refused` stops after rendering
+`canonicalize-provisional`, `validate-canonical`, `continue-publication`, and `resume-bound` leave this workflow and
+enter the matching route in [`supplemental/deliver-stack.md`](../supplemental/deliver-stack.md); that workflow owns
+publication, state binding, member pull requests, and the landing window. `refused` stops after rendering
 `recommendedActionText`; any other route also stops as an integration-entry contract violation. Do not perform this
 entry dispatch on the `shipped` tail, which has already crossed initial publication.
 

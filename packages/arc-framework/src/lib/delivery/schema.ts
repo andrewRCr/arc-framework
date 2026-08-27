@@ -187,7 +187,7 @@ export const DeliveryMemberCoordinatesV1Schema = z.strictObject({
 });
 export type DeliveryMemberCoordinatesV1 = z.infer<typeof DeliveryMemberCoordinatesV1Schema>;
 
-/** Proven append-only terminal movement retained as a provider-refresh lease baseline. */
+/** Proven append-only terminal movement retained as a refresh-settlement lease baseline. */
 export const DeliveryTerminalAuthoringMovementV1Schema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
   before: DeliveryMemberCoordinatesV1Schema,
