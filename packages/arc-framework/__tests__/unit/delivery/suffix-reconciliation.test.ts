@@ -31,12 +31,20 @@ function movedFixture() {
 function providerRefreshFixture() {
   const plan = deliveryFourMemberStackPlanFixture();
   const fixture = deliveryStateFixture(plan);
+  const targetHead = fixture.target?.coordinates?.head;
+  if (targetHead === undefined) throw new Error("fixture target must be bound");
   const state = {
     ...fixture,
-    members: fixture.members.map((member, index) => ({
-      ...member,
-      changeRequest: { providerId: "github", changeRequestId: String(500 + index) },
-    })),
+    members: fixture.members.map((member, index, members) => index === 0
+      ? { ...member, ref: null, changeRequest: null, coordinates: null }
+      : {
+          ...member,
+          changeRequest: { providerId: "github", changeRequestId: String(500 + index) },
+          coordinates: member.coordinates === null ? null : {
+            ...member.coordinates,
+            base: index === 1 ? targetHead : members[index - 1]!.coordinates!.head,
+          },
+        }),
   };
   const affected = plan.members.slice(1, -1).map(({ deliverableId }) => deliverableId);
   const before = {
@@ -49,6 +57,7 @@ function providerRefreshFixture() {
       ...member,
       coordinates: {
         ...member.coordinates!,
+        base: index === 0 ? targetHead : String(index + 7).repeat(40),
         head: String(index + 8).repeat(40),
         tree: String(index + 6).repeat(40),
       },
@@ -74,8 +83,11 @@ function reservedProviderRefreshFixture() {
 
 describe("delivery suffix reconciliation", () => {
   it("reserves an observed refresh before settling the terminal top and one final state", async () => {
-    const { plan, state, affected, observed } = providerRefreshFixture();
+    const { plan, state, affected, before, observed } = providerRefreshFixture();
     const events: string[] = [];
+    const localHeads = new Map(before.members.flatMap((member) => (
+      member.ref === null || member.coordinates === null ? [] : [[member.ref, member.coordinates.head] as const]
+    )));
     const absorbed = { head: "a".repeat(40), tree: "b".repeat(40) };
     const input = {
       plan,
@@ -100,6 +112,16 @@ describe("delivery suffix reconciliation", () => {
         events.push("publish");
         return { status: "published" as const };
       },
+      rewriteLocalRef: async ({ ref, beforeHead, requestedHead }: {
+        ref: string; beforeHead: string; requestedHead: string;
+      }) => {
+        const current = localHeads.get(ref);
+        if (current === requestedHead) return { status: "adopted" as const };
+        if (current !== beforeHead) return { status: "refused" as const };
+        localHeads.set(ref, requestedHead);
+        events.push(`local:${ref}`);
+        return { status: "rewritten" as const };
+      },
       stateStore: { publish: async (_planId: string, value: DeliveryStateV1, revision: number) => {
         events.push(value.activeOperation === null ? "final" : "reserve");
         return { status: "ok" as const, value: { revision: revision + 1, value } };
@@ -109,8 +131,11 @@ describe("delivery suffix reconciliation", () => {
 
     expect(events).toEqual([
       "observe", ...affected.map((id) => `prove:${id}`), "reserve",
-      "reobserve", ...affected.map((id) => `prove:${id}`), "absorb", "publish", "final",
+      "reobserve", ...affected.map((id) => `prove:${id}`),
+      ...before.members.map((member) => `local:${member.ref}`), "absorb", "publish", "final",
     ]);
+    expect(before.members.map((member) => member.ref === null ? null : localHeads.get(member.ref)))
+      .toEqual(observed.members.map((member) => member.coordinates?.head));
     expect(result).toMatchObject({
       status: "applied",
       state: {
@@ -140,6 +165,7 @@ describe("delivery suffix reconciliation", () => {
         proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
         absorbTop: async () => ({ status: "absorbed", ...absorbed }),
         publishTop: async () => ({ status: publication }),
+        rewriteLocalRef: async () => ({ status: "adopted" }),
         stateStore: { publish: async (_planId, value, revision) => ({
           status: "ok", value: { revision: revision + 1, value },
         }) },
@@ -173,6 +199,7 @@ describe("delivery suffix reconciliation", () => {
         topEffects.push("publish");
         return { status: "published" as const };
       },
+      rewriteLocalRef: async () => ({ status: "rewritten" as const }),
       stateStore: { publish: async (_planId: string, value: DeliveryStateV1) => {
         finalStates.push(value);
         return { status: "ok" as const, value: { revision: 9, value } };
@@ -223,6 +250,7 @@ describe("delivery suffix reconciliation", () => {
       proveContribution: async () => ({
         status: "accepted" as const, proof: "mechanical-reapply" as const,
       }),
+      rewriteLocalRef: async () => ({ status: "rewritten" as const }),
     };
     await expect(settleReservedDeliverySuffixRefresh({
       ...common,
@@ -267,6 +295,7 @@ describe("delivery suffix reconciliation", () => {
         topEffects();
         return { status: "published" as const };
       },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite local refs"); },
       stateStore: { publish: stateWrites },
     };
     await expect(adoptExternalDeliverySuffixRefresh({
@@ -302,13 +331,26 @@ describe("delivery suffix reconciliation", () => {
       observeResult: async () => ({
         status: "observed",
         observation: {
-          snapshot: { ...observed, target: advancedTarget },
+          snapshot: {
+            ...observed,
+            target: advancedTarget,
+            members: observed.members.map((member, index) => ({
+              ...member,
+              coordinates: member.coordinates === null ? null : {
+                ...member.coordinates,
+                base: index === 0
+                  ? advancedTarget.coordinates.head
+                  : observed.members[index - 1]!.coordinates!.head,
+              },
+            })),
+          },
           targetMovement: "append-only",
         },
       }),
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       absorbTop: async () => ({ status: "absorbed", ...absorbed }),
       publishTop: async () => ({ status: "published" }),
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
       stateStore: { publish: async (_planId, value, revision) => ({
         status: "ok", value: { revision: revision + 1, value },
       }) },
@@ -328,6 +370,66 @@ describe("delivery suffix reconciliation", () => {
         },
       },
     });
+  });
+
+  it("settles zero provider movement only when the terminal top still owes absorption", async () => {
+    const { plan, state, affected, before } = providerRefreshFixture();
+    const highest = before.members.at(-1)!;
+    const staleTop = {
+      ...state,
+      members: state.members.map((member, index, members) => index === members.length - 1
+        ? {
+            ...member,
+            coordinates: { ...member.coordinates!, base: "0".repeat(40) },
+          }
+        : member),
+    };
+    const absorbTop = vi.fn(async () => ({
+      status: "absorbed" as const,
+      head: "a".repeat(40),
+      tree: "b".repeat(40),
+    }));
+    const result = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision: 7, value: staleTop },
+      affectedDeliverableIds: affected,
+      observeResult: async () => ({
+        status: "observed",
+        observation: { snapshot: before, targetMovement: "exact" },
+      }),
+      proveContribution: async () => { throw new Error("no provider movement to prove"); },
+      absorbTop,
+      publishTop: async () => ({ status: "published" }),
+      rewriteLocalRef: async () => { throw new Error("no provider movement to rewrite"); },
+      stateStore: { publish: async (_planId, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    });
+    expect(absorbTop).toHaveBeenCalledWith(expect.objectContaining({
+      highestMember: { head: highest.coordinates!.head, tree: highest.coordinates!.tree },
+    }));
+    expect(result).toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
+
+    const coherentTop = {
+      ...state,
+      members: state.members.map((member, index, members) => index === members.length - 1
+        ? { ...member, coordinates: { ...member.coordinates!, base: highest.coordinates!.head } }
+        : member),
+    };
+    await expect(adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision: 7, value: coherentTop },
+      affectedDeliverableIds: affected,
+      observeResult: async () => ({
+        status: "observed",
+        observation: { snapshot: before, targetMovement: "exact" },
+      }),
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    })).resolves.toEqual({ status: "refused", reason: "ambiguous-result" });
   });
 
   it("revalidates lifecycle paths before reserving and rewriting an explicit suffix head", async () => {

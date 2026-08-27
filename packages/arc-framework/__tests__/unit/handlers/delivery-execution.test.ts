@@ -177,6 +177,64 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves provider-neutral review-fix planning and selected publication continuations", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const affectedDeliverableIds = plan.members.slice(0, -1).map(({ deliverableId }) => deliverableId);
+    const planRequest = JSON.stringify({
+      planId: plan.planId,
+      selectedDeliverableId,
+      repository: "owner/repo",
+    });
+    const planned = {
+      status: "planned" as const,
+      route: "provider-refresh" as const,
+      selectedDeliverableId,
+      affectedDeliverableIds,
+      nextAction: "publish-selected-member" as const,
+      recommendedActionText: "Publish the selected member, refresh externally, then adopt.",
+    };
+    const planWrite = vi.fn();
+    await handleDeliveryExecution("review-fix-plan", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(planRequest),
+      execute: vi.fn().mockResolvedValue(planned),
+      write: planWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(planWrite.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery review-fix plan",
+      ...planned,
+    });
+
+    const published = {
+      status: "published" as const,
+      state: { revision: 8, value: state },
+      selectedDeliverableId,
+      affectedDeliverableIds,
+      nextAction: "execute-provider-refresh" as const,
+      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true as const },
+      recommendedActionText: "Refresh externally, then adopt.",
+    };
+    const publishWrite = vi.fn();
+    await handleDeliveryExecution("review-fix-publish", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        ...JSON.parse(planRequest),
+        checkoutPath: "/tmp/review-fix",
+        remote: "origin",
+      })),
+      execute: vi.fn().mockResolvedValue(published),
+      write: publishWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(publishWrite.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery review-fix publish",
+      ...published,
+    });
+  });
+
   it("preserves refresh adoption while deriving the suffix behind the strict request boundary", async () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
@@ -203,6 +261,74 @@ describe("delivery execution handler", () => {
       command: "delivery refresh adopt",
       status: "applied",
       state: { revision: 3, value: state },
+    });
+  });
+
+  it("preserves fresh and recovery provider-refresh execution through the strict command envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const applied = {
+      status: "applied" as const,
+      state: { revision: 4, value: state },
+    };
+    const freshExecute = vi.fn().mockResolvedValue(applied);
+    const freshWrite = vi.fn();
+
+    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        scope: { kind: "dependent-suffix", selectedDeliverableId },
+      })),
+      execute: freshExecute,
+      write: freshWrite,
+      setExitCode: vi.fn(),
+    });
+
+    expect(freshExecute).toHaveBeenCalledOnce();
+    expect(JSON.parse(freshWrite.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery refresh execute",
+      ...applied,
+    });
+
+    const reservation = {
+      ...state,
+      activeOperation: {
+        operationId: "provider-refresh-operation",
+        kind: "rewrite" as const,
+        mode: "provider-refresh" as const,
+        affectedDeliverableIds: [selectedDeliverableId],
+        stateRevision: 3,
+        boundPlanDigest: state.boundPlan.planDigest,
+        before: { target: state.target, members: [state.members[0]!] },
+        requested: { target: state.target, members: [state.members[0]!] },
+      },
+    };
+    const retryable = {
+      status: "retryable" as const,
+      reason: "collision",
+      publication: { status: "retry" as const, pendingDeliverableIds: [selectedDeliverableId] },
+      reservation: { revision: 4, value: reservation },
+    };
+    const recoveryWrite = vi.fn();
+    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        operationId: "provider-refresh-operation",
+      })),
+      execute: vi.fn().mockResolvedValue(retryable),
+      write: recoveryWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(recoveryWrite.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery refresh execute",
+      ...retryable,
     });
   });
 
@@ -642,8 +768,16 @@ describe("delivery execution handler", () => {
         action: "delivery-rematerialize",
       },
       {
+        operationKind: "rewrite", mode: "selected-change", transition: "cleared",
+        action: "delivery-review-fix-publish",
+      },
+      {
         operationKind: "rewrite", mode: "provider-adoption", transition: "preserved",
         action: "delivery-refresh-adopt",
+      },
+      {
+        operationKind: "rewrite", mode: "provider-refresh", transition: "preserved",
+        action: "delivery-refresh-execute",
       },
       { operationKind: "land", mode: "sequential", transition: "cleared", action: "delivery-land-prepare" },
       {
@@ -857,6 +991,37 @@ describe("delivery execution handler", () => {
     expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
       status: "refused",
       reason: "candidate-moved",
+    });
+  });
+
+  it("preserves an exact full-rematerialization eligibility refusal", async () => {
+    const plan = deliveryStackPlanFixture();
+    const write = vi.fn();
+    await handleDeliveryExecution("rematerialize", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        topRef: "refs/heads/feat/example",
+        candidates: plan.members.map((member, index) => ({
+          deliverableId: member.deliverableId,
+          ref: `refs/heads/candidate-${index + 1}`,
+          checkoutPath: `/tmp/candidate-${index + 1}`,
+        })),
+        selectedDeliverableIds: [plan.members[0]!.deliverableId],
+        repository: "andrewRCr/arc-framework",
+        remote: "origin",
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "completeness-mismatched",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery rematerialize",
+      status: "refused",
+      reason: "completeness-mismatched",
     });
   });
 
