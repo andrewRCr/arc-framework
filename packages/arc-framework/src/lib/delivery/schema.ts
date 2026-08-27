@@ -295,7 +295,7 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("rewrite"),
-    mode: z.enum(["review-fix", "provider-adoption"]),
+    mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("teardown"),

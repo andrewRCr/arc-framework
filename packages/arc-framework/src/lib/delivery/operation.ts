@@ -31,7 +31,7 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
     .extend({
       ...reservationFields,
       kind: z.literal("rewrite"),
-      mode: z.enum(["review-fix", "provider-adoption"]),
+      mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
     }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("teardown") }),
