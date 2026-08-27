@@ -172,6 +172,16 @@ Dispatch only on `nextAction`. `review-hosted-request` means pass the returned a
 arc review hosted request -
 ```
 
+`respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
+[`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:
+
+```bash
+arc review respond -
+```
+
+This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
+plan through the phase-ordered settlement path below, then re-enter through `arc review status`.
+
 The action already carries the selected source, exact opened target, complete coverage, and any delivery-member
 vehicle. `resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice,
 and submits the returned `selectionAction` unchanged as `offer` beside that `selection` to:

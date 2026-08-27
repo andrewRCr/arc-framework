@@ -1,9 +1,9 @@
 /** Built-CLI coverage for fresh public delivery-position observation. */
 
 import { execFile } from "node:child_process";
-import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -15,6 +15,7 @@ import {
 import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { deriveDeliveryProviderRefreshSubject } from "../../src/lib/delivery/provider-refresh-observation.js";
+import { deriveDeliveryResidueLocators } from "../../src/lib/delivery/residue-reaping.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
@@ -304,6 +305,15 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
   await writeFile(fakeGh, [
     "#!/bin/sh",
     "if [ \"${ARC_FAKE_TARGET_UNAVAILABLE:-0}\" = \"1\" ]; then exit 1; fi",
+    "if [ \"${ARC_FAKE_CLOSEOUT:-0}\" = \"1\" ]; then",
+    "  case \"$2\" in",
+    "    repos/owner/repo/pulls/403)",
+    `      printf '%s\\n' '${request(403, "member-3", thirdHead, "main", "merged")}'`,
+    "      exit 0",
+    "      ;;",
+    "    *) echo \"unexpected closeout gh invocation: $*\" >&2; exit 1 ;;",
+    "  esac",
+    "fi",
     "case \"$2\" in",
     "  repos/owner/repo/git/ref/heads/main)",
     `    printf '%s\\n' '${JSON.stringify({ object: { sha: targetHead } })}'`,
@@ -518,6 +528,94 @@ describe("arc delivery position", () => {
       command: "delivery refresh execute",
       status: "refused",
       reason: "position-mismatch",
+    });
+  });
+
+  it("publishes a registered review fix through derived locators and reaps the exact pair at closeout", async () => {
+    const fixture = await positionFixture("selected-change-settled");
+    const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    const current = await fixture.states.read(fixture.plan.planId);
+    const selectedMember = current.status === "ok"
+      ? current.value?.value.members.find(({ deliverableId }) => deliverableId === selectedDeliverableId)
+      : undefined;
+    if (selectedMember?.ref === null || selectedMember?.ref === undefined || selectedMember.coordinates === null) {
+      throw new Error("selected review-fix member must be bound");
+    }
+    await git(fixture.repository, ["update-ref", selectedMember.ref, selectedMember.coordinates.head]);
+    const selectedTree = await git(fixture.repository, ["rev-parse", `${fixture.selectedFirstHead}^{tree}`]);
+    const correctionHead = await git(fixture.repository, [
+      "commit-tree", selectedTree, "-p", fixture.selectedFirstHead, "-m", "second selected review fix",
+    ]);
+    const gitCommonDir = resolve(
+      fixture.repository,
+      await git(fixture.repository, ["rev-parse", "--git-common-dir"]),
+    );
+    const derived = deriveDeliveryResidueLocators(fixture.plan, gitCommonDir);
+    expect(derived.status).toBe("derived");
+    if (derived.status !== "derived") throw new Error("review-fix locators must derive");
+    const locator = derived.locators.find(({ deliverableId }) => deliverableId === selectedDeliverableId);
+    if (locator === undefined) throw new Error("selected review-fix locator must exist");
+    await git(fixture.repository, ["update-ref", locator.candidateRef, correctionHead]);
+    await git(fixture.repository, ["worktree", "add", "--detach", locator.gatePath, correctionHead]);
+    await mkdir(join(fixture.repository, ".arc", "active"), { recursive: true });
+    await writeFile(join(
+      fixture.repository,
+      ".arc",
+      "active",
+      `meta-${fixture.plan.workUnitId}.md`,
+    ), [
+      `# Metadata: ${fixture.plan.workUnitId}`,
+      "",
+      "- **State:** Active",
+      "- **Branch:** main",
+      "- **Task List:** [none]",
+      "",
+    ].join("\n"));
+
+    const published = await runArcWithStdin(
+      ["delivery", "review-fix", "publish", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        selectedDeliverableId,
+        repository: "owner/repo",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(published.exitCode, `${published.stderr}\n${published.stdout}`).toBe(0);
+    expect(JSON.parse(published.stdout)).toMatchObject({
+      command: "delivery review-fix publish",
+      status: "published",
+      selectedDeliverableId,
+      nextAction: "execute-provider-refresh",
+    });
+    expect(await git(fixture.repository, ["rev-parse", locator.candidateRef])).toBe(correctionHead);
+    expect(await git(locator.gatePath, ["rev-parse", "HEAD"])).toBe(correctionHead);
+
+    const closed = await runArcWithStdin(
+      ["delivery", "closeout", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        workUnitId: fixture.plan.workUnitId,
+        repository: "owner/repo",
+        remote: "origin",
+      })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_CLOSEOUT: "1" } },
+    );
+    expect(closed.exitCode, `${closed.stderr}\n${closed.stdout}`).toBe(0);
+    expect(JSON.parse(closed.stdout)).toMatchObject({
+      command: "delivery closeout",
+      status: "closed-out",
+      planIds: [fixture.plan.planId],
+    });
+    await expect(git(fixture.repository, ["rev-parse", "--verify", locator.candidateRef]))
+      .rejects.toBeDefined();
+    expect(await git(fixture.repository, ["worktree", "list", "--porcelain"]))
+      .not.toContain(locator.gatePath);
+    await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
+      status: "ok",
+      value: null,
     });
   });
 

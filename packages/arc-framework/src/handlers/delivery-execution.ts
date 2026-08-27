@@ -282,9 +282,13 @@ const RewriteSchema = z.strictObject({
   contributionMode: z.enum(["prove-equivalent", "selected-change"]),
   contribution: ContributionEndpointsSchema,
 });
-const RematerializeSchema = MaterializeSchema.extend({
+const RematerializeSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  protectedBaseRef: RefSchema,
+  topRef: RefSchema,
   selectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
   repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
 });
 const TeardownSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -404,9 +408,7 @@ const ReviewFixBaseSchema = z.strictObject({
 const ReviewFixPlanSchema = ReviewFixBaseSchema.extend({
   entryMode: z.enum(["execution", "integrating"]),
 });
-const ReviewFixPublishSchema = ReviewFixBaseSchema.extend({
-  checkoutPath: z.string().min(1),
-});
+const ReviewFixPublishSchema = ReviewFixBaseSchema;
 
 const RequestSchemas = {
   "authoring-locate": AuthoringLocateSchema,
@@ -1506,7 +1508,7 @@ async function executeDeliveryCommand(
       expectedCandidateRef: locator.candidateRef,
       observation: authority.observation,
     }, {
-      inspectCandidate: () => inspectDeliveryCandidateCheckout(exec, publish.checkoutPath),
+      inspectCandidate: () => inspectDeliveryCandidateCheckout(exec, locator.gatePath),
       observeCandidateRef: () => observeDeliveryEligibilityRef(exec, locator.candidateRef),
       readAncestry: (ancestor, descendant) => readAncestry(exec, ancestor, descendant),
       revalidateLifecycle: async () => {
@@ -2490,14 +2492,7 @@ async function executeDeliveryCommand(
           cwd,
           objectAccess: "local-only",
         });
-        const [base, coordinates, observedTop] = await Promise.all([
-          resolveGitCandidateTargetBase({
-            cwd,
-            revision: effective.recognizedTarget.revision,
-            baseBranch,
-            baseRevision,
-            exec,
-          }),
+        const [coordinates, observedTop] = await Promise.all([
           observeDeliveryEligibilityRef(localExec, effective.recognizedTarget.revision),
           new GhDeliveryHostPort(hostedGhRunner).readRequest(parsed.repository, terminal.changeRequest),
         ]);
@@ -2507,6 +2502,21 @@ async function executeDeliveryCommand(
         if (observedTop.status !== "observed") {
           return { status: "refused", reason: "top-request-unavailable" };
         }
+        const predecessor = currentState.value.members.at(-2);
+        const predecessorBranch = predecessor?.ref?.startsWith("refs/heads/") === true
+          ? predecessor.ref.slice("refs/heads/".length)
+          : null;
+        const predecessorHead = predecessor?.coordinates?.head ?? null;
+        const requestedPredecessorBase = predecessorBranch !== null
+          && predecessorHead !== null
+          && observedTop.request.baseRef === predecessorBranch;
+        const base = await resolveGitCandidateTargetBase({
+          cwd,
+          revision: effective.recognizedTarget.revision,
+          baseBranch: requestedPredecessorBase ? predecessorBranch : baseBranch,
+          baseRevision: requestedPredecessorBase ? predecessorHead : baseRevision,
+          exec,
+        });
         const projected = rebindDeliveryTerminalCoordinates({
           plan: currentPlan,
           state: currentState.value,
@@ -2821,6 +2831,8 @@ async function executeDeliveryCommand(
   if (command === "rematerialize") {
     const parsed = RematerializeSchema.parse(request);
     let latestSnapshot: DeliveryEligibilitySnapshot | null = null;
+    let latestCandidates: readonly z.infer<typeof MutationCandidateSchema>[] | null = null;
+    const gitCommonDir = await resolveGitCommonDir(exec, cwd);
     const rematerialized = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: parsed.selectedDeliverableIds,
     }, {
@@ -2840,12 +2852,25 @@ async function executeDeliveryCommand(
         );
         if (position.status !== "observed") return { status: "refused" as const };
         const landedCount = position.facts.landedDeliverableIds.length;
+        const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
+        if (locatorResult.status !== "derived") return { status: "refused" as const };
+        const candidates = locatorResult.locators
+          .slice(landedCount)
+          .map((locator) => ({
+            deliverableId: locator.deliverableId,
+            ref: locator.candidateRef,
+            checkoutPath: locator.gatePath,
+          }));
+        if (candidates.length !== planRead.value.members.length - landedCount) {
+          return { status: "refused" as const };
+        }
+        latestCandidates = candidates;
         const eligible = await executeWithFreshDeliveryEligibility({
           planId: parsed.planId,
           protectedBaseRef: parsed.protectedBaseRef,
           topRef: parsed.topRef,
           memberOffset: landedCount,
-          candidates: parsed.candidates,
+          candidates,
         }, {
           ...eligibilityDeps,
           resolveOriginatingTopRef,
@@ -2887,7 +2912,7 @@ async function executeDeliveryCommand(
         };
       },
       reobserveCandidate: async (rewrite) => {
-        const candidate = parsed.candidates.find((entry) => entry.deliverableId === rewrite.deliverableId);
+        const candidate = latestCandidates?.find((entry) => entry.deliverableId === rewrite.deliverableId);
         const expected = rewrite.requested.members[0]?.coordinates;
         const observed = candidate === undefined ? null : await observeDeliveryEligibilityRef(exec, candidate.ref);
         return expected !== null && expected !== undefined && observed !== null
@@ -2919,7 +2944,7 @@ async function executeDeliveryCommand(
           requested: rewrite.requested,
           contributionMode: rewrite.selectedChange ? "selected-change" : "prove-equivalent",
           revalidateLifecycle: async () => {
-            const candidate = parsed.candidates.find((entry) => entry.deliverableId === rewrite.deliverableId);
+            const candidate = latestCandidates?.find((entry) => entry.deliverableId === rewrite.deliverableId);
             if (candidate === undefined) return { status: "refused" as const };
             const checked = await revalidateDeliveryLifecycleContribution({
               exec,

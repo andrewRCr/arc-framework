@@ -301,7 +301,9 @@ describe("delivery terminal recovery", () => {
     })}\n`);
   }
 
-  async function installTerminalRebindFixture(): Promise<{
+  async function installTerminalRebindFixture(input: {
+    readonly requestBase?: "target" | "predecessor";
+  } = {}): Promise<{
     readonly fixture: Awaited<ReturnType<typeof installFixture>>;
     readonly envelope: { readonly revision: number };
     readonly terminal: DeliveryStateV1["members"][number];
@@ -323,7 +325,11 @@ describe("delivery terminal recovery", () => {
     const localBase = await git(repository, ["rev-parse", "refs/heads/main"]);
     const authoritativeBase = await git(repository, ["rev-parse", "refs/remotes/origin/main"]);
     expect(localBase).not.toBe(authoritativeBase);
-    const currentBase = await git(repository, ["merge-base", currentHead, authoritativeBase]);
+    const currentBase = await git(repository, [
+      "merge-base",
+      currentHead,
+      input.requestBase === "predecessor" ? fixture.triggerHead : authoritativeBase,
+    ]);
     const subject = createCandidateSubjectSnapshot([]);
     const attestation = createCandidateAttestation({
       workUnit: plan.workUnitId,
@@ -361,7 +367,9 @@ describe("delivery terminal recovery", () => {
         reservation: null,
         terminus: null,
       }))}\n`),
-      writeFile(join(repository, "top-remedy-mutated"), ""),
+      ...(input.requestBase === "predecessor"
+        ? []
+        : [writeFile(join(repository, "top-remedy-mutated"), "")]),
     ]);
     const stale = DeliveryStateV1Schema.parse({
       ...envelope.value,
@@ -617,6 +625,39 @@ describe("delivery terminal recovery", () => {
       status: "rebound",
       state: { revision: envelope.revision + 1 },
       nextAction: "rerun-checkpoint",
+    });
+  });
+
+  it("rebinds a current terminal Candidate while the request targets its immediate predecessor", async () => {
+    const {
+      fixture,
+      terminal,
+      currentBase,
+      currentHead,
+      currentTree,
+      request,
+    } = await installTerminalRebindFixture({ requestBase: "predecessor" });
+
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"], repository, request, { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "rebound",
+      nextAction: "rerun-checkpoint",
+      state: {
+        value: {
+          members: [
+            expect.anything(),
+            {
+              ...terminal,
+              coordinates: { base: currentBase, head: currentHead, tree: currentTree },
+            },
+          ],
+        },
+      },
     });
   });
 

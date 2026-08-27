@@ -227,6 +227,16 @@ Dispatch only on `nextAction`. `review-hosted-request` means pass the returned a
 arc review hosted request -
 ```
 
+`respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
+[`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:
+
+```bash
+arc review respond -
+```
+
+This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
+plan through the existing phase-ordered settlement path below, then re-enter through `arc review status`.
+
 On `requested / await`, pass the returned self-contained handle to:
 
 ```bash
@@ -440,9 +450,9 @@ Only `rebound / read-position` returns to `arc delivery position`; every other t
 verb independently revalidates the current Candidate, publication boundary, open terminal request, exact
 coordinates, and state version before rebinding.
 
-The verb derives the candidate ref and lifecycle paths, requires its supplied checkout to be tracked-clean and exact,
-requires the candidate to extend the current bound member, reobserves exact registration immediately before mutation,
-then lease-publishes only that member under `rewrite / selected-change`.
+The verb derives the candidate ref, detached gate checkout, and lifecycle paths; requires that checkout to be
+tracked-clean and exact; requires the candidate to extend the current bound member; reobserves exact registration
+immediately before mutation; then lease-publishes only that member under `rewrite / selected-change`.
 `execute-provider-refresh` carries the returned selected member as a `dependent-suffix` scope directly into
 `arc delivery refresh execute`; do not stop for another attended choice. The executor keeps that selected head fixed,
 prepares only its dependents, and still uses the same path when no dependent moves because terminal-top absorption is
@@ -456,14 +466,15 @@ adoption verbs reobserve and prove the result; workflow prose does not reconstru
 
 `planned / rematerialize` means a fresh read found the canonical remaining chain exactly unregistered. Apply the
 approved fix to the top authoring locus first, cut the complete suffix from that updated content, and run the ordinary
-project gates for every candidate. Then invoke the composed fallback with the exact selected-member IDs and raw
-candidate locators:
+project gates for every candidate at the locators returned by `arc delivery authoring locate`. Then invoke the
+composed fallback with the exact selected-member IDs:
 
 ```bash
 arc delivery rematerialize - --json
 ```
 
-The service recloses suffix eligibility and recomputes carried-contribution proof before every reserved rewrite.
+The service derives the complete unlanded suffix's candidate refs and gate paths from the canonical plan, recloses
+suffix eligibility, and recomputes carried-contribution proof before every reserved rewrite.
 It executes in plan order, using each persisted result as the next predecessor; candidate movement or unselected
 contribution drift stops with the current reservation/state intact. Its exact eligibility refusal is authoritative;
 `completeness-mismatched` means the recut did not originate from top content carrying the approved fix. Never invoke
@@ -513,5 +524,7 @@ delivery arm from the current Candidate and retained member bindings, and its ex
 terminal merge. Do not fire a delivery interlock here.
 
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
+[review-response]: ../../../methods/review-response.md
+[review-triage]: ../../../methods/review-triage.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [validate-criteria]: ../../../methods/validate-criteria.md

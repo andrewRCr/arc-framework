@@ -1779,16 +1779,47 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           staged subject. Replay reobserves both and the blocked state before writing, while verification consumes
           only an exact successful re-root and every stale, partial, malformed, or open-task path stops.
 
+- _Forward amendment (2026-08-27):_ Self-delivery resumed from the newly published Candidate with the terminal
+  request correctly based on the highest retained non-terminal member. Exact terminal rebind instead required the
+  protected target, so the preterminal stack window refused `top-request-mismatch`; its green executable fixture had
+  modeled only the post-teardown retargeted shape. Repair that demonstrated mismatch and rehearse the remaining
+  integration state machine over this work unit's live eight-member shape so further reachable blockers surface at
+  once rather than one mutation cycle at a time.
+
+    - `[x]` **8.5.R.d Make terminal rebind stack-window exact and rehearse integration**
+
+        - _Goal:_ A freshly published terminal correction rebinds against the exact base valid at its current stack
+          position, and an executable live-shaped rehearsal reaches every remaining integration mutation boundary
+          without another unmodeled lifecycle-shape refusal.
+
+        - `[x]` **8.5.R.d.1 Admit the exact preterminal predecessor base**
+
+            - Terminal rebind now accepts either the exact protected target or the exact immediate predecessor at
+              the top request's current stack position, while every unrelated, stale, or coordinate-incoherent base
+              refuses before the versioned state write.
+
+        - `[x]` **8.5.R.d.2 Rehearse the remaining stacked integration path**
+
+            - An executable eight-member rehearsal crosses terminal rebind, retained member-review response,
+              native landing selection, seven teardowns, top retarget, terminal readiness, and complete closeout.
+            - Correction publication and rematerialization derive canonical candidate/gate locators, a real CLI
+              correction-to-closeout scenario proves exact cleanup, and all eight live gate pairs were restored to
+              their canonical candidate heads before integration resumes.
+
+        - `[x]` **8.5.R.d.3 Close the Member 8 amendment** — validate criteria at member scope
+
 - _Outcome:_ Member 8 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
-    - _Span:_ original diff `e11bd763d..270f42c1b`; earlier amendment diff `a374df393..b2d7ec52e`; current amendment
-      diff `530463f72..bfbf5073e`; reachability `bfbf5073e`; boundary-order deviation: the approved Tasks 8.5.R.a,
-      8.5.R.b, and 8.5.R.c - `tasks-delivery-native-stack-composition.md` forward amendments reopened Member 8 after
-      its original boundary.
+    - _Span:_ original diff `e11bd763d..270f42c1b`; earlier amendment diff `a374df393..b2d7ec52e`; prior amendment
+      diff `530463f72..bfbf5073e`; final amendment diff `3d9ea7ef1` plus the current worktree; reachability through the
+      current worktree; boundary-order deviation: the approved Tasks 8.5.R.a through 8.5.R.d -
+      `tasks-delivery-native-stack-composition.md` forward amendments reopened Member 8 after its original boundary.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`; _State:_ `[x]`;
       _Evidence:_ exact plan/state, ref, Candidate, and gate retirement preserves each authority, requires the merged
-      terminal request, retains exact closeout identifiers, and leaves every mismatch intact with a refusal.
+      terminal request, retains exact closeout identifiers, and leaves every mismatch intact with a refusal. A built-
+      CLI correction-to-closeout scenario derives the canonical locator pair, publishes through it, and proves both
+      sides reaped; fresh observation found all eight live gate pairs exact after repair.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 2`; _State:_ `[x]`;
       _Evidence:_ the integration strategy ships byte-identically through the installation recipe and both indexes.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 3`; _State:_ `[x]`;
@@ -1799,9 +1830,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       recovery precedence, consumes pending publication before position, and leaves unbound and work-unit-verification
       execution ordinary. Terminal correction planning returns top authoring before publication, then only an
       integrating entry with exact fresh terminal movement reaches the existing Candidate-, publication-boundary-,
-      request-, and coordinate-checked rebind. Dependent external fallback preserves the selected and lower prefix
-      through structural adoption. Unit, workflow-contract, and executable E2E coverage prove the routes without a
-      new state transition or provider-specific plan/state field.
+      request-, and coordinate-checked rebind. Correction publication and complete rematerialization derive their
+      candidate/gate locators from canonical plan and repository identity; dependent external fallback preserves the
+      selected and lower prefix through structural adoption. Unit, workflow-contract, executable E2E, and live-shaped
+      rehearsal coverage prove the routes without a new state transition or provider-specific plan/state field.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 5`; _State:_ `[x]`;
       _Evidence:_ plain attestation emits a closed action and argv bound to the exact refused Candidate and staged
       subject. The handler requires paired selectors with deliberate re-rooting; the verb reobserves Candidate,
@@ -1809,14 +1841,16 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       exact continuation after its fresh gates and requires `attested / re-root`. Unit, handler, workflow-contract,
       and real-CLI tests prove successful replay plus stale replay with no Candidate-record write, without adding a
       verification ledger, lifecycle state, or Candidate authority. Success Criteria markers remain unchanged.
-    - _Adversarial companion:_ the bounded amendment pass found that the first continuation could be replayed over
-      later staged content. Primary inspection confirmed and repaired that major finding with the exact selectors and
-      pre-write refusals above; the terminal-rebind path and the other three criteria remained clean.
+    - _Adversarial companion:_ the earlier bounded pass found that the first re-root continuation could be replayed
+      over later staged content; exact selectors and pre-write refusals repaired it. Final live-shaped passes found
+      stale gate heads, retained findings bypassing response, and the missing complete rehearsal. Primary inspection
+      repaired each supported-path defect; the exact live pairs, retained-attempt response route, and executable
+      eight-member rehearsal now prove closure without speculative hardening.
     - _Summary:_ five met, zero superseded, zero unresolved.
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 850 test files passed
   with one skipped (10,953 tests passed with one skipped), the package build, aggregate self-review, and diff hygiene

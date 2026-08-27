@@ -407,6 +407,20 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("re-enters retained hosted findings without spending a replacement review", async () => {
+    const paths = [
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/deliver-stack.md",
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    ];
+    for (const path of paths) {
+      const workflow = await readRepositoryFile(path);
+      expect(workflow).toMatch(
+        /respond-to-findings[\s\S]*responsePlan[\s\S]*review-triage[\s\S]*review-response[\s\S]*arc review respond -/iu,
+      );
+      expect(workflow).toMatch(/never requests another hosted review/iu);
+    }
+  });
+
   it("carries an explicit standard-review provider through both review lifecycles", async () => {
     const [prepare, errand, integrate] = await Promise.all([
       readRepositoryFile(

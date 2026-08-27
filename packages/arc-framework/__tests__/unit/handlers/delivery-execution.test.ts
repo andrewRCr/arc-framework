@@ -384,7 +384,6 @@ describe("delivery execution handler", () => {
         planId: plan.planId,
         selectedDeliverableId,
         repository: "owner/repo",
-        checkoutPath: "/tmp/review-fix",
         remote: "origin",
       })),
       execute: vi.fn().mockResolvedValue(published),
@@ -1175,7 +1174,7 @@ describe("delivery execution handler", () => {
     });
   });
 
-  it("accepts raw suffix locators without serialized proof or snapshots", async () => {
+  it("accepts rematerialization without caller-authored suffix locators", async () => {
     const plan = deliveryStackPlanFixture();
     const execute = vi.fn().mockResolvedValue({ status: "refused", reason: "candidate-moved" });
     const write = vi.fn();
@@ -1184,11 +1183,6 @@ describe("delivery execution handler", () => {
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
         topRef: "refs/heads/control",
-        candidates: plan.members.map((member, index) => ({
-          deliverableId: member.deliverableId,
-          ref: `refs/heads/candidate-${index + 1}`,
-          checkoutPath: `/tmp/candidate-${index + 1}`,
-        })),
         selectedDeliverableIds: [plan.members[0]!.deliverableId],
         repository: "andrewRCr/arc-framework",
         remote: "origin",
@@ -1212,11 +1206,6 @@ describe("delivery execution handler", () => {
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
         topRef: "refs/heads/feat/example",
-        candidates: plan.members.map((member, index) => ({
-          deliverableId: member.deliverableId,
-          ref: `refs/heads/candidate-${index + 1}`,
-          checkoutPath: `/tmp/candidate-${index + 1}`,
-        })),
         selectedDeliverableIds: [plan.members[0]!.deliverableId],
         repository: "andrewRCr/arc-framework",
         remote: "origin",
@@ -1252,11 +1241,6 @@ describe("delivery execution handler", () => {
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
         topRef: "refs/heads/control",
-        candidates: plan.members.map((member, index) => ({
-          deliverableId: member.deliverableId,
-          ref: `refs/heads/candidate-${index + 1}`,
-          checkoutPath: `/tmp/candidate-${index + 1}`,
-        })),
         selectedDeliverableIds: [changed],
         repository: "andrewRCr/arc-framework",
         remote: "origin",

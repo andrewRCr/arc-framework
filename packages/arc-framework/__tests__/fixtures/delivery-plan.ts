@@ -38,15 +38,22 @@ export function deliveryFourMemberStackPlanFixture(planId = defaultPlanId): Deli
   return buildDeliveryPlanFixture(planId, "stack-to-main", 4);
 }
 
+/** Construct a valid independently-landable eight-member stack plan. */
+export function deliveryEightMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 8);
+}
+
 function buildDeliveryPlanFixture(
   planId: string,
   projection: "wu-integration-target" | "stack-to-main",
   memberCount = 2,
   memberTitles: readonly string[] = ["First member", "Second member", "Third member", "Fourth member"],
 ): DeliveryPlanV1 {
+  const ordinalNames = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"];
+  const chunkKeys = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
   const assignableParents = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
-    semanticDigest: canonicalDigest({ goal: ["First", "Second", "Third", "Fourth"][index] }),
+    semanticDigest: canonicalDigest({ goal: ordinalNames[index] }),
     role: { kind: "verification" as const, scope: "member" },
   }));
   const parents = [
@@ -71,9 +78,9 @@ function buildDeliveryPlanFixture(
     entry: "from-tasks",
     projection: { kind: projection },
     members: assignableParents.map(({ taskId }, index) => ({
-      chunkKey: ["first", "second", "third", "fourth"][index],
-      title: memberTitles[index],
-      contract: `Publish the ${["first", "second", "third", "fourth"][index]} contract.`,
+      chunkKey: chunkKeys[index],
+      title: memberTitles[index] ?? `${ordinalNames[index]} member`,
+      contract: `Publish the ${chunkKeys[index]} contract.`,
       taskIds: [taskId],
       designElementIds: index === 0 ? ["detailed:state-contract"] : [],
       mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",

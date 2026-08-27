@@ -154,9 +154,9 @@ export function rebindDeliveryTerminalCoordinates(input: {
   }
   const terminalIndex = validated.state.members.length - 1;
   const terminal = validated.state.members[terminalIndex];
-  const targetRef = validated.state.target?.ref;
+  const target = validated.state.target;
   if (terminal === undefined || terminal.ref === null || terminal.changeRequest === null
-    || terminal.coordinates === null || targetRef === undefined) {
+    || terminal.coordinates === null || target === null) {
     return { status: "refused", reason: "terminal-binding-missing" };
   }
   const coordinates = DeliveryMemberCoordinatesV1Schema.safeParse(input.coordinates);
@@ -164,13 +164,22 @@ export function rebindDeliveryTerminalCoordinates(input: {
     || coordinates.data.head !== input.candidate.recognizedTarget.revision) {
     return { status: "refused", reason: "candidate-coordinate-mismatch" };
   }
+  const predecessor = validated.state.members[terminalIndex - 1];
+  const targetBaseMatches = target.coordinates !== null
+    && input.request.baseRef === target.ref.replace(/^refs\/heads\//u, "")
+    && coordinates.data.base === target.coordinates.head;
+  const predecessorBaseMatches = predecessor !== undefined
+    && predecessor.ref !== null
+    && predecessor.coordinates !== null
+    && input.request.baseRef === predecessor.ref.replace(/^refs\/heads\//u, "")
+    && coordinates.data.base === predecessor.coordinates.head;
   if (input.request.binding.providerId !== terminal.changeRequest.providerId
     || input.request.binding.changeRequestId !== terminal.changeRequest.changeRequestId
     || input.request.repository !== input.repository
     || input.request.headRepository !== input.repository
     || input.request.headRef !== terminal.ref.replace(/^refs\/heads\//u, "")
     || input.request.headSha !== coordinates.data.head
-    || input.request.baseRef !== targetRef.replace(/^refs\/heads\//u, "")
+    || (!targetBaseMatches && !predecessorBaseMatches)
     || input.request.state !== "open") {
     return { status: "refused", reason: "top-request-mismatch" };
   }

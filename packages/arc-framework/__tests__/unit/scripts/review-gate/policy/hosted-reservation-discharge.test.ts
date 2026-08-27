@@ -537,6 +537,55 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it("routes an applicable prior findings attempt back to its exact response plan", async () => {
+    const responsePlan = {
+      schemaVersion: 1 as const,
+      target: createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "change-set",
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: oid("0"),
+        diffBaseTree: oid("1"),
+        headSha: oid("a"),
+        headTree: oid("2"),
+      }),
+      source: {
+        kind: "hosted" as const,
+        attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fprior:hosted%2Fprior",
+      },
+      findings: [{
+        findingId: "finding-1",
+        severity: "major" as const,
+        locus: "src/index.ts:1",
+        evidenceUrlOrId: "https://example.test/finding-1",
+      }],
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          applicability: "retain-prior-attempt",
+          responsePlan,
+        }],
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: false,
+      detail: "Hosted source `coderabbit-pr` has retained findings awaiting disposition.",
+      nextSource: null,
+      responsePlan,
+    });
+  });
+
   it("does not spend provider capacity for an unresolved or unavailable prior projection", async () => {
     for (const readEarlierAttemptApplicability of [
       async () => ({

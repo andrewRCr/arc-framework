@@ -17,6 +17,7 @@ import type { StandardReviewReservationV1 } from "./integration-boundary-locus.j
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
 import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
+import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
 import {
   candidateExpectsEarlierReviewAttempt,
   projectEarlierReviewApplicability,
@@ -31,6 +32,7 @@ export interface HostedReservationDischarge {
   nextSource: string | null;
   applicability?: ReviewContributionApplicabilityResult;
   applicabilityAuthority?: "decision-required" | "blocked";
+  responsePlan?: HostedFindingsResponsePlan;
 }
 
 /** Decide the work-unit obligation from its ordered member discharges. */
@@ -223,6 +225,22 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const applicable = selected.filter(({ applicability }) => applicability === "retain-prior-attempt");
+      const findings = applicable.filter(({ outcome }) => outcome === "findings");
+      if (findings.length > 0) {
+        const responsePlans = findings.flatMap(({ responsePlan }) => responsePlan === undefined ? [] : [responsePlan]);
+        return responsePlans.length === 1
+          ? {
+              discharged: false,
+              detail: `Hosted source \`${sourceId}\` has retained findings awaiting disposition.`,
+              nextSource: null,
+              responsePlan: responsePlans[0],
+            }
+          : {
+              discharged: false,
+              detail: `Hosted source \`${sourceId}\` has retained findings without one exact response plan.`,
+              nextSource: null,
+            };
+      }
       if (applicable.some(({ outcome }) => outcome === "clean" || outcome === "settled-findings")) {
         return {
           discharged: true,

@@ -24,6 +24,7 @@ import {
   ReviewApplicabilityDecisionProjectionSchema,
   ReviewApplicabilitySelectionOfferSchema,
 } from "./policy/review-applicability-resolution.js";
+import { HostedFindingsResponsePlanSchema } from "./core/response-plan-schema.js";
 
 const ObjectIdSchema = GitObjectIdSchema;
 const BlockedReviewApplicabilitySchema = ReviewContributionApplicabilityResultSchema.refine(
@@ -91,6 +92,15 @@ export const RoutedReviewObligationSchema = z.union([
     selectionAction: ReviewApplicabilitySelectionOfferSchema,
   }),
   z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    conjunction: DeliveryReviewConjunctionSchema.refine(
+      (conjunction) => conjunction.status === "outstanding",
+      "delivery findings response requires an outstanding conjunction",
+    ),
+    responsePlan: HostedFindingsResponsePlanSchema,
+  }),
+  z.strictObject({
     state: z.literal("applicability-blocked"),
     detail: z.string().min(1),
     conjunction: DeliveryReviewConjunctionSchema.refine(
@@ -130,6 +140,7 @@ export function composeDeliveryReviewObligation(input: {
     nextSource: string | null;
     applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
     applicabilityAuthority?: "decision-required" | "blocked";
+    responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
   }[];
   applicabilityContext?: {
     workUnitId: string;
@@ -211,6 +222,14 @@ export function composeDeliveryReviewObligation(input: {
       applicability: discharge.applicability,
     });
   }
+  if (discharge?.responsePlan !== undefined) {
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      conjunction: { kind: "delivery", status: "outstanding", members },
+      responsePlan: discharge.responsePlan,
+    });
+  }
   if (target === undefined || discharge === undefined || discharge.nextSource === null) {
     return {
       state: "blocked",
@@ -268,6 +287,12 @@ export const ReviewStatusResultSchema = z.union([
     state: z.literal("review-required"),
     nextAction: z.literal("resolve-review-applicability"),
     selectionAction: ReviewApplicabilitySelectionOfferSchema,
+  }),
+  z.strictObject({
+    ...ReviewStatusBaseShape,
+    state: z.literal("review-required"),
+    nextAction: z.literal("respond-to-findings"),
+    responsePlan: HostedFindingsResponsePlanSchema,
   }),
   z.strictObject({
     ...ReviewStatusBaseShape,
@@ -425,6 +450,14 @@ export async function resolveReviewStatus(
     };
   }
   if (base.routedObligation.state === "review-required") {
+    if ("responsePlan" in base.routedObligation) {
+      return {
+        ...base,
+        state: "review-required",
+        nextAction: "respond-to-findings",
+        responsePlan: base.routedObligation.responsePlan,
+      };
+    }
     if ("selectionAction" in base.routedObligation) {
       return {
         ...base,

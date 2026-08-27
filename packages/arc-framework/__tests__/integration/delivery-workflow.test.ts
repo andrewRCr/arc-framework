@@ -121,6 +121,11 @@ describe("packaged delivery workflow", () => {
     );
     expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(nativeSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
+    expect(nativeSection).toMatch(
+      /respond-to-findings[\s\S]*responsePlan[\s\S]*review-triage[\s\S]*review-response[\s\S]*arc review respond -/iu,
+    );
+    expect(nativeSection).toMatch(/never requests another hosted review/iu);
+    expect(reviewSection).toMatch(/review-member[\s\S]*settle exact member review authority above/iu);
     const refreshPlan = reviewSection.indexOf("arc delivery refresh plan");
     const refreshExecute = reviewSection.indexOf("arc delivery refresh execute", refreshPlan);
     const refreshAdopt = reviewSection.indexOf("arc delivery refresh adopt", refreshPlan);
@@ -178,6 +183,11 @@ describe("packaged delivery workflow", () => {
     expect(reviewSection).toMatch(
       /planned \/ rematerialize[\s\S]*top authoring locus[\s\S]*complete suffix/iu,
     );
+    expect(reviewSection).toMatch(
+      /planned \/ rematerialize[\s\S]*derives[\s\S]*candidate refs[\s\S]*gate paths/iu,
+    );
+    expect(reviewSection).not.toContain("raw candidate locators");
+    expect(reviewSection).not.toContain("requires its supplied checkout");
     expect(reviewSection).toMatch(
       /partial, incoherent, ambiguous, malformed, unsupported, or unavailable[\s\S]*stops/iu,
     );
