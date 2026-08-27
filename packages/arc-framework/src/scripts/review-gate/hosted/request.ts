@@ -10,6 +10,10 @@ import {
 import type { DeliveryMemberLookup } from "../core/delivery-member-lookup.js";
 import { StandardReviewObligationProjectionSchema } from
   "../policy/standard-review-projection-schema.js";
+import {
+  ReviewCeilingOverrideSchema,
+  type ReviewCeilingOverride,
+} from "../policy/review-policy-driver.js";
 
 const GitHubObjectIdSchema = z.string().regex(/^[0-9a-f]{40}$/u);
 const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
@@ -83,14 +87,31 @@ export const HostedRequestHandleSchema = z.strictObject({
 );
 export type HostedRequestHandle = z.infer<typeof HostedRequestHandleSchema>;
 
-export const HostedRequestEnvelopeSchema = z.strictObject({
+export interface HostedRequestEnvelope {
+  schemaVersion: 1;
+  target: HostedTarget;
+  provider: HostedProviderId;
+  coverage: HostedReviewCoverage;
+  vehicle?: HostedRequestVehicle;
+  ceilingOverride?: ReviewCeilingOverride;
+}
+
+export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.strictObject({
   schemaVersion: z.literal(1),
   target: HostedTargetSchema,
   provider: HostedProviderIdSchema,
   coverage: HostedReviewCoverageSchema,
   vehicle: HostedRequestVehicleSchema.optional(),
+  ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+}).superRefine((request, context) => {
+  if (request.ceilingOverride !== undefined && request.vehicle?.kind !== "delivery-member") {
+    context.addIssue({
+      code: "custom",
+      path: ["ceilingOverride"],
+      message: "a hosted ceiling override requires one exact delivery-member vehicle",
+    });
+  }
 });
-export type HostedRequestEnvelope = z.infer<typeof HostedRequestEnvelopeSchema>;
 
 export type HostedRequestOutcome =
   | {
@@ -191,6 +212,9 @@ export async function requestHostedReview(
     adapters: readonly HostedReviewAdapter[];
     errandBinding?: HostedErrandProgressBinding;
     deliveryMemberLookup?: DeliveryMemberLookup;
+    admitDeliveryMemberRequest?: (
+      request: HostedRequestEnvelope & { vehicle: HostedDeliveryMemberRequestVehicle },
+    ) => Promise<void>;
   },
 ): Promise<HostedRequestResult> {
   const request = HostedRequestEnvelopeSchema.parse(input);
@@ -220,6 +244,13 @@ export async function requestHostedReview(
       nextAction: "stop",
       provider: request.provider,
     };
+  }
+
+  if (request.vehicle?.kind === "delivery-member") {
+    if (dependencies.admitDeliveryMemberRequest === undefined) {
+      throw new Error("Hosted delivery-member capacity requires request-time driver admission.");
+    }
+    await dependencies.admitDeliveryMemberRequest({ ...request, vehicle: request.vehicle });
   }
 
   const outcome = await adapter.request(request.target, request.coverage);

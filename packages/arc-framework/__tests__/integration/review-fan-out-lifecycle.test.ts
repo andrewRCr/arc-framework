@@ -72,6 +72,10 @@ import {
   projectPublicationBoundary,
 } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { createPrePublicationCompositionDependencies } from
+  "../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import type { ReviewCeilingOverride } from
+  "../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
   ReviewStatusCommandResultSchema,
   resolveReviewStatus,
@@ -162,6 +166,9 @@ async function requestThroughHandler(
         request: async () => outcome,
       }],
       deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ cwd: root, exec }),
+      ...(request.vehicle?.kind !== "delivery-member"
+        ? {}
+        : { admitDeliveryMemberRequest: async () => undefined }),
     }),
     write: (text) => output.push(text),
     setExitCode: (code) => exitCodes.push(code),
@@ -418,13 +425,18 @@ async function moveDeliveryTargets(harness: FanOutHarness): Promise<void> {
 async function statusThroughHandler(
   harness: FanOutHarness,
   target: { repository: string; headRef: string; headSha: string },
+  ceilingOverride?: ReviewCeilingOverride,
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
-  await handleReviewStatus({ target: JSON.stringify(target), json: true }, undefined, {
+  await handleReviewStatus({
+    target: JSON.stringify(target),
+    ...(ceilingOverride === undefined ? {} : { ceilingOverride: JSON.stringify(ceilingOverride) }),
+    json: true,
+  }, undefined, {
     resolveRoot: () => harness.root,
     resolve: (root, input) => resolveReviewStatus(input, {
-      observe: async (statusTarget) => ({
+      observe: async (statusTarget, admittedOverride) => ({
         actualHeadSha: statusTarget.headSha,
         requiredChecks: "green",
         routedObligation: await readRoutedObligation(
@@ -434,6 +446,7 @@ async function statusThroughHandler(
           42,
           new RepositoryDeliveryMemberLookup({ cwd: root, exec: harness.exec }),
           harness.baseHead,
+          admittedOverride === undefined ? undefined : { ceilingOverride: admittedOverride },
         ),
         currentBaseOid: harness.baseHead,
         baseContained: true,
@@ -444,6 +457,62 @@ async function statusThroughHandler(
   });
   expect(exitCodes).toEqual([]);
   return ReviewStatusCommandResultSchema.parse(JSON.parse(output.join("")));
+}
+
+async function advanceSecondTarget(harness: FanOutHarness): Promise<{ head: string; tree: string }> {
+  await writeFile(join(harness.root, "second.txt"), "third second contribution\n", "utf8");
+  await git(harness.root, ["add", "second.txt"]);
+  await git(harness.root, ["commit", "-m", "advance second member again"]);
+  const head = await git(harness.root, ["rev-parse", "HEAD"]);
+  const tree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
+  const state: DeliveryStateV1 = {
+    ...harness.state,
+    members: [
+      harness.state.members[0]!,
+      {
+        ...harness.state.members[1]!,
+        coordinates: { base: harness.movedFirst, head, tree },
+      },
+    ],
+  };
+  const published = await harness.states.publish(harness.plan.planId, state, harness.stateRevision);
+  if (published.status !== "ok") throw new Error("expected twice-moved delivery state");
+  harness.state = state;
+  harness.stateRevision = published.value.revision;
+  const current = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
+  if (current.version === null) throw new Error("expected current Candidate version");
+  const candidate = await installCandidate(harness, head, current.version);
+  await writeBoundary(harness, candidate, "feat/delivery-plan-record", "bound");
+  return { head, tree };
+}
+
+async function selectReviewRequiredUntilRouted(
+  harness: FanOutHarness,
+  target: { repository: string; headRef: string; headSha: string },
+) {
+  for (let index = 0; index < 4; index += 1) {
+    const status = await statusThroughHandler(harness, target);
+    if (status.nextAction !== "resolve-review-applicability") return status;
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+    await handleCandidateApplicabilityResolve(harness.plan.workUnitId, "-", undefined, {
+      resolveRoot: () => harness.root,
+      readText: async () => JSON.stringify({
+        kind: "review-applicability-selection",
+        offer: status.selectionAction,
+        selection: {
+          selectedBy: "andrew",
+          selectedAt: `2026-08-24T04:1${String(index)}:00.000Z`,
+          choice: "review-required",
+        },
+      }),
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+    expect(exitCodes).toEqual([]);
+    expect(JSON.parse(output.join(""))).toMatchObject({ state: "resolved", choice: "review-required" });
+  }
+  throw new Error("review applicability selections did not reach a routed status");
 }
 
 describe("hosted review fan-out lifecycle", () => {
@@ -552,17 +621,50 @@ describe("hosted review fan-out lifecycle", () => {
       effectiveCoverage: "complete",
     }, harness.root, harness.exec);
     if (priorSecondRequested.nextAction !== "await") throw new Error("expected prior second review handle");
+    const priorFinding = {
+      findingId: "finding-prior",
+      origin: "review-thread",
+      commentId: "comment-prior",
+      threadId: "thread-prior",
+      settlement: "reply-and-resolve",
+      severity: "major",
+      locus: "src/prior.ts:1",
+      url: "https://example.test/finding-prior",
+    };
     const priorSecondAwait = await awaitThroughHandler(priorSecondRequested.handle, {
-      kind: "clean",
+      kind: "findings",
       reviewUrl: "https://example.test/review-second-prior",
+      findings: [priorFinding],
     });
-    await recordHostedAwaitAttempt(harness.store, {
+    const priorProgress = await recordHostedAwaitAttempt(harness.store, {
       repositoryId: harness.repositoryId,
       result: priorSecondAwait,
       reviewTarget: priorSecondReview.reviewTarget,
       requirement: priorSecondReview.requirement,
       actorIdentity: "andrew",
       now: "2026-08-24T04:05:00.000Z",
+    });
+    if (priorProgress === null) throw new Error("expected prior findings progress");
+    const priorResponse = await statusThroughHandler(harness, priorStatusTarget);
+    expect(priorResponse).toMatchObject({
+      nextAction: "respond-to-findings",
+      responsePlan: { findings: [{ findingId: priorFinding.findingId }] },
+    });
+    await expect(statusThroughHandler(harness, priorStatusTarget)).resolves.toMatchObject({
+      nextAction: "respond-to-findings",
+      responsePlan: { findings: [{ findingId: priorFinding.findingId }] },
+    });
+    await bindHostedAttemptDisposition(harness.store, {
+      operationId: laneProgressOperationId({
+        lane: "standard",
+        repositoryId: harness.repositoryId,
+        headSha: harness.priorSecond,
+      }),
+      attemptId: hostedLaneAttemptId(priorSecondRequested.handle),
+      dispositionSetId: canonicalDigest({ disposition: "prior" }),
+      findingIds: [priorFinding.findingId],
+      noHostSettlementFindingIds: [priorFinding.findingId],
+      now: "2026-08-24T04:05:30.000Z",
     });
 
     await moveDeliveryTargets(harness);
@@ -764,6 +866,42 @@ describe("hosted review fan-out lifecycle", () => {
             { state: "discharged", vehicle: currentSecond },
           ],
         },
+      },
+    });
+
+    const third = await advanceSecondTarget(harness);
+    const thirdVehicle = member(harness.plan, 1, third.head);
+    const thirdStatusTarget = {
+      repository,
+      headRef: "feat/delivery-plan-record",
+      headSha: third.head,
+    };
+    const ceiling = await selectReviewRequiredUntilRouted(harness, thirdStatusTarget);
+    expect(ceiling).toMatchObject({
+      state: "approval-required",
+      nextAction: "obtain-ceiling-override",
+      consequence: {
+        target: { repository, pullRequest: 42, headSha: third.head },
+        lane: "standard",
+        exhaustedPassCount: 2,
+        nextPass: 3,
+      },
+      routedObligation: {
+        conjunction: {
+          members: [{ state: "discharged" }, { state: "outstanding", vehicle: thirdVehicle }],
+        },
+      },
+    });
+    if (ceiling.nextAction !== "obtain-ceiling-override") throw new Error("expected exact ceiling consequence");
+    const overridden = await statusThroughHandler(harness, thirdStatusTarget, ceiling.consequence);
+    expect(overridden).toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        target: ceiling.consequence.target,
+        provider: "coderabbit-pr",
+        vehicle: thirdVehicle,
+        ceilingOverride: ceiling.consequence,
       },
     });
   });
