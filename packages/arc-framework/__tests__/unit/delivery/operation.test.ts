@@ -24,7 +24,7 @@ type SnapshotOperationRequest = Extract<DeliveryOperationReservationRequestV1, {
 type SnapshotOperationOverrides = {
   readonly operationId?: string;
   readonly kind?: SnapshotOperationRequest["kind"];
-  readonly mode?: "review-fix" | "provider-adoption";
+  readonly mode?: "review-fix" | "selected-change" | "provider-adoption";
   readonly affectedDeliverableIds?: string[];
   readonly expectedStateRevision?: number;
   readonly before?: DeliveryOperationSnapshotV1;
@@ -75,7 +75,13 @@ function operationRequest(
   };
   const kind = overrides.kind ?? "rewrite";
   return kind === "rewrite"
-    ? { ...common, kind, mode: overrides.mode ?? "review-fix" }
+    ? {
+        ...common,
+        kind,
+        mode: overrides.mode === "provider-adoption" || overrides.mode === "selected-change"
+          ? overrides.mode
+          : "review-fix",
+      }
     : { ...common, kind };
 }
 
