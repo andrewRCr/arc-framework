@@ -537,6 +537,131 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it("routes an applicable prior findings attempt back to its exact response plan", async () => {
+    const responsePlan = {
+      schemaVersion: 1 as const,
+      target: createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "change-set",
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: oid("0"),
+        diffBaseTree: oid("1"),
+        headSha: oid("a"),
+        headTree: oid("2"),
+      }),
+      source: {
+        kind: "hosted" as const,
+        attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fprior:hosted%2Fprior",
+      },
+      findings: [{
+        findingId: "finding-1",
+        severity: "major" as const,
+        locus: "src/index.ts:1",
+        evidenceUrlOrId: "https://example.test/finding-1",
+      }],
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          applicability: "retain-prior-attempt",
+          responsePlan,
+        }],
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: false,
+      detail: "Hosted source `coderabbit-pr` has retained findings awaiting disposition.",
+      nextSource: null,
+      responsePlan,
+    });
+  });
+
+  it("returns retained findings before an Owner-selected replacement review", async () => {
+    const responsePlan = {
+      schemaVersion: 1 as const,
+      target: createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "change-set",
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: oid("0"),
+        diffBaseTree: oid("1"),
+        headSha: oid("a"),
+        headTree: oid("2"),
+      }),
+      source: {
+        kind: "hosted" as const,
+        attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fprior:hosted%2Fprior",
+      },
+      findings: [{
+        findingId: "finding-1",
+        severity: "major" as const,
+        locus: "src/index.ts:1",
+        evidenceUrlOrId: "https://example.test/finding-1",
+      }],
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          applicability: "request-review",
+          responsePlan,
+        }],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: null,
+      responsePlan,
+    });
+  });
+
+  it("does not discharge earlier settled findings selected for current-head review", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("a"), oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({
+        [oid("a")]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [attempt(oid("a"), "coderabbit-pr", "settled-findings")],
+        },
+      }),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "settled-findings",
+          applicability: "request-review",
+        }],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: "coderabbit-pr",
+    });
+  });
+
   it("does not spend provider capacity for an unresolved or unavailable prior projection", async () => {
     for (const readEarlierAttemptApplicability of [
       async () => ({

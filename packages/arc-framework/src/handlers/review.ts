@@ -168,10 +168,14 @@ import {
   assertHostedErrandAdmission,
   assertHostedErrandBindingAuthority,
   assertHostedReservationAdmission,
+  assertHostedReservationBindingAuthority,
+  assertHostedReservationPolicyAdmission,
   configuredSourceSuffix,
   hostedReservationAttemptsForTarget,
 } from
   "../scripts/review-gate/policy/hosted-reservation-admission.js";
+import { createHostedReservationDischargeReader } from
+  "../scripts/review-gate/policy/hosted-reservation-discharge.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
@@ -339,7 +343,10 @@ const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
   },
 };
 
-export const ReviewStatusCliInputSchema = z.strictObject({ target: z.string().trim().min(1) });
+export const ReviewStatusCliInputSchema = z.strictObject({
+  target: z.string().trim().min(1),
+  ceilingOverride: z.string().trim().min(1).optional(),
+});
 
 /** Syntax-owned input for the pre-publication review procedure. */
 export const ReviewPrePublicationInputSchema = z.strictObject({
@@ -377,7 +384,10 @@ const reviewPrePublicationInputRegistration: CommandInputRegistration = {
 const reviewStatusInputRegistration: CommandInputRegistration = {
   commandPath: "review status",
   schema: ReviewStatusCliInputSchema,
-  schemaFields: { "option.target": "target" },
+  schemaFields: {
+    "option.target": "target",
+    "option.ceiling-override": "ceilingOverride",
+  },
 };
 
 /** Syntax-owned stack position for merge-method resolution. */
@@ -610,6 +620,7 @@ export interface ReviewChecksAwaitOptions {
 
 export interface ReviewStatusOptions {
   target: string;
+  ceilingOverride?: string;
   json?: boolean;
 }
 
@@ -635,12 +646,23 @@ export async function handleReviewStatus(
     ...overrides,
   };
   let decoded: unknown;
+  let decodedCeilingOverride: unknown;
   try {
     decoded = JSON.parse(options.target) as unknown;
   } catch {
     decoded = null;
   }
-  const parsed = ReviewStatusTargetInputSchema.safeParse({ target: decoded });
+  if (options.ceilingOverride !== undefined) {
+    try {
+      decodedCeilingOverride = JSON.parse(options.ceilingOverride) as unknown;
+    } catch {
+      decodedCeilingOverride = null;
+    }
+  }
+  const parsed = ReviewStatusTargetInputSchema.safeParse({
+    target: decoded,
+    ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+  });
   if (!parsed.success) {
     const detail = parsed.error.issues.map(({ message }) => message).join("; ");
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
@@ -1377,6 +1399,7 @@ async function resolveHostedProgressContext(input: {
   provider: HostedProviderId;
   vehicle?: HostedProgressVehicle;
   settings?: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
+  admitCapacity: boolean;
 }) {
   const settings = input.settings ?? (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
@@ -1479,12 +1502,14 @@ async function resolveHostedProgressContext(input: {
       configuredSources,
       rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY,
     });
-    assertHostedErrandAdmission({
-      binding: errandBinding,
-      current,
-      provider: input.provider,
-      attempts,
-    });
+    if (input.admitCapacity) {
+      assertHostedErrandAdmission({
+        binding: errandBinding,
+        current,
+        provider: input.provider,
+        attempts,
+      });
+    }
     const requirement = createReviewRequirement({
       target: reviewTarget,
       projection: errandBinding.standardReview,
@@ -1492,7 +1517,16 @@ async function resolveHostedProgressContext(input: {
       initialAdmission: "automatic",
     });
     if (requirement === null) throw new Error("Hosted Errand progress does not carry an obligation.");
-    return { store, repositoryId, reviewTarget, requirement, errandBinding };
+    return {
+      store,
+      repositoryId,
+      reviewTarget,
+      requirement,
+      errandBinding,
+      reservation: null,
+      candidateRecord: null,
+      settings,
+    };
   }
 
   const active = member === null ? await resolveActiveWu({ cwd: input.root }) : null;
@@ -1517,22 +1551,6 @@ async function resolveHostedProgressContext(input: {
   if (candidateRecord === null) {
     throw new Error("Hosted review reservation requires the canonical Candidate record.");
   }
-  const earlier = await projectEarlierReviewApplicability({
-    query: {
-      schemaVersion: 1,
-      repositoryId,
-      repository: input.target.repository,
-      pullRequest: input.target.pullRequest,
-      currentHead: input.target.headSha,
-      lane: "standard",
-      sourceId: input.provider,
-      ...(input.vehicle?.kind === "delivery-member" ? { currentVehicle: input.vehicle } : {}),
-    },
-    currentBase: reviewTarget.diffBaseSha,
-    snapshot: await store.readOperationSnapshot(),
-    candidate: candidateRecord,
-    exec: createRawGitExec(input.root),
-  });
   const applicabilityQuery = {
     schemaVersion: 1 as const,
     repositoryId,
@@ -1543,26 +1561,8 @@ async function resolveHostedProgressContext(input: {
     sourceId: input.provider,
     ...(input.vehicle?.kind === "delivery-member" ? { currentVehicle: input.vehicle } : {}),
   };
-  if (earlier.status === "unavailable"
-    || (earlier.status === "not-found"
-      && candidateExpectsEarlierReviewAttempt(candidateRecord, applicabilityQuery))) {
-    throw new Error("Hosted review contribution applicability is unavailable.");
-  }
-  const applicabilityAction = earlier.status !== "complete"
-    ? undefined
-    : earlier.attempts.some(({ applicability }) => applicability === "stop")
-      ? "stop" as const
-      : earlier.attempts.some(({ applicability }) => applicability === "request-review")
-        ? "request-review" as const
-        : earlier.attempts.some(({ outcome, applicability }) => (
-            applicability === "retain-prior-attempt"
-            && earlierAttemptRetainsReservationPosition(outcome)
-          ))
-          ? "retain-prior-attempt" as const
-          : undefined;
-  assertHostedReservationAdmission({
+  const bindingAuthority = {
     reservation,
-    provider: input.provider,
     repository: input.target.repository,
     headSha: input.target.headSha,
     targetKind: reviewTarget.kind,
@@ -1576,9 +1576,41 @@ async function resolveHostedProgressContext(input: {
       subjectDigest: candidate.subjectDigest,
       headSha: candidate.headSha,
     },
-    attempts,
-    ...(applicabilityAction === undefined ? {} : { applicabilityAction }),
-  });
+  };
+  if (input.admitCapacity && input.vehicle?.kind !== "delivery-member") {
+    const earlier = await projectEarlierReviewApplicability({
+      query: applicabilityQuery,
+      currentBase: reviewTarget.diffBaseSha,
+      snapshot: await store.readOperationSnapshot(),
+      candidate: candidateRecord,
+      exec: createRawGitExec(input.root),
+    });
+    if (earlier.status === "unavailable"
+      || (earlier.status === "not-found"
+        && candidateExpectsEarlierReviewAttempt(candidateRecord, applicabilityQuery))) {
+      throw new Error("Hosted review contribution applicability is unavailable.");
+    }
+    const applicabilityAction = earlier.status !== "complete"
+      ? undefined
+      : earlier.attempts.some(({ applicability }) => applicability === "stop")
+        ? "stop" as const
+        : earlier.attempts.some(({ applicability }) => applicability === "request-review")
+          ? "request-review" as const
+          : earlier.attempts.some(({ outcome, applicability }) => (
+              applicability === "retain-prior-attempt"
+              && earlierAttemptRetainsReservationPosition(outcome)
+            ))
+            ? "retain-prior-attempt" as const
+            : undefined;
+    assertHostedReservationAdmission({
+      ...bindingAuthority,
+      provider: input.provider,
+      attempts,
+      ...(applicabilityAction === undefined ? {} : { applicabilityAction }),
+    });
+  } else {
+    assertHostedReservationBindingAuthority(bindingAuthority);
+  }
   const requirement = createReviewRequirement({
     target: reviewTarget,
     projection: reservation.obligation,
@@ -1586,7 +1618,16 @@ async function resolveHostedProgressContext(input: {
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("Hosted review reservation does not carry an obligation.");
-  return { store, repositoryId, reviewTarget, requirement, errandBinding: null };
+  return {
+    store,
+    repositoryId,
+    reviewTarget,
+    requirement,
+    errandBinding: null,
+    reservation,
+    candidateRecord,
+    settings,
+  };
 }
 
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
@@ -1991,17 +2032,73 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
     request: async (input) => {
       if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedRequestEnvelopeSchema.parse(input);
+      const deliveryVehicle = request.vehicle?.kind === "delivery-member" ? request.vehicle : null;
+      const settings = (await readConfigSettings(root)).settings;
       const context = await resolveHostedProgressContext({
         root,
         publisher,
         target: request.target,
         provider: request.provider,
         ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
+        settings,
+        admitCapacity: true,
       });
+      const policy = deliveryVehicle === null
+        ? null
+        : await resolveConfiguredLanePolicy({
+            lane: "standard",
+            settings,
+            preferences: createLocalFrontlineSourcePreferenceReader({
+              cwd: root,
+              exec: gitExec,
+              readFile: (path) => readFile(path, "utf8"),
+            }),
+          });
       const result = await requestHostedReview(request, {
         adapters,
         deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root }),
         ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
+        ...(deliveryVehicle === null || policy === null
+          ? {}
+          : {
+              admitDeliveryMemberRequest: async () => {
+                if (context.reservation === null) {
+                  throw new Error("Hosted delivery-member review requires a carried reservation.");
+                }
+                const discharge = await createHostedReservationDischargeReader({
+                  cwd: root,
+                  exec: gitExec,
+                })({
+                  reservation: context.reservation,
+                  baseRevision: context.reviewTarget.diffBaseSha,
+                  approvedHead: request.target.headSha,
+                  changeRequest: {
+                    repository: request.target.repository,
+                    pullRequest: request.target.pullRequest,
+                  },
+                  vehicle: deliveryVehicle,
+                  candidate: context.candidateRecord,
+                });
+                if (discharge.discharged || discharge.nextSource !== request.provider) {
+                  throw new Error("Hosted delivery-member request no longer matches the fresh discharge position.");
+                }
+                assertHostedReservationPolicyAdmission({
+                  reservation: context.reservation,
+                  snapshot: await context.store.readOperationSnapshot(),
+                  repositoryId: context.repositoryId,
+                  target: request.target,
+                  vehicle: deliveryVehicle,
+                  provider: request.provider,
+                  maxPasses: policy.maxPasses,
+                  ...(discharge.requestAttempts === undefined
+                    ? {}
+                    : { requestAttempts: discharge.requestAttempts }),
+                  ...(request.ceilingOverride === undefined
+                    ? {}
+                    : { ceilingOverride: request.ceilingOverride }),
+                });
+              },
+            }),
       });
       if (result.nextAction === "try-next-source") {
         await recordHostedRequestUnavailableAttempt(context.store, {
@@ -2063,6 +2160,7 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
         provider: request.handle.provider,
         ...(request.handle.vehicle === undefined ? {} : { vehicle: request.handle.vehicle }),
         settings,
+        admitCapacity: false,
       });
       const result = await awaitHostedReview(timing.request, {
         observers,
