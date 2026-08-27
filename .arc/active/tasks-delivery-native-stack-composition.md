@@ -977,7 +977,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1408,10 +1408,58 @@ structural guarantee rather than operator discipline.
               advances a selected member over a stale dependent base and preserves foreign branch and
               branch-to-predecessor chain refusals.
 
-        - `[ ]` **6.11.R.q Revalidate the native-refresh entry boundary** — validate criteria at member scope
+        - `[x]` **6.11.R.q Revalidate the native-refresh entry boundary** — validate criteria at member scope
 
             - _Goal:_ Focused adapter, execution, and real-CLI evidence proves selected-member publication can enter
               provider-native dependent refresh while prior Member 6 evidence remains authoritative elsewhere.
+
+            - _Outcome:_ Member 6 criteria report.
+                - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+                - _Span:_ retained Member 6 evidence through Task 6.11.R.o; native-refresh entry commit
+                  `a64f3f630..8f2241aa7`; and the exact Task 6.11.R.q worktree patch over `1ec7afb62`.
+                  Reachability is the complete current tree. Boundary-order deviation: reopened self-delivery
+                  supplied the provider-native entry and settlement repairs after the original member boundary;
+                  the bounded diff excludes the intervening stack-restoration merge content.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+                  _Evidence:_ refresh remains demand-driven, and unrelated append-only target movement creates no
+                  refresh obligation. A target advance during reserved settlement now continues only when the
+                  reserved requested target is its proved ancestor.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+                  _Evidence:_ D5.9 still supersedes only the external-only invocation clause. Attended external
+                  adoption remains executable and shares the exact target-lineage settlement rule without gaining
+                  provider mutation authority.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+                  _Evidence:_ native landing still reconciles and structurally proves every rewritten remaining
+                  member before admitting new coordinates.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+                  _Evidence:_ canonical plan/state still selects the remaining non-terminal chain, while exact
+                  semantic no-effect returns sequential landing to fresh native selection without authorizing a
+                  stale-suffix refresh.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+                  _Evidence:_ registration remains exactly non-terminal, filters the dependent top, and degrades a
+                  singleton registered remainder to the host-silent unlinked route.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+                  _Evidence:_ native-link still discloses review invalidation before opt-in, while decline remains
+                  an accepted zero-host-call result.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+                  _Evidence:_ provider preparation validates the live target and predecessor chain, seeds the
+                  selected predecessor transition only in its isolated clone, and invokes official native rebase
+                  without provider publication authority. ARC still reserves before bottom-up publication, resumes
+                  only an exact contiguous requested prefix, reobserves and reproves, settles the terminal top,
+                  cleans private candidates, and performs one final state write. The settlement matrix accepts an
+                  exact request or a target-only proved descendant, while unavailable, forked, foreign, or
+                  incoherent observations stop before effects. The built-CLI registered review-fix scenario reaches
+                  the dependent-suffix adapter, and focused adapter, execution, and real-Git lifecycle coverage
+                  closes the remaining actuation and recovery paths.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`; _State:_ `[x]`;
+                  _Evidence:_ public commands still compose Git and host facts from canonical plan/state plus
+                  repository and remote locators. The handler supplies local ancestry and strict head/tree
+                  contribution endpoints; callers author no observation facts, and recovery retains typed stops.
+                - _Summary:_ seven met, one intentionally superseded, zero unresolved. Fresh pass one exposed
+                  target-advance stranding; pass two exposed sibling-target acceptance. Both were source-confirmed
+                  and repaired, the same seam was closed for external adoption, and the authorized full-rubric
+                  third pass returned no findings. Success Criteria markers remain unchanged for terminal
+                  verification.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
