@@ -217,11 +217,29 @@ review evidence exists. Resolve its exact open change request and pass the resol
 arc review status --target '{targetRef}' --json
 ```
 
-Dispatch only on `nextAction`. `review-hosted-request` means pass the returned action unchanged to:
+Dispatch only on `nextAction`. `obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
+Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
+with the returned consequence serialized unchanged:
+
+```bash
+arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
+```
+
+`review-hosted-request` means pass the returned action unchanged to:
 
 ```bash
 arc review hosted request -
 ```
+
+`respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
+[`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:
+
+```bash
+arc review respond -
+```
+
+This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
+plan through the existing phase-ordered settlement path below, then re-enter through `arc review status`.
 
 On `requested / await`, pass the returned self-contained handle to:
 
