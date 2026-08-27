@@ -42,6 +42,9 @@ function expectTypedProgression(section: string): void {
   expect(positions).toEqual([...positions].sort((left, right) => left - right));
   expect(section).toContain("Dispatch only on `nextAction`");
   expect(section).toContain("review-hosted-request");
+  expect(section).toMatch(
+    /obtain-ceiling-override[\s\S]*exact `consequence`[\s\S]*stops? without requesting[\s\S]*explicit approval[\s\S]*--ceiling-override/iu,
+  );
   expect(section).toContain("resolve-review-applicability");
   expect(section).toContain("arc candidate applicability resolve");
   expect(section).toContain("pass the returned action unchanged");

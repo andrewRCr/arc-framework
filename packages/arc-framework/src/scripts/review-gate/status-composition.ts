@@ -11,6 +11,7 @@ import {
   resolveGitCandidateTargetBase,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
   type DeliveryDischargeTargetLookup,
@@ -29,7 +30,12 @@ import { createGhChangeRequestResolutionPort } from "./hosts/github/change-reque
 import { aggregateChecks } from "./checks-await.js";
 import { createGhRequiredChecksPort } from "./hosts/github/checks-await.js";
 import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lookup.js";
+import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
+import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
+import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
+import { resolveHostedReservationPolicy } from "./policy/hosted-reservation-admission.js";
+import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
 import {
   composeDeliveryReviewObligation,
   type ReviewStatusObservation,
@@ -80,6 +86,7 @@ export async function readRoutedObligation(
   pullRequest: number,
   memberLookup: DeliveryMemberLookup & DeliveryDischargeTargetLookup = new RepositoryDeliveryMemberLookup({ cwd, exec }),
   currentBaseRevision?: string,
+  judgment?: { readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"] },
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
     headRef: target.headRef,
@@ -103,11 +110,12 @@ export async function readRoutedObligation(
       return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
     }
     const record = versionedRecord.record;
-    const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"];
+    const settings = (await readConfigSettings(cwd)).settings;
+    const baseBranch = settings["branch.base"];
     const candidateHead = subject.member?.candidateHead ?? target.headSha;
     const targetBase = await resolveGitCandidateTargetBase({
       cwd,
-      revision: candidateHead,
+      revision: target.headSha,
       baseBranch,
       baseRevision: currentBaseRevision,
       exec,
@@ -119,10 +127,10 @@ export async function readRoutedObligation(
       record,
       exec,
       rawExec: createRawGitExec(cwd),
-      target: { revision: candidateHead, currentBase: targetBase },
+      target: { revision: target.headSha, currentBase: targetBase },
     });
-    if (effective.state !== "current" || effective.recognizedTarget.revision !== candidateHead) {
-      return { state: "blocked", detail: "The owning work-unit Candidate is not current." };
+    if (effective.state !== "current" || effective.recognizedTarget.revision !== target.headSha) {
+      return { state: "blocked", detail: "The exact review target is not a current Candidate subject." };
     }
     const candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
     if (boundary.candidateId !== record.attestation.candidateId
@@ -169,9 +177,57 @@ export async function readRoutedObligation(
         vehicle: memberTarget.vehicle,
         candidate: record,
       })));
+      let composedDischarges: Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"] = discharges;
+      const firstOutstandingIndex = discharges.findIndex((discharge) => !discharge.discharged);
+      const firstOutstanding = discharges[firstOutstandingIndex];
+      const firstTarget = deliveryTargets[firstOutstandingIndex];
+      if (firstOutstanding?.nextSource !== null
+        && firstOutstanding?.nextSource !== undefined
+        && firstTarget !== undefined) {
+        const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
+        const store = new LocalReviewOperationStateStore(publisher);
+        const policy = await resolveConfiguredLanePolicy({
+          lane: "standard",
+          settings,
+          preferences: {
+            readDeveloperSourceIds: () => Promise.resolve([]),
+            readProjectSourceIds: () => Promise.resolve([]),
+          },
+        });
+        const admission = resolveHostedReservationPolicy({
+          reservation,
+          snapshot: await store.readOperationSnapshot(),
+          repositoryId: await resolveRepositoryIdentity(publisher),
+          target: {
+            repository: firstTarget.repository,
+            pullRequest: firstTarget.pullRequest,
+            headSha: firstTarget.headSha,
+          },
+          vehicle: firstTarget.vehicle,
+          maxPasses: policy.maxPasses,
+          ...(firstOutstanding.requestAttempts === undefined
+            ? {}
+            : { requestAttempts: firstOutstanding.requestAttempts }),
+          ...(judgment?.ceilingOverride === undefined
+            ? {}
+            : { ceilingOverride: judgment.ceilingOverride }),
+        });
+        if (admission.status === "unavailable") {
+          return { state: "blocked", detail: admission.detail };
+        }
+        composedDischarges = discharges.map((discharge, index) => index !== firstOutstandingIndex
+          ? discharge
+          : {
+              ...firstOutstanding,
+              requestAdmission: admission.policy,
+              ...(judgment?.ceilingOverride === undefined
+                ? {}
+                : { requestCeilingOverride: judgment.ceilingOverride }),
+            });
+      }
       return composeDeliveryReviewObligation({
         targets: deliveryTargets,
-        discharges,
+        discharges: composedDischarges,
         applicabilityContext: {
           workUnitId: workUnit,
           expectedRecordVersion: versionedRecord.version,
@@ -200,7 +256,7 @@ export async function readRoutedObligation(
 /** Bind GitHub, publication-boundary, and Git base reads to the status reducer. */
 export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): ReviewStatusPort {
   return {
-    observe: async (target) => {
+    observe: async (target, ceilingOverride) => {
       try {
         const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
         const memberLookup = new RepositoryDeliveryMemberLookup(input);
@@ -238,6 +294,7 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
           resolution.candidate.number,
           memberLookup,
           base.currentBaseOid ?? undefined,
+          ceilingOverride === undefined ? undefined : { ceilingOverride },
         );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
         const repository = await checksPort.resolveRepository();
