@@ -567,6 +567,14 @@ export async function resolveReviewStatus(
     };
   }
   if (base.routedObligation.state === "review-required") {
+    if ("responsePlan" in base.routedObligation) {
+      return {
+        ...base,
+        state: "review-required",
+        nextAction: "respond-to-findings",
+        responsePlan: base.routedObligation.responsePlan,
+      };
+    }
     if ("selectionAction" in base.routedObligation) {
       return {
         ...base,
