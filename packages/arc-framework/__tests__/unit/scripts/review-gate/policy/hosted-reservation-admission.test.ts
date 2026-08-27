@@ -67,6 +67,14 @@ const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
   workUnitId: "example",
   head: "f".repeat(40),
 });
+const delegatedAdmission = (vehicle: typeof deliveryVehicle) => ({
+  schemaVersion: 1 as const,
+  sourceId: "delegated-agent" as const,
+  statusTarget: { repository: "owner/repo", headRef: "feature", headSha: vehicle.head },
+  target: { repository: "owner/repo", pullRequest: 42, headSha: vehicle.head },
+  vehicle,
+  pass: 1,
+});
 const binding = {
   boundary: { candidateId: CANDIDATE_ID, candidateSubjectDigest: SUBJECT_DIGEST },
   candidate: { candidateId: CANDIDATE_ID, subjectDigest: SUBJECT_DIGEST, headSha: CURRENT_HEAD },
@@ -85,6 +93,8 @@ function hostedProgressAttempt(input: {
   sourceId: "coderabbit-pr" | "codex-pr";
   outcome: "clean" | "settled-findings" | "rate-limited";
   vehicle: typeof deliveryVehicle;
+  requestedCoverage?: "complete" | "incremental";
+  effectiveCoverage?: "complete" | "incremental" | null;
 }) {
   const reviewTarget = createReviewTarget({
     schemaVersion: 2,
@@ -120,6 +130,9 @@ function hostedProgressAttempt(input: {
     outcome: input.outcome,
     hosted: {
       target: { repository: "owner/repo", pullRequest: 42, headSha: input.vehicle.head },
+      requestedCoverage: input.requestedCoverage ?? "complete",
+      effectiveCoverage: input.effectiveCoverage
+        ?? (input.outcome === "rate-limited" ? null : "complete"),
       vehicle: input.vehicle,
       reviewTarget,
       requirement,
@@ -208,6 +221,99 @@ describe("hosted reservation admission", () => {
     });
   });
 
+  it("counts the exact member's delegated-agent pass across head movement", () => {
+    const priorHead = "d".repeat(40);
+    const localTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: priorHead,
+      headTree: "c".repeat(40),
+    });
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/local-prior",
+          updatedAt: "2026-08-27T12:00:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          changeRequestId: null,
+          headSha: priorHead,
+          completedPasses: 1,
+          attempts: [{
+            attemptId: "local-review-1",
+            sourceId: "delegated-agent",
+            outcome: "clean",
+            local: {
+              vehicle: { kind: "delivery-member", identity: deliveryVehicle.deliverableId },
+              target: localTarget,
+              deliveryAdmission: delegatedAdmission(DeliveryReviewMemberVehicleSchema.parse({
+                ...deliveryVehicle,
+                head: priorHead,
+              })),
+            },
+          }],
+        },
+      }],
+    };
+
+    expect(projectHostedReservationPolicyProgress({
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toEqual({ status: "complete", completedPasses: 1, attempts: [] });
+  });
+
+  it("counts a provider-upgraded supplemental review as a complete member pass", () => {
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/upgraded-current",
+          updatedAt: "2026-08-27T12:00:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          changeRequestId: "pull/42",
+          headSha: deliveryVehicle.head,
+          completedPasses: 1,
+          attempts: [hostedProgressAttempt({
+            attemptId: "attempt-upgraded",
+            sourceId: "coderabbit-pr",
+            outcome: "clean",
+            vehicle: deliveryVehicle,
+            requestedCoverage: "incremental",
+            effectiveCoverage: "complete",
+          })],
+        },
+      }],
+    };
+
+    expect(projectHostedReservationPolicyProgress({
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toEqual({
+      status: "complete",
+      completedPasses: 1,
+      attempts: [{ sourceId: "coderabbit-pr", outcome: "clean" }],
+    });
+  });
+
   it("admits the next member pass from selector-qualified lineage progress", () => {
     const result = resolveHostedReservationPolicy({
       reservation: deliveryReservation,
@@ -270,6 +376,8 @@ describe("hosted reservation admission", () => {
             attempts: [{
               sourceId,
               outcome: "rate-limited",
+              requestedCoverage: "complete",
+              effectiveCoverage: null,
               applicability: "retain-prior-attempt",
             }],
           }

@@ -320,6 +320,54 @@ describe("review operation state schemas", () => {
     expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
   });
 
+  it("binds hosted and local attempt evidence to their owning source kinds", () => {
+    const localAttempt = {
+      attemptId: "local/attempt-1",
+      sourceId: "delegated-agent",
+      outcome: "clean" as const,
+      local: {
+        vehicle: localReview.vehicle,
+        target: localTarget,
+      },
+    };
+    expect(LaneProgressStateSchema.parse({
+      ...laneProgress,
+      attempts: [localAttempt],
+    }).attempts).toEqual([localAttempt]);
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      attempts: [{ ...localAttempt, sourceId: "coderabbit-pr" }],
+    })).toThrow(/local attempt source/iu);
+
+    const hostedAttempt = {
+      ...laneProgress.attempts[0]!,
+      sourceId: "delegated-agent",
+      hosted: {
+        target: { repository: "owner/repo", pullRequest: 42, headSha: memberTarget.headSha },
+        requestedCoverage: "complete" as const,
+        effectiveCoverage: "complete" as const,
+        vehicle: {
+          kind: "delivery-member" as const,
+          planId: "123e4567-e89b-12d3-a456-426614174000",
+          deliverableId: digest("deliverable"),
+          workUnitId: "review-surface-binding",
+          head: memberTarget.headSha,
+        },
+        reviewTarget: memberTarget,
+        requirement: memberRequirement,
+        actorIdentity: "reviewer-1",
+        findings: [],
+        dispositionSetId: null,
+        settledFindingIds: [],
+      },
+    };
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      changeRequestId: "pull/42",
+      attempts: [hostedAttempt],
+    })).toThrow(/hosted attempt source/iu);
+  });
+
   it("rejects a source id the policy driver would refuse", () => {
     for (const sourceId of ["CodeRabbit_PR", "-leading", "trailing-", "has space"]) {
       expect(() => LaneProgressStateSchema.parse({

@@ -28,6 +28,7 @@ import {
 } from "../core/version-conflict.js";
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
 import { createLocalReviewReceipt } from "./local-attestation.js";
+import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
 
 export const LocalAttestRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -43,6 +44,7 @@ export interface LocalAttestDependencies {
   resolveAuthority(
     evaluatorIdentity: string,
     memberHeadObjectId?: string,
+    deliveryAdmission?: DeliveryLocalReviewAdmission,
   ): Promise<LocalReviewAuthority>;
   resolveGuidanceDigest(authority: LocalReviewAuthority, state: LocalReviewState): Promise<string>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
@@ -135,6 +137,13 @@ async function attestLocalReviewWithinSourceLock(
       sourceId: state.laneSourceId,
       outcome: "terminal-failure",
       consumedPass: false,
+      local: {
+        vehicle: state.vehicle,
+        target: state.target,
+        ...(state.deliveryAdmission === undefined
+          ? {}
+          : { deliveryAdmission: state.deliveryAdmission }),
+      },
       now: dependencies.now(),
     });
   }
@@ -203,6 +212,13 @@ async function attestLocalReviewWithinSourceLock(
         : receipt.result === "failed" ? "terminal-failure" : receipt.result,
       consumedPass: receipt.result === "clean" || receipt.result === "findings",
       chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
+      local: {
+        vehicle: state.vehicle,
+        target: state.target,
+        ...(state.deliveryAdmission === undefined
+          ? {}
+          : { deliveryAdmission: state.deliveryAdmission }),
+      },
       now: dependencies.now(),
     });
     await dependencies.releaseMaterialization(request.operationId);
@@ -274,10 +290,14 @@ async function attestLocalReviewWithinSourceLock(
   // is read back from it rather than stored twice. Supplying it unconditionally would
   // authenticate an ordinary work unit's control head — itself delivery-bound once the
   // terminal member's pull request is open — as a member, and fail its own comparison.
-  const authority = await dependencies.resolveAuthority(
-    state.request.evaluatorIdentity,
-    state.vehicle.kind === "delivery-member" ? state.target.headSha : undefined,
-  );
+  const memberHead = state.vehicle.kind === "delivery-member" ? state.target.headSha : undefined;
+  const authority = state.deliveryAdmission === undefined
+    ? await dependencies.resolveAuthority(state.request.evaluatorIdentity, memberHead)
+    : await dependencies.resolveAuthority(
+        state.request.evaluatorIdentity,
+        memberHead,
+        state.deliveryAdmission,
+      );
   if (canonicalize(authority.vehicle) !== canonicalize(state.vehicle)
     || authority.authorIdentity !== state.request.authorIdentity
     || authority.evaluatorIdentity !== state.request.evaluatorIdentity
@@ -307,6 +327,13 @@ async function attestLocalReviewWithinSourceLock(
       : receipt.result === "failed" ? "terminal-failure" : receipt.result,
     consumedPass: receipt.result === "clean" || receipt.result === "findings",
     chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
+    local: {
+      vehicle: state.vehicle,
+      target: state.target,
+      ...(state.deliveryAdmission === undefined
+        ? {}
+        : { deliveryAdmission: state.deliveryAdmission }),
+    },
     now: dependencies.now(),
   });
   await dependencies.releaseMaterialization(request.operationId);

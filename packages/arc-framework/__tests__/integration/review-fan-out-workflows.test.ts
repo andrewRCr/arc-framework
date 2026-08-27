@@ -42,6 +42,13 @@ function expectTypedProgression(section: string): void {
   expect(positions).toEqual([...positions].sort((left, right) => left - right));
   expect(section).toContain("Dispatch only on `nextAction`");
   expect(section).toContain("review-hosted-request");
+  expect(section).toContain("review-local-prepare");
+  expect(section).toContain("review-local-resume");
+  expect(section).toContain("arc review local prepare -");
+  expect(section).toContain("arc review local resume -");
+  expect(section).toMatch(/action` unchanged[\s\S]*`deliveryAdmission/iu);
+  expect(section).not.toContain("memberHeadObjectId");
+  expect(section).toMatch(/local (?:attempt|operation)[\s\S]*arc review status/iu);
   expect(section).toMatch(
     /obtain-ceiling-override[\s\S]*exact `consequence`[\s\S]*stops? without requesting[\s\S]*explicit approval[\s\S]*--ceiling-override/iu,
   );
