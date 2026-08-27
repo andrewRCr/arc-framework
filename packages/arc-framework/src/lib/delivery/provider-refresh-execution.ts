@@ -126,6 +126,10 @@ export interface DeliveryProviderRefreshExecutionDependencies {
     | { readonly status: "refused"; readonly reason: string }
   >;
   readonly observeResult: () => Promise<DeliveryProviderRefreshObservationResult>;
+  readonly readTargetAncestry: (
+    ancestor: string,
+    descendant: string,
+  ) => Promise<"ancestor" | "not-ancestor" | null>;
   readonly proveContribution: (
     movement: DeliveryProviderRefreshMovement,
   ) => Promise<DeliveryContributionProofResult>;
@@ -351,6 +355,7 @@ export async function executeDeliveryProviderRefresh(_input: {
 
   const settlementDeps: ProviderAdoptionSettlementDependencies = {
     observeResult: deps.observeResult,
+    readTargetAncestry: deps.readTargetAncestry,
     proveContribution: deps.proveContribution,
     absorbTop: deps.absorbTop,
     publishTop: deps.publishTop,

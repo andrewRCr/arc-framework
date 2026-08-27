@@ -14,6 +14,11 @@ import {
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
+const exactTargetAncestry = async (
+  ancestor: string,
+  descendant: string,
+): Promise<"ancestor" | "not-ancestor"> => ancestor === descendant ? "ancestor" : "not-ancestor";
+
 function movedFixture() {
   const plan = deliveryPlanFixture();
   const state = deliveryStateFixture(plan);
@@ -100,6 +105,7 @@ describe("delivery suffix reconciliation", () => {
           observation: { snapshot: observed, targetMovement: "exact" as const },
         };
       },
+      readTargetAncestry: exactTargetAncestry,
       proveContribution: async ({ deliverableId }: DeliveryProviderRefreshMovement) => {
         events.push(`prove:${deliverableId}`);
         return { status: "accepted" as const, proof: "mechanical-reapply" as const };
@@ -162,6 +168,7 @@ describe("delivery suffix reconciliation", () => {
           status: "observed",
           observation: { snapshot: observed, targetMovement: "exact" },
         }),
+        readTargetAncestry: exactTargetAncestry,
         proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
         absorbTop: async () => ({ status: "absorbed", ...absorbed }),
         publishTop: async () => ({ status: publication }),
@@ -191,6 +198,7 @@ describe("delivery suffix reconciliation", () => {
     const finalStates: DeliveryStateV1[] = [];
     const topEffects: string[] = [];
     const dependencies = {
+      readTargetAncestry: exactTargetAncestry,
       absorbTop: async () => {
         topEffects.push("absorb");
         return { status: "absorbed" as const, head: "a".repeat(40), tree: "b".repeat(40) };
@@ -247,6 +255,7 @@ describe("delivery suffix reconciliation", () => {
         status: "observed" as const,
         observation: { snapshot: observed, targetMovement: "exact" as const },
       }),
+      readTargetAncestry: exactTargetAncestry,
       proveContribution: async () => ({
         status: "accepted" as const, proof: "mechanical-reapply" as const,
       }),
@@ -287,6 +296,7 @@ describe("delivery suffix reconciliation", () => {
       plan,
       current: { revision: 7, value: state },
       observeResult: observedResult,
+      readTargetAncestry: exactTargetAncestry,
       absorbTop: async () => {
         topEffects();
         return { status: "absorbed" as const, head: "a".repeat(40), tree: "b".repeat(40) };
@@ -347,6 +357,7 @@ describe("delivery suffix reconciliation", () => {
           targetMovement: "append-only",
         },
       }),
+      readTargetAncestry: exactTargetAncestry,
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       absorbTop: async () => ({ status: "absorbed", ...absorbed }),
       publishTop: async () => ({ status: "published" }),
@@ -369,6 +380,60 @@ describe("delivery suffix reconciliation", () => {
           ],
         },
       },
+    });
+  });
+
+  it("settles external adoption across a second append-only target advance", async () => {
+    const { plan, state, affected, observed } = providerRefreshFixture();
+    const requestedTarget = {
+      ref: state.target!.ref,
+      coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
+    };
+    const liveTarget = {
+      ref: requestedTarget.ref,
+      coordinates: { head: "c".repeat(40), tree: "f".repeat(40) },
+    };
+    const snapshotAt = (target: typeof requestedTarget) => ({
+      ...observed,
+      target,
+      members: observed.members.map((member, index) => ({
+        ...member,
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0 ? target.coordinates.head : observed.members[index - 1]!.coordinates!.head,
+        },
+      })),
+    });
+    let observationCount = 0;
+
+    const result = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      affectedDeliverableIds: affected,
+      observeResult: async () => ({
+        status: "observed",
+        observation: {
+          snapshot: snapshotAt(observationCount++ === 0 ? requestedTarget : liveTarget),
+          targetMovement: "append-only",
+        },
+      }),
+      readTargetAncestry: async (ancestor, descendant) => (
+        ancestor === requestedTarget.coordinates.head && descendant === liveTarget.coordinates.head
+          ? "ancestor"
+          : "not-ancestor"
+      ),
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      absorbTop: async () => ({ status: "absorbed", head: "a".repeat(40), tree: "b".repeat(40) }),
+      publishTop: async () => ({ status: "published" }),
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
+      stateStore: { publish: async (_planId, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    });
+
+    expect(result).toMatchObject({
+      status: "applied",
+      state: { value: { target: requestedTarget, activeOperation: null } },
     });
   });
 
@@ -397,6 +462,7 @@ describe("delivery suffix reconciliation", () => {
         status: "observed",
         observation: { snapshot: before, targetMovement: "exact" },
       }),
+      readTargetAncestry: exactTargetAncestry,
       proveContribution: async () => { throw new Error("no provider movement to prove"); },
       absorbTop,
       publishTop: async () => ({ status: "published" }),
@@ -424,6 +490,7 @@ describe("delivery suffix reconciliation", () => {
         status: "observed",
         observation: { snapshot: before, targetMovement: "exact" },
       }),
+      readTargetAncestry: exactTargetAncestry,
       proveContribution: async () => { throw new Error("must not prove"); },
       absorbTop: async () => { throw new Error("must not absorb"); },
       publishTop: async () => { throw new Error("must not publish"); },
