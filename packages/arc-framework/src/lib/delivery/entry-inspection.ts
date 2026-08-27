@@ -11,6 +11,7 @@ import {
   DELIVERY_PLAN_START_SENTINEL,
   renderDeliveryPlanSection,
 } from "./task-list-render.js";
+import type { DeliveryStateStoreFailure } from "./ports.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
 
 /** Ephemeral attended judgment supplied by the delivery workflow. */
@@ -75,6 +76,7 @@ export type DeliveryEntryInspectionResult =
         | "provisional-unconfirmed"
         | "canonical-plan-missing"
         | "canonical-projection-mismatch"
+        | `state-${DeliveryStateStoreFailure}`
         | "state-incoherent";
       readonly recommendedActionText: string;
     };
@@ -108,7 +110,9 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     status: z.literal("refused"), nextAction: z.literal("stop"),
     reason: z.enum([
       "evidence-unavailable", "evidence-conflict", "provisional-unconfirmed",
-      "canonical-plan-missing", "canonical-projection-mismatch", "state-incoherent",
+      "canonical-plan-missing", "canonical-projection-mismatch", "state-record-malformed",
+      "state-identity-mismatch", "state-version-conflict", "state-ambiguous-match",
+      "state-namespace-corrupt", "state-incoherent",
     ]),
     recommendedActionText: z.string().min(1),
   }),
@@ -128,7 +132,7 @@ type ResolvedAuthoring =
   | { readonly status: "indeterminate" };
 type ReadState =
   | { readonly status: "ok"; readonly value: DeliveryStateV1 | null; readonly revision: number | null }
-  | { readonly status: "refused" };
+  | { readonly status: "refused"; readonly reason: DeliveryStateStoreFailure };
 
 /** Read-only dependencies; the port intentionally exposes no publish or mutation methods. */
 export interface DeliveryEntryInspectionDependencies {
@@ -147,6 +151,16 @@ function refused(reason: Extract<DeliveryEntryInspectionResult, { status: "refus
     ? "Confirm the prior attended delivery disposition before canonicalizing provisional intent."
     : "Resolve the delivery plan, authoring, task-list, and state evidence conflict before entering delivery.";
   return { status: "refused", nextAction: "stop", reason, recommendedActionText: remedy };
+}
+
+function stateRefused(reason: DeliveryStateStoreFailure): DeliveryEntryInspectionResult {
+  return {
+    status: "refused",
+    nextAction: "stop",
+    reason: `state-${reason}`,
+    recommendedActionText: "Restore or regenerate the exact repository-scoped delivery state record through the "
+      + "typed delivery transfer path, then retry delivery entry inspection.",
+  };
 }
 
 /** Classify the bounded top-level Delivery Plan locus without parsing its prose as plan authority. */
@@ -275,7 +289,7 @@ export async function inspectDeliveryEntry(
   }
 
   const state = await dependencies.readState(plan.planId);
-  if (state.status === "refused") return refused("evidence-unavailable");
+  if (state.status === "refused") return stateRefused(state.reason);
   if (state.value === null) {
     return {
       status: "validate-canonical",
