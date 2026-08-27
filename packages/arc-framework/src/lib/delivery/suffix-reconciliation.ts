@@ -174,6 +174,10 @@ type ProviderAdoptionBlockedResult =
 
 export interface ProviderAdoptionSettlementDependencies {
   readonly observeResult: () => Promise<DeliveryProviderRefreshObservationResult>;
+  readonly readTargetAncestry: (
+    ancestor: string,
+    descendant: string,
+  ) => Promise<"ancestor" | "not-ancestor" | null>;
   readonly proveContribution: (
     movement: DeliveryProviderRefreshMovement,
   ) => Promise<DeliveryContributionProofResult>;
@@ -230,12 +234,37 @@ export async function settleReservedDeliverySuffixRefresh(input: {
   const observed = DeliveryOperationSnapshotV1Schema.safeParse(freshObservation.snapshot);
   if (!observed.success) return { status: "blocked", reason: "ambiguous" };
   const observation = { ...freshObservation, snapshot: observed.data };
-  if (canonicalize(observation.snapshot) !== canonicalize(requested.data)) {
+  if (changedDeliveryProviderRefreshMovements(active.operation.before, observation) === null) {
     return { status: "blocked", reason: "ambiguous" };
   }
-  const movements = changedDeliveryProviderRefreshMovements(active.operation.before, observation);
+  let settlementObservation = observation;
+  if (canonicalize(observation.snapshot) !== canonicalize(requested.data)) {
+    const requestedTargetHead = requested.data.target?.coordinates?.head;
+    const observedTargetHead = observation.snapshot.target?.coordinates?.head;
+    if (requestedTargetHead === undefined || observedTargetHead === undefined) {
+      return { status: "blocked", reason: "ambiguous" };
+    }
+    const normalizedSnapshot = {
+      target: requested.data.target,
+      members: observation.snapshot.members.map((member, index) => ({
+        ...member,
+        coordinates: index !== 0 || member.coordinates === null
+          ? member.coordinates
+          : { ...member.coordinates, base: requestedTargetHead },
+      })),
+    };
+    if (observation.targetMovement !== "append-only"
+      || canonicalize(normalizedSnapshot) !== canonicalize(requested.data)) {
+      return { status: "blocked", reason: "ambiguous" };
+    }
+    const targetAncestry = await input.readTargetAncestry(requestedTargetHead, observedTargetHead);
+    if (targetAncestry === null) return { status: "blocked", reason: "observation-unavailable" };
+    if (targetAncestry !== "ancestor") return { status: "blocked", reason: "target-rewritten" };
+    settlementObservation = { snapshot: requested.data, targetMovement: observation.targetMovement };
+  }
+  const movements = changedDeliveryProviderRefreshMovements(active.operation.before, settlementObservation);
   if (movements === null || (movements.length === 0
-    && !deliveryTerminalAbsorptionOwed(active.state, observation.snapshot))) {
+    && !deliveryTerminalAbsorptionOwed(active.state, settlementObservation.snapshot))) {
     return { status: "blocked", reason: "ambiguous" };
   }
   const refusal = await proveDeliveryProviderRefreshMovements(movements, input.proveContribution);
@@ -258,7 +287,7 @@ export async function settleReservedDeliverySuffixRefresh(input: {
   }
 
   const terminal = active.state.members.at(-1);
-  const highestMember = observation.snapshot.members.at(-1);
+  const highestMember = settlementObservation.snapshot.members.at(-1);
   if (terminal?.ref === null || terminal?.ref === undefined || terminal.coordinates === null
     || highestMember?.coordinates === null || highestMember?.coordinates === undefined) {
     return { status: "blocked", reason: "terminal-top-unavailable" };
@@ -303,7 +332,7 @@ export async function settleReservedDeliverySuffixRefresh(input: {
       return { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
     }
   }
-  const applied = applyProviderSettlement(active.state, observation, terminalCoordinates);
+  const applied = applyProviderSettlement(active.state, settlementObservation, terminalCoordinates);
   if (applied === null || validateDeliveryStateAgainstPlan(applied, input.plan).status === "refused") {
     return { status: "blocked", reason: "ambiguous" };
   }
@@ -481,6 +510,7 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
     plan: input.plan,
     current: persistedReservation.value,
     observeResult: input.observeResult,
+    readTargetAncestry: input.readTargetAncestry,
     proveContribution: input.proveContribution,
     absorbTop: input.absorbTop,
     publishTop: input.publishTop,
