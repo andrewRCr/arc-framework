@@ -1139,6 +1139,10 @@ async function executeDeliveryCommand(
     cwd,
     objectAccess: "local-only",
   });
+  const readTargetAncestry = async (ancestor: string, descendant: string) => {
+    const result = await readAncestry(localOnlyExec, ancestor, descendant);
+    return result === "ancestor" || result === "not-ancestor" ? result : null;
+  };
   const observeRefreshCoordinates = async (head: string) => {
     const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, head);
     return coordinates?.head === head ? coordinates : null;
@@ -1174,10 +1178,7 @@ async function executeDeliveryCommand(
         }
         return observeRefreshCoordinates(observed.head);
       },
-      readAncestry: async (ancestor, descendant) => {
-        const result = await readAncestry(localOnlyExec, ancestor, descendant);
-        return result === "ancestor" || result === "not-ancestor" ? result : null;
-      },
+      readAncestry: readTargetAncestry,
     });
   };
   const proveProviderRefreshMovement = async (movement: DeliveryProviderRefreshMovement) => {
@@ -1195,8 +1196,14 @@ async function executeDeliveryCommand(
     }
     return proveGitDeliveryContribution({
       exec: createRawGitExec(cwd),
-      before: { predecessor: beforePredecessor, member: beforeMember },
-      after: { predecessor: afterPredecessor, member: afterMember },
+      before: {
+        predecessor: beforePredecessor,
+        member: { head: beforeMember.head, tree: beforeMember.tree },
+      },
+      after: {
+        predecessor: afterPredecessor,
+        member: { head: afterMember.head, tree: afterMember.tree },
+      },
     });
   };
   const reservedRefreshSubject = (
@@ -1511,6 +1518,7 @@ async function executeDeliveryCommand(
           executeRequest.repository,
           executeRequest.remote,
         ),
+        readTargetAncestry,
         proveContribution: proveProviderRefreshMovement,
         absorbTop: (input) => absorbGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
         publishTop: (input) => publishDeliveryTopRef({
@@ -1545,6 +1553,7 @@ async function executeDeliveryCommand(
     };
     const refreshSettlementDependencies = (subject: DeliveryProviderRefreshSubject) => ({
       observeResult: () => observeProviderRefresh(subject, adopt.repository, adopt.remote),
+      readTargetAncestry,
       proveContribution: proveProviderRefreshMovement,
       absorbTop: (input: {
         topRef: string;
