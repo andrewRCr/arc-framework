@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../src/lib/delivery/review-vehicle.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { createReviewTarget } from
+  "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { classifyReviewContributionApplicability } from
   "../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 import { resolveReviewPolicy } from
@@ -31,6 +33,30 @@ const hostedAction = {
   provider: "coderabbit-pr" as const,
   coverage: "complete" as const,
   vehicle: memberVehicle,
+};
+const hostedResponsePlan = {
+  schemaVersion: 1 as const,
+  target: createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "delivery-member",
+    repositoryId: "repository-1",
+    baseRef: "main",
+    diffBaseSha: oid("1"),
+    diffBaseTree: oid("2"),
+    headSha: oid("a"),
+    headTree: oid("3"),
+  }),
+  source: {
+    kind: "hosted" as const,
+    attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fprior:hosted%2Fprior",
+  },
+  findings: [{
+    findingId: "finding-prior",
+    severity: "major" as const,
+    locus: "src/example.ts:1",
+    evidenceUrlOrId: "https://example.test/finding-prior",
+  }],
 };
 
 function readyAdmission(

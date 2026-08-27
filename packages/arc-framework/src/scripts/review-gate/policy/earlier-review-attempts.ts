@@ -11,6 +11,7 @@ import {
   ReviewTargetSchema,
 } from "../core/gate-contract-v2-schema.js";
 import { HostedTargetSchema } from "../hosted/request.js";
+import { HostedFindingSchema } from "../hosted/await.js";
 
 const SourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z.string()
@@ -51,6 +52,7 @@ const EarlierReviewAttemptCandidateSchema = z.strictObject({
   priorVehicle: DeliveryReviewMemberVehicleSchema.optional(),
   reviewTarget: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema,
+  findings: z.array(HostedFindingSchema),
 });
 export type EarlierReviewAttemptCandidate = z.infer<typeof EarlierReviewAttemptCandidateSchema>;
 
@@ -128,6 +130,7 @@ export function queryEarlierReviewAttempts(
         ...(hosted.vehicle === undefined ? {} : { priorVehicle: hosted.vehicle }),
         reviewTarget: hosted.reviewTarget,
         requirement: hosted.requirement,
+        findings: hosted.findings,
       }));
     }
   }
