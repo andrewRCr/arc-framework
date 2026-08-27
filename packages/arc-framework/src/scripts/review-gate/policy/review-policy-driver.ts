@@ -77,12 +77,13 @@ function validateTerminalPassProgress(
   }
 }
 
-const ReviewCeilingOverrideSchema = z.strictObject({
+export const ReviewCeilingOverrideSchema = z.strictObject({
   target: ReviewPolicyTargetSchema,
   lane: z.enum(["frontline", "standard"]),
   exhaustedPassCount: CompletedReviewPassCountSchema,
   nextPass: ReviewPassSchema,
 }).readonly();
+export type ReviewCeilingOverride = z.infer<typeof ReviewCeilingOverrideSchema>;
 const InvalidOverrideReasonSchema = z.enum([
   "target-mismatch",
   "lane-mismatch",

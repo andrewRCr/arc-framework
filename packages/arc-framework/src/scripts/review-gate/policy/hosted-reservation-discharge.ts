@@ -12,17 +12,42 @@ import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import { readLaneProgress, type LaneProgressProjection } from "../lane-progress.js";
+import {
+  laneProgressOperationId,
+  readLaneProgress,
+  type LaneProgressProjection,
+} from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
 import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
+import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
+import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   candidateExpectsEarlierReviewAttempt,
   projectEarlierReviewApplicability,
 } from "./earlier-review-applicability.js";
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
+
+/** Safe source progress retained for the next request's standard-review driver admission. */
+export interface HostedReservationRequestAttempt {
+  readonly sourceId: string;
+  readonly outcome: "rate-limited" | "transient-unavailable";
+}
+
+function retainedSafeUnavailableAttempt(
+  sourceId: string,
+  attempts: readonly { readonly outcome: string }[],
+): HostedReservationRequestAttempt | null {
+  if (attempts.length === 0 || attempts.some(({ outcome }) => (
+    outcome !== "rate-limited" && outcome !== "transient-unavailable"
+  ))) return null;
+  const outcome = attempts.at(-1)?.outcome;
+  return outcome === "rate-limited" || outcome === "transient-unavailable"
+    ? { sourceId, outcome }
+    : null;
+}
 
 /** Whether the reserved hosted review has produced a verdict, with the evidence for that reading. */
 export interface HostedReservationDischarge {
@@ -31,6 +56,8 @@ export interface HostedReservationDischarge {
   nextSource: string | null;
   applicability?: ReviewContributionApplicabilityResult;
   applicabilityAuthority?: "decision-required" | "blocked";
+  responsePlan?: HostedFindingsResponsePlan;
+  requestAttempts?: readonly HostedReservationRequestAttempt[];
 }
 
 /** Decide the work-unit obligation from its ordered member discharges. */
@@ -142,6 +169,7 @@ export async function projectHostedReservationDischarge(input: {
     sourceId: string,
   ) => Promise<EarlierHostedAttemptApplicabilityRead>;
   requireEarlierApplicabilityEvidence?: boolean | ((sourceId: string) => boolean);
+  bindCurrentAttemptRef?: (attemptId: string) => string;
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
   if (reservation === null) {
@@ -169,17 +197,56 @@ export async function projectHostedReservationDischarge(input: {
   }
   const allAttempts = [...attemptsByHead.values()].flat();
   const currentAttempts = attemptsByHead.get(target.headSha) ?? [];
+  const requestAttempts: HostedReservationRequestAttempt[] = [];
   for (const sourceId of reservation.sources) {
-    const settledAcrossSpan = allAttempts.some((attempt) => attempt.sourceId === sourceId
+    const settledCurrentHead = currentAttempts.some((attempt) => attempt.sourceId === sourceId
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
-    if (settledAcrossSpan) {
+    const settledWithoutApplicabilityReader = input.readEarlierAttemptApplicability === undefined
+      && allAttempts.some((attempt) => attempt.sourceId === sourceId
+        && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
+    if (settledCurrentHead || settledWithoutApplicabilityReader) {
       return { discharged: true, detail: `Hosted source \`${sourceId}\`.`, nextSource: null };
     }
     const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
-    const safelyUnavailable = sourceAttempts.length > 0 && sourceAttempts.every(({ outcome }) => (
-      outcome === "rate-limited" || outcome === "transient-unavailable"
-    ));
-    if (safelyUnavailable) continue;
+    const currentFindings = sourceAttempts.filter((attempt) => attempt.outcome === "findings");
+    if (currentFindings.length > 0) {
+      const responsePlans = currentFindings.flatMap((attempt) => {
+        if (attempt.hosted === undefined
+          || attempt.hosted.findings.length === 0
+          || input.bindCurrentAttemptRef === undefined) return [];
+        return [{
+          schemaVersion: 1 as const,
+          target: attempt.hosted.reviewTarget,
+          source: {
+            kind: "hosted" as const,
+            attemptRef: input.bindCurrentAttemptRef(attempt.attemptId),
+          },
+          findings: attempt.hosted.findings.map((finding) => ({
+            findingId: finding.findingId,
+            severity: finding.severity,
+            locus: finding.locus,
+            evidenceUrlOrId: finding.url,
+          })),
+        }];
+      });
+      return responsePlans.length === 1
+        ? {
+            discharged: false,
+            detail: `Hosted source \`${sourceId}\` has current findings awaiting disposition.`,
+            nextSource: null,
+            responsePlan: responsePlans[0],
+          }
+        : {
+            discharged: false,
+            detail: `Hosted source \`${sourceId}\` has current findings without one exact response plan.`,
+            nextSource: null,
+          };
+    }
+    const safelyUnavailable = retainedSafeUnavailableAttempt(sourceId, sourceAttempts);
+    if (safelyUnavailable !== null) {
+      requestAttempts.push(safelyUnavailable);
+      continue;
+    }
     if (input.readEarlierAttemptApplicability !== undefined) {
       const earlier = await input.readEarlierAttemptApplicability(sourceId);
       const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
@@ -191,6 +258,7 @@ export async function projectHostedReservationDischarge(input: {
           detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
             + "a settled review across the Candidate span.",
           nextSource: sourceId,
+          requestAttempts,
         };
       }
       if (earlier.status !== "complete" || earlier.attempts.length === 0) {
@@ -203,6 +271,22 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const selected = earlier.attempts.filter((attempt) => attempt.sourceId === sourceId);
+      const findings = selected.filter(({ outcome }) => outcome === "findings");
+      if (findings.length > 0) {
+        const responsePlans = findings.flatMap(({ responsePlan }) => responsePlan === undefined ? [] : [responsePlan]);
+        return responsePlans.length === 1
+          ? {
+              discharged: false,
+              detail: `Hosted source \`${sourceId}\` has retained findings awaiting disposition.`,
+              nextSource: null,
+              responsePlan: responsePlans[0],
+            }
+          : {
+              discharged: false,
+              detail: `Hosted source \`${sourceId}\` has retained findings without one exact response plan.`,
+              nextSource: null,
+            };
+      }
       const stopped = selected.find(({ applicability }) => applicability === "stop");
       if (stopped !== undefined) {
         return {
@@ -220,6 +304,7 @@ export async function projectHostedReservationDischarge(input: {
           discharged: false,
           detail: `Hosted source \`${sourceId}\` requires a new review by Owner selection.`,
           nextSource: sourceId,
+          requestAttempts,
         };
       }
       const applicable = selected.filter(({ applicability }) => applicability === "retain-prior-attempt");
@@ -230,16 +315,18 @@ export async function projectHostedReservationDischarge(input: {
           nextSource: null,
         };
       }
-      const earlierSafelyUnavailable = applicable.length > 0 && applicable.every(({ outcome }) => (
-        outcome === "rate-limited" || outcome === "transient-unavailable"
-      ));
-      if (earlierSafelyUnavailable) continue;
+      const earlierSafelyUnavailable = retainedSafeUnavailableAttempt(sourceId, applicable);
+      if (earlierSafelyUnavailable !== null) {
+        requestAttempts.push(earlierSafelyUnavailable);
+        continue;
+      }
     }
     return {
       discharged: false,
       detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
         + "a settled review across the Candidate span.",
       nextSource: sourceId,
+      requestAttempts,
     };
   }
   return {
@@ -304,6 +391,15 @@ export function createHostedReservationDischargeReader(input: {
         lane: "standard",
         repositoryId: currentRepositoryId,
         headSha,
+      }),
+      bindCurrentAttemptRef: (attemptId) => bindReviewSourceReference({
+        kind: "hosted",
+        operationId: laneProgressOperationId({
+          lane: "standard",
+          repositoryId: currentRepositoryId,
+          headSha: approvedHead,
+        }),
+        durableRef: attemptId,
       }),
       ...(snapshot === null || changeRequest === null || candidate === undefined
         ? {}
