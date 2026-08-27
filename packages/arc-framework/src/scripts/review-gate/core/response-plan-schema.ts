@@ -68,6 +68,15 @@ export const ReviewResponseSettlementSourceSchema = z.discriminatedUnion("kind",
   z.strictObject({ kind: z.literal("hosted"), attemptRef: z.string().trim().min(1) }),
 ]);
 
+/** Exact unsettled hosted attempt and normalized findings ready for response triage. */
+export const HostedFindingsResponsePlanSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  target: ReviewTargetSchema,
+  source: z.strictObject({ kind: z.literal("hosted"), attemptRef: z.string().trim().min(1) }),
+  findings: z.array(NormalizedReviewFindingSchema).min(1),
+});
+export type HostedFindingsResponsePlan = z.infer<typeof HostedFindingsResponsePlanSchema>;
+
 export const ReviewResponseSettlementRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   source: ReviewResponseSettlementSourceSchema,
