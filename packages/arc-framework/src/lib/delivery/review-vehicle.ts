@@ -20,6 +20,22 @@ export const DeliveryReviewMemberVehicleSchema = z.strictObject({
 export type DeliveryReviewMemberVehicle = z.infer<typeof DeliveryReviewMemberVehicleSchema>;
 
 /**
+ * Compare the stable member identity carried by two delivery review vehicles across head movement.
+ *
+ * @param expected - The member identity selected by the current delivery target.
+ * @param actual - The member identity retained by review progress from any head.
+ * @returns Whether both vehicles identify the same member in the same immutable plan.
+ */
+export function sameDeliveryReviewMemberIdentity(
+  expected: DeliveryReviewMemberVehicle,
+  actual: DeliveryReviewMemberVehicle,
+): boolean {
+  return expected.planId === actual.planId
+    && expected.deliverableId === actual.deliverableId
+    && expected.workUnitId === actual.workUnitId;
+}
+
+/**
  * Compare the complete optional delivery-member selector carried by hosted progress.
  *
  * @param expected - Selector required by the current hosted target, or no delivery selector.
@@ -31,8 +47,6 @@ export function sameDeliveryReviewMemberVehicle(
   actual: DeliveryReviewMemberVehicle | undefined,
 ): boolean {
   if (expected === undefined || actual === undefined) return expected === actual;
-  return expected.planId === actual.planId
-    && expected.deliverableId === actual.deliverableId
-    && expected.workUnitId === actual.workUnitId
+  return sameDeliveryReviewMemberIdentity(expected, actual)
     && expected.head === actual.head;
 }

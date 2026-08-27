@@ -1,9 +1,16 @@
 /** Ordered admission for a hosted-review reservation carried across publication. */
 
 import {
+  sameDeliveryReviewMemberIdentity,
   sameDeliveryReviewMemberVehicle,
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
+import type { ReviewOperationStateSnapshot } from "../core/ports.js";
+import {
+  resolveReviewPolicy,
+  type ReviewPolicyCommandRequest,
+  type ReviewResolveEnvelope,
+} from "./review-policy-driver.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { ReviewApplicabilityConsumerAction } from "./review-applicability-authority.js";
 
@@ -17,6 +24,141 @@ interface HostedTargetAttempt extends ReservationAttempt {
     target: { repository: string; pullRequest: number; headSha: string };
     vehicle?: DeliveryReviewMemberVehicle;
   };
+}
+
+/** Exact delivery-member progress projected for one standard-review driver invocation. */
+export type HostedReservationPolicyProgress =
+  | {
+    readonly status: "complete";
+    readonly completedPasses: number;
+    readonly attempts: ReviewPolicyCommandRequest["attempts"];
+  }
+  | { readonly status: "unavailable"; readonly detail: string };
+
+/** Driver resolution or the typed snapshot failure that prevented one. */
+export type HostedReservationPolicyResolution =
+  | { readonly status: "resolved"; readonly policy: ReviewResolveEnvelope }
+  | { readonly status: "unavailable"; readonly detail: string };
+
+/** Project driver-grade progress for one delivery member across exact head movement. */
+export function projectHostedReservationPolicyProgress(input: {
+  readonly snapshot: ReviewOperationStateSnapshot;
+  readonly repositoryId: string;
+  readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
+  readonly vehicle: DeliveryReviewMemberVehicle;
+}): HostedReservationPolicyProgress {
+  if (input.snapshot.status !== "complete") {
+    return {
+      status: "unavailable",
+      detail: `Review operation progress is ${input.snapshot.status}: ${input.snapshot.reason}`,
+    };
+  }
+  if (input.vehicle.head !== input.target.headSha) {
+    return { status: "unavailable", detail: "The delivery-member vehicle does not identify the current target head." };
+  }
+  let completedPasses = 0;
+  const attempts: Array<ReviewPolicyCommandRequest["attempts"][number]> = [];
+  for (const { state } of input.snapshot.records) {
+    if (state.kind !== "lane-progress"
+      || state.lane !== "standard"
+      || state.repositoryId !== input.repositoryId
+      || state.changeRequestId !== `pull/${String(input.target.pullRequest)}`) continue;
+    for (const attempt of state.attempts) {
+      const hosted = attempt.hosted;
+      if (hosted === undefined
+        || hosted.vehicle === undefined
+        || hosted.target.repository.toLowerCase() !== input.target.repository.toLowerCase()
+        || hosted.target.pullRequest !== input.target.pullRequest
+        || hosted.target.headSha !== state.headSha
+        || hosted.reviewTarget.repositoryId !== input.repositoryId
+        || hosted.reviewTarget.headSha !== state.headSha
+        || !sameDeliveryReviewMemberIdentity(input.vehicle, hosted.vehicle)) continue;
+      if (attempt.outcome === "clean"
+        || attempt.outcome === "findings"
+        || attempt.outcome === "settled-findings") {
+        completedPasses += 1;
+      }
+      if (state.headSha === input.target.headSha
+        && sameDeliveryReviewMemberVehicle(input.vehicle, hosted.vehicle)) {
+        attempts.push({
+          sourceId: attempt.sourceId,
+          outcome: attempt.outcome,
+          ...(attempt.chunkSeriesComplete === undefined
+            ? {}
+            : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
+        });
+      }
+    }
+  }
+  return { status: "complete", completedPasses, attempts };
+}
+
+/** Resolve one delivery member's next request through the configured standard-review driver. */
+export function resolveHostedReservationPolicy(input: {
+  readonly reservation: StandardReviewReservationV1;
+  readonly snapshot: ReviewOperationStateSnapshot;
+  readonly repositoryId: string;
+  readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
+  readonly vehicle: DeliveryReviewMemberVehicle;
+  readonly maxPasses: number;
+  readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
+  readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
+}): HostedReservationPolicyResolution {
+  const progress = projectHostedReservationPolicyProgress(input);
+  if (progress.status === "unavailable") return progress;
+  const attemptsBySource = new Map<string, ReviewPolicyCommandRequest["attempts"][number]>();
+  for (const attempt of [...(input.requestAttempts ?? []), ...progress.attempts]) {
+    attemptsBySource.set(attempt.sourceId, attempt);
+  }
+  const attempts = input.reservation.sources.flatMap((sourceId) => {
+    const attempt = attemptsBySource.get(sourceId);
+    return attempt === undefined ? [] : [attempt];
+  });
+  if (attempts.length !== attemptsBySource.size) {
+    return { status: "unavailable", detail: "Review request progress names a source outside the reservation." };
+  }
+  return {
+    status: "resolved",
+    policy: resolveReviewPolicy({
+      schemaVersion: 1,
+      target: input.target,
+      lane: "standard",
+      standardReview: input.reservation.obligation,
+      sources: input.reservation.sources,
+      maxPasses: input.maxPasses,
+      completedPasses: progress.completedPasses,
+      attempts,
+      ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+    }),
+  };
+}
+
+/** Refuse a hosted request that no longer has exact driver admission at capacity-spend time. */
+export function assertHostedReservationPolicyAdmission(input: {
+  readonly reservation: StandardReviewReservationV1;
+  readonly snapshot: ReviewOperationStateSnapshot;
+  readonly repositoryId: string;
+  readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
+  readonly vehicle: DeliveryReviewMemberVehicle;
+  readonly provider: string;
+  readonly maxPasses: number;
+  readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
+  readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
+}): void {
+  const resolution = resolveHostedReservationPolicy(input);
+  if (resolution.status === "unavailable") throw new Error(resolution.detail);
+  if (resolution.policy.state !== "ready"
+    || resolution.policy.nextAction !== "hosted-request") {
+    throw new Error(
+      `Hosted review capacity lacks standard-review driver admission (${resolution.policy.state}/${resolution.policy.nextAction}).`,
+    );
+  }
+  if (resolution.policy.payload.sourceId !== input.provider) {
+    throw new Error(
+      `Hosted review source \`${input.provider}\` is not driver-admissible; `
+      + `the standard lane requires \`${resolution.policy.payload.sourceId}\` next.`,
+    );
+  }
 }
 
 /**
@@ -124,25 +266,16 @@ export function assertHostedErrandAdmission(input: {
   }
 }
 
-/** Refuse a hosted provider that would skip an earlier source in the durable reservation. */
-export function assertHostedReservationAdmission(input: {
+/** Refuse a hosted target that does not belong to the carried reservation and current Candidate. */
+export function assertHostedReservationBindingAuthority(input: {
   reservation: StandardReviewReservationV1;
-  provider: string;
   repository: string;
   headSha: string;
   targetKind: "change-set" | "delivery-member";
   vehicle?: DeliveryReviewMemberVehicle;
   boundary: { candidateId: string; candidateSubjectDigest: string | null };
   candidate: { candidateId: string; subjectDigest: string; headSha: string };
-  attempts: readonly ReservationAttempt[];
-  applicabilityAction?: ReviewApplicabilityConsumerAction;
 }): void {
-  if (input.applicabilityAction === "retain-prior-attempt") {
-    throw new Error("Hosted review capacity is not admissible while the prior attempt remains applicable.");
-  }
-  if (input.applicabilityAction === "stop") {
-    throw new Error("Hosted review capacity is not admissible while contribution applicability is unresolved.");
-  }
   if (input.reservation.target.repository.toLowerCase() !== input.repository.toLowerCase()) {
     throw new Error("Hosted review target does not match the carried standard-review reservation.");
   }
@@ -166,6 +299,28 @@ export function assertHostedReservationAdmission(input: {
     || (input.targetKind === "change-set" && input.candidate.headSha !== input.headSha)) {
     throw new Error("Hosted review reservation does not match the current Candidate.");
   }
+}
+
+/** Refuse a hosted provider that would skip an earlier source in the durable reservation. */
+export function assertHostedReservationAdmission(input: {
+  reservation: StandardReviewReservationV1;
+  provider: string;
+  repository: string;
+  headSha: string;
+  targetKind: "change-set" | "delivery-member";
+  vehicle?: DeliveryReviewMemberVehicle;
+  boundary: { candidateId: string; candidateSubjectDigest: string | null };
+  candidate: { candidateId: string; subjectDigest: string; headSha: string };
+  attempts: readonly ReservationAttempt[];
+  applicabilityAction?: ReviewApplicabilityConsumerAction;
+}): void {
+  if (input.applicabilityAction === "retain-prior-attempt") {
+    throw new Error("Hosted review capacity is not admissible while the prior attempt remains applicable.");
+  }
+  if (input.applicabilityAction === "stop") {
+    throw new Error("Hosted review capacity is not admissible while contribution applicability is unresolved.");
+  }
+  assertHostedReservationBindingAuthority(input);
   const expected = firstAdmissibleHostedSource(input.reservation, input.attempts);
   if (expected === null) {
     throw new Error("Every source in the carried standard-review reservation is safely unavailable.");
