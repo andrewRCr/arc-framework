@@ -9,7 +9,7 @@ import type {
   DeliveryContributionProofResult,
   DeliveryContributionRefusal,
 } from "./contribution-proof.js";
-import type { DeliveryEligibilitySnapshot } from "./eligibility.js";
+import type { DeliveryEligibilityRefusal, DeliveryEligibilitySnapshot } from "./eligibility.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type {
   DeliveryOperationSnapshotV1,
@@ -73,6 +73,7 @@ export interface DeliverySuffixRematerializationDependencies {
         readonly facts: DeliveryPositionFactsV1;
         readonly snapshot: DeliveryEligibilitySnapshot;
       }
+    | DeliveryEligibilityRefusal
     | { readonly status: "refused" }
   >;
   reobserveCandidate(rewrite: DeliverySuffixRewritePlan): Promise<boolean>;
@@ -211,6 +212,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
 }, dependencies: DeliverySuffixRematerializationDependencies): Promise<
   | DeliverySuffixRematerializedResult
   | DeliveryContributionRefusal
+  | DeliveryEligibilityRefusal
   | {
       readonly status: "refused";
       readonly reason:
@@ -233,7 +235,11 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
   let nextIndex = 0;
   for (;;) {
     const fresh = await dependencies.reobserve();
-    if (fresh.status !== "observed") return { status: "refused", reason: "observation-unavailable" };
+    if (fresh.status !== "observed") {
+      return "reason" in fresh
+        ? fresh
+        : { status: "refused", reason: "observation-unavailable" };
+    }
     if (expectedState !== null && (fresh.current.revision !== expectedState.revision
       || canonicalize(fresh.current.value) !== canonicalize(expectedState.value))) {
       return { status: "refused", reason: "state-moved" };
