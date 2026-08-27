@@ -492,6 +492,7 @@ async function createHarness(
           : { status: "ok", value: record.value.value, revision: record.value.revision };
     },
     readIntegrationBoundary: async () => ({ status: "ok", value: null }),
+    readCandidate: async () => ({ status: "ok", value: null }),
   });
   expect(entry).toMatchObject({ status: "validate-canonical", planId: plan.planId });
   expect(lifecycleOrder).toEqual(["reservation", "publication-transition", "integration-dispatch"]);
