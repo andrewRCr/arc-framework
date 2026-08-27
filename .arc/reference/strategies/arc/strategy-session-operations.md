@@ -225,17 +225,13 @@ context of what came before.
 
 ### Workflow-embedded directives (T3)
 
-Workflow documents contain explicit loading instructions for the methods and references they
-depend on. When the agent reaches a workflow step that references a method or strategy, the
-workflow tells it to load the relevant section.
+Workflow and method bodies mark the exact step where the executing session needs a declared method or extension.
+The consumer's frontmatter declaration makes that fire-point resolvable; it does not preload the content.
 
-Directives appear as a method dependencies block near the top of workflow documents:
-
-> **Method dependencies (load on first reference):** [method-a], [method-b]. For each, check
-> `.override` first; use `.default` if no override is configured.
-
-This mechanism is deterministic (the workflow prescribes it), automatic (the agent follows the
-workflow step by step), and scoped (only the relevant methods load, only when needed).
+A fire-point may be a callout, a signature block, an extension marker, or an invocation-marking in-step method
+link. A link used only to navigate to related material is not a fire-point. This mechanism is deterministic (the
+consumer marks the invocation), automatic (the agent follows the body step by step), and scoped (only the content
+needed at the reached fire-point loads).
 
 ### Strategy-index triggers (T3)
 
@@ -257,8 +253,9 @@ initiates the activity.
 **Declaration mechanism.** Each workflow or method declares only the methods its own body may fire; workflows also
 declare their extension checks. Workflow declarations root a deduplicated transitive method graph, so a workflow
 never repeats its methods' dependencies. See [Workflow Authoring Strategy][workflow-authoring] for the schema. The
-frontmatter's `arc.methods` / `arc.extensions` arrays are the load contract; in-step markdown links remain as reader
-navigation but do not constitute the trigger.
+frontmatter's `arc.methods` / `arc.extensions` arrays are the declaration contract; the direct body fire-point
+triggers the load. An in-step Markdown link is a trigger only when that step uses it to invoke the named method;
+purely navigational links are not fire-points.
 
 ### Per-file Frontmatter Schema
 
