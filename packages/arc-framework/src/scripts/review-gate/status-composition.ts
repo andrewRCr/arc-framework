@@ -112,7 +112,6 @@ export async function readRoutedObligation(
     const record = versionedRecord.record;
     const settings = (await readConfigSettings(cwd)).settings;
     const baseBranch = settings["branch.base"];
-    const candidateHead = subject.member?.candidateHead ?? target.headSha;
     const targetBase = await resolveGitCandidateTargetBase({
       cwd,
       revision: target.headSha,

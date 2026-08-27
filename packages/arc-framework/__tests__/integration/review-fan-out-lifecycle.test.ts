@@ -72,8 +72,6 @@ import {
   projectPublicationBoundary,
 } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { createPrePublicationCompositionDependencies } from
-  "../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import type { ReviewCeilingOverride } from
   "../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
@@ -482,7 +480,7 @@ async function advanceSecondTarget(harness: FanOutHarness): Promise<{ head: stri
   const current = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
   if (current.version === null) throw new Error("expected current Candidate version");
   const candidate = await installCandidate(harness, head, current.version);
-  await writeBoundary(harness, candidate, "feat/delivery-plan-record", "bound");
+  await writeBoundary(harness, candidate, "feat/delivery-plan-record");
   return { head, tree };
 }
 
