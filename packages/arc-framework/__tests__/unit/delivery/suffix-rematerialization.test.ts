@@ -337,6 +337,18 @@ describe("delivery suffix rematerialization", () => {
     })).resolves.toEqual({ status: "refused", reason: "selected-member-invalid" });
   });
 
+  it("preserves the exact eligibility refusal that prevents rematerialization", async () => {
+    await expect(executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: ["sha256:01f4287446b8415cfa2bd95bebde24c15a6e264ca9820dfe1c82a1e8d30a8bd2"],
+    }, {
+      reobserve: async () => ({ status: "refused", reason: "completeness-mismatched" }),
+      reobserveCandidate: async () => { throw new Error("must not inspect a candidate"); },
+      resolveCoordinate: async () => { throw new Error("must not resolve coordinates"); },
+      proveCarried: async () => { throw new Error("must not prove contribution"); },
+      apply: async () => { throw new Error("must not apply"); },
+    })).resolves.toEqual({ status: "refused", reason: "completeness-mismatched" });
+  });
+
   it("refuses incomplete/direct-delivery candidates and accidental unselected changes", async () => {
     const { plan, state, facts, snapshot, second } = fixture();
     await expect(prepareDeliverySuffixRematerialization({
