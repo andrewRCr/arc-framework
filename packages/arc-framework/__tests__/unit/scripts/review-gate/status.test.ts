@@ -7,6 +7,8 @@ import { DeliveryReviewMemberVehicleSchema } from
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { classifyReviewContributionApplicability } from
   "../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
+import { resolveReviewPolicy } from
+  "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
   composeDeliveryReviewObligation,
   resolveReviewStatus,
@@ -30,6 +32,29 @@ const hostedAction = {
   coverage: "complete" as const,
   vehicle: memberVehicle,
 };
+
+function readyAdmission(
+  sourceId: "coderabbit-pr" | "codex-pr",
+  admissionTarget = hostedAction.target,
+) {
+  return resolveReviewPolicy({
+    schemaVersion: 1,
+    target: admissionTarget,
+    lane: "standard",
+    standardReview: {
+      obligation: "required",
+      reasons: ["sensitive-change-set"],
+      rubricVersion: "standard-review/v1",
+      rubricDigest: `sha256:${"e".repeat(64)}`,
+      retrigger: "full-final",
+      count: 1,
+    },
+    sources: [sourceId],
+    maxPasses: 2,
+    completedPasses: 0,
+    attempts: [],
+  });
+}
 
 function reviewApplicabilityDecision() {
   const priorVehicle = DeliveryReviewMemberVehicleSchema.parse({
@@ -165,6 +190,118 @@ describe("review status", () => {
     });
   });
 
+  it("returns the exact retained findings response before another hosted request", async () => {
+    const obligation = composeDeliveryReviewObligation({
+      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
+      discharges: [{
+        discharged: false,
+        detail: "The earlier findings attempt remains unsettled.",
+        nextSource: null,
+        responsePlan: hostedResponsePlan,
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      responsePlan: hostedResponsePlan,
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "respond-to-findings",
+      responsePlan: hostedResponsePlan,
+    });
+  });
+
+  it("routes the driver's exact member-pass ceiling consequence without another request", async () => {
+    const policy = resolveReviewPolicy({
+      schemaVersion: 1,
+      target: hostedAction.target,
+      lane: "standard",
+      standardReview: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      sources: ["coderabbit-pr", "codex-pr"],
+      maxPasses: 2,
+      completedPasses: 2,
+      attempts: [],
+    });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
+      discharges: [{
+        discharged: false,
+        detail: "The member has exhausted its configured review passes.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: policy,
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "approval-required",
+      consequence: {
+        target: hostedAction.target,
+        lane: "standard",
+        exhaustedPassCount: 2,
+        nextPass: 3,
+      },
+    });
+    if (obligation.state !== "approval-required") throw new Error("expected ceiling approval");
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "approval-required",
+      nextAction: "obtain-ceiling-override",
+      consequence: obligation.consequence,
+    });
+  });
+
+  it("carries an exact one-pass ceiling override into the admitted hosted request", () => {
+    const ceilingOverride = {
+      target: hostedAction.target,
+      lane: "standard" as const,
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    };
+    const policy = resolveReviewPolicy({
+      schemaVersion: 1,
+      target: hostedAction.target,
+      lane: "standard",
+      standardReview: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      sources: ["coderabbit-pr", "codex-pr"],
+      maxPasses: 2,
+      completedPasses: 2,
+      attempts: [],
+      ceilingOverride,
+    });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
+      discharges: [{
+        discharged: false,
+        detail: "One additional member review pass was approved.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: policy,
+        requestCeilingOverride: ceilingOverride,
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      action: {
+        ...hostedAction,
+        ceilingOverride,
+      },
+    });
+  });
+
   it("returns one status-owned Candidate selection offer before another hosted pass is spent", async () => {
     const projection = reviewApplicabilityDecision();
     const expectedRecordVersion = canonicalDigest({ version: 2 });
@@ -277,7 +414,12 @@ describe("review status", () => {
         },
       ],
       discharges: [
-        { discharged: false, detail: "member one outstanding", nextSource: "coderabbit-pr" },
+        {
+          discharged: false,
+          detail: "member one outstanding",
+          nextSource: "coderabbit-pr",
+          requestAdmission: readyAdmission("coderabbit-pr"),
+        },
         { discharged: false, detail: "member two outstanding", nextSource: "coderabbit-pr" },
       ],
     });
@@ -308,7 +450,16 @@ describe("review status", () => {
       ],
       discharges: [
         { discharged: true, detail: "member one discharged", nextSource: null },
-        { discharged: false, detail: "member two outstanding", nextSource: "codex-pr" },
+        {
+          discharged: false,
+          detail: "member two outstanding",
+          nextSource: "codex-pr",
+          requestAdmission: readyAdmission("codex-pr", {
+            repository: "owner/repo",
+            pullRequest: 42,
+            headSha: secondVehicle.head,
+          }),
+        },
       ],
     });
 
