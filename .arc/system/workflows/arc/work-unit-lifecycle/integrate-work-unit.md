@@ -64,9 +64,11 @@ printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect --input
 ```
 
 Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.
-`canonicalize-provisional`, `validate-canonical`, and `resume-bound` leave this workflow and enter the matching
-route in [`supplemental/deliver-stack.md`](../supplemental/deliver-stack.md); that workflow owns publication,
-state binding, member pull requests, and the landing window. `refused` stops after rendering
+`continue-hosted-review` resumes at Step 2's public hosted-review iteration with its exact `hostedReviewAction`;
+do not resolve a singleton change request or enter delivery publication / position reconciliation.
+`canonicalize-provisional`, `validate-canonical`, `continue-publication`, and `resume-bound` leave this workflow and
+enter the matching route in [`supplemental/deliver-stack.md`](../supplemental/deliver-stack.md); that workflow owns
+publication, state binding, member pull requests, and the landing window. `refused` stops after rendering
 `recommendedActionText`; any other route also stops as an integration-entry contract violation. Do not perform this
 entry dispatch on the `shipped` tail, which has already crossed initial publication.
 
@@ -156,17 +158,28 @@ never replaces Step 10's authoritative final drift read.
 
 Read `integrationBoundary.reservation` from the typed status projection. A null reservation means the standard lane
 already settled or was a typed no-op before submission; do not invent a post-PR obligation. A carried reservation
-must match the current Candidate and carries the ordered sources and exact obligation. Require its typed next action
-to be `continue-pre-publication-review`, then invoke `integrationBoundary.nextAction.command`. Continue only from
-`ready / hosted-request`; the returned policy preserves the reservation without rerunning chunking or source
-ordering and supplies `policy.payload.sourceId` plus the authorized `policy.payload.pass`. Bind the open pull request
-to that reservation, resolve its exact current `targetRef`, and invoke:
+must match the current Candidate and carries the ordered sources and exact obligation. Dispatch only on
+`integrationBoundary.nextAction.kind`:
 
-```bash
-arc review status --target '{targetRef}' --json
-```
+- `continue-hosted-review` requires a delivery reservation. Bind the open pull request, resolve its exact current
+  `targetRef`, and invoke:
 
-Dispatch only on `nextAction`. `obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
+  ```bash
+  arc review status --target '{targetRef}' --json
+  ```
+
+  The public status reducer selects the first outstanding retained target from exact delivery and change-request
+  bindings, then returns the existing driver's next action. Do not invoke Frontline, generic prepublication, private
+  source selection, or a whole-work-unit fallback.
+- `continue-pre-publication-review` remains the ordinary singleton continuation. Invoke
+  `integrationBoundary.nextAction.command` and continue only from `ready / hosted-request`; the returned policy
+  preserves the reservation without rerunning chunking or source ordering and supplies `policy.payload.sourceId`
+  plus the authorized `policy.payload.pass`. Bind the open pull request, resolve its exact current `targetRef`, and
+  invoke the same status command above.
+
+Every other boundary action stops. Dispatch only on `nextAction` from the status result.
+
+`obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
 Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
 with the returned consequence serialized unchanged:
 
@@ -179,6 +192,35 @@ arc review status --target '{targetRef}' --ceiling-override '{consequence}' --js
 ```bash
 arc review hosted request -
 ```
+
+`review-local-prepare` returns the exact standard-review driver admission. Pass its `action` unchanged as
+`deliveryAdmission` in the ordinary local prepare request:
+
+```bash
+arc review local prepare -
+```
+
+Follow the typed local launch, attest, reduce, and findings-response sequence. Do not rerun source selection or
+substitute the current checkout head for the returned member head. After the local attempt concludes, re-enter
+through `arc review status`; durable lane progress consumes the admitted pass.
+
+`review-local-resume` means pass the returned action unchanged to:
+
+```bash
+arc review local resume -
+```
+
+Follow the same typed local sequence, then re-enter through `arc review status`.
+
+`respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
+[`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:
+
+```bash
+arc review respond -
+```
+
+This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
+plan through the phase-ordered settlement path below, then re-enter through `arc review status`.
 
 The action already carries the selected source, exact opened target, complete coverage, and any delivery-member
 vehicle. `resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice,
@@ -200,11 +242,14 @@ base movement, and pending checks return to their typed checkpoint; `upgrade` an
   `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
   provider outcome.
 
-Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to the
-retained `policy.payload.pass` that authorized it. A completed attempt consumes that pass; pending chunk series and
-non-pass outcomes retain the prior count.
+Hosted delivery-member request and await operations persist their admitted pass in durable lane progress. Re-enter
+through status after each concluded result; do not reconstruct `completedPasses` or route the public member back
+through private policy. For the ordinary singleton continuation, retain `policy.payload.pass` as the authorizing
+completed-pass input. A completed attempt consumes that pass; pending chunk series and non-pass outcomes retain the
+prior count.
 
-- `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
+- `clean / complete` — a delivery member re-enters status; an ordinary singleton feeds a `clean` attempt to
+  `arc review resolve -`.
 - `findings / triage` — run [`review-triage`][review-triage] and [`review-response`][review-response]. When
   `arc review respond -` returns `payload.hostedSettlementPlan` for approved `settlement: reply-and-resolve`
   findings, execute its phases in order: invoke `arc review hosted settle -` for every ID in the active phase.
@@ -220,8 +265,8 @@ non-pass outcomes retain the prior count.
   On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
   only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host mutation;
   every stop state remains a stop. Feed `findings` back to the driver only after both phases complete.
-- `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it may
-  select the next configured source without consuming the pass.
+- `rate-limited | transient-unavailable / try-next-source` — a delivery member re-enters status; an ordinary
+  singleton feeds that safe outcome to the same driver call. The outcome does not consume the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
   an uncertain request.
 
@@ -536,6 +581,20 @@ arc user close {name}
 This is an **individually re-runnable** step, not just the tail of a synchronous merge: on the resume path it is
 the owning caller of `arc user close` — a merge that landed while no session attended it has no other closer.
 `arc user close` no-ops when the subdir is already retired, so a re-run is safe.
+
+Invoke delivery closeout with the exact current change-request repository bound as `repositoryRef` in Step 1:
+
+```json
+{"workUnitId":"{name}","repository":"{repositoryRef}","remote":"origin"}
+```
+
+```bash
+arc delivery closeout - --json
+```
+
+`closed-out` renders `recommendedActionText` and continues. `blocked` renders `recommendedActionText` and stops;
+every other typed result stops. The call is idempotent and returns `closed-out` with no plan IDs for an ordinary
+non-delivery work unit.
 
 ### 11) Post-merge worktree cleanup
 

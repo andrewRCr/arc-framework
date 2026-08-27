@@ -23,6 +23,8 @@ import {
   projectEarlierReviewApplicability,
 } from
   "../../../../../src/scripts/review-gate/policy/earlier-review-applicability.js";
+import { DeliveryLocalReviewAdmissionSchema } from
+  "../../../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { classifyReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 
@@ -34,6 +36,15 @@ const deliveryVehicle = (head: string) => DeliveryReviewMemberVehicleSchema.pars
   deliverableId: `sha256:${"9".repeat(64)}`,
   workUnitId: "member-a",
   head,
+});
+
+const localAdmission = (head: string) => DeliveryLocalReviewAdmissionSchema.parse({
+  schemaVersion: 1,
+  sourceId: "delegated-agent",
+  statusTarget: { repository: "owner/repository", headRef: "feature", headSha: head },
+  target: { repository: "owner/repository", pullRequest: 42, headSha: head },
+  vehicle: deliveryVehicle(head),
+  pass: 1,
 });
 
 function laneState(options: { delivery?: boolean } = {}) {
@@ -79,6 +90,8 @@ function laneState(options: { delivery?: boolean } = {}) {
       outcome: "clean" as const,
       hosted: {
         target: { repository: "Owner/Repository", pullRequest: 42, headSha: oid("a") },
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
         ...(options.delivery === true ? { vehicle: deliveryVehicle(oid("a")) } : {}),
         reviewTarget,
         requirement,
@@ -208,6 +221,110 @@ describe("earlier review attempt query", () => {
         workUnitId: "member-b",
       }),
     }, snapshot)).toMatchObject({ status: "unavailable", reason: "no-matching-attempt" });
+  });
+
+  it("discovers an exact delegated delivery-member attempt after its head coordinate moves", () => {
+    const prior = laneState({ delivery: true });
+    const priorTarget = prior.attempts[0]!.hosted!.reviewTarget;
+    const local = LaneProgressStateSchema.parse({
+      ...prior,
+      changeRequestId: null,
+      attempts: [{
+        attemptId: "local-review-prior",
+        sourceId: "delegated-agent",
+        outcome: "clean",
+        local: {
+          vehicle: { kind: "delivery-member", identity: deliveryVehicle(oid("a")).deliverableId },
+          target: priorTarget,
+          deliveryAdmission: localAdmission(oid("a")),
+        },
+      }],
+    });
+
+    expect(queryEarlierReviewAttempts({
+      ...selector(),
+      sourceId: "delegated-agent",
+      currentVehicle: deliveryVehicle(oid("c")),
+    }, {
+      status: "complete",
+      records: [{ version: 1, state: local }],
+    })).toMatchObject({
+      status: "complete",
+      candidates: [{
+        sourceKind: "local",
+        attemptId: "local-review-prior",
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
+        priorHead: oid("a"),
+        priorVehicle: deliveryVehicle(oid("a")),
+        reviewTarget: priorTarget,
+      }],
+    });
+
+    const replacedPullRequest = LaneProgressStateSchema.parse({
+      ...local,
+      attempts: local.attempts.map((attempt) => ({
+        ...attempt,
+        local: attempt.local === undefined
+          ? undefined
+          : {
+              ...attempt.local,
+              deliveryAdmission: {
+                ...attempt.local.deliveryAdmission!,
+                target: { ...attempt.local.deliveryAdmission!.target, pullRequest: 43 },
+              },
+            },
+      })),
+    });
+    expect(queryEarlierReviewAttempts({
+      ...selector(),
+      sourceId: "delegated-agent",
+      currentVehicle: deliveryVehicle(oid("c")),
+    }, {
+      status: "complete",
+      records: [{ version: 1, state: replacedPullRequest }],
+    })).toMatchObject({ status: "unavailable", reason: "no-matching-attempt" });
+  });
+
+  it("retains the exact delegated operation needed to resume earlier findings", async () => {
+    const prior = laneState({ delivery: true });
+    const local = LaneProgressStateSchema.parse({
+      ...prior,
+      changeRequestId: null,
+      attempts: [{
+        attemptId: "local-review-prior",
+        sourceId: "delegated-agent",
+        outcome: "findings",
+        local: {
+          vehicle: { kind: "delivery-member", identity: deliveryVehicle(oid("a")).deliverableId },
+          target: prior.attempts[0]!.hosted!.reviewTarget,
+          deliveryAdmission: localAdmission(oid("a")),
+        },
+      }],
+    });
+
+    await expect(projectEarlierReviewApplicability({
+      query: {
+        ...selector(),
+        sourceId: "delegated-agent",
+        currentVehicle: deliveryVehicle(oid("c")),
+      },
+      currentBase: oid("2"),
+      snapshot: { status: "complete", records: [{ version: 1, state: local }] },
+      candidate: candidateRecord(),
+      exec: async () => { throw new Error("injected projection must own Git"); },
+      projectApplicability: async (applicabilitySelector) => classifyReviewContributionApplicability(
+        applicabilitySelector,
+        null,
+      ),
+    })).resolves.toMatchObject({
+      status: "complete",
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "findings",
+        localResumeAction: { schemaVersion: 1, operationId: "local-review-prior" },
+      }],
+    });
   });
 
   it("returns typed unavailability for incomplete, failed, empty, and unbounded snapshots", () => {

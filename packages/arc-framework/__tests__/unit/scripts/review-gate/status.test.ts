@@ -426,6 +426,75 @@ describe("review status", () => {
     });
   });
 
+  it("routes the driver's delegated-agent fallback for the exact outstanding member", async () => {
+    const policy = resolveReviewPolicy({
+      schemaVersion: 1,
+      target: hostedAction.target,
+      lane: "standard",
+      standardReview: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      sources: ["delegated-agent"],
+      maxPasses: 2,
+      completedPasses: 0,
+      attempts: [],
+    });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
+      discharges: [{
+        discharged: false,
+        detail: "The member requires the delegated-agent fallback.",
+        nextSource: "delegated-agent",
+        requestAdmission: policy,
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      localAction: {
+        schemaVersion: 1,
+        sourceId: "delegated-agent",
+        target: hostedAction.target,
+        vehicle: memberVehicle,
+      },
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-local-prepare",
+      action: {
+        sourceId: "delegated-agent",
+        statusTarget: target,
+        target: hostedAction.target,
+        vehicle: memberVehicle,
+      },
+    });
+  });
+
+  it("returns the exact delegated findings operation for local review resumption", async () => {
+    const localResumeAction = { schemaVersion: 1 as const, operationId: "local-review-prior" };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
+      discharges: [{
+        discharged: false,
+        detail: "The delegated findings attempt remains unsettled.",
+        nextSource: null,
+        localResumeAction,
+      }],
+    });
+
+    expect(obligation).toMatchObject({ state: "review-required", localResumeAction });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-local-resume",
+      action: localResumeAction,
+    });
+  });
+
   it("carries an exact one-pass ceiling override into the admitted hosted request", () => {
     const ceilingOverride = {
       target: hostedAction.target,
@@ -466,6 +535,66 @@ describe("review status", () => {
       state: "review-required",
       action: {
         ...hostedAction,
+        ceilingOverride,
+      },
+    });
+  });
+
+  it("carries an exact one-pass ceiling override into delegated local admission", async () => {
+    const ceilingOverride = {
+      target: hostedAction.target,
+      lane: "standard" as const,
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    };
+    const policy = resolveReviewPolicy({
+      schemaVersion: 1,
+      target: hostedAction.target,
+      lane: "standard",
+      standardReview: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      sources: ["delegated-agent"],
+      maxPasses: 2,
+      completedPasses: 2,
+      attempts: [],
+      ceilingOverride,
+    });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
+      discharges: [{
+        discharged: false,
+        detail: "One additional delegated member review pass was approved.",
+        nextSource: "delegated-agent",
+        requestAdmission: policy,
+        requestCeilingOverride: ceilingOverride,
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      localAction: {
+        sourceId: "delegated-agent",
+        target: hostedAction.target,
+        vehicle: memberVehicle,
+        pass: 3,
+        ceilingOverride,
+      },
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-local-prepare",
+      action: {
+        sourceId: "delegated-agent",
+        statusTarget: target,
+        target: hostedAction.target,
+        vehicle: memberVehicle,
+        pass: 3,
         ceilingOverride,
       },
     });

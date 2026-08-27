@@ -479,6 +479,8 @@ function hostedResponseFixture(
       outcome: "findings" as const,
       hosted: {
         target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
+        requestedCoverage: "complete" as const,
+        effectiveCoverage: "complete" as const,
         reviewTarget: records.target,
         ...(vehicle.kind !== "delivery-member"
           ? {}
