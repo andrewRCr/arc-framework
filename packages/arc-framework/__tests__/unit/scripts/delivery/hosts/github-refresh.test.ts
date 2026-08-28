@@ -145,6 +145,7 @@ describe("GitHub provider refresh adapter", () => {
     const before = derived.subject.before;
     const target = before.target?.coordinates;
     if (target === null || target === undefined) throw new Error("target must be bound");
+    const advancedTarget = { head: oid("c"), tree: oid("d") };
     const targetName = before.target!.ref.replace(/^refs\/heads\//u, "");
     const afterHeads = before.members.map((member, index) => index === 0
       ? member.coordinates!.head
@@ -152,6 +153,8 @@ describe("GitHub provider refresh adapter", () => {
     const afterTrees = before.members.map((_member, index) => oid(String(index + 3)));
     let drift = false;
     let baseDrift = false;
+    let targetAdvanced = false;
+    const currentTarget = () => targetAdvanced ? advancedTarget : target;
     const asView = (after: boolean): GhStackView => ({
       trunk: targetName,
       currentBranch: before.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
@@ -161,7 +164,7 @@ describe("GitHub provider refresh adapter", () => {
         base: baseDrift && index === 1
           ? oid("f")
           : after
-            ? index === 0 ? target.head : afterHeads[index - 1]!
+            ? index === 0 ? currentTarget().head : afterHeads[index - 1]!
             : index === 0 ? target.head : before.members[index - 1]!.coordinates!.head,
         isCurrent: index === 0,
         isMerged: false,
@@ -177,11 +180,13 @@ describe("GitHub provider refresh adapter", () => {
     let rebased = false;
     let workspaceRemoved = false;
     let conflict = false;
+    let unavailable = false;
     let selectedTransition: "unseeded" | "old" | "current" = "unseeded";
     const rebaseCalls: string[][] = [];
     const imported = new Map<string, string>();
     const treeByHead = new Map<string, string>([
       [target.head, target.tree],
+      [advancedTarget.head, advancedTarget.tree],
       ...before.members.map((member) => [member.coordinates!.head, member.coordinates!.tree] as const),
       ...afterHeads.map((head, index) => [head, afterTrees[index]!] as const),
     ]);
@@ -220,6 +225,10 @@ describe("GitHub provider refresh adapter", () => {
         imported.delete(args[2]!);
         return { stdout: "" };
       }
+      if (args[0] === "merge-base") {
+        if (args[1] === target.head && args[2] === advancedTarget.head) return { stdout: `${target.head}\n` };
+        throw new Error("unexpected target ancestry query");
+      }
       if (args[0] === "rev-parse") {
         const ref = args.at(-1)!;
         const tree = ref.endsWith("^{tree}");
@@ -231,7 +240,7 @@ describe("GitHub provider refresh adapter", () => {
           throw Object.assign(new Error("missing refresh candidate"), { exitCode: 1, stderr: "" });
         }
         const head = plain === `refs/heads/${targetName}`
-          ? target.head
+          ? currentTarget().head
           : imported.get(plain) ?? plain;
         const value = tree ? treeByHead.get(head) : head;
         if (value === undefined) throw new Error(`unknown ref ${plain} at ${cwd}`);
@@ -247,6 +256,13 @@ describe("GitHub provider refresh adapter", () => {
         if (args[1] === "rebase") {
           if (conflict) {
             throw new DeliveryProviderProcessError("conflict", { stdout: "", stderr: "", exitCode: 3 });
+          }
+          if (unavailable) {
+            throw new DeliveryProviderProcessError("refresh unavailable", {
+              stdout: "",
+              stderr: `could not determine the previous base\nrebase this branch manually\n${"x".repeat(2_000)}`,
+              exitCode: 1,
+            });
           }
           if (args.includes("--no-trunk") && selectedTransition !== "current") {
             throw new DeliveryProviderProcessError(
@@ -315,6 +331,30 @@ describe("GitHub provider refresh adapter", () => {
     ]);
 
     rebased = false;
+    targetAdvanced = true;
+    await expect(port.prepare({
+      plan,
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix", selectedDeliverableId: before.members[0]!.deliverableId },
+      before,
+    })).resolves.toEqual({ status: "refused", reason: "target-mismatch" });
+    const appendOnlyTarget = await port.prepare({
+      plan,
+      repository: "owner/repo",
+      scope: { kind: "complete-remainder" },
+      before,
+    });
+    if (appendOnlyTarget.status === "refused") throw new Error(appendOnlyTarget.reason);
+    expect(appendOnlyTarget.observation).toMatchObject({
+      targetMovement: "append-only",
+      snapshot: {
+        target: { ref: before.target!.ref, coordinates: advancedTarget },
+      },
+    });
+    expect(appendOnlyTarget.observation.snapshot.members[0]?.coordinates?.base).toBe(advancedTarget.head);
+    targetAdvanced = false;
+
+    rebased = false;
     conflict = true;
     await expect(port.prepare({
       plan,
@@ -323,6 +363,21 @@ describe("GitHub provider refresh adapter", () => {
       before,
     })).resolves.toEqual({ status: "refused", reason: "conflict" });
     conflict = false;
+    unavailable = true;
+    const unavailableResult = await port.prepare({
+      plan,
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix", selectedDeliverableId: before.members[0]!.deliverableId },
+      before,
+    });
+    expect(unavailableResult).toMatchObject({
+      status: "refused",
+      reason: "unavailable",
+    });
+    if (unavailableResult.status !== "refused") throw new Error("provider failure must refuse");
+    expect(unavailableResult.detail).toMatch(/^could not determine the previous base rebase this branch manually/u);
+    expect(unavailableResult.detail?.length).toBeLessThanOrEqual(1_000);
+    unavailable = false;
     drift = true;
     await expect(port.prepare({
       plan,

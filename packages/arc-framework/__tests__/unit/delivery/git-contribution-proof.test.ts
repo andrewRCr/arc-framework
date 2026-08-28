@@ -56,7 +56,7 @@ describe("Git delivery contribution proof", () => {
     });
   });
 
-  it("keeps an unparseable conflict as conflicted with no path evidence", async () => {
+  it("refuses an unparseable conflict without path evidence", async () => {
     const exec: RawGitExec = async (args) => {
       if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") return result(`${oid("9")}\n`);
       if (args[0] === "rev-parse") {
@@ -72,8 +72,7 @@ describe("Git delivery contribution proof", () => {
 
     await expect(proveGitDeliveryContribution({ exec, ...coordinates })).resolves.toEqual({
       status: "refused",
-      reason: "contribution-conflicted",
-      paths: [],
+      reason: "git-failure",
     });
   });
 

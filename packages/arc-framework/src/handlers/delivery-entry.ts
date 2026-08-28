@@ -36,10 +36,13 @@ import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { requireArcProjectRoot } from "./shared.js";
 
-const InputSchema = z.strictObject({
-  boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
-  provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
-});
+const InputSchema = z.union([
+  z.strictObject({
+    boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
+    provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
+  }),
+  z.strictObject({ entryMode: z.literal("execution") }),
+]);
 const OptionsSchema = z.strictObject({ input: z.string().min(1), json: z.boolean().optional() });
 
 export interface DeliveryEntryInspectOptions { readonly input?: string; readonly json?: boolean }

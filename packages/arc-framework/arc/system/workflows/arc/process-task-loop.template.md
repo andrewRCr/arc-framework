@@ -17,6 +17,19 @@ arc:
 
 ## Task Implementation
 
+Before implementing the current task, inspect whether a bound delivery has verification still owed from a settled
+review fix:
+
+```bash
+printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect --input - --json
+```
+
+Dispatch only on the typed result. `not-applicable` continues below. `review-fix-verification-required` carries its
+exact `verification` and `acknowledgementInput` into the review-fix verification continuation in
+[`supplemental/deliver-stack.md`](supplemental/deliver-stack.md) without replanning or repeating provider mutation.
+`refused` renders `recommendedActionText` and stops; any other result also stops as an execution-entry contract
+violation.
+
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded unit of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval.
@@ -196,6 +209,15 @@ arc:
 
      - **First**: Mark the task `[x]`, cascade its parent to `[x]` when all subtasks are complete, and finish the
        prepared completion note. When item 3 fired, include the returned criteria evidence and span in that outcome.
+     - **Delivery correction acknowledgment (conditional):** When the delivery continuation returned an
+       `acknowledgementInput`, pass that exact object unchanged to:
+
+       ```bash
+       arc delivery review-fix acknowledge - --json
+       ```
+
+       Only `acknowledged` or `already-acknowledged` continues to the completion extension. `refused` renders its
+       reason and stops with the pending continuation intact; never reconstruct or refresh the acknowledgment input.
      - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
        list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
        Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
