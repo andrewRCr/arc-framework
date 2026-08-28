@@ -151,6 +151,22 @@ export function changedDeliveryProviderRefreshMovements(
   });
 }
 
+/** Restrict dependent-refresh contribution proof to members strictly above its fixed selection. */
+export function selectDeliveryProviderRefreshProofMovements(
+  snapshot: DeliveryOperationSnapshotV1,
+  movements: readonly DeliveryProviderRefreshMovement[],
+  selectedDeliverableId: string,
+): readonly DeliveryProviderRefreshMovement[] | null {
+  const selectedIndex = snapshot.members.findIndex(
+    ({ deliverableId }) => deliverableId === selectedDeliverableId,
+  );
+  if (selectedIndex < 0) return null;
+  const dependentIds = new Set(snapshot.members
+    .slice(selectedIndex + 1)
+    .map(({ deliverableId }) => deliverableId));
+  return movements.filter(({ deliverableId }) => dependentIds.has(deliverableId));
+}
+
 /** Whether the terminal top still records a predecessor older than the refreshed suffix. */
 export function deliveryTerminalAbsorptionOwed(
   state: DeliveryStateV1,
@@ -340,13 +356,25 @@ export async function settleReservedDeliverySuffixRefresh(input: {
     if (targetAncestry !== "ancestor") return { status: "blocked", reason: "target-rewritten" };
     settlementObservation = { snapshot: requested.data, targetMovement: observation.targetMovement };
   }
-  const movements = changedDeliveryProviderRefreshMovements(active.operation.before, settlementObservation);
+  const allMovements = changedDeliveryProviderRefreshMovements(
+    active.operation.before,
+    settlementObservation,
+  );
+  const reviewFixSelectedDeliverableId = active.operation.reviewFixSelectedDeliverableId;
+  const movements = allMovements === null
+    ? null
+    : reviewFixSelectedDeliverableId === undefined
+      ? allMovements
+      : selectDeliveryProviderRefreshProofMovements(
+          settlementObservation.snapshot,
+          allMovements,
+          reviewFixSelectedDeliverableId,
+        );
   if (movements === null || (movements.length === 0
     && !deliveryTerminalAbsorptionOwed(active.state, settlementObservation.snapshot))) {
     return { status: "blocked", reason: "ambiguous" };
   }
   const verificationIds = active.operation.reviewFixVerificationDeliverableIds ?? [];
-  const reviewFixSelectedDeliverableId = active.operation.reviewFixSelectedDeliverableId;
   const approvedConflictIds = verificationIds.filter(
     (deliverableId) => deliverableId !== reviewFixSelectedDeliverableId,
   );
@@ -615,12 +643,24 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   const parsed = DeliveryOperationSnapshotV1Schema.safeParse(initialObservation.snapshot);
   if (!parsed.success) return { status: "refused", reason: "ambiguous-result" };
   const observed = { ...initialObservation, snapshot: parsed.data };
-  const movements = changedDeliveryProviderRefreshMovements(before, observed);
-  if (selectedIndex >= 0 && before.members.slice(0, selectedIndex + 1).some((member, index) => (
-    canonicalize(member.coordinates) !== canonicalize(observed.snapshot.members[index]?.coordinates)
-  ))) {
+  const allMovements = changedDeliveryProviderRefreshMovements(before, observed);
+  if (selectedIndex >= 0 && before.members.slice(0, selectedIndex + 1).some((member, index) => {
+    const observedCoordinates = observed.snapshot.members[index]?.coordinates;
+    return member.coordinates === null || observedCoordinates === null || observedCoordinates === undefined
+      || member.coordinates.head !== observedCoordinates.head
+      || member.coordinates.tree !== observedCoordinates.tree;
+  })) {
     return { status: "refused", reason: "selected-member-moved" };
   }
+  const movements = allMovements === null
+    ? null
+    : input.selectedDeliverableId === undefined
+      ? allMovements
+      : selectDeliveryProviderRefreshProofMovements(
+          observed.snapshot,
+          allMovements,
+          input.selectedDeliverableId,
+        );
   if (movements === null || (movements.length === 0
     && !deliveryTerminalAbsorptionOwed(input.current.value, observed.snapshot))) {
     return { status: "refused", reason: "ambiguous-result" };
