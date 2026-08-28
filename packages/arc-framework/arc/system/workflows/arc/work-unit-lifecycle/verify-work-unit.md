@@ -40,7 +40,7 @@ Run the full quality gate suite as defined by the project's [Quality Gates Strat
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
 clean throughout implementation, the full-suite run serves as attestation that everything passes as a whole.
 
-## Step 2 — Validate Success Criteria Against Design Artifact
+## Step 2 — Validate Success Criteria at Work-Unit Scope
 
 Run the criteria walk at work-unit scope:
 
@@ -72,8 +72,7 @@ original text preserves intent; annotations capture reality.
 
 **Key convention:** Success criteria are only marked during this verification phase, not
 during implementation. Implementation tasks get checked as work progresses; success criteria
-get checked when the implementer steps back and validates outcomes against the upstream design
-artifact.
+get checked when the implementer validates the scoped criteria against implementation evidence.
 
 Before closing the criteria pass, verify delivery integrity:
 
