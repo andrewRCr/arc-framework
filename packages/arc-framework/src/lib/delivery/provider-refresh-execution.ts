@@ -15,6 +15,7 @@ import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
 import {
   changedDeliveryProviderRefreshMovements,
   deliveryTerminalAbsorptionOwed,
+  findExactPendingSelectedRefresh,
   proveDeliveryProviderRefreshMovements,
   selectDeliveryProviderRefreshProofMovements,
   settleReservedDeliverySuffixRefresh,
@@ -205,7 +206,14 @@ export async function executeDeliveryProviderRefresh(_input: {
     const selectedIndex = input.scope.kind === "dependent-suffix"
       ? derived.subject.affectedDeliverableIds.indexOf(input.scope.selectedDeliverableId)
       : -1;
-    if (input.scope.kind === "dependent-suffix" && selectedIndex < 0) {
+    const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(input.current.value);
+    if (input.scope.kind === "dependent-suffix" && (
+      selectedIndex < 0
+      || pendingSelectedDeliverableId !== input.scope.selectedDeliverableId
+    )) {
+      return { status: "refused", reason: "selected-member-invalid" };
+    }
+    if (input.scope.kind === "complete-remainder" && pendingSelectedDeliverableId !== null) {
       return { status: "refused", reason: "selected-member-invalid" };
     }
     const prepared: DeliveryProviderRefreshPreparationResult = input.scope.kind === "dependent-suffix"
