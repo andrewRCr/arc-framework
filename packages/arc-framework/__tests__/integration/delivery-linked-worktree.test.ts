@@ -87,6 +87,7 @@ function state(input: {
       coordinates: { base: input.head, head: input.head, tree: input.head },
     }],
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
 }
 
