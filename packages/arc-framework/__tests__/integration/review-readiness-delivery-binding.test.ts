@@ -54,6 +54,7 @@ function state(): DeliveryStateV1 {
       },
     ],
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
 }
 

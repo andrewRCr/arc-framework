@@ -338,11 +338,9 @@ describe("provider refresh publication classification", () => {
       },
     };
     const dependencies = {
-      preparation: { prepare: async () => ({
-        status: "prepared" as const,
-        observation: { snapshot: derived.subject.before, targetMovement: "exact" as const },
-        candidates: [],
-      }) },
+      preparation: { prepare: async () => {
+        throw new Error("must not prepare an empty dependent suffix");
+      } },
       observePublishedHeads: async (snapshot: DeliveryOperationSnapshotV1) => snapshot.members.map((member) => ({
         deliverableId: member.deliverableId,
         head: member.coordinates!.head,
@@ -394,6 +392,10 @@ describe("provider refresh publication classification", () => {
       state: {
         value: {
           activeOperation: null,
+          pendingReviewFixVerification: {
+            selectedDeliverableId,
+            memberDeliverableIds: [selectedDeliverableId],
+          },
           members: [{}, {}, {}, { coordinates: { head: oid("a"), tree: oid("b") } }],
         },
       },

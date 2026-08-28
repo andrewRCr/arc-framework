@@ -44,9 +44,11 @@ function buildDeliveryPlanFixture(
   memberCount = 2,
   memberTitles: readonly string[] = ["First member", "Second member", "Third member", "Fourth member"],
 ): DeliveryPlanV1 {
+  const ordinalNames = ["First", "Second", "Third", "Fourth", "Fifth"];
+  const chunkKeys = ["first", "second", "third", "fourth", "fifth"];
   const assignableParents = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
-    semanticDigest: canonicalDigest({ goal: ["First", "Second", "Third", "Fourth"][index] }),
+    semanticDigest: canonicalDigest({ goal: ordinalNames[index] }),
     role: { kind: "verification" as const, scope: "member" },
   }));
   const parents = [
@@ -71,9 +73,9 @@ function buildDeliveryPlanFixture(
     entry: "from-tasks",
     projection: { kind: projection },
     members: assignableParents.map(({ taskId }, index) => ({
-      chunkKey: ["first", "second", "third", "fourth"][index],
+      chunkKey: chunkKeys[index],
       title: memberTitles[index],
-      contract: `Publish the ${["first", "second", "third", "fourth"][index]} contract.`,
+      contract: `Publish the ${chunkKeys[index]} contract.`,
       taskIds: [taskId],
       designElementIds: index === 0 ? ["detailed:state-contract"] : [],
       mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",
