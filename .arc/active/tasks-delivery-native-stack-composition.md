@@ -1676,6 +1676,26 @@ structural guarantee rather than operator discipline.
                 - _Goal:_ Focused and live self-hosting evidence close the Candidate-recovery and dependent-refresh
                   seams without widening the Member 6 criteria walk.
 
+                - _Forward amendment (2026-08-28):_ The repaired live preparation reached structural proof, where
+                  the freshly projected target base on the fixed prefix was treated as rewritten member content.
+                  Keep that provider metadata in the settlement snapshot without sending the fixed prefix through
+                  the dependent-suffix contribution arbiter.
+
+                - `[x]` **6.11.R.x.b.a Confine contribution proof to the rewritten dependent suffix**
+
+                    - _Goal:_ Dependent refresh proves only members strictly above the selected member while still
+                      validating and settling the complete provider-observed chain.
+
+                    - Provider-native execution and external adoption now validate the fixed prefix by exact head
+                      and tree, exclude its base-only provider projection from contribution proof and ref mutation,
+                      and retain the full observation for target, chain, terminal, and state settlement.
+
+                - `[ ]` **6.11.R.x.b.b Revalidate the repaired integration and refresh boundary** — validate
+                  criteria at member scope
+
+                    - _Goal:_ Focused and live self-hosting evidence closes both repaired seams without another
+                      mutation or proof gap.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
