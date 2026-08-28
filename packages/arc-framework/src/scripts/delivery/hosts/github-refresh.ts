@@ -113,6 +113,7 @@ function viewMatchesBefore(
   view: GhStackView,
   input: DeliveryNativeStackInput,
   before: DeliveryOperationSnapshotV1,
+  currentTargetHead: string,
 ): boolean {
   const trunk = refName(before.target?.ref ?? null);
   return trunk !== null && view.trunk === trunk && view.branches.length === input.members.length
@@ -120,7 +121,7 @@ function viewMatchesBefore(
       const branch = view.branches[index];
       const coordinates = before.members[index]?.coordinates;
       const expectedBase = index === 0
-        ? before.target?.coordinates?.head
+        ? currentTargetHead
         : before.members[index - 1]?.coordinates?.head;
       return branch !== undefined && coordinates !== null && coordinates !== undefined
         && expectedBase !== undefined
@@ -284,10 +285,18 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
       const localTarget = targetName === null
         ? null
         : await readCoordinates(this.options.git, temporaryPath, `refs/heads/${targetName}`);
+      const beforeTarget = input.before.target?.coordinates;
       if (beforeView === null || targetRef === null || targetName === null || localTarget === null
-        || !viewMatchesBefore(beforeView, registration, input.before)) {
+        || !viewMatchesBefore(beforeView, registration, input.before, localTarget.head)) {
         result = { status: "refused", reason: "scope-mismatch" };
       } else {
+        const targetMovement = beforeTarget !== null && beforeTarget !== undefined
+          && localTarget.head === beforeTarget.head
+          ? "exact" as const
+          : beforeTarget !== null && beforeTarget !== undefined
+            && await isAncestor(this.options.git, temporaryPath, beforeTarget.head, localTarget.head)
+            ? "append-only" as const
+            : null;
         const selectedId = input.scope.kind === "dependent-suffix"
           ? input.scope.selectedDeliverableId
           : input.before.members[0]?.deliverableId;
@@ -295,104 +304,93 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
         const selectedBranch = registration.members[selectedIndex]?.headRef;
         if (selectedIndex < 0 || selectedBranch === undefined) {
           result = { status: "refused", reason: "scope-mismatch" };
+        } else if (targetMovement === null) {
+          result = { status: "refused", reason: "target-mismatch" };
         } else {
-          const beforeTarget = input.before.target?.coordinates;
-          const targetMovement = beforeTarget !== null && beforeTarget !== undefined
-            && localTarget.head === beforeTarget.head
-            ? "exact" as const
-            : beforeTarget !== null && beforeTarget !== undefined
-              && await isAncestor(this.options.git, temporaryPath, beforeTarget.head, localTarget.head)
-              ? "append-only" as const
-              : null;
-          if (targetMovement === null
-            || (input.scope.kind === "dependent-suffix" && targetMovement !== "exact")) {
-            result = { status: "refused", reason: "target-mismatch" };
+          if (input.scope.kind === "dependent-suffix") {
+            await seedSelectedPredecessorTransition(this.options.git, temporaryPath, input.before, selectedIndex);
+          }
+          await this.options.git("git", ["switch", "--", selectedBranch], { cwd: temporaryPath });
+          await this.options.gh.run([
+            "stack", "rebase", "--upstack",
+            ...(input.scope.kind === "dependent-suffix" ? ["--no-trunk"] : []),
+          ], { cwd: temporaryPath });
+          const afterView = decodeGhStackView(
+            (await this.options.gh.run(["stack", "view", "--json"], { cwd: temporaryPath })).stdout,
+          );
+          const refreshedTarget = await readCoordinates(
+            this.options.git,
+            temporaryPath,
+            `refs/heads/${targetName}`,
+          );
+          if (afterView === null || refreshedTarget === null
+            || afterView.trunk !== targetName
+            || refreshedTarget.head !== localTarget.head || refreshedTarget.tree !== localTarget.tree
+            || afterView.branches.length !== input.before.members.length) {
+            result = { status: "refused", reason: "malformed-result" };
           } else {
-            if (input.scope.kind === "dependent-suffix") {
-              await seedSelectedPredecessorTransition(this.options.git, temporaryPath, input.before, selectedIndex);
-            }
-            await this.options.git("git", ["switch", "--", selectedBranch], { cwd: temporaryPath });
-            await this.options.gh.run([
-              "stack", "rebase", "--upstack",
-              ...(input.scope.kind === "dependent-suffix" ? ["--no-trunk"] : []),
-            ], { cwd: temporaryPath });
-            const afterView = decodeGhStackView(
-              (await this.options.gh.run(["stack", "view", "--json"], { cwd: temporaryPath })).stdout,
-            );
-            const refreshedTarget = await readCoordinates(
-              this.options.git,
-              temporaryPath,
-              `refs/heads/${targetName}`,
-            );
-            if (afterView === null || refreshedTarget === null
-              || afterView.trunk !== targetName
-              || refreshedTarget.head !== localTarget.head || refreshedTarget.tree !== localTarget.tree
-              || afterView.branches.length !== input.before.members.length) {
-              result = { status: "refused", reason: "malformed-result" };
-            } else {
-              const requestedMembers: DeliveryOperationSnapshotV1["members"][number][] = [];
-              for (const [index, beforeMember] of input.before.members.entries()) {
-                const branch = afterView.branches[index];
-                const registrationMember = registration.members[index];
-                if (branch === undefined || registrationMember === undefined
-                  || branch.name !== registrationMember.headRef
-                  || String(branch.pr.number) !== registrationMember.changeRequestId
-                  || branch.pr.state !== "OPEN") {
-                  requestedMembers.length = 0;
-                  break;
-                }
-                const coordinates = await readCoordinates(this.options.git, temporaryPath, branch.head);
-                const expectedBase = index === 0 ? refreshedTarget.head : afterView.branches[index - 1]?.head;
-                if (coordinates === null || expectedBase === undefined || branch.base !== expectedBase
-                  || (input.scope.kind === "dependent-suffix" && index <= selectedIndex
-                    && branch.head !== beforeMember.coordinates?.head)) {
-                  requestedMembers.length = 0;
-                  break;
-                }
-                requestedMembers.push({
-                  deliverableId: beforeMember.deliverableId,
-                  ref: beforeMember.ref,
-                  changeRequest: beforeMember.changeRequest,
-                  coordinates: { base: branch.base, head: branch.head, tree: coordinates.tree },
-                });
+            const requestedMembers: DeliveryOperationSnapshotV1["members"][number][] = [];
+            for (const [index, beforeMember] of input.before.members.entries()) {
+              const branch = afterView.branches[index];
+              const registrationMember = registration.members[index];
+              if (branch === undefined || registrationMember === undefined
+                || branch.name !== registrationMember.headRef
+                || String(branch.pr.number) !== registrationMember.changeRequestId
+                || branch.pr.state !== "OPEN") {
+                requestedMembers.length = 0;
+                break;
               }
-              if (requestedMembers.length !== input.before.members.length) {
-                result = { status: "refused", reason: "scope-mismatch" };
+              const coordinates = await readCoordinates(this.options.git, temporaryPath, branch.head);
+              const expectedBase = index === 0 ? refreshedTarget.head : afterView.branches[index - 1]?.head;
+              if (coordinates === null || expectedBase === undefined || branch.base !== expectedBase
+                || (input.scope.kind === "dependent-suffix" && index <= selectedIndex
+                  && branch.head !== beforeMember.coordinates?.head)) {
+                requestedMembers.length = 0;
+                break;
+              }
+              requestedMembers.push({
+                deliverableId: beforeMember.deliverableId,
+                ref: beforeMember.ref,
+                changeRequest: beforeMember.changeRequest,
+                coordinates: { base: branch.base, head: branch.head, tree: coordinates.tree },
+              });
+            }
+            if (requestedMembers.length !== input.before.members.length) {
+              result = { status: "refused", reason: "scope-mismatch" };
+            } else {
+              const snapshot: DeliveryOperationSnapshotV1 = {
+                target: { ref: targetRef, coordinates: refreshedTarget },
+                members: requestedMembers,
+              };
+              const candidateResult = deriveDeliveryProviderRefreshCandidates({
+                plan: input.plan,
+                before: input.before,
+                requested: snapshot,
+              });
+              if (candidateResult.status !== "derived") {
+                result = { status: "refused", reason: candidateResult.reason };
               } else {
-                const snapshot: DeliveryOperationSnapshotV1 = {
-                  target: { ref: targetRef, coordinates: refreshedTarget },
-                  members: requestedMembers,
-                };
-                const candidateResult = deriveDeliveryProviderRefreshCandidates({
-                  plan: input.plan,
-                  before: input.before,
-                  requested: snapshot,
-                });
-                if (candidateResult.status !== "derived") {
-                  result = { status: "refused", reason: candidateResult.reason };
-                } else {
-                  for (const candidate of candidateResult.candidates) {
-                    const memberIndex = input.before.members.findIndex(
-                      ({ deliverableId }) => deliverableId === candidate.deliverableId,
-                    );
-                    const source = registration.members[memberIndex]?.headRef;
-                    if (source === undefined) throw new Error("candidate source unavailable");
-                    await this.options.git("git", [
-                      "fetch", "--no-tags", temporaryPath, `refs/heads/${source}:${candidate.ref}`,
-                    ], { cwd: this.options.checkoutPath });
-                    const imported = await readCoordinates(
-                      this.options.git,
-                      this.options.checkoutPath,
-                      candidate.ref,
-                    );
-                    if (imported?.head !== candidate.head) throw new Error("candidate import mismatch");
-                  }
-                  result = {
-                    status: "prepared",
-                    observation: { snapshot, targetMovement },
-                    candidates: candidateResult.candidates,
-                  };
+                for (const candidate of candidateResult.candidates) {
+                  const memberIndex = input.before.members.findIndex(
+                    ({ deliverableId }) => deliverableId === candidate.deliverableId,
+                  );
+                  const source = registration.members[memberIndex]?.headRef;
+                  if (source === undefined) throw new Error("candidate source unavailable");
+                  await this.options.git("git", [
+                    "fetch", "--no-tags", temporaryPath, `refs/heads/${source}:${candidate.ref}`,
+                  ], { cwd: this.options.checkoutPath });
+                  const imported = await readCoordinates(
+                    this.options.git,
+                    this.options.checkoutPath,
+                    candidate.ref,
+                  );
+                  if (imported?.head !== candidate.head) throw new Error("candidate import mismatch");
                 }
+                result = {
+                  status: "prepared",
+                  observation: { snapshot, targetMovement },
+                  candidates: candidateResult.candidates,
+                };
               }
             }
           }

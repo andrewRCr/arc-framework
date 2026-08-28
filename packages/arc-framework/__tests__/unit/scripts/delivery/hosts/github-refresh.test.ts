@@ -150,7 +150,9 @@ describe("GitHub provider refresh adapter", () => {
     const afterHeads = before.members.map((member, index) => index === 0
       ? member.coordinates!.head
       : oid(String(index + 7)));
-    const afterTrees = before.members.map((_member, index) => oid(String(index + 3)));
+    const afterTrees = before.members.map((member, index) => index === 0
+      ? member.coordinates!.tree
+      : oid(String(index + 3)));
     let drift = false;
     let baseDrift = false;
     let targetAdvanced = false;
@@ -165,7 +167,7 @@ describe("GitHub provider refresh adapter", () => {
           ? oid("f")
           : after
             ? index === 0 ? currentTarget().head : afterHeads[index - 1]!
-            : index === 0 ? target.head : before.members[index - 1]!.coordinates!.head,
+            : index === 0 ? currentTarget().head : before.members[index - 1]!.coordinates!.head,
         isCurrent: index === 0,
         isMerged: false,
         isQueued: false,
@@ -332,12 +334,28 @@ describe("GitHub provider refresh adapter", () => {
 
     rebased = false;
     targetAdvanced = true;
-    await expect(port.prepare({
+    const dependentAppendOnlyTarget = await port.prepare({
       plan,
       repository: "owner/repo",
       scope: { kind: "dependent-suffix", selectedDeliverableId: before.members[0]!.deliverableId },
       before,
-    })).resolves.toEqual({ status: "refused", reason: "target-mismatch" });
+    });
+    if (dependentAppendOnlyTarget.status === "refused") {
+      throw new Error(dependentAppendOnlyTarget.reason);
+    }
+    expect(dependentAppendOnlyTarget.observation).toMatchObject({
+      targetMovement: "append-only",
+      snapshot: {
+        target: { ref: before.target!.ref, coordinates: advancedTarget },
+      },
+    });
+    expect(dependentAppendOnlyTarget.observation.snapshot.members[0]?.coordinates).toMatchObject({
+      base: advancedTarget.head,
+      head: before.members[0]!.coordinates!.head,
+      tree: before.members[0]!.coordinates!.tree,
+    });
+
+    rebased = false;
     const appendOnlyTarget = await port.prepare({
       plan,
       repository: "owner/repo",
