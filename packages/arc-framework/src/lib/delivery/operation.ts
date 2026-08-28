@@ -198,7 +198,11 @@ function terminalAuthoringMovementMatchesState(
   const terminal = state.members.at(-1);
   return terminal !== undefined && terminal.deliverableId === movement.deliverableId
     && terminal.coordinates !== null
-    && canonicalize(terminal.coordinates) === canonicalize(movement.before);
+    && canonicalize(terminal.coordinates) === canonicalize(movement.before)
+    && movement.after.base === movement.before.base
+    && movement.after.head !== movement.before.head
+    && (movement.publicationLeaseHead === movement.before.head
+      || movement.publicationLeaseHead === movement.after.head);
 }
 
 function reviewFixSelectionMatchesState(
