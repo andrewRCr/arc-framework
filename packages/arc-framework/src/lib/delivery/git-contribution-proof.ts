@@ -57,10 +57,11 @@ function pathList(bytes: Uint8Array): string[] | null {
   return fields === null ? null : [...new Set(fields)].sort();
 }
 
-function conflictPaths(bytes: Uint8Array): string[] {
+function conflictPaths(bytes: Uint8Array): string[] | null {
   const fields = nulFields(bytes);
-  if (fields === null || fields[0] === undefined || !objectId.test(fields[0])) return [];
-  return [...new Set(fields.slice(1))].sort();
+  if (fields === null || fields[0] === undefined || !objectId.test(fields[0])) return null;
+  const paths = [...new Set(fields.slice(1))].sort();
+  return paths.length === 0 ? null : paths;
 }
 
 /** Reapply one pinned contribution and compare its structural result to the provider tree. */
@@ -104,10 +105,12 @@ export async function proveGitDeliveryContribution(input: DeliveryContributionEn
   } catch (error) {
     const failure = normalizeGitRejection(error, { command: "git", args: mergeArgs });
     if (failure.kind === "nonzero-exit" && failure.exitCode === 1) {
+      const paths = conflictPaths(Buffer.from(failure.stdout, "latin1"));
+      if (paths === null) return { status: "refused", reason: "git-failure" };
       return {
         status: "refused",
         reason: "contribution-conflicted",
-        paths: conflictPaths(Buffer.from(failure.stdout, "latin1")),
+        paths,
       };
     }
     return { status: "refused", reason: "git-failure" };

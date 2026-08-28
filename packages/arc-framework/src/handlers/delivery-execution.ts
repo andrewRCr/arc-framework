@@ -93,6 +93,7 @@ import {
 } from "../lib/delivery/provider-refresh-execution.js";
 import { planDeliverySuffixRefresh } from "../lib/delivery/refresh.js";
 import {
+  acknowledgeDeliveryReviewFixVerification,
   planDeliveryReviewFixRoute,
   publishSelectedDeliveryReviewFix,
 } from "../lib/delivery/review-fix.js";
@@ -115,7 +116,7 @@ import {
 } from "../lib/delivery/terminal-integration.js";
 import {
   composeDeliveryNativeStackLinkDecision,
-  degradeNativeDeliveryStack,
+  degradePlannedDeliveryNativeStack,
   deriveDeliveryNativeTarget,
   linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
@@ -296,6 +297,7 @@ const NativeObserveSchema = z.strictObject({
   repository: z.string().min(1),
   members: z.array(NativeMemberSchema).min(1),
 });
+const NativeUnlinkSchema = NativeObserveSchema.extend({ planId: DeliveryPlanIdSchema });
 const NativeLinkSchema = NativeObserveSchema.extend({
   planId: DeliveryPlanIdSchema,
   protectedBaseRef: RefSchema,
@@ -350,26 +352,41 @@ const RefreshTriggerSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({ kind: z.literal("operator-choice") }),
 ]);
+const DependentRefreshExecutionScopeSchema = z.strictObject({
+  kind: z.literal("dependent-suffix"),
+  selectedDeliverableId: DeliveryCanonicalDigestSchema,
+});
+const RefreshExecutionScopeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("complete-remainder") }),
+  DependentRefreshExecutionScopeSchema,
+]);
+const RefreshConflictSchema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  paths: z.array(z.string().min(1)).min(1),
+});
+const RefreshConflictResolutionSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  scope: DependentRefreshExecutionScopeSchema,
+  expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  observedSuffixDigest: DeliveryCanonicalDigestSchema,
+  conflicts: z.array(RefreshConflictSchema).min(1),
+});
 const RefreshPlanSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
   trigger: RefreshTriggerSchema,
   mechanics: z.literal("operator-initiated").optional(),
+  scope: RefreshExecutionScopeSchema.optional(),
   remote: z.string().min(1).default("origin"),
 });
 const RefreshAdoptSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
+  scope: RefreshExecutionScopeSchema.optional(),
   operationId: z.string().min(1).optional(),
+  conflictResolution: RefreshConflictResolutionSchema.optional(),
 });
-const RefreshExecutionScopeSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("complete-remainder") }),
-  z.strictObject({
-    kind: z.literal("dependent-suffix"),
-    selectedDeliverableId: DeliveryCanonicalDigestSchema,
-  }),
-]);
 const RefreshExecuteSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
@@ -386,6 +403,13 @@ const ReviewFixPlanSchema = z.strictObject({
 const ReviewFixPublishSchema = ReviewFixPlanSchema.extend({
   checkoutPath: z.string().min(1),
 });
+const ReviewFixAcknowledgeSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  selectedDeliverableId: DeliveryCanonicalDigestSchema,
+  memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+  expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  continuationDigest: DeliveryCanonicalDigestSchema,
+});
 
 const RequestSchemas = {
   "eligibility-prepare": PrepareSchema,
@@ -401,7 +425,7 @@ const RequestSchemas = {
   "top-remedy": TopRemedySchema,
   "native-observe": NativeObserveSchema,
   "native-link": NativeLinkSchema,
-  "native-unlink": NativeObserveSchema,
+  "native-unlink": NativeUnlinkSchema,
   "native-land-select": NativeSelectSchema,
   "native-land-prepare": NativePrepareSchema,
   "native-land-submit": NativeSubmitSchema,
@@ -411,6 +435,7 @@ const RequestSchemas = {
   "refresh-adopt": RefreshAdoptSchema,
   "review-fix-plan": ReviewFixPlanSchema,
   "review-fix-publish": ReviewFixPublishSchema,
+  "review-fix-acknowledge": ReviewFixAcknowledgeSchema,
 } as const;
 
 export type DeliveryExecutionCommand = keyof typeof RequestSchemas;
@@ -490,6 +515,11 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("materialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
+    status: z.enum(["acknowledged", "already-acknowledged"]),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("continue-work-unit"),
+  }),
+  z.strictObject({
     status: z.literal("published"),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
@@ -515,6 +545,17 @@ const ResultSchema = z.union([
     selectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
     plannedSuffix: z.array(DeliveryCanonicalDigestSchema).optional(),
     recommendedActionText: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    status: z.literal("applied"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    nextAction: z.literal("verify-review-fix"),
+    verification: z.strictObject({
+      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+      tier1Required: z.literal(true),
+    }),
+    acknowledgementInput: ReviewFixAcknowledgeSchema,
   }),
   z.strictObject({
     status: z.literal("applied"),
@@ -567,17 +608,43 @@ const ResultSchema = z.union([
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
+    status: z.literal("conflict-resolution-required"),
+    conflicts: z.array(RefreshConflictSchema).min(1),
+    resolutionInput: RefreshConflictResolutionSchema,
+    externalRefRestorations: z.array(z.strictObject({
+      ref: z.string().min(1),
+      observedHead: GitObjectIdSchema,
+      restoreHead: GitObjectIdSchema,
+    })).min(1),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
     status: z.literal("planned"),
-    route: z.enum(["provider-refresh", "rematerialize"]),
+    route: z.literal("provider-refresh"),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-    nextAction: z.enum(["publish-selected-member", "rematerialize"]),
+    nextAction: z.literal("publish-selected-member"),
+    candidateRequirements: z.strictObject({
+      requiredAncestorHeads: z.array(GitObjectIdSchema).min(1),
+    }),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("rematerialize"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("rematerialize"),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   BlockedContributionRefusalSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
-  z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), recommendedActionText: z.string().min(1) }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    reason: z.string().min(1),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
     status: z.literal("blocked"),
@@ -636,7 +703,12 @@ const ResultSchema = z.union([
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), deliverableId: DeliveryCanonicalDigestSchema.optional() }),
-  z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), paths: z.array(z.string()).optional() }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.string().min(1),
+    paths: z.array(z.string()).optional(),
+    detail: z.string().min(1).max(1_000).optional(),
+  }),
 ]);
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
 
@@ -971,6 +1043,26 @@ async function executeDeliveryCommand(
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
+  if (command === "review-fix-acknowledge") {
+    const parsed = ReviewFixAcknowledgeSchema.parse(request);
+    const [planRead, stateRead] = await Promise.all([
+      planStore.readCurrent(parsed.planId),
+      stateStore.read(parsed.planId),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null) {
+      return { status: "refused", reason: "delivery-unavailable" };
+    }
+    return acknowledgeDeliveryReviewFixVerification({
+      plan: planRead.value,
+      current: stateRead.value,
+      selectedDeliverableId: parsed.selectedDeliverableId,
+      memberDeliverableIds: parsed.memberDeliverableIds,
+      expectedStateRevision: parsed.expectedStateRevision,
+      continuationDigest: parsed.continuationDigest,
+      stateStore,
+    });
+  }
   const settleAppliedNativeLanding = (
     plan: z.infer<typeof DeliveryPlanV1Schema>,
     before: { readonly revision: number; readonly value: DeliveryStateV1 },
@@ -1051,7 +1143,7 @@ async function executeDeliveryCommand(
     current: { readonly revision: number; readonly value: z.infer<typeof DeliveryStateV1Schema> },
     repository: string,
     remote: string,
-    mode: "exact" | "review-fix" = "exact",
+    mode: "exact" | "review-fix" | "refresh-adopt" | "review-fix-adopt" = "exact",
   ) => {
     const host = new GhDeliveryHostPort(hostedGhRunner);
     const refs = new Set<string>();
@@ -1125,7 +1217,14 @@ async function executeDeliveryCommand(
         exec: createRawGitExec(cwd),
         ...endpoints,
       }),
-    }, mode === "review-fix" ? { terminalAuthoringMovement: "allow-append-only" } : {});
+    }, {
+      ...(mode === "review-fix" || mode === "review-fix-adopt"
+        ? { terminalAuthoringMovement: "allow-append-only" as const }
+        : {}),
+      ...(mode === "refresh-adopt" || mode === "review-fix-adopt"
+        ? { unlandedSuffixMovement: "allow-external" as const }
+        : {}),
+    });
     if (observed.status !== "observed") return observed;
     for (const deliverableId of operation?.affectedDeliverableIds ?? []) {
       const index = observed.facts.members.findIndex((member) => member.deliverableId === deliverableId);
@@ -1389,7 +1488,7 @@ async function executeDeliveryCommand(
     const plan = planRead.value;
     const current = stateRead.value;
     const deriveIdleRefreshSubject = async (
-      observationMode: "exact" | "review-fix" = "exact",
+      observationMode: "exact" | "review-fix" | "refresh-adopt" | "review-fix-adopt" = "exact",
     ) => {
       if (current.value.activeOperation !== null) {
         return { status: "refused" as const, reason: "position-mismatch" as const };
@@ -1415,18 +1514,36 @@ async function executeDeliveryCommand(
     };
     if (command === "refresh-plan") {
       const planRequest = RefreshPlanSchema.parse(parsed);
-      const derived = await deriveIdleRefreshSubject();
+      const derived = await deriveIdleRefreshSubject(
+        planRequest.scope?.kind === "dependent-suffix" ? "review-fix" : "exact",
+      );
       if (derived.status === "refused") {
         return {
           ...derived,
           recommendedActionText: "Restore one exact bound non-terminal suffix before planning refresh.",
         };
       }
+      const selectedIndex = planRequest.scope?.kind === "dependent-suffix"
+        ? derived.subject.affectedDeliverableIds.indexOf(planRequest.scope.selectedDeliverableId)
+        : -1;
+      if (planRequest.scope?.kind === "dependent-suffix" && selectedIndex < 0) {
+        return {
+          status: "refused",
+          reason: "selected-member-invalid",
+          recommendedActionText: "Select one currently bound non-terminal delivery member.",
+        };
+      }
+      const landedPrefix = selectedIndex < 0
+        ? derived.subject.landedPrefix
+        : [
+            ...derived.subject.landedPrefix,
+            ...derived.subject.affectedDeliverableIds.slice(0, selectedIndex + 1),
+          ];
       const observed = await observeProviderRefresh(derived.subject, planRequest.repository, planRequest.remote);
       if (observed.status === "refused") {
         return planDeliverySuffixRefresh({
           plan,
-          landedPrefix: derived.subject.landedPrefix,
+          landedPrefix,
           trigger: { ...planRequest.trigger, mechanics: "operator-initiated" },
           providerMovement: observed.reason === "target-rewritten" ? "target-rewritten" : "ambiguous",
         });
@@ -1437,12 +1554,21 @@ async function executeDeliveryCommand(
           && after.coordinates?.head === member.coordinates?.head
           && after.coordinates?.tree === member.coordinates?.tree;
       });
+      const refreshSelectedDeliverableId = planRequest.scope?.kind === "dependent-suffix"
+        ? planRequest.scope.selectedDeliverableId
+        : derived.subject.affectedDeliverableIds[0];
       const reviewFixAuthority = planRequest.mechanics === undefined
-        ? await observeReviewFixAuthority(plan, current, planRequest.repository, planRequest.remote)
+        && refreshSelectedDeliverableId !== undefined
+          ? await observeReviewFixAuthority(
+            plan,
+            current,
+            planRequest.repository,
+            planRequest.remote,
+          )
         : null;
       return planDeliverySuffixRefresh({
         plan,
-        landedPrefix: derived.subject.landedPrefix,
+        landedPrefix,
         trigger: {
           ...planRequest.trigger,
           mechanics: planRequest.mechanics
@@ -1603,27 +1729,68 @@ async function executeDeliveryCommand(
         recommendedActionText: "Omit operationId when adopting an externally initiated refresh.",
       };
     }
-    const derived = await deriveIdleRefreshSubject();
+    const derived = await deriveIdleRefreshSubject(
+      adopt.scope?.kind === "dependent-suffix" ? "review-fix-adopt" : "refresh-adopt",
+    );
     if (derived.status === "refused") {
       return {
         ...derived,
         recommendedActionText: "Restore one exact bound non-terminal suffix before refresh adoption.",
       };
     }
+    const selectedDeliverableId = adopt.scope?.kind === "dependent-suffix"
+      ? adopt.scope.selectedDeliverableId
+      : undefined;
+    if (selectedDeliverableId !== undefined
+      && !derived.subject.affectedDeliverableIds.includes(selectedDeliverableId)) {
+      return {
+        status: "refused",
+        reason: "selected-member-invalid",
+        recommendedActionText: "Select one currently bound non-terminal delivery member.",
+      };
+    }
     const adopted = await adoptExternalDeliverySuffixRefresh({
       plan,
       current,
       affectedDeliverableIds: derived.subject.affectedDeliverableIds,
+      ...(selectedDeliverableId === undefined ? {} : { selectedDeliverableId }),
+      ...(adopt.conflictResolution === undefined
+        ? {}
+        : { conflictResolution: adopt.conflictResolution }),
+      ...(derived.facts.terminalAuthoringMovement === undefined
+        ? {}
+        : { terminalAuthoringMovement: derived.facts.terminalAuthoringMovement }),
       ...refreshSettlementDependencies(derived.subject),
     });
     return providerAdoptionResult(adopted);
   }
 
-  if (command === "native-observe" || command === "native-unlink") {
-    const host = new GhDeliveryHostPort(hostedGhRunner);
-    return command === "native-observe"
-      ? observeDeliveryNativeStack(NativeObserveSchema.parse(request), host)
-      : degradeNativeDeliveryStack(NativeObserveSchema.parse(request), host);
+  if (command === "native-observe") {
+    return observeDeliveryNativeStack(
+      NativeObserveSchema.parse(request),
+      new GhDeliveryHostPort(hostedGhRunner),
+    );
+  }
+  if (command === "native-unlink") {
+    const parsed = NativeUnlinkSchema.parse(request);
+    const [planRead, stateRead] = await Promise.all([
+      planStore.readCurrent(parsed.planId),
+      stateStore.read(parsed.planId),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null) {
+      return {
+        status: "blocked",
+        reason: "delivery-unavailable",
+        recommendedActionText: "Restore canonical delivery state before changing native presentation.",
+      };
+    }
+    return degradePlannedDeliveryNativeStack({
+      plan: planRead.value,
+      state: stateRead.value.value,
+      repository: parsed.repository,
+      members: parsed.members,
+    }, new GhDeliveryHostPort(hostedGhRunner));
   }
   if (command === "native-link") {
     const parsed = nativeLinkRequest ?? NativeLinkSchema.parse(request);

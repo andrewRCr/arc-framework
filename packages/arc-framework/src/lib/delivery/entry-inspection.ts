@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { scanTaskListStructure } from "../task-list/scanner.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
+import { canonicalDigest } from "../kernel/index.js";
 import { DeliveryCanonicalDigestSchema, DeliveryPlanIdSchema } from "./schema.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 import {
@@ -11,15 +12,26 @@ import {
   DELIVERY_PLAN_START_SENTINEL,
   renderDeliveryPlanSection,
 } from "./task-list-render.js";
-import type { DeliveryStateStoreFailure } from "./ports.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
+import type { DeliveryReviewFixVerificationContinuation } from "./review-fix.js";
+import type { DeliveryStateStoreFailure } from "./ports.js";
 
-/** Ephemeral attended judgment supplied by the delivery workflow. */
-export const DeliveryEntryInspectionRequestSchema = z.strictObject({
+const AttendedDeliveryEntryInspectionRequestSchema = z.strictObject({
   workUnitId: SlugSchema,
   boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
   provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
 });
+
+const ExecutionDeliveryEntryInspectionRequestSchema = z.strictObject({
+  workUnitId: SlugSchema,
+  entryMode: z.literal("execution"),
+});
+
+/** Closed entry contexts: attended authoring judgment or pending-verification replay. */
+export const DeliveryEntryInspectionRequestSchema = z.union([
+  AttendedDeliveryEntryInspectionRequestSchema,
+  ExecutionDeliveryEntryInspectionRequestSchema,
+]);
 export type DeliveryEntryInspectionRequest = z.infer<typeof DeliveryEntryInspectionRequestSchema>;
 
 export type DeliveryPlanLocusInspection =
@@ -67,6 +79,12 @@ export type DeliveryEntryInspectionResult =
       readonly stateRevision: number;
       readonly recommendedActionText: string;
     }
+  | ({
+      readonly status: "review-fix-verification-required";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly recommendedActionText: string;
+    } & DeliveryReviewFixVerificationContinuation)
   | {
       readonly status: "refused";
       readonly nextAction: "stop";
@@ -104,6 +122,23 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
   z.strictObject({
     status: z.literal("resume-bound"), nextAction: z.literal("read-position-and-reconcile"),
     planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("review-fix-verification-required"), nextAction: z.literal("verify-review-fix"),
+    planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    verification: z.strictObject({
+      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+      tier1Required: z.literal(true),
+    }),
+    acknowledgementInput: z.strictObject({
+      planId: DeliveryPlanIdSchema,
+      selectedDeliverableId: DeliveryCanonicalDigestSchema,
+      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+      expectedStateRevision: z.number().int().positive(),
+      continuationDigest: DeliveryCanonicalDigestSchema,
+    }),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -199,7 +234,7 @@ export function inspectDeliveryPlanLocus(
     : { status: "refused", reason: "canonical-projection-mismatch" };
 }
 
-/** Derive the exact delivery entry route from attended judgment and authoritative read-only facts. */
+/** Derive the exact delivery entry route from its entry context and authoritative read-only facts. */
 export async function inspectDeliveryEntry(
   request: DeliveryEntryInspectionRequest,
   dependencies: DeliveryEntryInspectionDependencies,
@@ -226,8 +261,10 @@ export async function inspectDeliveryEntry(
       ? "canonical-projection-mismatch"
       : "evidence-conflict");
   }
+  const attended = "boundaryDisposition" in parsed.data ? parsed.data : null;
+  const execution = "entryMode" in parsed.data;
 
-  if (parsed.data.boundaryDisposition === "not-delivery-candidate") {
+  if (attended?.boundaryDisposition === "not-delivery-candidate") {
     if (plan !== null || authoring.status === "match" || locus.status !== "absent") {
       return refused("evidence-conflict");
     }
@@ -241,7 +278,7 @@ export async function inspectDeliveryEntry(
   if (plan === null) {
     if (locus.status === "canonical-unmatched") return refused("canonical-plan-missing");
     if (locus.status === "provisional") {
-      if (parsed.data.provisionalDisposition !== "confirmed-reviewed") {
+      if (attended === null || attended.provisionalDisposition !== "confirmed-reviewed") {
         return refused("provisional-unconfirmed");
       }
       return {
@@ -253,6 +290,13 @@ export async function inspectDeliveryEntry(
       };
     }
     if (authoring.status === "match") return refused("evidence-conflict");
+    if (execution) {
+      return {
+        status: "not-applicable",
+        nextAction: "continue-work-unit",
+        recommendedActionText: "Continue ordinary task execution; no canonical Delivery Plan exists.",
+      };
+    }
     return {
       status: "authoring-required",
       nextAction: "attend-authoring",
@@ -262,7 +306,9 @@ export async function inspectDeliveryEntry(
   }
 
   if (authoring.status === "match") {
-    if (locus.status === "provisional" && parsed.data.provisionalDisposition === "confirmed-reviewed") {
+    if (attended !== null
+      && locus.status === "provisional"
+      && attended.provisionalDisposition === "confirmed-reviewed") {
       return {
         status: "canonicalize-provisional",
         nextAction: "canonicalize-provisional",
@@ -291,6 +337,13 @@ export async function inspectDeliveryEntry(
   const state = await dependencies.readState(plan.planId);
   if (state.status === "refused") return stateRefused(state.reason);
   if (state.value === null) {
+    if (execution) {
+      return {
+        status: "not-applicable",
+        nextAction: "continue-work-unit",
+        recommendedActionText: "Continue ordinary task execution; the canonical delivery is not yet bound.",
+      };
+    }
     return {
       status: "validate-canonical",
       nextAction: "validate-eligibility",
@@ -302,6 +355,35 @@ export async function inspectDeliveryEntry(
   }
   if (state.revision === null || validateDeliveryStateAgainstPlan(state.value, plan).status === "refused") {
     return refused("state-incoherent");
+  }
+  if (state.value.pendingReviewFixVerification !== null) {
+    const selectedDeliverableId = state.value.pendingReviewFixVerification.selectedDeliverableId;
+    const memberDeliverableIds = state.value.pendingReviewFixVerification.memberDeliverableIds;
+    return {
+      status: "review-fix-verification-required",
+      nextAction: "verify-review-fix",
+      planId: plan.planId,
+      stateRevision: state.revision,
+      selectedDeliverableId,
+      verification: { memberDeliverableIds, tier1Required: true },
+      acknowledgementInput: {
+        planId: plan.planId,
+        selectedDeliverableId,
+        memberDeliverableIds,
+        expectedStateRevision: state.revision,
+        continuationDigest: canonicalDigest(state.value),
+      },
+      recommendedActionText:
+        "Complete the pending changed-member verification and Tier 1 checks, close the correction task, then "
+        + "acknowledge the exact review-fix continuation before resuming delivery.",
+    };
+  }
+  if (execution) {
+    return {
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: "Continue ordinary task execution; no review-fix verification is pending.",
+    };
   }
   return {
     status: "resume-bound",

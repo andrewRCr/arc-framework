@@ -672,7 +672,7 @@ describe("arc delivery", () => {
     const degraded = await runArcWithStdin(
       ["delivery", "native", "unlink", "-", "--json"],
       repository,
-      `${JSON.stringify({ repository: "owner/repo", members: nativeMembers })}\n`,
+      `${JSON.stringify({ planId: plan.planId, repository: "owner/repo", members: nativeMembers })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "degrade", ARC_FAKE_GH_COUNTER: counter } },
     );
     expect(degraded.exitCode, degraded.stderr).toBe(0);
