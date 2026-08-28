@@ -2203,22 +2203,16 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ The terminal full suite passed Markdown and ARC contract lint, TypeScript and shell lint, both
-  typechecks, 851 test files with one skipped (11,013 tests with one skipped), package build, aggregate self-review,
-  and diff hygiene. The post-report continuations added 334 focused regression tests across 20 files, then the final
-  ordinary-applicability correction passed its five-file 75-test regression, targeted TypeScript lint, both
-  typechecks, build/declaration generation, and diff hygiene. Fresh Member 6 and final Member 7 convergence passes
-  returned no findings.
+- _Quality gates:_ Final re-attestation passed Markdown and ARC contract lint, TypeScript and shell lint, both
+  typechecks, 851 test files with one skipped (11,054 tests with one skipped), package build, aggregate self-review,
+  and diff hygiene. The final Member 6 correction additionally passed 79 focused unit tests and the 19-case real-CLI
+  delivery-position matrix.
 - _Success criteria:_ 36 total: 34 met, two superseded, and none unresolved. All eight member reports resolve to
-  their current criteria loci and boundary spans. The final continuation consumes Member 6 diff
-  `3067b21e2afef343c0c8337dedc7f8f7fb97f1a1..ca340858aa32edf06c1078b0453d64ebf40a5dcc`
-  at reachability `ca340858aa32edf06c1078b0453d64ebf40a5dcc` and Member 7 diff
-  `ca340858aa32edf06c1078b0453d64ebf40a5dcc..e8a12ffde9d1580f11b63d32ad7f45f6425dba09`
-  at reachability `e8a12ffde9d1580f11b63d32ad7f45f6425dba09`, plus the bounded terminal correction over
-  `b12094bc4a262c837dde14ef0244827fd07f2330`. Member 1's implementation-task workaround and Member 6's
+  their current criteria loci and boundary spans; the final Member 6 report reaches `8c1975cf7` after the recorded
+  post-boundary integration and refresh repairs. Member 1's implementation-task workaround and Member 6's
   external-only refresh clause remain intentionally superseded by D7.2b and D5.9. Union coherence and all six
-  cross-member seams hold through exact conflict consent, replayable multi-member verification, retained findings,
-  singleton and delivery applicability, typed local fallback, cursorless closeout, and Candidate re-rooting.
+  cross-member seams hold through exact correction routing, provider refresh, replayable member verification,
+  review conjunction, cursorless closeout, Candidate recovery, and terminal integration.
 
 - _Forward amendment (2026-08-27):_ The D5.8-D5.10 corrections added Success Criteria 34 and 35 after this terminal
   report. Consume the updated Member 6 boundary report and revalidate the continuation's cross-member mutation

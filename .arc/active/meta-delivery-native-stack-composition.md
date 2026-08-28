@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:3c710f9407ea7bf4fe296c8ee74f167d272e573ab873f32b700429f2a2b5b5d3`
+- **Candidate:** `sha256:9f6461f2f08f7f0fd8282cde73758abc11f6e3a05a95bf5bd0fa23aecf72086a`
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 9.1.R.b — Revalidate exact conflict adoption at work-unit scope
-- **Next Task:** Task 6.11.R.w — Restore integration recovery across pending Candidate applicability
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
