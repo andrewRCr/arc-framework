@@ -87,6 +87,42 @@ export type DeliveryProviderRefreshObservationResult =
       readonly reason: "observation-unavailable" | "ambiguous-provider-movement" | "target-rewritten";
     };
 
+/**
+ * Test whether one selected member is the sole published break in an otherwise current delivery chain.
+ *
+ * @param state - Current delivery state after selected-member publication
+ * @param selectedDeliverableId - Member whose dependents remain based on its superseded head
+ * @returns True only when the first dependent is stale and every later predecessor edge is current
+ */
+export function hasExactPendingSelectedRefresh(
+  state: DeliveryStateV1,
+  selectedDeliverableId: string,
+): boolean {
+  const selectedIndex = state.members.findIndex(({ deliverableId }) => deliverableId === selectedDeliverableId);
+  if (selectedIndex < 0 || selectedIndex >= state.members.length - 1) return false;
+  for (let index = selectedIndex + 1; index < state.members.length; index += 1) {
+    const predecessor = state.members[index - 1]?.coordinates;
+    const member = state.members[index]?.coordinates;
+    if (predecessor === null || predecessor === undefined || member === null || member === undefined) return false;
+    const chainIsCurrent = member.base === predecessor.head;
+    if (index === selectedIndex + 1 ? chainIsCurrent : !chainIsCurrent) return false;
+  }
+  return true;
+}
+
+/**
+ * Resolve the selected member at the sole pending-refresh break in the current delivery chain.
+ *
+ * @param state - Current delivery state
+ * @returns The exact selected deliverable, or null when no unique pending selected refresh exists
+ */
+export function findExactPendingSelectedRefresh(state: DeliveryStateV1): string | null {
+  return state.members
+    .slice(0, -1)
+    .find(({ deliverableId }) => hasExactPendingSelectedRefresh(state, deliverableId))
+    ?.deliverableId ?? null;
+}
+
 function snapshotFor(
   state: DeliveryStateV1,
   affectedDeliverableIds: readonly string[],
@@ -626,7 +662,14 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   const selectedIndex = input.selectedDeliverableId === undefined
     ? -1
     : input.affectedDeliverableIds.indexOf(input.selectedDeliverableId);
-  if (input.selectedDeliverableId !== undefined && selectedIndex < 0) {
+  const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(input.current.value);
+  if (input.selectedDeliverableId !== undefined && (
+    selectedIndex < 0
+    || pendingSelectedDeliverableId !== input.selectedDeliverableId
+  )) {
+    return { status: "refused", reason: "selected-member-invalid" };
+  }
+  if (input.selectedDeliverableId === undefined && pendingSelectedDeliverableId !== null) {
     return { status: "refused", reason: "selected-member-invalid" };
   }
   if (input.terminalAuthoringMovement !== undefined && selectedIndex < 0) {
