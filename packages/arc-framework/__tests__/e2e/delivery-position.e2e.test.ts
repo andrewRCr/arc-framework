@@ -632,7 +632,7 @@ describe("arc delivery position", () => {
     });
   });
 
-  it("continues a registered review fix through append-only terminal authoring", async () => {
+  it("routes through append-only terminal authoring but refuses refresh before selected publication", async () => {
     const fixture = await positionFixture("registered-terminal-authoring");
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const reviewFix = await runArcWithStdin(
@@ -669,7 +669,7 @@ describe("arc delivery position", () => {
     expect(JSON.parse(refresh.stdout)).toMatchObject({
       command: "delivery refresh execute",
       status: "refused",
-      reason: "unsupported",
+      reason: "selected-member-invalid",
     });
 
     const completeRemainder = await runArcWithStdin(
@@ -754,6 +754,29 @@ describe("arc delivery position", () => {
     expect(terminalHead).toBe(await git(fixture.repository, [
       "ls-remote", "origin", "refs/heads/member-3",
     ]).then((line) => line.split("\t")[0]));
+  });
+
+  it("refuses ordinary external adoption while a selected correction awaits dependent refresh", async () => {
+    const fixture = await positionFixture("selected-change-external-refresh");
+    const before = await fixture.states.read(fixture.plan.planId);
+    const result = await runArcWithStdin(
+      ["delivery", "refresh", "adopt", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery refresh adopt",
+      status: "refused",
+      reason: "selected-member-invalid",
+    });
+    await expect(fixture.states.read(fixture.plan.planId)).resolves.toEqual(before);
   });
 
   it("clears an unapplied selected review fix while terminal authoring remains append-only", async () => {
