@@ -1260,9 +1260,15 @@ async function executeDeliveryCommand(
     current: { readonly revision: number; readonly value: z.infer<typeof DeliveryStateV1Schema> },
     repository: string,
     remote: string,
-    mode: "exact" | "review-fix" | "refresh-adopt" | "review-fix-adopt" = "exact",
+    mode: "exact" | "review-fix" | "review-fix-local" | "refresh-adopt"
+      | "review-fix-adopt" | "review-fix-local-adopt" = "exact",
   ) => {
     const host = new GhDeliveryHostPort(hostedGhRunner);
+    const localOnlyExec: GitExec = (commandName, args, options) => exec(commandName, args, {
+      ...options,
+      cwd,
+      objectAccess: "local-only",
+    });
     const refs = new Set<string>();
     const retainedCoordinates = new Map<string, Map<string, string>>();
     const retain = (member: z.infer<typeof DeliveryOperationSnapshotV1Schema>["members"][number]): void => {
@@ -1304,6 +1310,28 @@ async function executeDeliveryCommand(
         localCommits[observed.head] = false;
       }
     }
+    const localHeads: Record<string, string> = {};
+    if (mode === "review-fix-local" || mode === "review-fix-local-adopt") {
+      const terminal = current.value.members.at(-1);
+      const prefix = "refs/heads/";
+      if (terminal?.ref !== null && terminal?.ref !== undefined && terminal.ref.startsWith(prefix)) {
+        try {
+          const checkedOut = (await exec("git", ["symbolic-ref", "-q", "HEAD"], {
+            cwd,
+            objectAccess: "local-only",
+          })).stdout.trim();
+          if (checkedOut === terminal.ref) {
+            const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, "HEAD");
+            if (coordinates !== null) {
+              localHeads[terminal.ref.slice(prefix.length)] = coordinates.head;
+              localCommits[coordinates.head] = true;
+            }
+          }
+        } catch {
+          // A non-authoring checkout supplies no local terminal authority.
+        }
+      }
+    }
     const observed = await observeRepositoryDeliveryPosition(plan, current.value, current.revision, {
       exec,
       cwd,
@@ -1311,6 +1339,7 @@ async function executeDeliveryCommand(
       repository,
       remoteHeads,
       localCommits,
+      localHeads,
       materializeTarget: async (coordinates) => {
         try {
           await exec("git", ["fetch", "--no-write-fetch-head", remote, coordinates.head]);
@@ -1335,10 +1364,11 @@ async function executeDeliveryCommand(
         ...endpoints,
       }),
     }, {
-      ...(mode === "review-fix" || mode === "review-fix-adopt"
+      ...(mode === "review-fix" || mode === "review-fix-local"
+        || mode === "review-fix-adopt" || mode === "review-fix-local-adopt"
         ? { terminalAuthoringMovement: "allow-append-only" as const }
         : {}),
-      ...(mode === "refresh-adopt" || mode === "review-fix-adopt"
+      ...(mode === "refresh-adopt" || mode === "review-fix-adopt" || mode === "review-fix-local-adopt"
         ? { unlandedSuffixMovement: "allow-external" as const }
         : {}),
     });
@@ -1454,11 +1484,18 @@ async function executeDeliveryCommand(
     repository: string,
     remote: string,
     selectedDeliverableId: string,
+    localTerminalAuthoring = false,
   ) => {
     if (current.value.activeOperation !== null) {
       return { status: "refused" as const, reason: "operation-active" as const };
     }
-    const positioned = await observePosition(plan, current, repository, remote, "review-fix");
+    const positioned = await observePosition(
+      plan,
+      current,
+      repository,
+      remote,
+      localTerminalAuthoring ? "review-fix-local" : "review-fix",
+    );
     if (positioned.status !== "observed") {
       return { status: "refused" as const, reason: "position-mismatch" as const };
     }
@@ -1514,6 +1551,8 @@ async function executeDeliveryCommand(
       parsed.repository,
       parsed.remote,
       parsed.selectedDeliverableId,
+      command === "review-fix-plan"
+        && ReviewFixPlanSchema.parse(parsed).entryMode === "execution",
     );
     if (authority.status === "refused") {
       return {
@@ -1640,7 +1679,8 @@ async function executeDeliveryCommand(
     const plan = planRead.value;
     const current = stateRead.value;
     const deriveIdleRefreshSubject = async (
-      observationMode: "exact" | "review-fix" | "refresh-adopt" | "review-fix-adopt" = "exact",
+      observationMode: "exact" | "review-fix" | "review-fix-local" | "refresh-adopt"
+        | "review-fix-adopt" | "review-fix-local-adopt" = "exact",
     ) => {
       if (current.value.activeOperation !== null) {
         return { status: "refused" as const, reason: "position-mismatch" as const };
@@ -1667,7 +1707,7 @@ async function executeDeliveryCommand(
     if (command === "refresh-plan") {
       const planRequest = RefreshPlanSchema.parse(parsed);
       const derived = await deriveIdleRefreshSubject(
-        planRequest.scope?.kind === "dependent-suffix" ? "review-fix" : "exact",
+        planRequest.scope?.kind === "dependent-suffix" ? "review-fix-local" : "exact",
       );
       if (derived.status === "refused") {
         return {
@@ -1739,7 +1779,7 @@ async function executeDeliveryCommand(
       const executeRequest = RefreshExecuteSchema.parse(parsed);
       const idleSubject = current.value.activeOperation === null
         ? await deriveIdleRefreshSubject(
-            executeRequest.scope?.kind === "dependent-suffix" ? "review-fix" : "exact",
+            executeRequest.scope?.kind === "dependent-suffix" ? "review-fix-local" : "exact",
           )
         : null;
       const subject = idleSubject ?? (
@@ -1884,7 +1924,7 @@ async function executeDeliveryCommand(
       };
     }
     const derived = await deriveIdleRefreshSubject(
-      adopt.scope?.kind === "dependent-suffix" ? "review-fix-adopt" : "refresh-adopt",
+      adopt.scope?.kind === "dependent-suffix" ? "review-fix-local-adopt" : "refresh-adopt",
     );
     if (derived.status === "refused") {
       return {

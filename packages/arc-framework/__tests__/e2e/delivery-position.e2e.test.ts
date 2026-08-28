@@ -48,6 +48,7 @@ type ActiveOperationScenario =
   | "landed-prefix"
   | "terminal-authoring"
   | "registered-terminal-authoring"
+  | "registered-local-terminal-authoring"
   | "selected-change-settled"
   | "selected-change-external-refresh"
   | "selected-change-terminal-authoring-before"
@@ -94,6 +95,9 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
   const selectedFirstHead = await git(repository, [
     "commit-tree", firstTree, "-p", firstHead, "-m", "selected member review fix",
   ]);
+  const selectedSecondHead = await git(repository, [
+    "commit-tree", secondTree, "-p", firstHead, "-m", "selected second member review fix",
+  ]);
   const refreshedSecondAfterSelected = await git(repository, [
     "commit-tree", secondTree, "-p", selectedFirstHead, "-m", "refresh dependent member",
   ]);
@@ -110,14 +114,20 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
       : firstHead;
   const publishedSecondHead = activeOperation === "selected-change-external-refresh"
     ? refreshedSecondAfterSelected
+    : activeOperation === "registered-local-terminal-authoring"
+      ? selectedSecondHead
     : secondHead;
   const terminalAuthoring = activeOperation === "terminal-authoring"
     || activeOperation === "registered-terminal-authoring"
+    || activeOperation === "registered-local-terminal-authoring"
     || activeOperation === "selected-change-settled"
     || activeOperation === "selected-change-external-refresh"
     || activeOperation === "selected-change-terminal-authoring-before"
     || activeOperation === "selected-change-terminal-authoring-applied";
-  const publishedThirdHead = terminalAuthoring ? advancedThirdHead : thirdHead;
+  const publishedThirdHead = terminalAuthoring
+    && activeOperation !== "registered-local-terminal-authoring"
+    ? advancedThirdHead
+    : thirdHead;
   await git(repository, [
     "push", "origin",
     `${targetHead}:refs/heads/main`,
@@ -129,6 +139,8 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     await git(repository, ["update-ref", `refs/heads/${firstBranch}`, selectedFirstHead]);
     await git(repository, ["update-ref", `refs/heads/${secondBranch}`, secondHead]);
     await git(repository, ["checkout", "-b", "member-3", advancedThirdHead]);
+  } else if (activeOperation === "registered-local-terminal-authoring") {
+    await git(repository, ["checkout", "-B", "member-3", advancedThirdHead]);
   }
 
   const plan = deliveryThreeMemberStackPlanFixture();
@@ -154,7 +166,11 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
         deliverableId: plan.members[1]!.deliverableId,
         ref: `refs/heads/${secondBranch}`,
         changeRequest: { providerId: "github", changeRequestId: "402" },
-        coordinates: { base: firstHead, head: secondHead, tree: secondTree },
+        coordinates: {
+          base: firstHead,
+          head: activeOperation === "registered-local-terminal-authoring" ? selectedSecondHead : secondHead,
+          tree: secondTree,
+        },
       },
       {
         deliverableId: plan.members[2]!.deliverableId,
@@ -343,6 +359,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     "    ;;",
     "  repos/owner/repo/stacks)",
     activeOperation === "registered-terminal-authoring"
+      || activeOperation === "registered-local-terminal-authoring"
       || activeOperation === "selected-change-settled"
       || activeOperation === "selected-change-external-refresh"
       ? `    printf '${registeredStack}\\n' "$(remote_head '${firstBranch}')" `
@@ -686,6 +703,51 @@ describe("arc delivery position", () => {
       status: "refused",
       reason: "position-mismatch",
     });
+  });
+
+  it("settles a dependent refresh onto local-only terminal authoring with the remote publication lease", async () => {
+    const fixture = await positionFixture("registered-local-terminal-authoring");
+    const selectedDeliverableId = fixture.plan.members[1]!.deliverableId;
+    const refresh = await runArcWithStdin(
+      ["delivery", "refresh", "execute", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        scope: { kind: "dependent-suffix", selectedDeliverableId },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(refresh.exitCode, `${refresh.stderr}\n${refresh.stdout}`).toBe(0);
+    expect(JSON.parse(refresh.stdout)).toMatchObject({
+      command: "delivery refresh execute",
+      status: "applied",
+      selectedDeliverableId,
+      nextAction: "verify-review-fix",
+    });
+
+    const settled = await fixture.states.read(fixture.plan.planId);
+    expect(settled).toMatchObject({
+      status: "ok",
+      value: {
+        value: {
+          activeOperation: null,
+          pendingReviewFixVerification: {
+            selectedDeliverableId,
+            memberDeliverableIds: [selectedDeliverableId],
+          },
+        },
+      },
+    });
+    if (settled.status !== "ok" || settled.value === null) {
+      throw new Error("settled local-terminal refresh state must be readable");
+    }
+    const terminalHead = settled.value.value.members.at(-1)?.coordinates?.head;
+    expect(terminalHead).toBe(await git(fixture.repository, ["rev-parse", "refs/heads/member-3"]));
+    expect(terminalHead).toBe(await git(fixture.repository, [
+      "ls-remote", "origin", "refs/heads/member-3",
+    ]).then((line) => line.split("\t")[0]));
   });
 
   it("publishes a registered review fix through derived locators and reaps the exact pair at closeout", async () => {

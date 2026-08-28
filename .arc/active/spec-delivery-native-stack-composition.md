@@ -758,6 +758,14 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   mismatched evidence still refuses. No new operation, durable field, provider authority, or terminal proof is
   introduced.
 
+  **Forward clarification (2026-08-28):** execution-mode registered review fixes may retain an append-only terminal
+  authoring head before it is published. The terminal ref must be the checked-out authoring branch, its local head
+  must descend from the exact bound terminal head, and the remote ref plus open request must still name that bound
+  head. The refresh reservation records both the local absorption coordinate and the exact remote publication lease;
+  recovery reuses those two coordinates without re-observing authoring authority. Already-published terminal movement
+  retains its existing lease at the published head, while public position and ordinary refresh remain exact. The
+  distinction adds no pre-settlement rebind, provider authority, or compatibility reader.
+
 - **D5.9 ARC-triggered provider-native refresh — amended 2026-08-25 after self-delivery exposed the
   external-only actuation gap.** This amendment supersedes D5.7's external-only rule and D5.8's external-refresh
   continuation while preserving external refresh observation and adoption as a complete fallback. When refresh

@@ -192,6 +192,7 @@ export const DeliveryTerminalAuthoringMovementV1Schema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
   before: DeliveryMemberCoordinatesV1Schema,
   after: DeliveryMemberCoordinatesV1Schema,
+  publicationLeaseHead: DeliveryGitObjectIdSchema,
 });
 export type DeliveryTerminalAuthoringMovementV1 = z.infer<
   typeof DeliveryTerminalAuthoringMovementV1Schema

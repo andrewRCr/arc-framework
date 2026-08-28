@@ -29,6 +29,7 @@ function terminalAuthoringFacts(state: DeliveryStateV1) {
         head: "f".repeat(40),
         tree: "e".repeat(40),
       },
+      publicationLeaseHead: "f".repeat(40),
     },
   };
 }

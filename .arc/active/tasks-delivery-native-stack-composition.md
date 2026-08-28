@@ -1696,6 +1696,27 @@ structural guarantee rather than operator discipline.
                     - _Goal:_ Focused and live self-hosting evidence closes both repaired seams without another
                       mutation or proof gap.
 
+                    - _Forward amendment (2026-08-28):_ The dependent rewrite published successfully, but terminal
+                      settlement treated the ordinary local task-commit head as foreign movement because only an
+                      already-published terminal authoring head could enter the refresh reservation. Preserve the
+                      local absorption coordinate and its distinct remote publication lease before retrying.
+
+                    - `[x]` **6.11.R.x.b.b.a Preserve local terminal authoring through refresh settlement**
+
+                        - _Goal:_ Execution-mode dependent refresh absorbs onto the exact checked-out append-only
+                          terminal authoring head and publishes from the separately recorded remote lease, while
+                          public position and ordinary refresh remain exact.
+
+                        - Execution-only observation now retains the exact checked-out terminal head separately from
+                          its remote publication lease. Reservation recovery and settlement preserve both, and a
+                          built-CLI regression proves the former `top-moved` path through final state adoption.
+
+                    - `[ ]` **6.11.R.x.b.b.b Revalidate the complete repaired boundary** — validate criteria at
+                      member scope
+
+                        - _Goal:_ Focused and live self-hosting evidence closes Candidate recovery, dependent-prefix
+                          proof, and local-terminal settlement without another mutation or recovery gap.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
