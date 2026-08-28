@@ -12,7 +12,10 @@ import {
   type DeliveryStateV1,
 } from "./schema.js";
 import { deriveDeliveryProviderRefreshSubject } from "./provider-refresh-observation.js";
-import { executeDeliverySuffixRewrite } from "./suffix-reconciliation.js";
+import {
+  executeDeliverySuffixRewrite,
+  hasExactPendingSelectedRefresh,
+} from "./suffix-reconciliation.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
@@ -254,19 +257,6 @@ export async function acknowledgeDeliveryReviewFixVerification(input: {
     }
   }
   return { status: "refused", reason: "stale-state" };
-}
-
-function hasExactPendingSelectedRefresh(state: DeliveryStateV1, selectedDeliverableId: string): boolean {
-  const selectedIndex = state.members.findIndex(({ deliverableId }) => deliverableId === selectedDeliverableId);
-  if (selectedIndex < 0 || selectedIndex >= state.members.length - 1) return false;
-  for (let index = selectedIndex + 1; index < state.members.length; index += 1) {
-    const predecessor = state.members[index - 1]?.coordinates;
-    const member = state.members[index]?.coordinates;
-    if (predecessor === null || predecessor === undefined || member === null || member === undefined) return false;
-    const chainIsCurrent = member.base === predecessor.head;
-    if (index === selectedIndex + 1 ? chainIsCurrent : !chainIsCurrent) return false;
-  }
-  return true;
 }
 
 export type DeliveryReviewFixPublicationResult =
