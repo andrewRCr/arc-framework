@@ -24,6 +24,16 @@ const PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
 const MEMBER_ONE = `sha256:${"3".repeat(64)}`;
 const MEMBER_TWO = `sha256:${"4".repeat(64)}`;
 const target = (headSha: string) => ({ repository: "arc-framework/example", pullRequest: 42, headSha });
+const delegatedAdmission = (
+  vehicle: ReturnType<typeof DeliveryReviewMemberVehicleSchema.parse>,
+) => ({
+  schemaVersion: 1 as const,
+  sourceId: "delegated-agent" as const,
+  statusTarget: { repository: "arc-framework/example", headRef: "feature", headSha: vehicle.head },
+  target: target(vehicle.head),
+  vehicle,
+  pass: 1,
+});
 
 function unresolvedApplicability() {
   const selector = {
@@ -61,6 +71,10 @@ function attempt(
   sourceId: "coderabbit-pr" | "codex-pr",
   outcome: "clean" | "findings" | "settled-findings" | "rate-limited",
   vehicle?: ReturnType<typeof DeliveryReviewMemberVehicleSchema.parse>,
+  coverage: { requested: "complete" | "incremental"; effective: "complete" | "incremental" } = {
+    requested: "complete",
+    effective: "complete",
+  },
 ) {
   const reviewTarget = createReviewTarget({
     schemaVersion: 2,
@@ -103,6 +117,8 @@ function attempt(
     outcome,
     hosted: {
       target: target(headSha),
+      requestedCoverage: coverage.requested,
+      effectiveCoverage: coverage.effective,
       ...(vehicle === undefined ? {} : { vehicle }),
       reviewTarget,
       requirement,
@@ -363,6 +379,148 @@ describe("hosted reservation discharge", () => {
     expect(result.detail).toBe("Hosted source `coderabbit-pr`.");
   });
 
+  it("does not discharge a complete member obligation from incremental hosted coverage", async () => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("b"),
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [oid("b")],
+      target: { ...target(oid("b")), vehicle },
+      readLaneProgress: progress({
+        [oid("b")]: {
+          status: "recorded",
+          completedPasses: 0,
+          attempts: [attempt(
+            oid("b"),
+            "coderabbit-pr",
+            "clean",
+            vehicle,
+            { requested: "incremental", effective: "incremental" },
+          )],
+        },
+      }),
+    });
+
+    expect(result.discharged).toBe(false);
+    expect(result.nextSource).toBe("coderabbit-pr");
+  });
+
+  it("discharges the exact member from the driver's delegated-agent result", async () => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("b"),
+    });
+    const localTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: vehicle.head,
+      headTree: oid("2"),
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("delegated-agent", ["delegated-agent"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [vehicle.head],
+      target: { ...target(vehicle.head), vehicle },
+      readLaneProgress: progress({
+        [vehicle.head]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [{
+            attemptId: "local-review-1",
+            sourceId: "delegated-agent",
+            outcome: "clean",
+            local: {
+              vehicle: { kind: "delivery-member", identity: MEMBER_ONE },
+              target: localTarget,
+              deliveryAdmission: delegatedAdmission(vehicle),
+            },
+          }],
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: true,
+      nextSource: null,
+      detail: "Standard source `delegated-agent`.",
+    });
+  });
+
+  it("resumes exact delegated-agent findings before selecting another source", async () => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("b"),
+    });
+    const localTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: vehicle.head,
+      headTree: oid("2"),
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("delegated-agent", ["delegated-agent"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [vehicle.head],
+      target: { ...target(vehicle.head), vehicle },
+      readLaneProgress: progress({
+        [vehicle.head]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [{
+            attemptId: "local-review-1",
+            sourceId: "delegated-agent",
+            outcome: "findings",
+            local: {
+              vehicle: { kind: "delivery-member", identity: MEMBER_ONE },
+              target: localTarget,
+              deliveryAdmission: delegatedAdmission(vehicle),
+            },
+          }],
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: null,
+      localResumeAction: { schemaVersion: 1, operationId: "local-review-1" },
+    });
+  });
+
   it("excludes a coincident hosted attempt for a different delivery member", async () => {
     const expectedVehicle = DeliveryReviewMemberVehicleSchema.parse({
       kind: "delivery-member",
@@ -525,6 +683,8 @@ describe("hosted reservation discharge", () => {
         attempts: [{
           sourceId,
           outcome: sourceId === "coderabbit-pr" ? "rate-limited" : "clean",
+          requestedCoverage: "complete",
+          effectiveCoverage: sourceId === "coderabbit-pr" ? null : "complete",
           applicability: "retain-prior-attempt",
         }],
       }),
@@ -533,6 +693,31 @@ describe("hosted reservation discharge", () => {
     expect(result).toMatchObject({
       discharged: true,
       detail: "Hosted source `codex-pr` through contribution applicability.",
+      nextSource: null,
+    });
+  });
+
+  it("retains a provider-upgraded complete review after an applicable head move", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "clean",
+          requestedCoverage: "incremental",
+          effectiveCoverage: "complete",
+          applicability: "retain-prior-attempt",
+        }],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: true,
+      detail: "Hosted source `coderabbit-pr` through contribution applicability.",
       nextSource: null,
     });
   });
@@ -572,6 +757,8 @@ describe("hosted reservation discharge", () => {
         attempts: [{
           sourceId: "coderabbit-pr",
           outcome: "findings",
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
           applicability: "retain-prior-attempt",
           responsePlan,
         }],
@@ -586,6 +773,164 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it("routes applicable earlier delegated findings back to the exact local operation", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("delegated-agent", ["delegated-agent"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "delegated-agent",
+          outcome: "findings",
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          applicability: "retain-prior-attempt",
+          localResumeAction: { schemaVersion: 1, operationId: "local-review-prior" },
+        }],
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: false,
+      detail: "Standard source `delegated-agent` has retained local findings awaiting disposition.",
+      nextSource: null,
+      localResumeAction: { schemaVersion: 1, operationId: "local-review-prior" },
+    });
+  });
+
+  it("returns retained findings before an Owner-selected replacement review", async () => {
+    const responsePlan = {
+      schemaVersion: 1 as const,
+      target: createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "change-set",
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: oid("0"),
+        diffBaseTree: oid("1"),
+        headSha: oid("a"),
+        headTree: oid("2"),
+      }),
+      source: {
+        kind: "hosted" as const,
+        attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fprior:hosted%2Fprior",
+      },
+      findings: [{
+        findingId: "finding-1",
+        severity: "major" as const,
+        locus: "src/index.ts:1",
+        evidenceUrlOrId: "https://example.test/finding-1",
+      }],
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          applicability: "request-review",
+          responsePlan,
+        }],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: null,
+      responsePlan,
+    });
+  });
+
+  it("returns retained findings on a later source before requesting a higher-ranked source", async () => {
+    const responsePlan = {
+      schemaVersion: 1 as const,
+      target: createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "change-set",
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: oid("0"),
+        diffBaseTree: oid("1"),
+        headSha: oid("a"),
+        headTree: oid("2"),
+      }),
+      source: {
+        kind: "hosted" as const,
+        attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fprior:hosted%2Fprior",
+      },
+      findings: [{
+        findingId: "finding-1",
+        severity: "major" as const,
+        locus: "src/index.ts:1",
+        evidenceUrlOrId: "https://example.test/finding-1",
+      }],
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async (sourceId) => ({
+        status: "complete",
+        attempts: [{
+          sourceId,
+          outcome: sourceId === "coderabbit-pr" ? "settled-findings" : "findings",
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          applicability: sourceId === "coderabbit-pr" ? "request-review" : "retain-prior-attempt",
+          ...(sourceId === "codex-pr" ? { responsePlan } : {}),
+        }],
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: false,
+      detail: "Hosted source `codex-pr` has retained findings awaiting disposition.",
+      nextSource: null,
+      responsePlan,
+    });
+  });
+
+  it("does not discharge earlier settled findings selected for current-head review", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("a"), oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({
+        [oid("a")]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [attempt(oid("a"), "coderabbit-pr", "settled-findings")],
+        },
+      }),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "settled-findings",
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          applicability: "request-review",
+        }],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: "coderabbit-pr",
+    });
+  });
+
   it("does not spend provider capacity for an unresolved or unavailable prior projection", async () => {
     for (const readEarlierAttemptApplicability of [
       async () => ({
@@ -593,6 +938,8 @@ describe("hosted reservation discharge", () => {
         attempts: [{
           sourceId: "coderabbit-pr",
           outcome: "rate-limited",
+          requestedCoverage: "complete" as const,
+          effectiveCoverage: null,
           applicability: "stop" as const,
         }],
       }),
@@ -621,6 +968,8 @@ describe("hosted reservation discharge", () => {
         attempts: [{
           sourceId: "coderabbit-pr",
           outcome: "rate-limited",
+          requestedCoverage: "complete",
+          effectiveCoverage: null,
           applicability: "stop",
           projection,
         }],
@@ -643,6 +992,8 @@ describe("hosted reservation discharge", () => {
         attempts: [{
           sourceId: "coderabbit-pr",
           outcome: "rate-limited",
+          requestedCoverage: "complete",
+          effectiveCoverage: null,
           applicability: "request-review",
         }],
       }),

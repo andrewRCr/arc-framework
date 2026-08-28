@@ -13,7 +13,10 @@ import {
   type DeliveryStateV1,
 } from "../../../src/lib/delivery/schema.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
-import { deliveryPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const STATE_REVISION = 7;
@@ -24,11 +27,13 @@ type SnapshotOperationRequest = Extract<DeliveryOperationReservationRequestV1, {
 type SnapshotOperationOverrides = {
   readonly operationId?: string;
   readonly kind?: SnapshotOperationRequest["kind"];
-  readonly mode?: "review-fix" | "selected-change" | "provider-adoption" | "member" | "closeout-residue";
+  readonly mode?: "review-fix" | "selected-change" | "provider-adoption" | "provider-refresh" | "member" | "closeout-residue";
   readonly affectedDeliverableIds?: string[];
   readonly expectedStateRevision?: number;
   readonly before?: DeliveryOperationSnapshotV1;
   readonly requested?: DeliveryOperationSnapshotV1;
+  readonly reviewFixSelectedDeliverableId?: string;
+  readonly reviewFixVerificationDeliverableIds?: string[];
 };
 
 function stateSnapshot(
@@ -79,7 +84,15 @@ function operationRequest(
     return {
       ...common,
       kind,
-      mode: mode === "provider-adoption" || mode === "selected-change" ? mode : "review-fix",
+      mode: mode === "provider-adoption" || mode === "provider-refresh" || mode === "selected-change"
+        ? mode
+        : "review-fix",
+      ...(overrides.reviewFixSelectedDeliverableId === undefined
+        ? {}
+        : { reviewFixSelectedDeliverableId: overrides.reviewFixSelectedDeliverableId }),
+      ...(overrides.reviewFixVerificationDeliverableIds === undefined
+        ? {}
+        : { reviewFixVerificationDeliverableIds: overrides.reviewFixVerificationDeliverableIds }),
     };
   }
   return kind === "teardown"
@@ -389,6 +402,66 @@ describe("reserveDeliveryOperation", () => {
       plan,
       operationRequest(first.state, { expectedStateRevision: STATE_REVISION + 1 }),
     )).toEqual({ status: "refused", reason: "operation-active" });
+  });
+
+  it("refuses every new operation while selected-member verification is pending", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const pending = {
+      ...state,
+      pendingReviewFixVerification: {
+        selectedDeliverableId: state.members[0]!.deliverableId,
+        memberDeliverableIds: [state.members[0]!.deliverableId],
+      },
+    };
+
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: pending },
+      plan,
+      operationRequest(pending),
+    )).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+  });
+
+  it("reserves only a paired plan-ordered review-fix verification set inside the affected suffix", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const affectedDeliverableIds = state.members.slice(0, -1).map(({ deliverableId }) => deliverableId);
+    const [selectedDeliverableId, dependentDeliverableId] = affectedDeliverableIds;
+    const common = {
+      mode: "provider-adoption" as const,
+      affectedDeliverableIds,
+      before: stateSnapshot(state, affectedDeliverableIds),
+      reviewFixSelectedDeliverableId: selectedDeliverableId,
+      reviewFixVerificationDeliverableIds: [selectedDeliverableId!, dependentDeliverableId!],
+    };
+
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      operationRequest(state, common),
+    )).toMatchObject({
+      status: "reserved",
+      state: {
+        activeOperation: {
+          reviewFixSelectedDeliverableId: selectedDeliverableId,
+          reviewFixVerificationDeliverableIds: [selectedDeliverableId, dependentDeliverableId],
+        },
+      },
+    });
+
+    for (const overrides of [
+      { reviewFixVerificationDeliverableIds: undefined },
+      { reviewFixSelectedDeliverableId: undefined },
+      { reviewFixVerificationDeliverableIds: [dependentDeliverableId!, selectedDeliverableId!] },
+      { reviewFixVerificationDeliverableIds: [dependentDeliverableId!] },
+      { reviewFixVerificationDeliverableIds: [selectedDeliverableId!, state.members.at(-1)!.deliverableId] },
+    ]) {
+      expect(reserveDeliveryOperation(
+        { revision: STATE_REVISION, value: state },
+        plan,
+        operationRequest(state, { ...common, ...overrides }),
+      )).toEqual({ status: "refused", reason: "operation-invalid" });
+    }
   });
 
   it("refuses unknown, duplicate, or non-plan-ordered affected members", () => {

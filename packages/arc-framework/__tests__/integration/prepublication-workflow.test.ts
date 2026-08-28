@@ -10,7 +10,7 @@ const ROOTS = [
 ];
 
 describe("prepublication workflow boundary", () => {
-  it("keeps private review before publish and integration after it", async () => {
+  it("keeps private review before publish and exact member fallback in integration", async () => {
     for (const root of ROOTS) {
       const integrate = await readFile(
         resolve(root, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
@@ -18,9 +18,14 @@ describe("prepublication workflow boundary", () => {
       );
 
       expect(integrate).not.toContain("arc review pre-publication <wu> --json");
-      expect(integrate).not.toContain("arc review local prepare -");
       expect(integrate).toContain("**When to use:** `active/meta-{name}.md` shows `**State:** Integrating`");
       expect(integrate).toContain("### 1) Push the branch and open the PR");
+      const reviewIteration = integrate.indexOf("### 2) Review iteration");
+      const memberLocalFallback = integrate.indexOf("arc review local prepare -");
+      expect(reviewIteration).toBeGreaterThan(-1);
+      expect(memberLocalFallback).toBeGreaterThan(reviewIteration);
+      expect(integrate.slice(reviewIteration, memberLocalFallback))
+        .toContain("Pass its `action` unchanged as\n`deliveryAdmission`");
       const reconcileStep = integrate.indexOf("### 10) Behind-base reconcile gate and merge");
       const correctionPublish = integrate.indexOf("arc publish {name} --json", reconcileStep);
       expect(reconcileStep).toBeGreaterThan(-1);

@@ -102,6 +102,7 @@ import {
 } from "../lib/delivery/provider-refresh-execution.js";
 import { planDeliverySuffixRefresh } from "../lib/delivery/refresh.js";
 import {
+  acknowledgeDeliveryReviewFixVerification,
   planDeliveryReviewFixRoute,
   publishSelectedDeliveryReviewFix,
 } from "../lib/delivery/review-fix.js";
@@ -124,7 +125,7 @@ import {
 } from "../lib/delivery/terminal-integration.js";
 import {
   composeDeliveryNativeStackLinkDecision,
-  degradeNativeDeliveryStack,
+  degradePlannedDeliveryNativeStack,
   deriveDeliveryNativeTarget,
   linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
@@ -316,6 +317,7 @@ const NativeObserveSchema = z.strictObject({
   repository: z.string().min(1),
   members: z.array(NativeMemberSchema).min(1),
 });
+const NativeUnlinkSchema = NativeObserveSchema.extend({ planId: DeliveryPlanIdSchema });
 const NativeLinkSchema = NativeObserveSchema.extend({
   planId: DeliveryPlanIdSchema,
   protectedBaseRef: RefSchema,
@@ -370,13 +372,25 @@ const RefreshTriggerSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({ kind: z.literal("operator-choice") }),
 ]);
+const DependentRefreshExecutionScopeSchema = z.strictObject({
+  kind: z.literal("dependent-suffix"),
+  selectedDeliverableId: DeliveryCanonicalDigestSchema,
+});
 const RefreshExecutionScopeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("complete-remainder") }),
-  z.strictObject({
-    kind: z.literal("dependent-suffix"),
-    selectedDeliverableId: DeliveryCanonicalDigestSchema,
-  }),
+  DependentRefreshExecutionScopeSchema,
 ]);
+const RefreshConflictSchema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  paths: z.array(z.string().min(1)).min(1),
+});
+const RefreshConflictResolutionSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  scope: DependentRefreshExecutionScopeSchema,
+  expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  observedSuffixDigest: DeliveryCanonicalDigestSchema,
+  conflicts: z.array(RefreshConflictSchema).min(1),
+});
 const RefreshPlanSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
@@ -391,6 +405,7 @@ const RefreshAdoptSchema = z.strictObject({
   remote: z.string().min(1).default("origin"),
   scope: RefreshExecutionScopeSchema.optional(),
   operationId: z.string().min(1).optional(),
+  conflictResolution: RefreshConflictResolutionSchema.optional(),
 });
 const RefreshExecuteSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -409,6 +424,13 @@ const ReviewFixPlanSchema = ReviewFixBaseSchema.extend({
   entryMode: z.enum(["execution", "integrating"]),
 });
 const ReviewFixPublishSchema = ReviewFixBaseSchema;
+const ReviewFixAcknowledgeSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  selectedDeliverableId: DeliveryCanonicalDigestSchema,
+  memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+  expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  continuationDigest: DeliveryCanonicalDigestSchema,
+});
 
 const RequestSchemas = {
   "authoring-locate": AuthoringLocateSchema,
@@ -426,7 +448,7 @@ const RequestSchemas = {
   "top-remedy": TopRemedySchema,
   "native-observe": NativeObserveSchema,
   "native-link": NativeLinkSchema,
-  "native-unlink": NativeObserveSchema,
+  "native-unlink": NativeUnlinkSchema,
   "native-land-select": NativeSelectSchema,
   "native-land-prepare": NativePrepareSchema,
   "native-land-submit": NativeSubmitSchema,
@@ -436,6 +458,7 @@ const RequestSchemas = {
   "refresh-adopt": RefreshAdoptSchema,
   "review-fix-plan": ReviewFixPlanSchema,
   "review-fix-publish": ReviewFixPublishSchema,
+  "review-fix-acknowledge": ReviewFixAcknowledgeSchema,
 } as const;
 
 export type DeliveryExecutionCommand = keyof typeof RequestSchemas;
@@ -538,6 +561,11 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("materialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
+    status: z.enum(["acknowledged", "already-acknowledged"]),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("continue-work-unit"),
+  }),
+  z.strictObject({
     status: z.literal("published"),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
@@ -563,6 +591,17 @@ const ResultSchema = z.union([
     selectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
     plannedSuffix: z.array(DeliveryCanonicalDigestSchema).optional(),
     recommendedActionText: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    status: z.literal("applied"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    nextAction: z.literal("verify-review-fix"),
+    verification: z.strictObject({
+      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+      tier1Required: z.literal(true),
+    }),
+    acknowledgementInput: ReviewFixAcknowledgeSchema,
   }),
   z.strictObject({
     status: z.literal("applied"),
@@ -615,11 +654,25 @@ const ResultSchema = z.union([
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
+    status: z.literal("conflict-resolution-required"),
+    conflicts: z.array(RefreshConflictSchema).min(1),
+    resolutionInput: RefreshConflictResolutionSchema,
+    externalRefRestorations: z.array(z.strictObject({
+      ref: z.string().min(1),
+      observedHead: GitObjectIdSchema,
+      restoreHead: GitObjectIdSchema,
+    })).min(1),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
     status: z.literal("planned"),
     route: z.literal("provider-refresh"),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
     nextAction: z.literal("publish-selected-member"),
+    candidateRequirements: z.strictObject({
+      requiredAncestorHeads: z.array(GitObjectIdSchema).min(1),
+    }),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -714,7 +767,12 @@ const ResultSchema = z.union([
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), deliverableId: DeliveryCanonicalDigestSchema.optional() }),
-  z.strictObject({ status: z.literal("refused"), reason: z.string().min(1), paths: z.array(z.string()).optional() }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.string().min(1),
+    paths: z.array(z.string()).optional(),
+    detail: z.string().min(1).max(1_000).optional(),
+  }),
 ]);
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
 
@@ -1050,6 +1108,26 @@ async function executeDeliveryCommand(
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
+  if (command === "review-fix-acknowledge") {
+    const parsed = ReviewFixAcknowledgeSchema.parse(request);
+    const [planRead, stateRead] = await Promise.all([
+      planStore.readCurrent(parsed.planId),
+      stateStore.read(parsed.planId),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null) {
+      return { status: "refused", reason: "delivery-unavailable" };
+    }
+    return acknowledgeDeliveryReviewFixVerification({
+      plan: planRead.value,
+      current: stateRead.value,
+      selectedDeliverableId: parsed.selectedDeliverableId,
+      memberDeliverableIds: parsed.memberDeliverableIds,
+      expectedStateRevision: parsed.expectedStateRevision,
+      continuationDigest: parsed.continuationDigest,
+      stateStore,
+    });
+  }
   if (command === "authoring-locate") {
     const parsed = AuthoringLocateSchema.parse(request);
     const planRead = await planStore.readCurrent(parsed.planId);
@@ -1830,6 +1908,9 @@ async function executeDeliveryCommand(
       current,
       affectedDeliverableIds: derived.subject.affectedDeliverableIds,
       ...(selectedDeliverableId === undefined ? {} : { selectedDeliverableId }),
+      ...(adopt.conflictResolution === undefined
+        ? {}
+        : { conflictResolution: adopt.conflictResolution }),
       ...(derived.facts.terminalAuthoringMovement === undefined
         ? {}
         : { terminalAuthoringMovement: derived.facts.terminalAuthoringMovement }),
@@ -1838,11 +1919,32 @@ async function executeDeliveryCommand(
     return providerAdoptionResult(adopted);
   }
 
-  if (command === "native-observe" || command === "native-unlink") {
-    const host = new GhDeliveryHostPort(hostedGhRunner);
-    return command === "native-observe"
-      ? observeDeliveryNativeStack(NativeObserveSchema.parse(request), host)
-      : degradeNativeDeliveryStack(NativeObserveSchema.parse(request), host);
+  if (command === "native-observe") {
+    return observeDeliveryNativeStack(
+      NativeObserveSchema.parse(request),
+      new GhDeliveryHostPort(hostedGhRunner),
+    );
+  }
+  if (command === "native-unlink") {
+    const parsed = NativeUnlinkSchema.parse(request);
+    const [planRead, stateRead] = await Promise.all([
+      planStore.readCurrent(parsed.planId),
+      stateStore.read(parsed.planId),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null) {
+      return {
+        status: "blocked",
+        reason: "delivery-unavailable",
+        recommendedActionText: "Restore canonical delivery state before changing native presentation.",
+      };
+    }
+    return degradePlannedDeliveryNativeStack({
+      plan: planRead.value,
+      state: stateRead.value.value,
+      repository: parsed.repository,
+      members: parsed.members,
+    }, new GhDeliveryHostPort(hostedGhRunner));
   }
   if (command === "native-link") {
     const parsed = nativeLinkRequest ?? NativeLinkSchema.parse(request);

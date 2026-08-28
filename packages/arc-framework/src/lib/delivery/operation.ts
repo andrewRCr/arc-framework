@@ -6,6 +6,7 @@ import { canonicalize } from "../kernel/index.js";
 import { validateDeliveryPlanRecord } from "./plan.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
+  DeliveryCanonicalDigestSchema,
   DeliveryCandidateCleanupHeadV1Schema,
   DeliveryLandEffectV1Schema,
   DeliveryHostEffectIdentityV1Schema,
@@ -35,6 +36,8 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       kind: z.literal("rewrite"),
       mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
       terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
+      reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
+      reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
     }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({
@@ -120,6 +123,7 @@ export type ReserveDeliveryOperationFailure =
   | "stale-state"
   | "stale-plan-binding"
   | "operation-active"
+  | "pending-review-fix-verification"
   | "operation-invalid"
   | "unknown-deliverable"
   | "member-sequence-invalid"
@@ -206,6 +210,31 @@ function terminalAuthoringMovementMatchesState(
     && canonicalize(terminal.coordinates) === canonicalize(movement.before);
 }
 
+function reviewFixSelectionMatchesState(
+  state: DeliveryStateV1,
+  operation: Extract<DeliveryActiveOperationV1, { kind: "rewrite" }>,
+): boolean {
+  if (operation.reviewFixSelectedDeliverableId === undefined) {
+    return operation.reviewFixVerificationDeliverableIds === undefined;
+  }
+  if (operation.reviewFixVerificationDeliverableIds === undefined) return false;
+  const selectedIndex = state.members.findIndex(
+    ({ deliverableId }) => deliverableId === operation.reviewFixSelectedDeliverableId,
+  );
+  const verificationIds = operation.reviewFixVerificationDeliverableIds;
+  const stateOrder = state.members
+    .filter(({ deliverableId }) => verificationIds.includes(deliverableId))
+    .map(({ deliverableId }) => deliverableId);
+  return (operation.mode === "provider-refresh" || operation.mode === "provider-adoption")
+    && selectedIndex >= 0
+    && selectedIndex < state.members.length - 1
+    && operation.affectedDeliverableIds.includes(operation.reviewFixSelectedDeliverableId)
+    && verificationIds.includes(operation.reviewFixSelectedDeliverableId)
+    && new Set(verificationIds).size === verificationIds.length
+    && canonicalize(stateOrder) === canonicalize(verificationIds)
+    && verificationIds.every((deliverableId) => operation.affectedDeliverableIds.includes(deliverableId));
+}
+
 /**
  * Validate the one active operation carried by a published state revision.
  *
@@ -244,6 +273,9 @@ export function validateDeliveryActiveOperation(
   if (operation.kind === "rewrite" && operation.terminalAuthoringMovement !== undefined
     && ((operation.mode !== "provider-refresh" && operation.mode !== "provider-adoption")
       || !terminalAuthoringMovementMatchesState(parsedState.data, operation.terminalAuthoringMovement))) {
+    return { status: "blocked", reason: "state-invalid" };
+  }
+  if (operation.kind === "rewrite" && !reviewFixSelectionMatchesState(parsedState.data, operation)) {
     return { status: "blocked", reason: "state-invalid" };
   }
   if (current.revision !== operation.stateRevision + 1
@@ -344,6 +376,9 @@ export function reserveDeliveryOperation(
   if (parsedState.data.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
   }
+  if (parsedState.data.pendingReviewFixVerification !== null) {
+    return { status: "refused", reason: "pending-review-fix-verification" };
+  }
 
   const knownDeliverables = new Set(plan.members.map((member) => member.deliverableId));
   if (parsedRequest.data.affectedDeliverableIds.some((deliverableId) => !knownDeliverables.has(deliverableId))) {
@@ -379,6 +414,28 @@ export function reserveDeliveryOperation(
       ))) {
     return { status: "refused", reason: "operation-invalid" };
   }
+  if (parsedRequest.data.kind === "rewrite") {
+    const selectedDeliverableId = parsedRequest.data.reviewFixSelectedDeliverableId;
+    const verificationIds = parsedRequest.data.reviewFixVerificationDeliverableIds;
+    const verificationOrder = parsedState.data.members
+      .filter(({ deliverableId }) => verificationIds?.includes(deliverableId) ?? false)
+      .map(({ deliverableId }) => deliverableId);
+    if ((selectedDeliverableId === undefined) !== (verificationIds === undefined)
+      || (selectedDeliverableId !== undefined && verificationIds !== undefined
+        && ((parsedRequest.data.mode !== "provider-refresh" && parsedRequest.data.mode !== "provider-adoption")
+          || !parsedRequest.data.affectedDeliverableIds.includes(selectedDeliverableId)
+          || parsedState.data.members.findIndex(
+            ({ deliverableId }) => deliverableId === selectedDeliverableId,
+          ) >= parsedState.data.members.length - 1
+          || !verificationIds.includes(selectedDeliverableId)
+          || new Set(verificationIds).size !== verificationIds.length
+          || canonicalize(verificationOrder) !== canonicalize(verificationIds)
+          || verificationIds.some(
+            (deliverableId) => !parsedRequest.data.affectedDeliverableIds.includes(deliverableId),
+          )))) {
+      return { status: "refused", reason: "operation-invalid" };
+    }
+  }
   if (canonicalize(snapshotFromState(parsedState.data, parsedRequest.data.affectedDeliverableIds))
     !== canonicalize(parsedRequest.data.before)) {
     return { status: "refused", reason: "before-state-mismatch" };
@@ -401,6 +458,14 @@ export function reserveDeliveryOperation(
       ...(parsedRequest.data.kind === "rewrite"
         && parsedRequest.data.terminalAuthoringMovement !== undefined
         ? { terminalAuthoringMovement: parsedRequest.data.terminalAuthoringMovement }
+        : {}),
+      ...(parsedRequest.data.kind === "rewrite"
+        && parsedRequest.data.reviewFixSelectedDeliverableId !== undefined
+        ? { reviewFixSelectedDeliverableId: parsedRequest.data.reviewFixSelectedDeliverableId }
+        : {}),
+      ...(parsedRequest.data.kind === "rewrite"
+        && parsedRequest.data.reviewFixVerificationDeliverableIds !== undefined
+        ? { reviewFixVerificationDeliverableIds: parsedRequest.data.reviewFixVerificationDeliverableIds }
         : {}),
       ...(parsedRequest.data.kind === "teardown"
         ? { candidateHeads: parsedRequest.data.candidateHeads }

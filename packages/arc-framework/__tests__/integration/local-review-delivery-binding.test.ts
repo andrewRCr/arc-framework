@@ -13,13 +13,14 @@ import {
 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { canonicalDigest, SlugSchema } from "../../src/lib/kernel/index.js";
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
-const WORK_UNIT = "review-surface-binding";
+const WORK_UNIT = SlugSchema.parse("review-surface-binding");
 const OWNER = "andrew";
 const EVALUATOR = "fresh-reviewer";
 const REPOSITORY_ID = "12345678-1234-1234-1234-123456789abc";
+const REPOSITORY = "owner/repository";
 
 const exec = createExecaGitExec();
 const roots: string[] = [];
@@ -120,6 +121,7 @@ function state(stack: Omit<Stack, "deliverableId">, memberTree: string): Deliver
       },
     ],
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
 }
 
@@ -218,6 +220,42 @@ describe("local review delivery binding at its composition root", () => {
       .rejects.toMatchObject({ reason: "delivery-member-terminal" });
     await expect(prepare.resolveAuthority(EVALUATOR, "f".repeat(40)))
       .rejects.toMatchObject({ reason: "delivery-member-unbound" });
+  });
+
+  it("authenticates the final member only through its exact driver admission", async () => {
+    const stack = await boundStack();
+    const vehicle = {
+      kind: "delivery-member" as const,
+      planId: PLAN_ID,
+      deliverableId: deliverableId(1),
+      workUnitId: WORK_UNIT,
+      head: stack.successorSha,
+    };
+    const dependencies = createLocalPrepareDependencies({ exec, cwd: stack.root });
+
+    await expect(dependencies.resolveAuthority(
+      EVALUATOR,
+      stack.successorSha,
+      {
+        schemaVersion: 1,
+        sourceId: "delegated-agent",
+        statusTarget: {
+          repository: REPOSITORY,
+          headRef: "feature",
+          headSha: stack.successorSha,
+        },
+        target: {
+          repository: REPOSITORY,
+          pullRequest: 42,
+          headSha: stack.successorSha,
+        },
+        vehicle,
+        pass: 1,
+      },
+    )).resolves.toMatchObject({
+      authority: { vehicle: { kind: "delivery-member", identity: vehicle.deliverableId } },
+      member: { base: stack.memberSha, head: stack.successorSha },
+    });
   });
 
   it("leaves the no-selector path reading the checkout, dirt and all", async () => {

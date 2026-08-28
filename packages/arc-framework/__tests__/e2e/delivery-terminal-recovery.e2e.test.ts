@@ -94,6 +94,7 @@ describe("delivery terminal recovery", () => {
           : { base: triggerHead, head: terminalHead, tree },
       })),
       activeOperation: null,
+      pendingReviewFixVerification: null,
     });
     let storedState: DeliveryStateV1 = state;
     let revision = 1;

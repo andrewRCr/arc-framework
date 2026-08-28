@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { SlugSchema, type KernelRegistry } from "../kernel/index.js";
+import { canonicalize, SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { ParentTaskIdSchema } from "../task-list/scanner.js";
 
 /** Runtime authority for delivery-domain canonical digests. */
@@ -316,6 +316,8 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
     kind: z.literal("rewrite"),
     mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
     terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
+    reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
+    reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("teardown"),
@@ -349,6 +351,18 @@ const DeliveryStateMemberV1Schema = z.strictObject({
   coordinates: DeliveryMemberCoordinatesV1Schema.nullable(),
 });
 
+/** Exact plan-ordered member set whose post-settlement review-fix verification is still owed. */
+export const DeliveryPendingReviewFixVerificationV1Schema = z.strictObject({
+  selectedDeliverableId: DeliveryCanonicalDigestSchema,
+  memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).refine(
+    (ids) => new Set(ids).size === ids.length,
+    "pending review-fix verification members must be distinct",
+  ),
+});
+export type DeliveryPendingReviewFixVerificationV1 = z.infer<
+  typeof DeliveryPendingReviewFixVerificationV1Schema
+>;
+
 /** Mutable delivery execution state persisted separately from authored plan intent. */
 export const DeliveryStateV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -368,6 +382,39 @@ export const DeliveryStateV1Schema = z.strictObject({
     "state members must be distinct",
   ),
   activeOperation: DeliveryActiveOperationV1Schema.nullable(),
+  pendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.nullable(),
+}).superRefine((state, context) => {
+  if (state.pendingReviewFixVerification === null) return;
+  const selectedIndex = state.members.findIndex(
+    ({ deliverableId }) => deliverableId === state.pendingReviewFixVerification?.selectedDeliverableId,
+  );
+  if (selectedIndex < 0 || selectedIndex >= state.members.length - 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["pendingReviewFixVerification", "selectedDeliverableId"],
+      message: "pending review-fix verification must select a non-terminal state member",
+    });
+  }
+  const verificationIds = state.pendingReviewFixVerification.memberDeliverableIds;
+  const stateOrder = state.members
+    .filter(({ deliverableId }) => verificationIds.includes(deliverableId))
+    .map(({ deliverableId }) => deliverableId);
+  if (!verificationIds.includes(state.pendingReviewFixVerification.selectedDeliverableId)
+    || canonicalize(stateOrder) !== canonicalize(verificationIds)
+    || verificationIds.some((deliverableId) => state.members.at(-1)?.deliverableId === deliverableId)) {
+    context.addIssue({
+      code: "custom",
+      path: ["pendingReviewFixVerification", "memberDeliverableIds"],
+      message: "pending review-fix verification members must be plan-ordered non-terminal state members including the selected member",
+    });
+  }
+  if (state.activeOperation !== null) {
+    context.addIssue({
+      code: "custom",
+      path: ["activeOperation"],
+      message: "pending review-fix verification requires an idle delivery state",
+    });
+  }
 });
 export type DeliveryStateV1 = z.infer<typeof DeliveryStateV1Schema>;
 

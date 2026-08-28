@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
 import { GitCommonStateAccessError } from "../../../src/lib/git-common-state.js";
-import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryFourMemberStackPlanFixture,
+  deliveryStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
@@ -354,6 +357,9 @@ describe("delivery execution handler", () => {
       selectedDeliverableId,
       affectedDeliverableIds,
       nextAction: "publish-selected-member" as const,
+      candidateRequirements: {
+        requiredAncestorHeads: [state.members[0]!.coordinates!.head],
+      },
       recommendedActionText: "Publish the selected member, refresh externally, then adopt.",
     };
     const planWrite = vi.fn();
@@ -397,6 +403,40 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves the exact review-fix verification acknowledgement envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const state = deliveryStateFixture(plan);
+    const request = {
+      planId: plan.planId,
+      selectedDeliverableId,
+      memberDeliverableIds: [selectedDeliverableId],
+      expectedStateRevision: 9,
+      continuationDigest: `sha256:${"f".repeat(64)}`,
+    };
+    const acknowledged = {
+      status: "acknowledged" as const,
+      state: { revision: 10, value: state },
+      nextAction: "continue-work-unit" as const,
+    };
+    const execute = vi.fn().mockResolvedValue(acknowledged);
+    const write = vi.fn();
+
+    await handleDeliveryExecution("review-fix-acknowledge", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).toHaveBeenCalledWith("review-fix-acknowledge", request, undefined);
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery review-fix acknowledge",
+      ...acknowledged,
+    });
+  });
+
   it("preserves refresh adoption while deriving the suffix behind the strict request boundary", async () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
@@ -423,6 +463,117 @@ describe("delivery execution handler", () => {
       command: "delivery refresh adopt",
       status: "applied",
       state: { revision: 3, value: state },
+    });
+  });
+
+  it("preserves the exact external conflict-resolution offer and resubmission input", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const conflictedDeliverableId = plan.members[1]!.deliverableId;
+    const conflicts = [{ deliverableId: conflictedDeliverableId, paths: ["shared.txt"] }];
+    const resolutionInput = {
+      planId: plan.planId,
+      scope: { kind: "dependent-suffix" as const, selectedDeliverableId },
+      expectedStateRevision: 7,
+      observedSuffixDigest: `sha256:${"e".repeat(64)}`,
+      conflicts,
+    };
+    const request = {
+      planId: plan.planId,
+      repository: "owner/repo",
+      remote: "origin",
+      scope: { kind: "dependent-suffix" as const, selectedDeliverableId },
+      conflictResolution: resolutionInput,
+    };
+    const result = {
+      status: "conflict-resolution-required" as const,
+      conflicts,
+      resolutionInput,
+      externalRefRestorations: [{
+        ref: "refs/heads/dependent",
+        observedHead: "a".repeat(40),
+        restoreHead: "b".repeat(40),
+      }],
+      recommendedActionText: "Obtain explicit approval or restore the exact refs.",
+    };
+    const execute = vi.fn().mockResolvedValue(result);
+    const write = vi.fn();
+
+    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).toHaveBeenCalledWith("refresh-adopt", request, undefined);
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery refresh adopt",
+      ...result,
+    });
+  });
+
+  it("rejects pathless external conflict consent at both strict boundaries", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const conflictedDeliverableId = plan.members[1]!.deliverableId;
+    const conflicts = [{ deliverableId: conflictedDeliverableId, paths: [] }];
+    const resolutionInput = {
+      planId: plan.planId,
+      scope: { kind: "dependent-suffix" as const, selectedDeliverableId },
+      expectedStateRevision: 7,
+      observedSuffixDigest: `sha256:${"e".repeat(64)}`,
+      conflicts,
+    };
+    const execute = vi.fn();
+    const invalidInputWrite = vi.fn();
+
+    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        scope: { kind: "dependent-suffix", selectedDeliverableId },
+        conflictResolution: resolutionInput,
+      })),
+      execute,
+      write: invalidInputWrite,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(invalidInputWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+
+    const invalidOutputWrite = vi.fn();
+    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        scope: { kind: "dependent-suffix", selectedDeliverableId },
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "conflict-resolution-required",
+        conflicts,
+        resolutionInput,
+        externalRefRestorations: [{
+          ref: "refs/heads/dependent",
+          observedHead: "a".repeat(40),
+          restoreHead: "b".repeat(40),
+        }],
+        recommendedActionText: "Resolve the conflict or restore the exact refs.",
+      }),
+      write: invalidOutputWrite,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(invalidOutputWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-service-result",
     });
   });
 
@@ -491,6 +642,35 @@ describe("delivery execution handler", () => {
       schemaVersion: 1,
       command: "delivery refresh execute",
       ...retryable,
+    });
+  });
+
+  it("preserves actionable provider preparation detail through the strict result envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const refusal = {
+      status: "refused" as const,
+      reason: "unavailable",
+      detail: "could not determine the previous base; rebase this branch manually",
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        scope: { kind: "dependent-suffix", selectedDeliverableId },
+      })),
+      execute: vi.fn().mockResolvedValue(refusal),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery refresh execute",
+      ...refusal,
     });
   });
 

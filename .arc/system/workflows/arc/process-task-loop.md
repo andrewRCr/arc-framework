@@ -26,6 +26,8 @@ printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect --input -
 Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required` carries its exact
 `selectedDeliverableId` and `entryMode` into the `plan-review-fix` correction route in
 [`supplemental/deliver-stack.md`](supplemental/deliver-stack.md) before authoring or publishing the task's change.
+`review-fix-verification-required` carries its exact `verification` and `acknowledgementInput` into that workflow's
+review-fix verification continuation without replanning or repeating provider mutation.
 `resume-bound` enters that workflow's `read-position-and-reconcile` route; after its typed recovery settles the active
 operation, rerun the entry inspection before implementing the task. `canonicalize-provisional` resumes the matching
 delivery-entry route. `refused` renders `recommendedActionText` and stops; any other result also stops as an
@@ -208,6 +210,15 @@ execution-entry contract violation.
 
      - **First**: Mark the task `[x]`, cascade its parent to `[x]` when all subtasks are complete, and finish the
        prepared completion note. When item 3 fired, include the returned criteria evidence and span in that outcome.
+     - **Delivery correction acknowledgment (conditional):** When the delivery continuation returned an
+       `acknowledgementInput`, pass that exact object unchanged to:
+
+       ```bash
+       arc delivery review-fix acknowledge - --json
+       ```
+
+       Only `acknowledged` or `already-acknowledged` continues to the completion extension. `refused` renders its
+       reason and stops with the pending continuation intact; never reconstruct or refresh the acknowledgment input.
      - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
        list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
        Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to

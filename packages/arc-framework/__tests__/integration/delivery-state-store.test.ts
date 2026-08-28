@@ -66,6 +66,7 @@ function state(options: {
         : { base: "c".repeat(40), head: options.head ?? HEAD, tree: TREE },
     }],
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
 }
 

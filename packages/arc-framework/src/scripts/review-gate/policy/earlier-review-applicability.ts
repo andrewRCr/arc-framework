@@ -31,10 +31,13 @@ export type EarlierHostedAttemptApplicabilityRead =
     readonly attempts: readonly {
       readonly sourceId: string;
       readonly outcome: string;
+      readonly requestedCoverage: "complete" | "incremental";
+      readonly effectiveCoverage: "complete" | "incremental" | null;
       readonly applicability: ReviewApplicabilityConsumerAction;
       readonly projection?: ReviewContributionApplicabilityResult;
       readonly authorityState?: "decision-required" | "blocked";
       readonly responsePlan?: HostedFindingsResponsePlan;
+      readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
     }[];
   }
   | { readonly status: "not-found" }
@@ -119,6 +122,8 @@ export async function projectEarlierReviewApplicability(
     return {
       sourceId: candidate.sourceId,
       outcome: candidate.outcome,
+      requestedCoverage: candidate.requestedCoverage,
+      effectiveCoverage: candidate.effectiveCoverage,
       applicability: reviewApplicabilityConsumerAction(authority),
       projection: authority.projection,
       ...(candidate.outcome !== "findings" || candidate.findings.length === 0
@@ -143,6 +148,9 @@ export async function projectEarlierReviewApplicability(
               })),
             },
           }),
+      ...(candidate.sourceKind === "local" && candidate.outcome === "findings"
+        ? { localResumeAction: { schemaVersion: 1 as const, operationId: candidate.attemptId } }
+        : {}),
       ...(authority.state === "decision-required" || authority.state === "blocked"
         ? { authorityState: authority.state }
         : {}),

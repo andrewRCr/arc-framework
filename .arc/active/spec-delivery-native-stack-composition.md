@@ -145,6 +145,20 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   absorption, and state authority. External operator refresh plus observation remains a supported fallback. The
   prompt was the supported registered-stack path: without actuation, ARC could identify the needed refresh but
   still required the operator to perform the headline native-stack convenience manually.
+- **Amended 2026-08-27 — one pending review-fix verification continuation enters scope after the final-settlement
+  response-loss audit.** The durable-record exclusion no longer covers one provider-neutral continuation on the
+  existing versioned Delivery State. It records only the selected deliverable whose member verification remains
+  owed after a dependent refresh or adoption has settled; it contains no observation, proof, review verdict,
+  provider output, or new authority. Exact acknowledgment clears it after the ordinary member criteria and quality
+  checks complete. A generalized continuation ledger, workflow engine, and compatibility reader remain excluded.
+- **Amended 2026-08-27 — exact operator-admitted conflict resolution enters scope after external-fallback
+  dogfood.** The external adoption fallback may accept an operator-resolved dependent whose mechanical reapplication
+  still reports the conflict that required the fallback. The first attempt remains mutation-free and emits one exact
+  consent input bound to the current state revision, observed suffix digest, dependent identities, and conflict
+  paths. Only an unchanged resubmission may classify those exact dependents as changed; every unconflicted dependent
+  still requires structural equivalence. The existing pending continuation then retains the selected member plus
+  every admitted changed dependent in plan order. No autonomous conflict resolution, proof override, provider fact,
+  second operation kind, or generalized approval record enters scope.
 
 ## Proposed Design
 
@@ -774,6 +788,67 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   is `delivery-refresh-execute`; the existing external `delivery-refresh-adopt` action remains reserved for
   externally assigned results. No new operation kind, durable record family, provider-specific plan/state field,
   autonomous conflict repair, or compatibility reader is introduced.
+
+  **Amended 2026-08-27 after registered self-delivery exposed a stale selected-member predecessor:** a
+  selected-member correction candidate must extend both the selected member's current bound head and, when the
+  selected member has a non-terminal predecessor, that predecessor's current bound head before publication. The
+  authoring locus absorbs a moved predecessor append-only; publication rechecks both ancestry relations before its
+  reservation or remote mutation. This keeps the selected head fixed for dependent refresh without asking the
+  provider to repair the selected member itself.
+
+  When the selected member is already the highest non-terminal member, the dependent suffix is empty. The executor
+  performs no provider preparation or native rebase: it reserves the exact unchanged non-terminal snapshot only
+  when terminal-top absorption is still owed, then completes the ordinary reserved settlement. A non-conflict
+  provider preparation failure retains its stable provider-neutral refusal reason and a bounded actionable detail
+  from the adapter instead of collapsing all diagnostics to `unavailable`; the detail is response-only and grants
+  no provider authority.
+
+- **D5.10 Final refresh settlement preserves the owed verification continuation — amended 2026-08-27 after the
+  interruption audit demonstrated a lost-response dead end.** A dependent-suffix review-fix reservation carries
+  the exact selected deliverable solely so its final settlement can atomically install the refreshed suffix and
+  terminal coordinates, clear the active operation, and set `pendingReviewFixVerification`. The same rule applies
+  to provider-invoked refresh and the attended external-adoption fallback. Ordinary complete-remainder refresh and
+  adoption set no continuation.
+
+  While the continuation is pending, delivery entry returns `review-fix-verification-required` with the exact
+  selected deliverable and its existing member-verification plus Tier 1 continuation instead of replanning or
+  authorizing another mutation. Every delivery mutation refuses until that continuation is consumed. After the
+  workflow completes those checks and closes the correction task, an acknowledgment bound to the entry-emitted
+  state revision and canonical continuation digest clears the matching continuation by version check. A replay
+  after a lost acknowledgment response reconstructs and proves that exact one-field predecessor state; intervening
+  mutation, a mismatched selector, or any other stale input refuses. The field carries no check result and the
+  acknowledgment grants no verification, review, provider, publication, or mutation authority. This amendment
+  supersedes only D5.8 and D5.9 clauses that excluded the narrow durable field required to make their supported
+  interruption path executable.
+
+  **Forward clarification (2026-08-27):** the final `applied / verify-review-fix` response and execution-entry
+  replay project the same verification selector and exact acknowledgment input. Workflow prose passes that object
+  unchanged across ordinary task closure; it never reconstructs a selector, revision, or digest.
+
+- **D5.11 External adoption admits only an exact operator-resolved conflict set — amended 2026-08-27 after the
+  supported fallback could not adopt its own resolved result.** The first dependent-suffix adoption attempt proves
+  every changed member through D4. Accepted proofs remain equivalent. A `contribution-diverged`, unavailable, or
+  malformed proof still refuses. When one or more dependents return `contribution-conflicted`, adoption performs no
+  reservation, local-ref rewrite, top publication, or state write; instead it returns
+  `conflict-resolution-required` with precomposed guidance and one strict `resolutionInput` carrying the plan and
+  dependent scope, expected state revision, canonical observed-suffix digest, and the plan-ordered conflicted
+  deliverable/path set.
+
+  After explicit operator approval, the workflow resubmits that exact input unchanged. The handler re-derives the
+  canonical remaining subject, reobserves the full provider result, reruns every proof, and requires the current
+  revision, scope, suffix digest, and conflicted deliverable/path set to match the emitted offer exactly. The selected
+  member and lower prefix remain fixed. No additional or missing conflict is admitted. Unconflicted movements still
+  require an accepted structural proof; only the exact approved conflicted dependents are classified as changed. A
+  declined offer restores the externally moved refs through their exact pre-adoption leases and leaves delivery
+  state untouched.
+
+  The existing `rewrite/provider-adoption` reservation carries the original selected member plus every approved
+  changed dependent as one plan-ordered verification set. Final settlement atomically installs the suffix and top,
+  clears the operation, and persists that complete set beside the selected correction owner. Its response,
+  execution-entry replay, and acknowledgment all carry the same exact ordered set; response loss cannot collapse it
+  back to the selected member alone. Ordinary external adoption, provider-native refresh, and mechanically equivalent
+  dependents retain their existing behavior. The consent input is response-only authority for one exact observation,
+  not durable proof, review clearance, provider authority, or a reusable approval record.
 
 ### D6 — Native registration and landing
 
@@ -1881,6 +1956,28 @@ added.
     fresh full quality and work-unit criteria passes and a structurally closed task list, requires the resulting
     `re-root`, and stops every other or malformed result without new verification evidence or Candidate authority
     (D1.5).
+34. Registered selected-member correction publication requires the candidate to descend from both the selected
+    member's bound head and its current non-terminal predecessor when one exists. An empty dependent suffix invokes
+    no provider mutation and reaches the existing reserved terminal-top settlement only when absorption is owed.
+    Provider preparation refusals preserve a stable provider-neutral reason plus bounded actionable adapter detail;
+    no diagnostic becomes durable state or mutation authority (D5.8, D5.9).
+35. A dependent-suffix review-fix settlement atomically records the exact selected deliverable whose member
+    verification remains owed. Its final response and a later execution entry project the same exact
+    member-verification, Tier 1 continuation, and acknowledgment input. If the final refresh or adoption response is
+    lost, execution entry resumes that continuation without replanning or another provider mutation; every other
+    delivery mutation remains blocked. After the checks and correction-task closure, acknowledgment bound to the
+    entry-emitted state revision and canonical continuation digest clears the continuation by version check and
+    converges idempotently after its own lost response, while mismatched, intervening, or stale requests refuse.
+    Ordinary refreshes record no continuation, and no provider-specific fact, check result, proof, review verdict,
+    or generalized workflow state becomes durable (Goal 7, D5.10, D9.5).
+36. An attended dependent-suffix adoption that encounters a genuine mechanical-reapply conflict performs no ARC
+    mutation and emits one exact operator-consent input bound to the current state revision, dependent scope,
+    observed suffix digest, and complete conflicted deliverable/path set. An unchanged approved resubmission
+    reobserves and reproves the whole suffix; unconflicted members must remain equivalent, diverged or newly changed
+    conflicts refuse, and only the exact approved conflict set is classified as changed. Settlement retains the
+    original selected member plus every admitted changed dependent in plan order through the durable continuation,
+    replay, and exact acknowledgment. Decline restores the externally moved refs by exact lease, while no proof,
+    provider fact, check result, or reusable approval record becomes durable (Goal 5, Goal 7, D5.11).
 
 ## Open Questions
 

@@ -465,6 +465,8 @@ function hostedResponseFixture(origin: "review-thread" | "review-body") {
       outcome: "findings" as const,
       hosted: {
         target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
+        requestedCoverage: "complete" as const,
+        effectiveCoverage: "complete" as const,
         reviewTarget: records.target,
         requirement: {
           ...records.operation.requirement,

@@ -98,6 +98,13 @@ export async function retireCompletedDeliveryRecords(
     if (bound.state.activeOperation !== null) {
       return { status: "blocked", reason: "operation-active", planId: bound.plan.planId };
     }
+    if (bound.state.pendingReviewFixVerification !== null) {
+      return {
+        status: "blocked",
+        reason: "pending-review-fix-verification",
+        planId: bound.plan.planId,
+      };
+    }
     for (const member of bound.state.members.slice(0, -1)) {
       if (member.ref === null || member.coordinates === null) {
         return {

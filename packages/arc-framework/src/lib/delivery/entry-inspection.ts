@@ -5,6 +5,7 @@ import { z } from "zod";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 import { resolveTaskListCursor } from "../task-list/cursor.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
+import { canonicalDigest } from "../kernel/index.js";
 import {
   ContinuePublicationActionSchema,
   type IntegrationBoundaryLocus,
@@ -17,6 +18,7 @@ import {
   renderDeliveryPlanSection,
 } from "./task-list-render.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
+import type { DeliveryReviewFixVerificationContinuation } from "./review-fix.js";
 
 const AttendedDeliveryEntryInspectionRequestSchema = z.strictObject({
   workUnitId: SlugSchema,
@@ -96,6 +98,12 @@ export type DeliveryEntryInspectionResult =
       readonly entryMode: "execution";
       readonly recommendedActionText: string;
     }
+  | ({
+      readonly status: "review-fix-verification-required";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly recommendedActionText: string;
+    } & DeliveryReviewFixVerificationContinuation)
   | {
       readonly status: "continue-publication";
       readonly nextAction: "continue-publication";
@@ -148,6 +156,23 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     status: z.literal("correction-routing-required"), nextAction: z.literal("plan-review-fix"),
     planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
     selectedDeliverableId: DeliveryCanonicalDigestSchema, entryMode: z.literal("execution"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("review-fix-verification-required"), nextAction: z.literal("verify-review-fix"),
+    planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    verification: z.strictObject({
+      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+      tier1Required: z.literal(true),
+    }),
+    acknowledgementInput: z.strictObject({
+      planId: DeliveryPlanIdSchema,
+      selectedDeliverableId: DeliveryCanonicalDigestSchema,
+      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+      expectedStateRevision: z.number().int().positive(),
+      continuationDigest: DeliveryCanonicalDigestSchema,
+    }),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -376,6 +401,28 @@ export async function inspectDeliveryEntry(
     };
   }
   if (state.revision === null) return refused("state-incoherent");
+  if (state.value.pendingReviewFixVerification !== null) {
+    const selectedDeliverableId = state.value.pendingReviewFixVerification.selectedDeliverableId;
+    const memberDeliverableIds = state.value.pendingReviewFixVerification.memberDeliverableIds;
+    return {
+      status: "review-fix-verification-required",
+      nextAction: "verify-review-fix",
+      planId: plan.planId,
+      stateRevision: state.revision,
+      selectedDeliverableId,
+      verification: { memberDeliverableIds, tier1Required: true },
+      acknowledgementInput: {
+        planId: plan.planId,
+        selectedDeliverableId,
+        memberDeliverableIds,
+        expectedStateRevision: state.revision,
+        continuationDigest: canonicalDigest(state.value),
+      },
+      recommendedActionText:
+        "Complete the pending changed-member verification and Tier 1 checks, close the correction task, then "
+        + "acknowledge the exact review-fix continuation before resuming delivery.",
+    };
+  }
   if (state.value.activeOperation !== null) {
     return {
       status: "resume-bound",

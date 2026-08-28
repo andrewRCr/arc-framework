@@ -122,6 +122,29 @@ describe("delivery record retirement", () => {
     expect({ plans: fixture.plans.size, states: fixture.states.size }).toEqual({ plans: 2, states: 1 });
   });
 
+  it("refuses record retirement while selected-member verification is pending", async () => {
+    const fixture = completedRecordsFixture();
+    fixture.states.set(fixture.plan.planId, {
+      revision: 7,
+      value: {
+        ...fixture.state,
+        pendingReviewFixVerification: {
+          selectedDeliverableId: fixture.state.members[0]!.deliverableId,
+          memberDeliverableIds: [fixture.state.members[0]!.deliverableId],
+        },
+      },
+    });
+
+    await expect(retireCompletedDeliveryRecords({
+      workUnitId: fixture.plan.workUnitId,
+      repository: "owner/repo",
+    }, retirementDependencies(fixture))).resolves.toMatchObject({
+      status: "blocked",
+      reason: "pending-review-fix-verification",
+    });
+    expect({ plans: fixture.plans.size, states: fixture.states.size }).toEqual({ plans: 2, states: 1 });
+  });
+
   it("refuses while either side of a nonterminal member ref remains", async () => {
     for (const side of ["local", "remote"] as const) {
       const fixture = completedRecordsFixture();

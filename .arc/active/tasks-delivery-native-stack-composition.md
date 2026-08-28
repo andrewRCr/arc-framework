@@ -1461,6 +1461,181 @@ structural guarantee rather than operator discipline.
                   third pass returned no findings. Success Criteria markers remain unchanged for terminal
                   verification.
 
+        - _Forward amendment (2026-08-27):_ Registered self-delivery published the highest non-terminal correction
+          while it still descended from the preceding member's superseded head. The provider-native continuation
+          then tried to rebase the fixed selected member despite having no dependents, and collapsed the provider's
+          actionable stale-base diagnostic to `unavailable`.
+
+        - `[x]` **6.11.R.r Make selected-member publication and empty-suffix refresh chain-current**
+
+            - _Goal:_ A registered correction publishes only from the current member chain, and a selected highest
+              non-terminal member settles the terminal top without an unnecessary provider mutation.
+            - Review-fix planning now returns every exact ancestor through the strict CLI envelope, publication
+              rechecks the selected and current predecessor lineage before mutation, and an empty dependent suffix
+              bypasses provider preparation while retaining the reserved terminal settlement.
+
+        - `[x]` **6.11.R.s Preserve actionable provider preparation refusals**
+
+            - _Goal:_ A failed provider preparation tells the executing session what failed without leaking
+              provider-specific authority into delivery plan, state, or core routing.
+            - Non-conflict provider-process failures retain `unavailable` plus whitespace-normalized diagnostic
+              detail bounded to 1,000 characters. The strict CLI envelope preserves that response-only field, and
+              workflow prose renders it without changing cleanup, reservation, or mutation authority.
+
+        - `[x]` **6.11.R.t Revalidate the corrected Member 6 boundary** — validate criteria at member scope
+
+            - _Goal:_ Re-run `Success Criteria > Member 6 — refresh-and-native-landing` over the bounded correction
+              diff and current cumulative tree, retaining prior evidence where the refresh contract is unchanged.
+
+            - _Forward amendment (2026-08-27):_ The interruption matrix demonstrated that a completed dependent
+              refresh can lose its final response after state settlement, leaving no durable selector from which
+              execution can resume the still-owed member verification. D5.10 admits one narrow provider-neutral
+              continuation and requires exact consumption before delivery mutation resumes.
+
+            - `[x]` **6.11.R.t.a Make settled review-fix verification replayable**
+
+                - The selected-member verification continuation now survives refresh-settlement and acknowledgment
+                  response loss, re-enters without repeating provider mutation, and clears exactly once after task
+                  closure. Pending continuations block every competing delivery and native-presentation mutation;
+                  ordinary settlements remain continuation-free and unchanged corrections still refuse.
+
+            - `[x]` **6.11.R.t.b Revalidate the replayable Member 6 boundary** — validate criteria at member scope
+
+                - _Outcome:_ Member 6 criteria report.
+                    - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+                    - _Span:_ retained Member 6 evidence through Task 6.11.R.q; bounded correction diff
+                      `bbde7b167..3401a2f63`; reachability `3401a2f63`. Boundary-order deviation: registered
+                      self-delivery supplied the chain-current publication, provider-diagnostic, and response-loss
+                      repairs after the original member boundary; the diff excludes the preceding Member 1 review
+                      correction and earlier integration ceremonies.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+                      _Evidence:_ refresh remains demand-driven. The correction adds no base-movement trigger, and
+                      every pending-continuation path stops new mutation rather than refreshing opportunistically.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+                      _Evidence:_ D5.9 still supersedes only the external-only invocation clause. Attended external
+                      adoption retains fresh structural proof and now shares the exact selected-member continuation
+                      settlement without gaining provider mutation authority.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+                      _Evidence:_ native landing still reconciles and structurally proves every rewritten remaining
+                      member before admitting new coordinates; the new barrier acts only before competing native
+                      presentation mutation.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+                      _Evidence:_ canonical plan/state still selects the remaining non-terminal chain, and central
+                      operation reservation refuses while verification is pending. Exact semantic no-effect retains
+                      its distinct return to fresh native selection.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+                      _Evidence:_ registration remains exactly non-terminal and singleton delivery still degrades
+                      unlinked. Public link and unlink now bind canonical plan/state and the complete current native
+                      member subject before provider access.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+                      _Evidence:_ the unchanged decision response still discloses review invalidation before opt-in,
+                      and ordinary decline remains host-silent. A pending continuation refuses the later mutation
+                      arm before any provider call.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+                      _Evidence:_ selected publication rechecks the current predecessor chain, empty dependent
+                      suffixes bypass provider preparation, and preparation refusals preserve bounded actionable
+                      detail. Provider and external settlement atomically clear the reservation, install suffix and
+                      top coordinates, and retain the exact selected member for owed verification; ordinary
+                      settlement records no continuation.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`; _State:_ `[x]`;
+                      _Evidence:_ public entry and position remain derived from canonical plan/state plus locators.
+                      Execution replay emits the exact verification and acknowledgment object, while native unlink
+                      now requires a strict plan locator and revalidates the current member subject before host I/O.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 9`; _State:_ `[x]`;
+                      _Evidence:_ selected correction publication proves descent from both the member's bound head
+                      and its current predecessor before mutation. An empty dependent suffix skips provider
+                      preparation and reaches only owed top absorption; other preparation refusals retain bounded
+                      provider-neutral detail without persisting it.
+                    - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 10`; _State:_ `[x]`;
+                      _Evidence:_ discarded settlement response re-enters at the selected member without another
+                      provider effect; exact acknowledgment clears once and recognizes its one-revision replay;
+                      mismatched, intervening, and stale requests refuse. Reservation, rebind, composition,
+                      retirement, terminal, and native-presentation mutations all stop while the continuation is
+                      pending, and no check result or provider fact enters durable state.
+                    - _Adversarial companion:_ the authorized fresh-context pass found one reachable omission:
+                      native link and unlink bypassed the pending barrier. Primary source verification repaired both
+                      with exact plan/state binding before host access; built-CLI zero-host-call coverage and the
+                      final full suite exercise the corrected boundary.
+                    - _Summary:_ nine met, one intentionally superseded, zero unresolved. Success Criteria markers
+                      remain unchanged for terminal verification.
+
+        - _Forward amendment (2026-08-27):_ Re-entering the bound self-delivery after the state schema changed
+          demonstrated that the delivery-state store's closed refusal reason was discarded at the entry-inspection
+          adapter. The command stopped safely but collapsed `record-malformed` into generic
+          `evidence-unavailable`, forcing source archaeology before the existing transfer/regeneration remedy could
+          be selected.
+
+        - `[x]` **6.11.R.u Preserve delivery-state refusal reasons through entry inspection**
+
+            - _Goal:_ A bound delivery whose state record cannot be read returns the existing provider-neutral
+              storage reason and a state-specific recovery instruction, while unrelated evidence failures retain
+              their current generic refusal.
+
+            - Delivery entry now carries every closed state-store refusal through its strict result and returns a
+              state-specific recovery instruction, while unrelated evidence failures remain generic.
+
+        - _Forward amendment (2026-08-27):_ External-fallback dogfood proved that adoption's unconditional
+          mechanical-reapply conflict refusal made an operator-resolved suffix impossible to adopt. D5.11 admits an
+          exact operator-approved conflict set as changed work and extends the existing replayable continuation to
+          every member whose contribution changed.
+
+        - `[x]` **6.11.R.v Admit resolved dependent conflicts and preserve their verification**
+
+            - _Goal:_ An attended external fallback can adopt one exact operator-approved conflict resolution without
+              weakening structural proof for other members or losing any changed member's verification obligation.
+
+            - _Outcome:_ Member 6 criteria report.
+                - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+                - _Span:_ retained Member 6 evidence through Task 6.11.R.t.b plus the exact D5.11 / Task 6.11.R.v
+                  worktree patch over `cda3090c8`; reachability is the complete current tree. Boundary-order
+                  deviation: external-fallback self-delivery supplied the conflict-admission amendment after the
+                  original member boundary; the bounded patch excludes no changed implementation file.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+                  _Evidence:_ refresh remains demand-driven, and the new consent path begins only after an attended
+                  external fallback has already produced a changed suffix.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+                  _Evidence:_ D5.9 still supersedes only the external-only invocation clause. External adoption
+                  remains freshly observed and proved before its existing reserved top settlement.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+                  _Evidence:_ native landing and complete rewritten-suffix reconciliation are unchanged.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+                  _Evidence:_ canonical remaining-chain selection and semantic no-effect fallback are unchanged.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+                  _Evidence:_ non-terminal registration, dependent-top filtering, and singleton degradation are
+                  unchanged; pending verification remains the same pre-provider mutation barrier.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+                  _Evidence:_ native-link disclosure and host-silent decline are unchanged. Conflict admission adds
+                  its own explicit approval interlock only when the external fallback returns a conflict offer.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+                  _Evidence:_ provider-native execution still records only the selected member for verification.
+                  External adoption now stops before reservation on conflict and enters the existing settlement only
+                  after an exact approved resubmission; divergence and other proof refusals remain fail-closed.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`; _State:_ `[x]`;
+                  _Evidence:_ public commands still derive facts from plan/state and locators. The strict handler
+                  accepts only the response-owned conflict object and carries no caller-authored observation facts.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 9`; _State:_ `[x]`;
+                  _Evidence:_ chain-current selected publication, empty-dependent bypass, and bounded provider
+                  diagnostics are unchanged.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 10`; _State:_ `[x]`;
+                  _Evidence:_ settlement persists one plan-ordered verification set with its selected owner; final
+                  response, entry replay, exact acknowledgment, lost-response convergence, and every pending barrier
+                  preserve that set without another provider effect.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 11`; _State:_ `[x]`;
+                  _Evidence:_ the first conflict result emits the complete mutation-free offer and restoration
+                  leases. Exact resubmission reobserves and reproves accepted and conflicted dependents, refuses
+                  malformed or pathless proof plus stale, mismatched, missing, additional, or diverged evidence,
+                  and classifies only approved conflicts as changed. State and operation schemas enforce a distinct,
+                  plan-ordered, non-terminal verification set containing the selected member; both workflows
+                  preserve the approval/decline interlock and opaque resubmission.
+                - _Adversarial companion:_ pass one found that malformed Git conflict output could become pathless
+                  consent and changed-member authority. The source-verified correction now refuses pathless proof at
+                  the Git producer, adoption core, shared proof schema, and strict consent boundaries. Fresh pass two
+                  returned no findings over the complete Member 6 slice.
+                - _Summary:_ ten met, one intentionally superseded, zero unresolved. The mixed accepted/conflicted
+                  suffix, strict handler, settlement, replay, acknowledgment, workflow, real-Git contribution, and
+                  complete delivery regression surfaces all passed. Success Criteria markers remain unchanged for
+                  terminal verification.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
@@ -1647,18 +1822,63 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 - _Outcome:_ Member 7 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
-    - _Span:_ diff `2fae38462..e11bd763d`; reachability `e11bd763d`; boundary-order deviation: none.
+    - _Span:_ original diff `2fae38462..e11bd763d`; forward amendment `bbde7b167` plus the Task 7.7.R.b
+      worktree at `6878770ea`; reachability `6878770ea` plus that worktree. Boundary-order deviation: the approved
+      post-verification reopening supplied Tasks 7.7.R.a-b without absorbing unrelated later-member changes.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`;
-      _Evidence:_ retained member bindings derive an exact review vehicle for every member and settle the work-unit
-      obligation only through the complete typed conjunction, including reaped physical refs.
+      _Evidence:_ retained member bindings still derive one exact target per member and settle only through the
+      complete conjunction. The production lifecycle now drives both non-terminal and terminal delegated-agent
+      fallbacks through real prepare and attest operations before the conjunction can discharge.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`;
-      _Evidence:_ the D4-backed projection preserves mechanical and fallback carry through one bounded discovery
-      path shared by admission and discharge, retains the distinct path proof, and creates no duplicate equivalence
-      projection or record family.
+      _Evidence:_ complete hosted coverage and exactly admitted local results may settle; supplemental coverage may
+      inform findings but cannot discharge. The existing D4-backed applicability path carries exact local progress
+      across head movement, refuses replacement pull-request coordinates, and adds no equivalence projection or
+      record family.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`;
-      _Evidence:_ target-neutral, version-checked Candidate transitions carry the exact selector through the complete
-      executable status-to-terminal lifecycle; unavailable evidence stops, and lane progress remains discovery-only.
-      The production-composition correction is included in-span; Success Criteria markers remain unchanged.
+      _Evidence:_ status carries the driver's exact source, member vehicle, host target, pass, ceiling consequence,
+      and status target into local prepare; prepare freshly re-runs status before publication; persisted operation,
+      attest, applicability, findings resumption, and terminal conjunction consume the same admission. Retained
+      findings precede any replacement request, and Success Criteria markers remain unchanged.
+
+- _Forward amendment (2026-08-27):_ D8.5 requires delivery-member request admission to pass through the existing
+  review driver. The completed implementation instead composed a hosted request directly after applicability, so a
+  selected re-review could overtake retained findings response and bypass accumulated pass/ceiling admission. Reopen
+  the member boundary to repair that existing-driver seam only; generalized signal-convergence policy remains with
+  `review-signal-convergence`.
+
+    - `[x]` **7.7.R.a Restore driver-governed member review re-entry**
+
+        - Retained findings now precede re-review; exact member-lineage pass counts and D8.6-retained source progress
+          pass through the standard driver at status and immediately before provider invocation. Await stays
+          binding-only, while exact ceiling consequences stop for approval and re-enter unchanged through the shipped
+          review workflows.
+
+    - `[x]` **7.7.R.b Revalidate the amended Member 7 boundary** — validate criteria at member scope
+
+        - _Goal:_ Re-run `Success Criteria > Member 7 — review-fan-out` over the amended bounded diff and cumulative
+          tree; retain the existing criteria markers and replace this closing task's report with current evidence.
+
+        - `[x]` **7.7.R.b.a Keep supplemental member reviews non-settling**
+
+            - Requested and effective hosted coverage survive lane progress. Supplemental findings remain
+              actionable, while only complete coverage can consume or discharge the member obligation.
+
+        - `[x]` **7.7.R.b.b Carry the driver's delegated-agent fallback through member progression**
+
+            - The driver's typed local action carries exact delivery, host, pass, and ceiling admission through
+              status, local prepare, persisted operation, and attest. Its standard-lane result participates without
+              adding a source, lane, or review mechanism; terminal-member admission requires that exact action.
+
+        - `[x]` **7.7.R.b.c Resolve retained findings before any new member request**
+
+            - Findings project across the member's complete applicable reserved-source set before request selection,
+              including an exact local-resume operation. Ambiguous response authority stops before another pass.
+
+        - `[x]` **7.7.R.b.d Revalidate the repaired Member 7 boundary** — validate criteria at member scope
+
+            - The amended primary walk resolves all three criteria. The authorized Heavy-class convergence pass's
+              final-member and exact-admission findings are repaired, and the real handler lifecycle now proves both
+              non-terminal and terminal delegated fallbacks through complete conjunction settlement.
 
 ## **Phase 8:** Record retirement and doctrine
 
@@ -1850,18 +2070,39 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 851 test files passed
-  with one skipped (10,966 tests passed with one skipped), the package build, aggregate self-review, and diff hygiene
+  with one skipped (11,013 tests passed with one skipped), the package build, aggregate self-review, and diff hygiene
   all passed over the exact final code tree. Markdown and ARC checks passed again after the task-only closeout.
-- _Success criteria:_ 33 total: 31 met, two superseded, and none unresolved. All eight member reports resolve to
-  their current criteria loci and boundary spans; only Member 1's implementation-task workaround and Member 6's
-  external-only refresh clause remain intentionally superseded by D7.2b and D5.9. The terminal walk revalidated
-  union coherence and all six cross-member seams over merge base `0b8e87285` through `ad3614ded`. Executable
-  coverage proves stacked dispatch, provider refresh, retained member-review response, correction re-entry,
-  preterminal rebind, seven-member teardown and retarget, closeout, cursorless verification, and exact Candidate
-  re-rooting without a new unresolved gap.
+- _Success criteria:_ 35 total: 33 met, two superseded, and none unresolved. All eight member reports resolve to
+  their current criteria loci and boundary spans; the amended Member 6 and Member 7 reports add exact correction
+  continuation and driver-admitted local fallback evidence without re-deriving unchanged groups. Only Member 1's
+  implementation-task workaround and Member 6's external-only refresh clause remain intentionally superseded by
+  D7.2b and D5.9. The terminal walk revalidated union coherence and all six cross-member seams over merge base
+  `0b8e87285` through `cda3090c8`, including post-report span `ad3614ded..cda3090c8`. Executable coverage proves
+  stacked dispatch, chain-current provider refresh, replayable correction verification, retained findings response,
+  exact local fallback through terminal conjunction, cursorless closeout, and Candidate re-rooting without an
+  unresolved gap.
+
+- _Forward amendment (2026-08-27):_ The D5.8-D5.10 corrections added Success Criteria 34 and 35 after this terminal
+  report. Consume the updated Member 6 boundary report and revalidate the continuation's cross-member mutation
+  barrier without re-deriving unchanged member criteria or repeating an unchanged full-suite gate.
+
+    - `[ ]` **9.1.R Revalidate the post-report Member 6 amendments at work-unit scope**
+
+        - _Goal:_ The terminal report accounts for every approved success criterion and proves the replayable
+          verification continuation remains coherent across delivery-entry, mutation, workflow, and Candidate seams.
+
+        - `[ ]` **9.1.R.a Revalidate the delivery-state entry diagnostic repair at work-unit scope**
+
+            - _Goal:_ The existing terminal report remains valid over the narrow state-refusal carrier, and the new
+              delta adds no recovery authority, migration reader, durable state, or cross-member behavior.
+
+        - `[ ]` **9.1.R.b Revalidate exact conflict adoption at work-unit scope**
+
+            - _Goal:_ The terminal report accounts for D5.11 and proves that changed dependent verification composes
+              with delivery entry, mutation barriers, member review, and Candidate/integration continuity.
 
 ---
 
@@ -1991,6 +2232,28 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - `[x]` The public delivery-position command composes fresh Git and host facts from canonical plan/state plus
   repository and remote locators through the existing adapter boundary. Workflow callers never author observation
   facts; unavailable observation and active-operation recovery remain typed stops.
+
+- `[x]` Registered selected-member correction publication requires the candidate to descend from both the selected
+  member's bound head and its current non-terminal predecessor when one exists. An empty dependent suffix invokes no
+  provider mutation and reaches the existing reserved terminal-top settlement only when absorption is owed. Provider
+  preparation refusals preserve a stable provider-neutral reason plus bounded actionable adapter detail; no
+  diagnostic becomes durable state or mutation authority.
+
+- `[x]` A dependent-suffix review-fix settlement atomically records the exact selected deliverable whose member
+  verification remains owed. Its final response and a later execution entry project the same exact
+  member-verification, Tier 1 continuation, and acknowledgment input. If the final refresh or adoption response is
+  lost, execution entry resumes that continuation without replanning or another provider mutation; every other
+  delivery mutation remains blocked. After the checks and correction-task closure, acknowledgment bound to the
+  entry-emitted state revision and canonical continuation digest clears the continuation by version check and
+  converges idempotently after its own lost response, while mismatched, intervening, or stale requests refuse.
+  Ordinary refreshes record no continuation, and no provider-specific fact, check result, proof, review verdict, or
+  generalized workflow state becomes durable.
+
+- `[ ]` An attended dependent-suffix adoption returns a mutation-free exact consent input when mechanical reapply
+  conflicts, accepts only the unchanged freshly reobserved conflict set, and preserves structural proof for every
+  unconflicted member. Approved conflicts are changed contributions, so settlement and replay retain the selected
+  member plus every changed dependent in plan order through exact acknowledgment; decline restores the external refs
+  by lease, and no proof, provider fact, check result, or reusable approval record becomes durable.
 
 ### Member 7 — `review-fan-out`
 

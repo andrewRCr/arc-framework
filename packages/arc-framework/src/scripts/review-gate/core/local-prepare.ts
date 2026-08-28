@@ -81,6 +81,9 @@ export async function publishLocalReviewPreparation(
     targetId: admission.target.targetId,
     requestId: admission.carrier.request.requestId,
     laneSourceId: admission.laneSourceId,
+    ...(admission.deliveryAdmission === undefined
+      ? {}
+      : { deliveryAdmission: admission.deliveryAdmission }),
     policyVersion: admission.requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,

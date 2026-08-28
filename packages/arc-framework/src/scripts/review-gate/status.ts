@@ -25,6 +25,15 @@ import {
   ReviewApplicabilitySelectionOfferSchema,
 } from "./policy/review-applicability-resolution.js";
 import { HostedFindingsResponsePlanSchema } from "./core/response-plan-schema.js";
+import {
+  ReviewCeilingOverrideSchema,
+  type ReviewCeilingOverride,
+  type ReviewResolveEnvelope,
+} from "./policy/review-policy-driver.js";
+import {
+  DeliveryLocalReviewAdmissionSchema,
+  DeliveryLocalReviewSelectionSchema,
+} from "./policy/delivery-local-review-admission.js";
 
 const ObjectIdSchema = GitObjectIdSchema;
 const BlockedReviewApplicabilitySchema = ReviewContributionApplicabilityResultSchema.refine(
@@ -34,6 +43,7 @@ const BlockedReviewApplicabilitySchema = ReviewContributionApplicabilityResultSc
 
 export const ReviewStatusTargetInputSchema = z.strictObject({
   target: ChangeRequestTargetRefSchema,
+  ceilingOverride: ReviewCeilingOverrideSchema.optional(),
 });
 export type ReviewStatusTargetInput = z.infer<typeof ReviewStatusTargetInputSchema>;
 
@@ -59,6 +69,11 @@ export const DeliveryReviewConjunctionSchema = z.strictObject({
   }
 });
 export type DeliveryReviewConjunction = z.infer<typeof DeliveryReviewConjunctionSchema>;
+
+export const DeliveryLocalResumeActionSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  operationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u),
+});
 
 export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
@@ -87,6 +102,24 @@ export const RoutedReviewObligationSchema = z.union([
     detail: z.string().min(1),
     conjunction: DeliveryReviewConjunctionSchema.refine(
       (conjunction) => conjunction.status === "outstanding",
+      "delivery local review requires an outstanding conjunction",
+    ),
+    localAction: DeliveryLocalReviewSelectionSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    conjunction: DeliveryReviewConjunctionSchema.refine(
+      (conjunction) => conjunction.status === "outstanding",
+      "delivery local review resume requires an outstanding conjunction",
+    ),
+    localResumeAction: DeliveryLocalResumeActionSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    conjunction: DeliveryReviewConjunctionSchema.refine(
+      (conjunction) => conjunction.status === "outstanding",
       "delivery review applicability requires an outstanding conjunction",
     ),
     selectionAction: ReviewApplicabilitySelectionOfferSchema,
@@ -99,6 +132,15 @@ export const RoutedReviewObligationSchema = z.union([
       "delivery findings response requires an outstanding conjunction",
     ),
     responsePlan: HostedFindingsResponsePlanSchema,
+  }),
+  z.strictObject({
+    state: z.literal("approval-required"),
+    detail: z.string().min(1),
+    conjunction: DeliveryReviewConjunctionSchema.refine(
+      (conjunction) => conjunction.status === "outstanding",
+      "delivery review ceiling approval requires an outstanding conjunction",
+    ),
+    consequence: ReviewCeilingOverrideSchema,
   }),
   z.strictObject({
     state: z.literal("applicability-blocked"),
@@ -141,6 +183,9 @@ export function composeDeliveryReviewObligation(input: {
     applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
     applicabilityAuthority?: "decision-required" | "blocked";
     responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
+    localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+    requestAdmission?: ReviewResolveEnvelope;
+    requestCeilingOverride?: ReviewCeilingOverride;
   }[];
   applicabilityContext?: {
     workUnitId: string;
@@ -230,11 +275,81 @@ export function composeDeliveryReviewObligation(input: {
       responsePlan: discharge.responsePlan,
     });
   }
+  if (discharge?.localResumeAction !== undefined) {
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      conjunction: { kind: "delivery", status: "outstanding", members },
+      localResumeAction: discharge.localResumeAction,
+    });
+  }
+  if (discharge?.requestAdmission?.state === "approval-required") {
+    return RoutedReviewObligationSchema.parse({
+      state: "approval-required",
+      detail: discharge.detail,
+      conjunction: { kind: "delivery", status: "outstanding", members },
+      consequence: discharge.requestAdmission.payload.consequence,
+    });
+  }
   if (target === undefined || discharge === undefined || discharge.nextSource === null) {
     return {
       state: "blocked",
-      detail: "The first outstanding delivery member has no admissible reserved hosted source.",
+      detail: "The first outstanding delivery member has no admissible reserved standard-review source.",
     };
+  }
+  if (discharge.requestAdmission === undefined) {
+    return {
+      state: "blocked",
+      detail: "The first outstanding delivery member has no standard-review driver admission.",
+    };
+  }
+  if (discharge.requestAdmission.state !== "ready"
+    || (discharge.requestAdmission.nextAction !== "hosted-request"
+      && discharge.requestAdmission.nextAction !== "local-prepare")) {
+    return {
+      state: "blocked",
+      detail: `The standard-review driver refused a member review request (${discharge.requestAdmission.state}).`,
+    };
+  }
+  if (discharge.requestAdmission.payload.sourceId !== discharge.nextSource) {
+    return {
+      state: "blocked",
+      detail: "The discharge projection and standard-review driver selected different sources.",
+    };
+  }
+  if (discharge.requestAdmission.payload.ceilingOverrideApplied
+    !== (discharge.requestCeilingOverride !== undefined)) {
+    return {
+      state: "blocked",
+      detail: "The standard-review driver and member review action disagree about ceiling-override admission.",
+    };
+  }
+  if (discharge.requestAdmission.nextAction === "local-prepare") {
+    if (discharge.nextSource !== "delegated-agent") {
+      return {
+        state: "blocked",
+        detail: "The standard-review driver selected an unsupported local review source.",
+      };
+    }
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      conjunction: { kind: "delivery", status: "outstanding", members },
+      localAction: {
+        schemaVersion: 1,
+        sourceId: "delegated-agent",
+        target: HostedTargetSchema.parse({
+          repository: target.repository,
+          pullRequest: target.pullRequest,
+          headSha: target.headSha,
+        }),
+        vehicle: target.vehicle,
+        pass: discharge.requestAdmission.payload.pass,
+        ...(discharge.requestCeilingOverride === undefined
+          ? {}
+          : { ceilingOverride: discharge.requestCeilingOverride }),
+      },
+    });
   }
   const provider = HostedProviderIdSchema.safeParse(discharge.nextSource);
   if (!provider.success) {
@@ -257,6 +372,9 @@ export function composeDeliveryReviewObligation(input: {
       provider: provider.data,
       coverage: "complete",
       vehicle: target.vehicle,
+      ...(discharge.requestCeilingOverride === undefined
+        ? {}
+        : { ceilingOverride: discharge.requestCeilingOverride }),
     },
   });
 }
@@ -273,71 +391,136 @@ const ReviewStatusBaseShape = {
   currentBaseOid: GitObjectIdSchema.nullable(),
 };
 
-export const ReviewStatusResultSchema = z.union([
-  z.strictObject({ ...ReviewStatusBaseShape, state: z.literal("settled"), nextAction: z.literal("continue-reconcile") }),
-  z.strictObject({ ...ReviewStatusBaseShape, state: z.literal("review-required"), nextAction: z.literal("run-review") }),
-  z.strictObject({
-    ...ReviewStatusBaseShape,
-    state: z.literal("review-required"),
-    nextAction: z.literal("review-hosted-request"),
-    action: HostedRequestEnvelopeSchema,
-  }),
-  z.strictObject({
-    ...ReviewStatusBaseShape,
-    state: z.literal("review-required"),
-    nextAction: z.literal("resolve-review-applicability"),
-    selectionAction: ReviewApplicabilitySelectionOfferSchema,
-  }),
-  z.strictObject({
-    ...ReviewStatusBaseShape,
-    state: z.literal("review-required"),
-    nextAction: z.literal("respond-to-findings"),
-    responsePlan: HostedFindingsResponsePlanSchema,
-  }),
-  z.strictObject({
-    ...ReviewStatusBaseShape,
-    state: z.literal("applicability-rerun"),
-    nextAction: z.literal("rerun-checkpoint"),
-    applicability: BlockedReviewApplicabilitySchema,
-  }),
-  z.strictObject({
-    ...ReviewStatusBaseShape,
-    state: z.literal("applicability-unsupported"),
-    nextAction: z.literal("upgrade"),
-    applicability: BlockedReviewApplicabilitySchema,
-  }),
-  z.strictObject({
-    ...ReviewStatusBaseShape,
-    state: z.literal("blocked"),
-    nextAction: z.literal("stop"),
-    reason: z.enum(["applicability-failed", "applicability-unavailable"]),
-    detail: z.string().trim().min(1),
-    remedy: SpineRemedySchema,
-    applicability: BlockedReviewApplicabilitySchema,
-  }),
-  z.strictObject({
-    ...ReviewStatusBaseShape,
-    state: z.literal("blocked"),
-    nextAction: z.literal("stop"),
-    reason: z.literal("applicability-selection-conflict"),
-    detail: z.string().trim().min(1),
-    remedy: SpineRemedySchema,
-    applicability: ReviewApplicabilityDecisionProjectionSchema,
-  }),
-  z.strictObject({ ...ReviewStatusBaseShape, state: z.literal("checks-pending"), nextAction: z.literal("rerun-checkpoint") }),
-  z.strictObject({ ...ReviewStatusBaseShape, state: z.literal("base-moved"), nextAction: z.literal("rerun-checkpoint") }),
-  z.strictObject({
-    ...ReviewStatusBaseShape,
-    state: z.literal("blocked"),
-    nextAction: z.literal("stop"),
-    reason: z.enum(["stale-target", "checks-failed", "status-unavailable"]),
-    detail: z.string().trim().min(1),
-    remedy: SpineRemedySchema,
-  }),
+const ReviewStatusSettledSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("settled"),
+  nextAction: z.literal("continue-reconcile"),
+});
+const ReviewStatusRunReviewSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("run-review"),
+});
+const ReviewStatusHostedRequestSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("review-hosted-request"),
+  action: HostedRequestEnvelopeSchema,
+});
+const ReviewStatusLocalPrepareSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("review-local-prepare"),
+  action: DeliveryLocalReviewAdmissionSchema,
+});
+const ReviewStatusLocalResumeSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("review-local-resume"),
+  action: DeliveryLocalResumeActionSchema,
+});
+const ReviewStatusApplicabilitySelectionSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("resolve-review-applicability"),
+  selectionAction: ReviewApplicabilitySelectionOfferSchema,
+});
+const ReviewStatusFindingsResponseSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("respond-to-findings"),
+  responsePlan: HostedFindingsResponsePlanSchema,
+});
+const ReviewStatusCeilingApprovalSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("approval-required"),
+  nextAction: z.literal("obtain-ceiling-override"),
+  consequence: ReviewCeilingOverrideSchema,
+});
+const ReviewStatusApplicabilityRerunSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("applicability-rerun"),
+  nextAction: z.literal("rerun-checkpoint"),
+  applicability: BlockedReviewApplicabilitySchema,
+});
+const ReviewStatusApplicabilityUnsupportedSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("applicability-unsupported"),
+  nextAction: z.literal("upgrade"),
+  applicability: BlockedReviewApplicabilitySchema,
+});
+const ReviewStatusApplicabilityBlockedSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("blocked"),
+  nextAction: z.literal("stop"),
+  reason: z.enum(["applicability-failed", "applicability-unavailable"]),
+  detail: z.string().trim().min(1),
+  remedy: SpineRemedySchema,
+  applicability: BlockedReviewApplicabilitySchema,
+});
+const ReviewStatusApplicabilityConflictSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("blocked"),
+  nextAction: z.literal("stop"),
+  reason: z.literal("applicability-selection-conflict"),
+  detail: z.string().trim().min(1),
+  remedy: SpineRemedySchema,
+  applicability: ReviewApplicabilityDecisionProjectionSchema,
+});
+const ReviewStatusChecksPendingSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("checks-pending"),
+  nextAction: z.literal("rerun-checkpoint"),
+});
+const ReviewStatusBaseMovedSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("base-moved"),
+  nextAction: z.literal("rerun-checkpoint"),
+});
+const ReviewStatusBlockedSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("blocked"),
+  nextAction: z.literal("stop"),
+  reason: z.enum(["stale-target", "checks-failed", "status-unavailable"]),
+  detail: z.string().trim().min(1),
+  remedy: SpineRemedySchema,
+});
+export type ReviewStatusResult =
+  | z.infer<typeof ReviewStatusSettledSchema>
+  | z.infer<typeof ReviewStatusRunReviewSchema>
+  | z.infer<typeof ReviewStatusHostedRequestSchema>
+  | z.infer<typeof ReviewStatusLocalPrepareSchema>
+  | z.infer<typeof ReviewStatusLocalResumeSchema>
+  | z.infer<typeof ReviewStatusApplicabilitySelectionSchema>
+  | z.infer<typeof ReviewStatusFindingsResponseSchema>
+  | z.infer<typeof ReviewStatusCeilingApprovalSchema>
+  | z.infer<typeof ReviewStatusApplicabilityRerunSchema>
+  | z.infer<typeof ReviewStatusApplicabilityUnsupportedSchema>
+  | z.infer<typeof ReviewStatusApplicabilityBlockedSchema>
+  | z.infer<typeof ReviewStatusApplicabilityConflictSchema>
+  | z.infer<typeof ReviewStatusChecksPendingSchema>
+  | z.infer<typeof ReviewStatusBaseMovedSchema>
+  | z.infer<typeof ReviewStatusBlockedSchema>;
+const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union([
+  ReviewStatusSettledSchema,
+  ReviewStatusRunReviewSchema,
+  ReviewStatusHostedRequestSchema,
+  ReviewStatusLocalPrepareSchema,
+  ReviewStatusLocalResumeSchema,
+  ReviewStatusApplicabilitySelectionSchema,
+  ReviewStatusFindingsResponseSchema,
+  ReviewStatusCeilingApprovalSchema,
+  ReviewStatusApplicabilityRerunSchema,
+  ReviewStatusApplicabilityUnsupportedSchema,
+  ReviewStatusApplicabilityBlockedSchema,
+  ReviewStatusApplicabilityConflictSchema,
+  ReviewStatusChecksPendingSchema,
+  ReviewStatusBaseMovedSchema,
+  ReviewStatusBlockedSchema,
 ]);
-export type ReviewStatusResult = z.infer<typeof ReviewStatusResultSchema>;
+export const ReviewStatusResultSchema: z.ZodType<ReviewStatusResult> = ReviewStatusResultSchemaInternal;
 
-export const ReviewStatusCommandResultSchema = z.union([
+const ReviewStatusCommandResultSchemaInternal = z.union([
   ReviewStatusResultSchema,
   z.strictObject({
     schemaVersion: z.literal(1),
@@ -353,6 +536,9 @@ export const ReviewStatusCommandResultSchema = z.union([
     remedy: SpineRemedySchema,
   }),
 ]);
+export type ReviewStatusCommandResult = z.infer<typeof ReviewStatusCommandResultSchemaInternal>;
+export const ReviewStatusCommandResultSchema: z.ZodType<ReviewStatusCommandResult> =
+  ReviewStatusCommandResultSchemaInternal;
 
 export interface ReviewStatusObservation {
   actualHeadSha: string;
@@ -363,7 +549,10 @@ export interface ReviewStatusObservation {
 }
 
 export interface ReviewStatusPort {
-  observe(target: z.infer<typeof ChangeRequestTargetRefSchema>): Promise<ReviewStatusObservation>;
+  observe(
+    target: z.infer<typeof ChangeRequestTargetRefSchema>,
+    ceilingOverride?: ReviewCeilingOverride,
+  ): Promise<ReviewStatusObservation>;
 }
 
 /** Reduce live exact-target evidence to one orchestration action. */
@@ -372,7 +561,7 @@ export async function resolveReviewStatus(
   port: ReviewStatusPort,
 ): Promise<ReviewStatusResult> {
   const request = ReviewStatusTargetInputSchema.parse(input);
-  const observation = await port.observe(request.target);
+  const observation = await port.observe(request.target, request.ceilingOverride);
   const actualHeadSha = ObjectIdSchema.parse(observation.actualHeadSha);
   const base = {
     schemaVersion: 1 as const,
@@ -437,6 +626,14 @@ export async function resolveReviewStatus(
       applicability: base.routedObligation.applicability,
     };
   }
+  if (base.routedObligation.state === "approval-required") {
+    return {
+      ...base,
+      state: "approval-required",
+      nextAction: "obtain-ceiling-override",
+      consequence: base.routedObligation.consequence,
+    };
+  }
   if (base.currentBaseOid === null || base.routedObligation.state === "blocked") {
     return {
       ...base,
@@ -472,6 +669,25 @@ export async function resolveReviewStatus(
         state: "review-required",
         nextAction: "review-hosted-request",
         action: base.routedObligation.action,
+      };
+    }
+    if ("localAction" in base.routedObligation) {
+      return {
+        ...base,
+        state: "review-required",
+        nextAction: "review-local-prepare",
+        action: DeliveryLocalReviewAdmissionSchema.parse({
+          ...base.routedObligation.localAction,
+          statusTarget: request.target,
+        }),
+      };
+    }
+    if ("localResumeAction" in base.routedObligation) {
+      return {
+        ...base,
+        state: "review-required",
+        nextAction: "review-local-resume",
+        action: base.routedObligation.localResumeAction,
       };
     }
     return { ...base, state: "review-required", nextAction: "run-review" };

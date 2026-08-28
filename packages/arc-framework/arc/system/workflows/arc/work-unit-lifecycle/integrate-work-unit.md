@@ -166,11 +166,38 @@ to that reservation, resolve its exact current `targetRef`, and invoke:
 arc review status --target '{targetRef}' --json
 ```
 
-Dispatch only on `nextAction`. `review-hosted-request` means pass the returned action unchanged to:
+Dispatch only on `nextAction`. `obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
+Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
+with the returned consequence serialized unchanged:
+
+```bash
+arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
+```
+
+`review-hosted-request` means pass the returned action unchanged to:
 
 ```bash
 arc review hosted request -
 ```
+
+`review-local-prepare` returns the exact standard-review driver admission. Pass its `action` unchanged as
+`deliveryAdmission` in the ordinary local prepare request:
+
+```bash
+arc review local prepare -
+```
+
+Follow the typed local launch, attest, reduce, and findings-response sequence. Do not rerun source selection or
+substitute the current checkout head for the returned member head. After the local attempt concludes, re-enter
+through `arc review status`; durable lane progress consumes the admitted pass.
+
+`review-local-resume` means pass the returned action unchanged to:
+
+```bash
+arc review local resume -
+```
+
+Follow the same typed local sequence, then re-enter through `arc review status`.
 
 `respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
 [`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:

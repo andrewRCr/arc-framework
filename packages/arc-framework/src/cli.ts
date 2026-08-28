@@ -876,6 +876,11 @@ deliveryReviewFix.command("publish").description("Publish one selected member be
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("review-fix-publish", { ...opts, input }, context)
   )));
+deliveryReviewFix.command("acknowledge").description("Consume one completed review-fix verification continuation")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("review-fix-acknowledge", { ...opts, input }, context)
+  )));
 delivery.command("position").description("Derive the exact current delivery position")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
@@ -1536,6 +1541,7 @@ reviewCmd
   .command("status")
   .description("Resolve exact-target review, check, and base status")
   .requiredOption("--target <target-ref>", "JSON targetRef emitted by review change-request resolve")
+  .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
   .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

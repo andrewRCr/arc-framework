@@ -96,6 +96,7 @@ function state(options: {
       coordinates: { base: BASE, head, tree: TREE },
     })),
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
 }
 

@@ -10,7 +10,11 @@ import {
 } from "../../../src/lib/delivery/task-list-render.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import { projectPublicationBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import {
+  deliveryFourMemberStackPlanFixture,
+  deliveryStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const plan = deliveryStackPlanFixture();
@@ -228,6 +232,41 @@ describe("delivery entry inspection", () => {
         stateRevision: 3,
         selectedDeliverableId: plan.members[0]?.deliverableId,
         entryMode: "execution",
+      });
+  });
+
+  it("resumes exact pending review-fix verification before correction replanning", async () => {
+    const multiPlan = deliveryFourMemberStackPlanFixture();
+    const selectedDeliverableId = multiPlan.members[0]!.deliverableId;
+    const memberDeliverableIds = [selectedDeliverableId, multiPlan.members[1]!.deliverableId];
+    const state = {
+      ...deliveryStateFixture(multiPlan),
+      pendingReviewFixVerification: { selectedDeliverableId, memberDeliverableIds },
+    } as unknown as ReturnType<typeof deliveryStateFixture>;
+    const taskList = `${prefix}${renderDeliveryPlanSection(multiPlan)}`
+      + "## **Phase 1:** Build\n\n### `[ ]` **1.1 Work**\n";
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: multiPlan.workUnitId,
+      entryMode: "execution",
+    }, dependencies({ taskList, resolvedPlan: multiPlan, state, stateRevision: 9 })))
+      .resolves.toMatchObject({
+        status: "review-fix-verification-required",
+        nextAction: "verify-review-fix",
+        planId: multiPlan.planId,
+        stateRevision: 9,
+        selectedDeliverableId,
+        verification: {
+          memberDeliverableIds,
+          tier1Required: true,
+        },
+        acknowledgementInput: {
+          planId: multiPlan.planId,
+          selectedDeliverableId,
+          memberDeliverableIds,
+          expectedStateRevision: 9,
+          continuationDigest: canonicalDigest(state),
+        },
       });
   });
 

@@ -12,18 +12,111 @@ import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import { readLaneProgress, type LaneProgressProjection } from "../lane-progress.js";
+import {
+  laneProgressOperationId,
+  readLaneProgress,
+  type LaneProgressProjection,
+} from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
 import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
+import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   candidateExpectsEarlierReviewAttempt,
   projectEarlierReviewApplicability,
 } from "./earlier-review-applicability.js";
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
+
+function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
+  return attempt.local !== undefined || attempt.hosted?.effectiveCoverage === "complete";
+}
+
+function isCompleteStandardRequest(attempt: ProjectedLaneAttempt): boolean {
+  return attempt.local !== undefined || attempt.hosted?.requestedCoverage === "complete";
+}
+
+function attemptMatchesTarget(
+  attempt: ProjectedLaneAttempt,
+  stateHead: string,
+  target: NonNullable<Parameters<typeof projectHostedReservationDischarge>[0]["target"]>,
+): boolean {
+  const hosted = attempt.hosted;
+  if (hosted !== undefined) {
+    return hosted.target.repository.toLowerCase() === target.repository.toLowerCase()
+      && hosted.target.pullRequest === target.pullRequest
+      && hosted.target.headSha === stateHead
+      && sameDeliveryReviewMemberVehicle(target.vehicle, hosted.vehicle);
+  }
+  const local = attempt.local;
+  if (local === undefined || local.target.headSha !== stateHead) return false;
+  if (target.vehicle === undefined) return local.vehicle.kind === "work-unit";
+  const admission = local.deliveryAdmission;
+  return admission !== undefined
+    && local.vehicle.kind === "delivery-member"
+    && local.target.kind === "delivery-member"
+    && sameDeliveryReviewMemberVehicle(target.vehicle, admission.vehicle)
+    && admission.target.repository.toLowerCase() === target.repository.toLowerCase()
+    && admission.target.pullRequest === target.pullRequest
+    && admission.target.headSha === stateHead;
+}
+
+/** Safe source progress retained for the next request's standard-review driver admission. */
+export interface HostedReservationRequestAttempt {
+  readonly sourceId: string;
+  readonly outcome: "rate-limited" | "transient-unavailable";
+}
+
+interface PendingFindingRoute {
+  readonly sourceId: string;
+  readonly responsePlan?: HostedFindingsResponsePlan;
+  readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
+}
+
+function projectPendingFindings(
+  attempts: readonly PendingFindingRoute[],
+  timing: "current" | "retained",
+): HostedReservationDischarge | null {
+  if (attempts.length === 0) return null;
+  const exact = attempts.length === 1 ? attempts[0] : undefined;
+  if (exact?.responsePlan !== undefined && exact.localResumeAction === undefined) {
+    return {
+      discharged: false,
+      detail: `Hosted source \`${exact.sourceId}\` has ${timing} findings awaiting disposition.`,
+      nextSource: null,
+      responsePlan: exact.responsePlan,
+    };
+  }
+  if (exact?.localResumeAction !== undefined && exact.responsePlan === undefined) {
+    return {
+      discharged: false,
+      detail: `Standard source \`${exact.sourceId}\` has ${timing === "retained" ? "retained " : ""}`
+        + "local findings awaiting disposition.",
+      nextSource: null,
+      localResumeAction: exact.localResumeAction,
+    };
+  }
+  return {
+    discharged: false,
+    detail: `The reserved standard-review sources have ${timing} findings without one exact response route.`,
+    nextSource: null,
+  };
+}
+
+function retainedSafeUnavailableAttempt(
+  sourceId: string,
+  attempts: readonly { readonly outcome: string }[],
+): HostedReservationRequestAttempt | null {
+  if (attempts.length === 0 || attempts.some(({ outcome }) => (
+    outcome !== "rate-limited" && outcome !== "transient-unavailable"
+  ))) return null;
+  const outcome = attempts.at(-1)?.outcome;
+  return outcome === "rate-limited" || outcome === "transient-unavailable"
+    ? { sourceId, outcome }
+    : null;
+}
 
 /** Whether the reserved hosted review has produced a verdict, with the evidence for that reading. */
 export interface HostedReservationDischarge {
@@ -33,6 +126,8 @@ export interface HostedReservationDischarge {
   applicability?: ReviewContributionApplicabilityResult;
   applicabilityAuthority?: "decision-required" | "blocked";
   responsePlan?: HostedFindingsResponsePlan;
+  localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
+  requestAttempts?: readonly HostedReservationRequestAttempt[];
 }
 
 /** Decide the work-unit obligation from its ordered member discharges. */
@@ -144,6 +239,7 @@ export async function projectHostedReservationDischarge(input: {
     sourceId: string,
   ) => Promise<EarlierHostedAttemptApplicabilityRead>;
   requireEarlierApplicabilityEvidence?: boolean | ((sourceId: string) => boolean);
+  bindCurrentAttemptRef?: (attemptId: string) => string;
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
   if (reservation === null) {
@@ -162,37 +258,134 @@ export async function projectHostedReservationDischarge(input: {
     const progress = await input.readLaneProgress(headSha);
     if (progress.status !== "recorded") continue;
     attemptsByHead.set(headSha, progress.attempts.filter((attempt) => (
-      attempt.hosted !== undefined
-      && attempt.hosted.target.repository.toLowerCase() === target.repository.toLowerCase()
-      && attempt.hosted.target.pullRequest === target.pullRequest
-      && attempt.hosted.target.headSha === headSha
-      && sameDeliveryReviewMemberVehicle(target.vehicle, attempt.hosted.vehicle)
+      attemptMatchesTarget(attempt, headSha, target)
     )));
   }
   const allAttempts = [...attemptsByHead.values()].flat();
   const currentAttempts = attemptsByHead.get(target.headSha) ?? [];
+  const requestAttempts: HostedReservationRequestAttempt[] = [];
+  const currentFindingRoutes = reservation.sources.flatMap((sourceId) => (
+    currentAttempts
+      .filter((attempt) => attempt.sourceId === sourceId && attempt.outcome === "findings")
+      .map((attempt): PendingFindingRoute => {
+        if (attempt.local !== undefined) {
+          return {
+            sourceId,
+            localResumeAction: { schemaVersion: 1, operationId: attempt.attemptId },
+          };
+        }
+        if (attempt.hosted === undefined
+          || attempt.hosted.findings.length === 0
+          || input.bindCurrentAttemptRef === undefined) return { sourceId };
+        return {
+          sourceId,
+          responsePlan: {
+            schemaVersion: 1,
+            target: attempt.hosted.reviewTarget,
+            source: {
+              kind: "hosted",
+              attemptRef: input.bindCurrentAttemptRef(attempt.attemptId),
+            },
+            findings: attempt.hosted.findings.map((finding) => ({
+              findingId: finding.findingId,
+              severity: finding.severity,
+              locus: finding.locus,
+              evidenceUrlOrId: finding.url,
+            })),
+          },
+        };
+      })
+  ));
+  const currentFindings = projectPendingFindings(currentFindingRoutes, "current");
+  if (currentFindings !== null) return currentFindings;
+
+  const earlierBySource = new Map<string, EarlierHostedAttemptApplicabilityRead>();
+  const readEarlier = async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> => {
+    if (input.readEarlierAttemptApplicability === undefined) return null;
+    const cached = earlierBySource.get(sourceId);
+    if (cached !== undefined) return cached;
+    const read = await input.readEarlierAttemptApplicability(sourceId);
+    earlierBySource.set(sourceId, read);
+    return read;
+  };
+  const retainedFindingsBeforeRequest = async (): Promise<HostedReservationDischarge | null> => {
+    if (input.readEarlierAttemptApplicability === undefined) return null;
+    await Promise.all(reservation.sources.map((sourceId) => readEarlier(sourceId)));
+    const routes: PendingFindingRoute[] = [];
+    for (const sourceId of reservation.sources) {
+      const earlier = earlierBySource.get(sourceId);
+      const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
+        ? input.requireEarlierApplicabilityEvidence(sourceId)
+        : input.requireEarlierApplicabilityEvidence === true;
+      if (earlier === undefined || earlier.status === "unavailable") {
+        return {
+          discharged: false,
+          detail: earlier?.status === "unavailable"
+            ? earlier.detail
+            : "Earlier review applicability evidence is incomplete.",
+          nextSource: null,
+        };
+      }
+      if ((earlier.status === "not-found" && evidenceRequired)
+        || (earlier.status === "complete" && earlier.attempts.length === 0)) {
+        return {
+          discharged: false,
+          detail: "Earlier review applicability evidence is incomplete.",
+          nextSource: null,
+        };
+      }
+      if (earlier.status !== "complete") continue;
+      routes.push(...earlier.attempts
+        .filter((attempt) => attempt.sourceId === sourceId && attempt.outcome === "findings")
+        .map((attempt) => ({
+          sourceId,
+          ...(attempt.responsePlan === undefined ? {} : { responsePlan: attempt.responsePlan }),
+          ...(attempt.localResumeAction === undefined
+            ? {}
+            : { localResumeAction: attempt.localResumeAction }),
+        })));
+    }
+    return projectPendingFindings(routes, "retained");
+  };
   for (const sourceId of reservation.sources) {
-    const settledAcrossSpan = allAttempts.some((attempt) => attempt.sourceId === sourceId
+    const settledCurrentHead = currentAttempts.some((attempt) => attempt.sourceId === sourceId
+      && isCompleteStandardVerdict(attempt)
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
-    if (settledAcrossSpan) {
-      return { discharged: true, detail: `Hosted source \`${sourceId}\`.`, nextSource: null };
+    const settledWithoutApplicabilityReader = input.readEarlierAttemptApplicability === undefined
+      && allAttempts.some((attempt) => attempt.sourceId === sourceId
+        && isCompleteStandardVerdict(attempt)
+        && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
+    if (settledCurrentHead || settledWithoutApplicabilityReader) {
+      return {
+        discharged: true,
+        detail: `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\`.`,
+        nextSource: null,
+      };
     }
     const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
-    const safelyUnavailable = sourceAttempts.length > 0 && sourceAttempts.every(({ outcome }) => (
-      outcome === "rate-limited" || outcome === "transient-unavailable"
-    ));
-    if (safelyUnavailable) continue;
+    const safelyUnavailable = retainedSafeUnavailableAttempt(
+      sourceId,
+      sourceAttempts.filter(isCompleteStandardRequest),
+    );
+    if (safelyUnavailable !== null) {
+      requestAttempts.push(safelyUnavailable);
+      continue;
+    }
     if (input.readEarlierAttemptApplicability !== undefined) {
-      const earlier = await input.readEarlierAttemptApplicability(sourceId);
+      const earlier = await readEarlier(sourceId);
+      if (earlier === null) throw new Error("earlier applicability reader disappeared");
       const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
         ? input.requireEarlierApplicabilityEvidence(sourceId)
         : input.requireEarlierApplicabilityEvidence === true;
       if (earlier.status === "not-found" && !evidenceRequired) {
+        const retainedFindings = await retainedFindingsBeforeRequest();
+        if (retainedFindings !== null) return retainedFindings;
         return {
           discharged: false,
           detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
             + "a settled review across the Candidate span.",
           nextSource: sourceId,
+          requestAttempts,
         };
       }
       if (earlier.status !== "complete" || earlier.attempts.length === 0) {
@@ -205,7 +398,10 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const selected = earlier.attempts.filter((attempt) => attempt.sourceId === sourceId);
-      const stopped = selected.find(({ applicability }) => applicability === "stop");
+      const standardAttempts = selected.filter(({ requestedCoverage, effectiveCoverage }) => (
+        requestedCoverage === "complete" || effectiveCoverage === "complete"
+      ));
+      const stopped = standardAttempts.find(({ applicability }) => applicability === "stop");
       if (stopped !== undefined) {
         return {
           discharged: false,
@@ -217,47 +413,43 @@ export async function projectHostedReservationDischarge(input: {
             : { applicabilityAuthority: stopped.authorityState }),
         };
       }
-      if (selected.some(({ applicability }) => applicability === "request-review")) {
+      if (standardAttempts.some(({ applicability }) => applicability === "request-review")) {
+        const retainedFindings = await retainedFindingsBeforeRequest();
+        if (retainedFindings !== null) return retainedFindings;
         return {
           discharged: false,
           detail: `Hosted source \`${sourceId}\` requires a new review by Owner selection.`,
           nextSource: sourceId,
+          requestAttempts,
         };
       }
-      const applicable = selected.filter(({ applicability }) => applicability === "retain-prior-attempt");
-      const findings = applicable.filter(({ outcome }) => outcome === "findings");
-      if (findings.length > 0) {
-        const responsePlans = findings.flatMap(({ responsePlan }) => responsePlan === undefined ? [] : [responsePlan]);
-        return responsePlans.length === 1
-          ? {
-              discharged: false,
-              detail: `Hosted source \`${sourceId}\` has retained findings awaiting disposition.`,
-              nextSource: null,
-              responsePlan: responsePlans[0],
-            }
-          : {
-              discharged: false,
-              detail: `Hosted source \`${sourceId}\` has retained findings without one exact response plan.`,
-              nextSource: null,
-            };
-      }
-      if (applicable.some(({ outcome }) => outcome === "clean" || outcome === "settled-findings")) {
+      const applicable = standardAttempts.filter(({ applicability }) => applicability === "retain-prior-attempt");
+      if (applicable.some(({ outcome, effectiveCoverage }) => effectiveCoverage === "complete"
+        && (outcome === "clean" || outcome === "settled-findings"))) {
         return {
           discharged: true,
-          detail: `Hosted source \`${sourceId}\` through contribution applicability.`,
+          detail: `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\` through `
+            + "contribution applicability.",
           nextSource: null,
         };
       }
-      const earlierSafelyUnavailable = applicable.length > 0 && applicable.every(({ outcome }) => (
-        outcome === "rate-limited" || outcome === "transient-unavailable"
-      ));
-      if (earlierSafelyUnavailable) continue;
+      const earlierSafelyUnavailable = retainedSafeUnavailableAttempt(
+        sourceId,
+        applicable.filter(({ requestedCoverage }) => requestedCoverage === "complete"),
+      );
+      if (earlierSafelyUnavailable !== null) {
+        requestAttempts.push(earlierSafelyUnavailable);
+        continue;
+      }
     }
+    const retainedFindings = await retainedFindingsBeforeRequest();
+    if (retainedFindings !== null) return retainedFindings;
     return {
       discharged: false,
       detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
         + "a settled review across the Candidate span.",
       nextSource: sourceId,
+      requestAttempts,
     };
   }
   return {
@@ -322,6 +514,15 @@ export function createHostedReservationDischargeReader(input: {
         lane: "standard",
         repositoryId: currentRepositoryId,
         headSha,
+      }),
+      bindCurrentAttemptRef: (attemptId) => bindReviewSourceReference({
+        kind: "hosted",
+        operationId: laneProgressOperationId({
+          lane: "standard",
+          repositoryId: currentRepositoryId,
+          headSha: approvedHead,
+        }),
+        durableRef: attemptId,
       }),
       ...(snapshot === null || changeRequest === null || candidate === undefined
         ? {}

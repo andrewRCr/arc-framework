@@ -21,6 +21,7 @@ import {
   handleReviewChecksAwait,
   handleReviewReduce,
   handleReviewRespond,
+  handleReviewStatus,
 } from "../../../src/handlers/review.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import {
@@ -731,6 +732,52 @@ describe("handleReviewResolve", () => {
       mode: "review-resolve",
       state: "no-op",
       nextAction: "none",
+    });
+  });
+});
+
+describe("handleReviewStatus", () => {
+  it("passes an exact ceiling override into status composition", async () => {
+    const statusTarget = {
+      repository: "owner/repo",
+      headRef: "feat/example",
+      headSha: "c".repeat(40),
+    };
+    const ceilingOverride = {
+      target: { repository: "owner/repo", pullRequest: 42, headSha: "c".repeat(40) },
+      lane: "standard" as const,
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    };
+    const output: string[] = [];
+
+    await handleReviewStatus({
+      target: JSON.stringify(statusTarget),
+      ceilingOverride: JSON.stringify(ceilingOverride),
+      json: true,
+    }, undefined, {
+      resolveRoot: () => "/repo",
+      resolve: async (_root, request) => ({
+        schemaVersion: 1,
+        mode: "review-status",
+        target: request.target,
+        requiredChecks: "green",
+        routedObligation: {
+          state: "review-required",
+          detail: request.ceilingOverride === undefined
+            ? "Ceiling override missing."
+            : `Ceiling override admits pass ${String(request.ceilingOverride.nextPass)}.`,
+        },
+        currentBaseOid: "b".repeat(40),
+        state: "review-required",
+        nextAction: "run-review",
+      }),
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      routedObligation: { detail: "Ceiling override admits pass 3." },
     });
   });
 });

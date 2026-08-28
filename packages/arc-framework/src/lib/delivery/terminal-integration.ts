@@ -33,6 +33,7 @@ export type DeliveryTerminalClaimResult =
         | "candidate-mismatch"
         | "state-mismatch"
         | "operation-active"
+        | "pending-review-fix-verification"
         | "bound-member-missing"
         | "landed-head-mismatch"
         | "candidate-coordinate-unavailable"
@@ -115,6 +116,7 @@ export type DeliveryTerminalCoordinateRebindResult =
         | "publication-boundary-mismatch"
         | "state-mismatch"
         | "operation-active"
+        | "pending-review-fix-verification"
         | "terminal-binding-missing"
         | "candidate-coordinate-mismatch"
         | "top-request-mismatch";
@@ -151,6 +153,9 @@ export function rebindDeliveryTerminalCoordinates(input: {
   }
   if (validated.state.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
+  }
+  if (validated.state.pendingReviewFixVerification !== null) {
+    return { status: "refused", reason: "pending-review-fix-verification" };
   }
   const terminalIndex = validated.state.members.length - 1;
   const terminal = validated.state.members[terminalIndex];
@@ -335,6 +340,9 @@ export async function composeDeliveryTerminalClaim(input: {
   }
   if (validated.state.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
+  }
+  if (validated.state.pendingReviewFixVerification !== null) {
+    return { status: "refused", reason: "pending-review-fix-verification" };
   }
   const nonTerminal = validated.state.members.slice(0, -1);
   const missing = nonTerminal.find((member) => member.coordinates === null);

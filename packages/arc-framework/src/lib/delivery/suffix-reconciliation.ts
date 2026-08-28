@@ -1,6 +1,6 @@
 /** Exact reservation and convergence for one predecessor-changing suffix retarget. */
 
-import { canonicalize } from "../kernel/index.js";
+import { canonicalDigest, canonicalize } from "../kernel/index.js";
 import {
   acceptDeliveryOperationResult,
   checkDeliveryOperationPrecondition,
@@ -22,14 +22,55 @@ import type {
 } from "./contribution-proof.js";
 import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
+import type { DeliveryReviewFixVerificationContinuation } from "./review-fix.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
+
+/** Final provider settlement, optionally carrying the exact changed-member verification continuation. */
+export type DeliveryProviderSettlementAppliedResult =
+  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | ({ readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+    & DeliveryReviewFixVerificationContinuation);
 
 /** One provider-assigned member coordinate change presented to the contribution arbiter. */
 export interface DeliveryProviderRefreshMovement {
   readonly deliverableId: string;
   readonly before: DeliveryOperationSnapshotV1["members"][number];
   readonly after: DeliveryOperationSnapshotV1["members"][number];
+}
+
+/** One mechanically conflicting movement that requires exact operator classification. */
+export interface DeliveryProviderRefreshConflict {
+  readonly deliverableId: string;
+  readonly paths: readonly string[];
+}
+
+/** Response-owned selector for one exact dependent-suffix conflict decision. */
+export interface DeliveryProviderConflictResolutionInput {
+  readonly planId: string;
+  readonly scope: {
+    readonly kind: "dependent-suffix";
+    readonly selectedDeliverableId: string;
+  };
+  readonly expectedStateRevision: number;
+  readonly observedSuffixDigest: string;
+  readonly conflicts: readonly DeliveryProviderRefreshConflict[];
+}
+
+/** Exact lease coordinates needed to undo an externally moved ref after declining adoption. */
+export interface DeliveryProviderExternalRefRestoration {
+  readonly ref: string;
+  readonly observedHead: string;
+  readonly restoreHead: string;
+}
+
+/** Mutation-free operator decision returned for one complete conflicted dependent set. */
+export interface DeliveryProviderConflictResolutionRequired {
+  readonly status: "conflict-resolution-required";
+  readonly conflicts: readonly DeliveryProviderRefreshConflict[];
+  readonly resolutionInput: DeliveryProviderConflictResolutionInput;
+  readonly externalRefRestorations: readonly DeliveryProviderExternalRefRestoration[];
+  readonly recommendedActionText: string;
 }
 
 /** One provider observation whose target movement has been established outside caller-authored input. */
@@ -135,12 +176,44 @@ export async function proveDeliveryProviderRefreshMovements(
   return null;
 }
 
+async function collectDeliveryProviderRefreshConflicts(
+  movements: readonly DeliveryProviderRefreshMovement[],
+  proveContribution: (
+    movement: DeliveryProviderRefreshMovement,
+  ) => Promise<DeliveryContributionProofResult>,
+): Promise<
+  | { readonly status: "assessed"; readonly conflicts: readonly DeliveryProviderRefreshConflict[] }
+  | DeliveryContributionRefusal
+> {
+  const conflicts: DeliveryProviderRefreshConflict[] = [];
+  for (const movement of movements) {
+    const proof = await proveContribution(movement);
+    if (proof.status === "accepted") continue;
+    if (proof.reason !== "contribution-conflicted") return proof;
+    if (proof.paths.length === 0 || proof.paths.some((path) => path.length === 0)) {
+      return { status: "refused", reason: "git-failure" };
+    }
+    conflicts.push({ deliverableId: movement.deliverableId, paths: proof.paths });
+  }
+  return { status: "assessed", conflicts };
+}
+
 function applyProviderSettlement(
   state: DeliveryStateV1,
   observed: DeliveryProviderRefreshObservation,
   terminalCoordinates: NonNullable<DeliveryStateV1["members"][number]["coordinates"]>,
 ): DeliveryStateV1 | null {
   const byId = new Map(observed.snapshot.members.map((member) => [member.deliverableId, member]));
+  const selectedDeliverableId = state.activeOperation?.kind === "rewrite"
+    && (state.activeOperation.mode === "provider-refresh"
+      || state.activeOperation.mode === "provider-adoption")
+    ? state.activeOperation.reviewFixSelectedDeliverableId
+    : undefined;
+  const verificationDeliverableIds = state.activeOperation?.kind === "rewrite"
+    && (state.activeOperation.mode === "provider-refresh"
+      || state.activeOperation.mode === "provider-adoption")
+    ? state.activeOperation.reviewFixVerificationDeliverableIds
+    : undefined;
   const parsed = DeliveryStateV1Schema.safeParse({
     ...state,
     target: observed.snapshot.target,
@@ -155,6 +228,10 @@ function applyProviderSettlement(
       };
     }),
     activeOperation: null,
+    pendingReviewFixVerification: selectedDeliverableId === undefined
+      || verificationDeliverableIds === undefined
+      ? null
+      : { selectedDeliverableId, memberDeliverableIds: verificationDeliverableIds },
   });
   return parsed.success ? parsed.data : null;
 }
@@ -215,7 +292,7 @@ export async function settleReservedDeliverySuffixRefresh(input: {
   readonly plan: DeliveryPlanV1;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
 } & ProviderAdoptionSettlementDependencies): Promise<
-  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | DeliveryProviderSettlementAppliedResult
   | ProviderAdoptionBlockedResult
 > {
   const active = validateDeliveryActiveOperation(input.current);
@@ -268,8 +345,22 @@ export async function settleReservedDeliverySuffixRefresh(input: {
     && !deliveryTerminalAbsorptionOwed(active.state, settlementObservation.snapshot))) {
     return { status: "blocked", reason: "ambiguous" };
   }
-  const refusal = await proveDeliveryProviderRefreshMovements(movements, input.proveContribution);
-  if (refusal !== null) return { ...refusal, status: "blocked" };
+  const verificationIds = active.operation.reviewFixVerificationDeliverableIds ?? [];
+  const reviewFixSelectedDeliverableId = active.operation.reviewFixSelectedDeliverableId;
+  const approvedConflictIds = verificationIds.filter(
+    (deliverableId) => deliverableId !== reviewFixSelectedDeliverableId,
+  );
+  if (approvedConflictIds.length > 0) {
+    const assessment = await collectDeliveryProviderRefreshConflicts(movements, input.proveContribution);
+    if (assessment.status === "refused") return { ...assessment, status: "blocked" };
+    if (canonicalize(assessment.conflicts.map(({ deliverableId }) => deliverableId))
+      !== canonicalize(approvedConflictIds)) {
+      return { status: "blocked", reason: "conflict-resolution-mismatch" };
+    }
+  } else {
+    const refusal = await proveDeliveryProviderRefreshMovements(movements, input.proveContribution);
+    if (refusal !== null) return { ...refusal, status: "blocked" };
+  }
 
   for (const movement of movements) {
     if (movement.before.ref === null || movement.after.ref !== movement.before.ref
@@ -342,9 +433,25 @@ export async function settleReservedDeliverySuffixRefresh(input: {
     applied,
     input.current.revision,
   );
-  return persisted.status === "ok"
-    ? { status: "applied", state: persisted.value }
-    : { status: "blocked", reason: "state-conflict" };
+  if (persisted.status !== "ok") return { status: "blocked", reason: "state-conflict" };
+  const pending = persisted.value.value.pendingReviewFixVerification;
+  if (pending === null) return { status: "applied", state: persisted.value };
+  const selectedDeliverableId = pending.selectedDeliverableId;
+  const memberDeliverableIds = pending.memberDeliverableIds;
+  return {
+    status: "applied",
+    state: persisted.value,
+    selectedDeliverableId,
+    nextAction: "verify-review-fix",
+    verification: { memberDeliverableIds, tier1Required: true },
+    acknowledgementInput: {
+      planId: input.plan.planId,
+      selectedDeliverableId,
+      memberDeliverableIds,
+      expectedStateRevision: persisted.value.revision,
+      continuationDigest: canonicalDigest(persisted.value.value),
+    },
+  };
 }
 
 /** Execute one explicit suffix rewrite through lifecycle revalidation, reservation, lease, and exact adoption. */
@@ -450,9 +557,11 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   readonly affectedDeliverableIds: readonly string[];
   readonly selectedDeliverableId?: string;
   readonly terminalAuthoringMovement?: DeliveryTerminalAuthoringMovementV1;
+  readonly conflictResolution?: DeliveryProviderConflictResolutionInput;
 } & ProviderAdoptionSettlementDependencies): Promise<
-  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | DeliveryProviderSettlementAppliedResult
   | DeliveryContributionRefusal
+  | DeliveryProviderConflictResolutionRequired
   | ProviderAdoptionBlockedResult
   | {
       readonly status: "refused";
@@ -466,11 +575,20 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
         | "state-conflict"
         | "observation-unavailable"
         | "ambiguous-provider-movement"
-        | "target-rewritten";
+        | "target-rewritten"
+        | "conflict-resolution-mismatch";
     }
 > {
   if (input.current.value.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
+  }
+  if (input.conflictResolution !== undefined && (
+    input.selectedDeliverableId === undefined
+    || input.conflictResolution.planId !== input.plan.planId
+    || input.conflictResolution.scope.selectedDeliverableId !== input.selectedDeliverableId
+    || input.conflictResolution.expectedStateRevision !== input.current.revision
+  )) {
+    return { status: "refused", reason: "conflict-resolution-mismatch" };
   }
   if (!isPlannedNonterminalSuffix(input.plan, input.affectedDeliverableIds)
     || validateDeliveryStateAgainstPlan(input.current.value, input.plan).status === "refused") {
@@ -507,8 +625,46 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
     && !deliveryTerminalAbsorptionOwed(input.current.value, observed.snapshot))) {
     return { status: "refused", reason: "ambiguous-result" };
   }
-  const refusal = await proveDeliveryProviderRefreshMovements(movements, input.proveContribution);
-  if (refusal !== null) return refusal;
+  if (input.selectedDeliverableId !== undefined) {
+    const assessment = await collectDeliveryProviderRefreshConflicts(movements, input.proveContribution);
+    if (assessment.status === "refused") return assessment;
+    if (assessment.conflicts.length > 0) {
+      const resolutionInput: DeliveryProviderConflictResolutionInput = {
+        planId: input.plan.planId,
+        scope: { kind: "dependent-suffix", selectedDeliverableId: input.selectedDeliverableId },
+        expectedStateRevision: input.current.revision,
+        observedSuffixDigest: canonicalDigest(observed.snapshot),
+        conflicts: assessment.conflicts,
+      };
+      if (input.conflictResolution !== undefined) {
+        if (canonicalize(input.conflictResolution) !== canonicalize(resolutionInput)) {
+          return { status: "refused", reason: "conflict-resolution-mismatch" };
+        }
+      } else {
+        const externalRefRestorations = movements.flatMap((movement) => (
+          movement.before.ref === null || movement.before.coordinates === null || movement.after.coordinates === null
+            ? []
+            : [{
+                ref: movement.before.ref,
+                observedHead: movement.after.coordinates.head,
+                restoreHead: movement.before.coordinates.head,
+              }]
+        ));
+        return {
+          status: "conflict-resolution-required",
+          conflicts: assessment.conflicts,
+          resolutionInput,
+          externalRefRestorations,
+          recommendedActionText: "Obtain explicit approval for the listed resolved conflicts and resubmit the exact resolution input unchanged, or restore every listed external ref by exact lease.",
+        };
+      }
+    } else if (input.conflictResolution !== undefined) {
+      return { status: "refused", reason: "conflict-resolution-mismatch" };
+    }
+  } else {
+    const refusal = await proveDeliveryProviderRefreshMovements(movements, input.proveContribution);
+    if (refusal !== null) return refusal;
+  }
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: crypto.randomUUID(),
     kind: "rewrite",
@@ -520,6 +676,15 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
     ...(input.terminalAuthoringMovement === undefined
       ? {}
       : { terminalAuthoringMovement: input.terminalAuthoringMovement }),
+    ...(input.selectedDeliverableId === undefined
+      ? {}
+      : {
+          reviewFixSelectedDeliverableId: input.selectedDeliverableId,
+          reviewFixVerificationDeliverableIds: [
+            input.selectedDeliverableId,
+            ...(input.conflictResolution?.conflicts.map(({ deliverableId }) => deliverableId) ?? []),
+          ],
+        }),
   });
   if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
   const persistedReservation = await input.stateStore.publish(

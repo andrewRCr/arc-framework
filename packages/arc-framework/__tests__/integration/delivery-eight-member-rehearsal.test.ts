@@ -72,6 +72,7 @@ describe("eight-member delivery integration rehearsal", () => {
         },
       })),
       activeOperation: null,
+      pendingReviewFixVerification: null,
     });
     const subject = createCandidateSubjectSnapshot([{
       path: "feature.ts",
