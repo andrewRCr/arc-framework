@@ -810,6 +810,12 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   from the adapter instead of collapsing all diagnostics to `unavailable`; the detail is response-only and grants
   no provider authority.
 
+  **Forward clarification (2026-08-28):** append-only protected-target movement does not become part of a
+  dependent-suffix rewrite merely because the provider projects every stack against its current trunk. Preparation
+  validates that movement as append-only, holds every member through the selected member at its exact head, and
+  rewrites only the members above it. The requested snapshot carries the freshly observed target into the existing
+  reserved settlement; rewritten, unavailable, or ambiguous target movement still refuses before mutation.
+
 - **D5.10 Final refresh settlement preserves the owed verification continuation — amended 2026-08-27 after the
   interruption audit demonstrated a lost-response dead end.** A dependent-suffix review-fix reservation carries
   the exact selected deliverable solely so its final settlement can atomically install the refreshed suffix and

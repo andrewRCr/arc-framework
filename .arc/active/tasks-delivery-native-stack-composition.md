@@ -1656,6 +1656,26 @@ structural guarantee rather than operator discipline.
             - _Goal:_ Focused unit, session-init, compaction-recovery, checkpoint, and live self-hosting evidence
               prove orientation remains recoverable while authority remains exclusively at the mutation boundary.
 
+            - _Forward amendment (2026-08-28):_ The live correction continuation reached provider preparation after
+              safely publishing only Member 6, but the adapter compared GitHub's current-trunk projection to the
+              delivery's older target before classifying its proved append-only movement. Repair that exact
+              dependent-refresh discontinuity before completing the criteria walk.
+
+            - `[x]` **6.11.R.x.a Admit append-only target movement during dependent refresh**
+
+                - _Goal:_ Provider-native dependent refresh keeps the selected prefix fixed and rewrites only its
+                  dependents while ordinary append-only protected-target movement remains non-blocking.
+
+                - _Outcome:_ GitHub preparation now proves the live target's append-only lineage before accepting
+                  its current-trunk projection, while core reservation holds every prefix head and tree fixed and
+                  rewrites only dependent refs. Rewritten or ambiguous targets and moved prefixes still refuse.
+
+            - `[ ]` **6.11.R.x.b Revalidate the repaired integration and refresh boundary** — validate criteria at
+              member scope
+
+                - _Goal:_ Focused and live self-hosting evidence close the Candidate-recovery and dependent-refresh
+                  seams without widening the Member 6 criteria walk.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
