@@ -70,6 +70,7 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
     localCommits: Object.fromEntries(state.members.flatMap((member) => (
       member.coordinates === null ? [] : [[member.coordinates.head, true]]
     ))),
+    localHeads: {} as Record<string, string>,
   };
 }
 
@@ -197,6 +198,54 @@ describe("session-init delivery position facts", () => {
           deliverableId: terminal.deliverableId,
           before: terminal.coordinates,
           after: { ...advanced, base: terminal.coordinates!.base },
+          publicationLeaseHead: advanced.head,
+        },
+      },
+    });
+  });
+
+  it("retains a local-only append-only terminal head with its bound publication lease", async () => {
+    const plan = deliveryStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const terminalIndex = initial.members.length - 1;
+    const terminal = initial.members[terminalIndex]!;
+    const binding = { providerId: "github", changeRequestId: "402" };
+    const state = {
+      ...initial,
+      members: initial.members.map((member, index) => index === terminalIndex
+        ? { ...member, changeRequest: binding }
+        : member),
+    };
+    const dependencies = exactDependencies(state);
+    const advanced = { head: "f".repeat(40), tree: "e".repeat(40) };
+    await dependencies.materializeTarget(advanced);
+    const terminalBranch = terminal.ref!.replace(/^refs\/heads\//u, "");
+    dependencies.localHeads[terminalBranch] = advanced.head;
+    dependencies.localCommits[advanced.head] = true;
+    dependencies.host.readRequest.mockResolvedValue({
+      status: "observed",
+      request: {
+        binding,
+        repository: "owner/repository",
+        headRepository: "owner/repository",
+        headRef: terminalBranch,
+        headSha: terminal.coordinates!.head,
+        baseRef: state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
+        state: "open",
+        draft: true,
+      },
+    });
+
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies, {
+      terminalAuthoringMovement: "allow-append-only",
+    })).resolves.toMatchObject({
+      status: "observed",
+      facts: {
+        terminalAuthoringMovement: {
+          deliverableId: terminal.deliverableId,
+          before: terminal.coordinates,
+          after: { ...advanced, base: terminal.coordinates!.base },
+          publicationLeaseHead: terminal.coordinates!.head,
         },
       },
     });
