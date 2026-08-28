@@ -29,7 +29,7 @@ import {
 export interface WorkflowDeclarations {
   methods: string[];
   extensions: string[];
-  /** Present when YAML parsing failed; methods/extensions are empty in that case. */
+  /** Present when YAML parsing or declaration-shape validation fails; declarations are empty in that case. */
   parseError?: string;
 }
 
@@ -39,7 +39,7 @@ export interface CoverageMaps {
   methods: Map<string, string[]>;
   /** extension name → list of workflow paths declaring it */
   extensions: Map<string, string[]>;
-  /** Workflows whose frontmatter could not be parsed. */
+  /** Workflows whose frontmatter could not be parsed or whose declarations were malformed. */
   parseDiagnostics: string[];
   /** Workflow declarations that do not resolve to a registered entry. */
   declarationDiagnostics: string[];
@@ -149,7 +149,7 @@ export function auditActivatableMethodCorpus(methodsDir: string): string[] {
  *
  * - Returns empty arrays (no error) for files without a triple-dash block.
  * - Returns a parseError string when YAML parsing fails.
- * - Silently drops non-string entries from the arrays.
+ * - Returns a parseError string for malformed `arc`, `arc.methods`, or `arc.extensions` shapes.
  */
 export function parseWorkflowFrontmatter(
   content: string,
@@ -158,25 +158,40 @@ export function parseWorkflowFrontmatter(
   if (parseError !== undefined) {
     return { methods: [], extensions: [], parseError };
   }
-  const arc = extractArcBlock(data);
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    return { methods: [], extensions: [] };
+  }
+  const root = data as Record<string, unknown>;
+  if (!("arc" in root)) return { methods: [], extensions: [] };
+  const arc = root.arc;
+  if (arc === null || typeof arc !== "object" || Array.isArray(arc)) {
+    return { methods: [], extensions: [], parseError: "arc must be a mapping" };
+  }
+  const declarations = arc as Record<string, unknown>;
+  const methods = parseDeclarationArray(declarations.methods, "arc.methods");
+  if (methods.error !== undefined) {
+    return { methods: [], extensions: [], parseError: methods.error };
+  }
+  const extensions = parseDeclarationArray(declarations.extensions, "arc.extensions");
+  if (extensions.error !== undefined) {
+    return { methods: [], extensions: [], parseError: extensions.error };
+  }
   return {
-    methods: toStringArray(arc?.methods),
-    extensions: toStringArray(arc?.extensions),
+    methods: methods.values,
+    extensions: extensions.values,
   };
 }
 
-function extractArcBlock(
-  parsed: unknown,
-): { methods?: unknown; extensions?: unknown } | undefined {
-  if (parsed === null || typeof parsed !== "object") return undefined;
-  const arc = (parsed as Record<string, unknown>).arc;
-  if (arc === null || typeof arc !== "object") return undefined;
-  return arc;
-}
-
-function toStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((x): x is string => typeof x === "string");
+function parseDeclarationArray(
+  value: unknown,
+  locus: "arc.methods" | "arc.extensions",
+): { values: string[]; error?: string } {
+  if (value === undefined) return { values: [] };
+  if (!Array.isArray(value)) return { values: [], error: `${locus} must be an array` };
+  if (!value.every((entry) => typeof entry === "string")) {
+    return { values: [], error: `${locus} must contain only strings` };
+  }
+  return { values: value };
 }
 
 /**

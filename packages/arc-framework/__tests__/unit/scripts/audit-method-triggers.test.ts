@@ -83,10 +83,12 @@ function workflow(methods: string[], extensions: string[]): string {
     "purpose: test",
     "audience: agent",
     "arc:",
-    "  methods:",
-    ...methods.map((m) => `    - ${m}`),
-    "  extensions:",
-    ...extensions.map((e) => `    - ${e}`),
+    ...(methods.length > 0
+      ? ["  methods:", ...methods.map((m) => `    - ${m}`)]
+      : []),
+    ...(extensions.length > 0
+      ? ["  extensions:", ...extensions.map((e) => `    - ${e}`)]
+      : []),
     "---",
     "",
     "# Workflow",
@@ -173,6 +175,25 @@ describe("parseWorkflowFrontmatter", () => {
     expect(out.parseError).toBeDefined();
     expect(out.methods).toEqual([]);
     expect(out.extensions).toEqual([]);
+  });
+
+  it.each([
+    ["a non-mapping arc declaration", "arc: []", "arc must be a mapping"],
+    ["a non-array methods declaration", "arc:\n  methods: alpha", "arc.methods must be an array"],
+    ["a mixed-type methods declaration", "arc:\n  methods: [alpha, 123]", "arc.methods must contain only strings"],
+    ["a non-array extensions declaration", "arc:\n  extensions: post-x", "arc.extensions must be an array"],
+    [
+      "a mixed-type extensions declaration",
+      "arc:\n  extensions: [post-x, false]",
+      "arc.extensions must contain only strings",
+    ],
+  ])("reports a parseError for %s", (_label, declaration, diagnostic) => {
+    const out = parseWorkflowFrontmatter(`---\npurpose: test\n${declaration}\n---\n`);
+    expect(out).toEqual({
+      methods: [],
+      extensions: [],
+      parseError: diagnostic,
+    });
   });
 });
 
