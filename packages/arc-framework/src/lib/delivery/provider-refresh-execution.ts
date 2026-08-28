@@ -16,6 +16,7 @@ import {
   changedDeliveryProviderRefreshMovements,
   deliveryTerminalAbsorptionOwed,
   proveDeliveryProviderRefreshMovements,
+  selectDeliveryProviderRefreshProofMovements,
   settleReservedDeliverySuffixRefresh,
   type DeliveryProviderSettlementAppliedResult,
   type ProviderAdoptionSettlementDependencies,
@@ -228,7 +229,7 @@ export async function executeDeliveryProviderRefresh(_input: {
         ? { status: "refused", reason: "prepared-result-invalid" }
         : { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
     }
-    const movements = changedDeliveryProviderRefreshMovements(
+    const allMovements = changedDeliveryProviderRefreshMovements(
       derived.subject.before,
       { ...prepared.observation, snapshot: requested.data },
     );
@@ -247,6 +248,15 @@ export async function executeDeliveryProviderRefresh(_input: {
           || beforeCoordinates.head !== requestedCoordinates.head
           || beforeCoordinates.tree !== requestedCoordinates.tree;
       });
+    const movements = allMovements === null
+      ? null
+      : input.scope.kind === "dependent-suffix"
+        ? selectDeliveryProviderRefreshProofMovements(
+            requested.data,
+            allMovements,
+            input.scope.selectedDeliverableId,
+          )
+        : allMovements;
     if (movements === null || expectedCandidates === null
       || canonicalize(expectedCandidates) !== canonicalize(prepared.candidates)
       || (input.scope.kind === "dependent-suffix" && dependentPrefixHeadMoved)
