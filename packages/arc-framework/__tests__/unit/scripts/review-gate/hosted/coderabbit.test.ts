@@ -470,6 +470,26 @@ This finding has no inline review thread.
     });
   });
 
+  it("rejects supplemental findings that contain only locus and severity metadata", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `<summary>⚠️ Outside diff comments (1)</summary>
+<summary>src/legacy.ts (1)</summary>
+
+\`12\`: _🩺 Stability & Availability_ | _🟡 Minor_
+
+<!-- cr-comment:v1:1234567890abcdef12345678 -->`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-body-finding-empty: "
+        + "{\"category\":\"outside-diff\",\"group\":\"src/legacy.ts\","
+        + "\"fingerprint\":\"1234567890abcdef12345678\"}",
+    });
+  });
+
   it("identifies the supplemental finding component that could not be parsed", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({

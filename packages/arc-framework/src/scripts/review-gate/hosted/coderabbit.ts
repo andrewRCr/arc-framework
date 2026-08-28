@@ -244,7 +244,13 @@ function parseSupplementalSection(
         return malformedWithContext("provider-body-finding-severity-unrecognized", findingContext);
       }
       const findingBody = item.slice(locusMatch.index).trim();
-      if (findingBody.length === 0) {
+      const metadataLineEnd = item.indexOf("\n", locusMatch.index);
+      const substantiveBody = metadataLineEnd === -1
+        ? ""
+        : item.slice(metadataLineEnd + 1)
+          .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "")
+          .trim();
+      if (substantiveBody.length === 0) {
         return malformedWithContext("provider-body-finding-empty", findingContext);
       }
       findings.push({
