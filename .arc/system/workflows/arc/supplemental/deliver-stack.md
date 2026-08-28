@@ -32,15 +32,18 @@ Run the delivery-owned read before eligibility or mutation:
 arc delivery entry inspect --input - --json
 ```
 
-The request carries only the attended `assess-boundary-fit` disposition and, when present, confirmation that the
-provisional plan was reviewed. Render `laterEntryCostText` and `recommendedActionText` verbatim when present, then
-dispatch the returned route; the workflow never parses headings, derives members, or re-decides cohesion:
+The request carries either the attended `assess-boundary-fit` disposition and, when present, confirmation that the
+provisional plan was reviewed, or the closed `{ "entryMode": "execution" }` context used only to replay a pending
+review-fix verification. Render `laterEntryCostText` and `recommendedActionText` verbatim when present, then dispatch
+the returned route; the workflow never parses headings, derives members, or re-decides cohesion:
 
 - `not-applicable` returns to ordinary work-unit execution.
 - `authoring-required` enters the existing inventory-schema, `from-tasks`, author-slot, and compose sequence.
 - `canonicalize-provisional` runs that same canonicalization sequence or its receipt-pinned recovery.
 - `validate-canonical` advances to eligibility.
 - `resume-bound` reads delivery position and reconciles any named active operation before continuing.
+- `review-fix-verification-required` carries its exact `verification` and `acknowledgementInput` directly into the
+  review-fix verification continuation below. Do not replan, republish, or repeat provider mutation.
 - `refused` stops before every eligibility or mutation verb after rendering the precomposed refusal.
 
 The inspection is read-only. It never treats the presence of prose as delivery judgment and never binds state.
@@ -191,6 +194,8 @@ invokes the presentation-only degradation verb:
 arc delivery native unlink - --json
 ```
 
+The request carries the exact `planId` and current native member subject retained from the link/observation route;
+it derives no position facts. The handler revalidates both against canonical plan/state before provider access.
 Only its fresh `unlinked` result continues through the ordinary singleton path below. Every other result renders its
 precomposed guidance and stops without a landing mutation. `blocked` likewise renders `recommendedActionText` and
 stops. A `linked-single` or explicitly selected direct `linked-atomic` result binds `selectedDeliverableId` to its
@@ -370,11 +375,13 @@ The provider-neutral service derives the exact bound remainder from plan and sta
 refresh in an isolated repository, returns only exact candidate coordinates, and never publishes. ARC validates and
 proves that result, reserves `rewrite / provider-refresh`, lease-publishes the changed member refs bottom-up, settles
 the terminal top, removes the private candidates, and clears the reservation only with the final complete state.
-`applied` returns to `arc delivery position`. A `retryable` result with a retained reservation reruns this verb with
-only its exact `operationId`; all-before retries the whole changed vector, a contiguous requested prefix resumes its
-untouched tail, and any other mixed or unavailable observation stops. A refusal before reservation leaves canonical
-refs and state unchanged. Stop; if the operator selects the external fallback, rerun refresh planning with the same
-subject and trigger plus `"mechanics": "operator-initiated"`, then follow the returned external-adoption arm.
+`applied / verify-review-fix` enters the review-fix verification continuation below; any other `applied` returns to
+`arc delivery position`. A `retryable` result with a retained reservation reruns this verb with only its exact
+`operationId`; all-before retries the whole changed vector, a contiguous requested prefix resumes its untouched tail,
+and any other mixed or unavailable observation stops. A refusal before reservation leaves canonical refs and state
+unchanged. Render a returned `detail` verbatim before stopping; it is bounded adapter diagnosis, not mutation
+authority. If the operator selects the external fallback, rerun refresh planning with the same subject and trigger
+plus `"mechanics": "operator-initiated"`, then follow the returned external-adoption arm.
 
 `operator-initiated` is the external fallback. The operator refreshes the disclosed registered set through the
 provider UI or supported procedure. That external refresh is unreserved: ARC has no provider mutation operation
@@ -391,11 +398,26 @@ the verb freshly observes the complete exact suffix and proves every changed con
 absorbs the refreshed predecessor into the terminal top append-only, lease-publishes the top, and installs the
 target, suffix, and terminal coordinates in one final state transition. It never records suffix-only state.
 
-`applied` returns to `arc delivery position`. A refusal before reservation leaves no operation. A blocked result
-after reservation retains it; follow the returned `delivery-refresh-adopt` selector and rerun this verb with the
-exact `operationId`. Recovery recognizes an already-created local merge and already-published top before retrying
-the final state transition. Any other retryable result follows its precomposed action, and every refused or blocked
-result stops without adopting ambiguous movement. Base movement alone never invokes this arm.
+`applied / verify-review-fix` enters the review-fix verification continuation below; any other `applied` returns to
+`arc delivery position`. A refusal before reservation leaves no operation. A blocked result after reservation
+retains it; follow the returned `delivery-refresh-adopt` selector and rerun this verb with the exact `operationId`.
+Recovery recognizes an already-created local merge and already-published top before retrying the final state
+transition. Any other retryable result follows its precomposed action, and every refused or blocked result stops
+without adopting ambiguous movement. Base movement alone never invokes this arm.
+
+`conflict-resolution-required` is a pre-reservation stop. Render its complete `conflicts`,
+`externalRefRestorations`, and `recommendedActionText` verbatim. Retain its `resolutionInput` as an opaque object;
+do not reconstruct its revision, scope, digest, member IDs, or paths.
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop on `conflict-resolution-required`. Surface the exact conflict and restoration offer;
+> await approval before resubmitting the exact adoption.
+
+On approval, rerun `arc delivery refresh adopt` with the otherwise identical request plus the returned
+`resolutionInput` as `conflictResolution`. The verb reobserves and reproves the complete suffix; only the exact
+approved conflict set may be classified as changed, and every other movement still requires structural equivalence.
+On decline, restore every returned external ref from `observedHead` to `restoreHead` through its exact Git lease;
+a lease collision stops without changing delivery state. Then rerun delivery position.
 
 Before authoring or publishing any approved correction while the canonical delivery remains bound, identify the
 selected member from the correction's approved scope and select the mutation route. Never infer the selected member
@@ -407,21 +429,30 @@ arc delivery review-fix plan - --json
 
 Supply only the plan, repository, remote, and selected-member locators. `planned / provider-refresh` means a fresh
 read found the canonical remaining chain exactly registered. An already-authored terminal correction is authoring
-movement only, not public position authority or member selection. On the registered route, project the exact approved
-correction onto the selected member's derived candidate ref, run its ordinary project gates, then invoke:
+movement only, not public position authority or member selection. On the registered route, render
+`recommendedActionText`, build the selected member's candidate from every returned
+`candidateRequirements.requiredAncestorHeads` value, project the exact approved correction onto it, and run its
+ordinary project gates before invoking:
 
 ```bash
 arc delivery review-fix publish - --json
 ```
 
 The verb derives the candidate ref and lifecycle paths, requires its supplied checkout to be tracked-clean and exact,
-requires the candidate to extend the current bound member, reobserves exact registration immediately before mutation,
-then lease-publishes only that member under `rewrite / selected-change`.
+requires the candidate to extend the current bound member and its current non-terminal predecessor when one exists,
+reobserves exact registration immediately before mutation, then lease-publishes only that member under
+`rewrite / selected-change`.
 `execute-provider-refresh` carries the returned selected member as a `dependent-suffix` scope directly into
 `arc delivery refresh execute`; do not stop for another attended choice. The executor keeps that selected head fixed,
-prepares only its dependents, and still uses the same path when no dependent moves because terminal-top absorption is
-owed. Keep the returned verification selector across that continuation. External operator refresh plus
+prepares only its dependents, and bypasses provider preparation when the dependent suffix is empty before completing
+the still-owed terminal-top absorption. Keep the returned verification selector across that continuation. External
+operator refresh plus
 `arc delivery refresh adopt` remains a fallback selected by refresh planning, not the registered review-fix default.
+For that external fallback, rerun `arc delivery refresh plan` with `trigger: operator-choice`,
+`mechanics: operator-initiated`, and the same `dependent-suffix` scope returned for the selected member. Continue only
+with the returned `plannedSuffix`, which contains the dependents strictly above that fixed selected member. After the
+operator refreshes exactly that suffix, invoke `arc delivery refresh adopt` with the same scope. The planning and
+adoption verbs reobserve and prove the result; workflow prose does not reconstruct the suffix.
 
 `planned / rematerialize` means a fresh read found the canonical remaining chain exactly unregistered. Apply the
 approved fix to the top authoring locus first, cut the complete suffix from that updated content, and run the ordinary
@@ -432,8 +463,8 @@ candidate locators:
 arc delivery rematerialize - --json
 ```
 
-The service recloses suffix eligibility and recomputes carried-contribution proof before every reserved rewrite.
-It executes in plan order, using each persisted result as the next predecessor; candidate movement or unselected
+The service recloses suffix eligibility and recomputes carried-contribution proof before every reserved rewrite. It
+executes in plan order, using each persisted result as the next predecessor; candidate movement or unselected
 contribution drift stops with the current reservation/state intact. Its exact eligibility refusal is authoritative;
 `completeness-mismatched` means the recut did not originate from top content carrying the approved fix. Never invoke
 the low-level rewrite verb as an operator-assembled batch.
@@ -442,12 +473,19 @@ Every partial, incoherent, ambiguous, malformed, unsupported, or unavailable pre
 authoring or mutation; do not infer linked or unlinked behavior from provider identity. Provider commands and UI are
 adapter/operator concerns, while the workflow carries only the provider-neutral route and affected suffix.
 
-After provider-refresh execution returns `applied`, or after the fallback returns `verify-review-fix`, invoke
-[`validate-criteria`][validate-criteria] at member scope once for each retained `memberDeliverableIds`. The linked
-selector contains the selected changed member; the fallback selector contains every contribution the arbiter found
-changed. An arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Then honor
-`tier1Required` by rerunning Tier 1 over the rebound top. These actions ride the same finding-disposition approval;
-do not add an interlock.
+### Complete a review-fix verification continuation
+
+`applied / verify-review-fix` from refresh settlement, `rematerialized / verify-review-fix`, and
+`review-fix-verification-required / verify-review-fix` from execution entry all enter the same exact verification
+continuation. Invoke [`validate-criteria`][validate-criteria] at member scope once for each retained
+`memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved
+conflicted dependent; the rematerialized selector contains every contribution the arbiter found changed. An
+arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Then honor
+`tier1Required` by rerunning Tier 1 over the rebound top.
+
+When the result carries `acknowledgementInput`, retain that object unchanged and return it to the calling task loop;
+do not acknowledge before ordinary correction-task closure. The rematerialized route carries no acknowledgement.
+These actions ride the same finding-disposition approval; do not add an interlock.
 
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:
 

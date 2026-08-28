@@ -27,6 +27,7 @@ import {
 } from "../provider-process.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const MAX_PROVIDER_FAILURE_DETAIL_LENGTH = 1_000;
 
 const GhStackViewSchema = z.object({
   trunk: z.string().min(1),
@@ -112,7 +113,6 @@ function viewMatchesBefore(
   view: GhStackView,
   input: DeliveryNativeStackInput,
   before: DeliveryOperationSnapshotV1,
-  targetHead: string,
 ): boolean {
   const trunk = refName(before.target?.ref ?? null);
   return trunk !== null && view.trunk === trunk && view.branches.length === input.members.length
@@ -120,7 +120,7 @@ function viewMatchesBefore(
       const branch = view.branches[index];
       const coordinates = before.members[index]?.coordinates;
       const expectedBase = index === 0
-        ? targetHead
+        ? before.target?.coordinates?.head
         : before.members[index - 1]?.coordinates?.head;
       return branch !== undefined && coordinates !== null && coordinates !== undefined
         && expectedBase !== undefined
@@ -156,6 +156,11 @@ async function isAncestor(git: GitExec, cwd: string, ancestor: string, descendan
   } catch {
     return false;
   }
+}
+
+function providerFailureDetail(error: DeliveryProviderProcessError): string {
+  const source = error.stderr.trim() || error.stdout.trim() || error.message;
+  return source.replace(/\s+/gu, " ").trim().slice(0, MAX_PROVIDER_FAILURE_DETAIL_LENGTH);
 }
 
 async function seedSelectedPredecessorTransition(
@@ -280,7 +285,7 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
         ? null
         : await readCoordinates(this.options.git, temporaryPath, `refs/heads/${targetName}`);
       if (beforeView === null || targetRef === null || targetName === null || localTarget === null
-        || !viewMatchesBefore(beforeView, registration, input.before, localTarget.head)) {
+        || !viewMatchesBefore(beforeView, registration, input.before)) {
         result = { status: "refused", reason: "scope-mismatch" };
       } else {
         const selectedId = input.scope.kind === "dependent-suffix"
@@ -394,12 +399,11 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
         }
       }
     } catch (error) {
-      result = {
-        status: "refused",
-        reason: error instanceof DeliveryProviderProcessError && error.exitCode === 3
-          ? "conflict"
-          : "unavailable",
-      };
+      result = error instanceof DeliveryProviderProcessError && error.exitCode === 3
+        ? { status: "refused", reason: "conflict" }
+        : error instanceof DeliveryProviderProcessError
+          ? { status: "refused", reason: "unavailable", detail: providerFailureDetail(error) }
+          : { status: "refused", reason: "unavailable" };
     }
 
     let workspaceCleaned = true;

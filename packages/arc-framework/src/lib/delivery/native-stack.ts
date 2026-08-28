@@ -215,6 +215,14 @@ export async function linkPlannedDeliveryNativeStack(input: {
   readonly members: readonly DeliveryNativeStackMember[];
   readonly optIn: boolean;
 }, port: DeliveryNativeStackPort): Promise<DeliveryNativeStackLinkResult> {
+  if (input.state.pendingReviewFixVerification !== null) {
+    return {
+      status: "refused",
+      reason: "pending-review-fix-verification",
+      recommendedActionText:
+        "Complete and acknowledge the pending review-fix verification before changing native presentation.",
+    };
+  }
   const derived = deriveDeliveryNativeRegistrationInput(input);
   if (derived.status !== "derived") {
     return {
@@ -279,6 +287,58 @@ export async function linkDeliveryNativeStack(
 export type DeliveryNativeStackDegradationResult =
   | { readonly status: "unlinked"; readonly recommendedActionText: string }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
+
+/**
+ * Remove linkage only for the exact members bound to one coherent delivery whose verification barrier is clear.
+ *
+ * @param input - Exact plan/state authority and the claimed native unlink subject.
+ * @param port - Native-stack provider boundary.
+ * @returns The closed degradation result without observing or mutating a mismatched delivery subject.
+ */
+export async function degradePlannedDeliveryNativeStack(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryStateV1;
+  readonly repository: string;
+  readonly members: readonly DeliveryNativeStackMember[];
+}, port: DeliveryNativeStackUnlinkPort): Promise<DeliveryNativeStackDegradationResult> {
+  const coherence = validateDeliveryStateAgainstPlan(input.state, input.plan);
+  if (coherence.status !== "valid") {
+    return {
+      status: "blocked",
+      reason: "state-mismatch",
+      recommendedActionText: "Restore exact bound delivery state before changing native presentation.",
+    };
+  }
+  if (coherence.state.pendingReviewFixVerification !== null) {
+    return {
+      status: "blocked",
+      reason: "pending-review-fix-verification",
+      recommendedActionText:
+        "Complete and acknowledge the pending review-fix verification before changing native presentation.",
+    };
+  }
+  const target = deriveDeliveryNativeTarget(coherence.state);
+  const derived = target.status === "resolved"
+    ? deriveDeliveryNativeRegistrationInput({
+      plan: input.plan,
+      state: coherence.state,
+      repository: input.repository,
+      baseRef: target.targetRef,
+    })
+    : null;
+  if (derived === null || derived.status !== "derived"
+    || !matchesRegistrationSubject(
+      { repository: input.repository, members: input.members },
+      derived.input,
+    )) {
+    return {
+      status: "blocked",
+      reason: "member-set-mismatch",
+      recommendedActionText: "Use only the exact currently bound non-terminal native members.",
+    };
+  }
+  return degradeNativeDeliveryStack({ repository: input.repository, members: input.members }, port);
+}
 
 /** Remove presentation linkage and admit sequential execution only after a fresh unregistered read. */
 export async function degradeNativeDeliveryStack(

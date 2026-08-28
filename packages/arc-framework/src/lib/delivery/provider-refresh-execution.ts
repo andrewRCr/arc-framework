@@ -17,6 +17,7 @@ import {
   deliveryTerminalAbsorptionOwed,
   proveDeliveryProviderRefreshMovements,
   settleReservedDeliverySuffixRefresh,
+  type DeliveryProviderSettlementAppliedResult,
   type ProviderAdoptionSettlementDependencies,
   DeliveryProviderRefreshMovement,
   DeliveryProviderRefreshObservation,
@@ -99,6 +100,7 @@ export type DeliveryProviderRefreshPreparationResult =
       readonly status: "refused";
       readonly reason: string;
       readonly paths?: readonly string[];
+      readonly detail?: string;
     };
 
 export interface DeliveryProviderRefreshPreparationPort {
@@ -161,7 +163,7 @@ export interface DeliveryProviderRefreshExecutionDependencies {
 }
 
 export type ExecuteDeliveryProviderRefreshResult =
-  | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | DeliveryProviderSettlementAppliedResult
   | {
       readonly status: "retryable";
       readonly reason: string;
@@ -199,16 +201,25 @@ export async function executeDeliveryProviderRefresh(_input: {
     if (terminalAuthoringMovement !== undefined && input.scope.kind !== "dependent-suffix") {
       return { status: "refused", reason: "invalid-input" };
     }
-    if (input.scope.kind === "dependent-suffix"
-      && !derived.subject.affectedDeliverableIds.includes(input.scope.selectedDeliverableId)) {
+    const selectedIndex = input.scope.kind === "dependent-suffix"
+      ? derived.subject.affectedDeliverableIds.indexOf(input.scope.selectedDeliverableId)
+      : -1;
+    if (input.scope.kind === "dependent-suffix" && selectedIndex < 0) {
       return { status: "refused", reason: "selected-member-invalid" };
     }
-    const prepared = await deps.preparation.prepare({
-      plan: input.plan,
-      repository: input.repository,
-      scope: input.scope,
-      before: derived.subject.before,
-    });
+    const prepared: DeliveryProviderRefreshPreparationResult = input.scope.kind === "dependent-suffix"
+      && selectedIndex === derived.subject.before.members.length - 1
+      ? {
+          status: "prepared",
+          observation: { snapshot: derived.subject.before, targetMovement: "exact" },
+          candidates: [],
+        }
+      : await deps.preparation.prepare({
+          plan: input.plan,
+          repository: input.repository,
+          scope: input.scope,
+          before: derived.subject.before,
+        });
     if (prepared.status === "refused") return prepared;
     const requested = DeliveryOperationSnapshotV1Schema.safeParse(prepared.observation.snapshot);
     if (!requested.success) {
@@ -227,9 +238,6 @@ export async function executeDeliveryProviderRefresh(_input: {
       requested: requested.data,
     });
     const expectedCandidates = candidateResult.status === "derived" ? candidateResult.candidates : null;
-    const selectedIndex = input.scope.kind === "dependent-suffix"
-      ? derived.subject.affectedDeliverableIds.indexOf(input.scope.selectedDeliverableId)
-      : -1;
     const dependentPrefixMoved = selectedIndex >= 0 && derived.subject.before.members
       .slice(0, selectedIndex + 1)
       .some((member, index) => canonicalize(member.coordinates)
@@ -262,6 +270,12 @@ export async function executeDeliveryProviderRefresh(_input: {
       before: derived.subject.before,
       requested: requested.data,
       ...(terminalAuthoringMovement === undefined ? {} : { terminalAuthoringMovement }),
+      ...(input.scope.kind === "dependent-suffix"
+        ? {
+            reviewFixSelectedDeliverableId: input.scope.selectedDeliverableId,
+            reviewFixVerificationDeliverableIds: [input.scope.selectedDeliverableId],
+          }
+        : {}),
     });
     if (reserved.status !== "reserved") {
       const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
