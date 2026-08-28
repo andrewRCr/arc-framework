@@ -109,6 +109,12 @@ export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
     state: z.literal("review-required"),
     detail: z.string().min(1),
+    scope: z.literal("singleton"),
+    localResumeAction: DeliveryLocalResumeActionSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
     conjunction: DeliveryReviewConjunctionSchema.refine(
       (conjunction) => conjunction.status === "outstanding",
       "delivery local review resume requires an outstanding conjunction",
@@ -118,11 +124,23 @@ export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
     state: z.literal("review-required"),
     detail: z.string().min(1),
+    scope: z.literal("singleton"),
+    selectionAction: ReviewApplicabilitySelectionOfferSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
     conjunction: DeliveryReviewConjunctionSchema.refine(
       (conjunction) => conjunction.status === "outstanding",
       "delivery review applicability requires an outstanding conjunction",
     ),
     selectionAction: ReviewApplicabilitySelectionOfferSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    scope: z.literal("singleton"),
+    responsePlan: HostedFindingsResponsePlanSchema,
   }),
   z.strictObject({
     state: z.literal("review-required"),
@@ -145,11 +163,23 @@ export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
     state: z.literal("applicability-blocked"),
     detail: z.string().min(1),
+    scope: z.literal("singleton"),
+    applicability: BlockedReviewApplicabilitySchema,
+  }),
+  z.strictObject({
+    state: z.literal("applicability-blocked"),
+    detail: z.string().min(1),
     conjunction: DeliveryReviewConjunctionSchema.refine(
       (conjunction) => conjunction.status === "outstanding",
       "blocked review applicability requires an outstanding conjunction",
     ),
     applicability: BlockedReviewApplicabilitySchema,
+  }),
+  z.strictObject({
+    state: z.literal("applicability-conflict"),
+    detail: z.string().min(1),
+    scope: z.literal("singleton"),
+    applicability: ReviewApplicabilityDecisionProjectionSchema,
   }),
   z.strictObject({
     state: z.literal("applicability-conflict"),
@@ -162,6 +192,107 @@ export const RoutedReviewObligationSchema = z.union([
   }),
 ]);
 export type RoutedReviewObligation = z.infer<typeof RoutedReviewObligationSchema>;
+
+interface ReviewApplicabilityContext {
+  readonly workUnitId: string;
+  readonly expectedRecordVersion: string;
+  readonly candidateId: string;
+}
+
+interface ReviewDischargeIntervention {
+  readonly detail: string;
+  readonly applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
+  readonly applicabilityAuthority?: "decision-required" | "blocked";
+  readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
+  readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+}
+
+function composeReviewDischargeIntervention(
+  discharge: ReviewDischargeIntervention,
+  applicabilityContext: ReviewApplicabilityContext | undefined,
+  conjunction?: DeliveryReviewConjunction,
+): RoutedReviewObligation | null {
+  const subject = conjunction === undefined
+    ? { scope: "singleton" as const }
+    : { conjunction };
+  if (discharge.applicability?.state === "decision-required"
+    && discharge.applicabilityAuthority === "blocked") {
+    return RoutedReviewObligationSchema.parse({
+      state: "applicability-conflict",
+      detail: discharge.detail,
+      ...subject,
+      applicability: discharge.applicability,
+    });
+  }
+  if (discharge.applicability?.state === "decision-required") {
+    if (applicabilityContext === undefined) {
+      return {
+        state: "blocked",
+        detail: "The review applicability decision is missing its canonical Candidate coordinates.",
+      };
+    }
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      ...subject,
+      selectionAction: {
+        schemaVersion: 1,
+        kind: "review-applicability-selection",
+        workUnitId: applicabilityContext.workUnitId,
+        expectedRecordVersion: applicabilityContext.expectedRecordVersion,
+        candidateId: applicabilityContext.candidateId,
+        projection: discharge.applicability,
+        choices: ["covered", "review-required"],
+        interactionText: "Choose `covered` only when the exact residual is already covered; otherwise choose "
+          + "`review-required`.",
+      },
+    });
+  }
+  if (discharge.applicability !== undefined
+    && discharge.applicability.state !== "applicable") {
+    return RoutedReviewObligationSchema.parse({
+      state: "applicability-blocked",
+      detail: discharge.detail,
+      ...subject,
+      applicability: discharge.applicability,
+    });
+  }
+  if (discharge.responsePlan !== undefined) {
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      ...subject,
+      responsePlan: discharge.responsePlan,
+    });
+  }
+  if (discharge.localResumeAction !== undefined) {
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      ...subject,
+      localResumeAction: discharge.localResumeAction,
+    });
+  }
+  return null;
+}
+
+/** Preserve the typed review intervention projected for one ordinary change-request target. */
+export function composeSingletonReviewObligation(input: {
+  readonly discharge: ReviewDischargeIntervention & { readonly discharged: boolean };
+  readonly applicabilityContext: ReviewApplicabilityContext;
+}): RoutedReviewObligation {
+  if (input.discharge.discharged) {
+    return RoutedReviewObligationSchema.parse({
+      state: "settled",
+      detail: input.discharge.detail,
+    });
+  }
+  return composeReviewDischargeIntervention(input.discharge, input.applicabilityContext)
+    ?? RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: input.discharge.detail,
+    });
+}
 
 /**
  * Compose the ordered delivery-member conjunction and its next executable hosted request.
@@ -223,65 +354,13 @@ export function composeDeliveryReviewObligation(input: {
   }
   const target = input.targets[firstOutstandingIndex];
   const discharge = input.discharges[firstOutstandingIndex];
-  if (discharge?.applicability?.state === "decision-required"
-    && discharge.applicabilityAuthority === "blocked") {
-    return RoutedReviewObligationSchema.parse({
-      state: "applicability-conflict",
-      detail: discharge.detail,
-      conjunction: { kind: "delivery", status: "outstanding", members },
-      applicability: discharge.applicability,
-    });
-  }
-  if (discharge?.applicability?.state === "decision-required"
-    && discharge.applicabilityAuthority !== "blocked") {
-    if (input.applicabilityContext === undefined) {
-      return {
-        state: "blocked",
-        detail: "The review applicability decision is missing its canonical Candidate coordinates.",
-      };
-    }
-    return RoutedReviewObligationSchema.parse({
-      state: "review-required",
-      detail: discharge.detail,
-      conjunction: { kind: "delivery", status: "outstanding", members },
-      selectionAction: {
-        schemaVersion: 1,
-        kind: "review-applicability-selection",
-        workUnitId: input.applicabilityContext.workUnitId,
-        expectedRecordVersion: input.applicabilityContext.expectedRecordVersion,
-        candidateId: input.applicabilityContext.candidateId,
-        projection: discharge.applicability,
-        choices: ["covered", "review-required"],
-        interactionText: "Choose `covered` only when the exact residual is already covered; otherwise choose "
-          + "`review-required`.",
-      },
-    });
-  }
-  if (discharge?.applicability !== undefined
-    && discharge.applicability.state !== "applicable"
-    && discharge.applicability.state !== "decision-required") {
-    return RoutedReviewObligationSchema.parse({
-      state: "applicability-blocked",
-      detail: discharge.detail,
-      conjunction: { kind: "delivery", status: "outstanding", members },
-      applicability: discharge.applicability,
-    });
-  }
-  if (discharge?.responsePlan !== undefined) {
-    return RoutedReviewObligationSchema.parse({
-      state: "review-required",
-      detail: discharge.detail,
-      conjunction: { kind: "delivery", status: "outstanding", members },
-      responsePlan: discharge.responsePlan,
-    });
-  }
-  if (discharge?.localResumeAction !== undefined) {
-    return RoutedReviewObligationSchema.parse({
-      state: "review-required",
-      detail: discharge.detail,
-      conjunction: { kind: "delivery", status: "outstanding", members },
-      localResumeAction: discharge.localResumeAction,
-    });
+  if (discharge !== undefined) {
+    const intervention = composeReviewDischargeIntervention(
+      discharge,
+      input.applicabilityContext,
+      { kind: "delivery", status: "outstanding", members },
+    );
+    if (intervention !== null) return intervention;
   }
   if (discharge?.requestAdmission?.state === "approval-required") {
     return RoutedReviewObligationSchema.parse({

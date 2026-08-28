@@ -16,7 +16,10 @@ import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-stat
 import { gitExec } from "../../src/lib/io-context.js";
 import { runActiveStatus } from "../../src/commands/active.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
-import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
+import {
+  readCandidateRecord,
+  readCandidateRecordVersioned,
+} from "../../src/lib/work-unit/candidate-record-store.js";
 import {
   candidateReviewResponses,
   reduceCandidateDurableBaseline,
@@ -1411,6 +1414,87 @@ describe("routed review obligation", () => {
       detail: expect.stringContaining("not produced a settled review"),
     });
   });
+
+  it("routes an ordinary moved-head residual to its canonical Candidate selection", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const operationStore = new LocalReviewOperationStateStore(publisher);
+    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const reviewTarget = await deriveLocalReviewTarget({
+      cwd: root,
+      exec: gitExec,
+      baseRef: "main",
+      repositoryId,
+    });
+    const requirement = createReviewRequirement({
+      target: reviewTarget,
+      projection: OBLIGATION,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    if (requirement === null) throw new Error("missing hosted requirement fixture");
+    await recordLaneAttempt(operationStore, {
+      lane: "standard",
+      repositoryId,
+      changeRequestId: "pull/42",
+      headSha: approvedHead,
+      attemptId: "hosted-attempt-before-base-move",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      consumedPass: true,
+      hosted: {
+        target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
+        reviewTarget,
+        requirement,
+        actorIdentity: "test-user",
+        findings: [],
+        dispositionSetId: null,
+        settledFindingIds: [],
+      },
+      now: "2026-08-28T12:00:00Z",
+    });
+
+    await git(root, ["switch", "main"]);
+    await writeFile(join(root, "base-move.txt"), "unrelated base movement\n", "utf8");
+    await git(root, ["add", "base-move.txt"]);
+    await git(root, ["commit", "-m", "move base"]);
+    await git(root, ["switch", "feat/example"]);
+    await git(root, ["merge", "--no-ff", "main", "-m", "merge base"]);
+    await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed, then changed again\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "add residual"]);
+    const rerooted = await runArc(["attest", "example", "--new-root", "--json"], root);
+    expect(rerooted.exitCode, rerooted.stderr || rerooted.stdout).toBe(0);
+    await git(root, ["commit", "-m", "record moved candidate"]);
+    const currentHead = await git(root, ["rev-parse", "HEAD"]);
+    await reserveHostedReview(root, currentHead);
+    const versionedCandidate = await readCandidateRecordVersioned(root, "example");
+    if (versionedCandidate.record === null || versionedCandidate.version === null) {
+      throw new Error("missing current Candidate fixture");
+    }
+
+    await expect(readRoutedObligation(root, gitExec, {
+      repository: "owner/repo",
+      headRef: "feat/example",
+      headSha: currentHead,
+    }, 42)).resolves.toMatchObject({
+      state: "review-required",
+      scope: "singleton",
+      selectionAction: {
+        kind: "review-applicability-selection",
+        workUnitId: "example",
+        expectedRecordVersion: versionedCandidate.version,
+        candidateId: versionedCandidate.record.attestation.candidateId,
+        choices: ["covered", "review-required"],
+        projection: {
+          state: "decision-required",
+          paths: expect.arrayContaining([expect.any(String)]),
+        },
+      },
+    });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("reports a work unit with no recorded publication boundary as blocked", async () => {
     const { root, approvedHead } = await settledReviewLineage();

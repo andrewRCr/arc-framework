@@ -2070,39 +2070,54 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 851 test files passed
-  with one skipped (11,013 tests passed with one skipped), the package build, aggregate self-review, and diff hygiene
-  all passed over the exact final code tree. Markdown and ARC checks passed again after the task-only closeout.
-- _Success criteria:_ 35 total: 33 met, two superseded, and none unresolved. All eight member reports resolve to
-  their current criteria loci and boundary spans; the amended Member 6 and Member 7 reports add exact correction
-  continuation and driver-admitted local fallback evidence without re-deriving unchanged groups. Only Member 1's
-  implementation-task workaround and Member 6's external-only refresh clause remain intentionally superseded by
-  D7.2b and D5.9. The terminal walk revalidated union coherence and all six cross-member seams over merge base
-  `0b8e87285` through `cda3090c8`, including post-report span `ad3614ded..cda3090c8`. Executable coverage proves
-  stacked dispatch, chain-current provider refresh, replayable correction verification, retained findings response,
-  exact local fallback through terminal conjunction, cursorless closeout, and Candidate re-rooting without an
-  unresolved gap.
+- _Quality gates:_ The terminal full suite passed Markdown and ARC contract lint, TypeScript and shell lint, both
+  typechecks, 851 test files with one skipped (11,013 tests with one skipped), package build, aggregate self-review,
+  and diff hygiene. The post-report continuations added 334 focused regression tests across 20 files, then the final
+  ordinary-applicability correction passed its five-file 75-test regression, targeted TypeScript lint, both
+  typechecks, build/declaration generation, and diff hygiene. Fresh Member 6 and final Member 7 convergence passes
+  returned no findings.
+- _Success criteria:_ 36 total: 34 met, two superseded, and none unresolved. All eight member reports resolve to
+  their current criteria loci and boundary spans. The final continuation consumes Member 6 diff
+  `3067b21e2afef343c0c8337dedc7f8f7fb97f1a1..ca340858aa32edf06c1078b0453d64ebf40a5dcc`
+  at reachability `ca340858aa32edf06c1078b0453d64ebf40a5dcc` and Member 7 diff
+  `ca340858aa32edf06c1078b0453d64ebf40a5dcc..e8a12ffde9d1580f11b63d32ad7f45f6425dba09`
+  at reachability `e8a12ffde9d1580f11b63d32ad7f45f6425dba09`, plus the bounded terminal correction over
+  `b12094bc4a262c837dde14ef0244827fd07f2330`. Member 1's implementation-task workaround and Member 6's
+  external-only refresh clause remain intentionally superseded by D7.2b and D5.9. Union coherence and all six
+  cross-member seams hold through exact conflict consent, replayable multi-member verification, retained findings,
+  singleton and delivery applicability, typed local fallback, cursorless closeout, and Candidate re-rooting.
 
 - _Forward amendment (2026-08-27):_ The D5.8-D5.10 corrections added Success Criteria 34 and 35 after this terminal
   report. Consume the updated Member 6 boundary report and revalidate the continuation's cross-member mutation
   barrier without re-deriving unchanged member criteria or repeating an unchanged full-suite gate.
 
-    - `[ ]` **9.1.R Revalidate the post-report Member 6 amendments at work-unit scope**
+    - `[x]` **9.1.R Revalidate the post-report Member 6 amendments at work-unit scope**
 
         - _Goal:_ The terminal report accounts for every approved success criterion and proves the replayable
           verification continuation remains coherent across delivery-entry, mutation, workflow, and Candidate seams.
 
-        - `[ ]` **9.1.R.a Revalidate the delivery-state entry diagnostic repair at work-unit scope**
+        - `[x]` **9.1.R.a Revalidate the delivery-state entry diagnostic repair at work-unit scope**
 
             - _Goal:_ The existing terminal report remains valid over the narrow state-refusal carrier, and the new
               delta adds no recovery authority, migration reader, durable state, or cross-member behavior.
+            - Entry inspection preserves the closed state-store refusal and state-specific remedy without adding a
+              recovery decision, compatibility reader, durable field, or alternate mutation route.
 
-        - `[ ]` **9.1.R.b Revalidate exact conflict adoption at work-unit scope**
+        - `[x]` **9.1.R.b Revalidate exact conflict adoption at work-unit scope**
 
             - _Goal:_ The terminal report accounts for D5.11 and proves that changed dependent verification composes
               with delivery entry, mutation barriers, member review, and Candidate/integration continuity.
+            - Exact conflict consent retains every changed member in plan order through settlement, entry replay,
+              verification, and acknowledgment. The final Member 7 correction preserves the same typed applicability
+              projection for ordinary and delivery targets while keeping delivery conjunctions exact.
+
+        - _Outcome:_ The rebound tree matches the reviewed delivery content at
+          `b12094bc4a262c837dde14ef0244827fd07f2330`; delivery state revision 47 replays the exact Member 6 and Member 7
+          verification set, blocks competing mutations, and exposes one digest-bound acknowledgment. The ordinary
+          moved-head production path now reaches its canonical Candidate selection without weakening D8.2's complete
+          retained-member conjunction.
 
 ---
 
@@ -2249,7 +2264,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   Ordinary refreshes record no continuation, and no provider-specific fact, check result, proof, review verdict, or
   generalized workflow state becomes durable.
 
-- `[ ]` An attended dependent-suffix adoption returns a mutation-free exact consent input when mechanical reapply
+- `[x]` An attended dependent-suffix adoption returns a mutation-free exact consent input when mechanical reapply
   conflicts, accepts only the unchanged freshly reobserved conflict set, and preserves structural proof for every
   unconflicted member. Approved conflicts are changed contributions, so settlement and replay retain the selected
   member plus every changed dependent in plan order through exact acknowledgment; decline restores the external refs
