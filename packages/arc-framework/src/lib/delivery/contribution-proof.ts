@@ -30,7 +30,7 @@ export const DeliveryContributionProofResultSchema = z.union([
   z.strictObject({
     status: z.literal("refused"),
     reason: z.literal("contribution-conflicted"),
-    paths: z.array(z.string()),
+    paths: z.array(z.string().min(1)).min(1),
   }),
   z.strictObject({
     status: z.literal("refused"),

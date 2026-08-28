@@ -67,4 +67,19 @@ describe("delivery entry handler", () => {
       reason: "invalid-command-input",
     });
   });
+
+  it("accepts the closed execution replay context", async () => {
+    const result = {
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: "Continue.",
+    } as const;
+    const deps = dependencies(result);
+    vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "execution" }));
+
+    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+
+    expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "execution" }, undefined);
+  });
+
 });

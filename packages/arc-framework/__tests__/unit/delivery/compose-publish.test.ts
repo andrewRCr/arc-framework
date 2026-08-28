@@ -41,16 +41,25 @@ import {
 const PLAN_ID = "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1";
 const OTHER_PLAN_ID = "9cd88752-ef99-4e21-a41f-234bc98f35e0";
 
-function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
+function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, memberCount: 1 | 2 = 1) {
   const taskDigest = canonicalDigest({ goal: "Implement" });
-  const parents = [
+  const memberParents = [
     {
       taskId: "1.1",
       semanticDigest: taskDigest,
       role: { kind: "verification" as const, scope: "member" },
     },
-    {
+    ...(memberCount === 2 ? [{
       taskId: "2.1",
+      semanticDigest: taskDigest,
+      role: { kind: "verification" as const, scope: "member" },
+    }] : []),
+  ];
+  const workUnitVerificationTaskId = memberCount === 1 ? "2.1" : "3.1";
+  const parents = [
+    ...memberParents,
+    {
+      taskId: workUnitVerificationTaskId,
       semanticDigest: null,
       role: { kind: "verification" as const, scope: "work-unit" },
     },
@@ -73,20 +82,34 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
     source: {
       entry: "from-tasks",
       inputs: { taskListPath: "tasks.md" },
-      facts: { phaseGroups: [{ phaseId: "1", taskIds: ["1.1"] }] },
-      identitySequence: ["phase:1", "task:1.1", "task:2.1"],
+      facts: {
+        phaseGroups: memberParents.map(({ taskId }) => ({ phaseId: taskId.split(".")[0]!, taskIds: [taskId] })),
+      },
+      identitySequence: [
+        ...memberParents.flatMap(({ taskId }) => [`phase:${taskId.split(".")[0]!}`, `task:${taskId}`]),
+        `task:${workUnitVerificationTaskId}`,
+      ],
     },
   });
   const slots = {
     projection: { kind: "wu-integration-target" as const },
     boundary: { kind: "phase-aligned" as const },
-    members: [{
-      chunkKey: "only",
-      title: "Only member",
-      contract: "Publish the contract",
-      designElementIds: [],
-      mainlineLandability: "integration-only" as const,
-    }],
+    members: [
+      {
+        chunkKey: "only",
+        title: "Only member",
+        contract: "Publish the contract",
+        designElementIds: [],
+        mainlineLandability: "integration-only" as const,
+      },
+      ...(memberCount === 2 ? [{
+        chunkKey: "terminal",
+        title: "Terminal member",
+        contract: "Integrate the work unit",
+        designElementIds: [],
+        mainlineLandability: "integration-only" as const,
+      }] : []),
+    ],
     seams: [],
   };
   const authoredMember = slots.members[0];
@@ -104,15 +127,18 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
       tasks: { parents: parents.map(({ taskId, role }) => ({ taskId, role })) },
       entry: "from-tasks",
       projection: slots.projection,
-      members: [{
-        ...authoredMember,
-        taskIds: ["1.1"],
-      }],
+      members: slots.members.map((member, index) => ({
+        ...member,
+        taskIds: [memberParents[index]!.taskId],
+      })),
       seams: [],
     }),
     boundary: slots.boundary,
-    contributionStepIds: ["step-1"],
-    memberContributionSteps: [{ chunkKey: "only", contributionStepIds: ["step-1"] }],
+    contributionStepIds: slots.members.map((_member, index) => `step-${index + 1}`),
+    memberContributionSteps: slots.members.map((member, index) => ({
+      chunkKey: member.chunkKey,
+      contributionStepIds: [`step-${index + 1}`],
+    })),
   };
   return { record, projection, slots, taskInventory, designInventory };
 }
@@ -320,7 +346,7 @@ function amendedFixture(
   current: DeliveryPlanV1,
   memberPatch: Partial<DeliveryCompositionProjection["authoring"]["members"][number]>,
 ) {
-  const value = fixture(current.planDigest as CanonicalDigest);
+  const value = fixture(current.planDigest as CanonicalDigest, current.members.length === 1 ? 1 : 2);
   const slots = DeliveryAuthoringSlotsV1Schema.parse({
     ...value.slots,
     members: value.slots.members.map((member) => ({ ...member, ...memberPatch })),
@@ -535,6 +561,46 @@ describe("delivery plan publication orchestration", () => {
         members: [{ ref: "refs/heads/member-only" }],
       },
     });
+  });
+
+  it("does not publish a successor while selected-member verification is pending", async () => {
+    const firstValue = fixture(null, 2);
+    const plans = new MemoryPlanStore();
+    await composer(
+      new MemoryAuthoringStore(firstValue.record),
+      plans,
+      new MemoryRenderer(),
+    ).compose(input(firstValue));
+    const first = plans.current;
+    if (first === null) throw new Error("expected first plan");
+
+    const successor = amendedFixture(first, {});
+    const state = boundState(first);
+    const states = new MemoryStateStore({
+      ...state,
+      value: {
+        ...state.value,
+        pendingReviewFixVerification: {
+          selectedDeliverableId: first.members[0]!.deliverableId,
+          memberDeliverableIds: [first.members[0]!.deliverableId],
+        },
+      },
+    });
+    const renderer = new MemoryRenderer();
+    const boundPlans = new MemoryPlanStore(first);
+
+    await expect(composer(
+      new MemoryAuthoringStore(successor.record),
+      boundPlans,
+      renderer,
+      states,
+    ).compose(input(successor))).resolves.toEqual({
+      status: "refused",
+      reason: "pending-review-fix-verification",
+    });
+    expect(boundPlans.calls).toEqual([]);
+    expect(states.calls).toEqual([]);
+    expect(renderer.calls).toEqual([]);
   });
 
   it("requires fresh landed facts before classifying a bound successor", async () => {
