@@ -13,6 +13,8 @@ import { resolveReviewPolicy } from
   "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
   composeDeliveryReviewObligation,
+  composeSingletonReviewObligation,
+  RoutedReviewObligationSchema,
   resolveReviewStatus,
   type ReviewStatusObservation,
   type ReviewStatusPort,
@@ -186,6 +188,147 @@ describe("review status", () => {
       state: "review-required",
       nextAction: "run-review",
       routedObligation: { state: "review-required" },
+    });
+  });
+
+  it("routes an ordinary moved-head residual to one Candidate applicability selection", async () => {
+    const projection = reviewApplicabilityDecision();
+    const selectionAction = {
+      schemaVersion: 1 as const,
+      kind: "review-applicability-selection" as const,
+      workUnitId: "example",
+      expectedRecordVersion: canonicalDigest({ version: 2 }),
+      candidateId: canonicalDigest({ candidate: 2 }),
+      projection,
+      choices: ["covered", "review-required"] as const,
+      interactionText: "Choose whether the exact residual is already covered.",
+    };
+    const obligation = composeSingletonReviewObligation({
+      discharge: {
+        discharged: false,
+        detail: "The prior ordinary review has an uncovered residual.",
+        applicability: projection,
+      },
+      applicabilityContext: {
+        workUnitId: selectionAction.workUnitId,
+        expectedRecordVersion: selectionAction.expectedRecordVersion,
+        candidateId: selectionAction.candidateId,
+      },
+    });
+
+    await expect(resolveReviewStatus({ target }, port({
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "resolve-review-applicability",
+      selectionAction: {
+        ...selectionAction,
+        interactionText: expect.any(String),
+      },
+    });
+  });
+
+  it("rejects a delivery applicability intervention whose conjunction is missing", () => {
+    const projection = reviewApplicabilityDecision();
+    const obligation = composeDeliveryReviewObligation({
+      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
+      discharges: [{
+        discharged: false,
+        detail: "The prior member review has an uncovered residual.",
+        nextSource: null,
+        applicability: projection,
+      }],
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 2 }),
+        candidateId: canonicalDigest({ candidate: 2 }),
+      },
+    });
+    if (!("conjunction" in obligation) || !("selectionAction" in obligation)) {
+      throw new Error("expected delivery applicability intervention");
+    }
+    const withoutConjunction = {
+      state: obligation.state,
+      detail: obligation.detail,
+      selectionAction: obligation.selectionAction,
+    };
+
+    expect(RoutedReviewObligationSchema.safeParse(withoutConjunction).success).toBe(false);
+  });
+
+  it.each([
+    ["rerun", "applicability-rerun", "rerun-checkpoint", undefined],
+    ["failed", "blocked", "stop", "applicability-failed"],
+    ["unsupported", "applicability-unsupported", "upgrade", undefined],
+    ["unavailable", "blocked", "stop", "applicability-unavailable"],
+  ] as const)(
+    "preserves an ordinary moved-head %s stop through review status",
+    async (kind, state, nextAction, reason) => {
+      const applicability = blockedApplicability(kind);
+      const obligation = composeSingletonReviewObligation({
+        discharge: {
+          discharged: false,
+          detail: `Ordinary applicability ${kind}.`,
+          applicability,
+        },
+        applicabilityContext: {
+          workUnitId: "example",
+          expectedRecordVersion: canonicalDigest({ version: 2 }),
+          candidateId: canonicalDigest({ candidate: 2 }),
+        },
+      });
+
+      await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+        state,
+        nextAction,
+        applicability,
+        ...(reason === undefined ? {} : { reason }),
+      });
+    },
+  );
+
+  it("preserves a conflicting ordinary Candidate selection as a typed stop", async () => {
+    const applicability = reviewApplicabilityDecision();
+    const obligation = composeSingletonReviewObligation({
+      discharge: {
+        discharged: false,
+        detail: "Conflicting Candidate applicability selections require correction.",
+        applicability,
+        applicabilityAuthority: "blocked",
+      },
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 2 }),
+        candidateId: canonicalDigest({ candidate: 2 }),
+      },
+    });
+
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "applicability-selection-conflict",
+      applicability,
+    });
+  });
+
+  it("routes retained ordinary hosted findings before another review", async () => {
+    const obligation = composeSingletonReviewObligation({
+      discharge: {
+        discharged: false,
+        detail: "The ordinary hosted source has retained findings.",
+        responsePlan: hostedResponsePlan,
+      },
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 2 }),
+        candidateId: canonicalDigest({ candidate: 2 }),
+      },
+    });
+
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "respond-to-findings",
+      responsePlan: hostedResponsePlan,
     });
   });
 
