@@ -315,6 +315,27 @@ export function recoverPublicationBoundary(input: {
   });
 }
 
+/**
+ * Recover the exact resume locus for a work unit that remains Integrating during Candidate renewal.
+ *
+ * @param input - Stored boundary and the authoritative current Candidate and branch identity.
+ * @returns The recoverable integration or same-Candidate review locus; otherwise `null`.
+ */
+export function recoverIntegratingBoundary(input: {
+  stored: IntegrationBoundaryLocus | null;
+  workUnit: string;
+  branch: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+}): IntegrationBoundaryLocus | null {
+  return recoverPublicationBoundary(input) ?? recoverPrePublicationBoundary({
+    stored: input.stored,
+    workUnit: input.workUnit,
+    candidateId: input.candidateId,
+    candidateSubjectDigest: input.candidateSubjectDigest,
+  });
+}
+
 /** Create the exact hosted-first reservation carried across publication. */
 export function createStandardReviewReservation(input: {
   candidateId: string;
