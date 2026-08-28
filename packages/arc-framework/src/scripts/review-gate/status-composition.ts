@@ -38,6 +38,7 @@ import { resolveHostedReservationPolicy } from "./policy/hosted-reservation-admi
 import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
 import {
   composeDeliveryReviewObligation,
+  composeSingletonReviewObligation,
   type ReviewStatusObservation,
   type ReviewStatusPort,
   type RoutedReviewObligation,
@@ -241,9 +242,14 @@ export async function readRoutedObligation(
       changeRequest: { repository: target.repository, pullRequest },
       candidate: record,
     });
-    return discharge.discharged
-      ? { state: "settled", detail: discharge.detail }
-      : { state: "review-required", detail: discharge.detail };
+    return composeSingletonReviewObligation({
+      discharge,
+      applicabilityContext: {
+        workUnitId: workUnit,
+        expectedRecordVersion: versionedRecord.version,
+        candidateId: record.attestation.candidateId,
+      },
+    });
   } catch (error) {
     return {
       state: "blocked",
