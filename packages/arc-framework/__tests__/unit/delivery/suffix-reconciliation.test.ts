@@ -217,10 +217,21 @@ describe("delivery suffix reconciliation", () => {
   it("carries dependent review-fix selection into the final adoption settlement", async () => {
     const { plan, state, affected, before, observed: refreshed } = providerRefreshFixture();
     const selectedDeliverableId = affected[0]!;
+    const advancedTarget = {
+      ref: state.target!.ref,
+      coordinates: { head: "d".repeat(40), tree: "e".repeat(40) },
+    };
     const observed = {
       ...refreshed,
+      target: advancedTarget,
       members: refreshed.members.map((member, index) => index === 0
-        ? before.members[0]!
+        ? {
+            ...before.members[0]!,
+            coordinates: {
+              ...before.members[0]!.coordinates!,
+              base: advancedTarget.coordinates.head,
+            },
+          }
         : {
             ...member,
             coordinates: member.coordinates === null ? null : {
@@ -229,6 +240,7 @@ describe("delivery suffix reconciliation", () => {
             },
           }),
     };
+    const proved: string[] = [];
 
     const result = await adoptExternalDeliverySuffixRefresh({
       plan,
@@ -237,10 +249,15 @@ describe("delivery suffix reconciliation", () => {
       selectedDeliverableId,
       observeResult: async () => ({
         status: "observed",
-        observation: { snapshot: observed, targetMovement: "exact" },
+        observation: { snapshot: observed, targetMovement: "append-only" },
       }),
       readTargetAncestry: exactTargetAncestry,
-      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      proveContribution: async ({ deliverableId }) => {
+        proved.push(deliverableId);
+        return deliverableId === selectedDeliverableId
+          ? { status: "refused", reason: "contribution-diverged", paths: ["base-only-prefix"] }
+          : { status: "accepted", proof: "mechanical-reapply" };
+      },
       absorbTop: async () => ({ status: "absorbed", head: "a".repeat(40), tree: "b".repeat(40) }),
       publishTop: async () => ({ status: "published" }),
       rewriteLocalRef: async () => ({ status: "rewritten" }),
@@ -263,6 +280,7 @@ describe("delivery suffix reconciliation", () => {
       state: {
         revision: 9,
         value: {
+          target: advancedTarget,
           activeOperation: null,
           pendingReviewFixVerification: {
             selectedDeliverableId,
@@ -271,6 +289,8 @@ describe("delivery suffix reconciliation", () => {
         },
       },
     });
+    const dependentIds = affected.slice(1);
+    expect(proved).toEqual([...dependentIds, ...dependentIds]);
   });
 
   it("offers one mutation-free consent input for the complete conflicted dependent set", async () => {
