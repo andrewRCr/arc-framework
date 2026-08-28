@@ -120,6 +120,7 @@ function state(stack: Omit<Stack, "deliverableId">, memberTree: string): Deliver
       },
     ],
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
 }
 

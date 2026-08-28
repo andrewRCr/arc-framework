@@ -199,6 +199,16 @@ describe("delivery terminal integration", () => {
         },
       },
     }), "operation-active"],
+    ["pending changed-member verification", (f: ReturnType<typeof terminalRebindFixture>) => ({
+      ...f.input,
+      state: {
+        ...f.state,
+        pendingReviewFixVerification: {
+          selectedDeliverableId: f.state.members[0]!.deliverableId,
+          memberDeliverableIds: [f.state.members[0]!.deliverableId],
+        },
+      },
+    }), "pending-review-fix-verification"],
     ["moved request", (f: ReturnType<typeof terminalRebindFixture>) => ({
       ...f.input,
       request: { ...f.input.request, headSha: "f".repeat(40) },
@@ -280,6 +290,26 @@ describe("delivery terminal integration", () => {
       endpoints: f.endpoints,
       proof: { status: "accepted", proof: "tree-equality" },
     });
+  });
+
+  it("refuses a terminal claim while selected-member verification is pending", async () => {
+    const f = fixture();
+    await expect(composeDeliveryTerminalClaim({
+      record: f.record,
+      candidate: f.candidate,
+      plan: f.plan,
+      state: {
+        ...f.state,
+        pendingReviewFixVerification: {
+          selectedDeliverableId: f.state.members[0]!.deliverableId,
+          memberDeliverableIds: [f.state.members[0]!.deliverableId],
+        },
+      },
+      landings: [],
+      terminalDelta: f.endpoints.after,
+      readCandidateCoordinate: async () => null,
+      proveResidual: async () => ({ status: "refused", reason: "contribution-endpoints-unverified" }),
+    })).resolves.toEqual({ status: "refused", reason: "pending-review-fix-verification" });
   });
 
   it("refuses when a landed member does not match its retained bound head", async () => {

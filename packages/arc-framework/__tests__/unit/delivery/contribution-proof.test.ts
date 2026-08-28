@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { compareDeliveryContribution } from "../../../src/lib/delivery/contribution-proof.js";
+import {
+  compareDeliveryContribution,
+  DeliveryContributionProofResultSchema,
+} from "../../../src/lib/delivery/contribution-proof.js";
 
 const sha1 = (digit: string): string => digit.repeat(40);
 
@@ -35,5 +38,13 @@ describe("delivery contribution proof", () => {
       ...input,
       after: { ...input.after, member: { ...input.after.member, tree: input.before.member.tree } },
     })).toEqual({ status: "reapply-required" });
+  });
+
+  it("rejects a conflicted proof without exact path evidence", () => {
+    expect(DeliveryContributionProofResultSchema.safeParse({
+      status: "refused",
+      reason: "contribution-conflicted",
+      paths: [],
+    }).success).toBe(false);
   });
 });

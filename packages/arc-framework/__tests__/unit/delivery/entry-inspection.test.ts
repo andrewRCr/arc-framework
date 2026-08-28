@@ -8,7 +8,11 @@ import {
   DELIVERY_PLAN_START_SENTINEL,
   renderDeliveryPlanSection,
 } from "../../../src/lib/delivery/task-list-render.js";
-import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import {
+  deliveryFourMemberStackPlanFixture,
+  deliveryStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const plan = deliveryStackPlanFixture();
@@ -29,6 +33,7 @@ function dependencies(input: {
   authoringPlanDigest?: string | null;
   state?: ReturnType<typeof deliveryStateFixture> | null;
   stateFailure?: (typeof stateFailures)[number];
+  stateRevision?: number;
 } = {}) {
   return {
     readTaskList: vi.fn().mockResolvedValue(input.taskList ?? `${prefix}${suffix}`),
@@ -47,7 +52,11 @@ function dependencies(input: {
           }
         : { status: "no-match" }),
     readState: vi.fn().mockResolvedValue(input.stateFailure === undefined
-      ? { status: "ok", value: input.state ?? null, revision: input.state ? 3 : null }
+      ? {
+          status: "ok",
+          value: input.state ?? null,
+          revision: input.state ? input.stateRevision ?? 3 : null,
+        }
       : { status: "refused", reason: input.stateFailure }),
   };
 }
@@ -122,6 +131,54 @@ describe("delivery entry inspection", () => {
       provisionalDisposition: "not-applicable",
     }, dependencies({ taskList, resolvedPlan: plan, state: deliveryStateFixture(plan) })))
       .resolves.toMatchObject({ status: "resume-bound", stateRevision: 3 });
+  });
+
+  it("resumes exact pending review-fix verification before correction replanning", async () => {
+    const multiPlan = deliveryFourMemberStackPlanFixture();
+    const selectedDeliverableId = multiPlan.members[0]!.deliverableId;
+    const memberDeliverableIds = [selectedDeliverableId, multiPlan.members[1]!.deliverableId];
+    const state = {
+      ...deliveryStateFixture(multiPlan),
+      pendingReviewFixVerification: { selectedDeliverableId, memberDeliverableIds },
+    } as unknown as ReturnType<typeof deliveryStateFixture>;
+    const taskList = `${prefix}${renderDeliveryPlanSection(multiPlan)}`
+      + "## **Phase 1:** Build\n\n### `[ ]` **1.1 Work**\n";
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: multiPlan.workUnitId,
+      entryMode: "execution",
+    }, dependencies({ taskList, resolvedPlan: multiPlan, state, stateRevision: 9 })))
+      .resolves.toMatchObject({
+        status: "review-fix-verification-required",
+        nextAction: "verify-review-fix",
+        planId: multiPlan.planId,
+        stateRevision: 9,
+        selectedDeliverableId,
+        verification: {
+          memberDeliverableIds,
+          tier1Required: true,
+        },
+        acknowledgementInput: {
+          planId: multiPlan.planId,
+          selectedDeliverableId,
+          memberDeliverableIds,
+          expectedStateRevision: 9,
+          continuationDigest: canonicalDigest(state),
+        },
+      });
+  });
+
+  it("continues ordinary execution when no review-fix verification is pending", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "execution",
+    }, dependencies({ taskList, resolvedPlan: plan, state: deliveryStateFixture(plan) })))
+      .resolves.toMatchObject({
+        status: "not-applicable",
+        nextAction: "continue-work-unit",
+      });
   });
 
   it.each(stateFailures)("preserves the %s delivery-state refusal", async (stateFailure) => {
