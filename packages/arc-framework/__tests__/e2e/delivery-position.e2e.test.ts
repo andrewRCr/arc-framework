@@ -1,7 +1,7 @@
 /** Built-CLI coverage for fresh public delivery-position observation. */
 
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -15,6 +15,7 @@ import {
 import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { deriveDeliveryProviderRefreshSubject } from "../../src/lib/delivery/provider-refresh-observation.js";
+import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
@@ -46,6 +47,8 @@ type ActiveOperationScenario =
   | "landed-prefix"
   | "terminal-authoring"
   | "registered-terminal-authoring"
+  | "selected-change-settled"
+  | "selected-change-external-refresh"
   | "selected-change-terminal-authoring-before"
   | "selected-change-terminal-authoring-applied";
 
@@ -90,23 +93,42 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
   const selectedFirstHead = await git(repository, [
     "commit-tree", firstTree, "-p", firstHead, "-m", "selected member review fix",
   ]);
+  const refreshedSecondAfterSelected = await git(repository, [
+    "commit-tree", secondTree, "-p", selectedFirstHead, "-m", "refresh dependent member",
+  ]);
+  const selectedChangeSettled = activeOperation === "selected-change-settled"
+    || activeOperation === "selected-change-external-refresh";
+  const firstBranch = selectedChangeSettled ? "delivery/member-1" : "member-1";
+  const secondBranch = selectedChangeSettled ? "delivery/member-2" : "member-2";
   const publishedFirstHead = activeOperation === "provider-refresh-partial"
     ? refreshedFirstHead
     : activeOperation === "selected-change-terminal-authoring-applied"
+      || activeOperation === "selected-change-settled"
+      || activeOperation === "selected-change-external-refresh"
       ? selectedFirstHead
       : firstHead;
+  const publishedSecondHead = activeOperation === "selected-change-external-refresh"
+    ? refreshedSecondAfterSelected
+    : secondHead;
   const terminalAuthoring = activeOperation === "terminal-authoring"
     || activeOperation === "registered-terminal-authoring"
+    || activeOperation === "selected-change-settled"
+    || activeOperation === "selected-change-external-refresh"
     || activeOperation === "selected-change-terminal-authoring-before"
     || activeOperation === "selected-change-terminal-authoring-applied";
   const publishedThirdHead = terminalAuthoring ? advancedThirdHead : thirdHead;
   await git(repository, [
     "push", "origin",
     `${targetHead}:refs/heads/main`,
-    `${publishedFirstHead}:refs/heads/member-1`,
-    `${secondHead}:refs/heads/member-2`,
+    `${publishedFirstHead}:refs/heads/${firstBranch}`,
+    `${publishedSecondHead}:refs/heads/${secondBranch}`,
     `${publishedThirdHead}:refs/heads/member-3`,
   ]);
+  if (activeOperation === "selected-change-external-refresh") {
+    await git(repository, ["update-ref", `refs/heads/${firstBranch}`, selectedFirstHead]);
+    await git(repository, ["update-ref", `refs/heads/${secondBranch}`, secondHead]);
+    await git(repository, ["checkout", "-b", "member-3", advancedThirdHead]);
+  }
 
   const plan = deliveryThreeMemberStackPlanFixture();
   const state = DeliveryStateV1Schema.parse({
@@ -119,13 +141,17 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     members: [
       {
         deliverableId: plan.members[0]!.deliverableId,
-        ref: "refs/heads/member-1",
+        ref: `refs/heads/${firstBranch}`,
         changeRequest: { providerId: "github", changeRequestId: "401" },
-        coordinates: { base: targetHead, head: firstHead, tree: firstTree },
+        coordinates: {
+          base: targetHead,
+          head: selectedChangeSettled ? selectedFirstHead : firstHead,
+          tree: firstTree,
+        },
       },
       {
         deliverableId: plan.members[1]!.deliverableId,
-        ref: "refs/heads/member-2",
+        ref: `refs/heads/${secondBranch}`,
         changeRequest: { providerId: "github", changeRequestId: "402" },
         coordinates: { base: firstHead, head: secondHead, tree: secondTree },
       },
@@ -139,6 +165,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
       },
     ],
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
   const publisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), repository);
   const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
@@ -249,9 +276,9 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     expect(await states.publish(plan.planId, reserved.state, 1)).toMatchObject({ status: "ok" });
   }
 
-  const fakeBin = join(repository, "fake-bin");
+  const fakeBin = await mkdtemp(join(tmpdir(), "arc-delivery-position-fake-bin-"));
+  roots.push(fakeBin);
   const fakeGh = join(fakeBin, "gh");
-  await mkdir(fakeBin);
   const request = (
     number: number,
     headRef: string,
@@ -271,13 +298,15 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     number: 901,
     base: { ref: "main" },
     pull_requests: [
-      JSON.parse(request(401, "member-1", publishedFirstHead, "main")) as unknown,
-      JSON.parse(request(402, "member-2", secondHead, "member-1")) as unknown,
-      JSON.parse(request(403, "member-3", publishedThirdHead, "member-2")) as unknown,
+      JSON.parse(request(401, firstBranch, "%s", "main")) as unknown,
+      JSON.parse(request(402, secondBranch, "%s", firstBranch)) as unknown,
+      JSON.parse(request(403, "member-3", "%s", secondBranch)) as unknown,
     ],
   }]);
   await writeFile(fakeGh, [
     "#!/bin/sh",
+    "if [ -n \"${ARC_FAKE_GH_LOG:-}\" ]; then printf '%s\\n' \"$*\" >> \"$ARC_FAKE_GH_LOG\"; fi",
+    "remote_head() { git ls-remote origin \"refs/heads/$1\" | cut -f1; }",
     "if [ \"${ARC_FAKE_TARGET_UNAVAILABLE:-0}\" = \"1\" ]; then exit 1; fi",
     "case \"$2\" in",
     "  repos/owner/repo/git/ref/heads/main)",
@@ -287,27 +316,28 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     `    printf '%s\\n' '${JSON.stringify({ tree: { sha: targetTree } })}'`,
     "    ;;",
     "  repos/owner/repo/pulls/401)",
-    `    printf '%s\\n' '${request(
-      401,
-      "member-1",
-      publishedFirstHead,
-      "main",
-      activeOperation === "landed-prefix" ? "merged" : "open",
-    )}'`,
+    activeOperation === "landed-prefix"
+      ? `    printf '%s\\n' '${request(401, firstBranch, publishedFirstHead, "main", "merged")}'`
+      : `    printf '${request(401, firstBranch, "%s", "main")}\\n' "$(remote_head '${firstBranch}')"`,
     "    ;;",
     "  repos/owner/repo/pulls/402)",
-    `    printf '%s\\n' '${request(
+    `    printf '${request(
       402,
-      "member-2",
-      secondHead,
-      activeOperation === "landed-prefix" ? "main" : "member-1",
-    )}'`,
+      secondBranch,
+      "%s",
+      activeOperation === "landed-prefix" ? "main" : firstBranch,
+    )}\\n' "$(remote_head '${secondBranch}')"`,
     "    ;;",
     "  repos/owner/repo/pulls/403)",
-    `    printf '%s\\n' '${request(403, "member-3", publishedThirdHead, "member-2")}'`,
+    `    printf '${request(403, "member-3", "%s", secondBranch)}\\n' "$(remote_head 'member-3')"`,
     "    ;;",
     "  repos/owner/repo/stacks)",
-    `    printf '%s\\n' '${activeOperation === "registered-terminal-authoring" ? registeredStack : "[]"}'`,
+    activeOperation === "registered-terminal-authoring"
+      || activeOperation === "selected-change-settled"
+      || activeOperation === "selected-change-external-refresh"
+      ? `    printf '${registeredStack}\\n' "$(remote_head '${firstBranch}')" `
+        + `"$(remote_head '${secondBranch}')" "$(remote_head 'member-3')"`
+      : "    printf '%s\\n' '[]'",
     "    ;;",
     "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
     "esac",
@@ -325,6 +355,160 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
 }
 
 describe("arc delivery position", () => {
+  it("re-enters and acknowledges a settled review-fix verification after response loss", async () => {
+    const fixture = await positionFixture("selected-change-external-refresh");
+    const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    const discardedSettlement = await runArcWithStdin(
+      ["delivery", "refresh", "adopt", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        scope: { kind: "dependent-suffix", selectedDeliverableId },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(discardedSettlement.exitCode, `${discardedSettlement.stderr}\n${discardedSettlement.stdout}`).toBe(0);
+
+    const pendingStateRead = await fixture.states.read(fixture.plan.planId);
+    expect(pendingStateRead).toMatchObject({ status: "ok" });
+    if (pendingStateRead.status !== "ok" || pendingStateRead.value === null) {
+      throw new Error("settled review-fix continuation state must be readable");
+    }
+    const pendingNativeMembers = pendingStateRead.value.value.members.slice(0, -1).map((member, index, members) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: member.changeRequest!.changeRequestId,
+      headRef: member.ref!.replace(/^refs\/heads\//u, ""),
+      headSha: member.coordinates!.head,
+      baseRef: index === 0 ? "main" : members[index - 1]!.ref!.replace(/^refs\/heads\//u, ""),
+      headRepository: "owner/repo",
+    }));
+    const pendingHostLog = join(fixture.repository, "pending-native-host.log");
+    await writeFile(pendingHostLog, "");
+    const linked = await runArcWithStdin(
+      ["delivery", "native", "link", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        repository: "owner/repo",
+        members: pendingNativeMembers,
+        optIn: true,
+      })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_GH_LOG: pendingHostLog } },
+    );
+    expect(linked.exitCode, `${linked.stderr}\n${linked.stdout}`).toBe(1);
+    expect(JSON.parse(linked.stdout)).toMatchObject({
+      status: "refused",
+      reason: "pending-review-fix-verification",
+    });
+    expect(await readFile(pendingHostLog, "utf8")).toBe("");
+    const unlinked = await runArcWithStdin(
+      ["delivery", "native", "unlink", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        members: pendingNativeMembers,
+      })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_GH_LOG: pendingHostLog } },
+    );
+    expect(unlinked.exitCode, `${unlinked.stderr}\n${unlinked.stdout}`).toBe(1);
+    expect(JSON.parse(unlinked.stdout)).toMatchObject({
+      status: "blocked",
+      reason: "pending-review-fix-verification",
+    });
+    expect(await readFile(pendingHostLog, "utf8")).toBe("");
+
+    const taskListPath = join(fixture.repository, ".arc", "active", "tasks-delivery-plan-record.md");
+    const taskList = [
+      "# Task List: Delivery Plan Record",
+      "",
+      "- **Design:** `spec-delivery-plan-record.md`",
+      "",
+      "---",
+      "",
+      renderDeliveryPlanSection(fixture.plan),
+      "## **Phase 1:** Build",
+      "",
+      "### `[ ]` **1.1 Close the selected member**",
+      "",
+    ].join("\n");
+    await mkdir(join(fixture.repository, ".arc", "active"), { recursive: true });
+    await writeFile(taskListPath, taskList);
+    await writeFile(join(
+      fixture.repository,
+      ".arc",
+      "active",
+      `meta-${fixture.plan.workUnitId}.md`,
+    ), [
+      `# Metadata: ${fixture.plan.workUnitId}`,
+      "",
+      "- **State:** Active",
+      "- **Branch:** main",
+      "- **Task List:** `tasks-delivery-plan-record.md`",
+      "",
+    ].join("\n"));
+
+    const entered = await runArcWithStdin(
+      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ entryMode: "execution" })}\n`,
+      { env: fixture.env },
+    );
+    expect(entered.exitCode, `${entered.stderr}\n${entered.stdout}`).toBe(0);
+    const continuation = JSON.parse(entered.stdout) as {
+      acknowledgementInput: {
+        planId: string;
+        selectedDeliverableId: string;
+        expectedStateRevision: number;
+        continuationDigest: string;
+      };
+    };
+    expect(continuation).toMatchObject({
+      status: "review-fix-verification-required",
+      nextAction: "verify-review-fix",
+      selectedDeliverableId,
+      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+    });
+
+    await writeFile(taskListPath, taskList.replace("### `[ ]` **1.1", "### `[x]` **1.1"));
+    const acknowledgementRequest = `${JSON.stringify(continuation.acknowledgementInput)}\n`;
+    const discarded = await runArcWithStdin(
+      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      fixture.repository,
+      acknowledgementRequest,
+      { env: fixture.env },
+    );
+    expect(discarded.exitCode, `${discarded.stderr}\n${discarded.stdout}`).toBe(0);
+
+    const retried = await runArcWithStdin(
+      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      fixture.repository,
+      acknowledgementRequest,
+      { env: fixture.env },
+    );
+    expect(retried.exitCode, `${retried.stderr}\n${retried.stdout}`).toBe(0);
+    expect(JSON.parse(retried.stdout)).toMatchObject({
+      command: "delivery review-fix acknowledge",
+      status: "already-acknowledged",
+      nextAction: "continue-work-unit",
+    });
+
+    const resumed = await runArcWithStdin(
+      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ entryMode: "execution" })}\n`,
+      { env: fixture.env },
+    );
+    expect(resumed.exitCode, `${resumed.stderr}\n${resumed.stdout}`).toBe(0);
+    expect(JSON.parse(resumed.stdout)).toMatchObject({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+    });
+  });
+
   it("composes fresh facts and returns the exact clean position", async () => {
     const fixture = await positionFixture();
     const result = await runArcWithStdin(
