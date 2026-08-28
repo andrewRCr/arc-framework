@@ -368,6 +368,9 @@ describe("provider refresh publication classification", () => {
       readTargetAncestry: exactTargetAncestry,
       proveContribution: async ({ deliverableId }) => {
         proved.push(deliverableId);
+        if (deliverableId === selected.deliverableId) {
+          return { status: "refused", reason: "contribution-diverged", paths: ["base-only-prefix"] };
+        }
         return { status: "accepted", proof: "mechanical-reapply" };
       },
       absorbTop: async () => ({ status: "absorbed", head: oid("c"), tree: oid("d") }),
@@ -396,7 +399,7 @@ describe("provider refresh publication classification", () => {
       },
     });
     expect(rewritten).toEqual(before.members.slice(1).map(({ deliverableId }) => deliverableId));
-    const provedIds = before.members.map(({ deliverableId }) => deliverableId);
+    const provedIds = before.members.slice(1).map(({ deliverableId }) => deliverableId);
     expect(proved).toEqual([...provedIds, ...provedIds]);
     expect(result.state.value.members[0]?.coordinates).toMatchObject({
       base: advancedTarget.coordinates.head,
