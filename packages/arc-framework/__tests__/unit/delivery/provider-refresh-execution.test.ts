@@ -408,7 +408,7 @@ describe("provider refresh publication classification", () => {
     });
   });
 
-  it("retains an observed terminal-authoring top through provider-refresh recovery", async () => {
+  it("retains a local terminal-authoring top and its remote lease through provider-refresh recovery", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
     const state = {
@@ -437,6 +437,7 @@ describe("provider refresh publication classification", () => {
         deliverableId: terminal.deliverableId,
         before: terminal.coordinates!,
         after: liveTop,
+        publicationLeaseHead: terminal.coordinates!.head,
       },
     };
     const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts });
@@ -468,7 +469,7 @@ describe("provider refresh publication classification", () => {
       readTargetAncestry: exactTargetAncestry,
       proveContribution: async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }),
       publishTop: async ({ beforeHead }: { readonly beforeHead: string }) => {
-        expect(beforeHead).toBe(liveTop.head);
+        expect(beforeHead).toBe(terminal.coordinates!.head);
         return { status: "published" as const };
       },
       rewriteLocalRef: async () => ({ status: "adopted" as const }),

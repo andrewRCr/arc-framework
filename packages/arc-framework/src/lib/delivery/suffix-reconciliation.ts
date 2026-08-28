@@ -412,7 +412,8 @@ export async function settleReservedDeliverySuffixRefresh(input: {
     || highestMember?.coordinates === null || highestMember?.coordinates === undefined) {
     return { status: "blocked", reason: "terminal-top-unavailable" };
   }
-  let terminalCoordinates = active.operation.terminalAuthoringMovement?.after ?? terminal.coordinates;
+  const terminalAuthoringMovement = active.operation.terminalAuthoringMovement;
+  let terminalCoordinates = terminalAuthoringMovement?.after ?? terminal.coordinates;
   if (terminalCoordinates.base !== highestMember.coordinates.head) {
     const absorbed = await input.absorbTop({
       topRef: terminal.ref,
@@ -431,7 +432,7 @@ export async function settleReservedDeliverySuffixRefresh(input: {
     }
     const published = await input.publishTop({
       ref: terminal.ref,
-      beforeHead: terminalCoordinates.head,
+      beforeHead: terminalAuthoringMovement?.publicationLeaseHead ?? terminalCoordinates.head,
       requestedHead: absorbed.head,
     });
     if (published.status === "refused") {
