@@ -38,6 +38,8 @@ import type {
 } from "./types.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { reduceCandidateDurableBaseline } from
+  "../../lib/work-unit/candidate-attestation.js";
 import {
   type CandidateTargetProjector,
 } from "../../lib/work-unit/candidate-effective-target.js";
@@ -46,7 +48,7 @@ import { projectGitCandidateEffectiveTarget } from
 import {
   projectCandidateReviewBoundary,
   recoverPrePublicationBoundary,
-  recoverPublicationBoundary,
+  recoverIntegratingBoundary,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
@@ -372,13 +374,18 @@ async function projectCandidateIntegrationBoundary(
     return { ...candidate, integrationBoundary: null };
   }
   let candidateSubjectDigest: string;
+  let requireExactDurableBoundary = false;
   try {
     const effective = await projectCandidateTarget({ cwd, name: slug, record });
-    if (effective.state !== "current") {
+    if (effective.state === "current") {
+      candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
+    } else if (candidate.state === "Integrating") {
+      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
+      requireExactDurableBoundary = true;
+    } else {
       warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
       return { ...candidate, integrationBoundary: null };
     }
-    candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
   } catch (error) {
     warnings.push(
       `Candidate target for ${candidate.filename} is unavailable: ${error instanceof Error ? error.message : String(error)}`,
@@ -388,7 +395,13 @@ async function projectCandidateIntegrationBoundary(
   if (candidate.state === "Integrating") {
     const stored = await readSubmissionBoundary(cwd, slug);
     if (candidate.branch === null) return candidate;
-    const recovered = recoverPublicationBoundary({
+    if (requireExactDurableBoundary && stored?.candidateSubjectDigest !== candidateSubjectDigest) {
+      warnings.push(
+        `Candidate boundary for ${candidate.filename} does not match its durable Candidate subject.`,
+      );
+      return { ...candidate, integrationBoundary: null };
+    }
+    const recovered = recoverIntegratingBoundary({
       stored,
       workUnit: slug,
       branch: candidate.branch,
