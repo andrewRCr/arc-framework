@@ -36,6 +36,7 @@ interface DeliveryPositionFactsDependencies {
   readonly repository: string;
   readonly remoteHeads: Readonly<Record<string, string>>;
   readonly localCommits: Readonly<Record<string, boolean>>;
+  readonly localHeads?: Readonly<Record<string, string>>;
   readonly materializeTarget: (coordinates: DeliveryTargetCoordinatesV1) => Promise<boolean>;
   readonly observeLandedResult: (input: {
     readonly mergeCommitSha: string;
@@ -163,25 +164,58 @@ async function observeMember(
       if (coordinates === null || (requestHead !== null && requestHead !== remoteHead)) {
         return { exact: false, requestState: null };
       }
+      let remoteAuthoringMovement = false;
       if (remoteHead !== member.coordinates.head) {
         if (allowAppendOnlyAuthoring && requestState === "open" && requestHead !== null
           && await localCommitMatches(member.coordinates, dependencies)
           && await readAncestry(localOnlyExec, member.coordinates.head, remoteHead) === "ancestor") {
-          return {
-            exact: true,
-            requestState,
-            terminalAuthoringMovement: {
-              deliverableId: member.deliverableId,
-              before: member.coordinates,
-              after: { base: member.coordinates.base, head: coordinates.head, tree: coordinates.tree },
-            },
-          };
+          remoteAuthoringMovement = true;
+        } else {
+          return allowExternalMovement && requestState === "open"
+            ? { exact: true, requestState, externalMovement: true }
+            : { exact: false, requestState: null };
         }
-        return allowExternalMovement && requestState === "open"
-          ? { exact: true, requestState, externalMovement: true }
-          : { exact: false, requestState: null };
       }
-      if (coordinates.tree !== member.coordinates.tree) return { exact: false, requestState: null };
+      if (!remoteAuthoringMovement && coordinates.tree !== member.coordinates.tree) {
+        return { exact: false, requestState: null };
+      }
+      const localHead = allowAppendOnlyAuthoring ? dependencies.localHeads?.[branch] : undefined;
+      if (localHead !== undefined && localHead !== remoteHead) {
+        const localCoordinates = dependencies.localCommits[localHead] === true
+          ? await observeDeliveryEligibilityRef(localOnlyExec, localHead)
+          : null;
+        if (requestState !== "open" || requestHead !== remoteHead || localCoordinates === null
+          || !await localCommitMatches(member.coordinates, dependencies)
+          || await readAncestry(localOnlyExec, remoteHead, localHead) !== "ancestor") {
+          return { exact: false, requestState: null };
+        }
+        return {
+          exact: true,
+          requestState,
+          terminalAuthoringMovement: {
+            deliverableId: member.deliverableId,
+            before: member.coordinates,
+            after: {
+              base: member.coordinates.base,
+              head: localCoordinates.head,
+              tree: localCoordinates.tree,
+            },
+            publicationLeaseHead: remoteHead,
+          },
+        };
+      }
+      if (remoteAuthoringMovement) {
+        return {
+          exact: true,
+          requestState,
+          terminalAuthoringMovement: {
+            deliverableId: member.deliverableId,
+            before: member.coordinates,
+            after: { base: member.coordinates.base, head: coordinates.head, tree: coordinates.tree },
+            publicationLeaseHead: remoteHead,
+          },
+        };
+      }
     }
   } else if (requestState === "merged") {
     return { exact: false, requestState: null };
