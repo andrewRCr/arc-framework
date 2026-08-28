@@ -21,8 +21,13 @@ import {
   reduceCandidateDurableBaseline,
   serializeCandidateManagedRecord,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
+import { classifyCandidateApplicability } from
+  "../../../src/lib/work-unit/candidate-applicability.js";
 import { projectEffectiveCandidateTarget } from
   "../../../src/lib/work-unit/candidate-effective-target.js";
+import type { CandidateTargetProjector } from
+  "../../../src/lib/work-unit/candidate-effective-target.js";
+import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 
 const resolverInputs = vi.hoisted(() => [] as LoadSetProjectionInput[]);
 
@@ -84,6 +89,40 @@ function candidateRecord(slug: string): { candidateId: string; subjectDigest: st
     }),
   };
 }
+
+const projectCandidateApplicabilityDecision: CandidateTargetProjector = async ({ record }) => {
+  const baseline = reduceCandidateDurableBaseline(record);
+  const currentSubject = createCandidateSubjectSnapshot([{
+    path: "packages/arc-framework/src/example.ts",
+    mode: "100644",
+    digest: canonicalDigest({ source: "changed" }),
+    treatment: "reviewable",
+  }]);
+  const decision = classifyCandidateApplicability({
+    candidateId: baseline.candidateId,
+    baselineTarget: baseline.target,
+    currentTarget: { revision: "b".repeat(40), subject: currentSubject },
+    currentBase: "c".repeat(40),
+  }, {
+    endpoints: {
+      before: {
+        predecessor: { head: "1".repeat(40), tree: "2".repeat(40) },
+        member: { head: baseline.target.revision, tree: "3".repeat(40) },
+      },
+      after: {
+        predecessor: { head: "4".repeat(40), tree: "5".repeat(40) },
+        member: { head: "b".repeat(40), tree: "6".repeat(40) },
+      },
+    },
+    proof: {
+      status: "refused",
+      reason: "contribution-diverged",
+      paths: ["packages/arc-framework/src/example.ts"],
+    },
+  });
+  if (decision.state !== "decision-required") throw new Error("expected an applicability decision");
+  return decision;
+};
 
 function ownerAcceptedPublishBoundary(input: {
   slug: string;
@@ -292,6 +331,134 @@ describe("checkout subject active-extension seam", () => {
       workflow: "integrate-work-unit",
       taskCursor: { status: "no-open-task" },
       integrationBoundary: boundary,
+    });
+  });
+
+  it("preserves an exact Integrating boundary while Candidate applicability awaits authority", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const { candidateId, subjectDigest } = candidate;
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projectCandidateApplicabilityDecision },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "integrate-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: boundary,
+    });
+  });
+
+  it("does not recover pending applicability through a boundary bound to another subject", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const { candidateId } = candidate;
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const mismatched = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId,
+      candidateSubjectDigest: `sha256:${"9".repeat(64)}`,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(mismatched),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projectCandidateApplicabilityDecision },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: null,
+      workflow: null,
+      integrationBoundary: null,
+    });
+  });
+
+  it("keeps Active prepublication strict while Candidate applicability awaits authority", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+
+    await expect(projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projectCandidateApplicabilityDecision },
+    })).resolves.toMatchObject({
+      kind: "unresolved",
+      code: "subject-unresolved",
+      message: "Candidate target requires request-authority.",
     });
   });
 

@@ -977,7 +977,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1635,6 +1635,26 @@ structural guarantee rather than operator discipline.
                   suffix, strict handler, settlement, replay, acknowledgment, workflow, real-Git contribution, and
                   complete delivery regression surfaces all passed. Success Criteria markers remain unchanged for
                   terminal verification.
+
+        - _Forward amendment (2026-08-28):_ Compaction during an authorized review-fix refresh demonstrated that
+          session initialization required the integration checkpoint's Candidate-applicability authority before it
+          would identify the already-bound work unit. A legitimate `request-authority` result therefore erased the
+          integration context and made recovery impossible before the owning workflow could render that choice.
+
+        - `[x]` **6.11.R.w Restore integration recovery across pending Candidate applicability**
+
+            - _Goal:_ Session initialization and compaction recovery preserve the exact originating integration
+              context while Candidate applicability is non-current, without recognizing a changed target or moving
+              any mutation authority out of the integration checkpoint.
+            - Both session projectors now recover an `Integrating` context only through the exact stored boundary
+              for the durable Candidate subject when the effective target is non-current. Active prepublication and
+              mismatched boundary evidence remain fail-closed; real-CLI seed/recovery-audit coverage and the
+              unchanged checkpoint test preserve `request-authority` at the mutation boundary.
+
+        - `[ ]` **6.11.R.x Revalidate the amended integration-recovery boundary** — validate criteria at member scope
+
+            - _Goal:_ Focused unit, session-init, compaction-recovery, checkpoint, and live self-hosting evidence
+              prove orientation remains recoverable while authority remains exclusively at the mutation boundary.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 

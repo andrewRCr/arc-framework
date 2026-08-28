@@ -15,6 +15,7 @@ import {
 import { parseMetaRecord } from "../active/meta-reader.js";
 import {
   parseCandidateManagedRecord,
+  reduceCandidateDurableBaseline,
 } from "../work-unit/candidate-attestation.js";
 import type { CandidateTargetProjector } from "../work-unit/candidate-effective-target.js";
 import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
@@ -118,6 +119,7 @@ export async function projectCheckoutSubjectMeta(options: {
     };
   }
   let candidateSubjectDigest: string | null = null;
+  let requireExactDurableBoundary = false;
   const candidateAuthorityRequired = record.state === "Integrating"
     || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
   if (record.candidateId !== null && candidateAuthorityRequired) {
@@ -135,10 +137,14 @@ export async function projectCheckoutSubjectMeta(options: {
         name: options.subjectKey,
         record: candidateRecord,
       });
-      if (effective.state !== "current") {
+      if (effective.state === "current") {
+        candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
+      } else if (record.state === "Integrating") {
+        candidateSubjectDigest = reduceCandidateDurableBaseline(candidateRecord).target.subject.subjectDigest;
+        requireExactDurableBoundary = true;
+      } else {
         throw new Error(`Candidate target requires ${effective.nextAction}.`);
       }
-      candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
     } catch (error) {
       return {
         kind: "unresolved",
@@ -156,13 +162,17 @@ export async function projectCheckoutSubjectMeta(options: {
     const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
       readFile: (path) => options.io.readFile(path),
     });
-    integrationBoundary = record.branch === null ? null : recoverIntegratingBoundary({
-      stored,
-      workUnit: options.subjectKey,
-      branch: record.branch,
-      candidateId: record.candidateId,
-      candidateSubjectDigest,
-    });
+    const exactDurableBoundary = !requireExactDurableBoundary
+      || stored?.candidateSubjectDigest === candidateSubjectDigest;
+    integrationBoundary = record.branch === null || !exactDurableBoundary
+      ? null
+      : recoverIntegratingBoundary({
+          stored,
+          workUnit: options.subjectKey,
+          branch: record.branch,
+          candidateId: record.candidateId,
+          candidateSubjectDigest,
+        });
   } else if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Active") {
     const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
       readFile: (path) => options.io.readFile(path),

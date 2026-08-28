@@ -69,6 +69,7 @@ interface SessionInitEnvelope {
       currentWorkflow: string | null;
       integrationBoundary?: {
         candidateId: string;
+        candidateSubjectDigest: string | null;
         locus: string;
         nextAction: { kind: string; command: string; interactionText: string };
       } | null;
@@ -700,7 +701,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     });
   });
 
-  it("preserves terminal task evidence for an integrating work unit", async () => {
+  it("keeps integration recovery ready while Candidate applicability awaits authority", async () => {
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "init"], { cwd: tmpDir });
     await execFileAsync("git", ["checkout", "-b", "feat/foo"], { cwd: tmpDir });
@@ -729,6 +730,7 @@ describe("session-init E2E — sessionType across type variants", () => {
       join(activeDir, "tasks-foo.md"),
       taskListFixture("Complete recovery").replace("`[ ]`", "`[x]`"),
     );
+    await writeFile(join(tmpDir, "reviewed.txt"), "attested implementation\n");
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "integrating fixture"], { cwd: tmpDir });
 
@@ -772,6 +774,31 @@ describe("session-init E2E — sessionType across type variants", () => {
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "publish fixture"], { cwd: tmpDir });
 
+    await writeFile(join(tmpDir, "reviewed.txt"), "changed after publication\n");
+    await execFileAsync("git", ["add", "reviewed.txt"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "change candidate subject"], { cwd: tmpDir });
+
+    const seeded = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+    );
+    expect(seeded.exitCode, seeded.stdout + seeded.stderr).toBe(0);
+    const session = parseJsonEnvelope(seeded.stdout);
+    expect(session.active).toMatchObject({
+      ok: true,
+      value: {
+        resolution: "single",
+        sessionType: "integration",
+        currentWorkflow: "integrate-work-unit",
+        integrationBoundary: {
+          candidateId: candidateBoundary.candidateId,
+          candidateSubjectDigest: candidateBoundary.candidateSubjectDigest,
+          locus: "publication-pending",
+        },
+      },
+    });
+    expect(session.compactionSeedWrite).toMatchObject({ status: "written" });
+
     const result = await runArc(["status", "--recover", "--json"], tmpDir);
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
 
@@ -787,6 +814,15 @@ describe("session-init E2E — sessionType across type variants", () => {
     });
     expect(envelope.loadSet?.value?.entries.map((entry) => entry.path))
       .not.toContain(".arc/active/tasks-foo.md");
+
+    const audited = await runArc(["recover", "audit", "--json"], tmpDir);
+    expect(audited.exitCode, audited.stdout + audited.stderr).toBe(0);
+    expect(parseRecoverAuditReport(audited.stdout).verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+      taskCursor: null,
+    });
   });
 
   it("audits the compaction seed against fresh recovery state", async () => {

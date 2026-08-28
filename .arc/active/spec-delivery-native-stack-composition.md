@@ -447,6 +447,13 @@ attestation semantics.
   originating work-unit checkout and integration load set throughout review and convergence. A stale, mismatched, or
   unavailable Candidate or boundary still refuses rather than fabricating a resume point. Delivery-member and gate
   checkouts remain operation inputs and gain no session or recovery authority.
+  **Amended 2026-08-28 after review-fix recovery exposed an authority inversion:** A typed non-current Candidate
+  applicability result is not an unavailable Candidate and does not erase the already-selected integration
+  session. While `Integrating`, both session projectors recover only the exact stored same-Candidate boundary bound
+  to the durable Candidate baseline; they do not recognize the changed target, select an applicability outcome, or
+  rebind review authority. The integration checkpoint then reobserves the current target and exclusively owns the
+  typed `request-authority`, `rerun-checkpoint`, `stop`, or `upgrade` action. A missing, malformed, or mismatched
+  Candidate record, or a boundary that cannot recover against that durable identity, remains fail-closed.
 - **D3.10 Judgment-bounded Candidate applicability — amended 2026-08-22 after ordinary team base movement made
   D3.9's whole-work-unit default disproportionate.** This amendment supersedes only D3.9's rule that every changed
   Candidate subject pays whole-work-unit verification. The base-plus-head compare-and-set, ordinary post-merge
