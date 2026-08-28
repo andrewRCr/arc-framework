@@ -645,7 +645,7 @@ describe("arc delivery position", () => {
     });
   });
 
-  it("continues a registered review fix through append-only terminal authoring", async () => {
+  it("routes through append-only terminal authoring but refuses refresh before selected publication", async () => {
     const fixture = await positionFixture("registered-terminal-authoring");
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const reviewFix = await runArcWithStdin(
@@ -683,7 +683,7 @@ describe("arc delivery position", () => {
     expect(JSON.parse(refresh.stdout)).toMatchObject({
       command: "delivery refresh execute",
       status: "refused",
-      reason: "unsupported",
+      reason: "selected-member-invalid",
     });
 
     const completeRemainder = await runArcWithStdin(
@@ -960,7 +960,22 @@ describe("arc delivery position", () => {
     expect(missing.exitCode).toBe(1);
     expect(JSON.parse(missing.stdout)).toMatchObject({
       status: "refused",
-      reason: "position-mismatch",
+      reason: "selected-member-invalid",
+    });
+
+    const complete = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        ...request,
+        scope: { kind: "complete-remainder" },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(complete.exitCode).toBe(1);
+    expect(JSON.parse(complete.stdout)).toMatchObject({
+      status: "refused",
+      reason: "selected-member-invalid",
     });
 
     const wrong = await runArcWithStdin(
@@ -977,6 +992,24 @@ describe("arc delivery position", () => {
     );
     expect(wrong.exitCode).toBe(1);
     expect(JSON.parse(wrong.stdout)).toMatchObject({
+      status: "refused",
+      reason: "selected-member-invalid",
+    });
+
+    const unchanged = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        ...request,
+        scope: {
+          kind: "dependent-suffix",
+          selectedDeliverableId: fixture.plan.members[1]!.deliverableId,
+        },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(unchanged.exitCode).toBe(1);
+    expect(JSON.parse(unchanged.stdout)).toMatchObject({
       status: "refused",
       reason: "selected-member-invalid",
     });
@@ -1024,6 +1057,29 @@ describe("arc delivery position", () => {
     });
     expect(adopted.state.value.members[0]?.coordinates?.head).toBe(fixture.selectedFirstHead);
     expect(adopted.state.value.members[1]?.coordinates?.base).toBe(fixture.selectedFirstHead);
+  });
+
+  it("refuses ordinary external adoption while a selected correction awaits dependent refresh", async () => {
+    const fixture = await positionFixture("selected-change-external-refresh");
+    const before = await fixture.states.read(fixture.plan.planId);
+    const result = await runArcWithStdin(
+      ["delivery", "refresh", "adopt", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery refresh adopt",
+      status: "refused",
+      reason: "selected-member-invalid",
+    });
+    await expect(fixture.states.read(fixture.plan.planId)).resolves.toEqual(before);
   });
 
   it("clears an unapplied selected review fix while terminal authoring remains append-only", async () => {

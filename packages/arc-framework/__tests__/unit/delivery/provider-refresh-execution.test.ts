@@ -180,11 +180,17 @@ describe("provider refresh publication classification", () => {
   it("recovers after candidate cleanup completes before the final state write", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
+    const fixtureTargetHead = fixture.target?.coordinates?.head;
+    if (fixtureTargetHead === undefined) throw new Error("fixture target must be bound");
     const state = {
       ...fixture,
-      members: fixture.members.map((member, index) => ({
+      members: fixture.members.map((member, index, members) => ({
         ...member,
         changeRequest: { providerId: "github", changeRequestId: String(200 + index) },
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0 ? fixtureTargetHead : members[index - 1]!.coordinates!.head,
+        },
       })),
     };
     const facts = positionFacts(state, [state.members[0]!.deliverableId]);
@@ -296,11 +302,21 @@ describe("provider refresh publication classification", () => {
   it("keeps the selected prefix fixed across append-only target movement", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
+    const targetHead = fixture.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
     const state = {
       ...fixture,
-      members: fixture.members.map((member, index) => ({
+      members: fixture.members.map((member, index, members) => ({
         ...member,
         changeRequest: { providerId: "github", changeRequestId: String(225 + index) },
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0
+            ? targetHead
+            : index === 1
+              ? member.coordinates.base
+              : members[index - 1]!.coordinates!.head,
+        },
       })),
     };
     const facts = positionFacts(state);
@@ -406,6 +422,89 @@ describe("provider refresh publication classification", () => {
       head: selected.coordinates!.head,
       tree: selected.coordinates!.tree,
     });
+  });
+
+  it("refuses dependent refresh when the selected member has not published a correction", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const targetHead = fixture.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(600 + index) },
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0 ? targetHead : members[index - 1]!.coordinates!.head,
+        },
+      })),
+    };
+    const selectedDeliverableId = state.members[0]!.deliverableId;
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix", selectedDeliverableId },
+      facts: positionFacts(state),
+    }, {
+      preparation: { prepare: async () => { throw new Error("must not prepare"); } },
+      observePublishedHeads: async () => { throw new Error("must not observe publication"); },
+      rewriteMemberRef: async () => { throw new Error("must not rewrite"); },
+      observeResult: async () => { throw new Error("must not observe result"); },
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite locally"); },
+      cleanupPreparedCandidates: async () => { throw new Error("must not clean up"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "selected-member-invalid" });
+  });
+
+  it("refuses complete-remainder refresh while a selected correction awaits dependent refresh", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const targetHead = fixture.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
+    const selectedHead = oid("f");
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(700 + index) },
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0 ? targetHead : members[index - 1]!.coordinates!.head,
+          head: index === 0 ? selectedHead : member.coordinates.head,
+        },
+      })),
+    };
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      repository: "owner/repo",
+      scope: { kind: "complete-remainder" },
+      facts: positionFacts(state),
+    }, {
+      preparation: { prepare: async () => { throw new Error("must not prepare"); } },
+      observePublishedHeads: async () => { throw new Error("must not observe publication"); },
+      rewriteMemberRef: async () => { throw new Error("must not rewrite"); },
+      observeResult: async () => { throw new Error("must not observe result"); },
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite locally"); },
+      cleanupPreparedCandidates: async () => { throw new Error("must not clean up"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "selected-member-invalid" });
   });
 
   it("retains a local terminal-authoring top and its remote lease through provider-refresh recovery", async () => {
@@ -521,11 +620,17 @@ describe("provider refresh publication classification", () => {
   it("refuses an incoherent prepared predecessor chain before reserving or publishing", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
+    const targetHead = fixture.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
     const state = {
       ...fixture,
-      members: fixture.members.map((member, index) => ({
+      members: fixture.members.map((member, index, members) => ({
         ...member,
         changeRequest: { providerId: "github", changeRequestId: String(300 + index) },
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0 ? targetHead : members[index - 1]!.coordinates!.head,
+        },
       })),
     };
     const facts = positionFacts(state);

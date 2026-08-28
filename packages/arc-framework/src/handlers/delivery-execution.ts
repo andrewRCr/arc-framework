@@ -88,6 +88,7 @@ import {
 import {
   adoptExternalDeliverySuffixRefresh,
   executeDeliverySuffixRewrite,
+  findExactPendingSelectedRefresh,
   settleReservedDeliverySuffixRefresh,
   type DeliveryProviderRefreshMovement,
 } from "../lib/delivery/suffix-reconciliation.js";
@@ -1704,6 +1705,18 @@ async function executeDeliveryCommand(
         ? { ...derived, facts: positioned.facts }
         : derived;
     };
+    if (current.value.activeOperation === null) {
+      const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(current.value);
+      if ((parsed.scope?.kind === "dependent-suffix"
+        && pendingSelectedDeliverableId !== parsed.scope.selectedDeliverableId)
+        || (parsed.scope?.kind !== "dependent-suffix" && pendingSelectedDeliverableId !== null)) {
+        return {
+          status: "refused",
+          reason: "selected-member-invalid",
+          recommendedActionText: "Use the exact selected member whose published correction awaits refresh.",
+        };
+      }
+    }
     if (command === "refresh-plan") {
       const planRequest = RefreshPlanSchema.parse(parsed);
       const derived = await deriveIdleRefreshSubject(

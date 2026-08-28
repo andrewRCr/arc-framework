@@ -977,7 +977,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1651,7 +1651,7 @@ structural guarantee rather than operator discipline.
               mismatched boundary evidence remain fail-closed; real-CLI seed/recovery-audit coverage and the
               unchanged checkpoint test preserve `request-authority` at the mutation boundary.
 
-        - `[ ]` **6.11.R.x Revalidate the amended integration-recovery boundary** — validate criteria at member scope
+        - `[x]` **6.11.R.x Revalidate the amended integration-recovery boundary** — validate criteria at member scope
 
             - _Goal:_ Focused unit, session-init, compaction-recovery, checkpoint, and live self-hosting evidence
               prove orientation remains recoverable while authority remains exclusively at the mutation boundary.
@@ -1670,7 +1670,7 @@ structural guarantee rather than operator discipline.
                   its current-trunk projection, while core reservation holds every prefix head and tree fixed and
                   rewrites only dependent refs. Rewritten or ambiguous targets and moved prefixes still refuse.
 
-            - `[ ]` **6.11.R.x.b Revalidate the repaired integration and refresh boundary** — validate criteria at
+            - `[x]` **6.11.R.x.b Revalidate the repaired integration and refresh boundary** — validate criteria at
               member scope
 
                 - _Goal:_ Focused and live self-hosting evidence close the Candidate-recovery and dependent-refresh
@@ -1690,7 +1690,7 @@ structural guarantee rather than operator discipline.
                       and tree, exclude its base-only provider projection from contribution proof and ref mutation,
                       and retain the full observation for target, chain, terminal, and state settlement.
 
-                - `[ ]` **6.11.R.x.b.b Revalidate the repaired integration and refresh boundary** — validate
+                - `[x]` **6.11.R.x.b.b Revalidate the repaired integration and refresh boundary** — validate
                   criteria at member scope
 
                     - _Goal:_ Focused and live self-hosting evidence closes both repaired seams without another
@@ -1711,11 +1711,61 @@ structural guarantee rather than operator discipline.
                           its remote publication lease. Reservation recovery and settlement preserve both, and a
                           built-CLI regression proves the former `top-moved` path through final state adoption.
 
-                    - `[ ]` **6.11.R.x.b.b.b Revalidate the complete repaired boundary** — validate criteria at
+                    - `[x]` **6.11.R.x.b.b.b Revalidate the complete repaired boundary** — validate criteria at
                       member scope
 
                         - _Goal:_ Focused and live self-hosting evidence closes Candidate recovery, dependent-prefix
                           proof, and local-terminal settlement without another mutation or recovery gap.
+
+                        - _Outcome:_ Member 6 criteria report.
+                            - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+                            - _Span:_ retained Member 6 evidence through D5.11; bounded integration and refresh
+                              repairs `92b44ef5f`, `931d26355`, `0db1efa59`, and `a98e9c003`; reachability
+                              `b333068db` plus the exact current review-fix patch. Boundary-order deviation:
+                              registered self-delivery supplied these repairs after the original member boundary.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`;
+                              _State:_ `[x]`; _Evidence:_ refresh remains demand-driven, while pending selected
+                              topology now blocks competing scopes instead of creating a target-movement trigger.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`;
+                              _State:_ `[~]`; _Evidence:_ D5.9 still supersedes only external-only invocation;
+                              exact dependent adoption remains available and unscoped adoption cannot bypass it.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`;
+                              _State:_ `[x]`; _Evidence:_ native landing still proves every rewritten remaining
+                              member, and the new guard admits no alternate pending-correction mutation path.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`;
+                              _State:_ `[x]`; _Evidence:_ canonical remaining-chain selection and exact semantic
+                              no-effect fallback are unchanged.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`;
+                              _State:_ `[x]`; _Evidence:_ non-terminal registration, top filtering, and singleton
+                              degradation are unchanged.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`;
+                              _State:_ `[x]`; _Evidence:_ opt-in disclosure and host-silent decline are unchanged.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`;
+                              _State:_ `[x]`; _Evidence:_ provider execution accepts dependent scope only for the
+                              state-derived pending member, refuses complete-remainder relabeling, and leaves
+                              reserved recovery unchanged; exact publication and settlement remain intact.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`;
+                              _State:_ `[x]`; _Evidence:_ public planning, execution, and adoption reject a wrong
+                              scope from canonical state before provider observation; callers still supply only
+                              locators and typed scope.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 9`;
+                              _State:_ `[x]`; _Evidence:_ the shared exact-topology predicate preserves selected
+                              publication lineage, dependent-only preparation, empty-suffix settlement, and bounded
+                              diagnostics.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 10`;
+                              _State:_ `[x]`; _Evidence:_ no omitted or complete-remainder scope can erase the owed
+                              selected-member continuation; exact acknowledgment and all pending barriers remain
+                              unchanged.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 11`;
+                              _State:_ `[x]`; _Evidence:_ exact conflict consent and the plan-ordered changed-member
+                              verification set remain scoped to dependent adoption; generic adoption now refuses
+                              before observation or mutation.
+                            - _Adversarial companion:_ Heavy pass one found caller-selected dependent refresh without
+                              a proved correction; pass two found complete-remainder and unscoped-adoption relabeling.
+                              Both source-confirmed supported-path findings were repaired. The primary post-settle
+                              reread found no residual at the two-pass cap.
+                            - _Summary:_ ten met, one intentionally superseded, zero unresolved. Success Criteria
+                              markers remain unchanged for terminal verification.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
