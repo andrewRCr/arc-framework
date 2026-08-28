@@ -36,11 +36,12 @@ function movedFixture() {
 
 function providerRefreshFixture(
   plan = deliveryFourMemberStackPlanFixture(),
+  pendingSelectedRefresh = false,
 ) {
   const fixture = deliveryStateFixture(plan);
   const targetHead = fixture.target?.coordinates?.head;
   if (targetHead === undefined) throw new Error("fixture target must be bound");
-  const state = {
+  const chainState = {
     ...fixture,
     members: fixture.members.map((member, index, members) => index === 0
       ? { ...member, ref: null, changeRequest: null, coordinates: null }
@@ -53,6 +54,17 @@ function providerRefreshFixture(
           },
         }),
   };
+  const state = pendingSelectedRefresh
+    ? {
+        ...chainState,
+        members: chainState.members.map((member, index) => index === 1 && member.coordinates !== null
+          ? {
+              ...member,
+              coordinates: { ...member.coordinates, head: "f".repeat(40) },
+            }
+          : member),
+      }
+    : chainState;
   const affected = plan.members.slice(1, -1).map(({ deliverableId }) => deliverableId);
   const before = {
     target: state.target,
@@ -76,7 +88,7 @@ function providerRefreshFixture(
 function dependentConflictFixture() {
   const fixture = providerRefreshFixture(deliveryStackPlanWithMemberTitlesFixture([
     "Landed", "Selected", "First dependent", "Second dependent", "Terminal",
-  ]));
+  ]), true);
   const { affected, before, observed: refreshed } = fixture;
   const selectedDeliverableId = affected[0]!;
   const observed = {
@@ -189,7 +201,10 @@ describe("delivery suffix reconciliation", () => {
   });
 
   it("refuses dependent adoption when the provider also moved the selected member", async () => {
-    const { plan, state, affected, observed } = providerRefreshFixture();
+    const { plan, state, affected, observed } = providerRefreshFixture(
+      deliveryFourMemberStackPlanFixture(),
+      true,
+    );
     const proveContribution = vi.fn();
     const publish = vi.fn();
     const result = await adoptExternalDeliverySuffixRefresh({
@@ -214,8 +229,51 @@ describe("delivery suffix reconciliation", () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
+  it("refuses dependent adoption when the selected member has not published a correction", async () => {
+    const { plan, state, affected } = providerRefreshFixture();
+    const result = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      affectedDeliverableIds: affected,
+      selectedDeliverableId: affected[0]!,
+      observeResult: async () => { throw new Error("must not observe"); },
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "selected-member-invalid" });
+  });
+
+  it("refuses ordinary adoption while a selected correction awaits dependent refresh", async () => {
+    const { plan, state, affected } = providerRefreshFixture(
+      deliveryFourMemberStackPlanFixture(),
+      true,
+    );
+    const result = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      affectedDeliverableIds: affected,
+      observeResult: async () => { throw new Error("must not observe"); },
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "selected-member-invalid" });
+  });
+
   it("carries dependent review-fix selection into the final adoption settlement", async () => {
-    const { plan, state, affected, before, observed: refreshed } = providerRefreshFixture();
+    const { plan, state, affected, before, observed: refreshed } = providerRefreshFixture(
+      deliveryFourMemberStackPlanFixture(),
+      true,
+    );
     const selectedDeliverableId = affected[0]!;
     const advancedTarget = {
       ref: state.target!.ref,
@@ -746,7 +804,7 @@ describe("delivery suffix reconciliation", () => {
     });
   });
 
-  it("settles zero provider movement only when the terminal top still owes absorption", async () => {
+  it("settles an empty dependent suffix only when the terminal top still owes absorption", async () => {
     const { plan, state, affected, before } = providerRefreshFixture();
     const highest = before.members.at(-1)!;
     const staleTop = {
@@ -767,6 +825,7 @@ describe("delivery suffix reconciliation", () => {
       plan,
       current: { revision: 7, value: staleTop },
       affectedDeliverableIds: affected,
+      selectedDeliverableId: highest.deliverableId,
       observeResult: async () => ({
         status: "observed",
         observation: { snapshot: before, targetMovement: "exact" },
@@ -783,7 +842,18 @@ describe("delivery suffix reconciliation", () => {
     expect(absorbTop).toHaveBeenCalledWith(expect.objectContaining({
       highestMember: { head: highest.coordinates!.head, tree: highest.coordinates!.tree },
     }));
-    expect(result).toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
+    expect(result).toMatchObject({
+      status: "applied",
+      selectedDeliverableId: highest.deliverableId,
+      state: {
+        value: {
+          activeOperation: null,
+          pendingReviewFixVerification: {
+            selectedDeliverableId: highest.deliverableId,
+          },
+        },
+      },
+    });
 
     const coherentTop = {
       ...state,
