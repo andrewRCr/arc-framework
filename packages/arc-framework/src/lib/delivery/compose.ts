@@ -437,6 +437,9 @@ export class DeliveryPlanComposer {
         if (coherence.state.activeOperation !== null) {
           return { status: "refused", reason: "operation-active" };
         }
+        if (coherence.state.pendingReviewFixVerification !== null) {
+          return { status: "refused", reason: "pending-review-fix-verification" };
+        }
         const amendment = classifyDeliveryPlanAmendment({
           current,
           proposed: candidate,

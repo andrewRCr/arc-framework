@@ -133,6 +133,7 @@ export function constructInitialDeliveryState(
         : null,
     })),
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
   if (!parsedState.success) return { status: "refused", reason: "binding-invalid" };
   return { status: "constructed", state: parsedState.data };
@@ -145,6 +146,7 @@ export type RebindDeliveryStateFailure =
   | "plan-identity-mismatch"
   | "subject-mismatch"
   | "operation-active"
+  | "pending-review-fix-verification"
   | "bound-member-missing";
 
 /** Result of projecting preserved current bindings into one accepted successor plan. */
@@ -176,6 +178,9 @@ export function rebindDeliveryStateToPlan(
   }
   if (parsedState.data.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
+  }
+  if (parsedState.data.pendingReviewFixVerification !== null) {
+    return { status: "refused", reason: "pending-review-fix-verification" };
   }
 
   const candidateIds = new Set(candidate.members.map((member) => member.deliverableId));
