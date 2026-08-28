@@ -293,6 +293,118 @@ describe("provider refresh publication classification", () => {
     expect(events.slice(-4)).toEqual(["absorb", "publish-top", "cleanup", "final"]);
   });
 
+  it("keeps the selected prefix fixed across append-only target movement", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(225 + index) },
+      })),
+    };
+    const facts = positionFacts(state);
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts });
+    if (derived.status !== "derived") throw new Error("refresh subject must derive");
+    const before = derived.subject.before;
+    const target = before.target;
+    if (target === null || target.coordinates === null) throw new Error("target must be bound");
+    const selected = before.members[0]!;
+    const advancedTarget = {
+      ref: target.ref,
+      coordinates: { head: oid("a"), tree: oid("b") },
+    };
+    const requested: DeliveryOperationSnapshotV1 = {
+      target: advancedTarget,
+      members: before.members.map((member, index) => ({
+        ...member,
+        coordinates: member.coordinates === null ? null : {
+          base: index === 0
+            ? advancedTarget.coordinates.head
+            : index === 1
+              ? selected.coordinates!.head
+              : oid(String(index + 6)),
+          head: index === 0 ? member.coordinates.head : oid(String(index + 7)),
+          tree: index === 0 ? member.coordinates.tree : oid(String(index + 3)),
+        },
+      })),
+    };
+    const candidateResult = deriveDeliveryProviderRefreshCandidates({ plan, before, requested });
+    if (candidateResult.status !== "derived") throw new Error("candidates must derive");
+    const remoteHeads = new Map(before.members.map((member) => [
+      member.deliverableId,
+      member.coordinates!.head,
+    ]));
+    const rewritten: string[] = [];
+    const proved: string[] = [];
+    let current: { revision: number; value: DeliveryStateV1 } = { revision: 7, value: state };
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current,
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix", selectedDeliverableId: selected.deliverableId },
+      facts,
+    }, {
+      preparation: { prepare: async () => ({
+        status: "prepared",
+        observation: { snapshot: requested, targetMovement: "append-only" },
+        candidates: candidateResult.candidates,
+      }) },
+      observePublishedHeads: async (snapshot) => snapshot.members.map((member) => ({
+        deliverableId: member.deliverableId,
+        head: remoteHeads.get(member.deliverableId) ?? null,
+      })),
+      rewriteMemberRef: async ({ ref, requestedHead }) => {
+        const member = requested.members.find((candidate) => candidate.ref === ref)!;
+        rewritten.push(member.deliverableId);
+        remoteHeads.set(member.deliverableId, requestedHead);
+        return { status: "rewritten" };
+      },
+      observeResult: async () => ({
+        status: "observed",
+        observation: { snapshot: requested, targetMovement: "append-only" },
+      }),
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async ({ deliverableId }) => {
+        proved.push(deliverableId);
+        return { status: "accepted", proof: "mechanical-reapply" };
+      },
+      absorbTop: async () => ({ status: "absorbed", head: oid("c"), tree: oid("d") }),
+      publishTop: async () => ({ status: "published" }),
+      rewriteLocalRef: async () => ({ status: "adopted" }),
+      cleanupPreparedCandidates: async () => ({ status: "cleaned" }),
+      stateStore: { publish: async (_planId, value, revision) => {
+        if (revision !== current.revision) return { status: "refused", reason: "version-conflict" };
+        current = { revision: revision + 1, value };
+        return { status: "ok", value: current };
+      } },
+    });
+
+    if (result.status !== "applied") {
+      throw new Error(JSON.stringify({ result, rewritten, proved, current }));
+    }
+    expect(result).toMatchObject({
+      nextAction: "verify-review-fix",
+      state: {
+        value: {
+          target: advancedTarget,
+          pendingReviewFixVerification: {
+            selectedDeliverableId: selected.deliverableId,
+          },
+        },
+      },
+    });
+    expect(rewritten).toEqual(before.members.slice(1).map(({ deliverableId }) => deliverableId));
+    const provedIds = before.members.map(({ deliverableId }) => deliverableId);
+    expect(proved).toEqual([...provedIds, ...provedIds]);
+    expect(result.state.value.members[0]?.coordinates).toMatchObject({
+      base: advancedTarget.coordinates.head,
+      head: selected.coordinates!.head,
+      tree: selected.coordinates!.tree,
+    });
+  });
+
   it("retains an observed terminal-authoring top through provider-refresh recovery", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);

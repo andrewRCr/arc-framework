@@ -238,14 +238,18 @@ export async function executeDeliveryProviderRefresh(_input: {
       requested: requested.data,
     });
     const expectedCandidates = candidateResult.status === "derived" ? candidateResult.candidates : null;
-    const dependentPrefixMoved = selectedIndex >= 0 && derived.subject.before.members
+    const dependentPrefixHeadMoved = selectedIndex >= 0 && derived.subject.before.members
       .slice(0, selectedIndex + 1)
-      .some((member, index) => canonicalize(member.coordinates)
-        !== canonicalize(requested.data.members[index]?.coordinates));
+      .some((member, index) => {
+        const beforeCoordinates = member.coordinates;
+        const requestedCoordinates = requested.data.members[index]?.coordinates;
+        return beforeCoordinates === null || requestedCoordinates === null || requestedCoordinates === undefined
+          || beforeCoordinates.head !== requestedCoordinates.head
+          || beforeCoordinates.tree !== requestedCoordinates.tree;
+      });
     if (movements === null || expectedCandidates === null
       || canonicalize(expectedCandidates) !== canonicalize(prepared.candidates)
-      || (input.scope.kind === "dependent-suffix"
-        && (prepared.observation.targetMovement !== "exact" || dependentPrefixMoved))
+      || (input.scope.kind === "dependent-suffix" && dependentPrefixHeadMoved)
       || (movements.length === 0
         && !deliveryTerminalAbsorptionOwed(input.current.value, requested.data))) {
       const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
