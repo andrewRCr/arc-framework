@@ -1,8 +1,8 @@
 # Metadata: delivery-native-stack-composition
 
-| **State**     | **Owner** | **Branch**                               | **Class** | **Priority** |
-| ------------- | --------- | ---------------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/delivery-native-stack-composition` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                               | **Class** | **Priority** |
+| --------- | --------- | ---------------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/delivery-native-stack-composition` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:3c710f9407ea7bf4fe296c8ee74f167d272e573ab873f32b700429f2a2b5b5d3`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 9.1.R.b — Revalidate exact conflict adoption at work-unit scope
-- **Next Task:** [none]
+- **Next Task:** Task 6.11.R.w — Restore integration recovery across pending Candidate applicability
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** [none]
 
 - **PR URL:** [none]
 - **Completed:** [none]
