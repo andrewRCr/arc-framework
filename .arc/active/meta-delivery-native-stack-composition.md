@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:99225ec5441b688ca658fd69f0e7e70f5a032c8532eaff465b8178e64ac1443d`
+- **Candidate:** `sha256:3c710f9407ea7bf4fe296c8ee74f167d272e573ab873f32b700429f2a2b5b5d3`
 
-- **Current Workflow:** [none]
-- **Last Completed:** Task 9.1 — Complete verification
-- **Next Task:** Task 7.7.R.a — Restore driver-governed member review re-entry
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 9.1.R.b — Revalidate exact conflict adoption at work-unit scope
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
