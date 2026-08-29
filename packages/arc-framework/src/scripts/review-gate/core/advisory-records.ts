@@ -1,7 +1,10 @@
 /** Durable advisory records shared by local and frontline review lanes. */
 
+import { isDeepStrictEqual } from "node:util";
+
 import { z } from "zod";
 
+import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   canonicalDigest,
   type KernelRegistry,
@@ -67,6 +70,17 @@ export const ErrandReviewFixResponseSchema = z.strictObject({
 });
 export type ErrandReviewFixResponse = z.infer<typeof ErrandReviewFixResponseSchema>;
 
+/** Monotonic evidence that one approved delivery-member fix landed and was verified. */
+export const DeliveryMemberReviewFixResponseSchema = z.strictObject({
+  oldTarget: ReviewTargetSchema,
+  newTarget: ReviewTargetSchema,
+  applicability: CandidateVerificationApplicabilitySchema,
+  fixConsumption: FixAuthorizationConsumptionSchema,
+  hostedTarget: HostedTargetSchema,
+  hostedFixTarget: HostedTargetSchema,
+});
+export type DeliveryMemberReviewFixResponse = z.infer<typeof DeliveryMemberReviewFixResponseSchema>;
+
 export const ApprovedDispositionRecordSchema = z.strictObject({
   ...AdvisoryRecordHeaderShape,
   candidate: z.strictObject({
@@ -74,16 +88,20 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
     candidateId: ReviewCanonicalDigestSchema,
   }).nullable(),
   errand: ErrandReviewBindingSchema.nullable(),
+  deliveryMember: DeliveryReviewMemberVehicleSchema.nullable(),
   source: ApprovedDispositionSourceSchema,
   approvedDisposition: ApprovedDispositionSetSchema,
   fixAuthorization: FixAuthorizationSchema.nullable(),
   errandFixResponse: ErrandReviewFixResponseSchema.nullable(),
+  deliveryMemberFixResponse: DeliveryMemberReviewFixResponseSchema.nullable(),
 }).superRefine((record, context) => {
-  if (record.candidate !== null && record.errand !== null) {
+  const bindingCount = [record.candidate, record.errand, record.deliveryMember]
+    .filter((binding) => binding !== null).length;
+  if (bindingCount > 1) {
     context.addIssue({
       code: "custom",
-      message: "a disposition record cannot bind both a Candidate and an Errand",
-      path: ["errand"],
+      message: "a disposition record cannot bind more than one response owner",
+      path: ["deliveryMember"],
     });
   }
   if (record.fixAuthorization !== null
@@ -96,36 +114,74 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
     });
   }
   const response = record.errandFixResponse;
-  if (response === null) return;
-  if (record.errand === null || record.candidate !== null || record.fixAuthorization === null) {
+  if (response !== null) {
+    if (record.errand === null || record.candidate !== null || record.deliveryMember !== null
+      || record.fixAuthorization === null) {
+      context.addIssue({
+        code: "custom",
+        message: "an Errand fix response requires one bound Errand and its fix authorization",
+        path: ["errandFixResponse"],
+      });
+    } else {
+      if (response.oldTarget.targetId !== record.approvedDisposition.dispositionSet.targetId
+        || response.oldTarget.targetId !== record.fixAuthorization.oldTargetId
+        || response.oldTarget.headSha !== record.fixAuthorization.oldHeadSha
+        || response.fixConsumption.fixAuthorizationId !== record.fixAuthorization.fixAuthorizationId
+        || response.fixConsumption.dispositionSetId !== record.fixAuthorization.dispositionSetId
+        || response.fixConsumption.oldTargetId !== response.oldTarget.targetId
+        || response.fixConsumption.newTargetId !== response.newTarget.targetId
+        || response.fixConsumption.oldHeadSha !== response.oldTarget.headSha
+        || response.fixConsumption.newHeadSha !== response.newTarget.headSha) {
+        context.addIssue({
+          code: "custom",
+          message: "Errand fix response must bind the exact authorization and target transition",
+          path: ["errandFixResponse"],
+        });
+      }
+      if ((record.source.kind === "hosted") !== (response.hostedTarget !== null)
+        || (response.hostedTarget !== null && response.hostedTarget.headSha !== response.oldTarget.headSha)) {
+        context.addIssue({
+          code: "custom",
+          message: "hosted Errand fixes must retain their exact originating change request",
+          path: ["errandFixResponse", "hostedTarget"],
+        });
+      }
+    }
+  }
+
+  const deliveryResponse = record.deliveryMemberFixResponse;
+  if (deliveryResponse === null) return;
+  if (record.deliveryMember === null || record.candidate !== null || record.errand !== null
+    || record.fixAuthorization === null || record.source.kind !== "hosted") {
     context.addIssue({
       code: "custom",
-      message: "an Errand fix response requires one bound Errand and its fix authorization",
-      path: ["errandFixResponse"],
+      message: "a delivery-member fix response requires its hosted member binding and fix authorization",
+      path: ["deliveryMemberFixResponse"],
     });
     return;
   }
-  if (response.oldTarget.targetId !== record.approvedDisposition.dispositionSet.targetId
-    || response.oldTarget.targetId !== record.fixAuthorization.oldTargetId
-    || response.oldTarget.headSha !== record.fixAuthorization.oldHeadSha
-    || response.fixConsumption.fixAuthorizationId !== record.fixAuthorization.fixAuthorizationId
-    || response.fixConsumption.dispositionSetId !== record.fixAuthorization.dispositionSetId
-    || response.fixConsumption.oldTargetId !== response.oldTarget.targetId
-    || response.fixConsumption.newTargetId !== response.newTarget.targetId
-    || response.fixConsumption.oldHeadSha !== response.oldTarget.headSha
-    || response.fixConsumption.newHeadSha !== response.newTarget.headSha) {
+  if (deliveryResponse.oldTarget.kind !== "delivery-member"
+    || deliveryResponse.newTarget.kind !== "delivery-member"
+    || deliveryResponse.oldTarget.targetId !== record.approvedDisposition.dispositionSet.targetId
+    || deliveryResponse.oldTarget.targetId !== record.fixAuthorization.oldTargetId
+    || deliveryResponse.oldTarget.headSha !== record.fixAuthorization.oldHeadSha
+    || deliveryResponse.oldTarget.headSha !== record.deliveryMember.head
+    || deliveryResponse.fixConsumption.fixAuthorizationId !== record.fixAuthorization.fixAuthorizationId
+    || deliveryResponse.fixConsumption.dispositionSetId !== record.fixAuthorization.dispositionSetId
+    || deliveryResponse.fixConsumption.oldTargetId !== deliveryResponse.oldTarget.targetId
+    || deliveryResponse.fixConsumption.newTargetId !== deliveryResponse.newTarget.targetId
+    || deliveryResponse.fixConsumption.oldHeadSha !== deliveryResponse.oldTarget.headSha
+    || deliveryResponse.fixConsumption.newHeadSha !== deliveryResponse.newTarget.headSha
+    || deliveryResponse.hostedTarget.headSha !== deliveryResponse.oldTarget.headSha
+    || deliveryResponse.hostedFixTarget.headSha !== deliveryResponse.newTarget.headSha
+    || !isDeepStrictEqual({
+      ...deliveryResponse.hostedFixTarget,
+      headSha: deliveryResponse.hostedTarget.headSha,
+    }, deliveryResponse.hostedTarget)) {
     context.addIssue({
       code: "custom",
-      message: "Errand fix response must bind the exact authorization and target transition",
-      path: ["errandFixResponse"],
-    });
-  }
-  if ((record.source.kind === "hosted") !== (response.hostedTarget !== null)
-    || (response.hostedTarget !== null && response.hostedTarget.headSha !== response.oldTarget.headSha)) {
-    context.addIssue({
-      code: "custom",
-      message: "hosted Errand fixes must retain their exact originating change request",
-      path: ["errandFixResponse", "hostedTarget"],
+      message: "delivery-member fix response must bind the exact authorization, member, and hosted transition",
+      path: ["deliveryMemberFixResponse"],
     });
   }
 });
