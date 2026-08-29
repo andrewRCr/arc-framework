@@ -14,40 +14,40 @@ import {
 // marker is scoped to a key the later reader hooks share — see codex-recovery-marker.
 const { sessionId, raw } = readHookInput();
 const hookCwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const cwd = isCodexHarness() ? resolveCodexExecutionCheckout(raw) ?? hookCwd : hookCwd;
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 const staleBuildCommand = process.env.ARC_HOOK_STALE_BUILD_COMMAND?.trim() || "";
 const env = { ...process.env };
+const hookDeadline = Date.now() + 29_000;
+let cwd = hookCwd;
 
 try {
   reapExpiredRecoveryArtifacts();
-  let result = runSeedCommand();
   let staleBuildFailure = null;
-  if (shouldRetryAfterBuild(result)) {
-    const build = spawnSync(staleBuildCommand, {
-      cwd,
-      env,
-      encoding: "utf8",
-      shell: true,
-      stdio: "ignore",
-      timeout: 20_000,
-      killSignal: "SIGKILL",
-    });
-    if (build.status === 0) {
-      result = runSeedCommand();
-      if (hasStaleBuildWarning(result)) {
-        staleBuildFailure = "seed command remained stale after repair";
+
+  if (isCodexHarness()) {
+    const direct = resolveCodexExecutionCheckout(raw);
+    if (direct !== null) {
+      cwd = direct;
+    } else if (hasTranscriptPath(raw)) {
+      const locusAttempt = runWithStaleBuildRepair("locus command", runLocusCommand);
+      staleBuildFailure = locusAttempt.failure;
+      if (staleBuildFailure === null) {
+        const locus = parseJsonOutput(locusAttempt.result);
+        cwd = resolveCodexExecutionCheckout(raw, locus) ?? hookCwd;
       }
-    } else {
-      staleBuildFailure = commandFailureMessage("stale-build repair", build);
     }
   }
 
-  if (isCodexHarness()) {
-    if (staleBuildFailure === null) {
-      writeMarkerFromResult(result);
-    } else {
-      writeFallbackPendingMarker(staleBuildFailure, sessionId);
+  if (staleBuildFailure !== null) {
+    writeFallbackPendingMarker(staleBuildFailure, sessionId);
+  } else {
+    const seedAttempt = runWithStaleBuildRepair("seed command", runSeedCommand);
+    if (isCodexHarness()) {
+      if (seedAttempt.failure === null) {
+        writeMarkerFromResult(seedAttempt.result);
+      } else {
+        writeFallbackPendingMarker(seedAttempt.failure, sessionId);
+      }
     }
   }
 } catch {
@@ -75,9 +75,67 @@ function runSeedCommand() {
     encoding: "utf8",
     shell: true,
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 15_000,
+    timeout: remainingTimeout(),
     killSignal: "SIGKILL",
   });
+}
+
+function runLocusCommand() {
+  return spawnSync(`${arcCommand} locus --json`, {
+    cwd: hookCwd,
+    env,
+    encoding: "utf8",
+    shell: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: remainingTimeout(5_000),
+    killSignal: "SIGKILL",
+    maxBuffer: 8 * 1024 * 1024,
+  });
+}
+
+function runWithStaleBuildRepair(label, run) {
+  let result = run();
+  if (!shouldRetryAfterBuild(result)) return { result, failure: null };
+
+  const build = spawnSync(staleBuildCommand, {
+    cwd,
+    env,
+    encoding: "utf8",
+    shell: true,
+    stdio: "ignore",
+    timeout: remainingTimeout(20_000),
+    killSignal: "SIGKILL",
+  });
+  if (build.status !== 0) {
+    return { result, failure: commandFailureMessage("stale-build repair", build) };
+  }
+
+  result = run();
+  return hasStaleBuildWarning(result)
+    ? { result, failure: `${label} remained stale after repair` }
+    : { result, failure: null };
+}
+
+function remainingTimeout(maximum = Number.POSITIVE_INFINITY) {
+  return Math.max(1, Math.min(maximum, hookDeadline - Date.now() - 250));
+}
+
+function hasTranscriptPath(value) {
+  try {
+    const path = JSON.parse(value)?.transcript_path;
+    return typeof path === "string" && path.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function parseJsonOutput(result) {
+  if (result.status !== 0 || typeof result.stdout !== "string") return null;
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    return null;
+  }
 }
 
 function shouldRetryAfterBuild(result) {

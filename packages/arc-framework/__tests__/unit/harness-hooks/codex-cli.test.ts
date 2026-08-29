@@ -238,13 +238,52 @@ function withTempArcProject<T>(fn: (root: string) => T): T {
   }
 }
 
-function resolveTranscriptCheckout(root: string, raw: string): string {
+function resolveTranscriptCheckout(
+  root: string,
+  raw: string,
+  locus: Record<string, unknown> | null = null,
+): string {
   return execFileSync(process.execPath, [
     "--input-type=module",
     "-e",
     `import { resolveCodexExecutionCheckout } from ${JSON.stringify(pathToFileURL(markerScriptPath).href)};\n`
-      + `process.stdout.write(resolveCodexExecutionCheckout(${JSON.stringify(raw)}) ?? "");`,
+      + `process.stdout.write(resolveCodexExecutionCheckout(${JSON.stringify(raw)}, ${JSON.stringify(locus)}) ?? "");`,
   ], { cwd: root, encoding: "utf8" });
+}
+
+function workUnitLocusRow(
+  path: string,
+  kind: "work-unit" | "unresolved-checkout",
+  key: string,
+): Record<string, unknown> {
+  return {
+    kind,
+    checkout: { path },
+    subject: { kind: "work-unit", key },
+    context: kind === "work-unit" ? { kind: "resolved" } : null,
+  };
+}
+
+function locusEnvelope(
+  hookRoot: string,
+  candidateRoot: string,
+  extraRows: readonly Record<string, unknown>[] = [],
+): Record<string, unknown> {
+  const entering = workUnitLocusRow(
+    hookRoot,
+    "unresolved-checkout",
+    "transfer-probe",
+  );
+  return {
+    mode: "locus",
+    ok: true,
+    roster: [
+      entering,
+      workUnitLocusRow(candidateRoot, "work-unit", "transfer-probe"),
+      ...extraRows,
+    ],
+    entering: { kind: "selected", row: entering },
+  };
 }
 
 describe("Codex CLI compaction recovery hook recipe", () => {
@@ -310,6 +349,121 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       } finally {
         execFileSync("git", ["worktree", "remove", "--force", spawned], { cwd: root });
         rmSync(spawned, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("recognizes an exact one-to-one work-unit checkout transfer from the locus reader", () => {
+    withTempArcProject((root) => {
+      const replacement = `${root}-work-unit`;
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      execFileSync("git", ["config", "user.name", "Test"], { cwd: root });
+      execFileSync("git", ["add", "."], { cwd: root });
+      execFileSync("git", ["commit", "-m", "seed"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["worktree", "add", "-b", "feat/transfer-probe", replacement], {
+        cwd: root,
+        stdio: "ignore",
+      });
+
+      try {
+        const transcriptPath = join(root, "transcript.jsonl");
+        writeFileSync(transcriptPath, `${JSON.stringify({
+          payload: {
+            item: {
+              type: "CommandExecution",
+              cwd: pathToFileURL(replacement).href,
+            },
+          },
+        })}\n`);
+        const raw = JSON.stringify({ transcript_path: transcriptPath });
+
+        expect(resolveTranscriptCheckout(root, raw, locusEnvelope(root, replacement))).toBe(
+          realpathSync(replacement),
+        );
+      } finally {
+        execFileSync("git", ["worktree", "remove", "--force", replacement], { cwd: root });
+        rmSync(replacement, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("rejects non-exact work-unit checkout transfers from the locus reader", () => {
+    withTempArcProject((root) => {
+      const replacement = `${root}-work-unit`;
+      const ambiguous = `${root}-ambiguous`;
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      execFileSync("git", ["config", "user.name", "Test"], { cwd: root });
+      execFileSync("git", ["add", "."], { cwd: root });
+      execFileSync("git", ["commit", "-m", "seed"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["worktree", "add", "-b", "feat/transfer-probe", replacement], {
+        cwd: root,
+        stdio: "ignore",
+      });
+      execFileSync("git", ["worktree", "add", "-b", "feat/ambiguous-probe", ambiguous], {
+        cwd: root,
+        stdio: "ignore",
+      });
+
+      try {
+        const transcriptPath = join(root, "transcript.jsonl");
+        writeFileSync(transcriptPath, `${JSON.stringify({
+          payload: {
+            item: {
+              type: "CommandExecution",
+              cwd: pathToFileURL(replacement).href,
+            },
+          },
+        })}\n`);
+        const raw = JSON.stringify({ transcript_path: transcriptPath });
+        const exact = locusEnvelope(root, replacement);
+        const exactRows = exact.roster as Record<string, unknown>[];
+        const candidate = exactRows[1] as Record<string, unknown>;
+
+        const cases: Record<string, Record<string, unknown>> = {
+          "member or gate candidate": {
+            ...exact,
+            roster: [exactRows[0], { ...candidate, kind: "unmanaged-checkout", subject: null, context: null }],
+          },
+          "sibling work-unit candidate": {
+            ...exact,
+            roster: [
+              exactRows[0],
+              workUnitLocusRow(replacement, "work-unit", "sibling-probe"),
+            ],
+          },
+          "unresolved candidate": {
+            ...exact,
+            roster: [
+              exactRows[0],
+              workUnitLocusRow(replacement, "unresolved-checkout", "transfer-probe"),
+            ],
+          },
+          "ambiguous resolved candidate": locusEnvelope(root, replacement, [
+            workUnitLocusRow(ambiguous, "work-unit", "transfer-probe"),
+          ]),
+          "resolved hook root": {
+            ...exact,
+            roster: [
+              workUnitLocusRow(root, "work-unit", "transfer-probe"),
+              candidate,
+            ],
+            entering: {
+              kind: "selected",
+              row: workUnitLocusRow(root, "work-unit", "transfer-probe"),
+            },
+          },
+        };
+
+        for (const [label, locus] of Object.entries(cases)) {
+          expect(resolveTranscriptCheckout(root, raw, locus), label).toBe("");
+        }
+      } finally {
+        execFileSync("git", ["worktree", "remove", "--force", ambiguous], { cwd: root });
+        execFileSync("git", ["worktree", "remove", "--force", replacement], { cwd: root });
+        rmSync(ambiguous, { recursive: true, force: true });
+        rmSync(replacement, { recursive: true, force: true });
       }
     });
   });
@@ -436,10 +590,33 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(seedScript).toContain("reapExpiredRecoveryArtifacts");
     expect(seedScript).toContain("readHookInput");
     expect(seedScript).toContain("ARC_HOOK_STALE_BUILD_COMMAND");
-    expect(seedScript).toContain("timeout: 15_000");
+    expect(seedScript).toContain("const hookDeadline = Date.now() + 29_000");
+    expect(seedScript).toContain("timeout: remainingTimeout()");
     expect(seedScript).toContain("stdio: [\"ignore\", \"pipe\", \"pipe\"]");
     expect(seedScript).toContain("process.exit(0)");
   });
+
+  it("allows a valid seed command to use the enclosing hook budget beyond fifteen seconds", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = writeSuccessFakeArc(root);
+      writeFileSync(fakeArcPath, [
+        "await new Promise((resolveDelay) => setTimeout(resolveDelay, 15_250));",
+        readFileSync(fakeArcPath, "utf8"),
+      ].join("\n"));
+
+      runHookScriptRaw(seedScriptPath, root, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      expect(readJson<PendingMarker>(identityMarkerPath(root))).toMatchObject({
+        fallback: false,
+        seedPath: ".arc/user/andrew/.internal/compaction-seed.json",
+      });
+    });
+  }, 30_000);
 
   it("routes recovery through PostToolUse injection with a UserPromptSubmit backstop", () => {
     const fragment = readJson<CodexHooksFragment>(hooksPath);
