@@ -1,8 +1,8 @@
 # Metadata: delivery-native-stack-composition
 
-| **State** | **Owner** | **Branch**                               | **Class** | **Priority** |
-| --------- | --------- | ---------------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/delivery-native-stack-composition` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                               | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/delivery-native-stack-composition` | `Heavy`   | `P1`         |
 
 - **Cohort:** `chunked-delivery`
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:7b79160ff6906cee758f25d0566d1de10b8096415fe4efb9b3691c1c04e3550e`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 9.1.R.c — Revalidate repeated refresh at work-unit scope
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Candidate review pending — run pre-publication review
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
