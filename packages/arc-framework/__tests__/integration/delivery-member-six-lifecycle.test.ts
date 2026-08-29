@@ -8,7 +8,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { handleDeliveryExecution } from "../../src/handlers/delivery-execution.js";
 import type { RawGitExec } from "../../src/lib/change-facts.js";
-import { absorbGitDeliveryChain } from "../../src/lib/delivery/chain-absorption.js";
+import {
+  absorbGitDeliveryChain,
+  preflightGitDeliveryChainAbsorption,
+} from "../../src/lib/delivery/chain-absorption.js";
 import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contribution-proof.js";
 import {
   publishDeliveryTopRef,
@@ -278,9 +281,14 @@ function refreshDependencies(fixture: RefreshFixture, stateStore: ReturnType<typ
       return result === "ancestor" || result === "not-ancestor" ? result : null;
     },
     proveContribution: fixture.proveMovement,
+    preflightTop: (input: {
+      readonly topRef: string;
+      readonly top: { readonly head: string; readonly tree: string };
+    }) => preflightGitDeliveryChainAbsorption({ exec: fixture.rawExec, ...input }),
     absorbTop: (input: {
       readonly topRef: string;
       readonly top: { readonly head: string; readonly tree: string };
+      readonly previousHighestMember: { readonly head: string; readonly tree: string };
       readonly highestMember: { readonly head: string; readonly tree: string };
     }) => absorbGitDeliveryChain({ exec: fixture.rawExec, ...input }),
     publishTop: (input: {
@@ -333,6 +341,7 @@ describe("member-six refresh adoption lifecycle", () => {
         observation: observed.observation,
         candidates: candidates.candidates,
       }) },
+      preflightTop: (input) => preflightGitDeliveryChainAbsorption({ exec: fixture.rawExec, ...input }),
       observePublishedHeads: async (snapshot) => Promise.all(snapshot.members.map(async (member) => {
         const output = await fixture.git(["ls-remote", "--refs", "origin", member.ref!]);
         return { deliverableId: member.deliverableId, head: output.split(/\s+/u)[0] ?? null };
