@@ -1,7 +1,5 @@
 /** Production assembly for approved review dispositions. */
 
-import { readFile, readdir } from "node:fs/promises";
-
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import {
   projectTransientInFlightRead,
@@ -10,8 +8,6 @@ import {
 import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
-import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
-import { buildLifecycleIndex, type LifecycleIndexFs } from "../../../lib/work-unit/lifecycle-index.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import {
   readCandidateRecordVersioned,
@@ -48,6 +44,10 @@ import { composeDeliveryMemberTarget } from "../hosts/local/repository-target.js
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
+import {
+  resolveCandidateMutationOwner,
+  resolveCompletedCandidateWorkUnits,
+} from "../../../handlers/candidate-mutation-owner.js";
 
 /** Bind respond to repository-common records and trusted local/runtime identities. */
 export function createRespondDependencies(input: {
@@ -64,10 +64,6 @@ export function createRespondDependencies(input: {
       .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
     return receiptStore;
   };
-  const lifecycleFs: LifecycleIndexFs = {
-    readdir: (path) => readdir(path, { withFileTypes: true }),
-    readFile: (path) => readFile(path, "utf8"),
-  };
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = async () => {
     settingsPromise ??= readConfigSettings(input.cwd);
@@ -80,6 +76,18 @@ export function createRespondDependencies(input: {
         transitions: record.transitions.slice(0, length),
         lineageAttestations: [],
       }));
+  const completedWorkUnits = (): Promise<readonly string[]> =>
+    resolveCompletedCandidateWorkUnits(input.cwd);
+  const candidateMutationOwner = () => resolveCandidateMutationOwner({
+    cwd: input.cwd,
+    exec: input.exec,
+  });
+  const requireCandidateMutationOwner = async (workUnit: string): Promise<void> => {
+    const owner = await candidateMutationOwner();
+    if (owner.status === "owned" && owner.workUnit === workUnit) return;
+    if (owner.status === "unowned" && (await completedWorkUnits()).includes(workUnit)) return;
+    throw new Error("Candidate mutation is not owned by the entering checkout.");
+  };
   return {
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
@@ -171,14 +179,12 @@ export function createRespondDependencies(input: {
     },
     now: () => new Date().toISOString(),
     readCandidateLineage: async (target) => {
-      const active = await resolveActiveWu({ cwd: input.cwd });
-      const completed = [...(await buildLifecycleIndex({ cwd: input.cwd, fs: lifecycleFs })).values()]
-        .filter(({ location }) => location === "completed")
-        .map(({ slug }) => slug);
-      const candidates = [...new Set([
-        ...(active.status === "resolved" && active.name !== "" ? [active.name] : []),
-        ...completed,
-      ])];
+      const owner = await candidateMutationOwner();
+      const candidates = owner.status === "owned"
+        ? [owner.workUnit]
+        : owner.status === "unowned"
+          ? await completedWorkUnits()
+          : [];
       const matching = [] as Array<{
         workUnit: string;
         record: NonNullable<Awaited<ReturnType<typeof readCandidateRecordVersioned>>["record"]>;
@@ -249,11 +255,13 @@ export function createRespondDependencies(input: {
     // Staged like the record `attest` publishes: the Candidate's own projection never enters the
     // reviewable subject, so staging it advances the lineage without disturbing what review sees.
     appendCandidateResponse: async ({ workUnit, record, expectedRecordVersion }) => {
+      await requireCandidateMutationOwner(workUnit);
       const recordPath = await writeCandidateRecord(input.cwd, workUnit, record, expectedRecordVersion);
       await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
     },
     stageCandidateResponse: async (workUnit) => {
+      await requireCandidateMutationOwner(workUnit);
       const recordPath = resolveCandidateRecordRelativePath(workUnit);
       await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };

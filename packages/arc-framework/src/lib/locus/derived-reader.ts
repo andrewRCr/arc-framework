@@ -272,14 +272,73 @@ export async function readDerivedLocusRoster(options: {
     }
     rows.push(row);
   }
-  rows.sort((left, right) => Buffer.compare(
+  const guardedRows = guardWorkUnitLocusCollisions(rows);
+  guardedRows.sort((left, right) => Buffer.compare(
     Buffer.from(left.checkout.path),
     Buffer.from(right.checkout.path),
   ));
   return {
-    rows,
-    identityDiscovery: projectIdentityDiscovery(options.identities, rows),
+    rows: guardedRows,
+    identityDiscovery: projectIdentityDiscovery(options.identities, guardedRows),
   };
+}
+
+function guardWorkUnitLocusCollisions(rows: readonly DerivedCheckoutRow[]): DerivedCheckoutRow[] {
+  const strandedOrigins = new Map<string, DerivedCheckoutRow[]>();
+  for (const row of rows) {
+    if (
+      row.kind !== "unresolved-checkout"
+      || row.markerGeneration === null
+      || row.subject?.kind !== "work-unit"
+    ) continue;
+    const origins = strandedOrigins.get(row.subject.key) ?? [];
+    origins.push(row);
+    strandedOrigins.set(row.subject.key, origins);
+  }
+
+  const conflicts = new Map<string, {
+    readonly origins: readonly DerivedCheckoutRow[];
+    readonly carriers: readonly DerivedCheckoutRow[];
+  }>();
+  for (const [key, origins] of strandedOrigins) {
+    const originPaths = new Set(origins.map((row) => row.checkout.path));
+    const carriers = rows.filter((row) => {
+      if (
+        originPaths.has(row.checkout.path)
+        || row.markerGeneration !== null
+        || row.subject?.kind !== "work-unit"
+        || row.subject.key !== key
+      ) return false;
+      return row.kind === "work-unit"
+        || (row.kind === "unresolved-checkout"
+          && row.diagnostics.every(({ code }) => code === "subject-unresolved"));
+    });
+    if (carriers.length > 0) conflicts.set(key, { origins, carriers });
+  }
+
+  if (conflicts.size === 0) return [...rows];
+  return rows.map((row) => {
+    if (row.subject?.kind !== "work-unit") return row;
+    const conflict = conflicts.get(row.subject.key);
+    if (conflict === undefined) return row;
+    const implicated = [...conflict.origins, ...conflict.carriers]
+      .some((candidate) => candidate.checkout.path === row.checkout.path);
+    if (!implicated) return row;
+    const originPaths = conflict.origins.map((candidate) => candidate.checkout.path);
+    const carrierPaths = conflict.carriers.map((candidate) => candidate.checkout.path);
+    const origin = originPaths.length === 1 ? originPaths[0] : `[${originPaths.join(", ")}]`;
+    const carrier = carrierPaths.length === 1 ? carrierPaths[0] : `[${carrierPaths.join(", ")}]`;
+    return {
+      ...row,
+      kind: "unresolved-checkout",
+      context: null,
+      diagnostics: [...row.diagnostics, {
+        code: "work-unit-locus-conflict",
+        message: `Work unit '${row.subject.key}' remains owned by a marker checkout; restore its branch to ${origin} `
+          + `instead of treating ${carrier} as a successor.`,
+      }],
+    };
+  });
 }
 
 function projectIdentityDiscovery(

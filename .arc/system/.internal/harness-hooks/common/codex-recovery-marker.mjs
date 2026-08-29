@@ -64,13 +64,12 @@ export function readHookInput() {
 
 /**
  * Recover the most recent registered execution checkout from Codex's session
- * transcript. Codex anchors hook `cwd` to the session root even when a tool
- * command ran in a directed checkout, while the transcript retains the
- * command's actual cwd. Transient candidates retain their marker-generation
- * guard. A work-unit candidate additionally requires the reader-owned locus
- * projection to prove one exact unresolved-root to resolved-checkout transfer.
+ * transcript. Codex anchors hook `cwd` to the session root even when an
+ * ARC-declared transient runs in another checkout, while the transcript retains
+ * the command's actual cwd. Only ready transient candidates may redirect the
+ * hook; moving a work-unit branch never transfers recovery authority.
  */
-export function resolveCodexExecutionCheckout(raw, locus = null) {
+export function resolveCodexExecutionCheckout(raw) {
   const transcriptPath = hookTranscriptPath(raw);
   if (transcriptPath === null) return null;
 
@@ -84,54 +83,7 @@ export function resolveCodexExecutionCheckout(raw, locus = null) {
   const registered = registeredWorktreeRoots(hookRoot);
   const candidateIndex = registered.findIndex((path) => resolve(path) === resolve(candidateRoot));
   if (candidateIndex === -1) return null;
-  if (resolve(candidateRoot) === resolve(hookRoot)) return candidateRoot;
-  if (isReadyTransient(candidateRoot, candidateIndex === 0)) return candidateRoot;
-  return isExactWorkUnitTransfer(locus, hookRoot, candidateRoot) ? candidateRoot : null;
-}
-
-function isExactWorkUnitTransfer(locus, hookRoot, candidateRoot) {
-  if (locus?.mode !== "locus" || locus?.ok !== true || !Array.isArray(locus?.roster)) return false;
-
-  const entering = locus?.entering;
-  if (
-    entering?.kind !== "selected"
-    || !sameCheckoutPath(entering?.row, hookRoot)
-  ) return false;
-
-  const hookRows = locus.roster.filter((row) => sameCheckoutPath(row, hookRoot));
-  const candidateRows = locus.roster.filter((row) => sameCheckoutPath(row, candidateRoot));
-  if (hookRows.length !== 1 || candidateRows.length !== 1) return false;
-
-  const hookRow = hookRows[0];
-  const candidateRow = candidateRows[0];
-  const workUnitKey = workUnitSubjectKey(hookRow);
-  if (
-    hookRow?.kind !== "unresolved-checkout"
-    || workUnitKey === null
-    || candidateRow?.kind !== "work-unit"
-    || candidateRow?.context?.kind !== "resolved"
-    || workUnitSubjectKey(candidateRow) !== workUnitKey
-  ) return false;
-
-  const sameWorkUnitRows = locus.roster.filter((row) => workUnitSubjectKey(row) === workUnitKey);
-  const resolvedRows = sameWorkUnitRows.filter((row) => (
-    row?.kind === "work-unit" && row?.context?.kind === "resolved"
-  ));
-  return sameWorkUnitRows.length === 2
-    && resolvedRows.length === 1
-    && sameCheckoutPath(resolvedRows[0], candidateRoot);
-}
-
-function workUnitSubjectKey(row) {
-  const subject = row?.subject;
-  return subject?.kind === "work-unit" && typeof subject?.key === "string" && subject.key.length > 0
-    ? subject.key
-    : null;
-}
-
-function sameCheckoutPath(row, expected) {
-  const observed = row?.checkout?.path;
-  return typeof observed === "string" && resolve(observed) === resolve(expected);
+  return isReadyTransient(candidateRoot, candidateIndex === 0) ? candidateRoot : null;
 }
 
 function hookTranscriptPath(raw) {
