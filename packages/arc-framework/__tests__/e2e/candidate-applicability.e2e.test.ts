@@ -1,11 +1,13 @@
 /** Real-CLI coverage for exact-bound Candidate applicability selection and replay. */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createRawGitExec, gitExec } from "../../src/lib/io-context.js";
+import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { reduceCandidateDurableBaseline } from "../../src/lib/work-unit/candidate-attestation.js";
 import { readCandidateRecordVersioned } from "../../src/lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
@@ -50,7 +52,7 @@ afterEach(async () => {
 });
 
 describe("arc candidate applicability resolve", () => {
-  it("binds one fresh bounded selection and replays it without a duplicate transition", async () => {
+  it("binds and replays one owned selection, then refuses a foreign active owner", async () => {
     const root = await createTempRepo("arc-candidate-applicability-");
     roots.push(root);
     const initialized = await runArc(["init", "--yes", "--name", "example"], root);
@@ -128,6 +130,55 @@ describe("arc candidate applicability resolve", () => {
       choice: "covered",
     };
 
+    const carrierParent = await mkdtemp(join(tmpdir(), "arc-candidate-carrier-"));
+    const original = join(carrierParent, "original");
+    const carrier = join(carrierParent, "replacement");
+    await git(root, ["switch", "main"]);
+    await git(root, ["worktree", "add", original, "feat/example"]);
+    await writeWorktreeOwnershipMarker(original, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "example" },
+      spawningIdentity: "test-user",
+      now: Date.parse("2026-08-29T00:00:00.000Z"),
+    });
+    await git(original, ["switch", "--detach"]);
+    await git(root, ["worktree", "add", carrier, "feat/example"]);
+    try {
+      const locus = await runArc(["locus", "--json"], carrier);
+      expect(locus.exitCode, locus.stderr || locus.stdout).toBe(0);
+      expect(JSON.parse(locus.stdout)).toMatchObject({
+        entering: {
+          kind: "selected",
+          row: {
+            kind: "unresolved-checkout",
+            checkout: { path: carrier },
+          },
+        },
+        active: null,
+      });
+
+      const candidatePath = join(carrier, ".arc", "system", ".internal", "candidates", "example.json");
+      const candidateBefore = await readFile(candidatePath, "utf8");
+      const refusedCarrier = await runArcWithStdin(
+        ["candidate", "applicability", "resolve", "example", "-"],
+        carrier,
+        `${JSON.stringify(request)}\n`,
+      );
+      expect(refusedCarrier.exitCode).toBe(1);
+      expect(JSON.parse(refusedCarrier.stdout)).toMatchObject({
+        state: "execution-unavailable",
+        nextAction: "stop",
+        reason: "active-work-unit-unavailable",
+      });
+      expect(await readFile(candidatePath, "utf8")).toBe(candidateBefore);
+      expect(await git(carrier, ["diff", "--cached", "--name-only", "--", candidatePath])).toBe("");
+    } finally {
+      await git(root, ["worktree", "remove", "--force", carrier]).catch(() => undefined);
+      await git(root, ["worktree", "remove", "--force", original]).catch(() => undefined);
+      await cleanupTempDir(carrierParent);
+      await git(root, ["switch", "feat/example"]);
+    }
+
     const first = await runArcWithStdin(
       ["candidate", "applicability", "resolve", "example", "-"],
       root,
@@ -160,5 +211,32 @@ describe("arc candidate applicability resolve", () => {
     expect(committedReplay.exitCode, committedReplay.stderr || committedReplay.stdout).toBe(0);
     expect(JSON.parse(committedReplay.stdout)).toMatchObject({ state: "exact-replay", nextAction: "continue" });
     expect(await git(root, ["diff", "--cached", "--name-only"])).toBe("");
+
+    await rename(
+      join(root, ".arc", "active", "meta-example.md"),
+      join(root, ".arc", "active", "meta-active-owner.md"),
+    );
+    const currentVersion = await readCandidateRecordVersioned(root, "example");
+    if (currentVersion.version === null) throw new Error("missing current Candidate version");
+    const foreignRequest = {
+      ...request,
+      expectedRecordVersion: currentVersion.version,
+      selectedBy: "another-reviewer",
+    };
+    const candidatePath = join(root, ".arc", "system", ".internal", "candidates", "example.json");
+    const candidateBefore = await readFile(candidatePath, "utf8");
+    const foreign = await runArcWithStdin(
+      ["candidate", "applicability", "resolve", "example", "-"],
+      root,
+      `${JSON.stringify(foreignRequest)}\n`,
+    );
+    expect(foreign.exitCode).toBe(1);
+    expect(JSON.parse(foreign.stdout)).toMatchObject({
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: "active-work-unit-mismatch",
+    });
+    expect(await readFile(candidatePath, "utf8")).toBe(candidateBefore);
+    expect(await git(root, ["diff", "--cached", "--name-only", "--", candidatePath])).toBe("");
   }, 60_000);
 });
