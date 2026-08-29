@@ -678,7 +678,8 @@ describe("hosted review fan-out lifecycle", () => {
         verificationEvidenceRefs: ["verification://member-fix"],
       },
     };
-    await expect(respondThroughHandler(harness, verifiedRequest)).resolves.toMatchObject({
+    const advanced = await respondThroughHandler(harness, verifiedRequest);
+    expect(advanced).toMatchObject({
       state: "delivery-member-advanced",
       nextAction: "continue-review",
       payload: {
@@ -694,12 +695,141 @@ describe("hosted review fan-out lifecycle", () => {
         },
       },
     });
-    await expect(respondThroughHandler(harness, verifiedRequest)).resolves.toMatchObject({
+    if (advanced.state !== "delivery-member-advanced") throw new Error("expected advanced member response");
+    const replayed = await respondThroughHandler(harness, verifiedRequest);
+    expect(replayed).toMatchObject({
       state: "delivery-member-current",
       nextAction: "continue-review",
       payload: {
         currentTarget: { headSha: fixedHead },
         hostedFixTarget: { repository, pullRequest: 41, headSha: fixedHead },
+      },
+    });
+    if (replayed.state !== "delivery-member-current") throw new Error("expected current member response");
+
+    let resolved = false;
+    let reply: { id: string; actorIdentity: string; body: string; inReplyToId: string } | null = null;
+    const settlementRequest = {
+      schemaVersion: 1 as const,
+      response: {
+        attemptRef,
+        dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+        findingId: finding.findingId,
+      },
+      target: status.action.target,
+      fixTarget: advanced.payload.hostedFixTarget,
+      actorIdentity: "andrew",
+      finding: { commentId: finding.commentId, threadId: finding.threadId },
+      disposition: "fix" as const,
+      reply: "Fixed in the current delivery-member head.",
+    };
+    const settleThroughHandler = async () => {
+      const output: string[] = [];
+      const exitCodes: number[] = [];
+      await handleReviewHostedSettle("-", {
+        readText: async () => JSON.stringify(settlementRequest),
+        settle: async (input) => {
+          const result = await settleHostedFinding(input, { port: {
+            currentActorIdentity: async () => "andrew",
+            readHead: async () => fixedHead,
+            readThread: async () => ({
+              kind: "present",
+              isResolved: resolved,
+              commentIds: [finding.commentId],
+            }),
+            findReplies: async () => reply === null ? [] : [reply],
+            postReply: async (post) => {
+              reply = {
+                id: "reply-member-fix",
+                actorIdentity: "andrew",
+                body: post.body,
+                inReplyToId: post.commentId,
+              };
+              return { kind: "created", id: "reply-member-fix" };
+            },
+            resolveThread: async () => {
+              resolved = true;
+              return { kind: "resolved" };
+            },
+          } });
+          if (result.state === "settled" || result.state === "already-settled") {
+            await settleHostedAttemptFinding(harness.store, {
+              operationId,
+              attemptId,
+              dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+              findingId: finding.findingId,
+              now: "2026-08-24T04:03:00.000Z",
+            });
+          }
+          return result;
+        },
+        write: (text) => output.push(text),
+        setExitCode: (code) => exitCodes.push(code),
+      });
+      expect(exitCodes).toEqual([]);
+      return JSON.parse(output.join("")) as unknown;
+    };
+    await expect(settleThroughHandler()).resolves.toMatchObject({ state: "settled", nextAction: "complete" });
+    await expect(settleThroughHandler()).resolves.toMatchObject({ state: "already-settled", nextAction: "complete" });
+
+    const secondStatus = await statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: fixedHead,
+    });
+    expect(secondStatus).toMatchObject({
+      nextAction: "review-hosted-request",
+      routedObligation: {
+        conjunction: {
+          status: "outstanding",
+          members: [{ state: "discharged" }, { state: "outstanding" }],
+        },
+      },
+    });
+    if (secondStatus.nextAction !== "review-hosted-request") throw new Error("expected second member request");
+    const secondRequested = await requestThroughHandler(secondStatus.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-second-after-member-fix",
+        url: "https://example.test/review-second-after-member-fix",
+        createdAt: "2026-08-24T04:04:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec);
+    if (secondRequested.nextAction !== "await") throw new Error("expected second hosted review handle");
+    const secondAwait = await awaitThroughHandler(secondRequested.handle, {
+      kind: "clean",
+      reviewUrl: "https://example.test/review-second-after-member-fix",
+    });
+    const secondReview = targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.oldFirst,
+      baseTree: harness.oldFirstTree,
+      headSha: harness.priorSecond,
+      headTree: harness.priorSecondTree,
+    });
+    await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: secondAwait,
+      reviewTarget: secondReview.reviewTarget,
+      requirement: secondReview.requirement,
+      actorIdentity: "andrew",
+      now: "2026-08-24T04:05:00.000Z",
+    });
+
+    await expect(statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: fixedHead,
+    })).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      routedObligation: {
+        conjunction: {
+          status: "discharged",
+          members: [{ state: "discharged" }, { state: "discharged" }],
+        },
       },
     });
   });

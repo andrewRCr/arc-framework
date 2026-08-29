@@ -10,6 +10,7 @@ import type { ReviewOperationStateSnapshot } from "../core/ports.js";
 import {
   EarlierReviewAttemptQuerySchema,
   queryEarlierReviewAttempts,
+  type EarlierReviewAttemptCandidate,
   type EarlierReviewAttemptQuery,
 } from "./earlier-review-attempts.js";
 import { projectGitReviewContributionApplicability } from
@@ -19,10 +20,11 @@ import {
   reviewApplicabilityConsumerAction,
   type ReviewApplicabilityConsumerAction,
 } from "./review-applicability-authority.js";
+import type { ApprovedDispositionRecord } from "../core/advisory-records.js";
 import type {
   ReviewContributionApplicabilityResult,
 } from "./review-contribution-applicability.js";
-import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import { bindReviewSourceReference, parseReviewSourceReference } from "../core/review-source-reference.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
 
 export type EarlierHostedAttemptApplicabilityRead =
@@ -32,6 +34,7 @@ export type EarlierHostedAttemptApplicabilityRead =
       readonly sourceId: string;
       readonly outcome: string;
       readonly applicability: ReviewApplicabilityConsumerAction;
+      readonly retentionBasis?: "verified-fix-response";
       readonly projection?: ReviewContributionApplicabilityResult;
       readonly authorityState?: "decision-required" | "blocked";
       readonly responsePlan?: HostedFindingsResponsePlan;
@@ -55,9 +58,51 @@ export interface EarlierReviewApplicabilityInput {
   readonly snapshot: ReviewOperationStateSnapshot;
   readonly candidate: CandidateManagedRecordV1;
   readonly exec: RawGitExec;
+  readonly readDispositionRecord?: (attemptId: string) => Promise<ApprovedDispositionRecord | null>;
   readonly projectApplicability?: (
     selector: Parameters<typeof projectGitReviewContributionApplicability>[0]["selector"],
   ) => Promise<ReviewContributionApplicabilityResult>;
+}
+
+function verifiedDeliveryMemberFixResponse(input: {
+  readonly record: ApprovedDispositionRecord | null;
+  readonly candidate: EarlierReviewAttemptCandidate;
+  readonly query: EarlierReviewAttemptQuery;
+}): NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]> | null {
+  const { record, candidate, query } = input;
+  const priorVehicle = candidate.priorVehicle;
+  const currentVehicle = query.currentVehicle;
+  const response = record?.deliveryMemberFixResponse;
+  if (candidate.outcome !== "settled-findings"
+    || record?.operationId !== candidate.attemptId
+    || record.source.kind !== "hosted"
+    || record.deliveryMember === null
+    || priorVehicle === undefined
+    || currentVehicle === undefined
+    || response === null
+    || response === undefined) return null;
+  let sourceReference;
+  try {
+    sourceReference = parseReviewSourceReference(record.source.attemptRef, "hosted");
+  } catch {
+    return null;
+  }
+  return sourceReference.operationId === candidate.operationId
+    && sourceReference.durableRef === candidate.attemptId
+    && sameDeliveryReviewMemberVehicle(record.deliveryMember, priorVehicle)
+    && currentVehicle.planId === priorVehicle.planId
+    && currentVehicle.deliverableId === priorVehicle.deliverableId
+    && currentVehicle.workUnitId === priorVehicle.workUnitId
+    && response.oldTarget.targetId === candidate.reviewTarget.targetId
+    && response.hostedTarget.repository.toLowerCase() === candidate.target.repository.toLowerCase()
+    && response.hostedTarget.pullRequest === candidate.target.pullRequest
+    && response.hostedTarget.headSha === candidate.priorHead
+    && response.newTarget.kind === "delivery-member"
+    && response.newTarget.repositoryId === query.repositoryId
+    && response.hostedFixTarget.repository.toLowerCase() === query.repository
+    && response.hostedFixTarget.pullRequest === query.pullRequest
+      ? response
+      : null;
 }
 
 /** Whether canonical authority proves that this exact current query must still find its prior attempt. */
@@ -88,6 +133,24 @@ export async function projectEarlierReviewApplicability(
   }
   const selections = candidateReviewApplicabilitySelections(input.candidate);
   const attempts = await Promise.all(queried.candidates.map(async (candidate) => {
+    const dispositionRecord = candidate.outcome === "settled-findings"
+      && input.readDispositionRecord !== undefined
+      ? await input.readDispositionRecord(candidate.attemptId)
+      : null;
+    const fixResponse = verifiedDeliveryMemberFixResponse({
+      record: dispositionRecord,
+      candidate,
+      query,
+    });
+    const retainedByFixResponse = fixResponse !== null
+      && fixResponse.newTarget.diffBaseSha === input.currentBase
+      && fixResponse.newTarget.headSha === query.currentHead
+      && fixResponse.hostedFixTarget.headSha === query.currentHead;
+    const priorHead = fixResponse?.newTarget.headSha ?? candidate.priorHead;
+    const priorBase = fixResponse?.newTarget.diffBaseSha ?? candidate.reviewTarget.diffBaseSha;
+    const priorVehicle = fixResponse === null || candidate.priorVehicle === undefined
+      ? candidate.priorVehicle
+      : { ...candidate.priorVehicle, head: fixResponse.newTarget.headSha };
     const selector = {
       schemaVersion: 1 as const,
       repositoryId: query.repositoryId,
@@ -96,31 +159,38 @@ export async function projectEarlierReviewApplicability(
       lane: "standard" as const,
       sourceId: candidate.sourceId,
       priorAttemptId: candidate.attemptId,
-      priorHead: candidate.priorHead,
+      priorHead,
       currentHead: query.currentHead,
-      priorBase: candidate.reviewTarget.diffBaseSha,
+      priorBase,
       currentBase: input.currentBase,
-      ...(candidate.priorVehicle === undefined
+      ...(priorVehicle === undefined
         ? {}
-        : { priorVehicle: candidate.priorVehicle, currentVehicle: query.currentVehicle }),
+        : { priorVehicle, currentVehicle: query.currentVehicle }),
     };
-    const projection = input.projectApplicability === undefined
+    const projection = retainedByFixResponse
+      ? undefined
+      : input.projectApplicability === undefined
       ? await projectGitReviewContributionApplicability({
           selector,
           exec: input.exec,
           observeEndpoints: () => Promise.resolve({ head: query.currentHead, base: input.currentBase }),
         })
       : await input.projectApplicability(selector);
-    const authority = reduceReviewApplicabilityAuthority(
-      input.candidate.attestation.candidateId,
-      projection,
-      selections,
-    );
+    const authority = projection === undefined
+      ? null
+      : reduceReviewApplicabilityAuthority(
+          input.candidate.attestation.candidateId,
+          projection,
+          selections,
+        );
     return {
       sourceId: candidate.sourceId,
       outcome: candidate.outcome,
-      applicability: reviewApplicabilityConsumerAction(authority),
-      projection: authority.projection,
+      applicability: authority === null
+        ? "retain-prior-attempt" as const
+        : reviewApplicabilityConsumerAction(authority),
+      ...(retainedByFixResponse ? { retentionBasis: "verified-fix-response" as const } : {}),
+      ...(authority === null ? {} : { projection: authority.projection }),
       ...(candidate.outcome !== "findings" || candidate.findings.length === 0
         ? {}
         : {
@@ -143,7 +213,7 @@ export async function projectEarlierReviewApplicability(
               })),
             },
           }),
-      ...(authority.state === "decision-required" || authority.state === "blocked"
+      ...(authority !== null && (authority.state === "decision-required" || authority.state === "blocked")
         ? { authorityState: authority.state }
         : {}),
     };
