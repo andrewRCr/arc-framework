@@ -2147,7 +2147,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2212,6 +2212,23 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
             - The amended primary walk resolves all three criteria. The authorized Heavy-class convergence pass's
               final-member and exact-admission findings are repaired, and the real handler lifecycle now proves both
               non-terminal and terminal delegated fallbacks through complete conjunction settlement.
+
+    - `[ ]` **7.7.R.c Restore changed-target settlement for delivery-member findings**
+
+        - _Goal:_ An approved fix to a hosted delivery-member finding resolves the member's current coordinates from
+          authoritative delivery state, records the verified changed exact target, and reaches after-fix hosted
+          settlement without weakening the pinned-target confirmation used by ordinary member review admission.
+
+        - _Context:_ Live Member 1 settlement exposed that `review respond` requires target confirmation to return a
+          changed target, while delivery-member confirmation intentionally verifies the originating pinned commits
+          and never re-derives a checkout target. The supported D2.4 fix loop therefore refused after a verified
+          member fix.
+
+    - `[ ]` **7.7.R.d Revalidate changed-target member response** — validate criteria at member scope
+
+        - _Goal:_ Re-run `Success Criteria > Member 7 — review-fan-out` over the amended bounded diff and cumulative
+          tree, retaining the existing criteria markers and proving the complete findings-fix-settlement path through
+          production composition.
 
 ## **Phase 8:** Record retirement and doctrine
 
