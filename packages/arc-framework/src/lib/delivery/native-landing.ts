@@ -599,6 +599,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly absorbTop: (input: {
     readonly topRef: string;
     readonly top: { readonly head: string; readonly tree: string };
+    readonly previousHighestMember: { readonly head: string; readonly tree: string };
     readonly highestMember: { readonly head: string; readonly tree: string };
   }) => Promise<DeliveryChainAbsorptionResult>;
   readonly publishTop: (input: {
@@ -762,8 +763,11 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     };
   }
   const terminal = input.landed.value.members.at(-1);
+  const previousHighest = beforeSuffix.at(-1);
   const highest = observedMembers.at(-1);
-  if (terminal?.ref === null || terminal?.ref === undefined || terminal.coordinates === null || highest === undefined) {
+  if (terminal?.ref === null || terminal?.ref === undefined || terminal.coordinates === null
+    || previousHighest?.coordinates === null || previousHighest?.coordinates === undefined
+    || highest === undefined) {
     return {
       status: "blocked",
       reason: "terminal-top-unavailable",
@@ -775,6 +779,10 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     const absorbed = await dependencies.absorbTop({
       topRef: terminal.ref,
       top: { head: terminal.coordinates.head, tree: terminal.coordinates.tree },
+      previousHighestMember: {
+        head: previousHighest.coordinates.head,
+        tree: previousHighest.coordinates.tree,
+      },
       highestMember: { head: highest.coordinates.head, tree: highest.coordinates.tree },
     });
     if (absorbed.status !== "absorbed") {

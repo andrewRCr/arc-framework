@@ -11,7 +11,10 @@ import type {
   DeliveryStateV1,
 } from "./schema.js";
 import { DeliveryOperationSnapshotV1Schema } from "./schema.js";
-import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
+import type {
+  DeliveryChainAbsorptionPreflightResult,
+  DeliveryChainAbsorptionResult,
+} from "./chain-absorption.js";
 import {
   changedDeliveryProviderRefreshMovements,
   deliveryTerminalAbsorptionOwed,
@@ -118,6 +121,10 @@ type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
 export interface DeliveryProviderRefreshExecutionDependencies {
   readonly preparation: DeliveryProviderRefreshPreparationPort;
+  readonly preflightTop: (input: {
+    readonly topRef: string;
+    readonly top: { readonly head: string; readonly tree: string };
+  }) => Promise<DeliveryChainAbsorptionPreflightResult>;
   readonly observePublishedHeads: (
     snapshot: DeliveryOperationSnapshotV1,
   ) => Promise<readonly DeliveryProviderRefreshPublishedHead[]>;
@@ -140,6 +147,7 @@ export interface DeliveryProviderRefreshExecutionDependencies {
   readonly absorbTop: (input: {
     readonly topRef: string;
     readonly top: { readonly head: string; readonly tree: string };
+    readonly previousHighestMember: { readonly head: string; readonly tree: string };
     readonly highestMember: { readonly head: string; readonly tree: string };
   }) => Promise<DeliveryChainAbsorptionResult>;
   readonly publishTop: (input: {
@@ -172,7 +180,38 @@ export type ExecuteDeliveryProviderRefreshResult =
       readonly publication: DeliveryProviderRefreshPublicationResult;
       readonly reservation: DeliveryRevisionedRecord<DeliveryStateV1>;
     }
-  | { readonly status: "refused" | "blocked"; readonly reason: string; readonly paths?: readonly string[] };
+  | { readonly status: "refused" | "blocked"; readonly reason: string; readonly paths?: readonly string[] }
+  | {
+      readonly status: "blocked";
+      readonly reason: string;
+      readonly paths?: readonly string[];
+      readonly operationId: string;
+      readonly nextAction: "reconcile" | "resolve-terminal-conflicts";
+      readonly recommendedActionText: string;
+    };
+
+function retainedOperationBlock(
+  result: { readonly status: "blocked"; readonly reason: string; readonly paths?: readonly string[] },
+  operationId: string,
+): ExecuteDeliveryProviderRefreshResult {
+  if (result.reason === "content-conflict" && result.paths !== undefined && result.paths.length > 0) {
+    return {
+      ...result,
+      operationId,
+      nextAction: "resolve-terminal-conflicts",
+      recommendedActionText:
+        "The provider-refresh reservation remains active. Resolve the listed terminal predecessor conflicts as "
+        + "one exact two-parent absorption commit, then run `arc delivery reconcile` and retry its exact selector.",
+    };
+  }
+  return {
+    ...result,
+    operationId,
+    nextAction: "reconcile",
+    recommendedActionText:
+      "The provider-refresh reservation remains active. Run `arc delivery reconcile` and retry its exact selector.",
+  };
+}
 
 /** Prepare or resume one exact provider-native suffix refresh under ARC publication authority. */
 export async function executeDeliveryProviderRefresh(_input: {
@@ -283,6 +322,27 @@ export async function executeDeliveryProviderRefresh(_input: {
       }
       return proof;
     }
+    if (deliveryTerminalAbsorptionOwed(input.current.value, requested.data)) {
+      const terminal = input.current.value.members.at(-1);
+      const terminalCoordinates = terminalAuthoringMovement?.after ?? terminal?.coordinates;
+      if (terminal?.ref === null || terminal?.ref === undefined || terminalCoordinates === null
+        || terminalCoordinates === undefined) {
+        const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
+        return cleaned.status === "cleaned"
+          ? { status: "refused", reason: "terminal-top-unavailable" }
+          : { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
+      }
+      const preflight = await deps.preflightTop({
+        topRef: terminal.ref,
+        top: { head: terminalCoordinates.head, tree: terminalCoordinates.tree },
+      });
+      if (preflight.status === "refused") {
+        const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
+        return cleaned.status === "cleaned"
+          ? preflight
+          : { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
+      }
+    }
     const reserved = reserveDeliveryOperation(input.current, input.plan, {
       operationId: crypto.randomUUID(),
       kind: "rewrite",
@@ -328,7 +388,10 @@ export async function executeDeliveryProviderRefresh(_input: {
       requested: active.operation.requested,
     });
     if (candidateResult.status !== "derived") {
-      return { status: "blocked", reason: candidateResult.reason };
+      return retainedOperationBlock(
+        { status: "blocked", reason: candidateResult.reason },
+        active.operation.operationId,
+      );
     }
     candidates = candidateResult.candidates;
   }
@@ -342,14 +405,19 @@ export async function executeDeliveryProviderRefresh(_input: {
   try {
     observed = await deps.observePublishedHeads(active.operation.requested);
   } catch {
-    return { status: "blocked", reason: "observation-unavailable" };
+    return retainedOperationBlock(
+      { status: "blocked", reason: "observation-unavailable" },
+      active.operation.operationId,
+    );
   }
   let publication = classifyDeliveryProviderRefreshPublication({
     before: active.operation.before,
     requested: active.operation.requested,
     observed,
   });
-  if (publication.status === "blocked") return publication;
+  if (publication.status === "blocked") {
+    return retainedOperationBlock(publication, active.operation.operationId);
+  }
   const pending = publication.status === "published" ? [] : publication.pendingDeliverableIds;
   for (const deliverableId of pending) {
     const beforeMember = active.operation.before.members.find((member) => member.deliverableId === deliverableId);
@@ -358,7 +426,10 @@ export async function executeDeliveryProviderRefresh(_input: {
     );
     if (beforeMember?.ref === null || beforeMember?.ref === undefined || beforeMember.coordinates === null
       || requestedMember?.ref !== beforeMember.ref || requestedMember.coordinates === null) {
-      return { status: "blocked", reason: "publication-subject-mismatch" };
+      return retainedOperationBlock(
+        { status: "blocked", reason: "publication-subject-mismatch" },
+        active.operation.operationId,
+      );
     }
     const rewritten = await deps.rewriteMemberRef({
       ref: beforeMember.ref,
@@ -373,9 +444,14 @@ export async function executeDeliveryProviderRefresh(_input: {
           observed: await deps.observePublishedHeads(active.operation.requested),
         });
       } catch {
-        return { status: "blocked", reason: "observation-unavailable" };
+        return retainedOperationBlock(
+          { status: "blocked", reason: "observation-unavailable" },
+          active.operation.operationId,
+        );
       }
-      if (publication.status === "blocked") return publication;
+      if (publication.status === "blocked") {
+        return retainedOperationBlock(publication, active.operation.operationId);
+      }
       const stillPending = publication.status === "published"
         ? false
         : publication.pendingDeliverableIds.includes(deliverableId);
@@ -399,11 +475,14 @@ export async function executeDeliveryProviderRefresh(_input: {
     cleanupPreparedCandidates: () => deps.cleanupPreparedCandidates(candidates),
     stateStore: deps.stateStore,
   };
-  return settleReservedDeliverySuffixRefresh({
+  const settled = await settleReservedDeliverySuffixRefresh({
     plan: input.plan,
     current: reservation,
     ...settlementDeps,
   });
+  return settled.status === "blocked"
+    ? retainedOperationBlock(settled, active.operation.operationId)
+    : settled;
 }
 
 /** Classify one exact remote suffix observation during non-atomic publication. */

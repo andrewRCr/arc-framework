@@ -20,7 +20,10 @@ import type {
   DeliveryContributionProofResult,
   DeliveryContributionRefusal,
 } from "./contribution-proof.js";
-import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
+import type {
+  DeliveryChainAbsorptionPreflightResult,
+  DeliveryChainAbsorptionResult,
+} from "./chain-absorption.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 import type { DeliveryReviewFixVerificationContinuation } from "./review-fix.js";
 
@@ -314,6 +317,7 @@ export interface ProviderAdoptionSettlementDependencies {
   readonly absorbTop: (input: {
     readonly topRef: string;
     readonly top: { readonly head: string; readonly tree: string };
+    readonly previousHighestMember: { readonly head: string; readonly tree: string };
     readonly highestMember: { readonly head: string; readonly tree: string };
   }) => Promise<DeliveryChainAbsorptionResult>;
   readonly publishTop: (input: {
@@ -337,6 +341,14 @@ export interface ProviderAdoptionSettlementDependencies {
     | { readonly status: "refused"; readonly reason: string }
   >;
   readonly stateStore: StateWriter;
+}
+
+/** Pre-reservation terminal readiness needed by a fresh external adoption. */
+export interface ProviderAdoptionExecutionDependencies extends ProviderAdoptionSettlementDependencies {
+  readonly preflightTop: (input: {
+    readonly topRef: string;
+    readonly top: { readonly head: string; readonly tree: string };
+  }) => Promise<DeliveryChainAbsorptionPreflightResult>;
 }
 
 /** Reobserve and finish one persisted post-observation provider-adoption reservation. */
@@ -443,8 +455,10 @@ export async function settleReservedDeliverySuffixRefresh(input: {
   }
 
   const terminal = active.state.members.at(-1);
+  const previousHighestMember = active.operation.before.members.at(-1);
   const highestMember = settlementObservation.snapshot.members.at(-1);
   if (terminal?.ref === null || terminal?.ref === undefined || terminal.coordinates === null
+    || previousHighestMember?.coordinates === null || previousHighestMember?.coordinates === undefined
     || highestMember?.coordinates === null || highestMember?.coordinates === undefined) {
     return { status: "blocked", reason: "terminal-top-unavailable" };
   }
@@ -454,6 +468,10 @@ export async function settleReservedDeliverySuffixRefresh(input: {
     const absorbed = await input.absorbTop({
       topRef: terminal.ref,
       top: { head: terminalCoordinates.head, tree: terminalCoordinates.tree },
+      previousHighestMember: {
+        head: previousHighestMember.coordinates.head,
+        tree: previousHighestMember.coordinates.tree,
+      },
       highestMember: {
         head: highestMember.coordinates.head,
         tree: highestMember.coordinates.tree,
@@ -623,7 +641,7 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   readonly selectedDeliverableId?: string;
   readonly terminalAuthoringMovement?: DeliveryTerminalAuthoringMovementV1;
   readonly conflictResolution?: DeliveryProviderConflictResolutionInput;
-} & ProviderAdoptionSettlementDependencies): Promise<
+} & ProviderAdoptionExecutionDependencies): Promise<
   | DeliveryProviderSettlementAppliedResult
   | DeliveryContributionRefusal
   | DeliveryProviderConflictResolutionRequired
@@ -641,7 +659,13 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
         | "observation-unavailable"
         | "ambiguous-provider-movement"
         | "target-rewritten"
-        | "conflict-resolution-mismatch";
+        | "conflict-resolution-mismatch"
+        | "top-ref-invalid"
+        | "top-not-checked-out"
+        | "top-moved"
+        | "coordinate-invalid"
+        | "worktree-dirty"
+        | "absorption-unavailable";
     }
 > {
   if (input.current.value.activeOperation !== null) {
@@ -748,6 +772,19 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   } else {
     const refusal = await proveDeliveryProviderRefreshMovements(movements, input.proveContribution);
     if (refusal !== null) return refusal;
+  }
+  if (deliveryTerminalAbsorptionOwed(input.current.value, observed.snapshot)) {
+    const terminal = input.current.value.members.at(-1);
+    const terminalCoordinates = input.terminalAuthoringMovement?.after ?? terminal?.coordinates;
+    if (terminal?.ref === null || terminal?.ref === undefined || terminalCoordinates === null
+      || terminalCoordinates === undefined) {
+      return { status: "refused", reason: "position-mismatch" };
+    }
+    const preflight = await input.preflightTop({
+      topRef: terminal.ref,
+      top: { head: terminalCoordinates.head, tree: terminalCoordinates.tree },
+    });
+    if (preflight.status === "refused") return preflight;
   }
   const reserved = reserveDeliveryOperation(input.current, input.plan, {
     operationId: crypto.randomUUID(),
