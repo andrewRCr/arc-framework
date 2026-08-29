@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  adoptExternalDeliverySuffixRefresh,
+  adoptExternalDeliverySuffixRefresh as adoptExternalDeliverySuffixRefreshCore,
   executeDeliverySuffixRewrite,
   settleReservedDeliverySuffixRefresh,
   type DeliveryProviderRefreshMovement,
@@ -19,6 +19,19 @@ const exactTargetAncestry = async (
   ancestor: string,
   descendant: string,
 ): Promise<"ancestor" | "not-ancestor"> => ancestor === descendant ? "ancestor" : "not-ancestor";
+
+type ExternalAdoptionInput = Parameters<typeof adoptExternalDeliverySuffixRefreshCore>[0];
+
+function adoptExternalDeliverySuffixRefresh(
+  input: Omit<ExternalAdoptionInput, "preflightTop"> & {
+    readonly preflightTop?: ExternalAdoptionInput["preflightTop"];
+  },
+) {
+  return adoptExternalDeliverySuffixRefreshCore({
+    ...input,
+    preflightTop: input.preflightTop ?? (async () => ({ status: "ready" as const })),
+  });
+}
 
 function movedFixture() {
   const plan = deliveryPlanFixture();
@@ -692,6 +705,47 @@ describe("delivery suffix reconciliation", () => {
     expect(observedResult).toHaveBeenCalledOnce();
     expect(stateWrites).not.toHaveBeenCalled();
     expect(topEffects).not.toHaveBeenCalled();
+  });
+
+  it("checks terminal readiness before reserving external adoption", async () => {
+    const { plan, state, affected, observed } = providerRefreshFixture();
+    let revision = 7;
+    let localRefChanged = false;
+    let topChanged = false;
+
+    const result = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision, value: state },
+      affectedDeliverableIds: affected,
+      observeResult: async () => ({
+        status: "observed",
+        observation: { snapshot: observed, targetMovement: "exact" },
+      }),
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      preflightTop: async () => ({ status: "refused", reason: "worktree-dirty" }),
+      absorbTop: async () => {
+        topChanged = true;
+        return { status: "absorbed", head: "a".repeat(40), tree: "b".repeat(40) };
+      },
+      publishTop: async () => {
+        topChanged = true;
+        return { status: "published" };
+      },
+      rewriteLocalRef: async () => {
+        localRefChanged = true;
+        return { status: "rewritten" };
+      },
+      stateStore: { publish: async (_planId, value) => {
+        revision += 1;
+        return { status: "ok", value: { revision, value } };
+      } },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "worktree-dirty" });
+    expect(revision).toBe(7);
+    expect(localRefChanged).toBe(false);
+    expect(topChanged).toBe(false);
   });
 
   it("adopts an observer-proven append-only target only with suffix and terminal coordinates", async () => {
