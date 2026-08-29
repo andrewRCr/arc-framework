@@ -224,6 +224,17 @@ the later delivery state records the first external binding and is not the inten
   These are CLI-derived lifecycle facts over storage-neutral resolved records; workflow prose only invokes the
   typed verbs and follows the projected workflow.
 
+  **Amended 2026-08-29 after clean-checkout self-delivery exposed a physical-locus transfer gap:** the one work-unit
+  session locus may move between registered checkouts only when the derived locus reader proves a one-to-one
+  continuation for the same work unit: the harness-root checkout is unresolved for that work-unit subject, exactly
+  one other registered checkout is the resolved work-unit row, and Codex's transcript names that resolved checkout
+  as the current execution locus. The PreCompact adapter may use that reader-proved checkout as a seed hint; ordinary
+  seed emission and the recovery audit still bind and revalidate its exact path, branch, head, dirty set, load set,
+  and task cursor. Ambiguous, unrelated, member, gate, detached, or unresolved candidates remain excluded. This is
+  a transfer of the sole work-unit locus, never a second locus or borrowed load set. The adapter's internal command
+  budgets must fit within its enclosing hook budget so a valid slow seed reports its typed result rather than an
+  opaque subprocess timeout.
+
   **Amended 2026-08-27 after reopened verification reached an obsolete Candidate root:** a plain Candidate
   attestation remains the safe first invocation and still refuses an unexplained delta. That refusal carries a
   closed `establish-new-root` action and exact machine-readable continuation. `verify-work-unit` may consume it only
@@ -2056,6 +2067,11 @@ added.
     the reserved prior highest-member coordinate as its logical merge base, carries only the refreshed contribution
     into the residual top, preserves exact two-parent ancestry, and reports genuine conflicts without replaying
     contribution-equivalent suffix history (D5.2, D5.9).
+39. Codex compaction seeding follows a clean-checkout transfer of the sole work-unit locus only when reader-owned
+    topology proves the harness-root row unresolved and exactly one transcript-named registered row resolved for the
+    same work unit. The resulting seed and recovery audit remain exact to that replacement checkout; sibling work
+    units, member and gate checkouts, ambiguous transfers, and every unresolved candidate refuse. A seed command that
+    completes within the enclosing hook budget is not killed by a shorter nested timeout (D1.5).
 
 ## Open Questions
 

@@ -51,6 +51,12 @@ does not install lifecycle artifacts, construct a second roster row, or lend the
 another checkout. This keeps delivery addressability separate from session identity and avoids adding recovery
 machinery for a locus ARC never enters.
 
+A clean-checkout transfer of the work-unit branch is different from entering a member or gate checkout. When the
+derived roster proves the original physical checkout unresolved for the work unit and exactly one registered
+checkout resolved for that same work unit, the latter is the sole successor locus rather than an operation input.
+Codex may follow its transcript there for seed emission; exact recovery validation remains unchanged. This bounded
+succession is necessary because Codex anchors hook `cwd` to the session root even after branch ownership moves.
+
 ## Authored partitions and adversarial attention
 
 A large whole-target adversarial pass may reuse stable boundaries the work already authored — delivery members,

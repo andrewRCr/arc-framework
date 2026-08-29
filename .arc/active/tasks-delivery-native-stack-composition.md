@@ -2387,12 +2387,29 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
         - `[x]` **8.5.R.d.3 Close the Member 8 amendment** — validate criteria at member scope
 
+- _Forward amendment (2026-08-29):_ Codex compaction while the work-unit branch was intentionally resident in a
+  clean registered checkout exposed that PreCompact recognized only ARC transients, so it ignored the current
+  work-unit locus and seeded from the detached harness root. Its 15-second nested timeout then killed a valid status
+  probe inside a 30-second enclosing hook before the typed topology refusal could surface.
+
+    - `[x]` **8.5.R.e Preserve compaction recovery across an exact work-unit locus transfer** — validate criteria at
+      member scope
+
+        - _Goal:_ PreCompact follows only a reader-proved one-to-one transfer of the same work-unit locus, retains
+          exact seed and recovery-audit validation at the replacement checkout, excludes every member, gate,
+          sibling, ambiguous, or unresolved candidate, and gives a valid seed command a coherent execution budget.
+
+        - PreCompact now uses the fast locus projection to follow only the exact unresolved-to-resolved successor
+          for the same work unit, then emits and audits the seed at that checkout. A shared hook deadline lets a
+          valid command run past the former nested cutoff while refusal matrices and real-hook E2E cover exclusions.
+
 - _Outcome:_ Member 8 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
     - _Span:_ original diff `e11bd763d..270f42c1b`; earlier amendment diff `a374df393..b2d7ec52e`; prior amendment
-      diff `530463f72..bfbf5073e`; final amendment diff `3d9ea7ef1` plus the current worktree; reachability through the
-      current worktree; boundary-order deviation: the approved Tasks 8.5.R.a through 8.5.R.d -
+      diff `530463f72..bfbf5073e`; live-rehearsal amendment diff `3d9ea7ef1`; recovery amendment diff `8b401796f`
+      plus the current worktree; reachability through the current worktree; boundary-order deviation: the approved
+      Tasks 8.5.R.a through 8.5.R.e -
       `tasks-delivery-native-stack-composition.md` forward amendments reopened Member 8 after its original boundary.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`; _State:_ `[x]`;
       _Evidence:_ exact plan/state, ref, Candidate, and gate retirement preserves each authority, requires the merged
@@ -2420,16 +2437,24 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       exact continuation after its fresh gates and requires `attested / re-root`. Unit, handler, workflow-contract,
       and real-CLI tests prove successful replay plus stale replay with no Candidate-record write, without adding a
       verification ledger, lifecycle state, or Candidate authority. Success Criteria markers remain unchanged.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 6`; _State:_ `[x]`;
+      _Evidence:_ PreCompact resolves a transcript checkout only from the registered Git worktree set, preserves the
+      existing ready-transient route, and accepts a work-unit successor only when the reader reports one unresolved
+      harness-root row plus one resolved same-work-unit row at the transcript path. Unit refusals cover unmanaged,
+      sibling, unresolved, ambiguous, and resolved-root shapes; a real-hook E2E detaches the original WU checkout,
+      seeds the attached successor, and obtains a ready audit bound to that exact path. The seed command shares a
+      deadline inside the 30-second hook, and a fail-first regression proves a valid 15.25-second command survives
+      the former 15-second cutoff.
     - _Adversarial companion:_ the earlier bounded pass found that the first re-root continuation could be replayed
       over later staged content; exact selectors and pre-write refusals repaired it. Final live-shaped passes found
       stale gate heads, retained findings bypassing response, and the missing complete rehearsal. Primary inspection
       repaired each supported-path defect; the exact live pairs, retained-attempt response route, and executable
       eight-member rehearsal now prove closure without speculative hardening.
-    - _Summary:_ five met, zero superseded, zero unresolved.
+    - _Summary:_ six met, zero superseded, zero unresolved.
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Final re-attestation passed Markdown and ARC contract lint, TypeScript and shell lint, both
   typechecks, 851 test files with one skipped (11,054 tests with one skipped), package build, aggregate self-review,
@@ -2446,7 +2471,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   report. Consume the updated Member 6 boundary report and revalidate the continuation's cross-member mutation
   barrier without re-deriving unchanged member criteria or repeating an unchanged full-suite gate.
 
-    - `[x]` **9.1.R Revalidate the post-report Member 6 amendments at work-unit scope**
+    - `[ ]` **9.1.R Revalidate the post-report Member 6 amendments at work-unit scope**
 
         - _Goal:_ The terminal report accounts for every approved success criterion and proves the replayable
           verification continuation remains coherent across delivery-entry, mutation, workflow, and Candidate seams.
@@ -2502,6 +2527,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                   replacements, and no essential original intent is deferred or unowned.
                 - _Summary:_ thirty-six met, two intentionally superseded, zero unresolved. Success Criteria markers
                   now reflect this terminal report; prior explicit direction declined another broad companion pass.
+
+        - `[ ]` **9.1.R.d Revalidate exact compaction-locus succession at work-unit scope**
+
+            - _Goal:_ The terminal report consumes the amended Member 8 boundary and proves the one-locus transfer
+              composes with cursorless closeout, exact recovery, delivery-member exclusion, and the already-settled
+              delivery review conjunction without replaying unaffected member verification.
 
         - _Outcome:_ The rebound tree matches the reviewed delivery content at `66da99a8f` with tree `7758a3b4a`;
           delivery state revision 94 has acknowledged the exact Member 7 verification continuation and blocks
@@ -2720,6 +2751,11 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   closed `establish-new-root` action and exact machine-readable continuation only after fresh full verification and
   structural task-list closure. Successful re-rooting is required before Candidate preparation; every other or
   malformed result stops without new verification evidence, lifecycle state, or Candidate authority.
+
+- `[ ]` Codex compaction seeding follows a clean-checkout transfer only when the derived locus reader proves the
+  harness-root checkout unresolved and exactly one transcript-named registered checkout resolved for the same work
+  unit. Exact seed and audit validation bind the replacement checkout; member, gate, sibling, ambiguous, detached,
+  and unresolved candidates remain excluded, and nested execution time fits the enclosing hook budget.
 
 ### Cross-member seams
 
