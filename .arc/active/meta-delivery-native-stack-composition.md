@@ -18,7 +18,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** integrate-work-unit Step 2 — repair Member 2's false-clean result, then settle Members 1–2 under
+  the interim convergence rule before advancing fan-out.
 
 - **PR URL:** [none]
 - **Completed:** [none]
