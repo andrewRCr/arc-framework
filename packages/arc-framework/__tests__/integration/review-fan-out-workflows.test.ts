@@ -50,6 +50,8 @@ function expectTypedProgression(section: string): void {
   expect(section).toContain("pass the returned action unchanged");
   expect(section).toMatch(/pass the returned self-contained handle|re-invoke the same handle/iu);
   expect(section).toMatch(/returned settlement plan|payload\.hostedSettlementPlan/iu);
+  expect(section).toContain("payload.hostedFixTarget");
+  expect(section).toMatch(/delivery-member-advanced[\s\S]*delivery-member-current/iu);
   expect(section).toContain("typed discharge conjunction");
   expect(section).not.toMatch(
     /for each (?:retained )?member|enumerate (?:the )?members|priorAttemptId|priorHead|currentHead|priorBase|currentBase|projectionDigest|residualDigest/iu,
