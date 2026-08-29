@@ -2454,24 +2454,24 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Final re-attestation passed Markdown and ARC contract lint, TypeScript and shell lint, both
-  typechecks, 851 test files with one skipped (11,054 tests with one skipped), package build, aggregate self-review,
-  and diff hygiene. The final Member 6 correction additionally passed 79 focused unit tests and the 19-case real-CLI
-  delivery-position matrix.
-- _Success criteria:_ 36 total: 34 met, two superseded, and none unresolved. All eight member reports resolve to
-  their current criteria loci and boundary spans; the final Member 6 report reaches `8c1975cf7` after the recorded
-  post-boundary integration and refresh repairs. Member 1's implementation-task workaround and Member 6's
-  external-only refresh clause remain intentionally superseded by D7.2b and D5.9. Union coherence and all six
-  cross-member seams hold through exact correction routing, provider refresh, replayable member verification,
-  review conjunction, cursorless closeout, Candidate recovery, and terminal integration.
+  typechecks, package build, aggregate self-review, and diff hygiene; 852 test files passed with one skipped and
+  11,072 tests passed with one skipped. The final task-list closure reran Markdown and ARC contract checks over its
+  only new covered input.
+- _Success criteria:_ 39 total: 37 met, two superseded, and none unresolved. All eight member reports resolve to
+  their current criteria loci and boundary spans; Member 8's amended report adds exact compaction-locus succession
+  without borrowing member or gate identity. Member 1's implementation-task workaround and Member 6's external-only
+  refresh clause remain intentionally superseded by D7.2b and D5.9. Union coherence and all six cross-member seams
+  hold through exact correction routing, provider refresh, replayable member verification, review conjunction,
+  cursorless closeout, Candidate recovery, and terminal integration.
 
 - _Forward amendment (2026-08-27):_ The D5.8-D5.10 corrections added Success Criteria 34 and 35 after this terminal
   report. Consume the updated Member 6 boundary report and revalidate the continuation's cross-member mutation
   barrier without re-deriving unchanged member criteria or repeating an unchanged full-suite gate.
 
-    - `[ ]` **9.1.R Revalidate the post-report Member 6 amendments at work-unit scope**
+    - `[x]` **9.1.R Revalidate the post-report Member 6 amendments at work-unit scope**
 
         - _Goal:_ The terminal report accounts for every approved success criterion and proves the replayable
           verification continuation remains coherent across delivery-entry, mutation, workflow, and Candidate seams.
@@ -2528,11 +2528,44 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 - _Summary:_ thirty-six met, two intentionally superseded, zero unresolved. Success Criteria markers
                   now reflect this terminal report; prior explicit direction declined another broad companion pass.
 
-        - `[ ]` **9.1.R.d Revalidate exact compaction-locus succession at work-unit scope**
+        - `[x]` **9.1.R.d Revalidate exact compaction-locus succession at work-unit scope**
 
             - _Goal:_ The terminal report consumes the amended Member 8 boundary and proves the one-locus transfer
               composes with cursorless closeout, exact recovery, delivery-member exclusion, and the already-settled
               delivery review conjunction without replaying unaffected member verification.
+
+            - _Success criteria:_ Work-unit criteria report.
+                - _Criteria slice:_ `Success Criteria`, comprising all eight recorded member groups and
+                  `Cross-member seams`.
+                - _Span:_ complete work-unit diff through `2e774482e` plus this terminal-verification evidence
+                  patch; reachability is the complete current tree. The recorded member-boundary deviations remain
+                  exact, including Member 8's approved recovery amendment.
+                - _Member groups:_ thirty-one criteria met, Member 1 criterion 1 and Member 6 criterion 2 remain
+                  intentionally superseded by D7.2b and D5.9, and zero criteria are unresolved. The amended Member 8
+                  report reaches `2e774482e` and proves its sixth criterion through exact reader-owned transfer
+                  selection, refusal coverage, shared deadline behavior, and real-hook seed-to-audit execution.
+                - _Seam 1:_ task-list closure still projects `no-open-task` into `verify-work-unit`; transfer changes
+                  only the seed-command cwd, while the unchanged seed and audit readers retain exact branch, head,
+                  dirty-set, load-set, and task-cursor validation at the replacement checkout.
+                - _Seam 2:_ registered correction and provider-refresh routing are untouched. Work-unit succession
+                  accepts only a resolved `work-unit` row and explicitly excludes member, gate, sibling, ambiguous,
+                  detached, and unresolved transcript candidates before seed emission.
+                - _Seam 3:_ canonical plan/state selection remains upstream of delivery position and host routing;
+                  the recovery adapter consumes only the locus reader's topology envelope and creates no delivery
+                  identity, reverse lookup, or alternate session authority.
+                - _Seam 4:_ native delivery, contribution equivalence, and review applicability are unchanged. The
+                  transfer path neither mutates Git nor participates in member review discharge, so the retained
+                  exact-head conjunction carries forward without a second equivalence notion.
+                - _Seam 5:_ the final full suite and build remain green over the amendment, and the closure-only
+                  Markdown delta passes Markdown plus all three ARC contract checks.
+                - _Seam 6:_ the composed tree is ready for Candidate attestation. Automatic successor selection is
+                  executable E2E evidence until the hook lands on the protected branch; the live recovery audit has
+                  independently proven exact recovery at the same replacement checkout.
+                - _Integrity:_ implemented automatic selection is distinguished from live proof. The real-hook E2E
+                  proves the new pre-merge behavior; the live recovery exercised the unchanged seed/audit chain after
+                  manual seeding, and no essential intent is deferred or assigned to an unowned follow-up.
+                - _Summary:_ thirty-seven met, two intentionally superseded, zero unresolved. Unaffected member
+                  criteria were carried from their exact boundary reports rather than re-derived.
 
         - _Outcome:_ The rebound tree matches the reviewed delivery content at `66da99a8f` with tree `7758a3b4a`;
           delivery state revision 94 has acknowledged the exact Member 7 verification continuation and blocks
@@ -2752,7 +2785,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   structural task-list closure. Successful re-rooting is required before Candidate preparation; every other or
   malformed result stops without new verification evidence, lifecycle state, or Candidate authority.
 
-- `[ ]` Codex compaction seeding follows a clean-checkout transfer only when the derived locus reader proves the
+- `[x]` Codex compaction seeding follows a clean-checkout transfer only when the derived locus reader proves the
   harness-root checkout unresolved and exactly one transcript-named registered checkout resolved for the same work
   unit. Exact seed and audit validation bind the replacement checkout; member, gate, sibling, ambiguous, detached,
   and unresolved candidates remain excluded, and nested execution time fits the enclosing hook budget.

@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:7b79160ff6906cee758f25d0566d1de10b8096415fe4efb9b3691c1c04e3550e`
+- **Candidate:** `sha256:e53e0adcb9d2a6f3bf407d0f1f5d50343a5106faab0522f67cedb047d50d1d8f`
 
-- **Current Workflow:** [none]
-- **Last Completed:** Task 9.1.R.c — Revalidate repeated refresh at work-unit scope
-- **Next Task:** Task 8.5.R.e — Preserve compaction recovery across an exact work-unit locus transfer
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 9.1.R.d — Revalidate exact compaction-locus succession at work-unit scope
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
