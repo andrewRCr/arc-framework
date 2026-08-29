@@ -2403,13 +2403,50 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           for the same work unit, then emits and audits the seed at that checkout. A shared hook deadline lets a
           valid command run past the former nested cutoff while refusal matrices and real-hook E2E cover exclusions.
 
+- _Forward amendment (2026-08-29):_ Investigation of that transfer found it was an unclosed workaround, not an
+  intended lifecycle transition. Two completed-work-unit Candidate records had been opportunistically rewritten in
+  the active checkout during review response, prompting a clean temporary branch carrier; the transfer amendment
+  then normalized the abandoned origin. Restore the fixed-origin contract, keep Candidate mutation with the active
+  checkout owner, and prove repeated stacked-delivery re-entry stays stationary.
+
+    - `[x]` **8.5.R.f Restore stable checkout isolation across stacked-delivery cycles** — validate criteria at
+      member scope
+
+        - _Goal:_ The originating checkout remains the work unit's one session and recovery locus while delivery
+          member operations cycle around it, and review/Candidate commands cannot dirty another work unit's record
+          in that checkout.
+
+        - `[x]` **8.5.R.f.1 Restore fixed-origin locus authority and fail closed on branch-carrier collisions**
+
+            - The locus reader now treats a marker-owned origin plus any competing same-work-unit carrier as an
+              unresolved collision with restore-to-origin guidance. Recovery and PreCompact retain ready-transient
+              routing and the shared deadline, but never transfer work-unit authority away from the origin.
+
+        - `[x]` **8.5.R.f.2 Keep Candidate mutation in the active checkout owner**
+
+            - Review response and explicit applicability now derive Candidate mutation authority from the entering
+              locus: an active owner can select and mutate only its own lineage, while an ownerless checkout requires
+              positive completed-lifecycle evidence. Fresh checks guard record writes and index staging; foreign dirt
+              remains visible and every refusal leaves Candidate bytes and the index unchanged.
+
+        - `[x]` **8.5.R.f.3 Rehearse stationary stacked-delivery re-entry and close the amendment**
+
+            - A real three-member delivery rehearsal crosses correction routing, Candidate-backed review response,
+              convergence verification, and integration entry from one stationary origin while detached member and
+              gate inputs remain lifecycle-free. Carrier collisions, restored-origin success, archived continuation,
+              non-completed ownerless refusal, and authority movement at mutation are covered at their real seams.
+
+        - _Outcome:_ The workaround that moved the work-unit branch has been removed from recovery authority, and the
+          checkout-local Candidate boundary now prevents the foreign rewrites that motivated it. Repeated delivery
+          re-entry remains stationary without weakening completed-lineage maintenance or hiding foreign dirt.
+
 - _Outcome:_ Member 8 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
     - _Span:_ original diff `e11bd763d..270f42c1b`; earlier amendment diff `a374df393..b2d7ec52e`; prior amendment
-      diff `530463f72..bfbf5073e`; live-rehearsal amendment diff `3d9ea7ef1`; recovery amendment diff `8b401796f`
-      plus the current worktree; reachability through the current worktree; boundary-order deviation: the approved
-      Tasks 8.5.R.a through 8.5.R.e -
+      diff `530463f72..bfbf5073e`; live-rehearsal amendment diff `3d9ea7ef1`; recovery amendment diff `8b401796f`;
+      fixed-origin amendment in the current worktree over `a3905981b`; reachability through the current worktree;
+      boundary-order deviation: the approved Tasks 8.5.R.a through 8.5.R.f -
       `tasks-delivery-native-stack-composition.md` forward amendments reopened Member 8 after its original boundary.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`; _State:_ `[x]`;
       _Evidence:_ exact plan/state, ref, Candidate, and gate retirement preserves each authority, requires the merged
@@ -2437,24 +2474,33 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       exact continuation after its fresh gates and requires `attested / re-root`. Unit, handler, workflow-contract,
       and real-CLI tests prove successful replay plus stale replay with no Candidate-record write, without adding a
       verification ledger, lifecycle state, or Candidate authority. Success Criteria markers remain unchanged.
-    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 6`; _State:_ `[x]`;
-      _Evidence:_ PreCompact resolves a transcript checkout only from the registered Git worktree set, preserves the
-      existing ready-transient route, and accepts a work-unit successor only when the reader reports one unresolved
-      harness-root row plus one resolved same-work-unit row at the transcript path. Unit refusals cover unmanaged,
-      sibling, unresolved, ambiguous, and resolved-root shapes; a real-hook E2E detaches the original WU checkout,
-      seeds the attached successor, and obtains a ready audit bound to that exact path. The seed command shares a
-      deadline inside the 30-second hook, and a fail-first regression proves a valid 15.25-second command survives
-      the former 15-second cutoff.
-    - _Adversarial companion:_ the earlier bounded pass found that the first re-root continuation could be replayed
-      over later staged content; exact selectors and pre-write refusals repaired it. Final live-shaped passes found
-      stale gate heads, retained findings bypassing response, and the missing complete rehearsal. Primary inspection
-      repaired each supported-path defect; the exact live pairs, retained-attempt response route, and executable
-      eight-member rehearsal now prove closure without speculative hardening.
-    - _Summary:_ six met, zero superseded, zero unresolved.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 6`; _State:_ `[~]`;
+      _Evidence:_ the prior successor route and its exact seed audit proved the shared hook budget but normalized an
+      abandoned-origin workaround. Fixed-origin D1.5 supersedes work-unit succession; the deadline evidence is
+      retained under criterion 7 while successor selection and its transfer fixture are removed.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 7`; _State:_ `[x]`;
+      _Evidence:_ the derived locus reader makes an origin plus a same-work-unit carrier unresolved on both rows,
+      including a carrier whose Candidate context is otherwise only subject-unresolved. Recovery follows only the
+      marker-owned origin; PreCompact follows that origin or a registered ready transient and retains the shared
+      enclosing deadline. Unit and real-hook coverage prove carrier refusal, actionable restoration, restored-origin
+      seeding, ready-transient routing, and slow valid seed completion without replacement authority.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 8`; _State:_ `[x]`;
+      _Evidence:_ review response and explicit applicability project one fresh Candidate owner from the derived locus.
+      An active owner exposes only its own lineage; an ownerless checkout exposes only lifecycle-indexed completed
+      lineages, including at fresh pre-write and pre-stage checks. Real carrier E2E leaves Candidate bytes and the
+      index unchanged, restored-origin and archived-lineage continuations succeed, foreign dirt stays blocking, and
+      the stationary three-member rehearsal crosses correction, review response, verification, and integration entry
+      from the origin with lifecycle-free member and gate inputs. Fail-first unit coverage additionally proves that
+      ownerless non-completed records and authority movement at the mutation seam refuse before mutation.
+    - _Adversarial companion:_ pass 1 found active-owner bypass and the absent stationary-cycle rehearsal; both were
+      repaired and source-verified. Pass 2 found ownerless explicit applicability lacked positive completed-lineage
+      evidence and that this report still certified the superseded transfer; both were repaired under the approved
+      disposition. The Heavy two-pass cap is exhausted, so no third independent pass is claimed.
+    - _Summary:_ seven met, one superseded, zero unresolved.
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Final re-attestation passed Markdown and ARC contract lint, TypeScript and shell lint, both
   typechecks, package build, aggregate self-review, and diff hygiene; 852 test files passed with one skipped and
@@ -2566,6 +2612,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                   manual seeding, and no essential intent is deferred or assigned to an unowned follow-up.
                 - _Summary:_ thirty-seven met, two intentionally superseded, zero unresolved. Unaffected member
                   criteria were carried from their exact boundary reports rather than re-derived.
+
+        - `[ ]` **9.1.R.e Revalidate stable origin and Candidate isolation at work-unit scope**
+
+            - _Goal:_ The terminal report accounts for the corrected fixed-origin contract and proves Candidate
+              ownership keeps repeated stacked-delivery re-entry isolated without weakening foreign-dirt detection,
+              transient recovery, review conjunction, or the shared hook deadline.
 
         - _Outcome:_ The rebound tree matches the reviewed delivery content at `66da99a8f` with tree `7758a3b4a`;
           delivery state revision 94 has acknowledged the exact Member 7 verification continuation and blocks
@@ -2785,10 +2837,22 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   structural task-list closure. Successful re-rooting is required before Candidate preparation; every other or
   malformed result stops without new verification evidence, lifecycle state, or Candidate authority.
 
-- `[x]` Codex compaction seeding follows a clean-checkout transfer only when the derived locus reader proves the
+- `[~]` Codex compaction seeding follows a clean-checkout transfer only when the derived locus reader proves the
   harness-root checkout unresolved and exactly one transcript-named registered checkout resolved for the same work
   unit. Exact seed and audit validation bind the replacement checkout; member, gate, sibling, ambiguous, detached,
   and unresolved candidates remain excluded, and nested execution time fits the enclosing hook budget.
+    - _Superseded:_ automatic work-unit checkout succession normalized an unclosed workaround; the shared deadline
+      remains required and is retained by the fixed-origin criterion below.
+
+- `[ ]` The marker-owned originating checkout remains the work unit's sole physical session and recovery locus until
+  teardown. Moving its branch produces an explicit same-work-unit collision and no replacement checkout resolves;
+  restoring the branch restores the origin. PreCompact follows only that origin or an ARC-declared ready transient,
+  while valid slow seed execution retains the coherent shared hook deadline.
+
+- `[ ]` Repeated stacked-delivery correction, review, verification, and integration re-entry stays in the origin
+  without foreign Candidate rewrites. An active checkout permits review-response and Candidate mutation only for its
+  owning work unit; completed lineages remain available when no active work unit owns the checkout, foreign dirt
+  stays blocking, and cross-work-unit refusal makes no file or index mutation.
 
 ### Cross-member seams
 

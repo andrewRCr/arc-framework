@@ -235,6 +235,17 @@ the later delivery state records the first external binding and is not the inten
   budgets must fit within its enclosing hook budget so a valid slow seed reports its typed result rather than an
   opaque subprocess timeout.
 
+  **Corrected 2026-08-29 after recovery normalized an unclosed checkout workaround:** the transfer half of the
+  preceding amendment is superseded. A work unit's marker-owned originating checkout remains its one physical
+  session and recovery locus until ordinary teardown. Moving the branch does not transfer that authority: when the
+  marker-owned row and another registered checkout claim the same work-unit subject, the derived roster reports a
+  locus collision and does not resolve the competing checkout as a successor. The original row remains unresolved
+  until the branch is restored there; session initialization, compaction seeding, and recovery fail closed rather
+  than choosing another checkout from branch, transcript, or active-meta coincidence. Codex PreCompact may still
+  follow an ARC-declared ready transient, because that is an explicit child execution frame rather than a work-unit
+  relocation. The shared enclosing deadline from the preceding amendment remains required, so a valid slow seed is
+  not killed by a shorter nested timeout.
+
   **Amended 2026-08-27 after reopened verification reached an obsolete Candidate root:** a plain Candidate
   attestation remains the safe first invocation and still refuses an unexplained delta. That refusal carries a
   closed `establish-new-root` action and exact machine-readable continuation. `verify-work-unit` may consume it only
@@ -1277,6 +1288,17 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   invokes only those returned actions and implements no member enumeration, loop, comparison, or input
   reconstruction. This extends existing verbs and schemas; it does not add a review verb or workflow engine.
 
+- **D8.10 Candidate mutation stays with the active checkout owner — amended 2026-08-29 after self-delivery review
+  response dirtied completed work-unit records.** Candidate files are checkout-local projections even when review
+  discovery can address retained or completed work-unit lineages. In a checkout with one resolved active work unit,
+  every review-response lineage selection and Candidate mutation command may write or stage only that work unit's
+  Candidate. A completed-work-unit lineage is eligible only when no active work unit owns the checkout, preserving
+  shipped-tail and deliberate re-root recovery without allowing an active WU to opportunistically parse, migrate,
+  or rewrite another WU's record. An explicit Candidate mutation whose named work unit differs from the resolved
+  active owner refuses before write or staging. Foreign Candidate dirt remains visible to ordinary Git and
+  attestation checks and therefore still blocks; the remedy is correct ownership or explicit isolation, never an
+  ignore rule. This adds no record family, storage mode, or compatibility reader.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
@@ -2067,11 +2089,24 @@ added.
     the reserved prior highest-member coordinate as its logical merge base, carries only the refreshed contribution
     into the residual top, preserves exact two-parent ancestry, and reports genuine conflicts without replaying
     contribution-equivalent suffix history (D5.2, D5.9).
-39. Codex compaction seeding follows a clean-checkout transfer of the sole work-unit locus only when reader-owned
-    topology proves the harness-root row unresolved and exactly one transcript-named registered row resolved for the
-    same work unit. The resulting seed and recovery audit remain exact to that replacement checkout; sibling work
-    units, member and gate checkouts, ambiguous transfers, and every unresolved candidate refuse. A seed command that
-    completes within the enclosing hook budget is not killed by a shorter nested timeout (D1.5).
+39. **Superseded by Criterion 40.** Codex compaction seeding follows a clean-checkout transfer of the sole work-unit
+    locus only when reader-owned topology proves the harness-root row unresolved and exactly one transcript-named
+    registered row resolved for the same work unit. The resulting seed and recovery audit remain exact to that
+    replacement checkout; sibling work units, member and gate checkouts, ambiguous transfers, and every unresolved
+    candidate refuse. A seed command that completes within the enclosing hook budget is not killed by a shorter
+    nested timeout (D1.5).
+40. The marker-owned originating checkout remains the work unit's sole physical session and recovery locus until
+    teardown. Moving its branch produces an explicit same-work-unit locus collision: no registered replacement
+    checkout becomes authoritative, session and recovery entry refuse there, and restoring the branch to the origin
+    restores the one resolved locus. PreCompact follows only that origin or an ARC-declared ready transient, while a
+    seed command that completes inside the enclosing hook deadline retains the coherent shared execution budget
+    (D1.5).
+41. Repeated stacked-delivery correction, review, verification, and integration re-entry stays in the originating
+    checkout without foreign Candidate rewrites. While an active work unit owns a checkout, review-response lineage
+    selection and explicit Candidate mutation can write or stage only its Candidate; completed lineages remain
+    addressable only with no active owner, and foreign dirt remains a blocking signal. Executable coverage proves
+    cross-work-unit refusal without file or index mutation, same-owner success, archived-lineage continuation, and
+    stable origin re-entry across the correction cycle (D8.10, D1.5).
 
 ## Open Questions
 

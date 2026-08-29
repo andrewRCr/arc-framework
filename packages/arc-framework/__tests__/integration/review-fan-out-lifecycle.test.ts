@@ -783,6 +783,10 @@ async function selectReviewRequiredUntilRouted(
     const exitCodes: number[] = [];
     await handleCandidateApplicabilityResolve(harness.plan.workUnitId, "-", undefined, {
       resolveRoot: () => harness.root,
+      resolveMutationOwner: async () => ({
+        status: "owned",
+        workUnit: harness.plan.workUnitId,
+      }),
       readText: async () => JSON.stringify({
         kind: "review-applicability-selection",
         offer: status.selectionAction,
@@ -1462,6 +1466,10 @@ describe("hosted review fan-out lifecycle", () => {
     const selectionExitCodes: number[] = [];
     await handleCandidateApplicabilityResolve(harness.plan.workUnitId, "-", undefined, {
       resolveRoot: () => harness.root,
+      resolveMutationOwner: async () => ({
+        status: "owned",
+        workUnit: harness.plan.workUnitId,
+      }),
       readText: async () => JSON.stringify({
         kind: "review-applicability-selection",
         offer: decisionStatus.selectionAction,

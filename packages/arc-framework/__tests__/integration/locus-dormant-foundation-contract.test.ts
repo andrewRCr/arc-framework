@@ -45,6 +45,7 @@ const expectedSourceIncoming: Readonly<Record<(typeof dormantModules)[number], r
     "src/lib/locus/session-guidance.ts",
     "src/lib/recover/audit.ts",
     "src/lib/recover/locus-context.ts",
+    "src/lib/work-unit/candidate-mutation-owner.ts",
     "src/scripts/review-gate/hosted/errand-authority.ts",
   ],
   "src/lib/locus/derived-roster.ts": [

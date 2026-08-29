@@ -312,7 +312,7 @@ describe("PreCompact locus anchor", () => {
   );
 
   it.runIf(process.platform === "linux")(
-    "recovers an exact work-unit checkout transfer when Codex keeps the hook anchored to the old locus",
+    "refuses a work-unit branch carrier while Codex remains anchored to the marker-owned origin",
     async () => {
       const remote = await createBareRemote(repository);
       const harness = await createCodexHarness();
@@ -398,10 +398,13 @@ describe("PreCompact locus anchor", () => {
               subject: expect.objectContaining({ kind: "work-unit", key: "recovery-transfer" }),
             }),
             expect.objectContaining({
-              kind: "work-unit",
+              kind: "unresolved-checkout",
               checkout: expect.objectContaining({ path: replacement }),
               subject: expect.objectContaining({ kind: "work-unit", key: "recovery-transfer" }),
-              context: expect.objectContaining({ kind: "resolved" }),
+              context: null,
+              diagnostics: expect.arrayContaining([
+                expect.objectContaining({ code: "work-unit-locus-conflict" }),
+              ]),
             }),
           ]),
           entering: {
@@ -415,21 +418,13 @@ describe("PreCompact locus anchor", () => {
 
         await execFileAsync("bash", ["-lc", hookCommand], { cwd: original, timeout: 60_000 });
 
-        const seedPath = join(
+        const replacementSeedPath = join(
           replacement,
           ".arc",
           "user",
           "test-user",
           ".internal",
           "compaction-seed.json",
-        );
-        const markerPath = join(
-          repository,
-          ".arc",
-          "user",
-          "test-user",
-          ".internal",
-          `codex-compaction-recovery-pending-${sessionId}.json`,
         );
         const fallbackPath = join(
           repository,
@@ -438,42 +433,13 @@ describe("PreCompact locus anchor", () => {
           ".internal",
           `codex-compaction-recovery-pending-${sessionId}.json`,
         );
-        const markerText = await readFile(markerPath, "utf8").catch(async () => {
-          const fallback = await readFile(fallbackPath, "utf8").catch(() => "missing fallback marker");
-          throw new Error(`Work-unit recovery marker missing; fallback: ${fallback}`);
+        const marker = JSON.parse(await readFile(fallbackPath, "utf8")) as Record<string, unknown>;
+        expect(marker).toMatchObject({
+          fallback: true,
+          seedPath: null,
         });
-        const marker = JSON.parse(markerText) as Record<string, unknown>;
-        expect(marker).toMatchObject({ fallback: false, seedPath });
-
-        const audit = await runArc([
-          "recover",
-          "audit",
-          "--seed-path",
-          seedPath,
-          "--json",
-        ], repository, { timeout: 60_000 });
-        expect(audit.exitCode, audit.stderr || audit.stdout).toBe(0);
-        expect(JSON.parse(audit.stdout)).toMatchObject({
-          mode: "recover-audit",
-          recover: {
-            recoveryFrame: {
-              ok: true,
-              value: {
-                kind: "resolved",
-                subject: { kind: "work-unit", key: "recovery-transfer" },
-                checkoutPath: replacement,
-              },
-            },
-          },
-          verdict: {
-            status: "ready",
-            locusHint: {
-              expected: { checkoutPath: replacement },
-              actual: { checkoutPath: replacement },
-              match: true,
-            },
-          },
-        });
+        expect(String(marker.reason)).toContain("unresolved");
+        await expect(readFile(replacementSeedPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
       } finally {
         await git(repository, ["worktree", "remove", "--force", replacement]).catch(() => undefined);
         await git(repository, ["worktree", "remove", "--force", original]).catch(() => undefined);

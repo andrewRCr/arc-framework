@@ -10,6 +10,8 @@ import { reduceCandidateDurableBaseline } from
   "../../../src/lib/work-unit/candidate-attestation.js";
 import { projectEffectiveCandidateTarget } from
   "../../../src/lib/work-unit/candidate-effective-target.js";
+import { projectCandidateMutationOwner } from
+  "../../../src/lib/work-unit/candidate-mutation-owner.js";
 import { deriveRecoveryLocusContext } from "../../../src/lib/recover/locus-context.js";
 import {
   readDerivedLocusFrame,
@@ -160,6 +162,70 @@ describe("dormant derived roster reader", () => {
       checkoutPath: "/repo/demo",
       subject: { kind: "work-unit", key: "demo" },
       context: { sessionType: "execution" },
+    });
+    expect(projectCandidateMutationOwner(result)).toEqual({ status: "owned", workUnit: "demo" });
+  });
+
+  it("refuses a branch carrier while the marker-owned work-unit origin is unresolved", async () => {
+    const origin = "/repo/origin";
+    const carrier = "/repo/carrier";
+    const originMeta = meta(origin);
+    const carrierCandidate = meta(carrier);
+    const carrierMeta = {
+      ...carrierCandidate,
+      text: carrierCandidate.text.replace(
+        "- **Current Workflow:** [none]",
+        "- **Current Workflow:** `prepare-work-unit`",
+      ),
+    };
+    const files = new Map([
+      [originMeta.path, originMeta.text],
+      [`${origin}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[ ]` **1.1 Do it**\n"],
+      [carrierMeta.path, carrierMeta.text],
+      [`${carrier}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[ ]` **1.1 Do it**\n"],
+    ]);
+    const result = await readDerivedLocusFrame({
+      ...baseOptions({
+        topology: {
+          ok: true,
+          worktrees: [
+            { path: origin, head: "a".repeat(40), branch: null, detached: true, primary: false },
+            { path: carrier, head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
+          ],
+        },
+        checkouts: [
+          wuEvidence(origin),
+          {
+            checkoutPath: carrier,
+            marker: { kind: "absent" },
+            metaRoots: [{ kind: "listed", path: `${carrier}/.arc/active` }],
+            metas: [carrierMeta],
+          },
+        ],
+        subjectMetaIO: subjectIO(files),
+      }),
+      enteringCheckoutPath: carrier,
+    });
+
+    expect(result.entering).toMatchObject({
+      kind: "selected",
+      row: {
+        kind: "unresolved-checkout",
+        subject: { kind: "work-unit", key: "demo" },
+        context: null,
+        diagnostics: [{
+          code: "work-unit-locus-conflict",
+          message: expect.stringContaining(`restore its branch to ${origin}`),
+        }],
+      },
+    });
+    expect(result.active).toBeNull();
+    expect(projectCandidateMutationOwner(result)).toEqual({ status: "unavailable" });
+    expect(result.roster.find((row) => row.checkout.path === origin)).toMatchObject({
+      kind: "unresolved-checkout",
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "work-unit-locus-conflict" }),
+      ]),
     });
   });
 

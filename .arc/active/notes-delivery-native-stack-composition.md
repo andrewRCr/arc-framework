@@ -51,11 +51,12 @@ does not install lifecycle artifacts, construct a second roster row, or lend the
 another checkout. This keeps delivery addressability separate from session identity and avoids adding recovery
 machinery for a locus ARC never enters.
 
-A clean-checkout transfer of the work-unit branch is different from entering a member or gate checkout. When the
-derived roster proves the original physical checkout unresolved for the work unit and exactly one registered
-checkout resolved for that same work unit, the latter is the sole successor locus rather than an operation input.
-Codex may follow its transcript there for seed emission; exact recovery validation remains unchanged. This bounded
-succession is necessary because Codex anchors hook `cwd` to the session root even after branch ownership moves.
+The originating marker-owned checkout is stable for the work unit's lifetime. Moving its branch to a clean checkout
+does not move session authority; it creates a same-work-unit locus collision that must refuse until the branch is
+restored to the origin. Codex may follow an ARC-declared ready transient because that is an explicit child frame, but
+it never infers a work-unit successor from branch, active-meta, or transcript coincidence. This keeps repeated
+delivery correction, review, verification, and integration cycles stationary even when member and gate operation
+inputs turn over around them.
 
 ## Authored partitions and adversarial attention
 
