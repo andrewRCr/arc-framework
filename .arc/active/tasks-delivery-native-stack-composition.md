@@ -977,7 +977,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1781,7 +1781,7 @@ structural guarantee rather than operator discipline.
               fork boundary, with closed actionable refusals before provider invocation when no unique boundary
               exists. Real-Git coverage reproduces the repeated-correction history through the preparation seam.
 
-        - `[ ]` **6.11.R.z Revalidate the repeated-refresh boundary** — validate criteria at member scope
+        - `[x]` **6.11.R.z Revalidate the repeated-refresh boundary** — validate criteria at member scope
 
             - _Goal:_ Focused adapter, real-Git, and live self-hosting evidence close the repeated-refresh seam over
               the amended Member 6 criteria without another broad verification cycle.
@@ -1814,7 +1814,7 @@ structural guarantee rather than operator discipline.
                   requiring an endpoint alias; crash recovery and terminal publication reuse that exact lease while
                   the bound and local terminal coordinates remain unchanged.
 
-            - `[ ]` **6.11.R.z.c Revalidate the complete repeated-refresh boundary** — validate criteria at member
+            - `[x]` **6.11.R.z.c Revalidate the complete repeated-refresh boundary** — validate criteria at member
               scope
 
                 - _Goal:_ Focused proof and live self-hosting evidence close the repeated-refresh criterion without
@@ -1845,7 +1845,7 @@ structural guarantee rather than operator discipline.
                       highest member, creates the exact top-plus-refreshed-highest parent pair, and recovers both the
                       prior merge-state boundary and an exactly prepared tree interrupted before its branch CAS.
 
-                - `[ ]` **6.11.R.z.c.c Revalidate the complete repeated-refresh boundary** — validate criteria at
+                - `[x]` **6.11.R.z.c.c Revalidate the complete repeated-refresh boundary** — validate criteria at
                   member scope
 
                     - _Goal:_ Focused proof, recovery, and live self-hosting evidence close criterion 38 without
@@ -1871,11 +1871,103 @@ structural guarantee rather than operator discipline.
                           unknown domain results through a bounded refusal, and routes terminal content conflicts by
                           exact paths through attended resolution before reconciliation and selector retry.
 
-                    - `[ ]` **6.11.R.z.c.c.b Revalidate the complete repeated-refresh boundary** — validate criteria
+                    - `[x]` **6.11.R.z.c.c.b Revalidate the complete repeated-refresh boundary** — validate criteria
                       at member scope
 
                         - _Goal:_ The packaged CLI settles the retained operation end to end, and the bounded Member
                           6 criteria walk closes criterion 38 over the resulting exact chain.
+
+                        - _Outcome:_ Delivery correction and Member 6 criteria reports.
+                            - _Review-fix criteria slice:_
+                              `Success Criteria > Member 1 — member-boundary-verification`.
+                            - _Review-fix span:_ bounded diff
+                              `0b8e872852ae7cde576fa7ada751f569740f46e8d..6d0e1c377e3091183598ea80f3f3048df51b77b6`;
+                              reachability `6d0e1c377e3091183598ea80f3f3048df51b77b6`. Boundary-order deviation: the
+                              registered review-fix commits follow the original Member 1 boundary; this walk binds
+                              the exact current member head without attributing later delivery work to its diff.
+                            - _Review-fix criterion:_
+                              `Success Criteria > Member 1 — member-boundary-verification > 1`; _State:_ `[~]`;
+                              _Evidence:_ D7.2b intentionally supersedes the implementation-task workaround while
+                              retaining member cadence, assignment, criteria slices, fire-points, and the sole
+                              terminal work-unit verifier.
+                            - _Review-fix criterion:_
+                              `Success Criteria > Member 1 — member-boundary-verification > 2`; _State:_ `[x]`;
+                              _Evidence:_ the exact member tree carries scoped verification roles through task
+                              inventory, coverage, schemas, planning, composition, handlers, and regenerated state;
+                              its manifest fingerprint `01ca2133f67220526dbc361ee0d2fb85282b4fe94ed04799c0d1ae32e3a9f0ef`
+                              matches the selected `validate-criteria.md` bytes, and the retained 98-test focused
+                              role/scope run passed.
+                            - _Review-fix summary:_ one met, one intentionally superseded, zero unresolved.
+                            - _Member criteria slice:_
+                              `Success Criteria > Member 6 — refresh-and-native-landing`.
+                            - _Member span:_ retained reports through Task 6.11.R.x.b.b.b plus repeated-refresh
+                              commits `8883dcc1d13fa58e4e823868d5ade72098c5b822`,
+                              `034362a7d6def0ba7594d556ca1a888790bd6734`, `ab6813683`, and
+                              `ca8dc2ef36e9a82a60e39e843db6155570a974c2`; reachability
+                              `ca8dc2ef36e9a82a60e39e843db6155570a974c2`. Boundary-order deviation: registered
+                              self-delivery supplied these supported-path repairs after the original Member 6
+                              boundary; the exact commits and live absorption boundary are inspected without
+                              attributing unrelated second-parent review changes to Member 6.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`;
+                              _State:_ `[x]`; _Evidence:_ refresh remains refusal- or operator-triggered, so
+                              unrelated append-only target movement stays advisory and creates no delivery freeze.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`;
+                              _State:_ `[~]`; _Evidence:_ D5.9 still supersedes only external-only invocation;
+                              attended external observation and exact reserved adoption remain executable.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`;
+                              _State:_ `[x]`; _Evidence:_ native settlement still reconciles and structurally proves
+                              every rewritten remaining member before admitting its new coordinate.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`;
+                              _State:_ `[x]`; _Evidence:_ canonical plan/state selects the current non-terminal
+                              remainder, and exact semantic no-effect retains its distinct return to native
+                              selection rather than authorizing stale-suffix refresh.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`;
+                              _State:_ `[x]`; _Evidence:_ registration remains exactly non-terminal, filters the
+                              dependent top, and degrades a singleton registered remainder to the host-silent
+                              unlinked route.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`;
+                              _State:_ `[x]`; _Evidence:_ native-link still discloses review invalidation before
+                              opt-in, while decline remains an accepted zero-host-call result.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`;
+                              _State:_ `[x]`; _Evidence:_ provider preparation, exact reservation, bottom-up
+                              publication, contiguous-prefix recovery, terminal settlement, cleanup, attended
+                              fallback, and provider neutrality remain intact; repeated execution now derives the
+                              unique physical fork and preserves its exact terminal publication lease.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`;
+                              _State:_ `[x]`; _Evidence:_ public entry, position, refresh, and correction commands
+                              continue to compose facts from canonical plan/state and locators; retained-operation
+                              blocks now survive the strict envelope with typed actions and bounded mismatch detail.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 9`;
+                              _State:_ `[x]`; _Evidence:_ chain-current selected publication, empty-dependent
+                              settlement, bounded provider diagnostics, and exact terminal publication ancestry
+                              remain preserved across the repeated-refresh path.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 10`;
+                              _State:_ `[x]`; _Evidence:_ settlement response loss still replays the exact selected
+                              member verification without another provider effect, and exact acknowledgment plus
+                              every pending-verification mutation barrier remain unchanged.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 11`;
+                              _State:_ `[x]`; _Evidence:_ attended adoption still accepts only the exact freshly
+                              reobserved conflict set, preserves proof for unconflicted members, and carries every
+                              changed dependent through the ordered verification continuation.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 12`;
+                              _State:_ `[x]`; _Evidence:_ isolated preparation and independent D4 proof retain a
+                              contained predecessor or require one unique derived physical fork; missing or
+                              ambiguous forks refuse before provider or canonical mutation.
+                            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 13`;
+                              _State:_ `[x]`; _Evidence:_ provider and external entry preflight the exact clean,
+                              checked-out terminal head before reservation; retained blocks identify their
+                              operation and either reconciliation or attended conflict resolution. Absorption uses
+                              the reserved prior highest member as `merge-tree --merge-base`, creates the exact
+                              prior-top/refreshed-highest parent pair, and recovers an interrupted prepared tree.
+                              Live settlement produced `f9647cd679225b496bb3441494a271dabd8fa8f4` with parents
+                              `034362a7d6def0ba7594d556ca1a888790bd6734` and
+                              `59bd93151dd81b2af788674507036e4abe14a362`, tree
+                              `25a818e8006545097d030554bd8f1557cd2d3885`, and that exact remote head.
+                            - _Member summary:_ twelve met, one intentionally superseded, zero unresolved. The full
+                              Tier 2 suite and exact live delivery re-entry confirm settlement cleared the operation
+                              into the retained Member 1 verification continuation without repeating provider
+                              mutation. Success Criteria markers remain unchanged for terminal verification; the
+                              prior explicit direction against another broad cycle discharged the companion offer.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
@@ -2510,6 +2602,13 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   dependent, isolated preparation seeds the official provider refresh only from one unique common fork boundary;
   missing or ambiguous boundaries refuse before mutation, and the result still passes the exact fixed-prefix,
   complete-chain, and structural-contribution checks before reservation or publication.
+
+- `[ ]` Fresh provider refresh and external adoption check the exact terminal authoring locus before reservation or
+  canonical publication; an unready top leaves state and member refs untouched, while a post-reservation block names
+  the retained operation and typed next action. Repeated terminal absorption uses the reserved prior highest-member
+  coordinate as its logical merge base, carries only the refreshed contribution into the residual top, preserves
+  exact two-parent ancestry, and directs genuine conflicts to attended resolution without replaying
+  contribution-equivalent suffix history.
 
 ### Member 7 — `review-fan-out`
 
