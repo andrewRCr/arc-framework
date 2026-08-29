@@ -198,7 +198,10 @@ non-pass outcomes retain the prior count.
   `beforeFixFindingIds` entry against the unchanged originating `target` with `fixTarget: null`, and require every
   result to complete before any approved fix changes the head; then apply, verify, commit, and push the approved
   fixes; then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget`
-  verified for the current head. A `settlement: not-applicable` finding appears in neither phase and remains
+  verified for the current head. For a delivery member, require the post-fix response state
+  `delivery-member-advanced` or idempotent `delivery-member-current` and pass `payload.hostedFixTarget` unchanged as
+  that `fixTarget`; never reconstruct it from the checkout. A `settlement: not-applicable` finding appears in neither
+  phase and remains
   triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
   On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
   only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host mutation;
