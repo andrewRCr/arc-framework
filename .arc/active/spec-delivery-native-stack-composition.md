@@ -849,6 +849,26 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   the observer-owned lease without requiring it to equal either endpoint; no pre-settlement rebind, caller-authored
   coordinate, or additional durable field is introduced.
 
+  **Forward clarification (2026-08-29):** before a freshly prepared provider refresh or external adoption reserves
+  state or publishes a member ref, ARC revalidates that the exact terminal authoring ref is checked out at its proved
+  head with a clean worktree and no merge in progress. A refusal reaps prepared private candidates and leaves state
+  and canonical refs untouched. Any later block identifies the retained provider-refresh operation and directs the
+  operator through typed reconciliation instead of presenting a context-free refusal.
+
+  Repeated settlement treats the prior highest-member coordinate in the reservation's `before` snapshot as the
+  logical three-way base for absorbing the refreshed highest member into the terminal top. This prevents a
+  contribution-equivalent provider rewrite from replaying the old suffix while preserving a genuine content merge:
+  residual terminal edits win where only the terminal changed, refreshed member edits arrive where only the member
+  changed, and true competing edits remain attended conflicts. The resulting commit still has exactly the prior top
+  and refreshed highest member as its two parents. No new lineage field, provider assertion, or content-neutral merge
+  is introduced.
+
+  A post-reservation terminal content conflict returns the retained operation, exact conflicted paths, and the typed
+  `resolve-terminal-conflicts` action instead of directing the operator through reconciliation that cannot change the
+  result. After attended resolution produces the exact two-parent absorption commit above, ordinary reconciliation
+  observes that boundary and returns the exact refresh selector to retry. ARC neither resolves the content conflict
+  autonomously nor adds conflict-specific durable state.
+
 - **D5.10 Final refresh settlement preserves the owed verification continuation — amended 2026-08-27 after the
   interruption audit demonstrated a lost-response dead end.** A dependent-suffix review-fix reservation carries
   the exact selected deliverable solely so its final settlement can atomically install the refreshed suffix and
@@ -2030,6 +2050,12 @@ added.
     fixed selected head and that dependent; missing or ambiguous boundaries refuse before mutation. The refreshed
     result still preserves the exact fixed prefix and passes the existing complete-chain and structural-contribution
     checks before reservation or publication (D5.9).
+38. Fresh provider refresh and external adoption check the exact terminal authoring locus before reservation or
+    canonical publication; a dirty, moved, detached, or merging top leaves state and member refs untouched, while a
+    post-reservation block names the retained operation and reconciliation action. Repeated terminal absorption uses
+    the reserved prior highest-member coordinate as its logical merge base, carries only the refreshed contribution
+    into the residual top, preserves exact two-parent ancestry, and reports genuine conflicts without replaying
+    contribution-equivalent suffix history (D5.2, D5.9).
 
 ## Open Questions
 

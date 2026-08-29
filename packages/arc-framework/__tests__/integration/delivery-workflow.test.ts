@@ -138,6 +138,12 @@ describe("packaged delivery workflow", () => {
     );
     expect(refreshTail).toMatch(/contiguous requested prefix[\s\S]*untouched tail/iu);
     expect(refreshTail).toMatch(
+      /blocked \/ reconcile[\s\S]*arc delivery reconcile[\s\S]*blocked \/ resolve-terminal-conflicts[\s\S]*paths[\s\S]*recommendedActionText/iu,
+    );
+    expect(refreshTail).toMatch(
+      /workflow-interlock[\s\S]*resolve-terminal-conflicts[\s\S]*approval[\s\S]*attended terminal conflict resolution/iu,
+    );
+    expect(refreshTail).toMatch(
       /refusal before reservation[\s\S]*operator selects the external fallback[\s\S]*mechanics[\s\S]*operator-initiated/iu,
     );
     expect(refreshTail).toMatch(/external refresh is unreserved[\s\S]*no provider\s+mutation operation/iu);

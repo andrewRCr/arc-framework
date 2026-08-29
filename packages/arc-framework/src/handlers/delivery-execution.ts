@@ -58,7 +58,10 @@ import {
   type DeliveryPublicationPresentations,
 } from "../lib/delivery/materialization.js";
 import { adoptGitDeliveryChain } from "../lib/delivery/chain-adoption.js";
-import { absorbGitDeliveryChain } from "../lib/delivery/chain-absorption.js";
+import {
+  absorbGitDeliveryChain,
+  preflightGitDeliveryChainAbsorption,
+} from "../lib/delivery/chain-absorption.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import {
   deriveDeliveryPosition,
@@ -539,6 +542,20 @@ const ReviewFixRoutingRequiredRefusalSchema = z.strictObject({
   entryMode: z.literal("integrating"),
   recommendedActionText: z.string().min(1),
 });
+const RetainedOperationBlockSchema = z.strictObject({
+  status: z.literal("blocked"),
+  reason: z.string().min(1),
+  paths: z.array(z.string()).optional(),
+  operationId: z.string().min(1),
+  nextAction: z.enum(["reconcile", "resolve-terminal-conflicts"]),
+  recommendedActionText: z.string().min(1),
+});
+const InvalidServiceResultRefusalSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("invalid-service-result"),
+  detail: z.string().min(1).max(1_000),
+  recommendedActionText: z.string().min(1),
+});
 
 const REVIEW_FIX_ROUTING_REQUIRED_TEXT = "Select the delivery member that owns the approved correction, then run "
   + "`arc delivery review-fix plan` before authoring or publishing replacement content.";
@@ -713,6 +730,7 @@ const ResultSchema = z.union([
   BlockedContributionRefusalSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
   DeliveryCloseoutBlockedSchema,
+  RetainedOperationBlockSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
     status: z.literal("blocked"),
@@ -764,6 +782,7 @@ const ResultSchema = z.union([
   DeliveryLifecycleContributionRefusalSchema,
   OperationalStateAccessRefusalSchema,
   ReviewFixRoutingRequiredRefusalSchema,
+  InvalidServiceResultRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
   z.strictObject({
     status: z.literal("refused"),
@@ -779,6 +798,31 @@ const ResultSchema = z.union([
   }),
 ]);
 export type DeliveryExecutionResult = z.infer<typeof ResultSchema>;
+
+function invalidServiceResult(result: unknown): z.infer<typeof InvalidServiceResultRefusalSchema> {
+  const record = typeof result === "object" && result !== null && !Array.isArray(result)
+    ? result as Record<string, unknown>
+    : null;
+  const fields = record === null
+    ? []
+    : Object.keys(record)
+      .filter((field) => /^[A-Za-z][A-Za-z0-9_-]{0,63}$/u.test(field))
+      .sort()
+      .slice(0, 16);
+  const status = record?.status;
+  const statusText = typeof status === "string" && /^[A-Za-z][A-Za-z0-9_-]{0,63}$/u.test(status)
+    ? ` for status '${status}'`
+    : "";
+  return {
+    status: "refused",
+    reason: "invalid-service-result",
+    detail: `Strict delivery result validation failed${statusText}; observed fields: ${
+      fields.length === 0 ? "none" : fields.join(", ")
+    }.`,
+    recommendedActionText:
+      "Treat the delivery outcome as unknown. Inspect current delivery recovery state before retrying, and report this ARC contract mismatch.",
+  };
+}
 
 function operationalStateAccessRefusal(
   error: GitCommonStateAccessError,
@@ -948,7 +992,7 @@ export async function handleDeliveryExecution(
     return;
   }
   const parsed = ResultSchema.safeParse(result);
-  emit(deps, command, parsed.success ? parsed.data : { status: "refused", reason: "invalid-service-result" });
+  emit(deps, command, parsed.success ? parsed.data : invalidServiceResult(result));
 }
 
 function emit(deps: DeliveryExecutionHandlerDependencies, command: DeliveryExecutionCommand, result: DeliveryExecutionResult): void {
@@ -1834,6 +1878,10 @@ async function executeDeliveryCommand(
         ...(idleSubject?.status === "derived" ? { facts: idleSubject.facts } : {}),
       }, {
         preparation,
+        preflightTop: (input) => preflightGitDeliveryChainAbsorption({
+          exec: createRawGitExec(cwd),
+          ...input,
+        }),
         observePublishedHeads: async (snapshot) => {
           const observed: DeliveryProviderRefreshPublishedHead[] = [];
           for (const member of snapshot.members) {
@@ -1894,9 +1942,14 @@ async function executeDeliveryCommand(
       observeResult: () => observeProviderRefresh(subject, adopt.repository, adopt.remote),
       readTargetAncestry,
       proveContribution: proveProviderRefreshMovement,
+      preflightTop: (input: {
+        topRef: string;
+        top: { head: string; tree: string };
+      }) => preflightGitDeliveryChainAbsorption({ exec: createRawGitExec(cwd), ...input }),
       absorbTop: (input: {
         topRef: string;
         top: { head: string; tree: string };
+        previousHighestMember: { head: string; tree: string };
         highestMember: { head: string; tree: string };
       }) => absorbGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
       publishTop: (input: { ref: string; beforeHead: string; requestedHead: string }) => (

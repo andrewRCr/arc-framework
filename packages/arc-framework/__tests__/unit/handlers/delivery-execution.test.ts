@@ -206,7 +206,15 @@ describe("delivery execution handler", () => {
       write: secondWrite,
       setExitCode: vi.fn(),
     });
-    expect(JSON.parse(secondWrite.mock.calls[0]?.[0] as string).reason).toBe("invalid-service-result");
+    expect(JSON.parse(secondWrite.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery position",
+      status: "refused",
+      reason: "invalid-service-result",
+      detail: "Strict delivery result validation failed for status 'invented'; observed fields: status.",
+      recommendedActionText:
+        "Treat the delivery outcome as unknown. Inspect current delivery recovery state before retrying, and report this ARC contract mismatch.",
+    });
   });
 
   it("keeps read and execution failures inside the command envelope", async () => {
@@ -642,6 +650,60 @@ describe("delivery execution handler", () => {
       schemaVersion: 1,
       command: "delivery refresh execute",
       ...retryable,
+    });
+
+    const retainedBlock = {
+      status: "blocked" as const,
+      reason: "observation-unavailable",
+      operationId: "provider-refresh-operation",
+      nextAction: "reconcile" as const,
+      recommendedActionText:
+        "The provider-refresh reservation remains active. Run `arc delivery reconcile` and retry its exact selector.",
+    };
+    const blockedWrite = vi.fn();
+    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        operationId: "provider-refresh-operation",
+      })),
+      execute: vi.fn().mockResolvedValue(retainedBlock),
+      write: blockedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(blockedWrite.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery refresh execute",
+      ...retainedBlock,
+    });
+
+    const retainedConflict = {
+      status: "blocked" as const,
+      reason: "content-conflict",
+      paths: ["shared.txt"],
+      operationId: "provider-refresh-operation",
+      nextAction: "resolve-terminal-conflicts" as const,
+      recommendedActionText:
+        "The provider-refresh reservation remains active. Resolve the listed terminal predecessor conflicts as "
+        + "one exact two-parent absorption commit, then run `arc delivery reconcile` and retry its exact selector.",
+    };
+    const conflictWrite = vi.fn();
+    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        operationId: "provider-refresh-operation",
+      })),
+      execute: vi.fn().mockResolvedValue(retainedConflict),
+      write: conflictWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(conflictWrite.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery refresh execute",
+      ...retainedConflict,
     });
   });
 

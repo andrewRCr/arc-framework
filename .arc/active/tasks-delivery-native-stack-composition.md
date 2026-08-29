@@ -1820,6 +1820,63 @@ structural guarantee rather than operator discipline.
                 - _Goal:_ Focused proof and live self-hosting evidence close the repeated-refresh criterion without
                   another broad verification cycle.
 
+                - _Forward amendment (2026-08-29):_ Live settlement exposed two supported-path defects after member
+                  publication: terminal readiness was checked only after reservation and remote effects, with a
+                  context-free retained-operation refusal, and repeated absorption used Git's incidental historical
+                  merge base instead of the reservation's logical prior predecessor. Repair both before completing
+                  the bounded criteria walk.
+
+                - `[x]` **6.11.R.z.c.a Guard terminal readiness and retained-operation recovery**
+
+                    - _Goal:_ Fresh refresh entry refuses an unready terminal locus before durable or canonical
+                      effects, and every later block identifies the retained operation and typed recovery action.
+
+                    - Provider-native and external entry now share an exact clean-top preflight before reservation;
+                      provider-private candidates are reaped on refusal. Post-reservation provider blocks carry the
+                      retained operation ID, reconciliation action, and actionable guidance.
+
+                - `[x]` **6.11.R.z.c.b Absorb the repeated predecessor from the recorded logical base**
+
+                    - _Goal:_ Repeated settlement carries the refreshed contribution into the terminal residual
+                      without replaying contribution-equivalent suffix history or weakening genuine conflict
+                      handling and exact two-parent ancestry.
+
+                    - Terminal absorption now performs the genuine three-way merge from the reservation's prior
+                      highest member, creates the exact top-plus-refreshed-highest parent pair, and recovers both the
+                      prior merge-state boundary and an exactly prepared tree interrupted before its branch CAS.
+
+                - `[ ]` **6.11.R.z.c.c Revalidate the complete repeated-refresh boundary** — validate criteria at
+                  member scope
+
+                    - _Goal:_ Focused proof, recovery, and live self-hosting evidence close criterion 38 without
+                      another broad verification cycle.
+
+                    - _Forward amendment (2026-08-29):_ The retained-operation retry reached the strict command
+                      boundary, but the handler rejected the newly actionable block as `invalid-service-result`
+                      because its public result contract had not evolved with the domain result. Preserve that exact
+                      recovery arm, make future contract mismatches actionable without emitting unvalidated data,
+                      and cover production composition at the strict boundary before retrying live settlement.
+
+                    - `[x]` **6.11.R.z.c.c.a Preserve actionable retained-operation command output**
+
+                        - _Goal:_ The strict CLI envelope publishes the retained operation and recovery action, while
+                          focused contract coverage catches future domain/envelope drift and runtime refusal reports
+                          a bounded actionable diagnostic.
+
+                        - _Forward amendment (2026-08-29):_ Live reconciliation proved that a retained terminal
+                          content conflict cannot progress by replaying its unchanged refresh selector. Distinguish
+                          that result as an attended-resolution action with exact paths before reconciliation.
+
+                        - _Outcome:_ Strict command output now preserves both retained-operation actions, reports
+                          unknown domain results through a bounded refusal, and routes terminal content conflicts by
+                          exact paths through attended resolution before reconciliation and selector retry.
+
+                    - `[ ]` **6.11.R.z.c.c.b Revalidate the complete repeated-refresh boundary** — validate criteria
+                      at member scope
+
+                        - _Goal:_ The packaged CLI settles the retained operation end to end, and the bounded Member
+                          6 criteria walk closes criterion 38 over the resulting exact chain.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
