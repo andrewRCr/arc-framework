@@ -91,6 +91,8 @@ describe("handleCandidateApplicabilityResolve", () => {
 
     await handleCandidateApplicabilityResolve("example", "-", undefined, {
       resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
       readText: async () => JSON.stringify(request),
       execute: async (_root, _name, parsed) => {
         if ("kind" in parsed) throw new Error("expected Candidate target applicability input");
@@ -124,6 +126,8 @@ describe("handleCandidateApplicabilityResolve", () => {
 
     await handleCandidateApplicabilityResolve("example", "-", undefined, {
       resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
       readText: async () => JSON.stringify(request),
       execute: async (_root, _name, parsed) => {
         executed.push(parsed);
@@ -149,12 +153,116 @@ describe("handleCandidateApplicabilityResolve", () => {
     });
   });
 
+  it("refuses a Candidate mutation owned by a different active work unit", async () => {
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleCandidateApplicabilityResolve("completed-example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "owned", workUnit: "active-owner" }),
+      readText: async () => JSON.stringify(makeRequest()),
+      execute: async () => ({
+        schemaVersion: 1,
+        mode: "candidate-applicability-resolve",
+        state: "resolved",
+        nextAction: "continue",
+        candidateId: canonicalDigest({ candidate: 1 }),
+        choice: "covered",
+      }),
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
+    expect(JSON.parse(output.join(""))).toEqual({
+      schemaVersion: 1,
+      mode: "candidate-applicability-resolve",
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: "active-work-unit-mismatch",
+    });
+    expect(exitCodes).toEqual([1]);
+  });
+
+  it("refuses an ownerless Candidate mutation without completed-lineage authority", async () => {
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleCandidateApplicabilityResolve("incomplete-example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => [],
+      readText: async () => JSON.stringify(makeRequest()),
+      execute: async () => ({
+        schemaVersion: 1,
+        mode: "candidate-applicability-resolve",
+        state: "resolved",
+        nextAction: "continue",
+        candidateId: canonicalDigest({ candidate: 1 }),
+        choice: "covered",
+      }),
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
+    expect(JSON.parse(output.join(""))).toEqual({
+      schemaVersion: 1,
+      mode: "candidate-applicability-resolve",
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: "active-work-unit-mismatch",
+    });
+    expect(exitCodes).toEqual([1]);
+  });
+
+  it("rechecks checkout authority before the service mutation boundary", async () => {
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+    let ownerResolution = 0;
+    let mutationApplied = false;
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => {
+        ownerResolution += 1;
+        return ownerResolution === 1
+          ? { status: "owned", workUnit: "example" }
+          : { status: "unavailable" };
+      },
+      readText: async () => JSON.stringify(makeRequest()),
+      execute: async (_root, _name, _request, _interaction, requireMutationOwner) => {
+        await requireMutationOwner();
+        mutationApplied = true;
+        return {
+          schemaVersion: 1,
+          mode: "candidate-applicability-resolve",
+          state: "resolved",
+          nextAction: "continue",
+          candidateId: canonicalDigest({ candidate: 1 }),
+          choice: "covered",
+        };
+      },
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
+    expect(mutationApplied).toBe(false);
+    expect(JSON.parse(output.join(""))).toEqual({
+      schemaVersion: 1,
+      mode: "candidate-applicability-resolve",
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: "execution-failed",
+    });
+    expect(exitCodes).toEqual([1]);
+  });
+
   it("returns the closed invalid-input result for malformed JSON", async () => {
     const output: string[] = [];
     const exitCodes: number[] = [];
 
     await handleCandidateApplicabilityResolve("example", "-", undefined, {
       resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
       readText: async () => "not json",
       write: (text) => output.push(text),
       setExitCode: (code) => exitCodes.push(code),
@@ -175,6 +283,8 @@ describe("handleCandidateApplicabilityResolve", () => {
 
     await handleCandidateApplicabilityResolve("example", "-", undefined, {
       resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
       readText: async () => JSON.stringify(makeRequest()),
       execute: async () => ({ state: "invented" }),
       write: (text) => output.push(text),

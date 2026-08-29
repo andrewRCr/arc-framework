@@ -18,36 +18,16 @@ const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 const staleBuildCommand = process.env.ARC_HOOK_STALE_BUILD_COMMAND?.trim() || "";
 const env = { ...process.env };
 const hookDeadline = Date.now() + 29_000;
-let cwd = hookCwd;
+const cwd = isCodexHarness() ? resolveCodexExecutionCheckout(raw) ?? hookCwd : hookCwd;
 
 try {
   reapExpiredRecoveryArtifacts();
-  let staleBuildFailure = null;
-
+  const seedAttempt = runWithStaleBuildRepair("seed command", runSeedCommand);
   if (isCodexHarness()) {
-    const direct = resolveCodexExecutionCheckout(raw);
-    if (direct !== null) {
-      cwd = direct;
-    } else if (hasTranscriptPath(raw)) {
-      const locusAttempt = runWithStaleBuildRepair("locus command", runLocusCommand);
-      staleBuildFailure = locusAttempt.failure;
-      if (staleBuildFailure === null) {
-        const locus = parseJsonOutput(locusAttempt.result);
-        cwd = resolveCodexExecutionCheckout(raw, locus) ?? hookCwd;
-      }
-    }
-  }
-
-  if (staleBuildFailure !== null) {
-    writeFallbackPendingMarker(staleBuildFailure, sessionId);
-  } else {
-    const seedAttempt = runWithStaleBuildRepair("seed command", runSeedCommand);
-    if (isCodexHarness()) {
-      if (seedAttempt.failure === null) {
-        writeMarkerFromResult(seedAttempt.result);
-      } else {
-        writeFallbackPendingMarker(seedAttempt.failure, sessionId);
-      }
+    if (seedAttempt.failure === null) {
+      writeMarkerFromResult(seedAttempt.result);
+    } else {
+      writeFallbackPendingMarker(seedAttempt.failure, sessionId);
     }
   }
 } catch {
@@ -80,19 +60,6 @@ function runSeedCommand() {
   });
 }
 
-function runLocusCommand() {
-  return spawnSync(`${arcCommand} locus --json`, {
-    cwd: hookCwd,
-    env,
-    encoding: "utf8",
-    shell: true,
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: remainingTimeout(5_000),
-    killSignal: "SIGKILL",
-    maxBuffer: 8 * 1024 * 1024,
-  });
-}
-
 function runWithStaleBuildRepair(label, run) {
   let result = run();
   if (!shouldRetryAfterBuild(result)) return { result, failure: null };
@@ -118,24 +85,6 @@ function runWithStaleBuildRepair(label, run) {
 
 function remainingTimeout(maximum = Number.POSITIVE_INFINITY) {
   return Math.max(1, Math.min(maximum, hookDeadline - Date.now() - 250));
-}
-
-function hasTranscriptPath(value) {
-  try {
-    const path = JSON.parse(value)?.transcript_path;
-    return typeof path === "string" && path.trim().length > 0;
-  } catch {
-    return false;
-  }
-}
-
-function parseJsonOutput(result) {
-  if (result.status !== 0 || typeof result.stdout !== "string") return null;
-  try {
-    return JSON.parse(result.stdout);
-  } catch {
-    return null;
-  }
 }
 
 function shouldRetryAfterBuild(result) {

@@ -44,6 +44,11 @@ import {
   resolveReviewApplicability,
   reviewApplicabilityResolutionInputFromCommand,
 } from "../scripts/review-gate/policy/review-applicability-resolution.js";
+import type { CandidateMutationOwner } from "../lib/work-unit/candidate-mutation-owner.js";
+import {
+  resolveCandidateMutationOwner,
+  resolveCompletedCandidateWorkUnits,
+} from "./candidate-mutation-owner.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 const COMMAND_PATH = "candidate applicability resolve";
@@ -118,7 +123,8 @@ async function executeCandidateApplicabilityResolution(
   root: string,
   name: string,
   input: CandidateApplicabilityCommandInput,
-  interaction?: InteractionContext,
+  interaction: InteractionContext | undefined,
+  requireMutationOwner: () => Promise<void>,
 ): Promise<CandidateApplicabilityCommandResult> {
   const { settings } = await readConfigSettings(root);
   const baseBranch = settings["branch.base"];
@@ -147,6 +153,7 @@ async function executeCandidateApplicabilityResolution(
     record: Parameters<typeof writeCandidateRecord>[2],
     expectedVersion: string,
   ): Promise<"written" | "version-conflict"> => {
+    await requireMutationOwner();
     try {
       await writeCandidateRecord(root, name, record, expectedVersion);
       return "written";
@@ -220,6 +227,7 @@ async function executeCandidateApplicabilityResolution(
     : resolution.nextAction === "continue" || resolution.nextAction === "request-review";
   if (!stagesSelection) return resolution;
   const recordPath = resolveCandidateRecordRelativePath(name);
+  await requireMutationOwner();
   await git("git", ["add", "--", recordPath], { cwd: root });
   const staged = (await git("git", ["diff", "--cached", "--name-only", "--", recordPath], {
     cwd: root,
@@ -230,12 +238,18 @@ async function executeCandidateApplicabilityResolution(
 
 export interface CandidateApplicabilityResolveHandlerDependencies {
   resolveRoot(): string | null;
+  resolveMutationOwner(
+    root: string,
+    interaction?: InteractionContext,
+  ): Promise<CandidateMutationOwner>;
+  resolveCompletedWorkUnits(root: string): Promise<readonly string[]>;
   readText(source: string): Promise<string>;
   execute(
     root: string,
     name: string,
     input: CandidateApplicabilityCommandInput,
-    interaction?: InteractionContext,
+    interaction: InteractionContext | undefined,
+    requireMutationOwner: () => Promise<void>,
   ): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
@@ -244,6 +258,11 @@ export interface CandidateApplicabilityResolveHandlerDependencies {
 function defaultDependencies(): CandidateApplicabilityResolveHandlerDependencies {
   return {
     resolveRoot: () => requireArcProjectRoot(),
+    resolveMutationOwner: (root, interaction) => resolveCandidateMutationOwner({
+      cwd: root,
+      exec: createGitExec(interaction?.subprocess),
+    }),
+    resolveCompletedWorkUnits: resolveCompletedCandidateWorkUnits,
     readText: (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
     execute: executeCandidateApplicabilityResolution,
     write: (text) => process.stdout.write(text),
@@ -257,6 +276,33 @@ function emit(
 ): void {
   deps.write(`${JSON.stringify(result)}\n`);
   if (result.state !== "resolved" && result.state !== "exact-replay") deps.setExitCode(1);
+}
+
+type CandidateMutationRefusal = "active-work-unit-mismatch" | "active-work-unit-unavailable";
+
+async function resolveCandidateMutationRefusal(
+  deps: CandidateApplicabilityResolveHandlerDependencies,
+  root: string,
+  workUnit: string,
+  interaction?: InteractionContext,
+): Promise<CandidateMutationRefusal | null> {
+  let owner: CandidateMutationOwner;
+  try {
+    owner = await deps.resolveMutationOwner(root, interaction);
+  } catch {
+    return "active-work-unit-unavailable";
+  }
+  if (owner.status === "unavailable") return "active-work-unit-unavailable";
+  if (owner.status === "owned") {
+    return owner.workUnit === workUnit ? null : "active-work-unit-mismatch";
+  }
+  try {
+    return (await deps.resolveCompletedWorkUnits(root)).includes(workUnit)
+      ? null
+      : "active-work-unit-mismatch";
+  } catch {
+    return "active-work-unit-unavailable";
+  }
 }
 
 /** Parse one exact-bound selection request and emit its closed resolution result. */
@@ -302,9 +348,40 @@ export async function handleCandidateApplicabilityResolve(
     }));
     return;
   }
+  const mutationRefusal = await resolveCandidateMutationRefusal(
+    deps,
+    root,
+    commandInput.data.name,
+    interaction,
+  );
+  if (mutationRefusal !== null) {
+    emit(deps, CandidateApplicabilityResolutionResultSchema.parse({
+      schemaVersion: 1,
+      mode: "candidate-applicability-resolve",
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: mutationRefusal,
+    }));
+    return;
+  }
+  const requireMutationOwner = async (): Promise<void> => {
+    const refusal = await resolveCandidateMutationRefusal(
+      deps,
+      root,
+      commandInput.data.name,
+      interaction,
+    );
+    if (refusal !== null) throw new Error(`Candidate mutation refused: ${refusal}`);
+  };
   let executed: unknown;
   try {
-    executed = await deps.execute(root, commandInput.data.name, request, interaction);
+    executed = await deps.execute(
+      root,
+      commandInput.data.name,
+      request,
+      interaction,
+      requireMutationOwner,
+    );
   } catch {
     emit(deps, CandidateApplicabilityResolutionResultSchema.parse({
       schemaVersion: 1,
