@@ -34,7 +34,7 @@ import {
 } from "./gate-contract-v2-schema.js";
 import { LocalReviewerPayloadSchema } from "./local-review-payload.js";
 import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
-import { HostedRequestResultSchema } from "../hosted/request.js";
+import { HostedRequestResultSchema, HostedTargetSchema } from "../hosted/request.js";
 import { HostedAwaitResultSchema } from "../hosted/await.js";
 import { HostedSettleResultSchema } from "../hosted/settle.js";
 
@@ -536,6 +536,12 @@ const DispositionPayloadSchema = z.strictObject({
   frontlineFollowUp: FrontlineFollowUpAdviceSchema.optional(),
   hostedSettlementPlan: HostedSettlementPlanSchema.optional(),
 });
+const DeliveryMemberResponsePayloadSchema = z.strictObject({
+  ...DispositionPayloadSchema.shape,
+  fixAuthorizationId: CanonicalDigestSchema,
+  currentTarget: ReviewTargetSchema,
+  hostedFixTarget: HostedTargetSchema,
+});
 export const RespondEnvelopeSchema = z.union([
   envelopeVariant(
     "review-respond",
@@ -607,6 +613,18 @@ export const RespondEnvelopeSchema = z.union([
       ...DispositionPayloadSchema.shape,
       fixAuthorizationId: CanonicalDigestSchema,
     }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "delivery-member-advanced",
+    "continue-review",
+    DeliveryMemberResponsePayloadSchema,
+  ),
+  envelopeVariant(
+    "review-respond",
+    "delivery-member-current",
+    "continue-review",
+    DeliveryMemberResponsePayloadSchema,
   ),
   // Settlement-replay invalidations. The replay runs unattended behind the merge verb, where an
   // exception is only legible as an operation failure, so each refusal carries its own state.
