@@ -2440,6 +2440,42 @@ meta exists and that resolution shape is the exact defect the retired terminal a
               verification, and acknowledgment. The final Member 7 correction preserves the same typed applicability
               projection for ordinary and delivery targets while keeping delivery conjunctions exact.
 
+        - `[x]` **9.1.R.c Revalidate repeated refresh at work-unit scope**
+
+            - _Goal:_ The terminal report consumes the amended Member 6 boundary and proves the complete delivery
+              remains coherent after repeated provider refresh settlement.
+            - _Quality gates:_ The current Markdown and ARC contract gates, TypeScript and shell lint, both
+              typechecks, package build, and full suite pass; 852 of 853 test files and 11,065 of 11,066 tests pass,
+              with one intentional skip each. Aggregate self-review and diff hygiene found no material finding.
+            - _Success criteria:_ Work-unit criteria report.
+                - _Criteria slice:_ `Success Criteria`, comprising all eight recorded member groups and
+                  `Cross-member seams`.
+                - _Span:_ complete work-unit diff `main...def6adc68` plus this exact terminal-verification patch;
+                  reachability is the complete current tree. Boundary-order deviations remain bound inside the
+                  recorded member reports; no new member attribution is introduced here.
+                - _Member groups:_ thirty criteria met, Member 1 criterion 1 and Member 6 criterion 2 remain
+                  intentionally superseded by D7.2b and D5.9, and zero criteria are unresolved. The latest Member 6
+                  report reaches `ca8dc2ef36e9a82a60e39e843db6155570a974c2` and closes its unique-fork and exact
+                  terminal-preflight, logical-base, two-parent, retained-operation, and attended-conflict loci.
+                - _Seam 1:_ exact task closure now projects `no-open-task` and `verify-work-unit`; the recovery audit
+                  and attestation guards retain cursorless closeout without admitting an unresolved task list.
+                - _Seam 2:_ the registered correction settled through provider refresh, exact Member 1 verification,
+                  and digest-bound acknowledgment at state revision 79 without repeating provider mutation.
+                - _Seam 3:_ canonical plan/state still select the eight-member chain before position or host routing;
+                  the live position read returns Member 1 as the exact first unlanded member with no active operation.
+                - _Seam 4:_ the repeated correction used the provider-native path, exact lease publication, and one
+                  terminal absorption, adding no manual recut or synthetic ancestry-reconciliation merge.
+                - _Seam 5:_ all current quality gates pass.
+                - _Seam 6:_ the composed tree is ready for Candidate attestation and integration. The executable
+                  eight-member rehearsal fails on shape drift across review, native landing, teardown, terminal, and
+                  closeout; the focused repeated-refresh lifecycle and live exact settlement cover the amended path.
+                - _Integrity:_ implemented behavior is distinguished from live proof: the repeated provider refresh,
+                  terminal absorption, remote head, and continuation settlement were proven live; remaining provider
+                  and lifecycle variants are executable test evidence. The two superseded clauses have implemented
+                  replacements, and no essential original intent is deferred or unowned.
+                - _Summary:_ thirty-six met, two intentionally superseded, zero unresolved. Success Criteria markers
+                  now reflect this terminal report; prior explicit direction declined another broad companion pass.
+
         - _Outcome:_ The rebound tree matches the reviewed delivery content at
           `b12094bc4a262c837dde14ef0244827fd07f2330`; delivery state revision 47 replays the exact Member 6 and Member 7
           verification set, blocks competing mutations, and exposes one digest-bound acknowledgment. The ordinary
@@ -2597,13 +2633,13 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   member plus every changed dependent in plan order through exact acknowledgment; decline restores the external refs
   by lease, and no proof, provider fact, check result, or reusable approval record becomes durable.
 
-- `[ ]` A repeated provider-native correction to the same selected member remains executable after a prior
+- `[x]` A repeated provider-native correction to the same selected member remains executable after a prior
   contribution-equivalent suffix adoption. If the recorded predecessor is no longer contained by the first
   dependent, isolated preparation seeds the official provider refresh only from one unique common fork boundary;
   missing or ambiguous boundaries refuse before mutation, and the result still passes the exact fixed-prefix,
   complete-chain, and structural-contribution checks before reservation or publication.
 
-- `[ ]` Fresh provider refresh and external adoption check the exact terminal authoring locus before reservation or
+- `[x]` Fresh provider refresh and external adoption check the exact terminal authoring locus before reservation or
   canonical publication; an unready top leaves state and member refs untouched, while a post-reservation block names
   the retained operation and typed next action. Repeated terminal absorption uses the reserved prior highest-member
   coordinate as its logical merge base, carries only the refreshed contribution into the residual top, preserves
