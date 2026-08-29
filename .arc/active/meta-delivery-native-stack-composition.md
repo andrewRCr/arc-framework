@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:e53e0adcb9d2a6f3bf407d0f1f5d50343a5106faab0522f67cedb047d50d1d8f`
+- **Candidate:** `sha256:0de27395658959b17b3b68a9a2e7473c8f21fca99ea38b65d8d475712c5731ce`
 
-- **Current Workflow:** [none]
-- **Last Completed:** Task 9.1.R.d — Revalidate exact compaction-locus succession at work-unit scope
-- **Next Task:** Task 8.5.R.f — Restore stable checkout isolation across stacked-delivery cycles
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 9.1.R.e — Revalidate stable origin and Candidate isolation at work-unit scope
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]

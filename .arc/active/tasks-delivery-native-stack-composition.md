@@ -2500,18 +2500,19 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Final re-attestation passed Markdown and ARC contract lint, TypeScript and shell lint, both
   typechecks, package build, aggregate self-review, and diff hygiene; 852 test files passed with one skipped and
-  11,072 tests passed with one skipped. The final task-list closure reran Markdown and ARC contract checks over its
+  11,078 tests passed with one skipped. The final task-list closure reran Markdown and ARC contract checks over its
   only new covered input.
-- _Success criteria:_ 39 total: 37 met, two superseded, and none unresolved. All eight member reports resolve to
-  their current criteria loci and boundary spans; Member 8's amended report adds exact compaction-locus succession
-  without borrowing member or gate identity. Member 1's implementation-task workaround and Member 6's external-only
-  refresh clause remain intentionally superseded by D7.2b and D5.9. Union coherence and all six cross-member seams
-  hold through exact correction routing, provider refresh, replayable member verification, review conjunction,
-  cursorless closeout, Candidate recovery, and terminal integration.
+- _Success criteria:_ 41 total: 38 met, three superseded, and none unresolved. All eight member reports resolve to
+  their current criteria loci and boundary spans; Member 8's amended report supersedes automatic checkout succession
+  and adds fixed-origin plus Candidate-isolation evidence without borrowing member or gate identity. Member 1's
+  implementation-task workaround and Member 6's external-only refresh clause remain intentionally superseded by
+  D7.2b and D5.9. Union coherence and all six cross-member seams hold through exact correction routing, provider
+  refresh, replayable member verification, review conjunction, cursorless closeout, Candidate recovery, and terminal
+  integration.
 
 - _Forward amendment (2026-08-27):_ The D5.8-D5.10 corrections added Success Criteria 34 and 35 after this terminal
   report. Consume the updated Member 6 boundary report and revalidate the continuation's cross-member mutation
@@ -2613,11 +2614,46 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 - _Summary:_ thirty-seven met, two intentionally superseded, zero unresolved. Unaffected member
                   criteria were carried from their exact boundary reports rather than re-derived.
 
-        - `[ ]` **9.1.R.e Revalidate stable origin and Candidate isolation at work-unit scope**
+        - `[x]` **9.1.R.e Revalidate stable origin and Candidate isolation at work-unit scope**
 
             - _Goal:_ The terminal report accounts for the corrected fixed-origin contract and proves Candidate
               ownership keeps repeated stacked-delivery re-entry isolated without weakening foreign-dirt detection,
               transient recovery, review conjunction, or the shared hook deadline.
+
+            - _Success criteria:_ Work-unit criteria report.
+                - _Criteria slice:_ `Success Criteria`, comprising all eight recorded member groups and
+                  `Cross-member seams`.
+                - _Span:_ complete work-unit diff through `7dd8a9ac5` plus this terminal-verification evidence patch;
+                  reachability is the complete current tree. Recorded member-boundary deviations remain exact, and
+                  only Member 8's fixed-origin amendment changes a carried disposition.
+                - _Member groups:_ thirty-two criteria are met, Member 1 criterion 1, Member 6 criterion 2, and
+                  Member 8 criterion 6 are intentionally superseded, and zero criteria are unresolved. Member 8's
+                  report reaches `7dd8a9ac5`: its corrected criteria prove fixed-origin collision/refusal and
+                  checkout-owned Candidate mutation while retaining the shared hook deadline and completed-lineage
+                  continuation.
+                - _Seam 1:_ terminal task closure still projects `no-open-task` into `verify-work-unit`. Recovery and
+                  PreCompact now stay at the marker-owned origin or an ARC-declared ready transient, so exact branch,
+                  head, dirty-set, load-set, and task-cursor validation no longer depend on a replacement carrier.
+                - _Seam 2:_ registered correction and provider-refresh routing remain operation-local. Member and gate
+                  checkouts carry no lifecycle artifacts, while the origin's derived owner permits review response
+                  and explicit Candidate mutation only for this work unit.
+                - _Seam 3:_ canonical plan and state still select the eight-member chain before delivery position or
+                  host routing. Candidate ownership consumes the existing locus and lifecycle indexes without adding
+                  delivery identity, mutable state, or a second recovery authority.
+                - _Seam 4:_ native delivery, structural contribution equivalence, and exact-head review applicability
+                  remain unchanged. Completed-lineage lookup is available only without an active owner, and the
+                  retained member-review conjunction cannot be discharged through a foreign Candidate rewrite.
+                - _Seam 5:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, package build,
+                  11,078 passing tests, aggregate preflight, and complete diff hygiene pass over the amended tree.
+                - _Seam 6:_ the composed tree is ready for Candidate re-attestation and integration. Real carrier
+                  refusal, restored-origin success, archived continuation, and the stationary three-member cycle
+                  provide executable forcing evidence for the corrected union behavior.
+                - _Integrity:_ the fixed-origin and Candidate boundaries are executable behavior, while the recorded
+                  live provider observations remain distinct. No essential intent is deferred or assigned to an
+                  unowned follow-up; the foreign Candidate recovery stash remains visible and untouched.
+                - _Summary:_ thirty-eight met, three intentionally superseded, zero unresolved. The prior broad
+                  companion-pass decline carries forward; Member 8 consumed the complete Heavy two-pass allowance,
+                  and no third independent pass is claimed.
 
         - _Outcome:_ The rebound tree matches the reviewed delivery content at `66da99a8f` with tree `7758a3b4a`;
           delivery state revision 94 has acknowledged the exact Member 7 verification continuation and blocks
@@ -2844,12 +2880,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
     - _Superseded:_ automatic work-unit checkout succession normalized an unclosed workaround; the shared deadline
       remains required and is retained by the fixed-origin criterion below.
 
-- `[ ]` The marker-owned originating checkout remains the work unit's sole physical session and recovery locus until
+- `[x]` The marker-owned originating checkout remains the work unit's sole physical session and recovery locus until
   teardown. Moving its branch produces an explicit same-work-unit collision and no replacement checkout resolves;
   restoring the branch restores the origin. PreCompact follows only that origin or an ARC-declared ready transient,
   while valid slow seed execution retains the coherent shared hook deadline.
 
-- `[ ]` Repeated stacked-delivery correction, review, verification, and integration re-entry stays in the origin
+- `[x]` Repeated stacked-delivery correction, review, verification, and integration re-entry stays in the origin
   without foreign Candidate rewrites. An active checkout permits review-response and Candidate mutation only for its
   owning work unit; completed lineages remain available when no active work unit owns the checkout, foreign dirt
   stays blocking, and cross-work-unit refusal makes no file or index mutation.
