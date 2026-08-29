@@ -150,7 +150,7 @@
     "reference/strategies/arc/strategy-integration.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "b3c790b0406d7ceb7375421bdb99e63e3c14b56719479423a961125332ef52a7"
+      "pristine_hash": "c3bce5f62f733e7cad38957fcc9fa21613019e31fb76d035c2678c390ce5696f"
     },
     "reference/strategies/arc/strategy-interlock-release-wrappers.md": {
       "classification": "Framework",
