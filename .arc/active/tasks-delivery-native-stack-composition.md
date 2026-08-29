@@ -2471,14 +2471,15 @@ meta exists and that resolution shape is the exact defect the retired terminal a
             - _Goal:_ The terminal report consumes the amended Member 6 boundary and proves the complete delivery
               remains coherent after repeated provider refresh settlement.
             - _Quality gates:_ The current Markdown and ARC contract gates, TypeScript and shell lint, both
-              typechecks, package build, and full suite pass; 852 of 853 test files and 11,065 of 11,066 tests pass,
-              with one intentional skip each. Aggregate self-review and diff hygiene found no material finding.
+              typechecks, package build, and full suite pass; 852 of 853 test files and 11,068 of 11,069 tests pass,
+              with one intentional skip each. The aggregate post-Candidate delta review and complete diff hygiene
+              found no material finding.
             - _Success criteria:_ Work-unit criteria report.
                 - _Criteria slice:_ `Success Criteria`, comprising all eight recorded member groups and
                   `Cross-member seams`.
-                - _Span:_ complete work-unit diff `main...def6adc68` plus this exact terminal-verification patch;
-                  reachability is the complete current tree. Boundary-order deviations remain bound inside the
-                  recorded member reports; no new member attribution is introduced here.
+                - _Span:_ complete work-unit diff `main...66da99a8f` plus this exact terminal-verification evidence
+                  patch; reachability is the complete staged tree. Boundary-order deviations remain bound inside
+                  the recorded member reports; no new member attribution is introduced here.
                 - _Member groups:_ thirty criteria met, Member 1 criterion 1 and Member 6 criterion 2 remain
                   intentionally superseded by D7.2b and D5.9, and zero criteria are unresolved. The latest Member 6
                   report reaches `ca8dc2ef36e9a82a60e39e843db6155570a974c2` and closes its unique-fork and exact
@@ -2502,11 +2503,11 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 - _Summary:_ thirty-six met, two intentionally superseded, zero unresolved. Success Criteria markers
                   now reflect this terminal report; prior explicit direction declined another broad companion pass.
 
-        - _Outcome:_ The rebound tree matches the reviewed delivery content at
-          `b12094bc4a262c837dde14ef0244827fd07f2330`; delivery state revision 47 replays the exact Member 6 and Member 7
-          verification set, blocks competing mutations, and exposes one digest-bound acknowledgment. The ordinary
-          moved-head production path now reaches its canonical Candidate selection without weakening D8.2's complete
-          retained-member conjunction.
+        - _Outcome:_ The rebound tree matches the reviewed delivery content at `66da99a8f` with tree `7758a3b4a`;
+          delivery state revision 94 has acknowledged the exact Member 7 verification continuation and blocks
+          terminal rebinding until the freshly verified Candidate root is established. The ordinary moved-head
+          production path reaches that canonical re-root without weakening D8.2's complete retained-member
+          conjunction.
 
 ---
 
