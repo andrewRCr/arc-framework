@@ -2147,7 +2147,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2155,23 +2155,26 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 - _Outcome:_ Member 7 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
-    - _Span:_ original diff `2fae38462..e11bd763d`; forward amendment `bbde7b167` plus the Task 7.7.R.b
-      worktree at `6878770ea`; reachability `6878770ea` plus that worktree. Boundary-order deviation: the approved
-      post-verification reopening supplied Tasks 7.7.R.a-b without absorbing unrelated later-member changes.
+    - _Span:_ bounded diff `3ae53d25c..d0d941007`; cumulative reachability `d0d941007` at tree `d2f2214fa`.
+      Boundary-order deviation: the approved post-verification correction was projected back into Member 7, then
+      the dependent suffix refreshed to rebound top `dbd13e29b` at tree `37cb970d4`; no later-member content enters
+      the bounded member diff.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`;
-      _Evidence:_ retained member bindings still derive one exact target per member and settle only through the
-      complete conjunction. The production lifecycle now drives both non-terminal and terminal delegated-agent
-      fallbacks through real prepare and attest operations before the conjunction can discharge.
+      _Evidence:_ coherent delivery state derives one exact current target per retained member binding, while status
+      preserves the originating member request and reports settlement only from the complete ordered conjunction.
+      The production lifecycle exercises changed-target settlement followed by a second-member review and refuses to
+      discharge until both members settle.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`;
-      _Evidence:_ complete hosted coverage and exactly admitted local results may settle; supplemental coverage may
-      inform findings but cannot discharge. The existing D4-backed applicability path carries exact local progress
-      across head movement, refuses replacement pull-request coordinates, and adds no equivalence projection or
-      record family.
+      _Evidence:_ complete hosted coverage and exactly admitted local results may settle; supplemental coverage stays
+      non-settling. A settled verified-fix response re-anchors the existing earlier-attempt projection at its exact
+      changed target, so later movement still routes through D4 while the response itself adds no equivalence notion,
+      applicability authority, or record family.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`;
-      _Evidence:_ status carries the driver's exact source, member vehicle, host target, pass, ceiling consequence,
-      and status target into local prepare; prepare freshly re-runs status before publication; persisted operation,
-      attest, applicability, findings resumption, and terminal conjunction consume the same admission. Retained
-      findings precede any replacement request, and Success Criteria markers remain unchanged.
+      _Evidence:_ the typed progression retains exact member, source, host, pass, and ceiling admission from status
+      through request, await, response, settlement, and terminal conjunction. The changed-target response resolves
+      from authoritative delivery state, appends once to the approved disposition record, returns the exact hosted
+      fix target to both shipped workflows, settles idempotently, and becomes current discharge evidence without
+      weakening ordinary pinned-target admission. Success Criteria markers remain unchanged.
 
 - _Forward amendment (2026-08-27):_ D8.5 requires delivery-member request admission to pass through the existing
   review driver. The completed implementation instead composed a hosted request directly after applicability, so a
@@ -2225,11 +2228,16 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           handler coverage proves first application and idempotent replay while pinned-target confirmation remains
           unchanged.
 
-    - `[ ]` **7.7.R.d Revalidate changed-target member response** — validate criteria at member scope
+    - `[x]` **7.7.R.d Revalidate changed-target member response** — validate criteria at member scope
 
         - _Goal:_ Re-run `Success Criteria > Member 7 — review-fan-out` over the amended bounded diff and cumulative
           tree, retaining the existing criteria markers and proving the complete findings-fix-settlement path through
           production composition.
+
+        - _Outcome:_ All three Member 7 criteria resolve. The fresh adversarial pass exposed that changed-target
+          coverage stopped before settlement; the repaired production lifecycle now consumes the exact returned fix
+          target, proves settlement replay, and reaches the complete member conjunction through the existing response
+          record and D4 applicability path.
 
 ## **Phase 8:** Record retirement and doctrine
 
