@@ -165,7 +165,7 @@ export function parseWorkflowFrontmatter(
   if (!("arc" in root)) return { methods: [], extensions: [] };
   const arc = root.arc;
   if (arc === null || typeof arc !== "object" || Array.isArray(arc)) {
-    return { methods: [], extensions: [], parseError: "arc must be a mapping" };
+    return { methods: [], extensions: [], parseError: '"arc" must be a mapping' };
   }
   const declarations = arc as Record<string, unknown>;
   const methods = parseDeclarationArray(declarations.methods, "arc.methods");
