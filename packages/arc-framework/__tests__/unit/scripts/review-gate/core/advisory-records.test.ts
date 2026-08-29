@@ -114,10 +114,12 @@ describe("advisory review records", () => {
       operationId: "operation-1",
       candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
       errand: null,
+      deliveryMember: null,
       source,
       approvedDisposition,
       fixAuthorization: null,
       errandFixResponse: null,
+      deliveryMemberFixResponse: null,
     };
     expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
     expect(ApprovedDispositionRecordSchema.safeParse({
