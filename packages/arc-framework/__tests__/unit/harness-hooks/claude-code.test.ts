@@ -104,7 +104,8 @@ describe("Claude Code compaction recovery hook recipe", () => {
     expect(seedScript).not.toContain("writeSeedHandoff");
     expect(seedScript).toContain("status --session-init --write-compaction-seed --json");
     expect(seedScript).toContain("ARC_HOOK_STALE_BUILD_COMMAND");
-    expect(seedScript).toContain("timeout: 15_000");
+    expect(seedScript).toContain("const hookDeadline = Date.now() + 29_000");
+    expect(seedScript).toContain("timeout: remainingTimeout()");
     expect(seedScript).toContain("stdio: [\"ignore\", \"pipe\", \"pipe\"]");
     expect(seedScript).toContain("process.exit(0)");
   });
