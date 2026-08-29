@@ -2155,9 +2155,9 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 - _Outcome:_ Member 7 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
-    - _Span:_ bounded diff `3ae53d25c..d0d941007`; cumulative reachability `d0d941007` at tree `d2f2214fa`.
+    - _Span:_ bounded diff `3ae53d25c..34332ebea`; cumulative reachability `34332ebea` at tree `8f9a80f7b`.
       Boundary-order deviation: the approved post-verification correction was projected back into Member 7, then
-      the dependent suffix refreshed to rebound top `dbd13e29b` at tree `37cb970d4`; no later-member content enters
+      the dependent suffix refreshed to rebound top `ac931860c` at tree `1cd5b6bbf`; no later-member content enters
       the bounded member diff.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`;
       _Evidence:_ coherent delivery state derives one exact current target per retained member binding, while status
