@@ -109,7 +109,13 @@ export const CandidateApplicabilityResolutionResultSchema = z.union([
     ...ResolutionResultCommon,
     state: z.literal("execution-unavailable"),
     nextAction: z.literal("stop"),
-    reason: z.enum(["project-root-unavailable", "execution-failed", "invalid-service-result"]),
+    reason: z.enum([
+      "project-root-unavailable",
+      "active-work-unit-mismatch",
+      "active-work-unit-unavailable",
+      "execution-failed",
+      "invalid-service-result",
+    ]),
   }),
 ]);
 export type CandidateApplicabilityResolutionResult = z.infer<

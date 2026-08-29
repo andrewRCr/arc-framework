@@ -33,6 +33,14 @@ export function deliveryThreeMemberStackPlanFixture(planId = defaultPlanId): Del
   return buildDeliveryPlanFixture(planId, "stack-to-main", 3);
 }
 
+/** Construct a valid three-member stack plan for a caller-selected work unit. */
+export function deliveryThreeMemberStackPlanForWorkUnitFixture(
+  workUnitId: string,
+  planId = defaultPlanId,
+): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 3, undefined, workUnitId);
+}
+
 /** Construct a valid independently-landable four-member stack plan. */
 export function deliveryFourMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
   return buildDeliveryPlanFixture(planId, "stack-to-main", 4);
@@ -42,10 +50,13 @@ function buildDeliveryPlanFixture(
   planId: string,
   projection: "wu-integration-target" | "stack-to-main",
   memberCount = 2,
-  memberTitles: readonly string[] = ["First member", "Second member", "Third member", "Fourth member"],
+  memberTitles: readonly string[] | undefined = undefined,
+  workUnitId = "delivery-plan-record",
 ): DeliveryPlanV1 {
-  const ordinalNames = ["First", "Second", "Third", "Fourth", "Fifth"];
-  const chunkKeys = ["first", "second", "third", "fourth", "fifth"];
+  const resolvedMemberTitles = memberTitles
+    ?? ["First member", "Second member", "Third member", "Fourth member"];
+  const ordinalNames = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"];
+  const chunkKeys = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
   const assignableParents = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
     semanticDigest: canonicalDigest({ goal: ordinalNames[index] }),
@@ -62,7 +73,7 @@ function buildDeliveryPlanFixture(
   const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
     schemaVersion: 1,
     semanticsVersion: "delivery-plan/v1",
-    workUnitId: "delivery-plan-record",
+    workUnitId,
     design: {
       artifacts: [{ artifactId: "spec-delivery-plan-record.md" }],
       elements: [{ elementId: "detailed:state-contract" }],
@@ -74,7 +85,7 @@ function buildDeliveryPlanFixture(
     projection: { kind: projection },
     members: assignableParents.map(({ taskId }, index) => ({
       chunkKey: chunkKeys[index],
-      title: memberTitles[index],
+      title: resolvedMemberTitles[index] ?? `${ordinalNames[index]} member`,
       contract: `Publish the ${chunkKeys[index]} contract.`,
       taskIds: [taskId],
       designElementIds: index === 0 ? ["detailed:state-contract"] : [],

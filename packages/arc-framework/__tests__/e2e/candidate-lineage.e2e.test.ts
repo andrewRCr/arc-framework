@@ -7,12 +7,21 @@
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
+import {
+  RepositoryDeliveryPlanStore,
+  RepositoryDeliveryStateStore,
+} from "../../src/lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
+import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
+import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { runActiveStatus } from "../../src/commands/active.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
@@ -83,6 +92,7 @@ import {
 } from "../../src/scripts/integration/merge-composition.js";
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
 import type { MergeMethodResolveResult } from "../../src/scripts/review-gate/merge-method.js";
+import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -183,6 +193,111 @@ async function fixture(): Promise<string> {
   await git(root, ["add", "-A"]);
   await git(root, ["commit", "-m", "implementation"]);
   return root;
+}
+
+async function installThreeMemberDelivery(root: string) {
+  const targetHead = await git(root, ["rev-parse", "main^{commit}"]);
+  const targetTree = await git(root, ["rev-parse", `${targetHead}^{tree}`]);
+  const operationGateHead = await git(root, [
+    "commit-tree", targetTree, "-p", targetHead, "-m", "operation-local gate input",
+  ]);
+  const firstHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
+  const firstTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+  await writeFile(join(root, "member-two.txt"), "member two\n", "utf8");
+  await git(root, ["add", "member-two.txt"]);
+  await git(root, ["commit", "-m", "member two"]);
+  const secondHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
+  const secondTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+
+  const plan = deliveryThreeMemberStackPlanForWorkUnitFixture("example");
+  const taskList = [
+    "# Task List: Example",
+    "",
+    "- **Design:** `spec-example.md`",
+    "",
+    "---",
+    "",
+    renderDeliveryPlanSection(plan),
+    "## **Phase 1:** Correct delivery member",
+    "",
+    "### `[ ]` **1.1 Apply the selected correction**",
+    "",
+    "## **Phase 2:** Verification",
+    "",
+    "### `[ ]` **2.1 Verify the work unit**",
+    "",
+  ].join("\n");
+  await writeFile(join(root, ".arc", "active", "tasks-example.md"), taskList, "utf8");
+  await writeFile(join(root, "member-three.txt"), "member three\n", "utf8");
+  await git(root, ["add", ".arc/active/tasks-example.md", "member-three.txt"]);
+  await git(root, ["commit", "-m", "member three and delivery plan"]);
+  const thirdHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
+  const thirdTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+  await git(root, ["update-ref", "refs/heads/delivery/member-one", firstHead]);
+  await git(root, ["update-ref", "refs/heads/delivery/member-two", secondHead]);
+
+  const state = DeliveryStateV1Schema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "delivery-state/v1",
+    planId: plan.planId,
+    workUnitId: plan.workUnitId,
+    boundPlan: { planRevision: plan.planRevision, planDigest: plan.planDigest },
+    target: { ref: "refs/heads/main", coordinates: { head: targetHead, tree: targetTree } },
+    members: [
+      {
+        deliverableId: plan.members[0]!.deliverableId,
+        ref: "refs/heads/delivery/member-one",
+        changeRequest: { providerId: "github", changeRequestId: "401" },
+        coordinates: { base: targetHead, head: firstHead, tree: firstTree },
+      },
+      {
+        deliverableId: plan.members[1]!.deliverableId,
+        ref: "refs/heads/delivery/member-two",
+        changeRequest: { providerId: "github", changeRequestId: "402" },
+        coordinates: { base: firstHead, head: secondHead, tree: secondTree },
+      },
+      {
+        deliverableId: plan.members[2]!.deliverableId,
+        ref: "refs/heads/feat/example",
+        changeRequest: { providerId: "github", changeRequestId: "403" },
+        coordinates: { base: secondHead, head: thirdHead, tree: thirdTree },
+      },
+    ],
+    activeOperation: null,
+    pendingReviewFixVerification: null,
+  });
+  const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+  const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  const states = new RepositoryDeliveryStateStore(publisher);
+  expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
+  expect(await states.publish(plan.planId, state, 0)).toMatchObject({ status: "ok" });
+  return { plan, operationMemberHead: targetHead, operationGateHead };
+}
+
+async function expectStationaryWorkUnitLocus(
+  origin: string,
+  operationCheckouts: readonly string[],
+): Promise<void> {
+  const result = await runArc(["locus", "--json"], origin);
+  expect(result.exitCode, result.stderr || result.stdout).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    entering: {
+      kind: "selected",
+      row: {
+        kind: "work-unit",
+        checkout: { path: origin, branch: "feat/example", detached: false },
+        subject: { kind: "work-unit", key: "example" },
+      },
+    },
+    active: {
+      checkoutPath: origin,
+      subject: { kind: "work-unit", key: "example" },
+    },
+    roster: expect.arrayContaining(operationCheckouts.map((path) => expect.objectContaining({
+      kind: "unmanaged-checkout",
+      checkout: expect.objectContaining({ path, branch: null, detached: true }),
+    }))),
+  });
 }
 
 function prepareRequest() {
@@ -709,6 +824,257 @@ describe("review-fix Candidate lineage", () => {
     expect(await git(root, ["status", "--short"]))
       .toMatch(/completed\/2026-q3\/01_example\/meta-example\.md/u);
   });
+
+  it("does not advance a completed Candidate while another work unit owns the checkout", async () => {
+    const root = await fixture();
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    const source = await reviewToFindings(root);
+    const dispositions = await approvedSet(root, source);
+
+    const metaPath = join(root, ".arc", "active", "meta-example.md");
+    const meta = await readFile(metaPath, "utf8");
+    await writeFile(metaPath, meta.replace("| `Active`  |", "| `Shipped` |"), "utf8");
+    await git(root, ["add", ".arc/active/meta-example.md"]);
+    await archiveArtifacts(root);
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+
+    await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "apply approved fix"]);
+
+    await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await writeFile(
+      join(root, ".arc", "active", "meta-active-owner.md"),
+      META.replaceAll("example", "active-owner"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, ".arc", "active", "tasks-active-owner.md"),
+      "# Task List: Active owner\n\n- [ ] Continue active work\n",
+      "utf8",
+    );
+    await git(root, ["add", ".arc/active"]);
+    await git(root, ["commit", "-m", "activate another work unit"]);
+
+    const candidatePath = join(root, ".arc", "system", ".internal", "candidates", "example.json");
+    const candidateBefore = await readFile(candidatePath, "utf8");
+    const response = await runArcWithStdin(["review", "respond", "-"], root, `${JSON.stringify({
+      schemaVersion: 1,
+      source,
+      dispositions,
+      verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
+    })}\n`);
+
+    expect(response.exitCode).not.toBe(0);
+    expect(await readFile(candidatePath, "utf8")).toBe(candidateBefore);
+    expect(await git(root, [
+      "diff",
+      "--cached",
+      "--name-only",
+      "--",
+      ".arc/system/.internal/candidates/example.json",
+    ])).toBe("");
+
+    const candidateDirty = `${candidateBefore}\n`;
+    await writeFile(candidatePath, candidateDirty, "utf8");
+    const responseWithForeignDirt = await runArcWithStdin(
+      ["review", "respond", "-"],
+      root,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        source,
+        dispositions,
+        verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
+      })}\n`,
+    );
+    expect(responseWithForeignDirt.exitCode).not.toBe(0);
+    expect(await readFile(candidatePath, "utf8")).toBe(candidateDirty);
+    expect(await git(root, [
+      "diff",
+      "--cached",
+      "--name-only",
+      "--",
+      ".arc/system/.internal/candidates/example.json",
+    ])).toBe("");
+    expect(await git(root, ["status", "--short", "--", candidatePath]))
+      .toBe("M .arc/system/.internal/candidates/example.json");
+  }, SUBPROCESS_HEAVY_TIMEOUT);
+
+  it("does not advance an owned Candidate from an unresolved work-unit carrier", async () => {
+    const root = await fixture();
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    const source = await reviewToFindings(root);
+    const dispositions = await approvedSet(root, source);
+    const responseInput = {
+      schemaVersion: 1,
+      source,
+      dispositions,
+      verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
+    };
+
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "apply approved fix"]);
+
+    const carrierParent = await mkdtemp(join(tmpdir(), "arc-review-response-carrier-"));
+    const original = join(carrierParent, "original");
+    const carrier = join(carrierParent, "replacement");
+    await git(root, ["switch", "main"]);
+    await git(root, ["worktree", "add", original, "feat/example"]);
+    await writeWorktreeOwnershipMarker(original, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "example" },
+      spawningIdentity: "test-user",
+      now: Date.parse("2026-08-29T00:00:00.000Z"),
+    });
+    await git(original, ["switch", "--detach"]);
+    await git(root, ["worktree", "add", carrier, "feat/example"]);
+    try {
+      const locus = await runArc(["locus", "--json"], carrier);
+      expect(locus.exitCode, locus.stderr || locus.stdout).toBe(0);
+      expect(JSON.parse(locus.stdout)).toMatchObject({
+        entering: {
+          kind: "selected",
+          row: {
+            kind: "unresolved-checkout",
+            checkout: { path: carrier },
+            diagnostics: expect.arrayContaining([
+              expect.objectContaining({ code: "work-unit-locus-conflict" }),
+            ]),
+          },
+        },
+        active: null,
+      });
+
+      const candidatePath = join(carrier, ".arc", "system", ".internal", "candidates", "example.json");
+      const candidateBefore = await readFile(candidatePath, "utf8");
+      const refused = await runArcWithStdin(
+        ["review", "respond", "-"],
+        carrier,
+        `${JSON.stringify(responseInput)}\n`,
+      );
+      expect(refused.exitCode).not.toBe(0);
+      expect(await readFile(candidatePath, "utf8")).toBe(candidateBefore);
+      expect(await git(carrier, ["diff", "--cached", "--name-only", "--", candidatePath])).toBe("");
+    } finally {
+      await git(root, ["worktree", "remove", "--force", carrier]).catch(() => undefined);
+      await git(root, ["worktree", "remove", "--force", original]).catch(() => undefined);
+      await cleanupTempDir(carrierParent);
+      await git(root, ["switch", "feat/example"]);
+    }
+
+    await expect(invoke(root, ["review", "respond", "-"], responseInput)).resolves.toMatchObject({
+      state: "candidate-advanced",
+    });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
+
+  it("keeps one marker-owned work-unit locus through correction, review, verification, and integration entry", async () => {
+    const root = await fixture();
+    const delivery = await installThreeMemberDelivery(root);
+    const checkoutParent = await mkdtemp(join(tmpdir(), "arc-stationary-delivery-cycle-"));
+    const origin = join(checkoutParent, "origin");
+    const memberCheckout = join(checkoutParent, "member-input");
+    const gateCheckout = join(checkoutParent, "gate-input");
+    await git(root, ["switch", "main"]);
+    await git(root, ["worktree", "add", origin, "feat/example"]);
+    await writeWorktreeOwnershipMarker(origin, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "example" },
+      spawningIdentity: "test-user",
+      now: Date.parse("2026-08-29T00:00:00.000Z"),
+    });
+    await git(root, ["worktree", "add", "--detach", memberCheckout, delivery.operationMemberHead]);
+    await git(root, ["worktree", "add", "--detach", gateCheckout, delivery.operationGateHead]);
+    const operationCheckouts = [memberCheckout, gateCheckout];
+    try {
+      await expectStationaryWorkUnitLocus(origin, operationCheckouts);
+      const correction = await runArcWithStdin(
+        ["delivery", "entry", "inspect", "--input", "-", "--json"],
+        origin,
+        `${JSON.stringify({ entryMode: "execution" })}\n`,
+      );
+      expect(correction.exitCode, correction.stderr || correction.stdout).toBe(0);
+      expect(JSON.parse(correction.stdout)).toMatchObject({
+        status: "correction-routing-required",
+        nextAction: "plan-review-fix",
+        planId: delivery.plan.planId,
+        selectedDeliverableId: delivery.plan.members[0]!.deliverableId,
+      });
+      await expectStationaryWorkUnitLocus(origin, operationCheckouts);
+
+      const taskPath = join(origin, ".arc", "active", "tasks-example.md");
+      const tasks = await readFile(taskPath, "utf8");
+      await writeFile(
+        taskPath,
+        tasks
+          .replace("### `[ ]` **1.1 Apply the selected correction**", "### `[x]` **1.1 Apply the selected correction**")
+          .replace("### `[ ]` **2.1 Verify the work unit**", "### `[x]` **2.1 Verify the work unit**"),
+        "utf8",
+      );
+      await git(origin, ["add", ".arc/active/tasks-example.md"]);
+      await git(origin, ["commit", "-m", "close correction and verification"]);
+      const proposed = await runArc(["attest", "example", "--json"], origin);
+      expect(proposed.exitCode, proposed.stderr || proposed.stdout).toBe(0);
+      expect(JSON.parse(proposed.stdout)).toMatchObject({ status: "attested", operation: "root" });
+      await git(origin, ["commit", "-m", "record verification"]);
+
+      const source = await reviewToFindings(origin);
+      const dispositions = await approvedSet(origin, source);
+      await expect(invoke(origin, ["review", "respond", "-"], {
+        schemaVersion: 1,
+        source,
+        dispositions,
+      })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+      await writeFile(join(origin, "reviewed.txt"), "stationary reviewed fix\n", "utf8");
+      await git(origin, ["add", "reviewed.txt"]);
+      await git(origin, ["commit", "-m", "apply stationary reviewed fix"]);
+      await expect(invoke(origin, ["review", "respond", "-"], {
+        schemaVersion: 1,
+        source,
+        dispositions,
+        verifiedFix: {
+          applicability: "focused",
+          verificationEvidenceRefs: ["verification://stationary-fix"],
+        },
+      })).resolves.toMatchObject({ state: "candidate-advanced" });
+      await expectStationaryWorkUnitLocus(origin, operationCheckouts);
+
+      const converged = await runArc(["attest", "example", "--json"], origin);
+      expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
+      expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence" });
+      await expectStationaryWorkUnitLocus(origin, operationCheckouts);
+      await git(origin, ["commit", "-m", "record converged verification"]);
+
+      const integrating = await runArcWithStdin(
+        ["delivery", "entry", "inspect", "--input", "-", "--json"],
+        origin,
+        `${JSON.stringify({ entryMode: "integrating" })}\n`,
+      );
+      expect(integrating.exitCode, integrating.stderr || integrating.stdout).toBe(0);
+      expect(JSON.parse(integrating.stdout)).toMatchObject({
+        status: "resume-bound",
+        nextAction: "read-position-and-reconcile",
+        planId: delivery.plan.planId,
+      });
+      await expectStationaryWorkUnitLocus(origin, operationCheckouts);
+    } finally {
+      await git(root, ["worktree", "remove", "--force", gateCheckout]).catch(() => undefined);
+      await git(root, ["worktree", "remove", "--force", memberCheckout]).catch(() => undefined);
+      await git(root, ["worktree", "remove", "--force", origin]).catch(() => undefined);
+      await cleanupTempDir(checkoutParent);
+    }
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("composes the settlement plan its approved responses back", async () => {
     const { root, approvedHead } = await settledReviewLineage();
