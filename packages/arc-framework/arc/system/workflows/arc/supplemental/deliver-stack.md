@@ -378,10 +378,19 @@ the terminal top, removes the private candidates, and clears the reservation onl
 `applied / verify-review-fix` enters the review-fix verification continuation below; any other `applied` returns to
 `arc delivery position`. A `retryable` result with a retained reservation reruns this verb with only its exact
 `operationId`; all-before retries the whole changed vector, a contiguous requested prefix resumes its untouched tail,
-and any other mixed or unavailable observation stops. A refusal before reservation leaves canonical refs and state
-unchanged. Render a returned `detail` verbatim before stopping; it is bounded adapter diagnosis, not mutation
-authority. If the operator selects the external fallback, rerun refresh planning with the same subject and trigger
-plus `"mechanics": "operator-initiated"`, then follow the returned external-adoption arm.
+and any other mixed or unavailable observation stops. A retained `blocked / reconcile` result runs
+`arc delivery reconcile` and follows its exact returned selector. A retained
+`blocked / resolve-terminal-conflicts` result renders its exact `paths` and `recommendedActionText`.
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop on `blocked / resolve-terminal-conflicts`. Surface the returned conflict paths and
+> guidance; await approval before proceeding to attended terminal conflict resolution.
+
+After the approved resolution, run `arc delivery reconcile` and follow its exact returned selector.
+A refusal before reservation leaves canonical refs and state unchanged. Render a returned `detail` verbatim before
+stopping; it is bounded adapter diagnosis, not mutation authority. If the operator selects the external fallback,
+rerun refresh planning with the same subject and trigger plus `"mechanics": "operator-initiated"`, then follow the
+returned external-adoption arm.
 
 `operator-initiated` is the external fallback. The operator refreshes the disclosed registered set through the
 provider UI or supported procedure. That external refresh is unreserved: ARC has no provider mutation operation
