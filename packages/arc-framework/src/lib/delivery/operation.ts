@@ -209,9 +209,7 @@ function terminalAuthoringMovementMatchesState(
     && terminal.coordinates !== null
     && canonicalize(terminal.coordinates) === canonicalize(movement.before)
     && movement.after.base === movement.before.base
-    && movement.after.head !== movement.before.head
-    && (movement.publicationLeaseHead === movement.before.head
-      || movement.publicationLeaseHead === movement.after.head);
+    && movement.after.head !== movement.before.head;
 }
 
 function reviewFixSelectionMatchesState(

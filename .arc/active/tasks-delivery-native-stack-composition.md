@@ -1805,10 +1805,14 @@ structural guarantee rather than operator discipline.
               had proved both append-only edges, but reservation accepted the remote publication lease only when it
               equaled one endpoint and therefore refused the normal repeated-execution shape.
 
-            - `[ ]` **6.11.R.z.b Preserve an intermediate terminal publication lease**
+            - `[x]` **6.11.R.z.b Preserve an intermediate terminal publication lease**
 
                 - _Goal:_ Repeated execution retains the exact proved remote lease between bound and local terminal
                   heads through reservation, recovery, absorption, and publication without a pre-settlement rebind.
+
+                - _Outcome:_ Reservation now retains the observer-proved intermediate publication lease instead of
+                  requiring an endpoint alias; crash recovery and terminal publication reuse that exact lease while
+                  the bound and local terminal coordinates remain unchanged.
 
             - `[ ]` **6.11.R.z.c Revalidate the complete repeated-refresh boundary** — validate criteria at member
               scope
