@@ -11,6 +11,8 @@ import { createRawGitExec } from "../../../lib/io-context.js";
 import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
+import { LocalApprovedDispositionRecordStore } from
+  "../hosts/local/disposition-record-store.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import {
   laneProgressOperationId,
@@ -308,10 +310,15 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const applicable = selected.filter(({ applicability }) => applicability === "retain-prior-attempt");
-      if (applicable.some(({ outcome }) => outcome === "clean" || outcome === "settled-findings")) {
+      const settledApplicable = applicable.find(({ outcome }) => (
+        outcome === "clean" || outcome === "settled-findings"
+      ));
+      if (settledApplicable !== undefined) {
         return {
           discharged: true,
-          detail: `Hosted source \`${sourceId}\` through contribution applicability.`,
+          detail: settledApplicable.retentionBasis === "verified-fix-response"
+            ? `Hosted source \`${sourceId}\` through its verified changed-target response.`
+            : `Hosted source \`${sourceId}\` through contribution applicability.`,
           nextSource: null,
         };
       }
@@ -356,6 +363,7 @@ export function createHostedReservationDischargeReader(input: {
 }) => Promise<HostedReservationDischarge> {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
+  const dispositions = new LocalApprovedDispositionRecordStore(publisher);
   let repositoryIdPromise: Promise<string> | null = null;
   const repositoryId = () => {
     repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
@@ -419,6 +427,7 @@ export function createHostedReservationDischargeReader(input: {
               snapshot: await snapshot,
               candidate,
               exec: rawExec,
+              readDispositionRecord: (attemptId) => dispositions.readDispositionRecord(attemptId),
             }),
             requireEarlierApplicabilityEvidence: (sourceId: string) => (
               candidateExpectsEarlierReviewAttempt(candidate, {
