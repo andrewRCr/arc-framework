@@ -28,7 +28,10 @@ import {
 import { revalidateDeliveryLifecycleContribution } from "../lib/delivery/git-lifecycle-contribution.js";
 import { CurrentDeliveryLifecycleContributionPathSource } from "../lib/delivery/lifecycle-contribution.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
-import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
+import {
+  proveGitDeliveryContribution,
+  proveGitDeliveryProviderRefreshContribution,
+} from "../lib/delivery/git-contribution-proof.js";
 import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-result.js";
 import {
   deleteDeliveryRemoteRef,
@@ -1444,7 +1447,7 @@ async function executeDeliveryCommand(
     if (beforePredecessor === null || afterPredecessor === null) {
       return { status: "refused" as const, reason: "contribution-endpoints-unverified" as const };
     }
-    return proveGitDeliveryContribution({
+    return proveGitDeliveryProviderRefreshContribution({
       exec: createRawGitExec(cwd),
       before: {
         predecessor: beforePredecessor,

@@ -834,6 +834,21 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   fixed-prefix, chain, tree, request-binding, and D4 contribution checks before any reservation or publication; this
   is not a general merge-base rebase algorithm, durable lineage record, or expansion of provider authority.
 
+  **Forward clarification (2026-08-28):** the recovered physical fork also bounds D4 proof for a dependent whose
+  recorded predecessor is no longer contained. The Git-backed execution seam revalidates the recorded coordinates,
+  retains them when contained, and otherwise independently requires the same one unique common boundary between the
+  refreshed predecessor and the dependent's old head as the proof's explicit before-predecessor. Missing or ambiguous
+  proof boundaries refuse before reservation. This prevents an earlier selected-member delta from being
+  misattributed to the dependent while leaving D4's recorded explicit predecessor unchanged on every ordinary path;
+  it adds no provider assertion, generic merge-base fallback, or durable lineage.
+
+  **Forward clarification (2026-08-28):** repeated execution may observe an exact remote terminal head strictly
+  between the bound terminal coordinate and the newer local authoring head, such as a published reopen commit
+  followed by an unpushed task commit. Review-fix observation proves both append-only edges and retains that remote
+  head as the publication lease while the local head remains the absorption input. Reservation and recovery preserve
+  the observer-owned lease without requiring it to equal either endpoint; no pre-settlement rebind, caller-authored
+  coordinate, or additional durable field is introduced.
+
 - **D5.10 Final refresh settlement preserves the owed verification continuation — amended 2026-08-27 after the
   interruption audit demonstrated a lost-response dead end.** A dependent-suffix review-fix reservation carries
   the exact selected deliverable solely so its final settlement can atomically install the refreshed suffix and

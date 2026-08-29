@@ -11,7 +11,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   deriveDeliveryProviderRefreshSubject,
 } from "../../src/lib/delivery/provider-refresh-observation.js";
+import { createRawGitExec } from "../../src/lib/change-facts.js";
+import {
+  proveGitDeliveryProviderRefreshContribution,
+} from "../../src/lib/delivery/git-contribution-proof.js";
 import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
+import {
+  changedDeliveryProviderRefreshMovements,
+  selectDeliveryProviderRefreshProofMovements,
+} from "../../src/lib/delivery/suffix-reconciliation.js";
 import {
   GhDeliveryProviderRefreshPort,
   type GhStackView,
@@ -263,6 +271,33 @@ describe("GitHub provider refresh preparation", () => {
       ],
     });
     expect(observedForkPoint).toBe(originalSelected);
+    const movements = changedDeliveryProviderRefreshMovements(before, result.observation);
+    const dependentMovements = movements === null
+      ? null
+      : selectDeliveryProviderRefreshProofMovements(
+          result.observation.snapshot,
+          movements,
+          plan.members[0]!.deliverableId,
+        );
+    const firstMovement = dependentMovements?.[0];
+    const beforeMember = firstMovement?.before.coordinates;
+    const afterMember = firstMovement?.after.coordinates;
+    if (firstMovement === undefined || beforeMember === null || beforeMember === undefined
+      || afterMember === null || afterMember === undefined) {
+      throw new Error("first dependent movement must be available");
+    }
+    const proof = await proveGitDeliveryProviderRefreshContribution({
+      exec: createRawGitExec(repository),
+      before: {
+        predecessor: await coordinate(beforeMember.base),
+        member: { head: beforeMember.head, tree: beforeMember.tree },
+      },
+      after: {
+        predecessor: await coordinate(afterMember.base),
+        member: { head: afterMember.head, tree: afterMember.tree },
+      },
+    });
+    expect(proof).toEqual({ status: "accepted", proof: "mechanical-reapply" });
     expect(await git(repository, ["ls-remote", "--refs", "origin", `refs/heads/${firstDependentName}`]))
       .toContain(firstDependent);
     expect(await git(repository, ["ls-remote", "--refs", "origin", `refs/heads/${secondDependentName}`]))

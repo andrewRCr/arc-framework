@@ -1786,6 +1786,36 @@ structural guarantee rather than operator discipline.
             - _Goal:_ Focused adapter, real-Git, and live self-hosting evidence close the repeated-refresh seam over
               the amended Member 6 criteria without another broad verification cycle.
 
+            - _Forward amendment (2026-08-28):_ Live preparation recovered the exact fork and completed the official
+              provider rewrite, but structural proof still used the stale logical predecessor. It therefore
+              misattributed the earlier selected-member manifest delta to Member 2 and reported a false contribution
+              conflict before reservation.
+
+            - `[x]` **6.11.R.z.a Bound repeated-refresh proof to the recovered physical fork**
+
+                - _Goal:_ The repeated provider result proves each dependent's own physical contribution without
+                  weakening the ordinary explicit-predecessor arbiter or trusting provider-authored lineage.
+
+                - _Outcome:_ Git-backed provider-refresh proof validates the recorded endpoints, retains a contained
+                  predecessor, or independently derives one unique physical fork before invoking the unchanged D4
+                  arbiter. Real-Git coverage reproduces the false conflict, and missing or multiple forks refuse.
+
+            - _Forward amendment (2026-08-28):_ The repaired live proof reached reservation, where an already-pushed
+              reopen commit lay strictly between the bound terminal head and the new local task commit. Observation
+              had proved both append-only edges, but reservation accepted the remote publication lease only when it
+              equaled one endpoint and therefore refused the normal repeated-execution shape.
+
+            - `[ ]` **6.11.R.z.b Preserve an intermediate terminal publication lease**
+
+                - _Goal:_ Repeated execution retains the exact proved remote lease between bound and local terminal
+                  heads through reservation, recovery, absorption, and publication without a pre-settlement rebind.
+
+            - `[ ]` **6.11.R.z.c Revalidate the complete repeated-refresh boundary** — validate criteria at member
+              scope
+
+                - _Goal:_ Focused proof and live self-hosting evidence close the repeated-refresh criterion without
+                  another broad verification cycle.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
