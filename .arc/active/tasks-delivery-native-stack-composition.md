@@ -977,7 +977,7 @@ structural guarantee rather than operator discipline.
   cost, top exclusion, and unlinked-path limit before the operator sets `optIn`; the choice remains ungated, and
   declining performs no native host read or mutation.
 
-### `[x]` **6.11 Close delivery member 6** — validate criteria at member scope
+### `[ ]` **6.11 Close delivery member 6** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -1767,6 +1767,25 @@ structural guarantee rather than operator discipline.
                             - _Summary:_ ten met, one intentionally superseded, zero unresolved. Success Criteria
                               markers remain unchanged for terminal verification.
 
+        - _Forward amendment (2026-08-28):_ Repeating the selected-member correction after an earlier
+          contribution-equivalent suffix adoption demonstrated that the recorded predecessor was no longer in the
+          first dependent's ancestry. The adapter seeded that stale coordinate, so the official provider could not
+          derive its fork point and refused before reservation or canonical mutation.
+
+        - `[x]` **6.11.R.y Recover the exact fork boundary for repeated dependent refresh**
+
+            - _Goal:_ A repeated registered correction refreshes the dependent suffix through the official provider
+              after prior contribution-equivalent adoption, without weakening fixed-prefix or structural proof.
+
+            - _Outcome:_ Isolated preparation retains a contained recorded predecessor or seeds one unique derived
+              fork boundary, with closed actionable refusals before provider invocation when no unique boundary
+              exists. Real-Git coverage reproduces the repeated-correction history through the preparation seam.
+
+        - `[ ]` **6.11.R.z Revalidate the repeated-refresh boundary** — validate criteria at member scope
+
+            - _Goal:_ Focused adapter, real-Git, and live self-hosting evidence close the repeated-refresh seam over
+              the amended Member 6 criteria without another broad verification cycle.
+
 ## **Phase 7:** Hosted-review fan-out and applicability
 
 **Delivery member:** 7 — `review-fan-out`
@@ -2394,6 +2413,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   unconflicted member. Approved conflicts are changed contributions, so settlement and replay retain the selected
   member plus every changed dependent in plan order through exact acknowledgment; decline restores the external refs
   by lease, and no proof, provider fact, check result, or reusable approval record becomes durable.
+
+- `[ ]` A repeated provider-native correction to the same selected member remains executable after a prior
+  contribution-equivalent suffix adoption. If the recorded predecessor is no longer contained by the first
+  dependent, isolated preparation seeds the official provider refresh only from one unique common fork boundary;
+  missing or ambiguous boundaries refuse before mutation, and the result still passes the exact fixed-prefix,
+  complete-chain, and structural-contribution checks before reservation or publication.
 
 ### Member 7 — `review-fan-out`
 

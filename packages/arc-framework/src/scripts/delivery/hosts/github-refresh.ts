@@ -164,6 +164,45 @@ function providerFailureDetail(error: DeliveryProviderProcessError): string {
   return source.replace(/\s+/gu, " ").trim().slice(0, MAX_PROVIDER_FAILURE_DETAIL_LENGTH);
 }
 
+class ProviderRefreshPreparationRefusal extends Error {
+  constructor(
+    readonly reason: string,
+    readonly detail?: string,
+  ) {
+    super(detail ?? reason);
+  }
+}
+
+async function uniqueForkBoundary(
+  git: GitExec,
+  cwd: string,
+  selectedHead: string,
+  dependentHead: string,
+): Promise<string> {
+  let stdout: string;
+  try {
+    ({ stdout } = await git(
+      "git",
+      ["merge-base", "--all", selectedHead, dependentHead],
+      { cwd },
+    ));
+  } catch {
+    throw new ProviderRefreshPreparationRefusal(
+      "scope-mismatch",
+      "The selected member and first dependent do not have a usable fork boundary.",
+    );
+  }
+  const boundaries = [...new Set(stdout.trim().split(/\s+/u).filter((value) => value !== ""))];
+  const [boundary] = boundaries;
+  if (boundaries.length !== 1 || boundary === undefined || !objectId.test(boundary)) {
+    throw new ProviderRefreshPreparationRefusal(
+      "scope-mismatch",
+      "The selected member and first dependent do not have one unambiguous fork boundary.",
+    );
+  }
+  return boundary;
+}
+
 async function seedSelectedPredecessorTransition(
   git: GitExec,
   cwd: string,
@@ -174,9 +213,15 @@ async function seedSelectedPredecessorTransition(
   const firstDependent = before.members[selectedIndex + 1];
   const selectedRef = selected?.ref;
   const selectedHead = selected?.coordinates?.head;
-  const previousHead = firstDependent?.coordinates?.base;
+  const dependentHead = firstDependent?.coordinates?.head;
+  const recordedPredecessor = firstDependent?.coordinates?.base;
   if (selectedRef === null || selectedRef === undefined || selectedHead === undefined
-    || previousHead === undefined || previousHead === selectedHead) return;
+    || dependentHead === undefined || recordedPredecessor === undefined
+    || recordedPredecessor === selectedHead) return;
+  const previousHead = await isAncestor(git, cwd, recordedPredecessor, dependentHead)
+    ? recordedPredecessor
+    : await uniqueForkBoundary(git, cwd, selectedHead, dependentHead);
+  if (previousHead === selectedHead) return;
   const message = "provider refresh predecessor transition";
   await git("git", ["update-ref", "-m", message, selectedRef, previousHead, selectedHead], { cwd });
   await git("git", ["update-ref", "-m", message, selectedRef, selectedHead, previousHead], { cwd });
@@ -397,7 +442,9 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
         }
       }
     } catch (error) {
-      result = error instanceof DeliveryProviderProcessError && error.exitCode === 3
+      result = error instanceof ProviderRefreshPreparationRefusal
+        ? { status: "refused", reason: error.reason, detail: error.detail }
+        : error instanceof DeliveryProviderProcessError && error.exitCode === 3
         ? { status: "refused", reason: "conflict" }
         : error instanceof DeliveryProviderProcessError
           ? { status: "refused", reason: "unavailable", detail: providerFailureDetail(error) }

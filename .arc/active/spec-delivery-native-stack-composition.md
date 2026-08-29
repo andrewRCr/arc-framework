@@ -824,6 +824,16 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   rewrites only the members above it. The requested snapshot carries the freshly observed target into the existing
   reserved settlement; rewritten, unavailable, or ambiguous target movement still refuses before mutation.
 
+  **Forward clarification (2026-08-28):** a later correction to the same selected member may follow an earlier
+  contribution-equivalent adoption, so the dependent's recorded predecessor coordinate need not remain in that
+  dependent's current ancestry. Dependent-suffix preparation first retains an exact recorded predecessor that is
+  still contained. Otherwise, only inside the isolated provider workspace and after the selected correction has
+  satisfied D5.9's append-only publication guards, it may derive one unique common fork boundary between the fixed
+  selected head and the first dependent and seed that boundary for the official provider refresh. No boundary or
+  multiple boundaries refuses before provider or canonical mutation. The provider result still passes the complete
+  fixed-prefix, chain, tree, request-binding, and D4 contribution checks before any reservation or publication; this
+  is not a general merge-base rebase algorithm, durable lineage record, or expansion of provider authority.
+
 - **D5.10 Final refresh settlement preserves the owed verification continuation — amended 2026-08-27 after the
   interruption audit demonstrated a lost-response dead end.** A dependent-suffix review-fix reservation carries
   the exact selected deliverable solely so its final settlement can atomically install the refreshed suffix and
@@ -1999,6 +2009,12 @@ added.
     original selected member plus every admitted changed dependent in plan order through the durable continuation,
     replay, and exact acknowledgment. Decline restores the externally moved refs by exact lease, while no proof,
     provider fact, check result, or reusable approval record becomes durable (Goal 5, Goal 7, D5.11).
+37. A repeated provider-native correction to the same selected member remains executable after an earlier
+    contribution-equivalent adoption. If the recorded predecessor is no longer contained by the first dependent,
+    isolated preparation seeds the official provider refresh only from one unique common fork boundary between the
+    fixed selected head and that dependent; missing or ambiguous boundaries refuse before mutation. The refreshed
+    result still preserves the exact fixed prefix and passes the existing complete-chain and structural-contribution
+    checks before reservation or publication (D5.9).
 
 ## Open Questions
 

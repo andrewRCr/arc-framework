@@ -184,6 +184,10 @@ describe("GitHub provider refresh adapter", () => {
     let conflict = false;
     let unavailable = false;
     let selectedTransition: "unseeded" | "old" | "current" = "unseeded";
+    let recordedPredecessor = before.members[1]!.coordinates!.base;
+    let transitionBoundary = recordedPredecessor;
+    let recordedPredecessorContained = true;
+    let forkBoundaries: readonly string[] = [recordedPredecessor];
     const rebaseCalls: string[][] = [];
     const imported = new Map<string, string>();
     const treeByHead = new Map<string, string>([
@@ -202,13 +206,12 @@ describe("GitHub provider refresh adapter", () => {
       if (args[0] === "update-ref" && args[1] === "-m") {
         const selectedRef = before.members[0]!.ref!;
         const selectedHead = before.members[0]!.coordinates!.head;
-        const previousHead = before.members[1]!.coordinates!.base;
         if (args[3] !== selectedRef) throw new Error("unexpected selected transition ref");
-        if (selectedTransition === "unseeded" && args[4] === previousHead && args[5] === selectedHead) {
+        if (selectedTransition === "unseeded" && args[4] === transitionBoundary && args[5] === selectedHead) {
           selectedTransition = "old";
           return { stdout: "" };
         }
-        if (selectedTransition === "old" && args[4] === selectedHead && args[5] === previousHead) {
+        if (selectedTransition === "old" && args[4] === selectedHead && args[5] === transitionBoundary) {
           selectedTransition = "current";
           return { stdout: "" };
         }
@@ -229,6 +232,14 @@ describe("GitHub provider refresh adapter", () => {
       }
       if (args[0] === "merge-base") {
         if (args[1] === target.head && args[2] === advancedTarget.head) return { stdout: `${target.head}\n` };
+        if (args[1] === recordedPredecessor && args[2] === before.members[1]!.coordinates!.head) {
+          return { stdout: `${recordedPredecessorContained ? recordedPredecessor : forkBoundaries[0] ?? ""}\n` };
+        }
+        if (args[1] === "--all" && args[2] === before.members[0]!.coordinates!.head
+          && args[3] === before.members[1]!.coordinates!.head) {
+          if (forkBoundaries.length === 0) throw new Error("no common fork boundary");
+          return { stdout: `${forkBoundaries.join("\n")}\n` };
+        }
         throw new Error("unexpected target ancestry query");
       }
       if (args[0] === "rev-parse") {
@@ -315,6 +326,58 @@ describe("GitHub provider refresh adapter", () => {
       .toBe(before.members[0]!.coordinates!.head);
     expect(workspaceRemoved).toBe(true);
 
+    const staleRecordedPredecessor = oid("e");
+    const recoveredForkBoundary = oid("6");
+    const staleBefore = {
+      ...before,
+      members: before.members.map((member, index) => index === 1 && member.coordinates !== null
+        ? { ...member, coordinates: { ...member.coordinates, base: staleRecordedPredecessor } }
+        : member),
+    };
+    recordedPredecessor = staleRecordedPredecessor;
+    transitionBoundary = recoveredForkBoundary;
+    recordedPredecessorContained = false;
+    forkBoundaries = [recoveredForkBoundary];
+    rebased = false;
+    const recovered = await port.prepare({
+      plan,
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix", selectedDeliverableId: before.members[0]!.deliverableId },
+      before: staleBefore,
+    });
+    expect(recovered.status).toBe("prepared");
+    expect(selectedTransition).toBe("current");
+
+    for (const { boundaries, detail } of [
+      {
+        boundaries: [] as readonly string[],
+        detail: "The selected member and first dependent do not have a usable fork boundary.",
+      },
+      {
+        boundaries: [oid("5"), oid("6")],
+        detail: "The selected member and first dependent do not have one unambiguous fork boundary.",
+      },
+    ]) {
+      forkBoundaries = boundaries;
+      rebased = false;
+      const rebaseCount = rebaseCalls.length;
+      await expect(port.prepare({
+        plan,
+        repository: "owner/repo",
+        scope: { kind: "dependent-suffix", selectedDeliverableId: before.members[0]!.deliverableId },
+        before: staleBefore,
+      })).resolves.toEqual({
+        status: "refused",
+        reason: "scope-mismatch",
+        detail,
+      });
+      expect(rebaseCalls).toHaveLength(rebaseCount);
+    }
+    recordedPredecessor = before.members[1]!.coordinates!.base;
+    transitionBoundary = recordedPredecessor;
+    recordedPredecessorContained = true;
+    forkBoundaries = [recordedPredecessor];
+
     rebased = false;
     const complete = await port.prepare({
       plan,
@@ -328,6 +391,7 @@ describe("GitHub provider refresh adapter", () => {
       snapshot: { target: before.target },
     });
     expect(rebaseCalls).toEqual([
+      ["stack", "rebase", "--upstack", "--no-trunk"],
       ["stack", "rebase", "--upstack", "--no-trunk"],
       ["stack", "rebase", "--upstack"],
     ]);
