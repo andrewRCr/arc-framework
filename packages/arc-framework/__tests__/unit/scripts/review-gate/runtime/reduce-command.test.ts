@@ -192,6 +192,7 @@ function approvedLocal(records: ReturnType<typeof localFixture>): ApprovedDispos
     operationId: records.operation.operationId,
     candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
     errand: null,
+    deliveryMember: null,
     source: {
       kind: "attested-local",
       receiptRef: bindReviewSourceReference({
@@ -204,6 +205,7 @@ function approvedLocal(records: ReturnType<typeof localFixture>): ApprovedDispos
     approvedDisposition: disposition,
     fixAuthorization: null,
     errandFixResponse: null,
+    deliveryMemberFixResponse: null,
   });
 }
 
@@ -558,6 +560,7 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
     operationId: records.state.operationId,
     candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
     errand: null,
+    deliveryMember: null,
     source: {
       kind: "frontline",
       outcomeRef: bindReviewSourceReference({
@@ -569,6 +572,7 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
     approvedDisposition: disposition,
     fixAuthorization: null,
     errandFixResponse: null,
+    deliveryMemberFixResponse: null,
   });
 }
 

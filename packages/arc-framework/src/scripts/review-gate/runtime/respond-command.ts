@@ -18,6 +18,7 @@ import {
 import {
   ApprovedDispositionRecordSchema,
   ErrandReviewFixResponseSchema,
+  DeliveryMemberReviewFixResponseSchema,
   FrontlineOutcomeRecordSchema,
   type ApprovedDispositionRecord,
   type ErrandReviewBinding,
@@ -60,6 +61,7 @@ import {
   type ReviewResponseInput,
 } from "../core/response-plan-schema.js";
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
+import type { HostedTarget } from "../hosted/request.js";
 import {
   projectCandidateDeltaVerification,
   recordCandidateVerifiedResponse,
@@ -167,6 +169,12 @@ export interface RespondCommandDependencies {
   resolveFrontlineActors(): Promise<ResponseActors>;
   /** Exact ordinary Errand occupying the current branch, or null outside an Errand. */
   resolveActiveErrand(): Promise<ErrandReviewBinding | null>;
+  /** Current exact coordinates for the originating hosted delivery member, or null when unavailable. */
+  resolveDeliveryMemberFixTarget(input: {
+    vehicle: NonNullable<ApprovedDispositionRecord["deliveryMember"]>;
+    originatingTarget: ReviewTarget;
+    hostedTarget: HostedTarget;
+  }): Promise<{ currentTarget: ReviewTarget; hostedFixTarget: HostedTarget } | null>;
   now(): string;
   /** Null when the response target identifies no active or archived Candidate lineage. */
   readCandidateLineage(target: ReviewTarget): Promise<CandidateLineageBinding | null>;
@@ -215,6 +223,7 @@ interface ResolvedResponseSource {
   hostedAttempt?: {
     operationId: string;
     attemptId: string;
+    vehicle?: NonNullable<ApprovedDispositionRecord["deliveryMember"]>;
     target: {
       repository: string;
       pullRequest: number;
@@ -487,7 +496,12 @@ async function resolveHostedSource(
   )?.qualifier
     || persisted.state.repositoryId !== attempt.hosted.reviewTarget.repositoryId
     || persisted.state.headSha !== attempt.hosted.target.headSha
-    || persisted.state.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`) {
+    || persisted.state.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
+    || attempt.hosted.reviewTarget.headSha !== attempt.hosted.target.headSha
+    || (attempt.hosted.reviewTarget.kind === "delivery-member"
+      ? attempt.hosted.vehicle === undefined
+        || attempt.hosted.vehicle.head !== attempt.hosted.reviewTarget.headSha
+      : attempt.hosted.vehicle !== undefined)) {
     throw new RespondCommandError("corrupt-state", "hosted response source snapshot mismatch");
   }
   return {
@@ -512,6 +526,7 @@ async function resolveHostedSource(
     hostedAttempt: {
       operationId: persisted.state.operationId,
       attemptId: attempt.attemptId,
+      ...(attempt.hosted.vehicle === undefined ? {} : { vehicle: attempt.hosted.vehicle }),
       target: attempt.hosted.target,
       noHostSettlementFindingIds: attempt.hosted.findings
         .filter(({ settlement }) => settlement === "not-applicable")
@@ -791,6 +806,119 @@ async function persistErrandResponse(
   });
 }
 
+function deliveryMemberResponseMatches(
+  existing: z.infer<typeof DeliveryMemberReviewFixResponseSchema>,
+  input: {
+    source: ResolvedResponseSource;
+    currentTarget: ReviewTarget;
+    hostedFixTarget: HostedTarget;
+    dispositions: ApprovedDispositionSet;
+    verifiedFix: z.infer<typeof RespondVerifiedFixSchema>;
+  },
+): boolean {
+  return existing.oldTarget.targetId === input.source.target.targetId
+    && existing.newTarget.targetId === input.currentTarget.targetId
+    && existing.applicability === input.verifiedFix.applicability
+    && canonicalize(existing.fixConsumption.verificationRefs)
+      === canonicalize(input.verifiedFix.verificationEvidenceRefs)
+    && existing.fixConsumption.appliedBy === input.dispositions.dispositionSet.proposedBy
+    && canonicalize(existing.hostedTarget) === canonicalize(input.source.hostedAttempt?.target)
+    && canonicalize(existing.hostedFixTarget) === canonicalize(input.hostedFixTarget);
+}
+
+/** Persist one verified fix against the current coordinates of its exact hosted delivery member. */
+async function persistDeliveryMemberResponse(
+  source: ResolvedResponseSource,
+  dispositions: ApprovedDispositionSet,
+  currentTarget: ReviewTarget,
+  hostedFixTarget: HostedTarget,
+  verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
+  dependencies: RespondCommandDependencies,
+): Promise<z.infer<typeof RespondEnvelopeSchema>> {
+  const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  const vehicle = source.hostedAttempt?.vehicle;
+  const hostedTarget = source.hostedAttempt?.target;
+  if (existing === null
+    || vehicle === undefined
+    || hostedTarget === undefined
+    || existing.candidate !== null
+    || existing.errand !== null
+    || existing.deliveryMember === null
+    || canonicalize(existing.deliveryMember) !== canonicalize(vehicle)
+    || canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)
+    || canonicalize(existing.source) !== canonicalize(source.source)
+    || existing.fixAuthorization === null) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified delivery-member fix requires its exact approved hosted response record",
+    );
+  }
+  const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
+  const hostedSettlementPlan = projectHostedSettlementPlan(source, dispositions);
+  if (existing.deliveryMemberFixResponse !== null) {
+    if (!deliveryMemberResponseMatches(existing.deliveryMemberFixResponse, {
+      source,
+      currentTarget,
+      hostedFixTarget,
+      dispositions,
+      verifiedFix,
+    })) {
+      throw new RespondCommandError(
+        "invalid-input",
+        "delivery-member response replay conflicts with the recorded response",
+      );
+    }
+    const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(existing);
+    return RespondEnvelopeSchema.parse({
+      ...header,
+      state: "delivery-member-current",
+      nextAction: "continue-review",
+      payload: {
+        operationId: source.operationId,
+        dispositionRecordRef,
+        fixAuthorizationId: existing.fixAuthorization.fixAuthorizationId,
+        currentTarget,
+        hostedFixTarget,
+        ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
+      },
+    });
+  }
+  const fixConsumption = consumeFixAuthorization({
+    authorization: existing.fixAuthorization,
+    oldTarget: source.target,
+    newTarget: currentTarget,
+    appliedBy: dispositions.dispositionSet.proposedBy,
+    consumedAt: dependencies.now(),
+    verificationRefs: verifiedFix.verificationEvidenceRefs,
+    priorConsumptions: [],
+  });
+  const record = ApprovedDispositionRecordSchema.parse({
+    ...existing,
+    deliveryMemberFixResponse: {
+      oldTarget: source.target,
+      newTarget: currentTarget,
+      applicability: verifiedFix.applicability,
+      fixConsumption,
+      hostedTarget,
+      hostedFixTarget,
+    },
+  });
+  const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(record);
+  return RespondEnvelopeSchema.parse({
+    ...header,
+    state: "delivery-member-advanced",
+    nextAction: "continue-review",
+    payload: {
+      operationId: source.operationId,
+      dispositionRecordRef,
+      fixAuthorizationId: fixConsumption.fixAuthorizationId,
+      currentTarget,
+      hostedFixTarget,
+      ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
+    },
+  });
+}
+
 function staleTargetEnvelope(
   operationId: string,
   attemptedTarget: ReviewTarget,
@@ -882,7 +1010,26 @@ export async function respondToReviewCommand(
   let unchangedCandidateLineage: CandidateLineageBinding | null = null;
   // A landed fix moves the head, so the settlement pass expects the stale reading its approval pass
   // treats as a dead end. An unchanged head means no fix landed and there is nothing to attest.
-  const changedTarget = confirmation.state === "stale-target" ? confirmation.currentTarget : null;
+  let changedTarget = confirmation.state === "stale-target" ? confirmation.currentTarget : null;
+  let deliveryMemberFixTarget: { currentTarget: ReviewTarget; hostedFixTarget: HostedTarget } | null = null;
+  if (verifiedFix !== undefined
+    && changedTarget === null
+    && source.hostedAttempt?.vehicle !== undefined) {
+    deliveryMemberFixTarget = await dependencies.resolveDeliveryMemberFixTarget({
+      vehicle: source.hostedAttempt.vehicle,
+      originatingTarget: source.target,
+      hostedTarget: source.hostedAttempt.target,
+    });
+    if (deliveryMemberFixTarget === null) {
+      throw new RespondCommandError(
+        "invalid-input",
+        "the authoritative current delivery-member target is unavailable or no longer matches the hosted request",
+      );
+    }
+    if (deliveryMemberFixTarget.currentTarget.targetId !== source.target.targetId) {
+      changedTarget = deliveryMemberFixTarget.currentTarget;
+    }
+  }
   if (verifiedFix !== undefined && changedTarget === null) {
     throw new RespondCommandError(
       "invalid-input",
@@ -961,6 +1108,16 @@ export async function respondToReviewCommand(
         `a verified fix produced unsupported state '${settlement.state}'`,
       );
     }
+    if (deliveryMemberFixTarget !== null) {
+      return persistDeliveryMemberResponse(
+        source,
+        dispositions,
+        deliveryMemberFixTarget.currentTarget,
+        deliveryMemberFixTarget.hostedFixTarget,
+        verifiedFix,
+        dependencies,
+      );
+    }
     if (await dependencies.readCandidateLineage(source.target) === null) {
       return persistErrandResponse(source, dispositions, changedTarget, verifiedFix, dependencies);
     }
@@ -976,8 +1133,13 @@ export async function respondToReviewCommand(
         outcome: source.frontlineOutcome,
         dispositionState: dispositions,
       });
-  const lineage = unchangedCandidateLineage ?? await dependencies.readCandidateLineage(source.target);
-  const errand = lineage === null ? await dependencies.resolveActiveErrand() : null;
+  const deliveryMember = source.hostedAttempt?.vehicle ?? null;
+  const lineage = deliveryMember === null
+    ? unchangedCandidateLineage ?? await dependencies.readCandidateLineage(source.target)
+    : null;
+  const errand = lineage === null && deliveryMember === null
+    ? await dependencies.resolveActiveErrand()
+    : null;
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
   const record = ApprovedDispositionRecordSchema.parse({
     schemaVersion: 1,
@@ -991,10 +1153,12 @@ export async function respondToReviewCommand(
           candidateId: lineage.record.attestation.candidateId,
         },
     errand,
+    deliveryMember,
     source: source.source,
     approvedDisposition: dispositions,
     fixAuthorization: plan.fixAuthorization,
     errandFixResponse: existing?.errandFixResponse ?? null,
+    deliveryMemberFixResponse: existing?.deliveryMemberFixResponse ?? null,
   });
   if (existing !== null && canonicalize(existing) !== canonicalize(record)) {
     throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");

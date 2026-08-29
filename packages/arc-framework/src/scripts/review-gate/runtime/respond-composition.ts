@@ -43,6 +43,8 @@ import {
 } from "../hosts/local/frontline-outcome-store.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
+import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
+import { composeDeliveryMemberTarget } from "../hosts/local/repository-target.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
@@ -55,6 +57,7 @@ export function createRespondDependencies(input: {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
+  const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
     receiptStore ??= resolveRepositoryIdentity(publisher)
@@ -135,6 +138,36 @@ export function createRespondDependencies(input: {
       return record?.kind === "errand" && record.purpose === "errand"
         ? { key: record.slug, claimId: record.claimId, branch: record.branch }
         : null;
+    },
+    resolveDeliveryMemberFixTarget: async ({ vehicle, originatingTarget, hostedTarget }) => {
+      try {
+        if (originatingTarget.kind !== "delivery-member"
+          || originatingTarget.headSha !== vehicle.head
+          || hostedTarget.headSha !== vehicle.head) return null;
+        const resolution = await deliveryMembers.resolveDischargeTargets(vehicle.workUnitId);
+        if (resolution.status !== "resolved") return null;
+        const matching = resolution.targets.filter((target) => (
+          target.planId === vehicle.planId
+          && target.deliverableId === vehicle.deliverableId
+          && target.workUnitId === vehicle.workUnitId
+          && target.changeRequestId === String(hostedTarget.pullRequest)
+        ));
+        const member = matching.length === 1 ? matching[0] : undefined;
+        if (member === undefined) return null;
+        const currentTarget = await composeDeliveryMemberTarget({
+          exec: input.exec,
+          cwd: input.cwd,
+          baseRef: originatingTarget.baseRef,
+          repositoryId: originatingTarget.repositoryId,
+          member,
+        });
+        return {
+          currentTarget,
+          hostedFixTarget: { ...hostedTarget, headSha: member.head },
+        };
+      } catch {
+        return null;
+      }
     },
     now: () => new Date().toISOString(),
     readCandidateLineage: async (target) => {

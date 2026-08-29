@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest, canonicalize } from "../../../../../src/lib/kernel/index.js";
+import { DeliveryReviewMemberVehicleSchema } from
+  "../../../../../src/lib/delivery/review-vehicle.js";
 import {
   candidateReviewResponses,
   createCandidateAttestation,
@@ -234,7 +236,15 @@ function dependencies(records: ReturnType<typeof fixture>) {
           && record.errandFixResponse !== null
           && canonicalize({ ...disposition, errandFixResponse: null })
             === canonicalize({ ...record, errandFixResponse: null });
-        if (disposition !== null && canonicalize(disposition) !== canonicalize(record) && !errandAdvance) {
+        const deliveryAdvance = disposition !== null
+          && disposition.deliveryMemberFixResponse === null
+          && record.deliveryMemberFixResponse !== null
+          && canonicalize({ ...disposition, deliveryMemberFixResponse: null })
+            === canonicalize({ ...record, deliveryMemberFixResponse: null });
+        if (disposition !== null
+          && canonicalize(disposition) !== canonicalize(record)
+          && !errandAdvance
+          && !deliveryAdvance) {
           throw new Error("conflict");
         }
         disposition = record;
@@ -252,6 +262,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
       proposerIdentity: records.authority.runtimeIdentity,
     }),
     resolveActiveErrand: async () => null,
+    resolveDeliveryMemberFixTarget: async () => null,
     now: () => "2026-07-23T21:00:00Z",
     readCandidateLineage: async () => {
       const record = candidateRecord();
@@ -422,8 +433,11 @@ function localRequest(
   };
 }
 
-function hostedResponseFixture(origin: "review-thread" | "review-body") {
-  const records = fixture();
+function hostedResponseFixture(
+  origin: "review-thread" | "review-body",
+  vehicle: LocalReviewState["vehicle"] = workUnitVehicle,
+) {
+  const records = fixture(vehicle);
   const attemptId = "hosted/attempt-1";
   const operationId = "lane-progress/hosted-1";
   const hostedFinding = origin === "review-thread"
@@ -468,6 +482,17 @@ function hostedResponseFixture(origin: "review-thread" | "review-body") {
         requestedCoverage: "complete" as const,
         effectiveCoverage: "complete" as const,
         reviewTarget: records.target,
+        ...(vehicle.kind !== "delivery-member"
+          ? {}
+          : {
+              vehicle: DeliveryReviewMemberVehicleSchema.parse({
+                kind: "delivery-member" as const,
+                planId: "123e4567-e89b-42d3-a456-426614174000",
+                deliverableId: vehicle.identity,
+                workUnitId: "example",
+                head: records.target.headSha,
+              }),
+            }),
         requirement: {
           ...records.operation.requirement,
           acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
@@ -616,6 +641,71 @@ describe("review response command", () => {
       state: "ready-to-fix",
       payload: {
         reentryCommand: "hosted-settle",
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
+    });
+  });
+
+  it("records a verified hosted delivery-member fix at the authoritative current member target", async () => {
+    const hosted = hostedResponseFixture("review-thread", memberVehicle);
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    deps.readCandidateLineage = async () => null;
+    const currentTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: hosted.records.target.repositoryId,
+      baseRef: hosted.records.target.baseRef,
+      diffBaseSha: hosted.records.target.diffBaseSha,
+      diffBaseTree: hosted.records.target.diffBaseTree,
+      headSha: objectId("1"),
+      headTree: objectId("2"),
+    });
+    const hostedFixTarget = {
+      ...attempt.hosted.target,
+      headSha: currentTarget.headSha,
+    };
+    const dispositions = approved({
+      targetId: hosted.records.target.targetId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+    });
+    const request = {
+      schemaVersion: 1 as const,
+      source: { kind: "hosted" as const, attemptRef: hosted.attemptRef },
+      dispositions,
+    };
+
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+    });
+    const verifiedRequest = {
+      ...request,
+      verifiedFix: {
+        applicability: "focused" as const,
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    };
+    await expect(respondToReviewCommand(verifiedRequest, deps))
+      .rejects.toThrow("authoritative current delivery-member target is unavailable");
+    const withCurrentMember = Object.assign(deps, {
+      resolveDeliveryMemberFixTarget: async () => ({ currentTarget, hostedFixTarget }),
+    });
+    await expect(respondToReviewCommand(verifiedRequest, withCurrentMember)).resolves.toMatchObject({
+      state: "delivery-member-advanced",
+      nextAction: "continue-review",
+      payload: {
+        currentTarget,
+        hostedFixTarget,
         hostedSettlementPlan: {
           beforeFixFindingIds: [],
           afterFixFindingIds: [hosted.records.finding.findingId],

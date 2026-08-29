@@ -267,6 +267,8 @@ arc review respond -
 
 This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
 plan through the existing phase-ordered settlement path below, then re-enter through `arc review status`.
+After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
+`payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
 
 On `requested / await`, pass the returned self-contained handle to:
 

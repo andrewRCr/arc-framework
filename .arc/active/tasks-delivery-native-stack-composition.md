@@ -2213,16 +2213,17 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               final-member and exact-admission findings are repaired, and the real handler lifecycle now proves both
               non-terminal and terminal delegated fallbacks through complete conjunction settlement.
 
-    - `[ ]` **7.7.R.c Restore changed-target settlement for delivery-member findings**
+    - `[x]` **7.7.R.c Restore changed-target settlement for delivery-member findings**
 
         - _Goal:_ An approved fix to a hosted delivery-member finding resolves the member's current coordinates from
           authoritative delivery state, records the verified changed exact target, and reaches after-fix hosted
           settlement without weakening the pinned-target confirmation used by ordinary member review admission.
 
-        - _Context:_ Live Member 1 settlement exposed that `review respond` requires target confirmation to return a
-          changed target, while delivery-member confirmation intentionally verifies the originating pinned commits
-          and never re-derives a checkout target. The supported D2.4 fix loop therefore refused after a verified
-          member fix.
+        - _Outcome:_ Hosted delivery-member responses retain the exact member vehicle, resolve current coordinates
+          from coherent delivery state, append the verified transition monotonically to the approved disposition
+          record, and return the exact hosted fix target that both delivery workflows pass unchanged. Production
+          handler coverage proves first application and idempotent replay while pinned-target confirmation remains
+          unchanged.
 
     - `[ ]` **7.7.R.d Revalidate changed-target member response** — validate criteria at member scope
 
