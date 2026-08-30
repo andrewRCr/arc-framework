@@ -2279,11 +2279,16 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           originating top as the terminal head. True plan absence alone permits singleton routing; bound delivery or
           missing, dirty, moved, reordered, incoherent, or mismatched evidence refuses without an aggregate target.
 
-    - `[ ]` **7.7.R.h Progress initial Frontline review member by member**
+    - `[x]` **7.7.R.h Progress initial Frontline review member by member**
 
         - _Goal:_ The pre-publication procedure applies the unchanged Frontline policy driver to the first
           outstanding exact member in plan order, recomposes after each result, and never invokes Frontline on the
           whole Candidate or persists a parallel target/progress ledger.
+
+        - _Outcome:_ Pre-publication now prepares fresh plan-owned private candidates and gates, selects the first
+          outstanding exact member through existing head-keyed lane progress and the unchanged policy driver, and
+          recomposes after every result without aggregate fallback, delivery-side review state, or prose iteration;
+          one-pass ceiling approval stays bound to its exact member through fallback and cannot cross into the next.
 
     - `[ ]` **7.7.R.i Resume public hosted-member review without private-lane replay**
 

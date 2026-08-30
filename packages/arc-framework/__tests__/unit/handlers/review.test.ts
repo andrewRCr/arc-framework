@@ -1908,6 +1908,92 @@ describe("handleReviewPrePublication", () => {
     });
   });
 
+  it("binds a Frontline ceiling override to the exact member across same-pass fallback", async () => {
+    const lanes = {
+      frontline: {
+        scopeMode: "whole-target",
+        ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+      },
+    };
+    const readyRequest = {
+      ...request,
+      frontline: {
+        ...request.frontline,
+        frontlineActive: true,
+        sources: ["coderabbit-cli"],
+        completedPasses: 2,
+        maxPasses: 2,
+        scopeSelection: { mode: "whole-target" as const, target },
+        ceilingOverride: {
+          target,
+          lane: "frontline" as const,
+          exhaustedPassCount: 2,
+          nextPass: 3,
+        },
+      },
+    };
+    const dependencies = boundary({
+      readText: async () => JSON.stringify(lanes),
+      compose: vi.fn(async () => ({ status: "composed", request: readyRequest, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true, lanes: "lanes.json" }, dependencies);
+
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
+      policy: { state: string; nextAction: string };
+      nextAction: { command: string };
+    };
+    expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
+    const token = envelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(token).toBeDefined();
+    expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
+      lanes,
+      frontlineCeilingHeadSha: target.headSha,
+    });
+  });
+
+  it("consumes a bound Frontline ceiling override when composition advances to another member", async () => {
+    const priorHead = "f".repeat(40);
+    const lanes = {
+      frontline: {
+        scopeMode: "whole-target",
+        ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+      },
+    };
+    const nextTarget = { ...target, headSha: "9".repeat(40) };
+    const nextRequest = {
+      ...request,
+      frontline: {
+        ...request.frontline,
+        target: nextTarget,
+        frontlineActive: true,
+        sources: ["coderabbit-cli"],
+        scopeSelection: { mode: "whole-target" as const, target: nextTarget },
+      },
+      standard: { ...request.standard, target: nextTarget },
+    };
+    const resume = Buffer.from(JSON.stringify({
+      lanes,
+      frontlineCeilingHeadSha: priorHead,
+    }), "utf8").toString("base64url");
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request: nextRequest, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true, resume }, dependencies);
+
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
+      policy: { state: string; nextAction: string };
+      nextAction: { command: string };
+    };
+    expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
+    const token = envelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(token).toBeDefined();
+    expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
+      lanes: { frontline: { scopeMode: "whole-target" } },
+    });
+  });
+
   it("refuses to read both judgment inputs from the same stdin stream", async () => {
     const compose = vi.fn();
     const readText = vi.fn();

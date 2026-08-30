@@ -433,7 +433,9 @@ describe("trusted review-gate workflows", () => {
     ]);
 
     expect(prepare).toMatch(/standard\.invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
-    expect(prepare).toMatch(/Re-invoke[\s\S]*same `--change-set`, `--lanes`/u);
+    expect(prepare).toMatch(
+      /After every lane operation,[\s\S]*exact command returned by the envelope[\s\S]*opaque resume carries judgment/u,
+    );
     expect(errand).toMatch(/invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
     expect(errand).toMatch(/every policy call for that target/u);
     expect(integrate).toMatch(

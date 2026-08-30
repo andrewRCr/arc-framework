@@ -63,6 +63,7 @@ import {
 import {
   applyCarriedOwnerAcceptedTerminus,
   applyCarriedStandardReviewReservation,
+  consumeFrontlineCeilingOverride,
   consumeOwnerAcceptedTerminus,
   composePrePublicationReviewRequest,
   type PrePublicationComposition,
@@ -82,6 +83,7 @@ import {
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
 import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
+import { GitObjectIdSchema } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
 import {
   candidateExpectsEarlierReviewAttempt,
   earlierAttemptRetainsReservationPosition,
@@ -2301,6 +2303,7 @@ export interface ReviewPrePublicationJudgment {
   selfReview: "settled" | undefined;
   changeSet: unknown;
   lanes: unknown;
+  frontlineCeilingHeadSha: string | undefined;
 }
 
 export interface ReviewPrePublicationHandlerDependencies {
@@ -2335,6 +2338,9 @@ function defaultPrePublicationDependencies(
           ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
           ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
           ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
+          ...(judgment.frontlineCeilingHeadSha === undefined
+            ? {}
+            : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
         },
         createPrePublicationCompositionDependencies({ cwd: root, exec }),
       );
@@ -2461,17 +2467,20 @@ export async function handleReviewPrePublication(
           selfReview: z.literal("settled").optional(),
           changeSet: z.json().optional(),
           lanes: z.json().optional(),
+          frontlineCeilingHeadSha: GitObjectIdSchema.optional(),
         }).parse(JSON.parse(Buffer.from(input.data.resume, "base64url").toString("utf8")));
     judgment = resumed === null
       ? {
           selfReview: input.data.selfReview,
           changeSet: await readJudgment(input.data.changeSet),
           lanes: await readJudgment(input.data.lanes),
+          frontlineCeilingHeadSha: undefined,
         }
       : {
           selfReview: resumed.selfReview,
           changeSet: resumed.changeSet,
           lanes: resumed.lanes,
+          frontlineCeilingHeadSha: resumed.frontlineCeilingHeadSha,
         };
   } catch (error) {
     emitFailure(error, "request");
@@ -2504,13 +2513,28 @@ export async function handleReviewPrePublication(
       const replaySelfReview = envelope.nextAction.kind === "run-self-review"
         ? "settled"
         : judgment.selfReview;
-      const replayLanes = envelope.locus === "candidate-fix-pending"
+      let replayLanes = envelope.locus === "candidate-fix-pending"
         ? consumeOwnerAcceptedTerminus(judgment.lanes)
         : judgment.lanes;
+      const currentFrontlineHeadSha = composition.request.frontline.target.headSha;
+      const frontlineCeilingOverrideApplied = envelope.policy?.state === "ready"
+        && envelope.policy.nextAction === "run-frontline"
+        && envelope.policy.payload.ceilingOverrideApplied;
+      let replayFrontlineCeilingHeadSha = judgment.frontlineCeilingHeadSha;
+      if (frontlineCeilingOverrideApplied) {
+        replayFrontlineCeilingHeadSha = currentFrontlineHeadSha;
+      } else if (replayFrontlineCeilingHeadSha !== undefined
+        && replayFrontlineCeilingHeadSha !== currentFrontlineHeadSha) {
+        replayLanes = consumeFrontlineCeilingOverride(replayLanes);
+        replayFrontlineCeilingHeadSha = undefined;
+      }
       const resume = Buffer.from(canonicalize({
         ...(replaySelfReview === undefined ? {} : { selfReview: replaySelfReview }),
         ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
         ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
+        ...(replayFrontlineCeilingHeadSha === undefined
+          ? {}
+          : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }),
       }), "utf8").toString("base64url");
       envelope = PrePublicationReviewEnvelopeSchema.parse({
         ...envelope,
