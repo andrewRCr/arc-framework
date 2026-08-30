@@ -207,7 +207,7 @@ describe("repository delivery member lookup", () => {
       .resolves.toEqual({ status: "unbound" });
   });
 
-  it("re-derives every retained bound member target on each read", async () => {
+  it("refuses an incomplete target set before resolving every retained member on a later read", async () => {
     const { cwd, lookup } = await repository();
     const plan = deliveryPlanFixture();
     const initial = deliveryStateFixture(plan);
@@ -216,10 +216,8 @@ describe("repository delivery member lookup", () => {
     await publishPlan(cwd, plan);
     await publish(cwd, initial);
 
-    await expect(lookup.resolveDischargeTargets(plan.workUnitId)).resolves.toMatchObject({
-      status: "resolved",
-      targets: [{ deliverableId: plan.members[0]!.deliverableId, changeRequestId: "41" }],
-    });
+    await expect(lookup.resolveDischargeTargets(plan.workUnitId))
+      .resolves.toEqual({ status: "unavailable" });
 
     const rebound = structuredClone(initial);
     rebound.members[1]!.changeRequest = { providerId: "github", changeRequestId: "42" };
