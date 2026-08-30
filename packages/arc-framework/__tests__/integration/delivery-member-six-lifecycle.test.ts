@@ -288,7 +288,7 @@ function refreshDependencies(fixture: RefreshFixture, stateStore: ReturnType<typ
     absorbTop: (input: {
       readonly topRef: string;
       readonly top: { readonly head: string; readonly tree: string };
-      readonly previousHighestMember: { readonly head: string; readonly tree: string };
+      readonly previousHighestMember: { readonly head: string; readonly tree?: string };
       readonly highestMember: { readonly head: string; readonly tree: string };
     }) => absorbGitDeliveryChain({ exec: fixture.rawExec, ...input }),
     publishTop: (input: {

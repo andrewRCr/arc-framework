@@ -1812,7 +1812,7 @@ async function executeDeliveryCommand(
       absorbTop: (input: {
         topRef: string;
         top: { head: string; tree: string };
-        previousHighestMember: { head: string; tree: string };
+        previousHighestMember: { head: string; tree?: string };
         highestMember: { head: string; tree: string };
       }) => absorbGitDeliveryChain({ exec: createRawGitExec(cwd), ...input }),
       publishTop: (input: { ref: string; beforeHead: string; requestedHead: string }) => (
