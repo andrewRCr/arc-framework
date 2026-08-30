@@ -117,21 +117,25 @@ DeliveryReservationRecordLookup, DeliveryTerminalRecordLookup {
       if (record.value === null) return { status: "unbound" };
       const coherence = validateDeliveryStateAgainstPlan(record.value.value, plan);
       if (coherence.status === "refused") return { status: "unavailable" };
+      const targets = [];
+      for (const member of coherence.state.members) {
+        if (member.changeRequest === null || member.coordinates === null) {
+          return { status: "unavailable" };
+        }
+        targets.push({
+          planId: coherence.state.planId,
+          deliverableId: member.deliverableId,
+          workUnitId: coherence.state.workUnitId,
+          ref: member.ref,
+          providerId: member.changeRequest.providerId,
+          changeRequestId: member.changeRequest.changeRequestId,
+          base: member.coordinates.base,
+          head: member.coordinates.head,
+        });
+      }
       return {
         status: "resolved",
-        targets: coherence.state.members.flatMap((member) => {
-          if (member.changeRequest === null || member.coordinates === null) return [];
-          return [{
-            planId: coherence.state.planId,
-            deliverableId: member.deliverableId,
-            workUnitId: coherence.state.workUnitId,
-            ref: member.ref,
-            providerId: member.changeRequest.providerId,
-            changeRequestId: member.changeRequest.changeRequestId,
-            base: member.coordinates.base,
-            head: member.coordinates.head,
-          }];
-        }),
+        targets,
       };
     } catch {
       return { status: "unavailable" };
