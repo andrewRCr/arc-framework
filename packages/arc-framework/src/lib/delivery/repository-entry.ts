@@ -6,17 +6,23 @@ import { join } from "node:path";
 import { RepositoryGitCommonStatePublisher } from "../git-common-state.js";
 import type { GitExec } from "../git/exec.js";
 import { createRawGitExec } from "../io-context.js";
+import { projectGitCandidateEffectiveTarget } from "../work-unit/git-candidate-effective-target.js";
+import { readCandidateRecord } from "../work-unit/candidate-record-store.js";
 import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.js";
 import { RepositoryDeliveryAuthoringStore } from "./authoring-store.js";
 import { resolveExistingDeliveryAuthoringMap } from "./authoring-resolution.js";
 import {
+  inspectDeliveryCandidateRenewal,
   inspectDeliveryEntry,
   inspectDeliveryReopen,
   type DeliveryEntryInspectionDependencies,
   type DeliveryEntryInspectionRequest,
   type DeliveryEntryInspectionResult,
+  type DeliveryCandidateRenewalInspectionResult,
   type DeliveryReopenInspectionResult,
 } from "./entry-inspection.js";
+import type { IntegrationBoundaryLocus } from
+  "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   RepositoryDeliveryPlanStore,
   RepositoryDeliveryStateStore,
@@ -27,7 +33,7 @@ import {
   resolveExistingDeliveryPlan,
 } from "./plan-resolution.js";
 
-interface RepositoryDeliveryInspectionInput {
+export interface RepositoryDeliveryInspectionInput {
   readonly cwd: string;
   /** Validated repository-relative task-list path. */
   readonly taskListPath: string;
@@ -89,6 +95,30 @@ function createRepositoryDeliveryInspectionDependencies(
       status: "ok",
       value: await readSubmissionBoundary(input.cwd, workUnitId),
     }),
+    readCandidate: async () => {
+      const record = await readCandidateRecord(input.cwd, workUnitId);
+      if (record === null) return { status: "ok", value: null };
+      try {
+        const projected = await projectGitCandidateEffectiveTarget({
+          cwd: input.cwd,
+          name: workUnitId,
+          baseBranch: input.baseBranch,
+          record,
+          exec: input.exec,
+          rawExec: createRawGitExec(input.cwd),
+        });
+        if (projected.state !== "current") return { status: "non-current" };
+        return {
+          status: "ok",
+          value: {
+            candidateId: record.attestation.candidateId,
+            subjectDigest: projected.recognizedTarget.subject.subjectDigest,
+          },
+        };
+      } catch {
+        return { status: "refused" };
+      }
+    },
   };
 }
 
@@ -112,6 +142,24 @@ export async function inspectRepositoryDeliveryReopen(input: RepositoryDeliveryI
   : Promise<DeliveryReopenInspectionResult> {
   return inspectDeliveryReopen(
     input.workUnitId,
+    createRepositoryDeliveryInspectionDependencies(input),
+  );
+}
+
+/**
+ * Prepare exact public delivery evidence before corrective Candidate attestation.
+ *
+ * @param input - Repository locus and the versioned public boundary to carry forward.
+ * @returns Exact renewal evidence, a not-applicable singleton result, or a closed refusal.
+ */
+export async function inspectRepositoryDeliveryCandidateRenewal(
+  input: RepositoryDeliveryInspectionInput & {
+    readonly sourceBoundary: IntegrationBoundaryLocus | null;
+  },
+): Promise<DeliveryCandidateRenewalInspectionResult> {
+  return inspectDeliveryCandidateRenewal(
+    input.workUnitId,
+    input.sourceBoundary,
     createRepositoryDeliveryInspectionDependencies(input),
   );
 }
