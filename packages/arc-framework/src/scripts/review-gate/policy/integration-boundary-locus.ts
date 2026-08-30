@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalDigest, canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../lib/canonical/canonical-json.js";
 import {
   DeliveryPublicReviewContinuationV1Schema,
   type DeliveryPublicReviewContinuationV1,
@@ -368,12 +368,6 @@ export function projectCorrectiveDeliveryReviewBoundary(input: {
     || source.reservation.target.workUnitId !== workUnit
     || source.reservation.target.planId !== continuation.planId) {
     throw new Error("Corrective Candidate renewal requires the exact carried public delivery reservation.");
-  }
-  if (source.candidateId === candidateId
-    && source.locus === "hosted-review-pending"
-    && source.deliveryContinuation !== undefined
-    && canonicalize(source.deliveryContinuation) !== canonicalize(continuation)) {
-    throw new Error("Corrective Candidate renewal cannot replace a stale public delivery continuation.");
   }
   return IntegrationBoundaryLocusSchema.parse({
     schemaVersion: 1,
