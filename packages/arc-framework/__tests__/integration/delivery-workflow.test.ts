@@ -25,8 +25,9 @@ describe("packaged delivery workflow", () => {
     expect(JSON.parse(recipe).include_files).toContain("system/workflows/arc/supplemental/deliver-stack.md");
     expect(classifyFile("system/workflows/arc/supplemental/deliver-stack.md")).toBe("Framework");
     expect(packaged).toContain("arc delivery eligibility prepare");
-    expect(packaged).toContain("refs/arc/delivery-candidates/{planId}/{chunkKey}");
-    expect(packaged).toContain("use detached worktrees for project gates");
+    expect(packaged).toContain("arc delivery authoring locate");
+    expect(packaged).not.toContain("refs/arc/delivery-candidates/{planId}/{chunkKey}");
+    expect(packaged).toMatch(/returned private candidate ref[\s\S]*returned[\s\S]*detached gate path/iu);
     expect(packaged).not.toContain("refs/heads/cut/");
     expect(packaged).not.toContain("arc delivery materialize");
     expect(packaged).toContain("arc delivery land prepare");
@@ -121,6 +122,10 @@ describe("packaged delivery workflow", () => {
     );
     expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(nativeSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
+    expect(nativeSection).toMatch(
+      /respond-to-findings[\s\S]*responsePlan[\s\S]*review-triage[\s\S]*review-response[\s\S]*arc review respond -/iu,
+    );
+    expect(nativeSection).toMatch(/never requests another hosted review/iu);
     expect(reviewSection).toMatch(/review-member[\s\S]*settle exact member review authority above/iu);
     const refreshPlan = reviewSection.indexOf("arc delivery refresh plan");
     const refreshExecute = reviewSection.indexOf("arc delivery refresh execute", refreshPlan);
@@ -185,7 +190,10 @@ describe("packaged delivery workflow", () => {
     );
     expect(reviewSection).toContain("candidateRequirements.requiredAncestorHeads");
     expect(reviewSection).toMatch(/project the exact approved[\s\S]*correction/iu);
-    expect(reviewSection).toContain("plan, repository, remote, and selected-member locators");
+    expect(reviewSection).toContain("plan, repository, remote, selected-member, and entry-mode locators");
+    expect(reviewSection).toMatch(
+      /planned \/ terminal-rebind[\s\S]*reconcileInput[\s\S]*unchanged[\s\S]*arc delivery reconcile[\s\S]*rebound \/ read-position[\s\S]*arc delivery position/iu,
+    );
     expect(reviewSection).toMatch(
       /provider-refresh[\s\S]*selected member[\s\S]*execute-provider-refresh[\s\S]*dependent-suffix/iu,
     );
@@ -196,9 +204,10 @@ describe("packaged delivery workflow", () => {
       /planned \/ rematerialize[\s\S]*top authoring locus[\s\S]*complete suffix/iu,
     );
     expect(reviewSection).toMatch(
-      /planned \/ rematerialize[\s\S]*raw[\s\S]*candidate locators/iu,
+      /planned \/ rematerialize[\s\S]*derives[\s\S]*candidate refs[\s\S]*gate paths/iu,
     );
-    expect(reviewSection).toContain("requires its supplied checkout");
+    expect(reviewSection).not.toContain("raw candidate locators");
+    expect(reviewSection).not.toContain("requires its supplied checkout");
     expect(reviewSection).toMatch(
       /partial, incoherent, ambiguous, malformed, unsupported, or unavailable[\s\S]*stops/iu,
     );
