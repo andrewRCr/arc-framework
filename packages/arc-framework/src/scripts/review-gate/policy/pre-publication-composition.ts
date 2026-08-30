@@ -1,16 +1,32 @@
 /** Production composition for the typed pre-publication review procedure. */
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import { parseMetaRecord, toMetaRecord } from "../../../lib/active/meta-reader.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
+import {
+  compareGitNormalizedDeliveryTrees,
+  inspectDeliveryCandidateCheckout,
+  observeDeliveryEligibilityRef,
+} from "../../../lib/delivery/git-eligibility.js";
+import {
+  readGitDeliveryLifecycleArtifactsAtRef,
+  revalidateDeliveryLifecycleContribution,
+} from "../../../lib/delivery/git-lifecycle-contribution.js";
+import { CurrentDeliveryLifecycleContributionPathSource } from "../../../lib/delivery/lifecycle-contribution.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../../../lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
-import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
+import { SlugSchema, validateManagedPath } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
+import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
+import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
 import { candidateReviewResponses } from "../../../lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
+import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-readers.js";
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
@@ -23,11 +39,15 @@ import {
   createLocalReviewRubricBindingPort,
 } from "../hosts/local/method-files.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
+import {
+  composeDeliveryMemberTarget,
+  deriveLocalReviewTarget,
+} from "../hosts/local/repository-target.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { readLaneProgressAcrossLineage } from "../lane-progress.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
+import type { PreBindingDeliveryReviewTargetDependencies } from "./pre-publication-delivery-targets.js";
 import type {
   AssuranceRead,
   CandidateRead,
@@ -39,6 +59,100 @@ import type {
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Bind canonical delivery, Git eligibility, and exact review-target reads for private member projection.
+ *
+ * @param input - The originating work-unit checkout and its Git boundary.
+ * @returns The production dependencies for `composePreBindingDeliveryReviewTargets`.
+ */
+export function createPreBindingDeliveryReviewTargetDependencies(input: {
+  cwd: string;
+  exec: GitExec;
+}): PreBindingDeliveryReviewTargetDependencies {
+  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  const states = new RepositoryDeliveryStateStore(publisher);
+  const lookup = new RepositoryDeliveryMemberLookup(input);
+  let repositoryIdPromise: Promise<string> | null = null;
+  const repositoryId = () => {
+    repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
+    return repositoryIdPromise;
+  };
+  return {
+    resolveDelivery: (workUnitId, protectedBaseRef) => lookup.resolveReservationRecords(
+      workUnitId,
+      { status: "established", ref: protectedBaseRef },
+    ),
+    resolveGitCommonDir: () => resolveGitCommonDir(input.exec, input.cwd),
+    resolveOriginatingTop: async (plan) => {
+      const [active, branch] = await Promise.all([
+        resolveActiveWu({ cwd: input.cwd }),
+        getCurrentBranch(input.exec),
+      ]);
+      return active.status === "resolved" && active.name === plan.workUnitId
+        && active.branch !== null && active.branch === branch
+        ? `refs/heads/${active.branch}`
+        : null;
+    },
+    resolveLifecyclePaths: async ({ plan, protectedBaseRef, topRef }) => {
+      const active = await resolveActiveWu({ cwd: input.cwd });
+      if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
+      const paths = await new CurrentDeliveryLifecycleContributionPathSource({
+        readDirectory: (path) => readdir(resolve(input.cwd, path)),
+        readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(
+          input.exec,
+          ref,
+          workUnitId,
+        ),
+      }).resolve({
+        workUnitId: plan.workUnitId,
+        activeMetaPath: validateManagedPath(active.path),
+        protectedBaseRef,
+        topRef,
+      });
+      return [...paths.workUnitArtifacts, ...paths.sharedProjections];
+    },
+    eligibility: {
+      observeRef: (ref) => observeDeliveryEligibilityRef(input.exec, ref),
+      readAncestry: (ancestor, descendant) => readAncestry(input.exec, ancestor, descendant),
+      revalidateLifecycleContribution: (candidate) => revalidateDeliveryLifecycleContribution({
+        exec: input.exec,
+        ...candidate,
+      }),
+      compareNormalizedCompleteness: async (candidate) => {
+        const compared = await compareGitNormalizedDeliveryTrees({
+          exec: input.exec,
+          protectedBaseTree: candidate.protectedBase.tree,
+          topTree: candidate.top.tree,
+          finalCandidateTree: candidate.finalCandidate.tree,
+          lifecyclePaths: candidate.lifecyclePaths,
+        });
+        if (compared.status === "unavailable") {
+          return { status: "refused" as const, reason: "unavailable" as const };
+        }
+        if (compared.status === "match") return compared;
+        const reason = compared.droppedPaths.length > 0
+          ? "dropped" as const
+          : compared.inventedPaths.length > 0 ? "invented" as const : "mismatched" as const;
+        return { status: "refused" as const, reason };
+      },
+      readCurrentPlan: async (planId) => {
+        const current = await plans.readCurrent(planId);
+        return current.status === "ok" ? current.value : null;
+      },
+      resolveMember: (head) => states.resolveMemberReadOnly({ selector: { kind: "head", objectId: head } }),
+      inspectCheckout: (path) => inspectDeliveryCandidateCheckout(input.exec, path),
+    },
+    composeTarget: async ({ baseRef, base, head }) => composeDeliveryMemberTarget({
+      exec: input.exec,
+      cwd: input.cwd,
+      baseRef,
+      repositoryId: await repositoryId(),
+      member: { base, head },
+    }),
+  };
 }
 
 /** Select the carried reservation marker from one coherent delivery-record read. */
