@@ -3,8 +3,13 @@
 import { z } from "zod";
 
 import { scanTaskListStructure } from "../task-list/scanner.js";
+import { resolveTaskListCursor } from "../task-list/cursor.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { canonicalDigest } from "../kernel/index.js";
+import {
+  ContinuePublicationActionSchema,
+  type IntegrationBoundaryLocus,
+} from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import { DeliveryCanonicalDigestSchema, DeliveryPlanIdSchema } from "./schema.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 import {
@@ -14,7 +19,6 @@ import {
 } from "./task-list-render.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
 import type { DeliveryReviewFixVerificationContinuation } from "./review-fix.js";
-import type { DeliveryStateStoreFailure } from "./ports.js";
 
 const AttendedDeliveryEntryInspectionRequestSchema = z.strictObject({
   workUnitId: SlugSchema,
@@ -22,14 +26,20 @@ const AttendedDeliveryEntryInspectionRequestSchema = z.strictObject({
   provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
 });
 
+const IntegratingDeliveryEntryInspectionRequestSchema = z.strictObject({
+  workUnitId: SlugSchema,
+  entryMode: z.literal("integrating"),
+});
+
 const ExecutionDeliveryEntryInspectionRequestSchema = z.strictObject({
   workUnitId: SlugSchema,
   entryMode: z.literal("execution"),
 });
 
-/** Closed entry contexts: attended authoring judgment or pending-verification replay. */
+/** Closed entry contexts: attended authoring judgment or read-only lifecycle dispatch. */
 export const DeliveryEntryInspectionRequestSchema = z.union([
   AttendedDeliveryEntryInspectionRequestSchema,
+  IntegratingDeliveryEntryInspectionRequestSchema,
   ExecutionDeliveryEntryInspectionRequestSchema,
 ]);
 export type DeliveryEntryInspectionRequest = z.infer<typeof DeliveryEntryInspectionRequestSchema>;
@@ -79,12 +89,29 @@ export type DeliveryEntryInspectionResult =
       readonly stateRevision: number;
       readonly recommendedActionText: string;
     }
+  | {
+      readonly status: "correction-routing-required";
+      readonly nextAction: "plan-review-fix";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly selectedDeliverableId: string;
+      readonly entryMode: "execution";
+      readonly recommendedActionText: string;
+    }
   | ({
       readonly status: "review-fix-verification-required";
       readonly planId: string;
       readonly stateRevision: number;
       readonly recommendedActionText: string;
     } & DeliveryReviewFixVerificationContinuation)
+  | {
+      readonly status: "continue-publication";
+      readonly nextAction: "continue-publication";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly publicationAction: z.infer<typeof ContinuePublicationActionSchema>;
+      readonly recommendedActionText: string;
+    }
   | {
       readonly status: "refused";
       readonly nextAction: "stop";
@@ -94,7 +121,8 @@ export type DeliveryEntryInspectionResult =
         | "provisional-unconfirmed"
         | "canonical-plan-missing"
         | "canonical-projection-mismatch"
-        | `state-${DeliveryStateStoreFailure}`
+        | "task-cursor-unavailable"
+        | "task-member-ambiguous"
         | "state-incoherent";
       readonly recommendedActionText: string;
     };
@@ -125,6 +153,12 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
+    status: z.literal("correction-routing-required"), nextAction: z.literal("plan-review-fix"),
+    planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema, entryMode: z.literal("execution"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
     status: z.literal("review-fix-verification-required"), nextAction: z.literal("verify-review-fix"),
     planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
@@ -142,12 +176,16 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
+    status: z.literal("continue-publication"), nextAction: z.literal("continue-publication"),
+    planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
+    publicationAction: ContinuePublicationActionSchema, recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
     status: z.literal("refused"), nextAction: z.literal("stop"),
     reason: z.enum([
       "evidence-unavailable", "evidence-conflict", "provisional-unconfirmed",
-      "canonical-plan-missing", "canonical-projection-mismatch", "state-record-malformed",
-      "state-identity-mismatch", "state-version-conflict", "state-ambiguous-match",
-      "state-namespace-corrupt", "state-incoherent",
+      "canonical-plan-missing", "canonical-projection-mismatch", "task-cursor-unavailable",
+      "task-member-ambiguous", "state-incoherent",
     ]),
     recommendedActionText: z.string().min(1),
   }),
@@ -167,7 +205,10 @@ type ResolvedAuthoring =
   | { readonly status: "indeterminate" };
 type ReadState =
   | { readonly status: "ok"; readonly value: DeliveryStateV1 | null; readonly revision: number | null }
-  | { readonly status: "refused"; readonly reason: DeliveryStateStoreFailure };
+  | { readonly status: "refused" };
+type ReadIntegrationBoundary =
+  | { readonly status: "ok"; readonly value: IntegrationBoundaryLocus | null }
+  | { readonly status: "refused" };
 
 /** Read-only dependencies; the port intentionally exposes no publish or mutation methods. */
 export interface DeliveryEntryInspectionDependencies {
@@ -175,6 +216,7 @@ export interface DeliveryEntryInspectionDependencies {
   readonly resolvePlan: () => Promise<ResolvedPlan>;
   readonly resolveAuthoring: () => Promise<ResolvedAuthoring>;
   readonly readState: (planId: string) => Promise<ReadState>;
+  readonly readIntegrationBoundary: () => Promise<ReadIntegrationBoundary>;
 }
 
 const LATER_ENTRY_COST = "Delivery later entry requires attended inventory and member authoring, complete "
@@ -184,18 +226,12 @@ function refused(reason: Extract<DeliveryEntryInspectionResult, { status: "refus
   : DeliveryEntryInspectionResult {
   const remedy = reason === "provisional-unconfirmed"
     ? "Confirm the prior attended delivery disposition before canonicalizing provisional intent."
-    : "Resolve the delivery plan, authoring, task-list, and state evidence conflict before entering delivery.";
+    : reason === "task-cursor-unavailable"
+      ? "Restore one structurally valid open task before resuming bound delivery execution."
+      : reason === "task-member-ambiguous"
+        ? "Restore exactly-once delivery task coverage before resuming bound delivery execution."
+        : "Resolve the delivery plan, authoring, task-list, and state evidence conflict before entering delivery.";
   return { status: "refused", nextAction: "stop", reason, recommendedActionText: remedy };
-}
-
-function stateRefused(reason: DeliveryStateStoreFailure): DeliveryEntryInspectionResult {
-  return {
-    status: "refused",
-    nextAction: "stop",
-    reason: `state-${reason}`,
-    recommendedActionText: "Restore or regenerate the exact repository-scoped delivery state record through the "
-      + "typed delivery transfer path, then retry delivery entry inspection.",
-  };
 }
 
 /** Classify the bounded top-level Delivery Plan locus without parsing its prose as plan authority. */
@@ -262,7 +298,9 @@ export async function inspectDeliveryEntry(
       : "evidence-conflict");
   }
   const attended = "boundaryDisposition" in parsed.data ? parsed.data : null;
-  const execution = "entryMode" in parsed.data;
+  const entryMode = "entryMode" in parsed.data ? parsed.data.entryMode : null;
+  const integrating = entryMode === "integrating";
+  const execution = entryMode === "execution";
 
   if (attended?.boundaryDisposition === "not-delivery-candidate") {
     if (plan !== null || authoring.status === "match" || locus.status !== "absent") {
@@ -290,11 +328,13 @@ export async function inspectDeliveryEntry(
       };
     }
     if (authoring.status === "match") return refused("evidence-conflict");
-    if (execution) {
+    if (integrating || execution) {
       return {
         status: "not-applicable",
         nextAction: "continue-work-unit",
-        recommendedActionText: "Continue ordinary task execution; no canonical Delivery Plan exists.",
+        recommendedActionText: integrating
+          ? "Continue ordinary singleton integration; no canonical Delivery Plan exists."
+          : "Continue ordinary task execution; no canonical Delivery Plan exists.",
       };
     }
     return {
@@ -305,6 +345,9 @@ export async function inspectDeliveryEntry(
     };
   }
 
+  const recoverCanonicalPublication = authoring.status === "match"
+    && locus.status === "canonical"
+    && authoring.candidatePlanDigest === plan.planDigest;
   if (authoring.status === "match") {
     if (attended !== null
       && locus.status === "provisional"
@@ -317,16 +360,7 @@ export async function inspectDeliveryEntry(
         recommendedActionText: "Recover and finish canonical publication from the reviewed provisional plan.",
       };
     }
-    if (locus.status === "canonical" && authoring.candidatePlanDigest === plan.planDigest) {
-      return {
-        status: "canonicalize-provisional",
-        nextAction: "canonicalize-provisional",
-        authoringMapId: authoring.mapId,
-        laterEntryCostText: LATER_ENTRY_COST,
-        recommendedActionText: "Recover and finish canonical publication from the matching authoring receipt.",
-      };
-    }
-    return refused("evidence-conflict");
+    if (!recoverCanonicalPublication) return refused("evidence-conflict");
   }
   if (locus.status !== "canonical") {
     return locus.status === "canonical-unmatched"
@@ -335,7 +369,20 @@ export async function inspectDeliveryEntry(
   }
 
   const state = await dependencies.readState(plan.planId);
-  if (state.status === "refused") return stateRefused(state.reason);
+  if (state.status === "refused") return refused("evidence-unavailable");
+  if (state.value !== null
+    && (state.revision === null || validateDeliveryStateAgainstPlan(state.value, plan).status === "refused")) {
+    return refused("state-incoherent");
+  }
+  if (recoverCanonicalPublication) {
+    return {
+      status: "canonicalize-provisional",
+      nextAction: "canonicalize-provisional",
+      authoringMapId: authoring.mapId,
+      laterEntryCostText: LATER_ENTRY_COST,
+      recommendedActionText: "Recover and finish canonical publication from the matching authoring receipt.",
+    };
+  }
   if (state.value === null) {
     if (execution) {
       return {
@@ -353,9 +400,7 @@ export async function inspectDeliveryEntry(
       recommendedActionText: "Validate complete eligibility before the first materialization event.",
     };
   }
-  if (state.revision === null || validateDeliveryStateAgainstPlan(state.value, plan).status === "refused") {
-    return refused("state-incoherent");
-  }
+  if (state.revision === null) return refused("state-incoherent");
   if (state.value.pendingReviewFixVerification !== null) {
     const selectedDeliverableId = state.value.pendingReviewFixVerification.selectedDeliverableId;
     const memberDeliverableIds = state.value.pendingReviewFixVerification.memberDeliverableIds;
@@ -378,11 +423,62 @@ export async function inspectDeliveryEntry(
         + "acknowledge the exact review-fix continuation before resuming delivery.",
     };
   }
-  if (execution) {
+  if (state.value.activeOperation !== null) {
     return {
-      status: "not-applicable",
-      nextAction: "continue-work-unit",
-      recommendedActionText: "Continue ordinary task execution; no review-fix verification is pending.",
+      status: "resume-bound",
+      nextAction: "read-position-and-reconcile",
+      planId: plan.planId,
+      stateRevision: state.revision,
+      recommendedActionText: "Reconcile the active delivery operation before selecting another lifecycle route.",
+    };
+  }
+  if (integrating) {
+    let boundary: ReadIntegrationBoundary;
+    try {
+      boundary = await dependencies.readIntegrationBoundary();
+    } catch {
+      return refused("evidence-unavailable");
+    }
+    if (boundary.status === "refused") return refused("evidence-unavailable");
+    if (boundary.value?.locus === "publication-pending") {
+      return {
+        status: "continue-publication",
+        nextAction: "continue-publication",
+        planId: plan.planId,
+        stateRevision: state.revision,
+        publicationAction: boundary.value.nextAction,
+        recommendedActionText: boundary.value.nextAction.interactionText,
+      };
+    }
+  }
+  if (execution) {
+    const cursor = resolveTaskListCursor(taskList);
+    if (cursor.status === "malformed") return refused("task-cursor-unavailable");
+    if (cursor.status === "no-open-task") {
+      return {
+        status: "not-applicable",
+        nextAction: "continue-work-unit",
+        recommendedActionText: "Continue ordinary execution closeout; no open task requires correction routing.",
+      };
+    }
+    const owners = plan.members.filter((member) => member.taskIds.includes(cursor.cursor.section.id));
+    if (owners.length > 1) return refused("task-member-ambiguous");
+    const owner = owners[0];
+    if (owner === undefined) {
+      return {
+        status: "not-applicable",
+        nextAction: "continue-work-unit",
+        recommendedActionText: "Continue ordinary task execution; the open task is outside delivery-member coverage.",
+      };
+    }
+    return {
+      status: "correction-routing-required",
+      nextAction: "plan-review-fix",
+      planId: plan.planId,
+      stateRevision: state.revision,
+      selectedDeliverableId: owner.deliverableId,
+      entryMode: "execution",
+      recommendedActionText: "Plan the approved correction for the delivery member that owns the open task.",
     };
   }
   return {
