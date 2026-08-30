@@ -111,7 +111,7 @@ describe("resolveLoadSetManifest", () => {
       ...BASE_INPUT,
       sessionType: "execution",
       planningStage: null,
-      executionStage: "verification-closeout",
+      workUnitStage: "verification-closeout",
     });
 
     expect(manifest.entries).not.toContainEqual({
@@ -138,6 +138,46 @@ describe("resolveLoadSetManifest", () => {
       readMode: { kind: "partial-strategic" },
     });
     expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    );
+  });
+
+  it("resolves integration task work without loading the ordinary integration workflow", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "integration",
+      planningStage: null,
+      workUnitStage: "task-work",
+    });
+
+    expect(manifest.entries).toContainEqual({
+      path: ".arc/active/tasks-loadset-projection.md",
+      readMode: { kind: "partial-strategic" },
+    });
+    expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/system/workflows/arc/process-task-loop.md"),
+    );
+    expect(manifest.entries).not.toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    );
+  });
+
+  it("resolves integration verification without loading the ordinary integration workflow", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "integration",
+      planningStage: null,
+      workUnitStage: "verification-closeout",
+    });
+
+    expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"),
+    );
+    expect(manifest.entries).not.toContainEqual({
+      path: ".arc/active/tasks-loadset-projection.md",
+      readMode: { kind: "partial-strategic" },
+    });
+    expect(manifest.entries).not.toContainEqual(
       fullEntry(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
     );
   });

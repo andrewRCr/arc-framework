@@ -16,6 +16,7 @@ import {
 } from "../lib/locus/derived-reader.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { createUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { inspectRepositoryDeliveryEntry } from "../lib/delivery/repository-entry.js";
 
 export interface DerivedLocusStateProbeOptions {
   readonly cwd: string;
@@ -61,6 +62,21 @@ export async function runDerivedLocusStateProbe(
       pathExists: (path) => access(path).then(() => true, () => false),
       realpath,
       lstat,
+      projectDeliveryCorrection: async ({ cwd, workUnitId, taskListPath }) => {
+        const result = await inspectRepositoryDeliveryEntry({
+          cwd,
+          taskListPath,
+          request: { workUnitId: SlugSchema.parse(workUnitId), entryMode: "integrating" },
+          baseBranch: options.baseBranch,
+          exec: options.exec,
+        });
+        if (result.status === "review-fix-verification-required") {
+          return { status: "verification-required" };
+        }
+        return result.status === "refused"
+          ? { status: "refused", message: result.recommendedActionText }
+          : { status: "none" };
+      },
       projectCandidateTarget: ({ cwd, name, record }) => projectGitCandidateEffectiveTarget({
         cwd,
         name,
