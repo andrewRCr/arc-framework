@@ -113,6 +113,20 @@ describe("delivery entry handler", () => {
     expect(deps.setExitCode).not.toHaveBeenCalled();
   });
 
+  it("accepts the closed pre-publication entry arm without attended dispositions", async () => {
+    const deps = dependencies({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: "Continue singleton pre-publication.",
+    });
+    vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "prepublication" }));
+
+    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+
+    expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "prepublication" }, undefined);
+    expect(deps.setExitCode).not.toHaveBeenCalled();
+  });
+
   it("rejects mixed attended and integration-entry arms", async () => {
     const deps = dependencies({ status: "not-applicable" });
     vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({
