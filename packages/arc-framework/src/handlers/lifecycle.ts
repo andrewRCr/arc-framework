@@ -145,6 +145,7 @@ import {
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
+import { inspectRepositoryDeliveryReopen } from "../lib/delivery/repository-entry.js";
 import {
   resolveLastCompletedTask,
   resolveTaskListCursor,
@@ -2009,11 +2010,15 @@ async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | 
 
 /**
  * `arc reopen [slug]` — withdraw an `Integrating` WU back to `Active` for more work
- * (defaults to the current WU). Resolves the PR's merge fact via `gh` (never
- * fabricated), degrading to unknown when `gh` / the remote is unavailable — which
- * the `pr-unmerged` guard refuses rather than reopen on an unverifiable merge state;
- * a positively-merged PR is likewise refused — post-merge rework is a new
- * origin-linked WU. `--keep-pr` converts the PR to a draft instead of closing it.
+ * (defaults to the current WU). Exact delivery composition must permit ordinary
+ * withdrawal before the handler observes PR state or enters lifecycle execution.
+ * A coherently bound delivery and every unavailable or incoherent composition
+ * refuse there; singleton and coherent unbound delivery subjects retain the
+ * existing path. The PR merge fact then resolves through `gh` (never fabricated),
+ * degrading to unknown when `gh` / the remote is unavailable — which the
+ * `pr-unmerged` guard refuses rather than reopen on an unverifiable merge state.
+ * A positively-merged PR is likewise refused. `--keep-pr` converts the PR to a
+ * draft instead of closing it.
  */
 export async function handleReopen(
   slug: string | undefined,
@@ -2033,8 +2038,42 @@ export async function handleReopen(
   const target = await resolveVerbTargetOrReport("reopen", input.slug, base.cwd);
   if (target === null) return;
 
+  const { executor, settings } = await buildExecutor(base);
+  const metaPath = projectActiveMetaPath(target);
+  let taskListPath: string | null;
+  try {
+    const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
+    taskListPath = resolveTaskListPath(metaPath, meta.taskList);
+  } catch {
+    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+      + "the active metadata is unavailable.");
+    return;
+  }
+  if (taskListPath === null) {
+    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+      + "the canonical task-list binding is unavailable.");
+    return;
+  }
+  let delivery;
+  try {
+    delivery = await inspectRepositoryDeliveryReopen({
+      cwd: base.cwd,
+      taskListPath,
+      workUnitId: target,
+      baseBranch: settings["branch.base"],
+      exec: base.io.exec,
+    });
+  } catch {
+    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+      + "the plan, state, or transition evidence is unavailable.");
+    return;
+  }
+  if (delivery.status !== "reopen-permitted") {
+    refuse(delivery.recommendedActionText);
+    return;
+  }
+
   const prMerged = await resolvePrMerged(base, target);
-  const { executor } = await buildExecutor(base);
   const result = await runReopen(executor, {
     name: target,
     prMerged,
