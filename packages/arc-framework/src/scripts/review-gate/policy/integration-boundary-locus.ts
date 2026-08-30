@@ -2,7 +2,11 @@
 
 import { z } from "zod";
 
-import { canonicalDigest } from "../../../lib/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../../../lib/canonical/canonical-json.js";
+import {
+  DeliveryPublicReviewContinuationV1Schema,
+  type DeliveryPublicReviewContinuationV1,
+} from "../../../lib/delivery/public-review-continuation.js";
 import { DeliveryPlanIdSchema } from "../../../lib/delivery/schema.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
@@ -159,6 +163,7 @@ export const HostedReviewPendingBoundarySchema = z.strictObject({
   ]),
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema,
+  deliveryContinuation: DeliveryPublicReviewContinuationV1Schema.optional(),
 }).superRefine((boundary, context) => {
   const delivery = boundary.reservation.target.kind === "delivery";
   if (delivery !== (boundary.nextAction.kind === "continue-hosted-review")) {
@@ -166,6 +171,16 @@ export const HostedReviewPendingBoundarySchema = z.strictObject({
       code: "custom",
       path: ["nextAction", "kind"],
       message: "the hosted-review action must match the reservation target kind",
+    });
+  }
+  if (boundary.deliveryContinuation !== undefined
+    && (!delivery
+      || boundary.reservation.target.kind !== "delivery"
+      || boundary.deliveryContinuation.planId !== boundary.reservation.target.planId)) {
+    context.addIssue({
+      code: "custom",
+      path: ["deliveryContinuation"],
+      message: "the delivery continuation must match the carried delivery reservation",
     });
   }
 });
@@ -318,6 +333,64 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
     policy: null,
     reservation: value.reservation,
     terminus: value.terminus,
+  });
+}
+
+/**
+ * Rebind one carried public delivery reservation to a renewed Candidate continuation.
+ *
+ * @param input - Renewed Candidate identity, exact source boundary, and current delivery binding.
+ * @returns One hosted-review boundary carrying the unchanged public reservation.
+ */
+export function projectCorrectiveDeliveryReviewBoundary(input: {
+  readonly workUnit: string;
+  readonly candidateId: string;
+  readonly candidateSubjectDigest: string;
+  readonly supersedesCandidateId: string | null;
+  readonly sourceBoundary: IntegrationBoundaryLocus;
+  readonly deliveryContinuation: DeliveryPublicReviewContinuationV1;
+}): IntegrationBoundaryLocus {
+  const workUnit = SlugSchema.parse(input.workUnit);
+  const candidateId = CandidateIdSchema.parse(input.candidateId);
+  const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
+  const supersedesCandidateId = input.supersedesCandidateId === null
+    ? null
+    : CandidateIdSchema.parse(input.supersedesCandidateId);
+  const source = IntegrationBoundaryLocusSchema.parse(input.sourceBoundary);
+  const continuation = DeliveryPublicReviewContinuationV1Schema.parse(input.deliveryContinuation);
+  if (source.mode !== "integration-boundary"
+    || (source.locus !== "publication-pending" && source.locus !== "hosted-review-pending")
+    || source.workUnit !== workUnit
+    || source.candidateSubjectDigest === null
+    || (source.candidateId !== candidateId && source.candidateId !== supersedesCandidateId)
+    || source.reservation === null
+    || source.reservation.target.kind !== "delivery"
+    || source.reservation.target.workUnitId !== workUnit
+    || source.reservation.target.planId !== continuation.planId) {
+    throw new Error("Corrective Candidate renewal requires the exact carried public delivery reservation.");
+  }
+  if (source.candidateId === candidateId
+    && source.locus === "hosted-review-pending"
+    && source.deliveryContinuation !== undefined
+    && canonicalize(source.deliveryContinuation) !== canonicalize(continuation)) {
+    throw new Error("Corrective Candidate renewal cannot replace a stale public delivery continuation.");
+  }
+  return IntegrationBoundaryLocusSchema.parse({
+    schemaVersion: 1,
+    mode: "integration-boundary",
+    workUnit,
+    candidateId,
+    candidateSubjectDigest,
+    locus: "hosted-review-pending",
+    nextAction: {
+      kind: "continue-hosted-review",
+      command: "arc review status --target '{targetRef}' --json",
+      interactionText: "Resume the retained delivery-member review conjunction.",
+    },
+    policy: null,
+    reservation: source.reservation,
+    terminus: source.terminus,
+    deliveryContinuation: continuation,
   });
 }
 

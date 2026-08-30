@@ -145,7 +145,10 @@ import {
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
-import { inspectRepositoryDeliveryReopen } from "../lib/delivery/repository-entry.js";
+import {
+  inspectRepositoryDeliveryCandidateRenewal,
+  inspectRepositoryDeliveryReopen,
+} from "../lib/delivery/repository-entry.js";
 import {
   resolveLastCompletedTask,
   resolveTaskListCursor,
@@ -157,6 +160,7 @@ import {
 import {
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
+  projectCorrectiveDeliveryReviewBoundary,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
@@ -190,6 +194,8 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 // ---------------------------------------------------------------------------
 // Shared dispatch shape — target resolution + candidate surfacing
 // ---------------------------------------------------------------------------
+
+class DeliveryCandidateRenewalRefusal extends Error {}
 
 /** The production filesystem seam for the lifecycle-index scan (mirrors `start`). */
 const lifecycleFs: LifecycleIndexFs = {
@@ -2689,6 +2695,36 @@ export async function handleAttest(
     lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
   }
   const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+  let deliveryRenewal: Awaited<ReturnType<typeof inspectRepositoryDeliveryCandidateRenewal>> = {
+    status: "not-applicable",
+  };
+  if (meta.state === "Integrating") {
+    try {
+      deliveryRenewal = await inspectRepositoryDeliveryCandidateRenewal({
+        cwd: base.cwd,
+        taskListPath: validateManagedPath(taskListPath),
+        workUnitId: input.name,
+        baseBranch: settings["branch.base"],
+        exec: base.io.exec,
+        sourceBoundary: boundarySnapshot.boundary,
+      });
+    } catch {
+      deliveryRenewal = { status: "refused", reason: "evidence-unavailable" };
+    }
+    if (deliveryRenewal.status === "refused") {
+      refuseWithRemedy(
+        `\`arc attest\` cannot establish exact public delivery Candidate renewal evidence for \`${input.name}\` `
+          + `(${deliveryRenewal.reason}).`,
+        spineRemedy(
+          "Corrective attestation must preserve the exact public Candidate, plan, state, member, and review binding.",
+          "Restore the exact public delivery continuation before attesting",
+          input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+        ),
+        input.json === true,
+      );
+      return;
+    }
+  }
 
   const unstaged = await collectUnstagedReviewablePaths({
     cwd: base.cwd,
@@ -2709,85 +2745,138 @@ export async function handleAttest(
     return;
   }
 
-  const result = await runAttest({
-    actor: base.identity,
-    now: () => new Date().toISOString(),
-    verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
-    readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
-    currentTarget: (slug) => collectGitCandidateTarget({
-      cwd: base.cwd,
-      name: slug,
-      baseBranch: settings["branch.base"],
-      exec: base.io.exec,
-    }),
-    effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
-      cwd: base.cwd,
-      name: slug,
-      baseBranch: settings["branch.base"],
-      record,
-      exec: base.io.exec,
-      rawExec: createRawGitExec(base.cwd),
-    }),
-    publish: async (publication) => {
-      const recordPath = await writeCandidateRecord(
-        base.cwd,
-        publication.name,
-        publication.record,
-        publication.expectedRecordVersion,
-      );
-      const priorMeta = parseMetaRecord(metaContent);
-      const existingBoundary = boundarySnapshot.boundary;
-      const boundaryMatches = existingBoundary !== null
-        && existingBoundary.candidateId === publication.candidateId
-        && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
-      const convergenceResume = existingBoundary !== null
-        && boundaryMatches
-        && existingBoundary.locus === "candidate-convergence-verification-pending"
-        ? projectCandidateReviewResumeBoundary({
-            workUnit: publication.name,
-            candidateId: publication.candidateId,
-            candidateSubjectDigest: publication.candidateSubjectDigest,
-            reservation: existingBoundary.reservation,
-            terminus: existingBoundary.terminus,
-          })
-        : null;
-      const locus = convergenceResume
-        ?? (publication.repairCurrent && boundaryMatches
-          ? existingBoundary
-          : projectCandidateReviewBoundary({
-            workUnit: publication.name,
-            candidateId: publication.candidateId,
-            candidateSubjectDigest: publication.candidateSubjectDigest,
-          }));
-      const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
-      const orientation: Record<string, string> = {};
-      if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
-        orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
-      }
-      if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
-        orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
-      }
-      if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
-        orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
-      }
-      if (priorMeta.nextTask !== null) {
-        orientation["Next Task"] = "[none]";
-      }
-      metaContent = Object.keys(orientation).length === 0
-        ? withCandidate
-        : setMetaBulletFields(withCandidate, orientation);
-      const workflowDiagnostics = checkCurrentWorkflowConsistency(parseMetaRecord(metaContent));
-      if (workflowDiagnostics.length > 0) throw new Error(workflowDiagnostics[0]);
-      await base.io.writeFile(absoluteMetaPath, metaContent);
-      const boundaryPath = await writeSubmissionBoundary(
-        base.cwd,
-        locus,
-        boundarySnapshot.version,
-      );
-      await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
-      return { recordPath, metaPath, locus };
-    },
-  }, { name: input.name, lifecycle: meta.state, newRoot: input.newRoot === true });
+  let result: Awaited<ReturnType<typeof runAttest>>;
+  try {
+    result = await runAttest({
+      actor: base.identity,
+      now: () => new Date().toISOString(),
+      verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
+      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
+      currentTarget: (slug) => collectGitCandidateTarget({
+        cwd: base.cwd,
+        name: slug,
+        baseBranch: settings["branch.base"],
+        exec: base.io.exec,
+      }),
+      effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
+        cwd: base.cwd,
+        name: slug,
+        baseBranch: settings["branch.base"],
+        record,
+        exec: base.io.exec,
+        rawExec: createRawGitExec(base.cwd),
+      }),
+      publish: async (publication) => {
+        let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryReviewBoundary> | null = null;
+        if (deliveryRenewal.status === "ready") {
+          const fresh = await inspectRepositoryDeliveryCandidateRenewal({
+            cwd: base.cwd,
+            taskListPath: validateManagedPath(taskListPath),
+            workUnitId: input.name,
+            baseBranch: settings["branch.base"],
+            exec: base.io.exec,
+            sourceBoundary: boundarySnapshot.boundary,
+          });
+          if (fresh.status !== "ready") {
+            throw new DeliveryCandidateRenewalRefusal(
+              fresh.status === "refused" ? fresh.reason : "delivery evidence disappeared",
+            );
+          }
+          if (boundarySnapshot.boundary === null) {
+            throw new DeliveryCandidateRenewalRefusal("public delivery boundary disappeared");
+          }
+          try {
+            deliveryLocus = projectCorrectiveDeliveryReviewBoundary({
+              workUnit: publication.name,
+              candidateId: publication.candidateId,
+              candidateSubjectDigest: publication.candidateSubjectDigest,
+              supersedesCandidateId: publication.record.attestation.supersedes ?? null,
+              sourceBoundary: boundarySnapshot.boundary,
+              deliveryContinuation: fresh.deliveryContinuation,
+            });
+          } catch (error) {
+            throw new DeliveryCandidateRenewalRefusal(
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+        }
+        const recordPath = await writeCandidateRecord(
+          base.cwd,
+          publication.name,
+          publication.record,
+          publication.expectedRecordVersion,
+        );
+        const priorMeta = parseMetaRecord(metaContent);
+        const existingBoundary = boundarySnapshot.boundary;
+        const boundaryMatches = existingBoundary !== null
+          && existingBoundary.candidateId === publication.candidateId
+          && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
+        const convergenceResume = existingBoundary !== null
+          && boundaryMatches
+          && existingBoundary.locus === "candidate-convergence-verification-pending"
+          ? projectCandidateReviewResumeBoundary({
+              workUnit: publication.name,
+              candidateId: publication.candidateId,
+              candidateSubjectDigest: publication.candidateSubjectDigest,
+              reservation: existingBoundary.reservation,
+              terminus: existingBoundary.terminus,
+            })
+          : null;
+        const locus = deliveryLocus ?? convergenceResume
+          ?? (publication.repairCurrent && boundaryMatches
+            ? existingBoundary
+            : projectCandidateReviewBoundary({
+                workUnit: publication.name,
+                candidateId: publication.candidateId,
+                candidateSubjectDigest: publication.candidateSubjectDigest,
+              }));
+        const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
+        const orientation: Record<string, string> = {};
+        if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
+          orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
+        }
+        if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
+          orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
+        }
+        if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
+          orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
+        }
+        if (priorMeta.nextTask !== null) {
+          orientation["Next Task"] = "[none]";
+        }
+        metaContent = Object.keys(orientation).length === 0
+          ? withCandidate
+          : setMetaBulletFields(withCandidate, orientation);
+        const workflowDiagnostics = checkCurrentWorkflowConsistency(parseMetaRecord(metaContent));
+        if (workflowDiagnostics.length > 0) throw new Error(workflowDiagnostics[0]);
+        const boundaryPath = await writeSubmissionBoundary(
+          base.cwd,
+          locus,
+          boundarySnapshot.version,
+        );
+        await base.io.writeFile(absoluteMetaPath, metaContent);
+        await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
+        return { recordPath, metaPath, locus };
+      },
+    }, {
+      name: input.name,
+      lifecycle: meta.state,
+      newRoot: input.newRoot === true,
+    });
+  } catch (error) {
+    if (!(error instanceof DeliveryCandidateRenewalRefusal)) throw error;
+    refuseWithRemedy(
+      `\`arc attest\` refused stale or mismatched public delivery Candidate renewal for \`${input.name}\`: `
+        + error.message,
+      spineRemedy(
+        "Corrective attestation writes only one exact version-bound public member-review continuation.",
+        "Restore the exact public Candidate, plan, state, member, and review evidence, then re-attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
 
   if (result.status === "unchanged") {
     const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name);
