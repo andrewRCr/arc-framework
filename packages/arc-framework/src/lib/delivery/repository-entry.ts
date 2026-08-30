@@ -11,8 +11,11 @@ import { RepositoryDeliveryAuthoringStore } from "./authoring-store.js";
 import { resolveExistingDeliveryAuthoringMap } from "./authoring-resolution.js";
 import {
   inspectDeliveryEntry,
+  inspectDeliveryReopen,
+  type DeliveryEntryInspectionDependencies,
   type DeliveryEntryInspectionRequest,
   type DeliveryEntryInspectionResult,
+  type DeliveryReopenInspectionResult,
 } from "./entry-inspection.js";
 import {
   RepositoryDeliveryPlanStore,
@@ -24,16 +27,19 @@ import {
   resolveExistingDeliveryPlan,
 } from "./plan-resolution.js";
 
-/** Inspect one exact work unit through repository-backed read-only delivery stores. */
-export async function inspectRepositoryDeliveryEntry(input: {
+interface RepositoryDeliveryInspectionInput {
   readonly cwd: string;
   /** Validated repository-relative task-list path. */
   readonly taskListPath: string;
-  readonly request: DeliveryEntryInspectionRequest;
+  readonly workUnitId: string;
   readonly baseBranch: string;
   readonly exec: GitExec;
-}): Promise<DeliveryEntryInspectionResult> {
-  const workUnitId = input.request.workUnitId;
+}
+
+function createRepositoryDeliveryInspectionDependencies(
+  input: RepositoryDeliveryInspectionInput,
+): DeliveryEntryInspectionDependencies {
+  const workUnitId = input.workUnitId;
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -44,7 +50,7 @@ export async function inspectRepositoryDeliveryEntry(input: {
     ? { status: "unestablished" as const }
     : { status: "established" as const, ref: `refs/heads/${base}` };
 
-  return inspectDeliveryEntry(input.request, {
+  return {
     readTaskList: () => readFile(join(input.cwd, input.taskListPath), "utf8"),
     resolvePlan: async () => {
       const result = await resolveExistingDeliveryPlan({
@@ -83,5 +89,29 @@ export async function inspectRepositoryDeliveryEntry(input: {
       status: "ok",
       value: await readSubmissionBoundary(input.cwd, workUnitId),
     }),
-  });
+  };
+}
+
+/** Inspect one exact work unit through repository-backed read-only delivery stores. */
+export async function inspectRepositoryDeliveryEntry(input: {
+  readonly cwd: string;
+  /** Validated repository-relative task-list path. */
+  readonly taskListPath: string;
+  readonly request: DeliveryEntryInspectionRequest;
+  readonly baseBranch: string;
+  readonly exec: GitExec;
+}): Promise<DeliveryEntryInspectionResult> {
+  return inspectDeliveryEntry(input.request, createRepositoryDeliveryInspectionDependencies({
+    ...input,
+    workUnitId: input.request.workUnitId,
+  }));
+}
+
+/** Classify ordinary reopen from exact repository-backed delivery composition. */
+export async function inspectRepositoryDeliveryReopen(input: RepositoryDeliveryInspectionInput)
+  : Promise<DeliveryReopenInspectionResult> {
+  return inspectDeliveryReopen(
+    input.workUnitId,
+    createRepositoryDeliveryInspectionDependencies(input),
+  );
 }

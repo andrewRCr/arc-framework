@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   inspectDeliveryEntry,
   inspectDeliveryPlanLocus,
+  inspectDeliveryReopen,
 } from "../../../src/lib/delivery/entry-inspection.js";
 import {
   DELIVERY_PLAN_START_SENTINEL,
@@ -172,6 +173,51 @@ describe("delivery entry inspection", () => {
       entryMode: "integrating",
     }, dependencies({ taskList, resolvedPlan: plan, state: deliveryStateFixture(plan) })))
       .resolves.toMatchObject({ status: "resume-bound", stateRevision: 3 });
+  });
+
+  it("classifies reopen from exact absent, unbound, bound, and refused composition", async () => {
+    await expect(inspectDeliveryReopen(plan.workUnitId, dependencies())).resolves.toMatchObject({
+      status: "reopen-permitted",
+      composition: "absent",
+      nextAction: "continue-reopen",
+    });
+
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    await expect(inspectDeliveryReopen(plan.workUnitId, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      authoring: "match",
+      authoringPlanDigest: plan.planDigest,
+    }))).resolves.toMatchObject({
+      status: "reopen-permitted",
+      composition: "unbound",
+      planId: plan.planId,
+      nextAction: "continue-reopen",
+    });
+
+    await expect(inspectDeliveryReopen(plan.workUnitId, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      state: deliveryStateFixture(plan),
+      stateRevision: 7,
+    }))).resolves.toMatchObject({
+      status: "reopen-bound",
+      planId: plan.planId,
+      stateRevision: 7,
+      nextAction: "stop",
+      recommendedActionText: expect.stringContaining("member requests"),
+    });
+
+    const incoherent = deliveryStateFixture(plan);
+    incoherent.boundPlan.planDigest = `sha256:${"0".repeat(64)}`;
+    await expect(inspectDeliveryReopen(plan.workUnitId, dependencies({
+      taskList,
+      resolvedPlan: plan,
+      state: incoherent,
+    }))).resolves.toMatchObject({ status: "refused", reason: "state-incoherent" });
+    await expect(inspectDeliveryReopen(plan.workUnitId, dependencies({
+      resolvedPlan: "indeterminate",
+    }))).resolves.toMatchObject({ status: "refused", reason: "evidence-unavailable" });
   });
 
   it("selects private candidate preparation only when pre-publication has a canonical plan", async () => {
