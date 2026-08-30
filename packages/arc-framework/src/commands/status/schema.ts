@@ -883,33 +883,46 @@ function phaseAcceptsBoundary(
   boundary: z.infer<typeof IntegrationBoundaryLocusSchema> | null,
   completedRecovery = false,
 ): boolean {
+  const candidateLoci = [
+    "candidate-review-pending",
+    "candidate-fix-pending",
+    "candidate-convergence-verification-pending",
+    "candidate-publish-ready",
+  ];
   if (sessionType === "prepublication") {
-    return boundary !== null && [
-      "candidate-review-pending",
-      "candidate-fix-pending",
-      "candidate-convergence-verification-pending",
-      "candidate-publish-ready",
-    ].includes(boundary.locus);
+    return boundary !== null && candidateLoci.includes(boundary.locus);
   }
   if (sessionType === "integration") {
     return completedRecovery
       ? boundary === null
-      : boundary !== null && ["publication-pending", "hosted-review-pending"].includes(boundary.locus);
+      : boundary !== null && [
+        ...candidateLoci,
+        "publication-pending",
+        "hosted-review-pending",
+      ].includes(boundary.locus);
   }
   return boundary === null;
 }
 
-function workflowForSessionType(
+function sessionTypeAcceptsWorkflow(
   sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
   taskCursor: z.infer<typeof TaskListCursorFileResultSchema> | null,
-): string | null {
-  if (sessionType === "planning") return "planning";
+  workflow: string | null,
+  completedRecovery = false,
+): boolean {
+  if (sessionType === "planning") return workflow === "planning";
   if (sessionType === "execution") {
-    return taskCursor?.status === "no-open-task" ? "verify-work-unit" : "process-task-loop";
+    return workflow === (taskCursor?.status === "no-open-task"
+      ? "verify-work-unit"
+      : "process-task-loop");
   }
-  if (sessionType === "prepublication") return "prepare-work-unit";
-  if (sessionType === "integration") return "integrate-work-unit";
-  return null;
+  if (sessionType === "prepublication") return workflow === "prepare-work-unit";
+  if (sessionType === "integration") {
+    if (completedRecovery) return workflow === "integrate-work-unit";
+    if (taskCursor?.status === "found") return workflow === "process-task-loop";
+    return workflow === "integrate-work-unit" || workflow === "verify-work-unit";
+  }
+  return workflow === null;
 }
 
 const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
@@ -939,9 +952,11 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
       });
     }
     const projectedTaskCursor = value.taskCursor?.ok === true ? value.taskCursor.value : null;
-    if (activeSession.currentWorkflow !== workflowForSessionType(
+    if (!sessionTypeAcceptsWorkflow(
       activeSession.sessionType,
       projectedTaskCursor,
+      activeSession.currentWorkflow,
+      completedIntegrationRecovery,
     )) {
       context.addIssue({
         code: "custom",
@@ -964,9 +979,11 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
         message: "must match the resolved session phase",
       });
     }
-    if (derivedContext.workflow !== workflowForSessionType(
+    if (!sessionTypeAcceptsWorkflow(
       derivedContext.sessionType,
       derivedContext.taskCursor,
+      derivedContext.workflow,
+      completedIntegrationRecovery,
     )) {
       context.addIssue({
         code: "custom",

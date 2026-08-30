@@ -27,8 +27,8 @@ export type LoadSetSessionType = "planning" | "execution" | "prepublication" | "
 /** Planning-stage workflow basename resolved from `Current Workflow`. */
 export type LoadSetPlanningStage = "draft-design" | "create-spec" | "generate-tasks";
 
-/** Deterministic execution substage derived from the canonical task-list cursor. */
-export type LoadSetExecutionStage = "task-work" | "verification-closeout";
+/** Deterministic work substage derived from canonical lifecycle facts. */
+export type LoadSetWorkUnitStage = "task-work" | "verification-closeout";
 
 /** Already-resolved pointers needed to project the session load set. */
 export interface LoadSetProjectionInput {
@@ -47,8 +47,8 @@ export interface LoadSetProjectionInput {
   sessionType: LoadSetSessionType | null;
   /** Planning lifecycle stage; used only when `sessionType === "planning"`. */
   planningStage: LoadSetPlanningStage | null;
-  /** Execution substage; defaults to task work for compatibility with non-execution projections. */
-  executionStage?: LoadSetExecutionStage | null;
+  /** Derived task or verification substage inside execution or integration. */
+  workUnitStage?: LoadSetWorkUnitStage | null;
   /** Active task-list path relative to the repo root, or `null` when none applies. */
   taskListPath: string | null;
   /**
@@ -103,6 +103,7 @@ const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
 export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetManifest {
   const entries: LoadSetEntry[] = ARC_CONTEXT_ENTRIES.map(cloneEntry);
   const workflowRoot = resolveArcPath({ kind: "procedure-root", family: "workflows" });
+  const workUnitStage = input.workUnitStage ?? null;
 
   if (input.metaPath !== null) {
     entries.push(full(input.metaPath));
@@ -128,10 +129,10 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
     entries.push(full(`${workflowRoot}/arc/${input.planningStage}.md`));
   }
 
-  if (input.sessionType === "execution") {
-    if (input.executionStage === "verification-closeout") {
+  if (input.sessionType === "execution" || input.sessionType === "integration") {
+    if (workUnitStage === "verification-closeout") {
       entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/verify-work-unit.md`));
-    } else {
+    } else if (workUnitStage === "task-work" || input.sessionType === "execution") {
       if (input.taskListPath !== null) {
         entries.push(partialStrategic(input.taskListPath));
       }
@@ -143,7 +144,7 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
     entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/prepare-work-unit.md`));
   }
 
-  if (input.sessionType === "integration") {
+  if (input.sessionType === "integration" && workUnitStage === null) {
     entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/integrate-work-unit.md`));
   }
 

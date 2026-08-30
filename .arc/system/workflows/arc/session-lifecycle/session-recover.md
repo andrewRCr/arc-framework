@@ -60,6 +60,11 @@ If `verdict.status === "ready"`, continue to Step 3 without prompting. `ready` a
 trustworthy — no blocking drift between the seed and fresh state — not that context is restored. It is a property
 of the manifest, never a clearance to resume project work: recovery is incomplete until Step 3's reads land.
 
+An `integration-correction-progression` entry in `verdict.explainedDrift` means the audit has already proved the
+closed forward transition and coupled its fresh load set and task cursor. Consume those fresh projections exactly
+as reported; do not reconstruct task-list conservation, Candidate state, delivery reservation, or lifecycle order
+in workflow prose. An `integration-correction-unresolved` reason remains a stop.
+
 Require `verdict.locusHint.match === true`. The audit has already compared the seed's checkout path and optional
 marker-parent path against the fresh entering row and recovery frame. Any mismatch is a stop, never an invitation
 to fall back to branch or harness-summary inference. An unavailable marker parent is not a mismatch: recovery keeps
