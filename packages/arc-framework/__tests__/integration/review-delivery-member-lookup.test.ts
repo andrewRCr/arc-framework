@@ -197,6 +197,7 @@ describe("repository delivery member lookup", () => {
       status: "resolved",
       plan,
       state: current,
+      stateRevision: 1,
     });
   });
 
