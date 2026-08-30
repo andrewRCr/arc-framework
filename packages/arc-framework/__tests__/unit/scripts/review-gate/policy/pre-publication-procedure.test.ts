@@ -13,6 +13,7 @@ import {
   IntegrationBoundaryLocusSchema,
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
+  projectCorrectiveDeliveryReviewBoundary,
   projectPublicationBoundary,
   recoverIntegratingBoundary,
   recoverPublicationBoundary,
@@ -116,6 +117,54 @@ describe("integration boundary locus", () => {
         kind: "continue-hosted-review",
         command: "arc review status --target '{targetRef}' --json",
       },
+    });
+  });
+
+  it("rebinds the carried public delivery reservation to one exact renewed-Candidate continuation", () => {
+    const sourceCandidateId = `sha256:${"c".repeat(64)}`;
+    const currentCandidateId = `sha256:${"d".repeat(64)}`;
+    const source = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: sourceCandidateId,
+      candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: null,
+    });
+    const deliveryContinuation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId: "11111111-1111-4111-8111-111111111111",
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision: 7,
+      stateDigest: `sha256:${"2".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+    };
+
+    expect(projectCorrectiveDeliveryReviewBoundary({
+      workUnit: "example",
+      candidateId: currentCandidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      supersedesCandidateId: sourceCandidateId,
+      sourceBoundary: source,
+      deliveryContinuation,
+    })).toEqual({
+      schemaVersion: 1,
+      mode: "integration-boundary",
+      workUnit: "example",
+      candidateId: currentCandidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      locus: "hosted-review-pending",
+      nextAction: {
+        kind: "continue-hosted-review",
+        command: "arc review status --target '{targetRef}' --json",
+        interactionText: "Resume the retained delivery-member review conjunction.",
+      },
+      policy: null,
+      reservation: source.reservation,
+      terminus: source.terminus,
+      deliveryContinuation,
     });
   });
 

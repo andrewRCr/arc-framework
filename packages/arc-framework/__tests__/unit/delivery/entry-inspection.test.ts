@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  inspectDeliveryCandidateRenewal,
   inspectDeliveryEntry,
   inspectDeliveryPlanLocus,
   inspectDeliveryReopen,
@@ -10,7 +11,12 @@ import {
   renderDeliveryPlanSection,
 } from "../../../src/lib/delivery/task-list-render.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
-import { projectPublicationBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectDeliveryPublicReviewContinuation } from
+  "../../../src/lib/delivery/public-review-continuation.js";
+import {
+  projectCorrectiveDeliveryReviewBoundary,
+  projectPublicationBoundary,
+} from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import {
   deliveryFourMemberStackPlanFixture,
@@ -30,6 +36,7 @@ function dependencies(input: {
   state?: ReturnType<typeof deliveryStateFixture> | null | "refused";
   stateRevision?: number;
   integrationBoundary?: ReturnType<typeof projectPublicationBoundary> | "refused";
+  candidate?: { candidateId: string; subjectDigest: string } | null | "non-current" | "refused";
 } = {}) {
   return {
     readTaskList: vi.fn().mockResolvedValue(input.taskList ?? `${prefix}${suffix}`),
@@ -57,7 +64,72 @@ function dependencies(input: {
     readIntegrationBoundary: vi.fn().mockResolvedValue(input.integrationBoundary === "refused"
       ? { status: "refused" }
       : { status: "ok", value: input.integrationBoundary ?? null }),
+    readCandidate: vi.fn().mockResolvedValue(input.candidate === "refused"
+      ? { status: "refused" }
+      : input.candidate === "non-current"
+        ? { status: "non-current" }
+        : { status: "ok", value: input.candidate ?? null }),
   };
+}
+
+function publicState() {
+  const state = deliveryStateFixture(plan);
+  return {
+    ...state,
+    members: state.members.map((member, index) => ({
+      ...member,
+      changeRequest: { providerId: "github", changeRequestId: String(index + 101) },
+    })),
+  };
+}
+
+function publicContinuationFixture() {
+  const state = publicState();
+  const stateRevision = 7;
+  const continuation = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision });
+  if (continuation.status !== "projected") throw new Error("fixture continuation must project");
+  const sourceCandidateId = `sha256:${"a".repeat(64)}`;
+  const candidateId = `sha256:${"b".repeat(64)}`;
+  const candidateSubjectDigest = `sha256:${"c".repeat(64)}`;
+  const source = projectPublicationBoundary({
+    workUnit: plan.workUnitId,
+    branch: "feat/delivery-plan-record",
+    candidateId: sourceCandidateId,
+    candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+    reservation: {
+      schemaVersion: 1,
+      semanticsVersion: "standard-review-reservation/v1",
+      reservationId: `sha256:${"e".repeat(64)}`,
+      sources: ["codex-pr"],
+      target: {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: plan.workUnitId,
+        planId: plan.planId,
+      },
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"f".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    },
+    changeRequest: null,
+  });
+  const boundary = projectCorrectiveDeliveryReviewBoundary({
+    workUnit: plan.workUnitId,
+    candidateId,
+    candidateSubjectDigest,
+    supersedesCandidateId: sourceCandidateId,
+    sourceBoundary: source,
+    deliveryContinuation: continuation.continuation,
+  });
+  if (boundary.locus !== "hosted-review-pending") {
+    throw new Error("fixture boundary must resume hosted review");
+  }
+  return { state, stateRevision, candidateId, candidateSubjectDigest, boundary };
 }
 
 function stateWithActiveCorrection() {
@@ -266,6 +338,167 @@ describe("delivery entry inspection", () => {
       planId: plan.planId,
       stateRevision: 3,
       publicationAction: boundary.nextAction,
+    });
+  });
+
+  it("consumes an exact corrective hosted-member continuation before publication or position routing", async () => {
+    const state = publicState();
+    const stateRevision = 7;
+    const continuation = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision });
+    if (continuation.status !== "projected") throw new Error("fixture continuation must project");
+    const sourceCandidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"b".repeat(64)}`;
+    const candidateSubjectDigest = `sha256:${"c".repeat(64)}`;
+    const source = projectPublicationBoundary({
+      workUnit: plan.workUnitId,
+      branch: "feat/delivery-plan-record",
+      candidateId: sourceCandidateId,
+      candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+      reservation: {
+        schemaVersion: 1,
+        semanticsVersion: "standard-review-reservation/v1",
+        reservationId: `sha256:${"e".repeat(64)}`,
+        sources: ["codex-pr"],
+        target: {
+          kind: "delivery",
+          repository: "arc-framework/example",
+          workUnitId: plan.workUnitId,
+          planId: plan.planId,
+        },
+        obligation: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"f".repeat(64)}`,
+          retrigger: "full-final",
+          count: 1,
+        },
+      },
+      changeRequest: null,
+    });
+    const boundary = projectCorrectiveDeliveryReviewBoundary({
+      workUnit: plan.workUnitId,
+      candidateId,
+      candidateSubjectDigest,
+      supersedesCandidateId: sourceCandidateId,
+      sourceBoundary: source,
+      deliveryContinuation: continuation.continuation,
+    });
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state,
+      stateRevision,
+      integrationBoundary: boundary,
+      candidate: { candidateId, subjectDigest: candidateSubjectDigest },
+    }))).resolves.toMatchObject({
+      status: "continue-hosted-review",
+      nextAction: "continue-hosted-review",
+      planId: plan.planId,
+      stateRevision,
+      hostedReviewAction: boundary.nextAction,
+    });
+  });
+
+  it("keeps an ordinary hosted delivery without a corrective binding on its established route", async () => {
+    const fixture = publicContinuationFixture();
+    const { deliveryContinuation: omitted, ...ordinaryBoundary } = fixture.boundary;
+    expect(omitted).toBeDefined();
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision,
+      integrationBoundary: ordinaryBoundary,
+    }))).resolves.toMatchObject({
+      status: "resume-bound",
+      nextAction: "read-position-and-reconcile",
+    });
+  });
+
+  it.each([
+    ["different current Candidate", { candidateId: `sha256:${"0".repeat(64)}`, stateRevision: 7 }],
+    ["stale state revision", { candidateId: `sha256:${"b".repeat(64)}`, stateRevision: 8 }],
+  ])("refuses a corrective hosted continuation with %s", async (_name, stale) => {
+    const fixture = publicContinuationFixture();
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: stale.stateRevision,
+      integrationBoundary: fixture.boundary,
+      candidate: {
+        candidateId: stale.candidateId,
+        subjectDigest: fixture.candidateSubjectDigest,
+      },
+    }))).resolves.toMatchObject({
+      status: "refused",
+      reason: "public-continuation-mismatch",
+    });
+  });
+
+  it("prepares corrective attestation only from a canonical public delivery and complete bound state", async () => {
+    const state = publicState();
+    const stateRevision = 7;
+    const sourceCandidateId = `sha256:${"a".repeat(64)}`;
+    const source = projectPublicationBoundary({
+      workUnit: plan.workUnitId,
+      branch: "feat/delivery-plan-record",
+      candidateId: sourceCandidateId,
+      candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+      reservation: {
+        schemaVersion: 1,
+        semanticsVersion: "standard-review-reservation/v1",
+        reservationId: `sha256:${"e".repeat(64)}`,
+        sources: ["codex-pr"],
+        target: {
+          kind: "delivery",
+          repository: "arc-framework/example",
+          workUnitId: plan.workUnitId,
+          planId: plan.planId,
+        },
+        obligation: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"f".repeat(64)}`,
+          retrigger: "full-final",
+          count: 1,
+        },
+      },
+      changeRequest: null,
+    });
+
+    await expect(inspectDeliveryCandidateRenewal(
+      plan.workUnitId,
+      source,
+      dependencies({
+        taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+        resolvedPlan: plan,
+        state,
+        stateRevision,
+      }),
+    )).resolves.toEqual({
+      status: "ready",
+      planId: plan.planId,
+      stateRevision,
+      deliveryContinuation: expect.objectContaining({
+        planId: plan.planId,
+        stateRevision,
+        memberEvidenceDigest: canonicalDigest(state.members),
+      }),
     });
   });
 

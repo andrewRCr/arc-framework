@@ -582,20 +582,6 @@ This is an **individually re-runnable** step, not just the tail of a synchronous
 the owning caller of `arc user close` — a merge that landed while no session attended it has no other closer.
 `arc user close` no-ops when the subdir is already retired, so a re-run is safe.
 
-Invoke delivery closeout with the exact current change-request repository bound as `repositoryRef` in Step 1:
-
-```json
-{"workUnitId":"{name}","repository":"{repositoryRef}","remote":"origin"}
-```
-
-```bash
-arc delivery closeout - --json
-```
-
-`closed-out` renders `recommendedActionText` and continues. `blocked` renders `recommendedActionText` and stops;
-every other typed result stops. The call is idempotent and returns `closed-out` with no plan IDs for an ordinary
-non-delivery work unit.
-
 ### 11) Post-merge worktree cleanup
 
 After `arc user close`, run `arc teardown <wu-name>` under the pre-merge `integration-interlock` approval — no

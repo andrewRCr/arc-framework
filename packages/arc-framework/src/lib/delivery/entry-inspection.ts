@@ -7,9 +7,15 @@ import { resolveTaskListCursor } from "../task-list/cursor.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { canonicalDigest } from "../kernel/index.js";
 import {
+  ContinueHostedReviewActionSchema,
   ContinuePublicationActionSchema,
   type IntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  projectDeliveryPublicReviewContinuation,
+  validateDeliveryPublicReviewContinuation,
+  type DeliveryPublicReviewContinuationV1,
+} from "./public-review-continuation.js";
 import { DeliveryCanonicalDigestSchema, DeliveryPlanIdSchema } from "./schema.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 import {
@@ -125,6 +131,14 @@ export type DeliveryEntryInspectionResult =
       readonly recommendedActionText: string;
     }
   | {
+      readonly status: "continue-hosted-review";
+      readonly nextAction: "continue-hosted-review";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly hostedReviewAction: z.infer<typeof ContinueHostedReviewActionSchema>;
+      readonly recommendedActionText: string;
+    }
+  | {
       readonly status: "reopen-permitted";
       readonly composition: "absent";
       readonly nextAction: "continue-reopen";
@@ -155,7 +169,8 @@ export type DeliveryEntryInspectionResult =
         | "canonical-projection-mismatch"
         | "task-cursor-unavailable"
         | "task-member-ambiguous"
-        | "state-incoherent";
+        | "state-incoherent"
+        | "public-continuation-mismatch";
       readonly recommendedActionText: string;
     };
 
@@ -213,6 +228,11 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     publicationAction: ContinuePublicationActionSchema, recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
+    status: z.literal("continue-hosted-review"), nextAction: z.literal("continue-hosted-review"),
+    planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
+    hostedReviewAction: ContinueHostedReviewActionSchema, recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
     status: z.literal("reopen-permitted"), composition: z.enum(["absent", "unbound"]),
     planId: DeliveryPlanIdSchema.optional(), nextAction: z.literal("continue-reopen"),
     recommendedActionText: z.string().min(1),
@@ -227,7 +247,7 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     reason: z.enum([
       "evidence-unavailable", "evidence-conflict", "provisional-unconfirmed",
       "canonical-plan-missing", "canonical-projection-mismatch", "task-cursor-unavailable",
-      "task-member-ambiguous", "state-incoherent",
+      "task-member-ambiguous", "state-incoherent", "public-continuation-mismatch",
     ]),
     recommendedActionText: z.string().min(1),
   }),
@@ -260,6 +280,13 @@ type ReadState =
 type ReadIntegrationBoundary =
   | { readonly status: "ok"; readonly value: IntegrationBoundaryLocus | null }
   | { readonly status: "refused" };
+type ReadCandidate =
+  | {
+      readonly status: "ok";
+      readonly value: { readonly candidateId: string; readonly subjectDigest: string } | null;
+    }
+  | { readonly status: "non-current" }
+  | { readonly status: "refused" };
 
 /** Read-only dependencies; the port intentionally exposes no publish or mutation methods. */
 export interface DeliveryEntryInspectionDependencies {
@@ -268,6 +295,100 @@ export interface DeliveryEntryInspectionDependencies {
   readonly resolveAuthoring: () => Promise<ResolvedAuthoring>;
   readonly readState: (planId: string) => Promise<ReadState>;
   readonly readIntegrationBoundary: () => Promise<ReadIntegrationBoundary>;
+  readonly readCandidate: () => Promise<ReadCandidate>;
+}
+
+/** Closed attestation preflight for a possible public delivery Candidate renewal. */
+export type DeliveryCandidateRenewalInspectionResult =
+  | { readonly status: "not-applicable" }
+  | {
+      readonly status: "ready";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly deliveryContinuation: DeliveryPublicReviewContinuationV1;
+    }
+  | {
+      readonly status: "refused";
+      readonly reason:
+        | "evidence-unavailable"
+        | "evidence-conflict"
+        | "state-incoherent"
+        | "state-not-idle"
+        | "member-evidence-incomplete"
+        | "public-boundary-mismatch";
+    };
+
+/**
+ * Inspect exact public delivery evidence before Candidate attestation writes.
+ *
+ * @param workUnitId - Current work-unit identity.
+ * @param sourceBoundary - Versioned public boundary the renewed Candidate must carry forward.
+ * @param dependencies - Read-only delivery and repository evidence ports.
+ * @returns Exact renewal evidence, a not-applicable singleton result, or a closed refusal.
+ */
+export async function inspectDeliveryCandidateRenewal(
+  workUnitId: string,
+  sourceBoundary: IntegrationBoundaryLocus | null,
+  dependencies: DeliveryEntryInspectionDependencies,
+): Promise<DeliveryCandidateRenewalInspectionResult> {
+  const workUnit = SlugSchema.parse(workUnitId);
+  let taskList: string;
+  try {
+    taskList = await dependencies.readTaskList();
+  } catch {
+    return { status: "refused", reason: "evidence-unavailable" };
+  }
+  const planResolution = await dependencies.resolvePlan();
+  if (planResolution.status === "indeterminate") {
+    return { status: "refused", reason: "evidence-unavailable" };
+  }
+  if (planResolution.status === "no-match") {
+    const locus = inspectDeliveryPlanLocus(taskList, null);
+    const carriedDelivery = sourceBoundary !== null
+      && sourceBoundary.reservation?.target.kind === "delivery";
+    return locus.status === "absent" && !carriedDelivery
+      ? { status: "not-applicable" }
+      : { status: "refused", reason: "evidence-conflict" };
+  }
+  const plan = planResolution.plan;
+  if (plan.workUnitId !== workUnit || inspectDeliveryPlanLocus(taskList, plan).status !== "canonical") {
+    return { status: "refused", reason: "evidence-conflict" };
+  }
+  if (sourceBoundary === null
+    || sourceBoundary.mode !== "integration-boundary"
+    || (sourceBoundary.locus !== "publication-pending" && sourceBoundary.locus !== "hosted-review-pending")
+    || sourceBoundary.workUnit !== workUnit
+    || sourceBoundary.candidateSubjectDigest === null
+    || sourceBoundary.reservation === null
+    || sourceBoundary.reservation.target.kind !== "delivery"
+    || sourceBoundary.reservation.target.workUnitId !== workUnit
+    || sourceBoundary.reservation.target.planId !== plan.planId) {
+    return { status: "refused", reason: "public-boundary-mismatch" };
+  }
+  const state = await dependencies.readState(plan.planId);
+  if (state.status === "refused") return { status: "refused", reason: "evidence-unavailable" };
+  if (state.value === null || state.revision === null) {
+    return { status: "refused", reason: "state-incoherent" };
+  }
+  const projected = projectDeliveryPublicReviewContinuation({
+    plan,
+    state: state.value,
+    stateRevision: state.revision,
+  });
+  if (projected.status === "refused") {
+    return {
+      status: "refused",
+      reason: projected.reason === "state-revision-invalid"
+        ? "state-incoherent"
+        : projected.reason,
+    };
+  }
+  return {
+    status: "ready",
+    planId: plan.planId,
+    stateRevision: state.revision,
+    deliveryContinuation: projected.continuation,
+  };
 }
 
 /** Closed delivery-composition result consumed before ordinary reopen mutation. */
@@ -299,7 +420,9 @@ const LATER_ENTRY_COST = "Delivery later entry requires attended inventory and m
 
 function refused(reason: Extract<DeliveryEntryInspectionResult, { status: "refused" }>["reason"])
   : Extract<DeliveryEntryInspectionResult, { status: "refused" }> {
-  const remedy = reason === "provisional-unconfirmed"
+  const remedy = reason === "public-continuation-mismatch"
+    ? "Restore the exact Candidate, plan, state, member, and public continuation binding before resuming review."
+    : reason === "provisional-unconfirmed"
     ? "Confirm the prior attended delivery disposition before canonicalizing provisional intent."
     : reason === "task-cursor-unavailable"
       ? "Restore one structurally valid open task before resuming bound delivery execution."
@@ -548,6 +671,39 @@ export async function inspectDeliveryEntry(
       return refused("evidence-unavailable");
     }
     if (boundary.status === "refused") return refused("evidence-unavailable");
+    if (boundary.value?.locus === "hosted-review-pending"
+      && boundary.value.deliveryContinuation !== undefined) {
+      let candidate: ReadCandidate;
+      try {
+        candidate = await dependencies.readCandidate();
+      } catch {
+        return refused("evidence-unavailable");
+      }
+      if (candidate.status === "refused") return refused("evidence-unavailable");
+      if (candidate.status === "non-current" || candidate.value === null
+        || candidate.value.candidateId !== boundary.value.candidateId
+        || candidate.value.subjectDigest !== boundary.value.candidateSubjectDigest
+        || boundary.value.nextAction.kind !== "continue-hosted-review"
+        || boundary.value.reservation.target.kind !== "delivery"
+        || boundary.value.reservation.target.planId !== plan.planId
+        || boundary.value.reservation.target.workUnitId !== plan.workUnitId
+        || validateDeliveryPublicReviewContinuation({
+          continuation: boundary.value.deliveryContinuation,
+          plan,
+          state: state.value,
+          stateRevision: state.revision,
+        }).status !== "current") {
+        return refused("public-continuation-mismatch");
+      }
+      return {
+        status: "continue-hosted-review",
+        nextAction: "continue-hosted-review",
+        planId: plan.planId,
+        stateRevision: state.revision,
+        hostedReviewAction: boundary.value.nextAction,
+        recommendedActionText: boundary.value.nextAction.interactionText,
+      };
+    }
     if (boundary.value?.locus === "publication-pending") {
       return {
         status: "continue-publication",
