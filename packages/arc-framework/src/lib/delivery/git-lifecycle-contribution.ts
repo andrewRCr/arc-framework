@@ -1,7 +1,11 @@
 /** Git-backed revalidation of exact lifecycle-contribution entry identity. */
 
+import { posix } from "node:path";
+
 import type { GitExec } from "../git/exec.js";
+import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
 import { readTreeEntry } from "../work-unit/git-decomposition-object-readers.js";
+import { artifactMatcher } from "../work-unit/mutators/relocate-artifacts.js";
 import {
   compareDeliveryLifecycleContribution,
   type DeliveryLifecycleTreeState,
@@ -15,6 +19,30 @@ export type DeliveryLifecycleContributionRevalidation =
       readonly reason: "entry-unavailable" | "contribution-mismatch";
       readonly paths: readonly string[];
     };
+
+/**
+ * Read every lifecycle artifact for one work unit from an exact Git revision.
+ *
+ * @param exec - Git boundary for the repository that owns the delivery.
+ * @param ref - Exact revision whose lifecycle paths are inspected.
+ * @param workUnitId - Work unit whose movable artifacts are selected.
+ * @returns Validated repository-relative lifecycle artifact paths.
+ */
+export async function readGitDeliveryLifecycleArtifactsAtRef(
+  exec: GitExec,
+  ref: string,
+  workUnitId: string,
+): Promise<readonly ManagedPath[]> {
+  const { stdout } = await exec("git", [
+    "ls-tree", "--full-tree", "-r", "-z", "--name-only", ref, "--",
+    ".arc/active", ".arc/backlog/planned", ".arc/backlog/provisional", ".arc/completed",
+  ]);
+  const matcher = artifactMatcher(workUnitId);
+  return stdout.split("\0")
+    .filter((path) => path !== "" && posix.basename(path) !== `cohort-${workUnitId}.md`
+      && matcher.test(posix.basename(path)))
+    .map(validateManagedPath);
+}
 
 /** Freshly compare protected-base and candidate tree entries at every supplied path. */
 export async function revalidateDeliveryLifecycleContribution(input: {
