@@ -894,6 +894,7 @@ describe("delivery suffix reconciliation", () => {
       }) },
     });
     expect(absorbTop).toHaveBeenCalledWith(expect.objectContaining({
+      previousHighestMember: { head: "0".repeat(40) },
       highestMember: { head: highest.coordinates!.head, tree: highest.coordinates!.tree },
     }));
     expect(result).toMatchObject({

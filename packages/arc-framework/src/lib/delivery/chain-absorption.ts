@@ -44,6 +44,15 @@ async function coordinateMatches(
   }
 }
 
+async function logicalBaseMatches(
+  exec: RawGitExec,
+  coordinate: { readonly head: string; readonly tree?: string },
+): Promise<boolean> {
+  return coordinate.tree === undefined
+    ? await observeCommit(exec, coordinate.head) === coordinate.head
+    : coordinateMatches(exec, { head: coordinate.head, tree: coordinate.tree });
+}
+
 async function mergeInProgress(exec: RawGitExec): Promise<boolean> {
   return await observeCommit(exec, "MERGE_HEAD") !== null;
 }
@@ -194,7 +203,7 @@ export interface DeliveryChainAbsorptionInput {
   readonly exec: RawGitExec;
   readonly topRef: string;
   readonly top: DeliveryContributionCoordinate;
-  readonly previousHighestMember: DeliveryContributionCoordinate;
+  readonly previousHighestMember: { readonly head: string; readonly tree?: string };
   readonly highestMember: DeliveryContributionCoordinate;
 }
 
@@ -227,7 +236,7 @@ export async function absorbGitDeliveryChain(
     return { status: "refused", reason: "top-ref-invalid" };
   }
   if (!await coordinateMatches(input.exec, input.top)
-    || !await coordinateMatches(input.exec, input.previousHighestMember)
+    || !await logicalBaseMatches(input.exec, input.previousHighestMember)
     || !await coordinateMatches(input.exec, input.highestMember)) {
     return { status: "refused", reason: "coordinate-invalid" };
   }
