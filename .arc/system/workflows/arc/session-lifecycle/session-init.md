@@ -459,9 +459,11 @@ WU `loadSet` or select a workflow from branch shape, `sessionType`, or `process-
 **Resolve session type** — use `derivedLocusState.value.active.context.sessionType` and `.workflow`. These are reader
 projections over the exact role subject; do not infer either from branch patterns. A selected WU row without the
 expected derived context is a probe mismatch and stops. With no selected entry row, there is no session type.
-Within `sessionType: execution`, a found canonical cursor projects `process-task-loop`; exact `no-open-task` before
-Candidate attestation projects `verify-work-unit`. Consume the projected workflow and load set directly — do not
-reconstruct this execution substage from narrative meta fields.
+Within `sessionType: execution | integration`, the selected context may project a derived work substage without
+changing the public lifecycle phase. A found canonical cursor projects `process-task-loop`. Exact `no-open-task`
+projects `verify-work-unit` for execution closeout and, during integration, only when Candidate renewal or an exact
+delivery correction continuation requires verification; otherwise integration projects `integrate-work-unit`.
+Consume the projected workflow and load set directly — do not reconstruct this substage from narrative meta fields.
 
 SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution` (case-insensitive), may
 supersede those discretionary envelope values for this session. `prepublication` and `integration` are
@@ -485,7 +487,8 @@ commands below), not from SESSION-NOTES prose.
       triple-anchor when it carries usable task id, title, and line hint. If it is absent or incomplete,
       require `taskCursor.value.status === "found"`; use its `cursor.section` as the lookup anchor for the
       section read, and keep `cursor.leaf` only as the in-section current executable. If the cursor reports
-      `no-open-task`, skip the partial read; the selected context projects `verify-work-unit` for execution closeout.
+      `no-open-task`, skip the partial read; the selected context projects `verify-work-unit` for execution closeout
+      or an exact integration verification continuation, and otherwise retains `integrate-work-unit`.
       If the cursor is malformed or the `taskCursor` probe failed, skip the partial read and surface the
       diagnostic — the task list is reference material read on demand during work, so a lost anchor costs a
       read rather than the session. Do not enter the graduated lookup without a chosen anchor. This is a
