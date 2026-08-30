@@ -82,7 +82,12 @@ export interface DeliveryReservationRecordLookup {
 
 /** Closed read of the exact plan and active state needed by terminal integration. */
 export type DeliveryTerminalRecordLookupResult =
-  | { readonly status: "resolved"; readonly plan: DeliveryPlanV1; readonly state: DeliveryStateV1 }
+  | {
+      readonly status: "resolved";
+      readonly plan: DeliveryPlanV1;
+      readonly state: DeliveryStateV1;
+      readonly stateRevision: number;
+    }
   | { readonly status: "unbound" }
   | { readonly status: "unavailable" };
 

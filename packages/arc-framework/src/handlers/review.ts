@@ -149,6 +149,7 @@ import {
   type HostedReviewAdapter,
   type HostedErrandProgressBinding,
   type HostedRequestVehicle,
+  type HostedReviewCoverage,
   type HostedProviderId,
   type HostedTarget,
 } from "../scripts/review-gate/hosted/request.js";
@@ -351,6 +352,7 @@ const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
 export const ReviewStatusCliInputSchema = z.strictObject({
   target: z.string().trim().min(1),
   ceilingOverride: z.string().trim().min(1).optional(),
+  coverage: z.enum(["complete", "incremental"]).optional(),
 });
 
 /** Syntax-owned input for the pre-publication review procedure. */
@@ -392,6 +394,7 @@ const reviewStatusInputRegistration: CommandInputRegistration = {
   schemaFields: {
     "option.target": "target",
     "option.ceiling-override": "ceilingOverride",
+    "option.coverage": "coverage",
   },
 };
 
@@ -626,6 +629,7 @@ export interface ReviewChecksAwaitOptions {
 export interface ReviewStatusOptions {
   target: string;
   ceilingOverride?: string;
+  coverage?: HostedReviewCoverage;
   json?: boolean;
 }
 
@@ -667,6 +671,7 @@ export async function handleReviewStatus(
   const parsed = ReviewStatusTargetInputSchema.safeParse({
     target: decoded,
     ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+    ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
   });
   if (!parsed.success) {
     const detail = parsed.error.issues.map(({ message }) => message).join("; ");
@@ -2112,9 +2117,12 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
                   request.target.pullRequest,
                   deliveryMemberLookup,
                   undefined,
-                  request.ceilingOverride === undefined
-                    ? undefined
-                    : { ceilingOverride: request.ceilingOverride },
+                  {
+                    ...(request.ceilingOverride === undefined
+                      ? {}
+                      : { ceilingOverride: request.ceilingOverride }),
+                    coverage: request.coverage,
+                  },
                 );
                 if (currentObligation.state !== "review-required"
                   || !("action" in currentObligation)
