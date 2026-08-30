@@ -9,7 +9,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import {
+  createStandardReviewReservation,
   projectCandidateReviewBoundary,
+  projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const mockLogError = vi.fn();
@@ -98,15 +100,30 @@ vi.mock("../../../src/lib/git/write-context.js", () => ({
   }),
 }));
 
-const mockParseMetaRecord = vi.fn(() => ({ branch: "feat/foo", state: "Active", taskList: "tasks-foo.md" }));
+const mockParseMetaRecord = vi.fn((): {
+  branch: string;
+  state: string;
+  taskList: string;
+  currentWorkflow?: string | null;
+  nextAction?: string | null;
+  lastCompleted?: string | null;
+  nextTask?: string | null;
+} => ({ branch: "feat/foo", state: "Active", taskList: "tasks-foo.md" }));
 const mockReadActiveMetaCandidates = vi.fn<(cwd: string) => Promise<{ candidates: { filename: string }[] }>>(
   async () => ({
     candidates: [{ filename: "meta-foo.md" }],
   }),
 );
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
+  formatValue: (value: string) => value,
   parseMetaRecord: () => mockParseMetaRecord(),
   readActiveMetaCandidates: (cwd: string) => mockReadActiveMetaCandidates(cwd),
+  setMetaBulletFields: (content: string) => content,
+  setMetaCandidate: (content: string) => content,
+}));
+vi.mock("../../../src/lib/active/current-workflow-consistency.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/active/current-workflow-consistency.js")>(),
+  checkCurrentWorkflowConsistency: () => [],
 }));
 
 const mockBuildLifecycleIndex = vi.fn();
@@ -249,9 +266,10 @@ vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
 }));
 
 const mockReadCandidateRecord = vi.fn();
+const mockWriteCandidateRecord = vi.fn();
 vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
-  writeCandidateRecord: vi.fn(),
+  writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
 }));
 const mockCollectGitCandidateTarget = vi.fn();
 const mockCollectUnstagedReviewablePaths = vi.fn();
@@ -280,8 +298,11 @@ vi.mock("../../../src/lib/work-unit/verbs/reopen.js", () => ({
   runReopen: (...a: unknown[]) => mockRunReopen(...a),
 }));
 const mockInspectRepositoryDeliveryReopen = vi.fn();
+const mockInspectRepositoryDeliveryCandidateRenewal = vi.fn();
 vi.mock("../../../src/lib/delivery/repository-entry.js", () => ({
   inspectRepositoryDeliveryReopen: (...args: unknown[]) => mockInspectRepositoryDeliveryReopen(...args),
+  inspectRepositoryDeliveryCandidateRenewal: (...args: unknown[]) =>
+    mockInspectRepositoryDeliveryCandidateRenewal(...args),
 }));
 
 // The slug→state resolver feeds the handler's impact-plan composition; keep the
@@ -369,7 +390,9 @@ beforeEach(() => {
     nextAction: "continue-reopen",
     recommendedActionText: "Continue ordinary singleton withdrawal.",
   });
+  mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValue({ status: "not-applicable" });
   mockCollectUnstagedReviewablePaths.mockResolvedValue([]);
+  mockWriteCandidateRecord.mockResolvedValue(".arc/system/.internal/candidates/foo.json");
   mockRunAttest.mockResolvedValue({
     status: "unchanged",
     locus: projectCandidateReviewBoundary({ workUnit: "foo", candidateId: `sha256:${"c".repeat(64)}` }),
@@ -1450,6 +1473,256 @@ describe("handleAttest", () => {
       name: "foo",
       lifecycle: "Active",
       newRoot: false,
+    });
+  });
+
+  it("refuses Integrating attestation before Candidate mutation when public delivery evidence is not exact", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: "Integrating",
+      taskList: "tasks-foo.md",
+    });
+    mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValueOnce({
+      status: "refused",
+      reason: "public-boundary-mismatch",
+    });
+
+    await handleAttest("foo", { json: true });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining("public delivery Candidate renewal"),
+    });
+    expect(mockRunAttest).not.toHaveBeenCalled();
+  });
+
+  it("version-writes one renewed public hosted-member boundary while preserving Integrating", async () => {
+    const sourceCandidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"b".repeat(64)}`;
+    const subjectDigest = `sha256:${"c".repeat(64)}`;
+    const planId = "11111111-1111-4111-8111-111111111111";
+    const reservation = createStandardReviewReservation({
+      candidateId: sourceCandidateId,
+      sourceId: "codex-pr",
+      target: {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "foo",
+        planId,
+      },
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"d".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const source = projectPublicationBoundary({
+      workUnit: "foo",
+      branch: "feat/foo",
+      candidateId: sourceCandidateId,
+      candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+      reservation,
+      changeRequest: null,
+    });
+    const deliveryContinuation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId,
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision: 7,
+      stateDigest: `sha256:${"2".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+    };
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: "Integrating",
+      taskList: "tasks-foo.md",
+      currentWorkflow: "integrate-work-unit",
+      nextAction: "resume integration review",
+      lastCompleted: null,
+      nextTask: null,
+    });
+    mockReadSubmissionBoundaryVersioned.mockResolvedValue({
+      boundary: source,
+      version: "source-boundary-version",
+    });
+    mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValue({
+      status: "ready",
+      planId,
+      stateRevision: 7,
+      deliveryContinuation,
+    });
+    let persistedBoundary: unknown = null;
+    mockWriteSubmissionBoundary.mockImplementation(async (
+      _cwd: unknown,
+      boundary: unknown,
+      expectedVersion: unknown,
+    ) => {
+      if (expectedVersion !== "source-boundary-version") {
+        throw new Error("renewed boundary did not use the source boundary version");
+      }
+      persistedBoundary = boundary;
+      return ".arc/system/.internal/candidates/foo.boundary.json";
+    });
+    mockRunAttest.mockImplementationOnce(async (context) => {
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId, supersedes: sourceCandidateId } },
+        candidateId,
+        candidateSubjectDigest: subjectDigest,
+        currentWorkflow: "integrate-work-unit",
+        nextAction: "Candidate review pending — resume integration review",
+        expectedRecordVersion: "candidate-version",
+        repairCurrent: false,
+      });
+      return { status: "attested", operation: "re-root", ...published };
+    });
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleAttest("foo", { json: true, newRoot: true });
+
+    expect(persistedBoundary).toMatchObject({
+      mode: "integration-boundary",
+      locus: "hosted-review-pending",
+      workUnit: "foo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      reservation,
+      deliveryContinuation,
+      nextAction: expect.objectContaining({ kind: "continue-hosted-review" }),
+    });
+    expect(mockParseMetaRecord.mock.results.at(-1)?.value).toMatchObject({ state: "Integrating" });
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "attested",
+      locus: { locus: "hosted-review-pending", candidateId },
+    });
+  });
+
+  it("repairs forward when Candidate persistence succeeds before the boundary version write", async () => {
+    const sourceCandidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"b".repeat(64)}`;
+    const subjectDigest = `sha256:${"c".repeat(64)}`;
+    const planId = "11111111-1111-4111-8111-111111111111";
+    const reservation = createStandardReviewReservation({
+      candidateId: sourceCandidateId,
+      sourceId: "codex-pr",
+      target: {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "foo",
+        planId,
+      },
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"d".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const source = projectPublicationBoundary({
+      workUnit: "foo",
+      branch: "feat/foo",
+      candidateId: sourceCandidateId,
+      candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+      reservation,
+      changeRequest: null,
+    });
+    const deliveryContinuation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId,
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision: 7,
+      stateDigest: `sha256:${"2".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+    };
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: "Integrating",
+      taskList: "tasks-foo.md",
+      currentWorkflow: "integrate-work-unit",
+      nextAction: "resume integration review",
+      lastCompleted: null,
+      nextTask: null,
+    });
+    mockReadSubmissionBoundaryVersioned.mockResolvedValue({
+      boundary: source,
+      version: "source-boundary-version",
+    });
+    mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValue({
+      status: "ready",
+      planId,
+      stateRevision: 7,
+      deliveryContinuation,
+    });
+    let persistedCandidate: unknown = null;
+    mockWriteCandidateRecord.mockImplementation(async (
+      _cwd: unknown,
+      _name: unknown,
+      record: unknown,
+    ) => {
+      persistedCandidate = record;
+      return ".arc/system/.internal/candidates/foo.json";
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId, supersedes: sourceCandidateId } },
+        candidateId,
+        candidateSubjectDigest: subjectDigest,
+        currentWorkflow: "integrate-work-unit",
+        nextAction: "Candidate review pending — resume integration review",
+        expectedRecordVersion: attempt === 1 ? "source-candidate-version" : "renewed-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return { status: "attested", operation: "re-root", ...published };
+    });
+    let persistedBoundary: unknown = null;
+    mockWriteSubmissionBoundary
+      .mockRejectedValueOnce(new Error("stale boundary version"))
+      .mockImplementationOnce(async (
+        _cwd: unknown,
+        boundary: unknown,
+        expectedVersion: unknown,
+      ) => {
+        if (expectedVersion !== "source-boundary-version") {
+          throw new Error("forward repair did not retain the source boundary version");
+        }
+        persistedBoundary = boundary;
+        return ".arc/system/.internal/candidates/foo.boundary.json";
+      });
+
+    await expect(handleAttest("foo", { json: true, newRoot: true }))
+      .rejects.toThrow("stale boundary version");
+    expect(persistedCandidate).toMatchObject({
+      attestation: { candidateId, supersedes: sourceCandidateId },
+    });
+    expect(persistedBoundary).toBeNull();
+
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true, newRoot: true });
+
+    expect(persistedBoundary).toMatchObject({
+      locus: "hosted-review-pending",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      reservation,
+      deliveryContinuation,
+    });
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "attested",
+      operation: "re-root",
+      locus: { locus: "hosted-review-pending", candidateId },
     });
   });
 

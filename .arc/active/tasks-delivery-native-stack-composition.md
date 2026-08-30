@@ -2310,11 +2310,16 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           state evidence before host observation or lifecycle execution. Determinate absence and coherent unbound plans
           retain withdrawal; bound, unavailable, and incoherent composition refuses without GitHub or lifecycle mutation.
 
-    - `[ ]` **7.7.R.k Persist and recover public Candidate renewal**
+    - `[x]` **7.7.R.k Persist and recover public Candidate renewal**
 
         - _Goal:_ Corrective attestation preserves `Integrating` and version-writes one exact public member-review
           continuation bound to current Candidate, plan, state, and member evidence; integration consumes it before
           generic publication/position routing, and every stale or mismatched binding stops.
+
+        - _Outcome:_ Corrective attestation now carries the public delivery reservation onto an exact
+          Candidate/plan/state/member continuation, with forward retry when Candidate persistence precedes the boundary
+          version write. Integration revalidates the live binding before hosted resumption, while recovery refuses a
+          corrective verification return without it and ordinary first-publication routing remains unchanged.
 
     - `[ ]` **7.7.R.l Revalidate the corrected member and restore this WU's public locus** — validate criteria at
       member scope

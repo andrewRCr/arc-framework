@@ -17,6 +17,7 @@ import {
 import type { RecoveryLocusFrame } from "../../../src/lib/recover/locus-context.js";
 import {
   createStandardReviewReservation,
+  projectCorrectiveDeliveryReviewBoundary,
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -439,13 +440,17 @@ function integrationTaskProgressionOptions(input: {
   };
 }
 
-function verificationToPublicOptions(): Partial<AuditRecoveryStateOptions> {
+function verificationToPublicOptions(input: {
+  readonly includeContinuation?: boolean;
+} = {}): Partial<AuditRecoveryStateOptions> {
   const candidateId = `sha256:${"c".repeat(64)}`;
-  const integrationBoundary = projectPublicationBoundary({
+  const candidateSubjectDigest = `sha256:${"d".repeat(64)}`;
+  const planId = "471a3ea0-5232-4073-b9ef-e9c78917af55";
+  const publicationBoundary = projectPublicationBoundary({
     workUnit: "demo",
     branch: "fix/demo",
     candidateId,
-    candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+    candidateSubjectDigest,
     reservation: createStandardReviewReservation({
       candidateId,
       sourceId: "codex-pr",
@@ -453,7 +458,7 @@ function verificationToPublicOptions(): Partial<AuditRecoveryStateOptions> {
         kind: "delivery",
         repository: "owner/repo",
         workUnitId: "demo",
-        planId: "471a3ea0-5232-4073-b9ef-e9c78917af55",
+        planId,
       },
       obligation: {
         obligation: "required",
@@ -467,6 +472,25 @@ function verificationToPublicOptions(): Partial<AuditRecoveryStateOptions> {
     changeRequest: { repository: "owner/repo", pullRequest: 42 },
     terminus: null,
   });
+  const integrationBoundary = input.includeContinuation === false
+    ? publicationBoundary
+    : projectCorrectiveDeliveryReviewBoundary({
+        workUnit: "demo",
+        candidateId,
+        candidateSubjectDigest,
+        supersedesCandidateId: null,
+        sourceBoundary: publicationBoundary,
+        deliveryContinuation: {
+          schemaVersion: 1,
+          semanticsVersion: "delivery-public-review-continuation/v1",
+          planId,
+          planRevision: 1,
+          planDigest: `sha256:${"1".repeat(64)}`,
+          stateRevision: 2,
+          stateDigest: `sha256:${"2".repeat(64)}`,
+          memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+        },
+      });
   const row = workUnitRow({
     checkout: { path: "/repo", head: "b".repeat(40), branch: "fix/demo", detached: false, primary: true },
     context: {
@@ -673,6 +697,16 @@ describe("auditRecoveryState", () => {
     expect(result.explainedDrift).toContainEqual(expect.objectContaining({
       kind: "integration-correction-progression",
       detail: expect.objectContaining({ transition: "verification-to-public" }),
+    }));
+  });
+
+  it("refuses corrective verification return without a Candidate-bound delivery continuation", async () => {
+    const result = await run(verificationToPublicOptions({ includeContinuation: false }));
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({
+      kind: "integration-correction-unresolved",
+      message: expect.stringContaining("Candidate-bound delivery continuation"),
     }));
   });
 
