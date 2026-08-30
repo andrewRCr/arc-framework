@@ -352,7 +352,7 @@ describe("reserveDeliveryOperation", () => {
     )).toEqual({ status: "refused", reason: "operation-active" });
   });
 
-  it("refuses every new operation while selected-member verification is pending", () => {
+  it("refuses an unrelated operation while selected-member verification is pending", () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);
     const pending = {
@@ -368,6 +368,37 @@ describe("reserveDeliveryOperation", () => {
       plan,
       operationRequest(pending),
     )).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+  });
+
+  it("atomically supersedes exact pending verification with another selected-member correction", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const selectedDeliverableId = state.members[0]!.deliverableId;
+    const pending = {
+      ...state,
+      pendingReviewFixVerification: {
+        selectedDeliverableId,
+        memberDeliverableIds: [selectedDeliverableId],
+      },
+    };
+
+    const result = reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: pending },
+      plan,
+      operationRequest(pending, { mode: "selected-change" }),
+    );
+
+    expect(result).toMatchObject({
+      status: "reserved",
+      state: {
+        pendingReviewFixVerification: null,
+        activeOperation: {
+          kind: "rewrite",
+          mode: "selected-change",
+          affectedDeliverableIds: [selectedDeliverableId],
+        },
+      },
+    });
   });
 
   it("reserves only a paired plan-ordered review-fix verification set inside the affected suffix", () => {

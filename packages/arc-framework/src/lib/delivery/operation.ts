@@ -360,7 +360,15 @@ export function reserveDeliveryOperation(
   if (parsedState.data.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
   }
-  if (parsedState.data.pendingReviewFixVerification !== null) {
+  const pendingVerification = parsedState.data.pendingReviewFixVerification;
+  const supersedesPendingVerification = pendingVerification !== null
+    && parsedRequest.data.kind === "rewrite"
+    && parsedRequest.data.mode === "selected-change"
+    && canonicalize(parsedRequest.data.affectedDeliverableIds)
+      === canonicalize(pendingVerification.memberDeliverableIds)
+    && parsedRequest.data.affectedDeliverableIds.length === 1
+    && parsedRequest.data.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
+  if (pendingVerification !== null && !supersedesPendingVerification) {
     return { status: "refused", reason: "pending-review-fix-verification" };
   }
 
@@ -413,6 +421,9 @@ export function reserveDeliveryOperation(
 
   const reserved = DeliveryStateV1Schema.safeParse({
     ...parsedState.data,
+    pendingReviewFixVerification: supersedesPendingVerification
+      ? null
+      : parsedState.data.pendingReviewFixVerification,
     activeOperation: {
       operationId: parsedRequest.data.operationId,
       kind: parsedRequest.data.kind,
