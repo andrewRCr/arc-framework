@@ -1,6 +1,6 @@
 /** Executable hosted-review progression across delivery-member targets. */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -806,7 +806,147 @@ async function selectReviewRequiredUntilRouted(
   throw new Error("review applicability selections did not reach a routed status");
 }
 
+async function installHostedRequestTestHost(harness: FanOutHarness) {
+  const fakeBin = join(harness.root, "fake-bin");
+  const fakeGh = join(fakeBin, "gh");
+  const providerCalled = join(harness.root, "provider-called");
+  const firstRequest = JSON.stringify([{
+    number: 41,
+    url: "https://example.test/pull/41",
+    state: "OPEN",
+    baseRefName: "main",
+    headRefName: "delivery/delivery-plan-record/first",
+    headRefOid: harness.oldFirst,
+  }]);
+  const laterRequest = JSON.stringify([{
+    number: 42,
+    url: "https://example.test/pull/42",
+    state: "OPEN",
+    baseRefName: "delivery/delivery-plan-record/first",
+    headRefName: "prior-top",
+    headRefOid: harness.priorSecond,
+  }]);
+  const comment = (pullRequest: number) => JSON.stringify({
+    node_id: `IC_${String(pullRequest)}`,
+    html_url: `https://example.test/comment/${String(pullRequest)}`,
+    user: { id: 1 },
+    performed_via_github_app: null,
+    body: "@coderabbitai full review",
+    created_at: "2026-08-30T12:00:00.000Z",
+    updated_at: "2026-08-30T12:00:00.000Z",
+  });
+
+  await mkdir(fakeBin, { recursive: true });
+  await writeFile(fakeGh, [
+    "#!/bin/sh",
+    "case \"$1:$2\" in",
+    "  pr:list)",
+    "    case \"$*\" in",
+    `      *"--head delivery/delivery-plan-record/first"*) printf '%s\\n' '${firstRequest}' ;;`,
+    `      *"--head prior-top"*) printf '%s\\n' '${laterRequest}' ;;`,
+    "      *) printf '%s\\n' '[]' ;;",
+    "    esac",
+    "    ;;",
+    "  api:repos/owner/repository/pulls/41)",
+    `    : > '${providerCalled}'`,
+    `    printf '%s\\n' '${JSON.stringify({ head: { sha: harness.oldFirst } })}'`,
+    "    ;;",
+    "  api:repos/owner/repository/pulls/42)",
+    `    : > '${providerCalled}'`,
+    `    printf '%s\\n' '${JSON.stringify({ head: { sha: harness.priorSecond } })}'`,
+    "    ;;",
+    "  api:user)",
+    `    : > '${providerCalled}'`,
+    "    printf '%s\\n' '{\"id\":1}'",
+    "    ;;",
+    "  api:repos/owner/repository/issues/41/comments)",
+    `    : > '${providerCalled}'`,
+    `    printf '%s\\n' '${comment(41)}'`,
+    "    ;;",
+    "  api:repos/owner/repository/issues/42/comments)",
+    `    : > '${providerCalled}'`,
+    `    printf '%s\\n' '${comment(42)}'`,
+    "    ;;",
+    "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
+    "esac",
+    "",
+  ].join("\n"), "utf8");
+  await chmod(fakeGh, 0o755);
+  await git(harness.root, ["config", "remote.origin.url", "https://github.com/owner/repository.git"]);
+  await git(harness.root, [
+    "config",
+    `url.file://${harness.root}/.insteadOf`,
+    "https://github.com/owner/repository.git",
+  ]);
+  await git(harness.root, ["checkout", "prior-top"]);
+  return { fakeBin, providerCalled };
+}
+
+async function requestThroughProductionHandler(
+  harness: FanOutHarness,
+  fakeBin: string,
+  request: HostedRequestEnvelope,
+) {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
+  const previousCwd = process.cwd();
+  const previousPath = process.env.PATH;
+  process.chdir(harness.root);
+  process.env.PATH = `${fakeBin}:${previousPath ?? ""}`;
+  try {
+    await handleReviewHostedRequest("-", {
+      readText: async () => JSON.stringify(request),
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+  } finally {
+    process.chdir(previousCwd);
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+  }
+  return { output: JSON.parse(output.join("")) as unknown, exitCodes };
+}
+
 describe("hosted review fan-out lifecycle", () => {
+  it("refuses a later-member hosted request before provider capacity is spent", async () => {
+    const harness = await createHarness();
+    const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
+    const laterVehicle = member(harness.plan, 1, harness.priorSecond);
+    const result = await requestThroughProductionHandler(harness, fakeBin, {
+      schemaVersion: 1,
+      target: { repository, pullRequest: 42, headSha: harness.priorSecond },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: laterVehicle,
+    });
+
+    expect(result.exitCodes).toEqual([1]);
+    expect(result.output).toMatchObject({
+      error: { message: expect.stringContaining("first outstanding delivery member") },
+    });
+    await expect(access(providerCalled)).rejects.toThrow();
+  });
+
+  it("admits the exact first-outstanding status action at the production request boundary", async () => {
+    const harness = await createHarness();
+    const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
+    const status = await statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    });
+    if (status.nextAction !== "review-hosted-request") throw new Error("expected hosted request");
+
+    const result = await requestThroughProductionHandler(harness, fakeBin, status.action);
+
+    expect(result.exitCodes).toEqual([]);
+    expect(result.output).toMatchObject({
+      state: "requested",
+      handle: { target: status.action.target, vehicle: status.action.vehicle },
+    });
+    await expect(access(providerCalled)).resolves.toBeUndefined();
+  });
+
   it("settles a verified member fix at the current repository-backed delivery target", async () => {
     const harness = await createHarness();
     const first = member(harness.plan, 0, harness.oldFirst);
