@@ -56,6 +56,16 @@ describe("delivery entry handler", () => {
       recommendedActionText: "Resume publication.",
     },
     {
+      status: "continue-hosted-review", nextAction: "continue-hosted-review",
+      planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
+      hostedReviewAction: {
+        kind: "continue-hosted-review",
+        command: "arc review status --target '{targetRef}' --json",
+        interactionText: "Resume hosted member review.",
+      },
+      recommendedActionText: "Resume hosted member review.",
+    },
+    {
       status: "refused", nextAction: "stop", reason: "evidence-conflict",
       recommendedActionText: "Resolve conflict.",
     },

@@ -88,6 +88,14 @@ describe("hosted review fan-out workflow", () => {
   it("keeps package/project parity and typed progression in the integration workflow", async () => {
     const [packaged, project] = await copies("integration");
     expect(project).toBe(packaged);
+    const entryDispatch = reviewSection(
+      packaged,
+      "Dispatch only on the returned route.",
+      "Resolve the branch head",
+    );
+    expect(entryDispatch).toMatch(
+      /continue-hosted-review[\s\S]*Step 2[\s\S]*do not resolve a singleton change request/iu,
+    );
     const section = reviewSection(
       packaged,
       "Read `integrationBoundary.reservation`",

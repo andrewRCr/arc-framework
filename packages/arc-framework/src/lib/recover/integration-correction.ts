@@ -101,10 +101,12 @@ export async function projectIntegrationCorrectionRecovery(
     if (boundary?.locus !== "hosted-review-pending"
       || boundary.workUnit !== exact.workUnit
       || boundary.reservation.target.kind !== "delivery"
-      || boundary.reservation.target.workUnitId !== exact.workUnit) {
+      || boundary.reservation.target.workUnitId !== exact.workUnit
+      || boundary.deliveryContinuation === undefined
+      || boundary.deliveryContinuation.planId !== boundary.reservation.target.planId) {
       return {
         status: "refused",
-        message: "verification did not resolve to the exact public delivery-member review boundary",
+        message: "verification did not resolve to the exact Candidate-bound delivery continuation",
       };
     }
     const projectedLoadSet = replaceWorkflow(input.seed.loadSet, VERIFY_WORKFLOW, INTEGRATE_WORKFLOW);
