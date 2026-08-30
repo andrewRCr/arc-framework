@@ -282,6 +282,77 @@ describe("delivery materialization orchestration", () => {
     }
   });
 
+  it("refuses a state-bound member whose physical ref is moved or unavailable", async () => {
+    const plan = deliveryPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    const exactRefs = {
+      publish: async () => ({ status: "published" as const }),
+      observe: async (ref: string) => ({
+        status: "observed" as const,
+        head: ref === "refs/heads/main" ? protectedHead : firstHead,
+      }),
+    };
+    await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs: exactRefs });
+    await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs: exactRefs });
+
+    for (const memberObservation of [
+      { status: "observed" as const, head: "9".repeat(40) },
+      { status: "refused" as const },
+    ]) {
+      await expect(materializeBoundDeliveryChain({
+        plan,
+        materialization: derived.value,
+        stateStore: store,
+        refs: {
+          publish: async () => {
+            throw new Error("a non-exact state-bound ref must not publish");
+          },
+          observe: async (ref: string) => ref === "refs/heads/main"
+            ? { status: "observed" as const, head: protectedHead }
+            : memberObservation,
+        },
+      })).resolves.toEqual({ status: "refused" });
+    }
+  });
+
+  it("republishes a missing state-bound member through materialization", async () => {
+    const plan = deliveryPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, eligible(plan));
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    const memberRef = derived.value.members[0]!.ref;
+    if (memberRef === null) throw new Error("first member ref must exist");
+    const physicalRefs = new Map<string, string>([
+      ["refs/heads/main", protectedHead],
+      [memberRef, firstHead],
+    ]);
+    const refs = {
+      publish: async (ref: string, head: string) => {
+        physicalRefs.set(ref, head);
+        return { status: "published" as const };
+      },
+      observe: async (ref: string) => {
+        const head = physicalRefs.get(ref);
+        return head === undefined
+          ? { status: "absent" as const }
+          : { status: "observed" as const, head };
+      },
+    };
+    await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs });
+    await materializeBoundDeliveryChain({ plan, materialization: derived.value, stateStore: store, refs });
+    physicalRefs.delete(memberRef);
+
+    await expect(materializeBoundDeliveryChain({
+      plan,
+      materialization: derived.value,
+      stateStore: store,
+      refs,
+    })).resolves.toMatchObject({ status: "materialized" });
+    expect(physicalRefs.get(memberRef)).toBe(firstHead);
+  });
+
   it("adopts one exact request result", async () => {
     const plan = deliveryPlanFixture();
     const derived = deriveDeliveryMaterialization(plan, eligible(plan));

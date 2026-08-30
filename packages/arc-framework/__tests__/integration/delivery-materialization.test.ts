@@ -7,11 +7,20 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  observeDeliveryRemoteRef,
   deleteDeliveryRemoteRef,
   publishDeliveryMemberRef,
   publishDeliveryTopRef,
 } from "../../src/lib/delivery/git-materialization.js";
+import {
+  bindInitialDeliveryRef,
+  deriveDeliveryMaterialization,
+  materializeBoundDeliveryChain,
+} from "../../src/lib/delivery/materialization.js";
+import { RepositoryDeliveryStateStore } from "../../src/lib/delivery/local-stores.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
@@ -22,6 +31,92 @@ afterEach(async () => {
 });
 
 describe("delivery materialization against a bare remote", () => {
+  it("recreates a deleted state-bound member through the Git-backed state and ref ports", async () => {
+    const repository = await createTempRepoCore({ prefix: "arc-delivery-rematerialize-" });
+    roots.push(repository);
+    const remoteParent = await mkdtemp(join(tmpdir(), "arc-delivery-rematerialize-remote-"));
+    const remote = join(remoteParent, "remote.git");
+    roots.push(remoteParent);
+    await execFileAsync("git", ["init", "--bare", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repository });
+    await writeFile(join(repository, "README.md"), "base\n", "utf8");
+    await execFileAsync("git", ["add", "README.md"], { cwd: repository });
+    await execFileAsync("git", ["commit", "-m", "base"], { cwd: repository });
+    const commit = async (path: string): Promise<{ head: string; tree: string }> => {
+      await writeFile(join(repository, path), `${path}\n`, "utf8");
+      await execFileAsync("git", ["add", path], { cwd: repository });
+      await execFileAsync("git", ["commit", "-m", path], { cwd: repository });
+      return {
+        head: (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repository })).stdout.trim(),
+        tree: (await execFileAsync("git", ["rev-parse", "HEAD^{tree}"], { cwd: repository })).stdout.trim(),
+      };
+    };
+    const base = {
+      head: (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repository })).stdout.trim(),
+      tree: (await execFileAsync("git", ["rev-parse", "HEAD^{tree}"], { cwd: repository })).stdout.trim(),
+    };
+    const first = await commit("first.txt");
+    const second = await commit("second.txt");
+    await execFileAsync("git", ["push", "origin", `${base.head}:refs/heads/main`], { cwd: repository });
+    await execFileAsync("git", ["push", "origin", `${second.head}:refs/heads/feat/example`], { cwd: repository });
+    const exec: GitExec = async (command, args) => {
+      const result = await execFileAsync(command, args, { cwd: repository });
+      return { stdout: result.stdout, stderr: result.stderr };
+    };
+    const plan = deliveryStackPlanFixture();
+    const derived = deriveDeliveryMaterialization(plan, {
+      planId: plan.planId,
+      workUnitId: plan.workUnitId,
+      planRevision: plan.planRevision,
+      planDigest: plan.planDigest,
+      protectedBase: { ref: "refs/heads/main", ...base },
+      top: { ref: "refs/heads/feat/example", ...second },
+      members: [
+        { deliverableId: plan.members[0]!.deliverableId, ref: "refs/heads/candidate-first", ...first },
+        { deliverableId: plan.members[1]!.deliverableId, ref: "refs/heads/candidate-second", ...second },
+      ],
+      lifecyclePaths: [],
+    });
+    if (derived.status !== "derived") throw new Error("expected exact materialization plan");
+    const stateStore = new RepositoryDeliveryStateStore(
+      new RepositoryGitCommonStatePublisher(exec, repository),
+    );
+    const refs = {
+      observe: (ref: string) => observeDeliveryRemoteRef(exec, "origin", ref),
+      publish: async (ref: string, head: string) => {
+        const result = await publishDeliveryMemberRef({ exec, remote: "origin", ref, head });
+        return result.status === "refused" ? { status: "refused" as const } : result;
+      },
+    };
+    const bound = await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore, refs });
+    expect(bound.status).toBe("bound");
+    await expect(materializeBoundDeliveryChain({
+      plan,
+      materialization: derived.value,
+      stateStore,
+      refs,
+    })).resolves.toMatchObject({ status: "materialized" });
+    const memberRef = derived.value.members[0]!.ref;
+    if (memberRef === null) throw new Error("expected non-terminal delivery ref");
+    await execFileAsync("git", ["push", "origin", `:${memberRef}`], { cwd: repository });
+    await expect(observeDeliveryRemoteRef(exec, "origin", memberRef)).resolves.toEqual({ status: "absent" });
+
+    await expect(materializeBoundDeliveryChain({
+      plan,
+      materialization: derived.value,
+      stateStore,
+      refs,
+    })).resolves.toMatchObject({ status: "materialized" });
+    await expect(observeDeliveryRemoteRef(exec, "origin", memberRef)).resolves.toEqual({
+      status: "observed",
+      head: first.head,
+    });
+    await expect(stateStore.read(plan.planId)).resolves.toMatchObject({
+      status: "ok",
+      value: { value: { activeOperation: null } },
+    });
+  });
+
   it("creates by exact lease, adopts retry, and refuses a different head", async () => {
     const repository = await createTempRepoCore({ prefix: "arc-delivery-materialize-" });
     roots.push(repository);
