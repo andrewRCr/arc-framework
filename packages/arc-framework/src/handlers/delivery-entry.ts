@@ -30,7 +30,7 @@ const InputSchema = z.union([
     boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
     provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
   }),
-  z.strictObject({ entryMode: z.enum(["execution", "integrating"]) }),
+  z.strictObject({ entryMode: z.enum(["execution", "integrating", "prepublication"]) }),
 ]);
 const OptionsSchema = z.strictObject({ input: z.string().min(1), json: z.boolean().optional() });
 

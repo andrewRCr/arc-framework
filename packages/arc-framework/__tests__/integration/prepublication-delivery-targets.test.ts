@@ -9,7 +9,10 @@ import { RepositoryDeliveryPlanStore } from "../../src/lib/delivery/local-stores
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
-import { createPreBindingDeliveryReviewTargetDependencies } from
+import {
+  createPreBindingDeliveryReviewTargetDependencies,
+  createPrePublicationCompositionDependencies,
+} from
   "../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import { composePreBindingDeliveryReviewTargets } from
   "../../src/scripts/review-gate/policy/pre-publication-delivery-targets.js";
@@ -44,6 +47,8 @@ describe("pre-publication delivery target composition", () => {
     const second = await commit("second.txt", "second\n");
     const terminalCandidate = await commit("third.txt", "third\n");
     await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await mkdir(join(root, ".arc", "system"), { recursive: true });
+    await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch.base: main\n", "utf8");
     await writeFile(join(root, ".arc", "active", `meta-${plan.workUnitId}.md`), [
       `# Metadata: ${plan.workUnitId}`,
       "",
@@ -87,6 +92,8 @@ describe("pre-publication delivery target composition", () => {
       ],
     });
     expect(result).not.toHaveProperty("target");
+    await expect(createPrePublicationCompositionDependencies({ cwd: root, exec: gitExec })
+      .readDeliveryReviewTargets(plan.workUnitId)).resolves.toEqual(result);
     await expect(stat(join(root, commonDir, "arc", "delivery", "state")))
       .rejects.toMatchObject({ code: "ENOENT" });
 
