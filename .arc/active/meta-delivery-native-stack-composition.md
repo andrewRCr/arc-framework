@@ -11,10 +11,10 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:1fef07dc89af208126f74668ed46f05f2d639fb2c786dd6d33d51ad6d08f2c37`
+- **Candidate:** `sha256:333f786753dbb76e6e6b09e7b9a78d04b3793dc8aaa4999dc244908c79b5d639`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 9.1.R.e — Revalidate stable origin and Candidate isolation at work-unit scope
+- **Last Completed:** Task 9.1.R.f — Revalidate the corrective transition matrix at work-unit scope
 - **Next Task:** [none]
 - **Blockers:** [none]
 
