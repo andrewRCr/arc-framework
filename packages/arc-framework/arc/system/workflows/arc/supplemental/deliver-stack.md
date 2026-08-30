@@ -230,6 +230,16 @@ review evidence exists. Resolve its exact open change request and pass the resol
 arc review status --target '{targetRef}' --json
 ```
 
+The default action requests complete coverage. When the exact corrective delta warrants only a focused supplemental
+hosted pass, request it from the same first-outstanding member position instead of editing an action:
+
+```bash
+arc review status --target '{targetRef}' --coverage incremental --json
+```
+
+Pass the returned action unchanged. Re-enter without `--coverage` after the supplemental attempt concludes; an
+incremental result does not settle or consume the member's required complete review.
+
 Dispatch only on `nextAction`. `obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
 Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
 with the returned consequence serialized unchanged:

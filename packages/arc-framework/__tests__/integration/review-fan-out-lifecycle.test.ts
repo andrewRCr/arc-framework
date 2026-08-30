@@ -23,7 +23,12 @@ import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from
 import {
   bindInitialDeliveryRef,
   deriveDeliveryMaterialization,
+  materializeBoundDeliveryChain,
+  publishDeliveryRequests,
 } from "../../src/lib/delivery/materialization.js";
+import {
+  observeDeliveryLocalRef,
+} from "../../src/lib/delivery/git-materialization.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { inspectDeliveryEntry } from "../../src/lib/delivery/entry-inspection.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../src/lib/delivery/review-vehicle.js";
@@ -70,6 +75,7 @@ import {
   requestHostedReview,
   type HostedRequestEnvelope,
   type HostedRequestOutcome,
+  type HostedReviewCoverage,
 } from "../../src/scripts/review-gate/hosted/request.js";
 import { settleHostedFinding } from "../../src/scripts/review-gate/hosted/settle.js";
 import {
@@ -90,9 +96,12 @@ import { resolveRepositoryIdentity } from
   "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import {
   createStandardReviewReservation,
+  projectCorrectiveDeliveryReviewBoundary,
   projectPublicationBoundary,
 } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectDeliveryPublicReviewContinuation } from
+  "../../src/lib/delivery/public-review-continuation.js";
 import { createPrePublicationCompositionDependencies } from
   "../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import type { ReviewCeilingOverride } from
@@ -118,7 +127,10 @@ import {
   resolveReviewStatus,
 } from "../../src/scripts/review-gate/status.js";
 import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
-import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
+import {
+  deliveryStackPlanFixture,
+  deliveryStackPlanWithMemberTitlesFixture,
+} from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
 
@@ -289,6 +301,7 @@ async function installCandidate(
   harness: FanOutHarness,
   head: string,
   expectedVersion: string | null,
+  supersedes?: string,
 ): Promise<CandidateManagedRecordV1> {
   const target = await collectGitCandidateTarget({
     cwd: harness.root,
@@ -308,6 +321,7 @@ async function installCandidate(
       attestedBy: "andrew",
       attestedAt: "2026-08-24T04:00:00.000Z",
       verificationEvidenceRef: `verification://${head}`,
+      ...(supersedes === undefined ? {} : { supersedes }),
     }),
     subject: target.subject,
     transitions: [],
@@ -586,20 +600,22 @@ async function moveDeliveryTargets(harness: FanOutHarness): Promise<void> {
 }
 
 async function statusThroughHandler(
-  harness: FanOutHarness,
+  harness: Pick<FanOutHarness, "root" | "exec" | "baseHead">,
   target: { repository: string; headRef: string; headSha: string },
   ceilingOverride?: ReviewCeilingOverride,
+  coverage?: HostedReviewCoverage,
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
   await handleReviewStatus({
     target: JSON.stringify(target),
     ...(ceilingOverride === undefined ? {} : { ceilingOverride: JSON.stringify(ceilingOverride) }),
+    ...(coverage === undefined ? {} : { coverage }),
     json: true,
   }, undefined, {
     resolveRoot: () => harness.root,
     resolve: (root, input) => resolveReviewStatus(input, {
-      observe: async (statusTarget, admittedOverride) => ({
+      observe: async (statusTarget, admittedOverride, admittedCoverage) => ({
         actualHeadSha: statusTarget.headSha,
         requiredChecks: "green",
         routedObligation: await readRoutedObligation(
@@ -609,7 +625,12 @@ async function statusThroughHandler(
           42,
           new RepositoryDeliveryMemberLookup({ cwd: root, exec: harness.exec }),
           harness.baseHead,
-          admittedOverride === undefined ? undefined : { ceilingOverride: admittedOverride },
+          admittedOverride === undefined && admittedCoverage === undefined
+            ? undefined
+            : {
+                ...(admittedOverride === undefined ? {} : { ceilingOverride: admittedOverride }),
+                ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
+              },
         ),
         currentBaseOid: harness.baseHead,
         baseContained: true,
@@ -620,6 +641,187 @@ async function statusThroughHandler(
   });
   expect(exitCodes).toEqual([]);
   return ReviewStatusCommandResultSchema.parse(JSON.parse(output.join("")));
+}
+
+interface EightMemberHarness extends Pick<FanOutHarness,
+  "root" | "exec" | "plan" | "states" | "store" | "repositoryId" | "baseHead" | "baseTree"> {
+  readonly heads: readonly string[];
+  readonly trees: readonly string[];
+}
+
+async function createEightMemberHarness(): Promise<EightMemberHarness> {
+  const root = await createTempRepo("arc-review-eight-member-");
+  roots.push(root);
+  const exec = makeGitExec(root);
+  await mkdir(join(root, ".arc", "system"), { recursive: true });
+  await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch:\n  base: main\n", "utf8");
+  await writeFile(join(root, "README.md"), "base\n", "utf8");
+  await git(root, ["add", "README.md"]);
+  await git(root, ["commit", "-m", "base"]);
+  const baseHead = await git(root, ["rev-parse", "HEAD"]);
+  const baseTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+  const plan = deliveryStackPlanWithMemberTitlesFixture(
+    Array.from({ length: 8 }, (_, index) => `Member ${String(index + 1)}`),
+  );
+  await git(root, ["checkout", "-b", "feat/eight-member"]);
+  const heads: string[] = [];
+  const trees: string[] = [];
+  for (const [index, planned] of plan.members.entries()) {
+    const path = `member-${String(index + 1)}.txt`;
+    await writeFile(join(root, path), `member ${String(index + 1)}\n`, "utf8");
+    await git(root, ["add", path]);
+    await git(root, ["commit", "-m", `member ${String(index + 1)}`]);
+    const head = await git(root, ["rev-parse", "HEAD"]);
+    heads.push(head);
+    trees.push(await git(root, ["rev-parse", "HEAD^{tree}"]));
+    if (index < plan.members.length - 1) {
+      await git(root, ["branch", `delivery/${plan.workUnitId}/${planned.chunkKey}`, head]);
+    }
+  }
+  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+  const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  const states = new RepositoryDeliveryStateStore(publisher);
+  expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
+  const materialization = deriveDeliveryMaterialization(plan, {
+    planId: plan.planId,
+    workUnitId: plan.workUnitId,
+    planRevision: plan.planRevision,
+    planDigest: plan.planDigest,
+    protectedBase: { ref: "refs/heads/main", head: baseHead, tree: baseTree },
+    top: { ref: "refs/heads/feat/eight-member", head: heads.at(-1)!, tree: trees.at(-1)! },
+    members: plan.members.map((planned, index) => ({
+      deliverableId: planned.deliverableId,
+      ref: index === plan.members.length - 1
+        ? "refs/heads/feat/eight-member"
+        : `refs/heads/delivery/${plan.workUnitId}/${planned.chunkKey}`,
+      head: heads[index]!,
+      tree: trees[index]!,
+    })),
+    lifecyclePaths: [],
+  });
+  if (materialization.status !== "derived") throw new Error("expected eight-member materialization");
+  const refs = {
+    observe: (ref: string) => observeDeliveryLocalRef(exec, ref),
+    publish: async (ref: string, head: string) => {
+      const observed = await observeDeliveryLocalRef(exec, ref);
+      return observed.status === "observed" && observed.head === head
+        ? { status: "adopted" as const }
+        : { status: "refused" as const };
+    },
+  };
+  const bound = await bindInitialDeliveryRef({ plan, materialization: materialization.value, stateStore: states, refs });
+  if (bound.status !== "bound") throw new Error("expected eight-member initial binding");
+  const materialized = await materializeBoundDeliveryChain({
+    plan,
+    materialization: materialization.value,
+    stateStore: states,
+    refs,
+  });
+  if (materialized.status !== "materialized") throw new Error("expected eight-member materialized chain");
+  const published = await publishDeliveryRequests({
+    plan,
+    materialization: materialization.value,
+    stateStore: states,
+    host: {
+      observeRequest: async (effect) => {
+        const index = heads.indexOf(effect.headSha);
+        if (index < 0) return { status: "refused" as const, reason: "malformed" as const };
+        return {
+          status: "observed" as const,
+          request: {
+            binding: { providerId: effect.providerId, changeRequestId: String(41 + index) },
+            repository: effect.repository,
+            headRepository: effect.repository,
+            headRef: effect.headRef,
+            headSha: effect.headSha,
+            baseRef: effect.baseRef,
+            state: "open" as const,
+            draft: effect.draft,
+          },
+        };
+      },
+      openRequest: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
+      readRequest: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
+      mergeRequest: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
+      observeTarget: async () => ({ status: "refused" as const, reason: "unavailable" as const }),
+    },
+    providerId: "github",
+    repository,
+    draft: false,
+    terminalPresentation: { title: "Publish eight members", body: "Publish the complete eight-member work unit." },
+    memberPresentation: (planned) => ({
+      title: `Publish ${planned.chunkKey}`,
+      body: `Publish delivery member ${planned.chunkKey}.`,
+    }),
+  });
+  if (published.status !== "published") throw new Error("expected eight-member request publication");
+  const topHead = heads.at(-1);
+  if (topHead === undefined) throw new Error("missing eight-member terminal head");
+  const target = await collectGitCandidateTarget({
+    cwd: root,
+    name: plan.workUnitId,
+    baseBranch: "main",
+    baseRevision: baseHead,
+    revision: topHead,
+    exec,
+  });
+  const candidate: CandidateManagedRecordV1 = {
+    schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1",
+    attestation: createCandidateAttestation({
+      workUnit: plan.workUnitId,
+      subject: target.subject,
+      baseRevision: baseHead,
+      attestedBy: "andrew",
+      attestedAt: "2026-08-30T14:00:00.000Z",
+      verificationEvidenceRef: `verification://${topHead}`,
+    }),
+    subject: target.subject,
+    transitions: [],
+    lineageAttestations: [],
+  };
+  await writeCandidateRecord(root, plan.workUnitId, candidate, null);
+  const firstHead = heads[0];
+  const firstTree = trees[0];
+  if (firstHead === undefined || firstTree === undefined) throw new Error("missing first eight-member target");
+  const reservation = createStandardReviewReservation({
+    candidateId: candidate.attestation.candidateId,
+    sourceId: "coderabbit-pr",
+    sources: ["coderabbit-pr", "codex-pr"],
+    obligation: targetAndRequirement({
+      repositoryId: await resolveRepositoryIdentity(publisher),
+      baseSha: baseHead,
+      baseTree,
+      headSha: firstHead,
+      headTree: firstTree,
+    }).projection,
+    target: {
+      kind: "delivery",
+      repository,
+      workUnitId: plan.workUnitId,
+      planId: plan.planId,
+    },
+  });
+  await writeSubmissionBoundary(root, projectPublicationBoundary({
+    workUnit: plan.workUnitId,
+    branch: "feat/eight-member",
+    candidateId: candidate.attestation.candidateId,
+    candidateSubjectDigest: candidate.subject.subjectDigest,
+    reservation,
+    changeRequest: { repository, pullRequest: 48 },
+  }), null);
+  return {
+    root,
+    exec,
+    plan,
+    states,
+    store: new LocalReviewOperationStateStore(publisher),
+    repositoryId: await resolveRepositoryIdentity(publisher),
+    baseHead,
+    baseTree,
+    heads,
+    trees,
+  };
 }
 
 async function completeLocalReviewThroughHandlers(
@@ -826,12 +1028,12 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     headRefName: "prior-top",
     headRefOid: harness.priorSecond,
   }]);
-  const comment = (pullRequest: number) => JSON.stringify({
+  const comment = (pullRequest: number, body: string) => JSON.stringify({
     node_id: `IC_${String(pullRequest)}`,
     html_url: `https://example.test/comment/${String(pullRequest)}`,
     user: { id: 1 },
     performed_via_github_app: null,
-    body: "@coderabbitai full review",
+    body,
     created_at: "2026-08-30T12:00:00.000Z",
     updated_at: "2026-08-30T12:00:00.000Z",
   });
@@ -861,11 +1063,17 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     "    ;;",
     "  api:repos/owner/repository/issues/41/comments)",
     `    : > '${providerCalled}'`,
-    `    printf '%s\\n' '${comment(41)}'`,
+    "    case \"$*\" in",
+    `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(41, "@coderabbitai review")}' ;;`,
+    `      *) printf '%s\\n' '${comment(41, "@coderabbitai full review")}' ;;`,
+    "    esac",
     "    ;;",
     "  api:repos/owner/repository/issues/42/comments)",
     `    : > '${providerCalled}'`,
-    `    printf '%s\\n' '${comment(42)}'`,
+    "    case \"$*\" in",
+    `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(42, "@coderabbitai review")}' ;;`,
+    `      *) printf '%s\\n' '${comment(42, "@coderabbitai full review")}' ;;`,
+    "    esac",
     "    ;;",
     "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
     "esac",
@@ -908,6 +1116,188 @@ async function requestThroughProductionHandler(
 }
 
 describe("hosted review fan-out lifecycle", () => {
+  it("advances an eight-member conjunction through real Git and durable review stores", async () => {
+    const harness = await createEightMemberHarness();
+    const firstHead = harness.heads[0];
+    if (firstHead === undefined) throw new Error("missing first eight-member head");
+    const statusTarget = {
+      repository,
+      headRef: `delivery/${harness.plan.workUnitId}/${harness.plan.members[0]!.chunkKey}`,
+      headSha: firstHead,
+    };
+
+    for (const [index, planned] of harness.plan.members.entries()) {
+      const head = harness.heads[index];
+      const tree = harness.trees[index];
+      const baseSha = index === 0 ? harness.baseHead : harness.heads[index - 1];
+      const baseTree = index === 0 ? harness.baseTree : harness.trees[index - 1];
+      if (head === undefined || tree === undefined || baseSha === undefined || baseTree === undefined) {
+        throw new Error("missing eight-member review coordinate");
+      }
+      const status = await statusThroughHandler(harness, statusTarget);
+      expect(status).toMatchObject({
+        state: "review-required",
+        nextAction: "review-hosted-request",
+        action: {
+          target: { pullRequest: 41 + index, headSha: head },
+          provider: "coderabbit-pr",
+          coverage: "complete",
+          vehicle: { deliverableId: planned.deliverableId, head },
+        },
+        routedObligation: {
+          conjunction: {
+            members: harness.plan.members.map((_member, memberIndex) => ({
+              state: memberIndex < index ? "discharged" : "outstanding",
+            })),
+          },
+        },
+      });
+      if (status.nextAction !== "review-hosted-request") throw new Error("expected eight-member hosted request");
+      const requested = await requestThroughHandler(status.action, {
+        kind: "created",
+        artifact: {
+          kind: "pull-request-review",
+          id: `review-eight-${String(index + 1)}`,
+          url: `https://example.test/review-eight-${String(index + 1)}`,
+          createdAt: `2026-08-30T14:${String(index).padStart(2, "0")}:00.000Z`,
+        },
+        effectiveCoverage: "complete",
+      }, harness.root, harness.exec);
+      if (requested.nextAction !== "await") throw new Error("expected eight-member hosted handle");
+      const awaited = await awaitThroughHandler(requested.handle, {
+        kind: "clean",
+        reviewUrl: `https://example.test/review-eight-${String(index + 1)}`,
+      });
+      const review = targetAndRequirement({
+        repositoryId: harness.repositoryId,
+        baseSha,
+        baseTree,
+        headSha: head,
+        headTree: tree,
+      });
+      await recordHostedAwaitAttempt(harness.store, {
+        repositoryId: harness.repositoryId,
+        result: awaited,
+        reviewTarget: review.reviewTarget,
+        requirement: review.requirement,
+        actorIdentity: "andrew",
+        now: `2026-08-30T15:${String(index).padStart(2, "0")}:00.000Z`,
+      });
+    }
+
+    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      routedObligation: {
+        conjunction: {
+          status: "discharged",
+          members: harness.plan.members.map(() => ({ state: "discharged" })),
+        },
+      },
+    });
+  });
+
+  it("resumes member status from a renewed Candidate and historical delivery terminal", async () => {
+    const harness = await createHarness();
+    const sourceCandidate = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
+    if (sourceCandidate.record === null || sourceCandidate.version === null) {
+      throw new Error("source Candidate must exist");
+    }
+    const renewed = await installCandidate(
+      harness,
+      harness.currentSecond,
+      sourceCandidate.version,
+      sourceCandidate.record.attestation.candidateId,
+    );
+    const continuation = projectDeliveryPublicReviewContinuation({
+      plan: harness.plan,
+      state: harness.state,
+      stateRevision: harness.stateRevision,
+    });
+    if (continuation.status !== "projected") throw new Error("delivery continuation must project");
+    const sourceBoundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
+    if (sourceBoundary.boundary === null) throw new Error("source boundary must exist");
+    const corrective = projectCorrectiveDeliveryReviewBoundary({
+      workUnit: harness.plan.workUnitId,
+      candidateId: renewed.attestation.candidateId,
+      candidateSubjectDigest: renewed.subject.subjectDigest,
+      supersedesCandidateId: renewed.attestation.supersedes ?? null,
+      sourceBoundary: sourceBoundary.boundary,
+      deliveryContinuation: continuation.continuation,
+    });
+    await writeSubmissionBoundary(
+      harness.root,
+      corrective,
+      sourceBoundary.version,
+    );
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: harness.plan.workUnitId,
+      entryMode: "integrating",
+    }, {
+      readTaskList: async () => `# Task List\n\n${renderDeliveryPlanSection(harness.plan)}\n`
+        + "## **Phase 1:** Build\n\n### `[x]` **1.1 Work**\n",
+      resolvePlan: async () => ({ status: "match", plan: harness.plan }),
+      resolveAuthoring: async () => ({ status: "no-match" }),
+      readState: async () => ({
+        status: "ok",
+        value: harness.state,
+        revision: harness.stateRevision,
+      }),
+      readIntegrationBoundary: async () => ({ status: "ok", value: corrective }),
+      readCandidate: async () => ({
+        status: "ok",
+        value: {
+          candidateId: renewed.attestation.candidateId,
+          subjectDigest: renewed.subject.subjectDigest,
+        },
+      }),
+    })).resolves.toMatchObject({
+      status: "continue-hosted-review",
+      hostedReviewAction: { kind: "continue-hosted-review" },
+    });
+
+    await expect(statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    })).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        target: { headSha: harness.oldFirst },
+        coverage: "complete",
+      },
+    });
+
+    const advancedState: DeliveryStateV1 = {
+      ...harness.state,
+      members: [
+        {
+          ...harness.state.members[0]!,
+          changeRequest: { providerId: "github", changeRequestId: "43" },
+        },
+        harness.state.members[1]!,
+      ],
+    };
+    const advanced = await harness.states.publish(harness.plan.planId, advancedState, harness.stateRevision);
+    if (advanced.status !== "ok") throw new Error("expected corrective state advancement");
+    harness.state = advancedState;
+    harness.stateRevision = advanced.value.revision;
+    await expect(statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    })).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      routedObligation: {
+        state: "blocked",
+        detail: "The public delivery continuation is not current.",
+      },
+    });
+  });
+
   it("refuses a later-member hosted request before provider capacity is spent", async () => {
     const harness = await createHarness();
     const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
@@ -945,6 +1335,88 @@ describe("hosted review fan-out lifecycle", () => {
       handle: { target: status.action.target, vehicle: status.action.vehicle },
     });
     await expect(access(providerCalled)).resolves.toBeUndefined();
+  });
+
+  it("admits an explicitly incremental first-outstanding action at the production request boundary", async () => {
+    const harness = await createHarness();
+    const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
+    const status = await statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    }, undefined, "incremental");
+    expect(status).toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        target: { headSha: harness.oldFirst },
+        coverage: "incremental",
+      },
+    });
+    if (status.nextAction !== "review-hosted-request") throw new Error("expected incremental hosted request");
+
+    const result = await requestThroughProductionHandler(harness, fakeBin, status.action);
+
+    expect(result.exitCodes).toEqual([]);
+    expect(result.output).toMatchObject({
+      state: "requested",
+      requestedCoverage: "incremental",
+      handle: { effectiveCoverage: "incremental" },
+    });
+    await expect(access(providerCalled)).resolves.toBeUndefined();
+  });
+
+  it("re-enters the complete member lane after an incremental clean result", async () => {
+    const harness = await createHarness();
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    const incremental = await statusThroughHandler(harness, statusTarget, undefined, "incremental");
+    if (incremental.nextAction !== "review-hosted-request") {
+      throw new Error("expected incremental hosted request");
+    }
+    const requested = await requestThroughHandler(incremental.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-incremental-clean",
+        url: "https://example.test/review-incremental-clean",
+        createdAt: "2026-08-30T13:00:00.000Z",
+      },
+      effectiveCoverage: "incremental",
+    }, harness.root, harness.exec);
+    if (requested.nextAction !== "await") throw new Error("expected incremental hosted review handle");
+    const awaited = await awaitThroughHandler(requested.handle, {
+      kind: "clean",
+      reviewUrl: "https://example.test/review-incremental-clean",
+    });
+    const review = targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.baseHead,
+      baseTree: harness.baseTree,
+      headSha: harness.oldFirst,
+      headTree: harness.oldFirstTree,
+    });
+    await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: awaited,
+      reviewTarget: review.reviewTarget,
+      requirement: review.requirement,
+      actorIdentity: "andrew",
+      now: "2026-08-30T13:01:00.000Z",
+    });
+
+    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        target: { headSha: harness.oldFirst },
+        provider: "coderabbit-pr",
+        coverage: "complete",
+      },
+    });
   });
 
   it("settles a verified member fix at the current repository-backed delivery target", async () => {
