@@ -36,11 +36,17 @@ const ExecutionDeliveryEntryInspectionRequestSchema = z.strictObject({
   entryMode: z.literal("execution"),
 });
 
+const PrePublicationDeliveryEntryInspectionRequestSchema = z.strictObject({
+  workUnitId: SlugSchema,
+  entryMode: z.literal("prepublication"),
+});
+
 /** Closed entry contexts: attended authoring judgment or read-only lifecycle dispatch. */
 export const DeliveryEntryInspectionRequestSchema = z.union([
   AttendedDeliveryEntryInspectionRequestSchema,
   IntegratingDeliveryEntryInspectionRequestSchema,
   ExecutionDeliveryEntryInspectionRequestSchema,
+  PrePublicationDeliveryEntryInspectionRequestSchema,
 ]);
 export type DeliveryEntryInspectionRequest = z.infer<typeof DeliveryEntryInspectionRequestSchema>;
 
@@ -301,6 +307,7 @@ export async function inspectDeliveryEntry(
   const entryMode = "entryMode" in parsed.data ? parsed.data.entryMode : null;
   const integrating = entryMode === "integrating";
   const execution = entryMode === "execution";
+  const prepublication = entryMode === "prepublication";
 
   if (attended?.boundaryDisposition === "not-delivery-candidate") {
     if (plan !== null || authoring.status === "match" || locus.status !== "absent") {
@@ -328,13 +335,15 @@ export async function inspectDeliveryEntry(
       };
     }
     if (authoring.status === "match") return refused("evidence-conflict");
-    if (integrating || execution) {
+    if (integrating || execution || prepublication) {
       return {
         status: "not-applicable",
         nextAction: "continue-work-unit",
         recommendedActionText: integrating
           ? "Continue ordinary singleton integration; no canonical Delivery Plan exists."
-          : "Continue ordinary task execution; no canonical Delivery Plan exists.",
+          : prepublication
+            ? "Continue ordinary singleton pre-publication; no canonical Delivery Plan exists."
+            : "Continue ordinary task execution; no canonical Delivery Plan exists.",
       };
     }
     return {

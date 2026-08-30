@@ -33,6 +33,18 @@ Invoke `arc status {name} --json` and require the Candidate-bearing Active bound
 recovery project this state as `sessionType: prepublication` with `workflow: prepare-work-unit`; never infer it from
 `Current Workflow`, `Next Action`, or SESSION-NOTES.
 
+Before composing review, inspect whether the Candidate has plan-owned private member targets:
+
+```bash
+printf '%s\n' '{"entryMode":"prepublication"}' | arc delivery entry inspect --input - --json
+```
+
+Dispatch only on the typed result. `not-applicable` continues ordinary singleton preparation.
+`validate-canonical` carries its exact `planId` into [Deliver Stack][deliver-stack]
+§ Prepare private delivery candidates; complete only that bounded authoring and gate-preparation section, then return
+here without publishing. `refused` renders `recommendedActionText` and stops. Any other result stops as a
+pre-publication entry contract violation.
+
 Re-enter every review operation only through the public typed protocol in Step 2. Retain any returned operation ID
 and follow its last `state` / `nextAction`: resume local work with `arc review local resume -`, and re-invoke the
 owning idempotent verb for frontline, response, reduction, or pre-publication composition. When no public action can
@@ -57,10 +69,15 @@ it is absent. After the active Work Unit Owner explicitly accepts the current re
 `owner-accepted / none` conclusion; it never means clean, converged, no-op, or evaluator-satisfied. The Owner's
 decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains current.
 
-Re-invoke after every lane operation with the same `--change-set`, `--lanes`, and `--self-review` values: the command
-composes durable progress, but those values are author judgment it cannot recover. Omit `standard.terminus` after a
-`candidate-fix-pending` result; the response changes the reviewable Candidate subject and requires fresh Owner
-direction. Once `owner-accepted` lands, the durable boundary carries it through convergence; do not restate it.
+Supply `--change-set`, `--lanes`, and `--self-review` on the initial invocation and whenever the procedure explicitly
+requests new author judgment. After every lane operation, re-enter through the exact command returned by the envelope:
+its opaque resume carries judgment the repository cannot recover and confines a one-pass Frontline ceiling approval
+to its selected exact head. It drops
+`standard.terminus` after `candidate-fix-pending`, because the response changes the reviewable Candidate subject and
+requires fresh Owner direction. Once `owner-accepted` lands, the durable boundary carries it through convergence; do
+not restate it. For a canonical delivery, each re-invocation recomposes the first outstanding exact member in plan
+order. Follow the returned exact target and policy action; never enumerate members or preserve a separate review
+cursor in prose.
 
 The envelope's `target` is the exact target every exact-target operation below binds against. A null `target`
 means the checkout could not compose one; resolve the returned advisory before invoking any operation. The lane
@@ -111,6 +128,8 @@ gates ([`quality-gate-commands`][arc-methods-qg]), commit
 atomically, and produce a new target. Disclose review applicability from the exact delta: `targeted` for confidently
 narrow non-interacting record or lifecycle changes, `focused` for a bounded interaction, and `full` for behavioral,
 authority, contract, materially interacting, or uncertain changes. Clearance never carries.
+After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
+§ Prepare private delivery candidates when directed before re-invoking pre-publication review.
 
 Proceed only from `candidate-publish-ready`; its durable boundary carries any hosted-first reservation or exact
 Owner-accepted terminus into publication without classifying either as settled, no-op, or clean.
@@ -157,3 +176,4 @@ push and change-request creation; do not push from this workflow.
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [arc-methods-qg]: ../../../methods/quality-gate-commands.md
+[deliver-stack]: ../supplemental/deliver-stack.md
