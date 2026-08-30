@@ -424,9 +424,57 @@ describe("delivery entry inspection", () => {
     });
   });
 
+  it("routes an older exact public continuation to Candidate renewal", async () => {
+    const fixture = publicContinuationFixture();
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision + 1,
+      integrationBoundary: fixture.boundary,
+      candidate: {
+        candidateId: fixture.candidateId,
+        subjectDigest: fixture.candidateSubjectDigest,
+      },
+    }))).resolves.toMatchObject({
+      status: "candidate-renewal-required",
+      nextAction: "renew-public-continuation",
+      planId: plan.planId,
+      stateRevision: fixture.stateRevision + 1,
+      attestationAction: {
+        argv: ["arc", "attest", plan.workUnitId, "--json"],
+      },
+    });
+  });
+
+  it("routes a non-current Candidate to verification closeout", async () => {
+    const fixture = publicContinuationFixture();
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision,
+      integrationBoundary: fixture.boundary,
+      candidate: "non-current",
+    }))).resolves.toMatchObject({
+      status: "candidate-verification-required",
+      nextAction: "verify-work-unit",
+      planId: plan.planId,
+      stateRevision: fixture.stateRevision,
+    });
+  });
+
   it.each([
     ["different current Candidate", { candidateId: `sha256:${"0".repeat(64)}`, stateRevision: 7 }],
-    ["stale state revision", { candidateId: `sha256:${"b".repeat(64)}`, stateRevision: 8 }],
+    ["non-forward state revision", { candidateId: `sha256:${"b".repeat(64)}`, stateRevision: 6 }],
   ])("refuses a corrective hosted continuation with %s", async (_name, stale) => {
     const fixture = publicContinuationFixture();
 
