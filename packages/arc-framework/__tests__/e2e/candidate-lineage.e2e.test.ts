@@ -1760,6 +1760,8 @@ describe("routed review obligation", () => {
       consumedPass: true,
       hosted: {
         target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
         reviewTarget,
         requirement,
         actorIdentity: "test-user",
