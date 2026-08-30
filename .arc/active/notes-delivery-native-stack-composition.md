@@ -112,9 +112,12 @@ the cursor invisible and would also leave the correction outside member coverage
 
 `arc reopen` retains one exceptional meaning: actual withdrawal from public integration. A coherently bound delivery
 cannot be withdrawn by closing or drafting only its terminal request, so ordinary reopen refuses there until a
-delivery-wide withdrawal contract exists. This work unit's current `Active` state is recovery residue from the
-superseded top-only reopen path; after the correction is verified, normalize it once to `Integrating` and resume the
-published member reviews without Frontline or generic prepublication replay.
+delivery-wide withdrawal contract exists. A one-time recovery repair normalized this work unit from the legacy
+`Active` / `prepare-work-unit` residue to `Integrating` before the remaining correction mechanics were complete: the
+new recovery audit correctly refused the contradictory state and could not seed a continuation from it. The
+maintainer-authorized repair advanced only the normalization promised by Task 7.7.R.l, retaining the originating
+checkout, branch, Candidate, and delivery binding. That task now revalidates the persisted public locus and resumes
+the published member reviews without Frontline or generic prepublication replay.
 
 ## Authored partitions and adversarial attention
 

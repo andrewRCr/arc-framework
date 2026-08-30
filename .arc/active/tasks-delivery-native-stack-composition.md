@@ -2258,11 +2258,15 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           repository-relative reads keep linked-WU inspection anchored to its checkout, and the closed envelope
           schema rejects skipped open corrections while preserving planning, execution, and prepublication behavior.
 
-    - `[ ]` **7.7.R.f Recover only exact integration-correction progression**
+    - `[x]` **7.7.R.f Recover only exact integration-correction progression**
 
         - _Goal:_ Compaction recovery admits the same derived correction stage as ordinary entry and explains only
           exact same-checkout, same-work-unit stage changes whose prior cursor closure and new canonical cursor are
           structurally proven; deletion, substitution, reverse movement, and cross-locus drift still stop.
+
+        - _Outcome:_ Recovery admits only the closed public-to-task, task-to-task, task-to-verification, and
+          verification-to-public correction matrix from coupled checkout, work-unit, load-set, boundary, and task
+          evidence. The original public-seed incident and every destructive, reverse, or cross-locus shape refuse.
 
     - `[ ]` **7.7.R.g Compose exact pre-binding delivery-member review targets**
 
@@ -2300,6 +2304,11 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
         - _Goal:_ Executable coverage proves task and verification entry, exact compaction recovery, private
           member-only Frontline, public hosted resumption, Candidate renewal, and pre-mutation reopen refusal. After
           those mechanics pass, normalize this WU once to `Integrating` and resume its published member reviews.
+
+        - _Forward amendment (2026-08-29):_ The maintainer authorized advancing the one-time normalization after the
+          new recovery checks exposed legacy `Active` / `prepare-work-unit` residue that could not seed a valid
+          continuation. This task now revalidates the persisted `Integrating` locus and resumes the published member
+          reviews; it does not repeat normalization or re-enter private review.
 
 ## **Phase 8:** Record retirement and doctrine
 

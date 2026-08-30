@@ -749,6 +749,22 @@ describe("session-init E2E — sessionType across type variants", () => {
         .replace("- **State:** Active", "- **State:** Integrating")
         .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
     );
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "public integration fixture"]);
+
+    const seeded = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+    );
+    expect(seeded.exitCode, seeded.stdout + seeded.stderr).toBe(0);
+    expect(parseJsonEnvelope(seeded.stdout)).toMatchObject({
+      active: {
+        ok: true,
+        value: { sessionType: "integration", currentWorkflow: "integrate-work-unit" },
+      },
+      compactionSeedWrite: { status: "written" },
+    });
+
     await writeFile(
       join(activeDir, "tasks-foo.md"),
       `${closedTasks}\n### \`[ ]\` **1.2 Correct published behavior**\n`,
@@ -789,6 +805,18 @@ describe("session-init E2E — sessionType across type variants", () => {
     ]));
     expect(envelope.loadSet?.value?.entries.map((entry) => entry.path))
       .not.toContain(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md");
+
+    const audited = await runArc(["recover", "audit", "--json"], tmpDir);
+    expect(audited.exitCode, audited.stdout + audited.stderr).toBe(0);
+    expect(parseRecoverAuditReport(audited.stdout).verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+      taskCursor: {
+        match: true,
+        actual: { status: "found", cursor: { leaf: { id: "1.2" } } },
+      },
+    });
   });
 
   it("projects integration verification while Candidate applicability awaits authority", async () => {
