@@ -2300,11 +2300,15 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           retained-member status directly, rejects reservation/action mismatches, and re-enters status after each
           result without replaying private policy. The singleton prepublication path remains unchanged.
 
-    - `[ ]` **7.7.R.j Refuse ordinary reopen for a coherently bound delivery**
+    - `[x]` **7.7.R.j Refuse ordinary reopen for a coherently bound delivery**
 
         - _Goal:_ `arc reopen` establishes exact delivery composition before any host or lifecycle mutation and
           refuses a coherent bound stack; absent/unbound singleton work retains the existing withdrawal path, while
           unavailable or incoherent delivery evidence fails closed.
+
+        - _Outcome:_ Ordinary reopen now composes rename-aware plan, canonical task-list, authoring, and revisioned
+          state evidence before host observation or lifecycle execution. Determinate absence and coherent unbound plans
+          retain withdrawal; bound, unavailable, and incoherent composition refuses without GitHub or lifecycle mutation.
 
     - `[ ]` **7.7.R.k Persist and recover public Candidate renewal**
 

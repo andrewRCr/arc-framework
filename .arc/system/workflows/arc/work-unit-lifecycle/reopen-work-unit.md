@@ -59,6 +59,11 @@ arc reopen {name} --keep-pr  # convert the PR to a draft instead
 arc reopen {name} --keep-pr --task "Task X.Y.R — ..."  # return to reopened task execution
 ```
 
+The verb first establishes exact delivery composition through its typed read-only projection. Determinate delivery
+absence and a coherent unbound plan retain ordinary withdrawal. A coherently bound delivery, or unavailable,
+contradictory, or malformed delivery evidence, refuses before PR observation or lifecycle mutation; never approximate
+delivery-wide withdrawal by closing or drafting only the terminal request.
+
 Before mutation, the executor resolves the canonical task list. `--task` must equal
 `Task {cursor.id} — {cursor.title}` for the current executable leaf; without `--task`, the list must resolve
 `no-open-task`. Missing, unreadable, unbound, malformed, mismatched, or mode-inconsistent task authority refuses
