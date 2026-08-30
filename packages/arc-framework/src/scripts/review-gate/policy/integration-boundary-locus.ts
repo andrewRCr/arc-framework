@@ -25,6 +25,10 @@ export const ContinuePrePublicationActionSchema = z.strictObject({
   kind: z.literal("continue-pre-publication-review"),
   ...ActionFields,
 });
+export const ContinueHostedReviewActionSchema = z.strictObject({
+  kind: z.literal("continue-hosted-review"),
+  ...ActionFields,
+});
 export const RunConvergenceVerificationActionSchema = z.strictObject({
   kind: z.literal("run-convergence-verification"),
   ...ActionFields,
@@ -41,6 +45,7 @@ export const ContinuePublicationActionSchema = z.strictObject({
 export const IntegrationBoundaryNextActionSchema = z.discriminatedUnion("kind", [
   RunSelfReviewActionSchema,
   ContinuePrePublicationActionSchema,
+  ContinueHostedReviewActionSchema,
   RunConvergenceVerificationActionSchema,
   PublishCandidateActionSchema,
   ContinuePublicationActionSchema,
@@ -148,9 +153,21 @@ export const HostedReviewPendingBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
   mode: z.literal("integration-boundary"),
   locus: z.literal("hosted-review-pending"),
-  nextAction: ContinuePrePublicationActionSchema,
+  nextAction: z.union([
+    ContinuePrePublicationActionSchema,
+    ContinueHostedReviewActionSchema,
+  ]),
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema,
+}).superRefine((boundary, context) => {
+  const delivery = boundary.reservation.target.kind === "delivery";
+  if (delivery !== (boundary.nextAction.kind === "continue-hosted-review")) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextAction", "kind"],
+      message: "the hosted-review action must match the reservation target kind",
+    });
+  }
 });
 
 export const IntegrationBoundaryLocusSchema = z.union([
@@ -273,6 +290,7 @@ export function recoverPrePublicationBoundary(input: {
 export function projectPublicationBoundary(input: unknown): IntegrationBoundaryLocus {
   const value = PublicationBoundaryInputSchema.parse(input);
   const hosted = value.reservation !== null && value.changeRequest !== null;
+  const deliveryHosted = hosted && value.reservation?.target.kind === "delivery";
   return IntegrationBoundaryLocusSchema.parse({
     schemaVersion: 1,
     mode: "integration-boundary",
@@ -281,12 +299,20 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
     candidateSubjectDigest: value.candidateSubjectDigest,
     locus: hosted ? "hosted-review-pending" : "publication-pending",
     nextAction: {
-      kind: hosted ? "continue-pre-publication-review" : "continue-publication",
-      command: hosted
-        ? `arc review pre-publication ${value.workUnit} --json`
+      kind: deliveryHosted
+        ? "continue-hosted-review"
+        : hosted
+          ? "continue-pre-publication-review"
+          : "continue-publication",
+      command: deliveryHosted
+        ? "arc review status --target '{targetRef}' --json"
+        : hosted
+          ? `arc review pre-publication ${value.workUnit} --json`
         : `git push -u origin ${value.branch}`,
-      interactionText: hosted
-        ? "Continue the reserved hosted standard review."
+      interactionText: deliveryHosted
+        ? "Resume the retained delivery-member review conjunction."
+        : hosted
+          ? "Continue the reserved hosted standard review."
         : "Resume publication at the idempotent push, then resolve or open the change request.",
     },
     policy: null,

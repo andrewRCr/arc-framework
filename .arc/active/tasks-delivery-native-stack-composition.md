@@ -2290,11 +2290,15 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           recomposes after every result without aggregate fallback, delivery-side review state, or prose iteration;
           one-pass ceiling approval stays bound to its exact member through fallback and cannot cross into the next.
 
-    - `[ ]` **7.7.R.i Resume public hosted-member review without private-lane replay**
+    - `[x]` **7.7.R.i Resume public hosted-member review without private-lane replay**
 
         - _Goal:_ A bound public correction bypasses Frontline and generic prepublication, then resumes the existing
           retained hosted-member target/discharge conjunction at the exact affected heads through typed integration
           status actions.
+
+        - _Outcome:_ Published delivery reservations now project a typed hosted-review continuation that enters exact
+          retained-member status directly, rejects reservation/action mismatches, and re-enters status after each
+          result without replaying private policy. The singleton prepublication path remains unchanged.
 
     - `[ ]` **7.7.R.j Refuse ordinary reopen for a coherently bound delivery**
 
