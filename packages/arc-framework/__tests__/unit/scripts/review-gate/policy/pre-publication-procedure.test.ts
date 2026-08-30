@@ -103,6 +103,22 @@ describe("integration boundary locus", () => {
     });
   });
 
+  it("routes a public delivery reservation directly to hosted-member status", () => {
+    expect(projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    })).toMatchObject({
+      locus: "hosted-review-pending",
+      nextAction: {
+        kind: "continue-hosted-review",
+        command: "arc review status --target '{targetRef}' --json",
+      },
+    });
+  });
+
   it("rebinds a carried publication boundary to an approved Candidate response subject", () => {
     const candidateId = `sha256:${"c".repeat(64)}`;
     const priorSubjectDigest = `sha256:${"d".repeat(64)}`;
@@ -175,7 +191,6 @@ describe("integration boundary locus", () => {
     "continue-frontline-review",
     "continue-standard-review",
     "respond-to-findings",
-    "continue-hosted-review",
   ])("rejects removed next-action kind %s", (kind) => {
     expect(IntegrationBoundaryLocusSchema.safeParse({
       ...projectCandidateReviewBoundary({
@@ -184,6 +199,41 @@ describe("integration boundary locus", () => {
       }),
       nextAction: {
         kind,
+        command: "arc review pre-publication example --json",
+        interactionText: "Continue review.",
+      },
+    }).success).toBe(false);
+  });
+
+  it("rejects hosted-review actions that disagree with the reservation target kind", () => {
+    const singleton = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: reservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+
+    expect(IntegrationBoundaryLocusSchema.safeParse({
+      ...singleton,
+      nextAction: {
+        kind: "continue-hosted-review",
+        command: "arc review status --target '{targetRef}' --json",
+        interactionText: "Resume hosted review.",
+      },
+    }).success).toBe(false);
+
+    const delivery = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+    expect(IntegrationBoundaryLocusSchema.safeParse({
+      ...delivery,
+      nextAction: {
+        kind: "continue-pre-publication-review",
         command: "arc review pre-publication example --json",
         interactionText: "Continue review.",
       },
@@ -228,6 +278,20 @@ function reservation() {
     sourceId: "coderabbit-pr",
     repository: target.repository,
     headSha: target.headSha,
+    obligation: standardReview,
+  });
+}
+
+function deliveryReservation() {
+  return createStandardReviewReservation({
+    candidateId: `sha256:${"c".repeat(64)}`,
+    sourceId: "coderabbit-pr",
+    target: {
+      kind: "delivery",
+      repository: "arc-framework/example",
+      workUnitId: "example",
+      planId: "11111111-1111-4111-8111-111111111111",
+    },
     obligation: standardReview,
   });
 }
