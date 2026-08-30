@@ -123,6 +123,23 @@ export type DeliveryEntryInspectionResult =
       readonly recommendedActionText: string;
     } & DeliveryReviewFixVerificationContinuation)
   | {
+      readonly status: "candidate-renewal-required";
+      readonly nextAction: "renew-public-continuation";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly attestationAction: {
+        readonly argv: readonly ["arc", "attest", string, "--json"];
+      };
+      readonly recommendedActionText: string;
+    }
+  | {
+      readonly status: "candidate-verification-required";
+      readonly nextAction: "verify-work-unit";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly recommendedActionText: string;
+    }
+  | {
       readonly status: "continue-publication";
       readonly nextAction: "continue-publication";
       readonly planId: string;
@@ -220,6 +237,23 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
       expectedStateRevision: z.number().int().positive(),
       continuationDigest: DeliveryCanonicalDigestSchema,
     }),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("candidate-renewal-required"),
+    nextAction: z.literal("renew-public-continuation"),
+    planId: DeliveryPlanIdSchema,
+    stateRevision: z.number().int().positive(),
+    attestationAction: z.strictObject({
+      argv: z.tuple([z.literal("arc"), z.literal("attest"), SlugSchema, z.literal("--json")]),
+    }),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("candidate-verification-required"),
+    nextAction: z.literal("verify-work-unit"),
+    planId: DeliveryPlanIdSchema,
+    stateRevision: z.number().int().positive(),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -680,19 +714,43 @@ export async function inspectDeliveryEntry(
         return refused("evidence-unavailable");
       }
       if (candidate.status === "refused") return refused("evidence-unavailable");
-      if (candidate.status === "non-current" || candidate.value === null
-        || candidate.value.candidateId !== boundary.value.candidateId
+      if (candidate.status === "non-current") {
+        return {
+          status: "candidate-verification-required",
+          nextAction: "verify-work-unit",
+          planId: plan.planId,
+          stateRevision: state.revision,
+          recommendedActionText:
+            "Complete Candidate verification closeout before resuming the retained public delivery review.",
+        };
+      }
+      if (candidate.value === null || candidate.value.candidateId !== boundary.value.candidateId
         || candidate.value.subjectDigest !== boundary.value.candidateSubjectDigest
         || boundary.value.nextAction.kind !== "continue-hosted-review"
         || boundary.value.reservation.target.kind !== "delivery"
         || boundary.value.reservation.target.planId !== plan.planId
-        || boundary.value.reservation.target.workUnitId !== plan.workUnitId
-        || validateDeliveryPublicReviewContinuation({
-          continuation: boundary.value.deliveryContinuation,
-          plan,
-          state: state.value,
-          stateRevision: state.revision,
-        }).status !== "current") {
+        || boundary.value.reservation.target.workUnitId !== plan.workUnitId) {
+        return refused("public-continuation-mismatch");
+      }
+      const continuation = validateDeliveryPublicReviewContinuation({
+        continuation: boundary.value.deliveryContinuation,
+        plan,
+        state: state.value,
+        stateRevision: state.revision,
+      });
+      if (continuation.status === "refused") {
+        if (continuation.reason === "state-mismatch"
+          && boundary.value.deliveryContinuation.stateRevision < state.revision) {
+          return {
+            status: "candidate-renewal-required",
+            nextAction: "renew-public-continuation",
+            planId: plan.planId,
+            stateRevision: state.revision,
+            attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] },
+            recommendedActionText:
+              "Renew the exact public delivery continuation through corrective Candidate attestation.",
+          };
+        }
         return refused("public-continuation-mismatch");
       }
       return {
