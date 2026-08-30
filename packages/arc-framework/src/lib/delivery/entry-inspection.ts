@@ -41,12 +41,18 @@ const PrePublicationDeliveryEntryInspectionRequestSchema = z.strictObject({
   entryMode: z.literal("prepublication"),
 });
 
+const ReopenDeliveryEntryInspectionRequestSchema = z.strictObject({
+  workUnitId: SlugSchema,
+  entryMode: z.literal("reopen"),
+});
+
 /** Closed entry contexts: attended authoring judgment or read-only lifecycle dispatch. */
 export const DeliveryEntryInspectionRequestSchema = z.union([
   AttendedDeliveryEntryInspectionRequestSchema,
   IntegratingDeliveryEntryInspectionRequestSchema,
   ExecutionDeliveryEntryInspectionRequestSchema,
   PrePublicationDeliveryEntryInspectionRequestSchema,
+  ReopenDeliveryEntryInspectionRequestSchema,
 ]);
 export type DeliveryEntryInspectionRequest = z.infer<typeof DeliveryEntryInspectionRequestSchema>;
 
@@ -119,6 +125,26 @@ export type DeliveryEntryInspectionResult =
       readonly recommendedActionText: string;
     }
   | {
+      readonly status: "reopen-permitted";
+      readonly composition: "absent";
+      readonly nextAction: "continue-reopen";
+      readonly recommendedActionText: string;
+    }
+  | {
+      readonly status: "reopen-permitted";
+      readonly composition: "unbound";
+      readonly planId: string;
+      readonly nextAction: "continue-reopen";
+      readonly recommendedActionText: string;
+    }
+  | {
+      readonly status: "reopen-bound";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly nextAction: "stop";
+      readonly recommendedActionText: string;
+    }
+  | {
       readonly status: "refused";
       readonly nextAction: "stop";
       readonly reason:
@@ -187,6 +213,16 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     publicationAction: ContinuePublicationActionSchema, recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
+    status: z.literal("reopen-permitted"), composition: z.enum(["absent", "unbound"]),
+    planId: DeliveryPlanIdSchema.optional(), nextAction: z.literal("continue-reopen"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("reopen-bound"), planId: DeliveryPlanIdSchema,
+    stateRevision: z.number().int().positive(), nextAction: z.literal("stop"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
     status: z.literal("refused"), nextAction: z.literal("stop"),
     reason: z.enum([
       "evidence-unavailable", "evidence-conflict", "provisional-unconfirmed",
@@ -195,7 +231,16 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     ]),
     recommendedActionText: z.string().min(1),
   }),
-]);
+]).superRefine((result, context) => {
+  if (result.status !== "reopen-permitted") return;
+  if ((result.composition === "unbound") !== (result.planId !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["planId"],
+      message: "an unbound reopen composition requires exactly one plan identity",
+    });
+  }
+});
 
 type ResolvedPlan =
   | { readonly status: "match"; readonly plan: DeliveryPlanV1 }
@@ -225,11 +270,35 @@ export interface DeliveryEntryInspectionDependencies {
   readonly readIntegrationBoundary: () => Promise<ReadIntegrationBoundary>;
 }
 
+/** Closed delivery-composition result consumed before ordinary reopen mutation. */
+export type DeliveryReopenInspectionResult = Extract<
+  DeliveryEntryInspectionResult,
+  { readonly status: "reopen-permitted" | "reopen-bound" | "refused" }
+>;
+
+/** Inspect exact delivery composition before ordinary reopen is allowed to mutate. */
+export async function inspectDeliveryReopen(
+  workUnitId: string,
+  dependencies: DeliveryEntryInspectionDependencies,
+): Promise<DeliveryReopenInspectionResult> {
+  const parsedWorkUnitId = SlugSchema.parse(workUnitId);
+  const result = await inspectDeliveryEntry(
+    { workUnitId: parsedWorkUnitId, entryMode: "reopen" },
+    dependencies,
+  );
+  if (result.status === "reopen-permitted"
+    || result.status === "reopen-bound"
+    || result.status === "refused") {
+    return result;
+  }
+  return refused("evidence-conflict");
+}
+
 const LATER_ENTRY_COST = "Delivery later entry requires attended inventory and member authoring, complete "
   + "eligibility, materialization, and exact-head review that planning-time entry could have front-loaded.";
 
 function refused(reason: Extract<DeliveryEntryInspectionResult, { status: "refused" }>["reason"])
-  : DeliveryEntryInspectionResult {
+  : Extract<DeliveryEntryInspectionResult, { status: "refused" }> {
   const remedy = reason === "provisional-unconfirmed"
     ? "Confirm the prior attended delivery disposition before canonicalizing provisional intent."
     : reason === "task-cursor-unavailable"
@@ -308,6 +377,7 @@ export async function inspectDeliveryEntry(
   const integrating = entryMode === "integrating";
   const execution = entryMode === "execution";
   const prepublication = entryMode === "prepublication";
+  const reopening = entryMode === "reopen";
 
   if (attended?.boundaryDisposition === "not-delivery-candidate") {
     if (plan !== null || authoring.status === "match" || locus.status !== "absent") {
@@ -335,6 +405,14 @@ export async function inspectDeliveryEntry(
       };
     }
     if (authoring.status === "match") return refused("evidence-conflict");
+    if (reopening) {
+      return {
+        status: "reopen-permitted",
+        composition: "absent",
+        nextAction: "continue-reopen",
+        recommendedActionText: "Continue ordinary singleton withdrawal; no canonical Delivery Plan exists.",
+      };
+    }
     if (integrating || execution || prepublication) {
       return {
         status: "not-applicable",
@@ -382,6 +460,27 @@ export async function inspectDeliveryEntry(
   if (state.value !== null
     && (state.revision === null || validateDeliveryStateAgainstPlan(state.value, plan).status === "refused")) {
     return refused("state-incoherent");
+  }
+  if (reopening) {
+    if (state.value === null) {
+      return {
+        status: "reopen-permitted",
+        composition: "unbound",
+        planId: plan.planId,
+        nextAction: "continue-reopen",
+        recommendedActionText: "Continue ordinary withdrawal; the canonical delivery is not yet bound.",
+      };
+    }
+    if (state.revision === null) return refused("state-incoherent");
+    return {
+      status: "reopen-bound",
+      planId: plan.planId,
+      stateRevision: state.revision,
+      nextAction: "stop",
+      recommendedActionText: "Ordinary reopen cannot withdraw a coherently bound delivery: closing or drafting only "
+        + "the terminal request would strand its member requests. Preserve public integration and route corrective "
+        + "work through the bound delivery; delivery-wide withdrawal is not defined.",
+    };
   }
   if (recoverCanonicalPublication) {
     return {

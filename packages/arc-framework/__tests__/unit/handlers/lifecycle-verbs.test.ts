@@ -98,7 +98,7 @@ vi.mock("../../../src/lib/git/write-context.js", () => ({
   }),
 }));
 
-const mockParseMetaRecord = vi.fn(() => ({ branch: "feat/foo", state: "Active" }));
+const mockParseMetaRecord = vi.fn(() => ({ branch: "feat/foo", state: "Active", taskList: "tasks-foo.md" }));
 const mockReadActiveMetaCandidates = vi.fn<(cwd: string) => Promise<{ candidates: { filename: string }[] }>>(
   async () => ({
     candidates: [{ filename: "meta-foo.md" }],
@@ -279,6 +279,10 @@ const mockRunReopen = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/reopen.js", () => ({
   runReopen: (...a: unknown[]) => mockRunReopen(...a),
 }));
+const mockInspectRepositoryDeliveryReopen = vi.fn();
+vi.mock("../../../src/lib/delivery/repository-entry.js", () => ({
+  inspectRepositoryDeliveryReopen: (...args: unknown[]) => mockInspectRepositoryDeliveryReopen(...args),
+}));
 
 // The slug→state resolver feeds the handler's impact-plan composition; keep the
 // rest of the resolver real (the dispatch core's `deriveState` rides on it).
@@ -357,7 +361,14 @@ beforeEach(() => {
   mockReadFile.mockResolvedValue("{}");
   mockResolveTaskListPath.mockReturnValue(".arc/active/tasks-foo.md");
   mockReadConfigSettings.mockResolvedValue(configResult());
-  mockParseMetaRecord.mockReturnValue({ branch: "feat/foo", state: "Active" });
+  mockParseMetaRecord.mockReturnValue({ branch: "feat/foo", state: "Active", taskList: "tasks-foo.md" });
+  mockInspectRepositoryDeliveryReopen.mockReset();
+  mockInspectRepositoryDeliveryReopen.mockResolvedValue({
+    status: "reopen-permitted",
+    composition: "absent",
+    nextAction: "continue-reopen",
+    recommendedActionText: "Continue ordinary singleton withdrawal.",
+  });
   mockCollectUnstagedReviewablePaths.mockResolvedValue([]);
   mockRunAttest.mockResolvedValue({
     status: "unchanged",
@@ -1296,6 +1307,72 @@ describe("handlePublish", () => {
 });
 
 describe("handleReopen", () => {
+  it("establishes coherent unbound delivery before host observation and lifecycle transition", async () => {
+    const events: string[] = [];
+    mockInspectRepositoryDeliveryReopen.mockImplementationOnce(async () => {
+      events.push("delivery-composition");
+      return {
+        status: "reopen-permitted",
+        composition: "unbound",
+        planId: "11111111-1111-4111-8111-111111111111",
+        nextAction: "continue-reopen",
+        recommendedActionText: "Continue ordinary withdrawal.",
+      };
+    });
+    mockIoExec.mockImplementationOnce(async () => {
+      events.push("host-observation");
+      return { stdout: '{"state":"OPEN"}\n', stderr: "" };
+    });
+    mockRunReopen.mockImplementationOnce(async () => {
+      events.push("lifecycle-transition");
+      return { status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" };
+    });
+
+    await handleReopen("foo", {});
+
+    expect(events).toEqual(["delivery-composition", "host-observation", "lifecycle-transition"]);
+    expect(mockLogError).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("refuses a coherently bound delivery before host or lifecycle mutation", async () => {
+    const reason = "Ordinary reopen would strand retained member requests.";
+    mockInspectRepositoryDeliveryReopen.mockResolvedValueOnce({
+      status: "reopen-bound",
+      planId: "11111111-1111-4111-8111-111111111111",
+      stateRevision: 7,
+      nextAction: "stop",
+      recommendedActionText: reason,
+    });
+
+    await handleReopen("foo", {});
+
+    expect(mockLogError).toHaveBeenCalledWith(reason);
+    expect(process.exitCode).toBe(1);
+    expect(mockIoExec).not.toHaveBeenCalled();
+    expect(mockRunReopen).not.toHaveBeenCalled();
+  });
+
+  it.each(["evidence-unavailable", "state-incoherent"])(
+    "fails closed on %s delivery composition before host or lifecycle mutation",
+    async (reason) => {
+      const recommendedActionText = `Resolve ${reason} delivery evidence before reopening.`;
+      mockInspectRepositoryDeliveryReopen.mockResolvedValueOnce({
+        status: "refused",
+        nextAction: "stop",
+        reason,
+        recommendedActionText,
+      });
+
+      await handleReopen("foo", {});
+
+      expect(mockLogError).toHaveBeenCalledWith(recommendedActionText);
+      expect(process.exitCode).toBe(1);
+      expect(mockIoExec).not.toHaveBeenCalled();
+      expect(mockRunReopen).not.toHaveBeenCalled();
+    },
+  );
+
   it("reopens an unmerged WU, forwarding the resolved merge fact and the default close mode", async () => {
     mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"OPEN"}\n', stderr: "" });
     await handleReopen("foo", {});
