@@ -185,7 +185,12 @@ DeliveryReservationRecordLookup, DeliveryTerminalRecordLookup {
       if (record.value === null) return { status: "unbound" };
       const coherence = validateDeliveryStateAgainstPlan(record.value.value, plan);
       return coherence.status === "valid"
-        ? { status: "resolved", plan, state: coherence.state }
+        ? {
+            status: "resolved",
+            plan,
+            state: coherence.state,
+            stateRevision: record.value.revision,
+          }
         : { status: "unavailable" };
     } catch {
       return { status: "unavailable" };

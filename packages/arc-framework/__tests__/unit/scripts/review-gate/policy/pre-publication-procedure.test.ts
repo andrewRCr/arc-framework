@@ -168,6 +168,55 @@ describe("integration boundary locus", () => {
     });
   });
 
+  it("refreshes a same-Candidate continuation from newer exact delivery evidence", () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    const source = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: null,
+    });
+    const firstContinuation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId: "11111111-1111-4111-8111-111111111111",
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision: 7,
+      stateDigest: `sha256:${"2".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+    };
+    const carried = projectCorrectiveDeliveryReviewBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      supersedesCandidateId: null,
+      sourceBoundary: source,
+      deliveryContinuation: firstContinuation,
+    });
+    const refreshedContinuation = {
+      ...firstContinuation,
+      stateRevision: 8,
+      stateDigest: `sha256:${"4".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"5".repeat(64)}`,
+    };
+
+    expect(projectCorrectiveDeliveryReviewBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      supersedesCandidateId: null,
+      sourceBoundary: carried,
+      deliveryContinuation: refreshedContinuation,
+    })).toMatchObject({
+      candidateId,
+      reservation: source.reservation,
+      deliveryContinuation: refreshedContinuation,
+    });
+  });
+
   it("rebinds a carried publication boundary to an approved Candidate response subject", () => {
     const candidateId = `sha256:${"c".repeat(64)}`;
     const priorSubjectDigest = `sha256:${"d".repeat(64)}`;
