@@ -2268,11 +2268,16 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           verification-to-public correction matrix from coupled checkout, work-unit, load-set, boundary, and task
           evidence. The original public-seed incident and every destructive, reverse, or cross-locus shape refuse.
 
-    - `[ ]` **7.7.R.g Compose exact pre-binding delivery-member review targets**
+    - `[x]` **7.7.R.g Compose exact pre-binding delivery-member review targets**
 
         - _Goal:_ A canonical plan derives its ordered private targets from plan-owned candidate refs and gate
           checkouts closed through fresh delivery eligibility and materialization, including the originating top for
           the terminal member; any missing, dirty, moved, or incoherent member refuses with no aggregate fallback.
+
+        - _Outcome:_ Private review composition now closes every plan-derived candidate ref and detached gate through
+          fresh eligibility, then materializes exact plan-order target and delivery-member vehicle bindings with the
+          originating top as the terminal head. True plan absence alone permits singleton routing; bound delivery or
+          missing, dirty, moved, reordered, incoherent, or mismatched evidence refuses without an aggregate target.
 
     - `[ ]` **7.7.R.h Progress initial Frontline review member by member**
 

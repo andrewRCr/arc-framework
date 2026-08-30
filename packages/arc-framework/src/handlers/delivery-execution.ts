@@ -1,7 +1,7 @@
 /** Strict CLI composition for delivery execution services. */
 
 import { readdir, readFile, stat } from "node:fs/promises";
-import { posix, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -25,7 +25,10 @@ import {
   inspectDeliveryCandidateCheckout,
   observeDeliveryEligibilityRef,
 } from "../lib/delivery/git-eligibility.js";
-import { revalidateDeliveryLifecycleContribution } from "../lib/delivery/git-lifecycle-contribution.js";
+import {
+  readGitDeliveryLifecycleArtifactsAtRef,
+  revalidateDeliveryLifecycleContribution,
+} from "../lib/delivery/git-lifecycle-contribution.js";
 import { CurrentDeliveryLifecycleContributionPathSource } from "../lib/delivery/lifecycle-contribution.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
 import {
@@ -161,7 +164,6 @@ import {
 } from "../lib/work-unit/git-candidate-effective-target.js";
 import { resolveGitCandidateBaseRevision } from "../lib/work-unit/git-candidate-subject.js";
 import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
-import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveGitCommonDir } from "../lib/user-sync/repo-shared-paths.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -1000,22 +1002,6 @@ function emit(deps: DeliveryExecutionHandlerDependencies, command: DeliveryExecu
   if (result.status === "refused" || result.status === "blocked") deps.setExitCode(1);
 }
 
-async function readLifecycleArtifactsAtRef(
-  exec: GitExec,
-  ref: string,
-  workUnitId: string,
-): Promise<readonly ReturnType<typeof validateManagedPath>[]> {
-  const { stdout } = await exec("git", [
-    "ls-tree", "--full-tree", "-r", "-z", "--name-only", ref, "--",
-    ".arc/active", ".arc/backlog/planned", ".arc/backlog/provisional", ".arc/completed",
-  ]);
-  const matcher = artifactMatcher(workUnitId);
-  return stdout.split("\0")
-    .filter((path) => path !== "" && posix.basename(path) !== `cohort-${workUnitId}.md`
-      && matcher.test(posix.basename(path)))
-    .map(validateManagedPath);
-}
-
 async function observeNativeDeliveryEffect(
   host: GhDeliveryHostPort,
   state: DeliveryStateV1,
@@ -1653,7 +1639,7 @@ async function executeDeliveryCommand(
     try {
       const resolvedPaths = await new CurrentDeliveryLifecycleContributionPathSource({
         readDirectory: (path) => readdir(resolve(cwd, path)),
-        readArtifactsAtRef: (ref, workUnitId) => readLifecycleArtifactsAtRef(exec, ref, workUnitId),
+        readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId),
       }).resolve({
         workUnitId: plan.workUnitId,
         activeMetaPath: validateManagedPath(active.path),
@@ -2342,7 +2328,7 @@ async function executeDeliveryCommand(
         try {
           const paths = await new CurrentDeliveryLifecycleContributionPathSource({
             readDirectory: (path) => readdir(resolve(cwd, path)),
-            readArtifactsAtRef: (ref, workUnitId) => readLifecycleArtifactsAtRef(exec, ref, workUnitId),
+            readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId),
           }).resolve({
             workUnitId: plan.workUnitId,
             activeMetaPath: validateManagedPath(active.path),
@@ -3091,7 +3077,11 @@ async function executeDeliveryCommand(
             try {
               const paths = await new CurrentDeliveryLifecycleContributionPathSource({
                 readDirectory: (path) => readdir(resolve(cwd, path)),
-                readArtifactsAtRef: (ref, workUnitId) => readLifecycleArtifactsAtRef(exec, ref, workUnitId),
+                readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(
+                  exec,
+                  ref,
+                  workUnitId,
+                ),
               }).resolve({
                 workUnitId: plan.workUnitId,
                 activeMetaPath: validateManagedPath(active.path),
