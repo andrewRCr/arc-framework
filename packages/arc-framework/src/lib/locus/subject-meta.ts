@@ -55,6 +55,7 @@ export interface SubjectMetaIO {
 export type DeliveryCorrectionProjection =
   | { readonly status: "none" }
   | { readonly status: "verification-required" }
+  | { readonly status: "candidate-renewal-required" }
   | { readonly status: "refused"; readonly message: string };
 
 export type SubjectMetaProjection =
@@ -320,7 +321,8 @@ function projectWorkUnitStage(input: {
   if (input.sessionType !== "integration") return null;
   if (input.taskCursor?.status === "found") return "task-work";
   if (input.taskCursor?.status === "no-open-task"
-    && (input.candidateRenewalRequired || input.deliveryCorrection.status === "verification-required")) {
+    && (input.candidateRenewalRequired
+      || input.deliveryCorrection.status === "verification-required")) {
     return "verification-closeout";
   }
   return null;
