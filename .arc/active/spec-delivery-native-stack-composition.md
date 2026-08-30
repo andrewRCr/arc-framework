@@ -268,6 +268,15 @@ the later delivery state records the first external binding and is not the inten
   canonical leaf or `no-open-task` verification closeout; verification may return to integration only from an exact
   renewed Candidate and public member-review boundary. The originating checkout and work-unit identity must match,
   and every deletion, substitution, reverse transition, malformed cursor, or unrelated load-set difference stops.
+  **Corrected 2026-08-30 after member publication stranded compaction recovery:** an exact current Candidate whose
+  public delivery continuation names an older state revision projects a typed Candidate-renewal action inside the
+  existing integration workflow instead of making the checkout unresolved or entering verification closeout. The
+  projection is read-only and carries no review or mutation authority: ordinary attestation revalidates the current
+  Candidate, plan, state, member, and boundary evidence and version-writes the refreshed continuation before public
+  review resumes. A non-current Candidate still takes verification closeout only from its exact durable baseline and
+  boundary; Candidate, plan, reservation, subject, non-forward state, or incoherent evidence still refuses. This keeps
+  deterministic routing in the CLI, gives compaction recovery the same typed integration transition as ordinary
+  session entry, and adds no persisted stage, recovery record, prose dispatch, or compatibility state.
 - **D1.6 Terminal binding.** The terminal member binds at publish exactly like any other member — `ref`,
   `changeRequest`, and `coordinates` are populated when its pull request opens. This replaces the current
   materialization rule, where the terminal is deliberately left unbound

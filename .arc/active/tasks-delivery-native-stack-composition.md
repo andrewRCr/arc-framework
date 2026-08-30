@@ -583,6 +583,10 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
               physical member ref, republishes only verified absence through the reserved operation, and refuses
               divergence. The member-head build and focused suite prove exact, absent, moved, and unavailable
               observations, including deletion and recreation against a real bare remote and Git-backed state.
+            - _External-adoption continuation:_ the retained Member 4 head and tree remain exactly
+              `68f3d325b` / `805749aa0`; the dependent-suffix rewrite changed no Member 4 contribution. The prior
+              single-criterion report therefore remains exact, and the focused 28-test Member 4/6 adoption seam
+              passed over the rebound top without another member-wide or adversarial cycle.
 
 ## **Phase 5:** Terminal integration arm
 
@@ -2000,6 +2004,13 @@ structural guarantee rather than operator discipline.
                               into the retained Member 1 verification continuation without repeating provider
                               mutation. Success Criteria markers remain unchanged for terminal verification; the
                               prior explicit direction against another broad cycle discharged the companion offer.
+                            - _External-adoption continuation:_ the retained thirteen-locus report was resolved
+                              against rewritten Member 6 diff `fcbc5060c..8cf0bcbb0` and reachability `8cf0bcbb0`.
+                              The approved overlap is confined to criterion 11's exact conflict-consent path; its
+                              union matches the originating top, adoption preserved the other twelve dispositions,
+                              and 28 focused materialization, containment, suffix, and lifecycle tests passed. The
+                              Heavy companion had already converged at its two-pass cap, so no adversarial pass or
+                              broader verification cycle was reopened.
 
 ## **Phase 7:** Hosted-review fan-out and applicability
 
@@ -2416,6 +2427,53 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               action with requested coverage, and production request admission recomposes and compares that action
               before provider access. Real-store coverage proves renewed-Candidate entry, stale-state refusal,
               later-member refusal, exact admission, await persistence, ordered progression, and terminal conjunction.
+
+- _Forward amendment (2026-08-30):_ Live selected-member publication advanced canonical delivery state before its
+  dependent refresh, correctly invalidating the public continuation but making session-init and compaction recovery
+  unresolved before the existing Candidate-renewal route could run. Reopen Member 7 for this exact continuation
+  projection gap; no lifecycle state, verification replay, review authority, or general recovery tolerance enters.
+
+    - `[x]` **7.7.R.o Renew stale public continuation inside integration**
+
+        - _Goal:_ When the canonical task list is closed and the exact current Candidate retains the public delivery
+          reservation, a typed older delivery-state continuation selects Candidate renewal inside the existing
+          integration workflow. Attestation remains the sole versioned refresher; verification does not reopen, and
+          every other Candidate, plan, boundary, reservation, subject, or state mismatch stays unresolved.
+
+        - _Outcome:_ Delivery entry now distinguishes one exact forward-stale public continuation from every other
+          mismatch and emits `candidate-renewal-required` with the ordinary attestation action. The session projector
+          keeps that result in `integrate-work-unit`; it never selects verification closeout. Both shipped workflow
+          copies invoke the typed action unchanged, require `unchanged`, and reinspect before hosted review. Unit,
+          workflow-contract, type, lint, and live state-130 evidence prove the route without new persisted state. A
+          clean post-commit probe also proved that a genuinely non-current Candidate must bypass delivery mismatch
+          refusal and project the existing verification closeout; the typed companion route now does so without
+          synthesizing attestation or review authority.
+
+    - `[x]` **7.7.R.p Revalidate Member 7 continuation re-entry** — validate criteria at member scope
+
+        - _Goal:_ Re-run `Success Criteria > Member 7 — review-fan-out` over the bounded projector correction and
+          cumulative tree, retaining the existing markers and proving stale-state renewal reaches exact hosted-member
+          resumption without replaying verification, Frontline, or generic prepublication.
+
+        - _Outcome:_ Member 7 criteria report.
+            - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+            - _Span:_ retained report through Task 7.7.R.n plus the exact Task 7.7.R.o projector, entry-inspection,
+              workflow, and regression patch over `b17f21925`; reachability is the complete current tree. The prior
+              boundary-order deviation remains unchanged.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ canonical
+              delivery state still owns first-outstanding selection and the retained conjunction. The renewal route
+              writes no review result and reaches the same hosted-review action only after exact boundary refresh.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ no
+              applicability, equivalence, attempt, or discharge authority changed; stale continuation is never
+              accepted as review authority and every non-forward or mismatched binding still refuses.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ live
+              delivery progression advanced the state from revision 127 through adopted suffix verification to 130,
+              session-init remained resolved in `Integrating`, entry inspection emitted the exact attestation action,
+              attestation returned `unchanged` with a state-130 continuation, and reinspection returned
+              `continue-hosted-review` without Frontline, prepublication, or verification dispatch.
+            - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
+              bounded re-entry proof adds no third pass and the primary walk retains judgment over the correction.
+            - _Summary:_ three met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 8:** Record retirement and doctrine
 
@@ -2876,6 +2934,23 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 - _Summary:_ thirty-eight met, three intentionally superseded, zero unresolved. Unaffected member
                   criteria carry only from their exact boundary reports; the corrected Member 4 and Member 7 groups
                   were rechecked against their historical-head trees and the complete union.
+
+        - `[x]` **9.1.R.g Revalidate stale-continuation recovery at work-unit scope**
+
+            - _Goal:_ Consume the amended Member 7 report and prove exact Candidate renewal composes with compaction
+              recovery, provider-refresh state progression, first-outstanding member review, and the complete retained
+              conjunction without reopening execution verification or re-deriving unaffected member criteria.
+
+            - _Outcome:_ The amended Member 7 report carries three met criteria into the retained work-unit report.
+              External operator refresh moved exactly Members 5–7, ARC adopted their exact chain at state revision
+              129, and the scoped Member 4/6 continuation passed 28 focused tests before exact acknowledgment advanced
+              state to 130. Against the resulting genuinely stale state-127 public continuation, session-init stayed
+              in `Integrating`, typed entry selected ordinary Candidate renewal, attestation version-wrote the exact
+              state-130 continuation, and the next inspection resumed first-outstanding hosted review. The correction
+              also passed 46 focused unit tests, four workflow-contract tests, both typechecks, targeted ESLint,
+              Markdown lint, all ARC contract audits, build, and diff hygiene. No execution verification, whole-WU
+              verification, Frontline, prepublication, unaffected member walk, or new adversarial pass ran; all other
+              retained member reports and the complete conjunction remain unchanged.
 
         - _Outcome:_ The rebound tree matches the reviewed delivery content at `66da99a8f` with tree `7758a3b4a`;
           delivery state revision 94 has acknowledged the exact Member 7 verification continuation and blocks

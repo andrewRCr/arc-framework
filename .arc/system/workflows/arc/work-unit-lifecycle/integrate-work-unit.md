@@ -66,6 +66,11 @@ printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect --input
 Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.
 `continue-hosted-review` resumes at Step 2's public hosted-review iteration with its exact `hostedReviewAction`;
 do not resolve a singleton change request or enter delivery publication / position reconciliation.
+`candidate-verification-required` leaves this workflow for Candidate verification closeout; it synthesizes no
+attestation or review action.
+`candidate-renewal-required` invokes its exact `attestationAction`, requires `unchanged`, then re-runs this entry
+inspection; attestation alone revalidates and refreshes the public delivery continuation without replaying
+verification or leaving `Integrating`.
 `canonicalize-provisional`, `validate-canonical`, `continue-publication`, and `resume-bound` leave this workflow and
 enter the matching route in [`supplemental/deliver-stack.md`](../supplemental/deliver-stack.md); that workflow owns
 publication, state binding, member pull requests, and the landing window. `refused` stops after rendering

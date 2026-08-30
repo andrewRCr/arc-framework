@@ -140,6 +140,27 @@ reachable failures:
 - the regression carrier must use real commits, refs, local stores, and production handlers, mocking only the external
   provider effect.
 
+The live Member 4 correction then exposed one remaining entry failure. Publishing the selected member correctly
+advanced delivery state before its dependent suffix refresh, which made the Candidate boundary's exact delivery
+continuation stale. That staleness is the intended trigger for versioned Candidate renewal, but the session projector
+reduced the delivery-entry refusal to an unresolved checkout before it could select the renewal sub-stage. Compaction
+seeding and recovery therefore stopped even though the originating checkout, Candidate baseline, delivery state, and
+public reservation were all exact. The repair classifies only this typed stale-continuation result as
+`candidate-renewal-required`, keeps session recovery in the existing integration workflow, and leaves attestation to
+revalidate and write the fresh boundary. It does not accept a stale binding as public-review authority, enter the
+verification workflow, replay verification, move lifecycle state, or weaken any other mismatch refusal.
+
+The live correction closed the loop rather than relying on the synthetic seam. External refresh rewrote exactly
+Members 5–7, ARC adopted and acknowledged the scoped Member 4/6 continuation, and delivery state advanced from 127
+to 130 while the public boundary remained at 127. The repaired session projector stayed resolved in
+`integrate-work-unit`; entry inspection emitted the exact ordinary attestation action; attestation returned
+`unchanged` and version-wrote the state-130 continuation; and reinspection returned `continue-hosted-review`.
+This is the durable recovery invariant: forward continuation drift is repaired inside integration, while new content
+still projects the existing Candidate verification closeout from its exact durable boundary, and every unrelated
+mismatch remains fail-closed. The clean post-commit probe caught the missing typed bridge for that second case before
+push; `candidate-verification-required` now preserves the resolved checkout without manufacturing attestation or
+review authority.
+
 The audit matrix covers initial publication, correction task entry, verification return, Candidate renewal,
 compaction recovery, public member status/request/await, review-fix continuation, materialization retry, first-member
 ordering, and terminal conjunction. A row is closed only by executable evidence at its production seam or an explicit

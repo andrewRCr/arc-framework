@@ -92,6 +92,12 @@ describe("delivery terminal integration handoff", () => {
     expect(packaged).toContain('{"entryMode":"integrating"}');
     expect(packaged).toMatch(/`not-applicable`[\s\S]*ordinary singleton integration/iu);
     expect(packaged).toMatch(
+      /`candidate-renewal-required`[\s\S]*`attestationAction`[\s\S]*requires `unchanged`[\s\S]*without replaying[\s\S]*verification/iu,
+    );
+    expect(packaged).toMatch(
+      /`candidate-verification-required`[\s\S]*verification closeout[\s\S]*no[\s\S]*attestation or review action/iu,
+    );
+    expect(packaged).toMatch(
       /`canonicalize-provisional`[\s\S]*`validate-canonical`[\s\S]*`continue-publication`[\s\S]*`resume-bound`/u,
     );
     expect(packaged).toContain("supplemental/deliver-stack.md");

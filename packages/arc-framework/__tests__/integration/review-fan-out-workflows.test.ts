@@ -96,6 +96,12 @@ describe("hosted review fan-out workflow", () => {
     expect(entryDispatch).toMatch(
       /continue-hosted-review[\s\S]*Step 2[\s\S]*do not resolve a singleton change request/iu,
     );
+    expect(entryDispatch).toMatch(
+      /candidate-renewal-required[\s\S]*attestationAction[\s\S]*requires `unchanged`[\s\S]*without replaying[\s\S]*verification/iu,
+    );
+    expect(entryDispatch).toMatch(
+      /candidate-verification-required[\s\S]*verification closeout[\s\S]*no[\s\S]*attestation or review action/iu,
+    );
     const section = reviewSection(
       packaged,
       "Read `integrationBoundary.reservation`",
