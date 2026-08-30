@@ -47,7 +47,10 @@ import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { readLaneProgressAcrossLineage } from "../lane-progress.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
-import type { PreBindingDeliveryReviewTargetDependencies } from "./pre-publication-delivery-targets.js";
+import {
+  composePreBindingDeliveryReviewTargets,
+  type PreBindingDeliveryReviewTargetDependencies,
+} from "./pre-publication-delivery-targets.js";
 import type {
   AssuranceRead,
   CandidateRead,
@@ -213,6 +216,7 @@ export function createPrePublicationCompositionDependencies(input: {
   const rawGit = createRawGitExec(input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup(input);
+  const deliveryReviewTargetDependencies = createPreBindingDeliveryReviewTargetDependencies(input);
   let repositoryIdPromise: Promise<string> | null = null;
   const repositoryId = () => {
     repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
@@ -347,6 +351,11 @@ export function createPrePublicationCompositionDependencies(input: {
           : delivery,
       });
     },
+
+    readDeliveryReviewTargets: async (workUnit) => composePreBindingDeliveryReviewTargets({
+      workUnitId: workUnit,
+      baseRef: (await settings())["branch.base"],
+    }, deliveryReviewTargetDependencies),
 
     deriveImmutableTarget: async (): Promise<ImmutableTargetRead> => {
       try {

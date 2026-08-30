@@ -174,6 +174,28 @@ describe("delivery entry inspection", () => {
       .resolves.toMatchObject({ status: "resume-bound", stateRevision: 3 });
   });
 
+  it("selects private candidate preparation only when pre-publication has a canonical plan", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "prepublication",
+    }, dependencies({ taskList, resolvedPlan: plan }))).resolves.toMatchObject({
+      status: "validate-canonical",
+      nextAction: "validate-eligibility",
+      planId: plan.planId,
+      planDigest: plan.planDigest,
+    });
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "prepublication",
+    }, dependencies())).resolves.toMatchObject({
+      status: "not-applicable",
+      nextAction: "continue-work-unit",
+      recommendedActionText: expect.stringContaining("singleton pre-publication"),
+    });
+  });
+
   it("consumes an exact pending publication action before bound position routing", async () => {
     const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
     const boundary = projectPublicationBoundary({

@@ -44,6 +44,42 @@ describe("prepublication workflow boundary", () => {
     }
   });
 
+  it("prepares canonical private member targets before composing pre-publication review", async () => {
+    for (const root of ROOTS) {
+      const [prepare, delivery] = await Promise.all([
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
+        readFile(resolve(root, "system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
+      ]);
+      const entry = prepare.indexOf("arc delivery entry inspect --input - --json");
+      const privateCandidates = prepare.indexOf("Prepare private delivery candidates", entry);
+      const review = prepare.indexOf("arc review pre-publication <wu> --json", privateCandidates);
+      expect(entry).toBeGreaterThan(-1);
+      expect(prepare).toContain('{"entryMode":"prepublication"}');
+      expect(privateCandidates).toBeGreaterThan(entry);
+      expect(review).toBeGreaterThan(privateCandidates);
+      expect(prepare.slice(entry, review)).toMatch(
+        /`not-applicable`[\s\S]*`validate-canonical`[\s\S]*`refused`/u,
+      );
+      expect(prepare.slice(entry, review)).toContain("planId");
+      expect(prepare).toMatch(
+        /approved fix changes the Candidate[\s\S]*rerun Step 1[\s\S]*Prepare private delivery candidates/iu,
+      );
+
+      const preparation = delivery.indexOf("## Prepare private delivery candidates");
+      const locate = delivery.indexOf("arc delivery authoring locate - --json", preparation);
+      const eligibilityPrepare = delivery.indexOf("arc delivery eligibility prepare - --json", locate);
+      const eligibilityClose = delivery.indexOf("arc delivery eligibility close - --json", eligibilityPrepare);
+      const publish = delivery.indexOf("arc delivery publish - --json", eligibilityClose);
+      for (const position of [preparation, locate, eligibilityPrepare, eligibilityClose, publish]) {
+        expect(position).toBeGreaterThan(-1);
+      }
+      expect(preparation).toBeLessThan(locate);
+      expect(locate).toBeLessThan(eligibilityPrepare);
+      expect(eligibilityPrepare).toBeLessThan(eligibilityClose);
+      expect(eligibilityClose).toBeLessThan(publish);
+    }
+  });
+
   it("keeps packaged and project workflow copies identical", async () => {
     const [packagedPrepare, projectPrepare, packagedIntegrate, projectIntegrate] = await Promise.all([
       readFile(resolve(ROOTS[0]!, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
