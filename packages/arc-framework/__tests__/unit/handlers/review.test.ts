@@ -754,6 +754,7 @@ describe("handleReviewStatus", () => {
     await handleReviewStatus({
       target: JSON.stringify(statusTarget),
       ceilingOverride: JSON.stringify(ceilingOverride),
+      coverage: "incremental",
       json: true,
     }, undefined, {
       resolveRoot: () => "/repo",
@@ -766,7 +767,8 @@ describe("handleReviewStatus", () => {
           state: "review-required",
           detail: request.ceilingOverride === undefined
             ? "Ceiling override missing."
-            : `Ceiling override admits pass ${String(request.ceilingOverride.nextPass)}.`,
+            : `Ceiling override admits pass ${String(request.ceilingOverride.nextPass)} with `
+              + `${request.coverage ?? "complete"} coverage.`,
         },
         currentBaseOid: "b".repeat(40),
         state: "review-required",
@@ -777,7 +779,7 @@ describe("handleReviewStatus", () => {
     });
 
     expect(JSON.parse(output.join(""))).toMatchObject({
-      routedObligation: { detail: "Ceiling override admits pass 3." },
+      routedObligation: { detail: "Ceiling override admits pass 3 with incremental coverage." },
     });
   });
 });

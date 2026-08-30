@@ -12,10 +12,13 @@ import {
 } from "../../lib/work-unit/git-candidate-effective-target.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
+import { validateDeliveryPublicReviewContinuation } from
+  "../../lib/delivery/public-review-continuation.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
   type DeliveryDischargeTargetLookup,
   type DeliveryMemberLookup,
+  type DeliveryTerminalRecordLookup,
 } from "./core/delivery-member-lookup.js";
 import { resolveReviewSubject } from "./core/review-subject.js";
 import {
@@ -33,6 +36,7 @@ import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lo
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
+import type { HostedReviewCoverage } from "./hosted/request.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
 import { resolveHostedReservationPolicy } from "./policy/hosted-reservation-admission.js";
 import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
@@ -85,9 +89,13 @@ export async function readRoutedObligation(
   exec: GitExec,
   target: ChangeRequestTargetRef,
   pullRequest: number,
-  memberLookup: DeliveryMemberLookup & DeliveryDischargeTargetLookup = new RepositoryDeliveryMemberLookup({ cwd, exec }),
+  memberLookup: DeliveryMemberLookup & DeliveryDischargeTargetLookup & DeliveryTerminalRecordLookup
+    = new RepositoryDeliveryMemberLookup({ cwd, exec }),
   currentBaseRevision?: string,
-  judgment?: { readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"] },
+  judgment?: {
+    readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
+    readonly coverage?: HostedReviewCoverage;
+  },
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
     headRef: target.headRef,
@@ -114,23 +122,50 @@ export async function readRoutedObligation(
     const settings = (await readConfigSettings(cwd)).settings;
     const baseBranch = settings["branch.base"];
     const candidateHead = subject.member?.candidateHead ?? target.headSha;
-    const targetBase = await resolveGitCandidateTargetBase({
-      cwd,
-      revision: candidateHead,
-      baseBranch,
-      baseRevision: currentBaseRevision,
-      exec,
-    });
-    const effective = await projectGitCandidateEffectiveTarget({
-      cwd,
-      name: workUnit,
-      baseBranch,
-      record,
-      exec,
-      rawExec: createRawGitExec(cwd),
-      target: { revision: candidateHead, currentBase: targetBase },
-    });
-    if (effective.state !== "current" || effective.recognizedTarget.revision !== candidateHead) {
+    const correctiveContinuation = "deliveryContinuation" in boundary
+      ? boundary.deliveryContinuation
+      : undefined;
+    let effective: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>>;
+    if (correctiveContinuation !== undefined) {
+      const delivery = await memberLookup.resolveTerminalRecords(workUnit);
+      if (delivery.status !== "resolved"
+        || validateDeliveryPublicReviewContinuation({
+          continuation: correctiveContinuation,
+          plan: delivery.plan,
+          state: delivery.state,
+          stateRevision: delivery.stateRevision,
+        }).status !== "current") {
+        return { state: "blocked", detail: "The public delivery continuation is not current." };
+      }
+      effective = await projectGitCandidateEffectiveTarget({
+        cwd,
+        name: workUnit,
+        baseBranch,
+        ...(currentBaseRevision === undefined ? {} : { baseRevision: currentBaseRevision }),
+        record,
+        exec,
+        rawExec: createRawGitExec(cwd),
+      });
+    } else {
+      const targetBase = await resolveGitCandidateTargetBase({
+        cwd,
+        revision: candidateHead,
+        baseBranch,
+        baseRevision: currentBaseRevision,
+        exec,
+      });
+      effective = await projectGitCandidateEffectiveTarget({
+        cwd,
+        name: workUnit,
+        baseBranch,
+        record,
+        exec,
+        rawExec: createRawGitExec(cwd),
+        target: { revision: candidateHead, currentBase: targetBase },
+      });
+    }
+    if (effective.state !== "current"
+      || (correctiveContinuation === undefined && effective.recognizedTarget.revision !== candidateHead)) {
       return { state: "blocked", detail: "The owning work-unit Candidate is not current." };
     }
     const candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
@@ -229,6 +264,7 @@ export async function readRoutedObligation(
       return composeDeliveryReviewObligation({
         targets: deliveryTargets,
         discharges: composedDischarges,
+        ...(judgment?.coverage === undefined ? {} : { requestCoverage: judgment.coverage }),
         applicabilityContext: {
           workUnitId: workUnit,
           expectedRecordVersion: versionedRecord.version,
@@ -262,7 +298,7 @@ export async function readRoutedObligation(
 /** Bind GitHub, publication-boundary, and Git base reads to the status reducer. */
 export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): ReviewStatusPort {
   return {
-    observe: async (target, ceilingOverride) => {
+    observe: async (target, ceilingOverride, coverage) => {
       try {
         const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
         const memberLookup = new RepositoryDeliveryMemberLookup(input);
@@ -300,7 +336,12 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
           resolution.candidate.number,
           memberLookup,
           base.currentBaseOid ?? undefined,
-          ceilingOverride === undefined ? undefined : { ceilingOverride },
+          ceilingOverride === undefined && coverage === undefined
+            ? undefined
+            : {
+                ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
+                ...(coverage === undefined ? {} : { coverage }),
+              },
         );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
         const repository = await checksPort.resolveRepository();

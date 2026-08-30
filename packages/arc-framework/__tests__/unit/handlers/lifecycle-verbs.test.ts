@@ -20,6 +20,7 @@ const mockNote = vi.fn();
 const mockSelect = vi.fn();
 const mockIoExec = vi.fn();
 const mockIoExecInput = vi.fn();
+const mockIoWriteFile = vi.fn();
 const mockCreateUserIOContext = vi.fn();
 const mockSpinnerStart = vi.fn();
 const mockSpinnerStop = vi.fn();
@@ -50,7 +51,7 @@ vi.mock("../../../src/lib/io-context.js", () => ({
       exec: mockIoExec,
       execInput: mockIoExecInput,
       readFile: vi.fn(async () => "meta"),
-      writeFile: vi.fn(),
+      writeFile: (...args: unknown[]) => mockIoWriteFile(...args),
       mkdir: vi.fn(),
     };
   },
@@ -512,6 +513,7 @@ beforeEach(() => {
     candidateHead: "d".repeat(40),
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
+  mockIoWriteFile.mockResolvedValue(undefined);
   mockResolveInFlightBranchSet.mockResolvedValue({
     branches: ["feat/foo"],
     refs: { "origin/feat/foo": "abc123" },
@@ -1722,6 +1724,127 @@ describe("handleAttest", () => {
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
       status: "attested",
       operation: "re-root",
+      locus: { locus: "hosted-review-pending", candidateId },
+    });
+  });
+
+  it("refreshes delivery evidence across boundary, meta, and index interruption", async () => {
+    const sourceCandidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"b".repeat(64)}`;
+    const subjectDigest = `sha256:${"c".repeat(64)}`;
+    const planId = "11111111-1111-4111-8111-111111111111";
+    const reservation = createStandardReviewReservation({
+      candidateId: sourceCandidateId,
+      sourceId: "codex-pr",
+      target: {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "foo",
+        planId,
+      },
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"d".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    let currentBoundary = projectPublicationBoundary({
+      workUnit: "foo",
+      branch: "feat/foo",
+      candidateId: sourceCandidateId,
+      candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+      reservation,
+      changeRequest: null,
+    });
+    let boundaryVersion = "source-boundary-version";
+    let stateRevision = 7;
+    const continuation = () => ({
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId,
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision,
+      stateDigest: `sha256:${stateRevision.toString(16).repeat(64)}`,
+      memberEvidenceDigest: `sha256:${(stateRevision + 1).toString(16).repeat(64)}`,
+    });
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: "Integrating",
+      taskList: "tasks-foo.md",
+      currentWorkflow: "integrate-work-unit",
+      nextAction: "resume integration review",
+      lastCompleted: null,
+      nextTask: null,
+    });
+    mockReadSubmissionBoundaryVersioned.mockImplementation(async () => ({
+      boundary: currentBoundary,
+      version: boundaryVersion,
+    }));
+    mockInspectRepositoryDeliveryCandidateRenewal.mockImplementation(async () => ({
+      status: "ready",
+      planId,
+      stateRevision,
+      deliveryContinuation: continuation(),
+    }));
+    mockWriteSubmissionBoundary.mockImplementation(async (
+      _cwd: unknown,
+      boundary: typeof currentBoundary,
+      expectedVersion: unknown,
+    ) => {
+      if (expectedVersion !== boundaryVersion) throw new Error("stale boundary version");
+      currentBoundary = boundary;
+      boundaryVersion = `boundary-version-${stateRevision}`;
+      return ".arc/system/.internal/candidates/foo.boundary.json";
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId, supersedes: sourceCandidateId } },
+        candidateId,
+        candidateSubjectDigest: subjectDigest,
+        currentWorkflow: "integrate-work-unit",
+        nextAction: "Candidate review pending — resume integration review",
+        expectedRecordVersion: attempt === 1 ? "source-candidate-version" : "renewed-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return { status: "attested", operation: "re-root", ...published };
+    });
+    mockIoWriteFile.mockRejectedValueOnce(new Error("meta write interrupted"));
+
+    await expect(handleAttest("foo", { json: true, newRoot: true }))
+      .rejects.toThrow("meta write interrupted");
+    expect(currentBoundary).toMatchObject({
+      candidateId,
+      deliveryContinuation: { stateRevision: 7 },
+    });
+
+    stateRevision = 8;
+    mockIoExec.mockRejectedValueOnce(new Error("index write interrupted"));
+    await expect(handleAttest("foo", { json: true, newRoot: true }))
+      .rejects.toThrow("index write interrupted");
+    expect(currentBoundary).toMatchObject({
+      candidateId,
+      deliveryContinuation: { stateRevision: 8 },
+    });
+
+    stateRevision = 9;
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true, newRoot: true });
+
+    expect(currentBoundary).toMatchObject({
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      reservation,
+      deliveryContinuation: { stateRevision: 9 },
+    });
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "attested",
       locus: { locus: "hosted-review-pending", candidateId },
     });
   });
