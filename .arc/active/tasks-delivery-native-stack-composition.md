@@ -2147,7 +2147,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2155,26 +2155,26 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 - _Outcome:_ Member 7 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
-    - _Span:_ bounded diff `3ae53d25c..34332ebea`; cumulative reachability `34332ebea` at tree `8f9a80f7b`.
-      Boundary-order deviation: the approved post-verification correction was projected back into Member 7, then
-      the dependent suffix refreshed to rebound top `ac931860c` at tree `1cd5b6bbf`; no later-member content enters
-      the bounded member diff.
+    - _Span:_ bounded diff `bb7e093c2..8106628b1`; cumulative reachability `8106628b1` at tree `b504843a5`.
+      Boundary-order deviation: the approved finding correction was projected back into Member 7 after its original
+      close, then the empty dependent suffix rebound top `c84f972ff` at tree `dfa511043`; no terminal-member content
+      enters the bounded member diff.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`;
-      _Evidence:_ coherent delivery state derives one exact current target per retained member binding, while status
-      preserves the originating member request and reports settlement only from the complete ordered conjunction.
-      The production lifecycle exercises changed-target settlement followed by a second-member review and refuses to
-      discharge until both members settle.
+      _Evidence:_ coherent delivery state derives every exact current target and discharge before composing the
+      ordered conjunction; status settles only when every retained binding discharges. The production lifecycle
+      exercises changed-target settlement followed by a second member and refuses terminal discharge until both
+      clear, while request admission now rejects a later-member envelope before provider access.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`;
       _Evidence:_ complete hosted coverage and exactly admitted local results may settle; supplemental coverage stays
-      non-settling. A settled verified-fix response re-anchors the existing earlier-attempt projection at its exact
-      changed target, so later movement still routes through D4 while the response itself adds no equivalence notion,
-      applicability authority, or record family.
+      non-settling. Contribution applicability still reuses the single structural arbiter and canonical Candidate
+      transition, while the final admission read permits only the conjunction's exact first outstanding action, so
+      out-of-order envelopes cannot spend an additional provider pass.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`;
       _Evidence:_ the typed progression retains exact member, source, host, pass, and ceiling admission from status
-      through request, await, response, settlement, and terminal conjunction. The changed-target response resolves
-      from authoritative delivery state, appends once to the approved disposition record, returns the exact hosted
-      fix target to both shipped workflows, settles idempotently, and becomes current discharge evidence without
-      weakening ordinary pinned-target admission. Success Criteria markers remain unchanged.
+      through request, await, response, settlement, and terminal conjunction. Immediately before provider invocation,
+      production recomposes that progression and requires canonical equality with the submitted action; executable
+      coverage proves both refusal of a later member and admission of the exact first-outstanding action. Success
+      Criteria markers remain unchanged.
 
 - _Forward amendment (2026-08-27):_ D8.5 requires delivery-member request admission to pass through the existing
   review driver. The completed implementation instead composed a hosted request directly after applicability, so a
@@ -2321,7 +2321,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           version write. Integration revalidates the live binding before hosted resumption, while recovery refuses a
           corrective verification return without it and ordinary first-publication routing remains unchanged.
 
-    - `[ ]` **7.7.R.l Revalidate the corrected member and restore this WU's public locus** — validate criteria at
+    - `[x]` **7.7.R.l Revalidate the corrected member and restore this WU's public locus** — validate criteria at
       member scope
 
         - _Goal:_ Executable coverage proves task and verification entry, exact compaction recovery, private
@@ -2332,6 +2332,11 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           new recovery checks exposed legacy `Active` / `prepare-work-unit` residue that could not seed a valid
           continuation. This task now revalidates the persisted `Integrating` locus and resumes the published member
           reviews; it does not repeat normalization or re-enter private review.
+
+        - _Outcome:_ All three Member 7 criteria resolve over the corrected member and rebound top. The final
+          finding-driven correction closes request-time first-outstanding admission through the production handler,
+          preserving the existing conjunction, policy driver, applicability authority, and member-only public review
+          continuation without replaying Frontline or adding delivery review state.
 
 ## **Phase 8:** Record retirement and doctrine
 
