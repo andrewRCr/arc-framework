@@ -254,7 +254,10 @@ import {
   type ChecksAwaitResult,
 } from "../scripts/review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
-import { createReviewStatusPort } from "../scripts/review-gate/status-composition.js";
+import {
+  createReviewStatusPort,
+  readRoutedObligation,
+} from "../scripts/review-gate/status-composition.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   ReviewStatusCommandResultSchema,
@@ -1528,6 +1531,7 @@ async function resolveHostedProgressContext(input: {
       reservation: null,
       candidateRecord: null,
       settings,
+      statusTarget: changeRequest.targetRef,
     };
   }
 
@@ -1629,6 +1633,7 @@ async function resolveHostedProgressContext(input: {
     reservation,
     candidateRecord,
     settings,
+    statusTarget: changeRequest.targetRef,
   };
 }
 
@@ -2035,6 +2040,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
       if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedRequestEnvelopeSchema.parse(input);
       const deliveryVehicle = request.vehicle?.kind === "delivery-member" ? request.vehicle : null;
+      const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
       const settings = (await readConfigSettings(root)).settings;
       const context = await resolveHostedProgressContext({
         root,
@@ -2058,7 +2064,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
           });
       const result = await requestHostedReview(request, {
         adapters,
-        deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root }),
+        deliveryMemberLookup,
         ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
         ...(deliveryVehicle === null || policy === null
           ? {}
@@ -2099,6 +2105,24 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
                     ? {}
                     : { ceilingOverride: request.ceilingOverride }),
                 });
+                const currentObligation = await readRoutedObligation(
+                  root,
+                  gitExec,
+                  context.statusTarget,
+                  request.target.pullRequest,
+                  deliveryMemberLookup,
+                  undefined,
+                  request.ceilingOverride === undefined
+                    ? undefined
+                    : { ceilingOverride: request.ceilingOverride },
+                );
+                if (currentObligation.state !== "review-required"
+                  || !("action" in currentObligation)
+                  || canonicalize(currentObligation.action) !== canonicalize(request)) {
+                  throw new Error(
+                    "Hosted delivery-member request no longer matches the current first outstanding delivery member.",
+                  );
+                }
               },
             }),
       });
