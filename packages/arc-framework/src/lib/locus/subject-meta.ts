@@ -19,7 +19,10 @@ import {
 } from "../work-unit/candidate-attestation.js";
 import type { CandidateTargetProjector } from "../work-unit/candidate-effective-target.js";
 import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
-import { resolveLoadSetManifest } from "../load-set/projection.js";
+import {
+  resolveLoadSetManifest,
+  type LoadSetWorkUnitStage,
+} from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import { resolveActiveCohortDocPath } from "../session-init/cohort-doc.js";
 import {
@@ -41,7 +44,18 @@ export interface SubjectMetaIO {
   realpath(path: string): Promise<string>;
   lstat(path: string): Promise<{ isSymbolicLink(): boolean }>;
   projectCandidateTarget: CandidateTargetProjector;
+  projectDeliveryCorrection(input: {
+    cwd: string;
+    workUnitId: string;
+    taskListPath: string;
+  }): Promise<DeliveryCorrectionProjection>;
 }
+
+/** Closed delivery-owned signal that can select integration verification. */
+export type DeliveryCorrectionProjection =
+  | { readonly status: "none" }
+  | { readonly status: "verification-required" }
+  | { readonly status: "refused"; readonly message: string };
 
 export type SubjectMetaProjection =
   | { kind: "unresolved"; code: "subject-unresolved"; message: string; metaPath: string | null }
@@ -205,11 +219,39 @@ export async function projectCheckoutSubjectMeta(options: {
         realpath: (path) => options.io.realpath(path),
         lstat: (path) => options.io.lstat(path),
       });
-  const executionStage = sessionType === "execution" && taskCursor?.status === "no-open-task"
-    ? "verification-closeout"
-    : sessionType === "execution"
-      ? "task-work"
-      : null;
+  let deliveryCorrection: DeliveryCorrectionProjection = { status: "none" };
+  if (sessionType === "integration"
+    && taskListPath !== null
+    && taskCursor?.status === "no-open-task") {
+    try {
+      deliveryCorrection = await options.io.projectDeliveryCorrection({
+        cwd: options.cwd,
+        workUnitId: options.subjectKey,
+        taskListPath,
+      });
+    } catch (error) {
+      return {
+        kind: "unresolved",
+        code: "subject-unresolved",
+        message: error instanceof Error ? error.message : String(error),
+        metaPath: expectedPath,
+      };
+    }
+    if (deliveryCorrection.status === "refused") {
+      return {
+        kind: "unresolved",
+        code: "subject-unresolved",
+        message: deliveryCorrection.message,
+        metaPath: expectedPath,
+      };
+    }
+  }
+  const workUnitStage = projectWorkUnitStage({
+    sessionType,
+    taskCursor,
+    candidateRenewalRequired: requireExactDurableBoundary,
+    deliveryCorrection,
+  });
   const cohortDocPath = await resolveActiveCohortDocPath({
     cwd: options.cwd,
     activeMetaPath: expectedPath,
@@ -221,7 +263,7 @@ export async function projectCheckoutSubjectMeta(options: {
     owner: normalizePointer(record.owner),
     branch: normalizePointer(record.branch),
     sessionType,
-    workflow: workflowFor(sessionType, executionStage),
+    workflow: workflowFor(sessionType, workUnitStage),
     stage: planningStage,
     taskListPath,
     taskCursor,
@@ -235,7 +277,7 @@ export async function projectCheckoutSubjectMeta(options: {
       metaPath: expectedPath,
       sessionType,
       planningStage,
-      executionStage,
+      workUnitStage,
       taskListPath,
       activeExtensions: options.activeExtensions ?? [],
       cohortDocPath,
@@ -254,13 +296,32 @@ function normalizePointer(value: string | null): string | null {
 
 function workflowFor(
   sessionType: SessionType | null,
-  executionStage: "task-work" | "verification-closeout" | null,
+  workUnitStage: LoadSetWorkUnitStage | null,
 ): string | null {
   if (sessionType === "planning") return "planning";
-  if (sessionType === "execution") {
-    return executionStage === "verification-closeout" ? "verify-work-unit" : "process-task-loop";
+  if (sessionType === "execution" || sessionType === "integration") {
+    if (workUnitStage === "verification-closeout") return "verify-work-unit";
+    if (workUnitStage === "task-work" || sessionType === "execution") return "process-task-loop";
   }
   if (sessionType === "prepublication") return "prepare-work-unit";
   if (sessionType === "integration") return "integrate-work-unit";
+  return null;
+}
+
+function projectWorkUnitStage(input: {
+  sessionType: SessionType | null;
+  taskCursor: TaskListCursorFileResult | null;
+  candidateRenewalRequired: boolean;
+  deliveryCorrection: DeliveryCorrectionProjection;
+}): LoadSetWorkUnitStage | null {
+  if (input.sessionType === "execution") {
+    return input.taskCursor?.status === "no-open-task" ? "verification-closeout" : "task-work";
+  }
+  if (input.sessionType !== "integration") return null;
+  if (input.taskCursor?.status === "found") return "task-work";
+  if (input.taskCursor?.status === "no-open-task"
+    && (input.candidateRenewalRequired || input.deliveryCorrection.status === "verification-required")) {
+    return "verification-closeout";
+  }
   return null;
 }

@@ -17,24 +17,12 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import {
   DeliveryEntryInspectionResultSchema,
   DeliveryEntryInspectionRequestSchema,
-  inspectDeliveryEntry,
   type DeliveryEntryInspectionResult,
 } from "../lib/delivery/entry-inspection.js";
-import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
-import {
-  GitDeliveryRenameTransitionSource,
-  resolveExistingDeliveryPlan,
-} from "../lib/delivery/plan-resolution.js";
-import { resolveExistingDeliveryAuthoringMap } from "../lib/delivery/authoring-resolution.js";
-import { RepositoryDeliveryAuthoringStore } from "../lib/delivery/authoring-store.js";
-import {
-  RepositoryDeliveryPlanStore,
-  RepositoryDeliveryStateStore,
-} from "../lib/delivery/local-stores.js";
-import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { createGitExec, createRawGitExec } from "../lib/io-context.js";
+import { inspectRepositoryDeliveryEntry as inspectRepositoryDeliveryEntryAt } from
+  "../lib/delivery/repository-entry.js";
+import { createGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
-import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 const InputSchema = z.union([
@@ -162,7 +150,7 @@ function resolveTaskListPath(cwd: string, activePath: string, taskList: string):
   const relation = relative(cwd, target).replaceAll("\\", "/");
   return relation === "" || relation === ".." || relation.startsWith("../") || isAbsolute(relation)
     ? null
-    : target;
+    : relation;
 }
 
 async function inspectRepositoryDeliveryEntry(
@@ -179,57 +167,13 @@ async function inspectRepositoryDeliveryEntry(
   }
   const taskListPath = resolveTaskListPath(cwd, active.path, parsedMeta.taskList);
   if (taskListPath === null) throw new Error("Task list path invalid");
-
-  const exec = createGitExec(interaction?.subprocess);
-  const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
-  const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
-  const stateStore = new RepositoryDeliveryStateStore(publisher);
-  const authoringStore = new RepositoryDeliveryAuthoringStore(publisher);
-  const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(cwd));
   const { settings } = await readConfigSettings(cwd);
-  const base = settings["branch.base"].trim();
-  const authority = base === ""
-    ? { status: "unestablished" as const }
-    : { status: "established" as const, ref: `refs/heads/${base}` };
 
-  return inspectDeliveryEntry(DeliveryEntryInspectionRequestSchema.parse({
-    workUnitId: active.name,
-    ...input,
-  }), {
-    readTaskList: () => readFile(taskListPath, "utf8"),
-    resolvePlan: async () => {
-      const result = await resolveExistingDeliveryPlan({
-        planStore: { enumerateCurrent: () => planStore.enumerateCurrentReadOnly() },
-        currentWorkUnitId: active.name, planWorkUnitId: (plan) => plan.workUnitId,
-        authority, transitionSource,
-      });
-      return result.status === "match" ? result : { status: result.status };
-    },
-    resolveAuthoring: async () => {
-      const result = await resolveExistingDeliveryAuthoringMap({
-        store: { enumerate: () => authoringStore.enumerateReadOnly() },
-        currentWorkUnitId: active.name, authority, transitionSource,
-      });
-      if (result.status === "match") {
-        return {
-          status: "match",
-          mapId: result.record.snapshot.mapId,
-          candidatePlanDigest: result.record.snapshot.candidatePlanDigest,
-        };
-      }
-      return { status: result.status };
-    },
-    readState: async (planId) => {
-      const result = await stateStore.read(planId);
-      return result.status === "refused"
-        ? { status: "refused" }
-        : result.value === null
-          ? { status: "ok", value: null, revision: null }
-          : { status: "ok", value: result.value.value, revision: result.value.revision };
-    },
-    readIntegrationBoundary: async () => ({
-      status: "ok",
-      value: await readSubmissionBoundary(cwd, active.name),
-    }),
+  return inspectRepositoryDeliveryEntryAt({
+    cwd,
+    taskListPath,
+    request: DeliveryEntryInspectionRequestSchema.parse({ workUnitId: active.name, ...input }),
+    baseBranch: settings["branch.base"],
+    exec: createGitExec(interaction?.subprocess),
   });
 }

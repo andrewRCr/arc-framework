@@ -61,6 +61,7 @@ function subjectIO(files: ReadonlyMap<string, string>): SubjectMetaIO {
     pathExists: async (path) => files.has(path),
     realpath: async (path) => posix.normalize(path),
     lstat: async () => ({ isSymbolicLink: () => false }),
+    projectDeliveryCorrection: async () => ({ status: "none" }),
     projectCandidateTarget: async ({ record }) => {
       const baseline = reduceCandidateDurableBaseline(record);
       return projectEffectiveCandidateTarget({

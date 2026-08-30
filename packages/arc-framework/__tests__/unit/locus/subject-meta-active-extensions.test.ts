@@ -52,6 +52,7 @@ function subjectIO(files: ReadonlyMap<string, string>): SubjectMetaIO {
     pathExists: async (path) => files.has(path),
     realpath: async (path) => posix.normalize(path),
     lstat: async () => ({ isSymbolicLink: () => false }),
+    projectDeliveryCorrection: async () => ({ status: "none" }),
     projectCandidateTarget: async ({ record }) => {
       const baseline = reduceCandidateDurableBaseline(record);
       return projectEffectiveCandidateTarget({
@@ -334,7 +335,69 @@ describe("checkout subject active-extension seam", () => {
     });
   });
 
-  it("preserves an exact Integrating boundary while Candidate applicability awaits authority", async () => {
+  it("projects open corrective work without leaving the integration session", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: candidate.subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "process-task-loop",
+      taskCursor: { status: "found", cursor: { section: { id: "1.1" }, leaf: { id: "1.1" } } },
+      integrationBoundary: boundary,
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).toEqual(expect.arrayContaining([
+      {
+        path: ".arc/active/tasks-demo.md",
+        readMode: { kind: "partial-strategic" },
+      },
+      {
+        path: ".arc/system/workflows/arc/process-task-loop.md",
+        readMode: { kind: "full" },
+      },
+    ]));
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).not.toContainEqual(
+      {
+        path: ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+        readMode: { kind: "full" },
+      },
+    );
+  });
+
+  it("projects integration verification while Candidate applicability awaits authority", async () => {
+    resolverInputs.length = 0;
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
     const { candidateId, subjectDigest } = candidate;
@@ -376,9 +439,119 @@ describe("checkout subject active-extension seam", () => {
     expect(result).toMatchObject({
       kind: "resolved",
       sessionType: "integration",
-      workflow: "integrate-work-unit",
+      workflow: "verify-work-unit",
       taskCursor: { status: "no-open-task" },
       integrationBoundary: boundary,
+    });
+    expect(resolverInputs.at(-1)).toMatchObject({
+      sessionType: "integration",
+      workUnitStage: "verification-closeout",
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      readMode: { kind: "full" },
+    });
+  });
+
+  it("projects integration verification for a pending delivery correction continuation", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: candidate.subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: {
+        ...options.io,
+        projectDeliveryCorrection: async () => ({ status: "verification-required" as const }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "verify-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: boundary,
+    });
+  });
+
+  it("refuses integration projection when delivery correction evidence is incoherent", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: candidate.subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: {
+        ...options.io,
+        projectDeliveryCorrection: async () => ({
+          status: "refused" as const,
+          message: "Delivery correction evidence is incoherent.",
+        }),
+      },
+    });
+
+    expect(result).toEqual({
+      kind: "unresolved",
+      code: "subject-unresolved",
+      message: "Delivery correction evidence is incoherent.",
+      metaPath: ".arc/active/meta-demo.md",
     });
   });
 
@@ -564,7 +737,7 @@ describe("checkout subject active-extension seam", () => {
     });
     expect(resolverInputs.at(-1)).toMatchObject({
       sessionType: "execution",
-      executionStage: "verification-closeout",
+      workUnitStage: "verification-closeout",
     });
     expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
       path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",

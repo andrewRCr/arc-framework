@@ -2147,7 +2147,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2238,6 +2238,68 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           coverage stopped before settlement; the repaired production lifecycle now consumes the exact returned fix
           target, proves settlement replay, and reaches the complete member conjunction through the existing response
           record and D4 applicability path.
+
+- _Forward amendment (2026-08-29):_ Self-delivery exposed two coupled projection defects after the stack was already
+  public: reopening moved the work unit backward and replayed private review, while pre-publication composition
+  offered one aggregate Candidate to Frontline despite a canonical Delivery Plan. Reopen this member boundary for
+  the delivery-owned correction. Stored `Integrating` remains monotonic, recovery follows only structurally proven
+  same-work-unit progress, every private review target is a member, and public correction resumes the existing
+  hosted-member conjunction. Generic review progression and source policy remain outside this amendment.
+
+    - `[x]` **7.7.R.e Project corrective work from the durable integration phase**
+
+        - _Goal:_ Session entry selects an open corrective task or applicable verification from canonical task,
+          Candidate, delivery-continuation, and integration-boundary facts while stored State and session type remain
+          `Integrating`; ordinary public review remains the default when no correction stage is owed.
+
+        - _Outcome:_ Session entry now derives task work and verification inside the durable integration phase from
+          canonical cursor, Candidate, and delivery-continuation facts. The shared load set selects the task slice,
+          `process-task-loop`, `verify-work-unit`, or ordinary integration without changing stored State; exact
+          repository-relative reads keep linked-WU inspection anchored to its checkout, and the closed envelope
+          schema rejects skipped open corrections while preserving planning, execution, and prepublication behavior.
+
+    - `[ ]` **7.7.R.f Recover only exact integration-correction progression**
+
+        - _Goal:_ Compaction recovery admits the same derived correction stage as ordinary entry and explains only
+          exact same-checkout, same-work-unit stage changes whose prior cursor closure and new canonical cursor are
+          structurally proven; deletion, substitution, reverse movement, and cross-locus drift still stop.
+
+    - `[ ]` **7.7.R.g Compose exact pre-binding delivery-member review targets**
+
+        - _Goal:_ A canonical plan derives its ordered private targets from plan-owned candidate refs and gate
+          checkouts closed through fresh delivery eligibility and materialization, including the originating top for
+          the terminal member; any missing, dirty, moved, or incoherent member refuses with no aggregate fallback.
+
+    - `[ ]` **7.7.R.h Progress initial Frontline review member by member**
+
+        - _Goal:_ The pre-publication procedure applies the unchanged Frontline policy driver to the first
+          outstanding exact member in plan order, recomposes after each result, and never invokes Frontline on the
+          whole Candidate or persists a parallel target/progress ledger.
+
+    - `[ ]` **7.7.R.i Resume public hosted-member review without private-lane replay**
+
+        - _Goal:_ A bound public correction bypasses Frontline and generic prepublication, then resumes the existing
+          retained hosted-member target/discharge conjunction at the exact affected heads through typed integration
+          status actions.
+
+    - `[ ]` **7.7.R.j Refuse ordinary reopen for a coherently bound delivery**
+
+        - _Goal:_ `arc reopen` establishes exact delivery composition before any host or lifecycle mutation and
+          refuses a coherent bound stack; absent/unbound singleton work retains the existing withdrawal path, while
+          unavailable or incoherent delivery evidence fails closed.
+
+    - `[ ]` **7.7.R.k Persist and recover public Candidate renewal**
+
+        - _Goal:_ Corrective attestation preserves `Integrating` and version-writes one exact public member-review
+          continuation bound to current Candidate, plan, state, and member evidence; integration consumes it before
+          generic publication/position routing, and every stale or mismatched binding stops.
+
+    - `[ ]` **7.7.R.l Revalidate the corrected member and restore this WU's public locus** — validate criteria at
+      member scope
+
+        - _Goal:_ Executable coverage proves task and verification entry, exact compaction recovery, private
+          member-only Frontline, public hosted resumption, Candidate renewal, and pre-mutation reopen refusal. After
+          those mechanics pass, normalize this WU once to `Integrating` and resume its published member reviews.
 
 ## **Phase 8:** Record retirement and doctrine
 

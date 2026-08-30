@@ -253,6 +253,21 @@ the later delivery state records the first external binding and is not the inten
   has closed; it then requires a successful `re-root` result before preparation. Any other entry, action, malformed
   continuation, stale or partial verification, or open task remains stopped. This adds no verification ledger,
   Candidate authority, or lifecycle state.
+
+  **Corrected 2026-08-29 after bound self-delivery replayed completed private lanes:** `Integrating` remains the
+  durable public phase during ordinary corrective work. A canonical open task projects a corrective task-loop
+  sub-stage without changing stored State; applicable post-task verification and Candidate renewal project as
+  integration continuations rather than an `Active` prepublication session. Session initialization and compaction
+  recovery derive those continuations from the same task cursor, Candidate currentness, delivery continuation, and
+  exact integration boundary. Recovery admits only the exact same-work-unit integration-to-correction progression,
+  including its load-set and cursor change, and otherwise remains fail-closed. No persisted stage flag, second locus,
+  correction ledger, or recovery authority is added. Review findings remain review responses with no task; a
+  verification-conformance gap appends a forward task because the implementation plan itself was deficient.
+  The admitted recovery transitions are closed: public integration may acquire a newly appended canonical correction
+  cursor; task work may advance only when the prior seed leaf is structurally closed and the fresh result is the next
+  canonical leaf or `no-open-task` verification closeout; verification may return to integration only from an exact
+  renewed Candidate and public member-review boundary. The originating checkout and work-unit identity must match,
+  and every deletion, substitution, reverse transition, malformed cursor, or unrelated load-set difference stops.
 - **D1.6 Terminal binding.** The terminal member binds at publish exactly like any other member — `ref`,
   `changeRequest`, and `coordinates` are populated when its pull request opens. This replaces the current
   materialization rule, where the terminal is deliberately left unbound
@@ -1299,6 +1314,22 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   attestation checks and therefore still blocks; the remedy is correct ownership or explicit isolation, never an
   ignore rule. This adds no record family, storage mode, or compatibility reader.
 
+- **D8.11 Delivery plans make review targets member-only — amended 2026-08-29 after self-delivery invoked
+  Frontline over the 366-file Candidate.** A canonical Delivery Plan excludes the ordinary whole-work-unit review
+  target for every lane. Before publication, enabled Frontline review progresses in plan order over freshly derived
+  exact member targets through the existing delivery-member vehicle; standard review retains its hosted per-member
+  progression and conjunction. Failure to derive or bind any member refuses rather than falling back to the work-unit
+  Candidate. Once delivery state is bound and the work unit is public, Frontline is no longer eligible: a correction
+  resumes the exact affected hosted member progression, with review applicability deciding carried versus renewed
+  coverage and work-unit verification retaining seam and union responsibility. Delivery owns target multiplicity and
+  phase eligibility only; generic source ordering, pass progression, findings, ceiling, and convergence stay with the
+  review contracts. No target list, verdict, or clearance is copied into delivery state.
+  Plan-only target derivation reuses the canonical plan's derived candidate refs and gate checkout locators, closes
+  them through fresh delivery eligibility, and projects predecessor/head coordinates through delivery
+  materialization; the terminal target uses the exact originating top. The existing policy driver is applied to one
+  selected member at a time and is not taught delivery multiplicity. Missing, dirty, moved, reordered, or incoherent
+  authoring evidence refuses the delivery projection before any lane can receive an aggregate Candidate target.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
@@ -1567,6 +1598,14 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   operation takes precedence over task-member selection. Execution entry returns the existing typed
   `read-position-and-reconcile` route, and the task loop re-inspects entry after settlement before authoring another
   correction. It never starts fresh planning around a retained reservation.
+  **Corrected 2026-08-29 after top-only reopen stranded an already-published delivery:** ordinary corrective entry
+  never withdraws a coherently bound delivery. `arc reopen` refuses before host or lifecycle mutation when exact
+  plan/state evidence proves a bound public delivery, because closing or drafting only the terminal request does not
+  withdraw its member requests. Corrective Candidate attestation preserves `Integrating` and writes an exact typed
+  public member-review resume boundary; integration consumes that boundary before generic publication or position
+  routing. Missing, stale, mismatched, or incoherent plan/member/Candidate bindings stop. A future explicit
+  delivery-wide withdrawal may define the true backward edge, but this design neither infers nor partially performs
+  one.
 - **D10.4 Guard tests.** Two guards pin the workflows D3.7 changes: `delivery-terminal-workflow.test.ts`, whose
   eleven assertions are anchored on the terminal-attachment block, and `delivery-workflow.test.ts`, which pins a
   `delivery terminal prepare` invocation in `deliver-stack.md`'s handoff. Removing that machinery reddens both —
@@ -2107,6 +2146,17 @@ added.
     addressable only with no active owner, and foreign dirt remains a blocking signal. Executable coverage proves
     cross-work-unit refusal without file or index mutation, same-owner success, archived-lineage continuation, and
     stable origin re-entry across the correction cycle (D8.10, D1.5).
+42. An ordinary corrective cycle preserves stored `Integrating` across an open forward task, applicable verification,
+    Candidate renewal, and public review resumption. Session initialization and compaction recovery project the exact
+    task or verification continuation from durable facts, accept only the same-work-unit cursor/load-set progression,
+    retain the originating checkout, and never replay completed private lanes or invent persisted stage state (D1.5).
+43. When a canonical Delivery Plan exists, neither Frontline nor standard review can use a whole-work-unit fallback.
+    Initial Frontline progresses over exact members in plan order; bound/public corrections resume hosted review on
+    affected members without making Frontline eligible again; member derivation failure stops, and seam/union
+    verification preserves complete work-unit coverage (D8.11).
+44. Ordinary `arc reopen` refuses a coherently bound delivery before changing lifecycle or host state. Corrective
+    Candidate renewal instead preserves the public delivery and recovers an exact member-review resume point bound to
+    current Candidate, plan, member, and delivery evidence; stale or incoherent evidence remains stopped (D10.3).
 
 ## Open Questions
 
@@ -2131,9 +2181,9 @@ and the fallback (D3.4, D6.3a, D6.4).
 - **Conflict-evidence extraction.** `merge-tree --write-tree` signals conflict by exit status and prints conflict
   information; the exact parse that yields D4.5's conflicted-path list, and its distinction from a hard error, is
   established against the installed Git at implementation time.
-- **Coordination.** Frontline review of delivery members (the stale-target recomposition refusal) is owned by an
-  independent errand capture — coordinate, do not duplicate. That fix should land before this work unit dogfoods
-  its own delivery.
+- **Coordination.** Generic review-source and progression semantics remain with the review architecture cohort.
+  D8.11 pulls forward only delivery-owned target multiplicity, member vehicle binding, and public/private lane
+  eligibility because self-delivery proved the WU cannot function without them.
 
 ---
 

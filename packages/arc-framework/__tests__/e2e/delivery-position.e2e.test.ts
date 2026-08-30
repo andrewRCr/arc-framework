@@ -382,6 +382,97 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
 }
 
 describe("arc delivery position", () => {
+  it("projects pending review-fix verification into the integration session", async () => {
+    const fixture = await positionFixture();
+    const workUnitId = fixture.plan.workUnitId;
+    const branch = `feat/${workUnitId}`;
+    await git(fixture.repository, ["switch", "-c", branch]);
+    await writeFile(join(fixture.repository, "correction.txt"), "published correction\n");
+    await git(fixture.repository, ["add", "correction.txt"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "correction fixture"]);
+    await git(fixture.repository, ["push", "-u", "origin", branch]);
+
+    const activeDir = join(fixture.repository, ".arc", "active");
+    const taskListPath = join(activeDir, `tasks-${workUnitId}.md`);
+    const metaPath = join(activeDir, `meta-${workUnitId}.md`);
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(taskListPath, [
+      `# Task List: ${workUnitId}`,
+      "",
+      renderDeliveryPlanSection(fixture.plan),
+      "## **Phase 1:** Members",
+      "",
+      "### `[x]` **1.1 Close member one**",
+      "",
+      "### `[x]` **1.2 Close member two**",
+      "",
+      "### `[x]` **1.3 Close member three**",
+      "",
+      "## **Phase 2:** Verification",
+      "",
+      "### `[x]` **2.1 Verify the work unit**",
+      "",
+    ].join("\n"));
+    await writeFile(metaPath, [
+      `# Metadata: ${workUnitId}`,
+      "",
+      "- **State:** Active",
+      "- **Owner:** test-user",
+      `- **Branch:** ${branch}`,
+      `- **Task List:** tasks-${workUnitId}.md`,
+      "- **Candidate:** [none]",
+      "- **Current Workflow:** [none]",
+      "- **Last Completed:** Task 2.1 — Verify the work unit",
+      "- **Next Task:** [none]",
+      "- **Next Action:** Attest the Candidate",
+      "",
+    ].join("\n"));
+    await git(fixture.repository, ["add", "-A"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "active fixture"]);
+
+    const attested = await runArc(["attest", workUnitId, "--json"], fixture.repository);
+    expect(attested.exitCode, `${attested.stderr}\n${attested.stdout}`).toBe(0);
+    const stored = await fixture.states.read(fixture.plan.planId);
+    expect(stored).toMatchObject({ status: "ok" });
+    if (stored.status !== "ok" || stored.value === null) {
+      throw new Error("delivery state must remain readable");
+    }
+    const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    expect(await fixture.states.publish(fixture.plan.planId, {
+      ...stored.value.value,
+      pendingReviewFixVerification: {
+        selectedDeliverableId,
+        memberDeliverableIds: [selectedDeliverableId],
+      },
+    }, stored.value.revision)).toMatchObject({ status: "ok" });
+
+    const attestedMeta = await readFile(metaPath, "utf8");
+    await writeFile(
+      metaPath,
+      attestedMeta
+        .replace("- **State:** Active", "- **State:** Integrating")
+        .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+    );
+
+    const result = await runArc(["status", "--session-init", "--json"], fixture.repository, {
+      env: fixture.env,
+    });
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    const envelope = JSON.parse(result.stdout) as {
+      active: { ok: boolean; value?: { sessionType: string; currentWorkflow: string } };
+      taskCursor?: { ok: boolean; value?: { status: string } };
+      loadSet: { ok: boolean; value?: { entries: Array<{ path: string }> } };
+    };
+    expect(envelope.active).toMatchObject({
+      ok: true,
+      value: { sessionType: "integration", currentWorkflow: "verify-work-unit" },
+    });
+    expect(envelope.taskCursor).toEqual({ ok: true, value: { status: "no-open-task" } });
+    expect(envelope.loadSet.value?.entries.map(({ path }) => path)).toContain(
+      ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+    );
+  });
+
   it("re-enters and acknowledges a settled review-fix verification after response loss", async () => {
     const fixture = await positionFixture("selected-change-external-refresh");
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;

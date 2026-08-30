@@ -6,6 +6,7 @@
 - [Applicability: contribution equivalence versus path carry-forward](#applicability-contribution-equivalence-versus-path-carry-forward)
 - [Success Criterion 18 — why it was re-cut](#success-criterion-18--why-it-was-re-cut)
 - [Member checkouts and recovery authority](#member-checkouts-and-recovery-authority)
+- [Corrective integration and member-only review](#corrective-integration-and-member-only-review)
 - [Authored partitions and adversarial attention](#authored-partitions-and-adversarial-attention)
 - [First adversarial pass amendments](#first-adversarial-pass-amendments)
 - [Second adversarial pass amendments](#second-adversarial-pass-amendments)
@@ -57,6 +58,63 @@ restored to the origin. Codex may follow an ARC-declared ready transient because
 it never infers a work-unit successor from branch, active-meta, or transcript coincidence. This keeps repeated
 delivery correction, review, verification, and integration cycles stationary even when member and gate operation
 inputs turn over around them.
+
+## Corrective integration and member-only review
+
+`Integrating` is the durable public delivery phase, not a cursor saying every earlier workflow lane must replay.
+Ordinary review fixes and verification-conformance corrections therefore remain `Integrating`. Review findings stay
+inside the review-response protocol and never become task-list work. A conformance gap that proves the implementation
+plan incomplete appends a forward corrective task, but the open task and its applicable verification are derived
+sub-stages inside integration rather than an `Integrating → Active` transition.
+
+Session initialization and compaction recovery consume the same authoritative facts. A canonical open corrective
+task projects the task loop while preserving the stored integration state and boundary. After task closure,
+Candidate currentness, convergence status, the existing delivery verification continuation, and the integration
+boundary select applicable verification, Candidate attestation, or public review resumption. Recovery accepts only
+the exact same-WU progression from an integration seed to those derived continuations, including the corresponding
+task-cursor and load-set change; it never changes checkout, invents a second locus, or re-enters a completed private
+lane. Missing, ambiguous, stale, or mismatched facts remain fail-closed.
+
+The recovery contract is an exact projection matrix, not a general permission to tolerate drift:
+
+- ordinary public integration with `no-open-task` may acquire a corrective `process-task-loop` projection only when
+  the fresh canonical cursor names an appended task in the same WU and the originating checkout is unchanged;
+- corrective task work may advance to another leaf or `verify-work-unit` only when a fresh structural scan proves
+  the seed leaf closed and the new cursor is the canonical next executable result;
+- corrective verification may return to public integration only when fresh Candidate and versioned boundary facts
+  establish the exact public member-review continuation; and
+- a deleted or substituted task, reverse stage movement, changed WU/checkout, malformed cursor, or any additional
+  load-set difference remains a recovery stop.
+
+This keeps the compaction seed useful as a strict baseline while allowing the small, mechanically proven lifecycle
+progressions that can occur between seed emission and recovery. The stage is derived and ephemeral; `Integrating`
+remains the only persisted lifecycle value throughout.
+
+A canonical Delivery Plan changes review target cardinality for every lane. Frontline and standard review use exact
+delivery-member targets; inability to materialize or bind a member is a stop, never a whole-work-unit fallback.
+Before publication, enabled Frontline review progresses over members in plan order. Once the delivery is bound and
+public, Frontline is no longer eligible: corrections resume the retained hosted member progression at the exact
+affected heads, while work-unit seam and union verification preserve cross-member coverage. A new typed public
+correction resume point may extend the existing version-checked integration boundary, but no new lifecycle state,
+review ledger, correction ledger, storage axis, or branch-derived authority is introduced.
+
+Before binding, the member coordinates come from existing delivery authoring authority: the canonical plan derives
+each private candidate ref and detached gate checkout, fresh eligibility closes their exact heads/trees against the
+protected base and originating top, and delivery materialization supplies each predecessor/head pair (using the
+originating top for the terminal member). Review consumes that ephemeral projection and records only its ordinary
+per-target progress. It never treats the plan's prose or branch spelling as coordinates and never persists another
+target list. After binding, retained plan/state/change-request coordinates remain the hosted-review authority already
+used by status and discharge.
+
+The executable correction belongs to the existing Member 7 closing task. Reopening Task 7.7 keeps the canonical
+delivery owner and review-fix routing intact; placing it under the completed work-unit verification task would make
+the cursor invisible and would also leave the correction outside member coverage.
+
+`arc reopen` retains one exceptional meaning: actual withdrawal from public integration. A coherently bound delivery
+cannot be withdrawn by closing or drafting only its terminal request, so ordinary reopen refuses there until a
+delivery-wide withdrawal contract exists. This work unit's current `Active` state is recovery residue from the
+superseded top-only reopen path; after the correction is verified, normalize it once to `Integrating` and resume the
+published member reviews without Frontline or generic prepublication replay.
 
 ## Authored partitions and adversarial attention
 
