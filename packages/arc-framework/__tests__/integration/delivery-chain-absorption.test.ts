@@ -130,7 +130,7 @@ describe("delivery chain content absorption", () => {
       exec,
       topRef: "refs/heads/feat/example",
       top: await coordinate(top),
-      previousHighestMember: await coordinate(originalHighest),
+      previousHighestMember: { head: originalHighest },
       highestMember: await coordinate(refreshedHighest),
     });
 
