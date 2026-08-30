@@ -317,7 +317,7 @@ export interface ProviderAdoptionSettlementDependencies {
   readonly absorbTop: (input: {
     readonly topRef: string;
     readonly top: { readonly head: string; readonly tree: string };
-    readonly previousHighestMember: { readonly head: string; readonly tree: string };
+    readonly previousHighestMember: { readonly head: string; readonly tree?: string };
     readonly highestMember: { readonly head: string; readonly tree: string };
   }) => Promise<DeliveryChainAbsorptionResult>;
   readonly publishTop: (input: {
@@ -455,10 +455,8 @@ export async function settleReservedDeliverySuffixRefresh(input: {
   }
 
   const terminal = active.state.members.at(-1);
-  const previousHighestMember = active.operation.before.members.at(-1);
   const highestMember = settlementObservation.snapshot.members.at(-1);
   if (terminal?.ref === null || terminal?.ref === undefined || terminal.coordinates === null
-    || previousHighestMember?.coordinates === null || previousHighestMember?.coordinates === undefined
     || highestMember?.coordinates === null || highestMember?.coordinates === undefined) {
     return { status: "blocked", reason: "terminal-top-unavailable" };
   }
@@ -468,10 +466,7 @@ export async function settleReservedDeliverySuffixRefresh(input: {
     const absorbed = await input.absorbTop({
       topRef: terminal.ref,
       top: { head: terminalCoordinates.head, tree: terminalCoordinates.tree },
-      previousHighestMember: {
-        head: previousHighestMember.coordinates.head,
-        tree: previousHighestMember.coordinates.tree,
-      },
+      previousHighestMember: { head: terminalCoordinates.base },
       highestMember: {
         head: highestMember.coordinates.head,
         tree: highestMember.coordinates.tree,
