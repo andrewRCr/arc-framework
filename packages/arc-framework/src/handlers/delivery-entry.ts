@@ -97,7 +97,8 @@ function defaultDependencies(): DeliveryEntryInspectHandlerDependencies {
 
 function emit(
   dependencies: DeliveryEntryInspectHandlerDependencies,
-  result: DeliveryEntryInspectionResult | { readonly status: "refused"; readonly reason: string },
+  result: z.output<typeof DeliveryEntryInspectionResultSchema>
+    | { readonly status: "refused"; readonly reason: string },
 ): void {
   dependencies.write(`${JSON.stringify({
     schemaVersion: 1,

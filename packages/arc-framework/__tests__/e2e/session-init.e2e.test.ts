@@ -22,6 +22,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from
+  "../../src/lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
+import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
+import { gitExec } from "../../src/lib/io-context.js";
+import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
+import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -364,6 +372,17 @@ function taskListFixture(title: string): string {
   ].join("\n");
 }
 
+function singletonTaskListFixture(title: string): string {
+  return [
+    "# Task List: Foo",
+    "",
+    "## **Phase 1:** Work",
+    "",
+    `### \`[ ]\` **1.1 ${title}**`,
+    "",
+  ].join("\n");
+}
+
 describe("session-init E2E — sessionType across type variants", () => {
   let tmpDir: string;
 
@@ -557,7 +576,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         nextAction: "Complete integration",
       }),
     );
-    await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Repair lifecycle recovery"));
+    await writeFile(join(activeDir, "tasks-foo.md"), singletonTaskListFixture("Repair lifecycle recovery"));
     await git(tmpDir, ["add", "-A"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "integrating fixture"]);
 
@@ -647,7 +666,7 @@ describe("session-init E2E — sessionType across type variants", () => {
 
     await writeFile(
       join(activeDir, "tasks-foo.md"),
-      taskListFixture("Repair lifecycle recovery").replace("`[ ]`", "`[x]`"),
+      singletonTaskListFixture("Repair lifecycle recovery").replace("`[ ]`", "`[x]`"),
     );
     await git(tmpDir, ["add", "-A"]);
 
@@ -699,6 +718,77 @@ describe("session-init E2E — sessionType across type variants", () => {
       ok: true,
       value: { currentWorkflow: "prepare-work-unit", sessionType: "prepublication" },
     });
+  });
+
+  it("refuses ordinary reopen for a bound delivery before host or lifecycle mutation", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "init"]);
+    await git(tmpDir, ["switch", "-c", "feat/foo"]);
+
+    const plan = deliveryThreeMemberStackPlanForWorkUnitFixture("foo");
+    const activeDir = join(tmpDir, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, "meta-foo.md"),
+      renderMetaFile("foo", {
+        state: "Integrating",
+        owner: "test-user",
+        branch: "feat/foo",
+        workClass: "Heavy",
+        priority: "P1",
+        taskList: "tasks-foo.md",
+        candidateId: `sha256:${"1".repeat(64)}`,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 9.1 — Complete verification",
+        nextAction: "Complete integration",
+      }),
+    );
+    await writeFile(join(activeDir, "tasks-foo.md"), [
+      "# Task List: Foo",
+      "",
+      renderDeliveryPlanSection(plan).trimEnd(),
+      "",
+      "## **Phase 1:** Work",
+      "",
+      "### `[ ]` **1.1 Repair the published delivery**",
+      "",
+    ].join("\n"));
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "bound delivery fixture"]);
+
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, tmpDir);
+    const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+    const states = new RepositoryDeliveryStateStore(publisher);
+    expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
+    expect(await states.publish(plan.planId, deliveryStateFixture(plan), 0)).toMatchObject({ status: "ok" });
+
+    const ghBin = join(tmpDir, ".git", "arc-test-bin");
+    const ghLog = join(ghBin, "gh.log");
+    await mkdir(ghBin, { recursive: true });
+    await writeFile(ghLog, "");
+    await writeFile(join(ghBin, "gh"), [
+      "#!/bin/sh",
+      "printf '%s\\n' \"$*\" >> \"$ARC_TEST_GH_LOG\"",
+      "exit 2",
+      "",
+    ].join("\n"));
+    await chmod(join(ghBin, "gh"), 0o755);
+
+    const result = await runArc(
+      ["reopen", "foo", "--keep-pr", "--task", "Task 1.1 — Repair the published delivery"],
+      tmpDir,
+      {
+        env: {
+          ARC_TEST_GH_LOG: ghLog,
+          PATH: `${ghBin}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain("coherently bound delivery");
+    expect(await readFile(ghLog, "utf8")).toBe("");
+    expect(await readFile(join(activeDir, "meta-foo.md"), "utf8")).toContain("| `Integrating`");
   });
 
   it("resumes an open published correction without leaving integration", async () => {
