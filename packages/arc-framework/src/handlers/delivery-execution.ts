@@ -1,7 +1,7 @@
 /** Strict CLI composition for delivery execution services. */
 
-import { readdir, readFile } from "node:fs/promises";
-import { posix, resolve } from "node:path";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -25,20 +25,31 @@ import {
   inspectDeliveryCandidateCheckout,
   observeDeliveryEligibilityRef,
 } from "../lib/delivery/git-eligibility.js";
-import { revalidateDeliveryLifecycleContribution } from "../lib/delivery/git-lifecycle-contribution.js";
+import {
+  readGitDeliveryLifecycleArtifactsAtRef,
+  revalidateDeliveryLifecycleContribution,
+} from "../lib/delivery/git-lifecycle-contribution.js";
 import { CurrentDeliveryLifecycleContributionPathSource } from "../lib/delivery/lifecycle-contribution.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
-import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
+import {
+  proveGitDeliveryContribution,
+  proveGitDeliveryProviderRefreshContribution,
+} from "../lib/delivery/git-contribution-proof.js";
 import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-result.js";
 import {
   deleteDeliveryRemoteRef,
+  deleteDeliveryLocalRef,
+  deleteDeliveryCandidateRef,
+  deleteDeliveryRefreshCandidateRef,
+  observeDeliveryLocalRef,
+  observeDeliveryRefreshCandidateRefs,
   observeDeliveryRemoteRef,
   publishDeliveryMemberRef,
   publishDeliveryTopRef,
   rewriteDeliveryLocalRef,
   rewriteDeliveryMemberRef,
-  rewriteDeliveryRemoteRef,
 } from "../lib/delivery/git-materialization.js";
+import { closeoutCompletedDelivery } from "../lib/delivery/closeout.js";
 import {
   bindInitialDeliveryRef,
   bindInitialDeliveryRequest,
@@ -61,7 +72,11 @@ import {
   routeDeliveryPosition,
 } from "../lib/delivery/position.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
-import { deriveDeliveryResidueLocators } from "../lib/delivery/residue-reaping.js";
+import {
+  deriveDeliveryResidueLocators,
+  observeDeliveryGateCheckout,
+  removeDeliveryGateCheckout,
+} from "../lib/delivery/residue-reaping.js";
 import {
   DeliveryCanonicalDigestSchema,
   DeliveryChangeRequestV1Schema,
@@ -139,7 +154,7 @@ import {
   GitCommonStateAccessError,
   RepositoryGitCommonStatePublisher,
 } from "../lib/git-common-state.js";
-import { canonicalize, validateManagedPath } from "../lib/kernel/index.js";
+import { canonicalize, SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
@@ -149,7 +164,6 @@ import {
 } from "../lib/work-unit/git-candidate-effective-target.js";
 import { resolveGitCandidateBaseRevision } from "../lib/work-unit/git-candidate-subject.js";
 import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
-import { artifactMatcher } from "../lib/work-unit/mutators/relocate-artifacts.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveGitCommonDir } from "../lib/user-sync/repo-shared-paths.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -222,10 +236,17 @@ const PositionSchema = z.strictObject({
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
 });
+const AuthoringLocateSchema = z.strictObject({ planId: DeliveryPlanIdSchema });
+const CloseoutSchema = z.strictObject({
+  workUnitId: SlugSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+});
 const ReconcileSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
+  continuation: z.enum(["rerun-checkpoint", "read-position"]).default("rerun-checkpoint"),
 });
 const PreparedLandingSchema = z.strictObject({
   operationId: z.string().min(1),
@@ -271,9 +292,13 @@ const RewriteSchema = z.strictObject({
   contributionMode: z.enum(["prove-equivalent", "selected-change"]),
   contribution: ContributionEndpointsSchema,
 });
-const RematerializeSchema = MaterializeSchema.extend({
+const RematerializeSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  protectedBaseRef: RefSchema,
+  topRef: RefSchema,
   selectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
   repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
 });
 const TeardownSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -405,11 +430,9 @@ const ReviewFixBaseSchema = z.strictObject({
   remote: z.string().min(1).default("origin"),
 });
 const ReviewFixPlanSchema = ReviewFixBaseSchema.extend({
-  entryMode: z.literal("execution").optional(),
+  entryMode: z.enum(["execution", "integrating"]),
 });
-const ReviewFixPublishSchema = ReviewFixBaseSchema.extend({
-  checkoutPath: z.string().min(1),
-});
+const ReviewFixPublishSchema = ReviewFixBaseSchema;
 const ReviewFixAcknowledgeSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   selectedDeliverableId: DeliveryCanonicalDigestSchema,
@@ -419,6 +442,8 @@ const ReviewFixAcknowledgeSchema = z.strictObject({
 });
 
 const RequestSchemas = {
+  "authoring-locate": AuthoringLocateSchema,
+  closeout: CloseoutSchema,
   "eligibility-prepare": PrepareSchema,
   "eligibility-close": CloseSchema,
   publish: PublishSchema,
@@ -498,6 +523,13 @@ const DeliveryTopRemedyRefusalSchema = z.strictObject({
     protectedBaseRef: z.string().min(1),
   }),
 });
+const DeliveryCloseoutBlockedSchema = z.strictObject({
+  status: z.literal("blocked"),
+  reason: z.string().min(1),
+  planId: DeliveryPlanIdSchema.optional(),
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  recommendedActionText: z.string().min(1),
+});
 const OperationalStateAccessRefusalSchema = z.strictObject({
   status: z.literal("refused"),
   reason: z.enum(["operational-state-not-readable", "operational-state-not-writable"]),
@@ -509,6 +541,7 @@ const ReviewFixRoutingRequiredRefusalSchema = z.strictObject({
   status: z.literal("refused"),
   reason: z.literal("review-fix-routing-required"),
   nextAction: z.literal("plan-review-fix"),
+  entryMode: z.literal("integrating"),
   recommendedActionText: z.string().min(1),
 });
 const RetainedOperationBlockSchema = z.strictObject({
@@ -533,6 +566,21 @@ const ResultSchema = z.union([
   DeliveryRecoveryResultV1Schema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
+  z.strictObject({
+    status: z.literal("closed-out"),
+    workUnitId: SlugSchema,
+    planIds: z.array(DeliveryPlanIdSchema),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("located"),
+    planId: DeliveryPlanIdSchema,
+    locators: z.array(z.strictObject({
+      deliverableId: DeliveryCanonicalDigestSchema,
+      candidateRef: z.string().min(1),
+      gatePath: z.string().min(1),
+    })),
+  }),
   z.strictObject({ status: z.literal("materialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
@@ -557,7 +605,7 @@ const ResultSchema = z.union([
   z.strictObject({
     status: z.literal("rebound"),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
-    nextAction: z.literal("rerun-checkpoint"),
+    nextAction: z.enum(["rerun-checkpoint", "read-position"]),
   }),
   z.strictObject({
     status: z.literal("position"),
@@ -658,14 +706,32 @@ const ResultSchema = z.union([
     nextAction: z.literal("rematerialize"),
     recommendedActionText: z.string().min(1),
   }),
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("terminal-authoring"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("author-terminal"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("terminal-rebind"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("reconcile-terminal-publication"),
+    reconcileInput: z.strictObject({
+      planId: DeliveryPlanIdSchema,
+      repository: z.string().min(1),
+      remote: z.string().min(1),
+      continuation: z.literal("read-position"),
+    }),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   BlockedContributionRefusalSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
-  z.strictObject({
-    status: z.literal("blocked"),
-    reason: z.string().min(1),
-    recommendedActionText: z.string().min(1),
-  }),
+  DeliveryCloseoutBlockedSchema,
   RetainedOperationBlockSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
@@ -848,6 +914,7 @@ export const deliveryExecutionCommandInputPolicyDeclarations = Object.keys(Reque
 })) satisfies readonly CommandInputDeclaration[];
 
 function executionPath(command: DeliveryExecutionCommand): string {
+  if (command.startsWith("authoring-")) return `delivery authoring ${command.slice("authoring-".length)}`;
   if (command.startsWith("eligibility-")) return `delivery eligibility ${command.slice("eligibility-".length)}`;
   if (command.startsWith("land-")) return `delivery land ${command.slice("land-".length)}`;
   if (command.startsWith("native-")) return `delivery native ${command.slice("native-".length)}`;
@@ -933,22 +1000,6 @@ export async function handleDeliveryExecution(
 function emit(deps: DeliveryExecutionHandlerDependencies, command: DeliveryExecutionCommand, result: DeliveryExecutionResult): void {
   deps.write(`${JSON.stringify({ schemaVersion: 1, command: executionPath(command), ...result })}\n`);
   if (result.status === "refused" || result.status === "blocked") deps.setExitCode(1);
-}
-
-async function readLifecycleArtifactsAtRef(
-  exec: GitExec,
-  ref: string,
-  workUnitId: string,
-): Promise<readonly ReturnType<typeof validateManagedPath>[]> {
-  const { stdout } = await exec("git", [
-    "ls-tree", "--full-tree", "-r", "-z", "--name-only", ref, "--",
-    ".arc/active", ".arc/backlog/planned", ".arc/backlog/provisional", ".arc/completed",
-  ]);
-  const matcher = artifactMatcher(workUnitId);
-  return stdout.split("\0")
-    .filter((path) => path !== "" && posix.basename(path) !== `cohort-${workUnitId}.md`
-      && matcher.test(posix.basename(path)))
-    .map(validateManagedPath);
 }
 
 async function observeNativeDeliveryEffect(
@@ -1111,6 +1162,57 @@ async function executeDeliveryCommand(
       stateStore,
     });
   }
+  if (command === "authoring-locate") {
+    const parsed = AuthoringLocateSchema.parse(request);
+    const planRead = await planStore.readCurrent(parsed.planId);
+    if (planRead.status !== "ok" || planRead.value === null) {
+      return { status: "refused", reason: "delivery-plan-unavailable" };
+    }
+    const locators = deriveDeliveryResidueLocators(
+      planRead.value,
+      await resolveGitCommonDir(exec, cwd),
+    );
+    return locators.status === "derived"
+      ? { status: "located", planId: parsed.planId, locators: locators.locators }
+      : { status: "refused", reason: locators.reason };
+  }
+  if (command === "closeout") {
+    const parsed = CloseoutSchema.parse(request);
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    const pathExists = async (path: string): Promise<boolean> => {
+      try {
+        await stat(path);
+        return true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        throw error;
+      }
+    };
+    return closeoutCompletedDelivery(parsed, {
+      planStore,
+      stateStore,
+      gitCommonDir: await resolveGitCommonDir(exec, cwd),
+      residue: {
+        observeRefreshCandidates: (planId) => observeDeliveryRefreshCandidateRefs(exec, planId),
+        observeCandidate: (ref) => observeDeliveryLocalRef(exec, ref),
+        observeGate: (path) => observeDeliveryGateCheckout({ exec, path, pathExists }),
+        deleteCandidate: (input) => deleteDeliveryCandidateRef({ exec, ...input }),
+        deleteRefreshCandidate: (input) => deleteDeliveryRefreshCandidateRef({ exec, ...input }),
+        removeGate: (input) => removeDeliveryGateCheckout({ exec, pathExists, ...input }),
+        deleteLocalMember: (input) => deleteDeliveryLocalRef({ exec, ...input }),
+        deleteRemoteMember: (input) => deleteDeliveryRemoteRef({
+          exec,
+          remote: parsed.remote,
+          ...input,
+        }),
+      },
+      retirement: {
+        observeLocalRef: (ref) => observeDeliveryLocalRef(exec, ref),
+        observeRemoteRef: (ref) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
+        readTerminalRequest: (repository, binding) => host.readRequest(repository, binding),
+      },
+    });
+  }
   const settleAppliedNativeLanding = (
     plan: z.infer<typeof DeliveryPlanV1Schema>,
     before: { readonly revision: number; readonly value: DeliveryStateV1 },
@@ -1143,6 +1245,7 @@ async function executeDeliveryCommand(
       proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
       absorbTop: (input) => absorbGitDeliveryChain({ exec: rawExec, ...input }),
       publishTop: (input) => publishDeliveryTopRef({ exec, remote, ...input }),
+      rewriteLocalRef: (input) => rewriteDeliveryLocalRef({ exec, ...input }),
       stateStore,
     });
   };
@@ -1374,7 +1477,7 @@ async function executeDeliveryCommand(
     if (beforePredecessor === null || afterPredecessor === null) {
       return { status: "refused" as const, reason: "contribution-endpoints-unverified" as const };
     }
-    return proveGitDeliveryContribution({
+    return proveGitDeliveryProviderRefreshContribution({
       exec: createRawGitExec(cwd),
       before: {
         predecessor: beforePredecessor,
@@ -1414,6 +1517,7 @@ async function executeDeliveryCommand(
     current: { readonly revision: number; readonly value: DeliveryStateV1 },
     repository: string,
     remote: string,
+    selectedDeliverableId: string,
     localTerminalAuthoring = false,
   ) => {
     if (current.value.activeOperation !== null) {
@@ -1428,6 +1532,9 @@ async function executeDeliveryCommand(
     );
     if (positioned.status !== "observed") {
       return { status: "refused" as const, reason: "position-mismatch" as const };
+    }
+    if (plan.members.at(-1)?.deliverableId === selectedDeliverableId) {
+      return { status: "observed" as const, facts: positioned.facts, observation: null };
     }
     const state = positioned.projectedState;
     const subject = deriveDeliveryProviderRefreshSubject({ plan, state, facts: positioned.facts });
@@ -1477,6 +1584,7 @@ async function executeDeliveryCommand(
       current,
       parsed.repository,
       parsed.remote,
+      parsed.selectedDeliverableId,
       command === "review-fix-plan"
         && ReviewFixPlanSchema.parse(parsed).entryMode === "execution",
     );
@@ -1487,16 +1595,32 @@ async function executeDeliveryCommand(
       };
     }
     if (command === "review-fix-plan") {
-      return planDeliveryReviewFixRoute({
+      const planRequest = ReviewFixPlanSchema.parse(parsed);
+      const routeInput = {
         plan,
         state: current.value,
         facts: authority.facts,
-        selectedDeliverableId: parsed.selectedDeliverableId,
+        selectedDeliverableId: planRequest.selectedDeliverableId,
         observation: authority.observation,
-      });
+      };
+      return planRequest.entryMode === "integrating"
+        ? planDeliveryReviewFixRoute({
+            ...routeInput,
+            entryMode: "integrating",
+            repository: planRequest.repository,
+            remote: planRequest.remote,
+          })
+        : planDeliveryReviewFixRoute({ ...routeInput, entryMode: "execution" });
     }
 
     const publish = ReviewFixPublishSchema.parse(parsed);
+    if (authority.observation === null) {
+      return {
+        status: "refused",
+        reason: "terminal-authoring-only",
+        recommendedActionText: "Author terminal corrections on the work-unit branch; do not publish a member ref.",
+      };
+    }
     const [gitCommonDir, active] = await Promise.all([
       resolveGitCommonDir(exec, cwd),
       resolveActiveWu({ cwd }),
@@ -1515,7 +1639,7 @@ async function executeDeliveryCommand(
     try {
       const resolvedPaths = await new CurrentDeliveryLifecycleContributionPathSource({
         readDirectory: (path) => readdir(resolve(cwd, path)),
-        readArtifactsAtRef: (ref, workUnitId) => readLifecycleArtifactsAtRef(exec, ref, workUnitId),
+        readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId),
       }).resolve({
         workUnitId: plan.workUnitId,
         activeMetaPath: validateManagedPath(active.path),
@@ -1535,7 +1659,7 @@ async function executeDeliveryCommand(
       expectedCandidateRef: locator.candidateRef,
       observation: authority.observation,
     }, {
-      inspectCandidate: () => inspectDeliveryCandidateCheckout(exec, publish.checkoutPath),
+      inspectCandidate: () => inspectDeliveryCandidateCheckout(exec, locator.gatePath),
       observeCandidateRef: () => observeDeliveryEligibilityRef(exec, locator.candidateRef),
       readAncestry: (ancestor, descendant) => readAncestry(exec, ancestor, descendant),
       revalidateLifecycle: async () => {
@@ -1547,9 +1671,18 @@ async function executeDeliveryCommand(
         });
         return { status: checked.status };
       },
-      reobserveAuthority: () => observeReviewFixAuthority(
-        plan, current, publish.repository, publish.remote,
-      ),
+      reobserveAuthority: async () => {
+        const reobserved = await observeReviewFixAuthority(
+          plan,
+          current,
+          publish.repository,
+          publish.remote,
+          publish.selectedDeliverableId,
+        );
+        return reobserved.status === "observed" && reobserved.observation !== null
+          ? reobserved
+          : { status: "refused" as const };
+      },
       rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: publish.remote, ...input }),
       observePublishedMember: async ({ ref, head }) => {
         const observed = await observeDeliveryRemoteRef(exec, publish.remote, ref);
@@ -1664,11 +1797,12 @@ async function executeDeliveryCommand(
         : derived.subject.affectedDeliverableIds[0];
       const reviewFixAuthority = planRequest.mechanics === undefined
         && refreshSelectedDeliverableId !== undefined
-          ? await observeReviewFixAuthority(
+        ? await observeReviewFixAuthority(
             plan,
             current,
             planRequest.repository,
             planRequest.remote,
+            refreshSelectedDeliverableId,
           )
         : null;
       return planDeliverySuffixRefresh({
@@ -1678,6 +1812,7 @@ async function executeDeliveryCommand(
           ...planRequest.trigger,
           mechanics: planRequest.mechanics
             ?? (reviewFixAuthority?.status === "observed"
+              && reviewFixAuthority.observation !== null
               && reviewFixAuthority.observation.status === "registered"
               ? "provider-invoked"
               : "operator-initiated"),
@@ -2193,7 +2328,7 @@ async function executeDeliveryCommand(
         try {
           const paths = await new CurrentDeliveryLifecycleContributionPathSource({
             readDirectory: (path) => readdir(resolve(cwd, path)),
-            readArtifactsAtRef: (ref, workUnitId) => readLifecycleArtifactsAtRef(exec, ref, workUnitId),
+            readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId),
           }).resolve({
             workUnitId: plan.workUnitId,
             activeMetaPath: validateManagedPath(active.path),
@@ -2359,6 +2494,7 @@ async function executeDeliveryCommand(
         status: "refused",
         reason: "review-fix-routing-required",
         nextAction: "plan-review-fix",
+        entryMode: "integrating",
         recommendedActionText: REVIEW_FIX_ROUTING_REQUIRED_TEXT,
       };
     }
@@ -2553,14 +2689,7 @@ async function executeDeliveryCommand(
           cwd,
           objectAccess: "local-only",
         });
-        const [base, coordinates, observedTop] = await Promise.all([
-          resolveGitCandidateTargetBase({
-            cwd,
-            revision: effective.recognizedTarget.revision,
-            baseBranch,
-            baseRevision,
-            exec,
-          }),
+        const [coordinates, observedTop] = await Promise.all([
           observeDeliveryEligibilityRef(localExec, effective.recognizedTarget.revision),
           new GhDeliveryHostPort(hostedGhRunner).readRequest(parsed.repository, terminal.changeRequest),
         ]);
@@ -2570,6 +2699,21 @@ async function executeDeliveryCommand(
         if (observedTop.status !== "observed") {
           return { status: "refused", reason: "top-request-unavailable" };
         }
+        const predecessor = currentState.value.members.at(-2);
+        const predecessorBranch = predecessor?.ref?.startsWith("refs/heads/") === true
+          ? predecessor.ref.slice("refs/heads/".length)
+          : null;
+        const predecessorHead = predecessor?.coordinates?.head ?? null;
+        const requestedPredecessorBase = predecessorBranch !== null
+          && predecessorHead !== null
+          && observedTop.request.baseRef === predecessorBranch;
+        const base = await resolveGitCandidateTargetBase({
+          cwd,
+          revision: effective.recognizedTarget.revision,
+          baseBranch: requestedPredecessorBase ? predecessorBranch : baseBranch,
+          baseRevision: requestedPredecessorBase ? predecessorHead : baseRevision,
+          exec,
+        });
         const projected = rebindDeliveryTerminalCoordinates({
           plan: currentPlan,
           state: currentState.value,
@@ -2598,7 +2742,11 @@ async function executeDeliveryCommand(
               : "state-persistence-failed",
           };
         }
-        return { status: "rebound", state: published.value, nextAction: projected.nextAction };
+        return {
+          status: "rebound",
+          state: published.value,
+          nextAction: parsed.continuation === "read-position" ? "read-position" : projected.nextAction,
+        };
       } catch (error) {
         if (error instanceof GitCommonStateAccessError) throw error;
         return { status: "refused", reason: "terminal-rebind-unavailable" };
@@ -2880,6 +3028,8 @@ async function executeDeliveryCommand(
   if (command === "rematerialize") {
     const parsed = RematerializeSchema.parse(request);
     let latestSnapshot: DeliveryEligibilitySnapshot | null = null;
+    let latestCandidates: readonly z.infer<typeof MutationCandidateSchema>[] | null = null;
+    const gitCommonDir = await resolveGitCommonDir(exec, cwd);
     const rematerialized = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: parsed.selectedDeliverableIds,
     }, {
@@ -2899,12 +3049,25 @@ async function executeDeliveryCommand(
         );
         if (position.status !== "observed") return { status: "refused" as const };
         const landedCount = position.facts.landedDeliverableIds.length;
+        const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
+        if (locatorResult.status !== "derived") return { status: "refused" as const };
+        const candidates = locatorResult.locators
+          .slice(landedCount)
+          .map((locator) => ({
+            deliverableId: locator.deliverableId,
+            ref: locator.candidateRef,
+            checkoutPath: locator.gatePath,
+          }));
+        if (candidates.length !== planRead.value.members.length - landedCount) {
+          return { status: "refused" as const };
+        }
+        latestCandidates = candidates;
         const eligible = await executeWithFreshDeliveryEligibility({
           planId: parsed.planId,
           protectedBaseRef: parsed.protectedBaseRef,
           topRef: parsed.topRef,
           memberOffset: landedCount,
-          candidates: parsed.candidates,
+          candidates,
         }, {
           ...eligibilityDeps,
           resolveOriginatingTopRef,
@@ -2914,7 +3077,11 @@ async function executeDeliveryCommand(
             try {
               const paths = await new CurrentDeliveryLifecycleContributionPathSource({
                 readDirectory: (path) => readdir(resolve(cwd, path)),
-                readArtifactsAtRef: (ref, workUnitId) => readLifecycleArtifactsAtRef(exec, ref, workUnitId),
+                readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(
+                  exec,
+                  ref,
+                  workUnitId,
+                ),
               }).resolve({
                 workUnitId: plan.workUnitId,
                 activeMetaPath: validateManagedPath(active.path),
@@ -2946,7 +3113,7 @@ async function executeDeliveryCommand(
         };
       },
       reobserveCandidate: async (rewrite) => {
-        const candidate = parsed.candidates.find((entry) => entry.deliverableId === rewrite.deliverableId);
+        const candidate = latestCandidates?.find((entry) => entry.deliverableId === rewrite.deliverableId);
         const expected = rewrite.requested.members[0]?.coordinates;
         const observed = candidate === undefined ? null : await observeDeliveryEligibilityRef(exec, candidate.ref);
         return expected !== null && expected !== undefined && observed !== null
@@ -2978,7 +3145,7 @@ async function executeDeliveryCommand(
           requested: rewrite.requested,
           contributionMode: rewrite.selectedChange ? "selected-change" : "prove-equivalent",
           revalidateLifecycle: async () => {
-            const candidate = parsed.candidates.find((entry) => entry.deliverableId === rewrite.deliverableId);
+            const candidate = latestCandidates?.find((entry) => entry.deliverableId === rewrite.deliverableId);
             if (candidate === undefined) return { status: "refused" as const };
             const checked = await revalidateDeliveryLifecycleContribution({
               exec,
@@ -2988,7 +3155,7 @@ async function executeDeliveryCommand(
             });
             return { status: checked.status };
           },
-          rewriteRef: (effect) => rewriteDeliveryRemoteRef({ exec, remote: parsed.remote, ...effect }),
+          rewriteRef: (effect) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...effect }),
           observeResult: async () => {
             const observed = await observeDeliveryRemoteRef(exec, parsed.remote, memberRef);
             return observed.status === "observed" && observed.head === requestedCoordinates.head
@@ -3046,7 +3213,7 @@ async function executeDeliveryCommand(
         });
         return { status: checked.status };
       },
-      rewriteRef: (input) => rewriteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
+      rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...input }),
       observeResult: async () => {
         const member = parsed.requested.members[0];
         const observed = await observeDeliveryEligibilityRef(exec, parsed.candidateRef);
@@ -3100,7 +3267,8 @@ async function executeDeliveryCommand(
     repository: parsed.repository,
     protectedTargetRef: parsed.protectedTargetRef,
     host: new GhDeliveryHostPort(hostedGhRunner),
-    deleteRef: (input) => deleteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
+    deleteLocalRef: (input) => deleteDeliveryLocalRef({ exec, ...input }),
+    deleteRemoteRef: (input) => deleteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
     stateStore,
   });
 }
