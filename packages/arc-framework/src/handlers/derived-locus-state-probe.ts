@@ -73,6 +73,12 @@ export async function runDerivedLocusStateProbe(
         if (result.status === "review-fix-verification-required") {
           return { status: "verification-required" };
         }
+        if (result.status === "candidate-verification-required") {
+          return { status: "verification-required" };
+        }
+        if (result.status === "candidate-renewal-required") {
+          return { status: "candidate-renewal-required" };
+        }
         return result.status === "refused"
           ? { status: "refused", message: result.recommendedActionText }
           : { status: "none" };

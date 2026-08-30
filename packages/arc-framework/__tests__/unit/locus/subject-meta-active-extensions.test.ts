@@ -503,6 +503,56 @@ describe("checkout subject active-extension seam", () => {
     });
   });
 
+  it("keeps Candidate continuation renewal in the integration workflow", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: candidate.subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: {
+        ...options.io,
+        projectDeliveryCorrection: async () => ({ status: "candidate-renewal-required" as const }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "integrate-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: boundary,
+    });
+  });
+
   it("refuses integration projection when delivery correction evidence is incoherent", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
