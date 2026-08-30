@@ -66,12 +66,12 @@ describe("lifecycle review driver", () => {
     expect(workflow).not.toContain("arc merge lock hold -");
   });
 
-  it("resolves the carried WU reservation before requesting hosted review", async () => {
+  it("resumes the carried WU reservation through public review status", async () => {
     const workflow = await readFile(resolve(packageArc, integrateWorkflow), "utf8");
 
-    expect(workflow).toContain("invoke `integrationBoundary.nextAction.command`");
-    expect(workflow).toContain("`ready / hosted-request`");
-    expect(workflow).toContain("`policy.payload.pass`");
+    expect(workflow).toContain("arc review status --target '{targetRef}' --json");
+    expect(workflow).toContain("`continue-hosted-review`");
+    expect(workflow).toContain("selects the first outstanding retained target");
   });
 
   it("keeps attention suppression with the owner of each judgment", async () => {

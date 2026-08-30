@@ -88,10 +88,19 @@ describe("hosted review fan-out workflow", () => {
   it("keeps package/project parity and typed progression in the integration workflow", async () => {
     const [packaged, project] = await copies("integration");
     expect(project).toBe(packaged);
-    expectTypedProgression(reviewSection(
+    const section = reviewSection(
       packaged,
       "Read `integrationBoundary.reservation`",
       "While a hosted await is live",
-    ));
+    );
+    expectTypedProgression(section);
+    const deliveryResume = section.indexOf("`continue-hosted-review`");
+    const singletonResume = section.indexOf("`continue-pre-publication-review`", deliveryResume);
+    expect(deliveryResume).toBeGreaterThanOrEqual(0);
+    expect(singletonResume).toBeGreaterThan(deliveryResume);
+    const publicDeliveryResume = section.slice(deliveryResume, singletonResume);
+    expect(section).toContain("selects the first outstanding retained target");
+    expect(publicDeliveryResume).not.toContain("integrationBoundary.nextAction.command");
+    expect(publicDeliveryResume).not.toContain("arc review pre-publication");
   });
 });
