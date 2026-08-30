@@ -52,7 +52,10 @@ workflow never parses headings, derives members, or re-decides cohesion:
 
 The inspection is read-only. It never treats the presence of prose as delivery judgment and never binds state.
 
-## Validate and publish
+## Prepare private delivery candidates
+
+This bounded section may be invoked by Candidate pre-publication. Its output is fresh private authoring and gate
+evidence; a pre-publication caller returns after eligibility closes, while delivery execution continues below.
 
 Resolve the complete plan's exact disposable authoring locators:
 
@@ -75,6 +78,8 @@ same observation window:
 ```bash
 arc delivery eligibility close - --json
 ```
+
+## Validate and publish
 
 Before the first mutation, load both the ordinary and delivery-member forms of
 [`template-pull-request.md`][template-pull-request]. Author one `presentations` entry for every non-terminal
