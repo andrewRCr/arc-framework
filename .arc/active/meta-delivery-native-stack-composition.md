@@ -11,14 +11,14 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:0de27395658959b17b3b68a9a2e7473c8f21fca99ea38b65d8d475712c5731ce`
+- **Candidate:** `sha256:1fef07dc89af208126f74668ed46f05f2d639fb2c786dd6d33d51ad6d08f2c37`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 7.7.R.e — Project corrective work from the durable integration phase
-- **Next Task:** Task 7.7.R.f — Recover only exact integration-correction progression (line ~2270)
+- **Last Completed:** Task 9.1.R.e — Revalidate stable origin and Candidate isolation at work-unit scope
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Execute Task 7.7.R.f — Recover only exact integration-correction progression
+- **Next Action:** Candidate review pending — resume integration review
 
 - **PR URL:** [none]
 - **Completed:** [none]
