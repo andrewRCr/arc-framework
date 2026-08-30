@@ -429,7 +429,11 @@ export async function materializeBoundDeliveryChain(input: {
   for (const member of input.materialization.members) {
     if (member.kind === "terminal" || member.ref === null) continue;
     const stored = current.value.members.find((candidate) => candidate.deliverableId === member.deliverableId);
-    if (stored?.ref === member.ref && stored.coordinates?.head === member.head) continue;
+    if (stored?.ref === member.ref && stored.coordinates?.head === member.head) {
+      const observed = await input.refs.observe(member.ref);
+      if (observed.status === "observed" && observed.head === member.head) continue;
+      if (observed.status !== "absent") return { status: "refused" };
+    }
     const before = snapshot(current.value, member.deliverableId);
     if (before === null) return { status: "refused" };
     const [beforeMember] = before.members;

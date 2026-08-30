@@ -15,8 +15,10 @@ import {
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 import {
   HostedProviderIdSchema,
+  HostedReviewCoverageSchema,
   HostedRequestEnvelopeSchema,
   HostedTargetSchema,
+  type HostedReviewCoverage,
 } from "./hosted/request.js";
 import { ReviewContributionApplicabilityResultSchema } from
   "./policy/review-contribution-applicability.js";
@@ -44,6 +46,7 @@ const BlockedReviewApplicabilitySchema = ReviewContributionApplicabilityResultSc
 export const ReviewStatusTargetInputSchema = z.strictObject({
   target: ChangeRequestTargetRefSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  coverage: HostedReviewCoverageSchema.optional(),
 });
 export type ReviewStatusTargetInput = z.infer<typeof ReviewStatusTargetInputSchema>;
 
@@ -323,6 +326,7 @@ export function composeDeliveryReviewObligation(input: {
     expectedRecordVersion: string;
     candidateId: string;
   };
+  requestCoverage?: HostedReviewCoverage;
 }): RoutedReviewObligation {
   if (input.targets.length === 0 || input.targets.length !== input.discharges.length) {
     return {
@@ -449,7 +453,7 @@ export function composeDeliveryReviewObligation(input: {
         headSha: target.headSha,
       }),
       provider: provider.data,
-      coverage: "complete",
+      coverage: input.requestCoverage ?? "complete",
       vehicle: target.vehicle,
       ...(discharge.requestCeilingOverride === undefined
         ? {}
@@ -631,6 +635,7 @@ export interface ReviewStatusPort {
   observe(
     target: z.infer<typeof ChangeRequestTargetRefSchema>,
     ceilingOverride?: ReviewCeilingOverride,
+    coverage?: HostedReviewCoverage,
   ): Promise<ReviewStatusObservation>;
 }
 
@@ -640,7 +645,7 @@ export async function resolveReviewStatus(
   port: ReviewStatusPort,
 ): Promise<ReviewStatusResult> {
   const request = ReviewStatusTargetInputSchema.parse(input);
-  const observation = await port.observe(request.target, request.ceilingOverride);
+  const observation = await port.observe(request.target, request.ceilingOverride, request.coverage);
   const actualHeadSha = ObjectIdSchema.parse(observation.actualHeadSha);
   const base = {
     schemaVersion: 1 as const,

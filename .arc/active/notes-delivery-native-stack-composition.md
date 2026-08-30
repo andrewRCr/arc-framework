@@ -7,6 +7,7 @@
 - [Success Criterion 18 — why it was re-cut](#success-criterion-18--why-it-was-re-cut)
 - [Member checkouts and recovery authority](#member-checkouts-and-recovery-authority)
 - [Corrective integration and member-only review](#corrective-integration-and-member-only-review)
+- [Corrective transition audit boundary](#corrective-transition-audit-boundary)
 - [Authored partitions and adversarial attention](#authored-partitions-and-adversarial-attention)
 - [First adversarial pass amendments](#first-adversarial-pass-amendments)
 - [Second adversarial pass amendments](#second-adversarial-pass-amendments)
@@ -118,6 +119,41 @@ new recovery audit correctly refused the contradictory state and could not seed 
 maintainer-authorized repair advanced only the normalization promised by Task 7.7.R.l, retaining the originating
 checkout, branch, Candidate, and delivery binding. That task now revalidates the persisted public locus and resumes
 the published member reviews without Frontline or generic prepublication replay.
+
+### Corrective transition audit boundary
+
+Repeated successful module and synthetic-rehearsal runs did not establish an end-to-end delivery lifecycle. The
+eight-member rehearsal used synthetic object IDs, in-memory state, and mocked ports, so it never exercised physical
+refs, Git-common versioned stores, the originating Candidate head, production status/request admission, or writes
+interrupted between Candidate, boundary, meta, and index persistence. A green replay of that test is not evidence
+that stacked delivery can re-enter corrective review.
+
+The 2026-08-30 transition audit freezes provider operations until one bounded correction batch closes these exact
+reachable failures:
+
+- materialization must reobserve a state-exact member ref and repair absence through its existing reserved operation;
+- corrective status must validate current Candidate authority at the originating WU head while retaining exact
+  historical member targets and an exact current delivery continuation;
+- a stale same-Candidate continuation must repair forward through versioned storage instead of stranding re-entry;
+- explicit incremental review of the first outstanding member must pass the same production admission as complete
+  review, remain non-settling, and leave the complete obligation runnable; and
+- the regression carrier must use real commits, refs, local stores, and production handlers, mocking only the external
+  provider effect.
+
+The audit matrix covers initial publication, correction task entry, verification return, Candidate renewal,
+compaction recovery, public member status/request/await, review-fix continuation, materialization retry, first-member
+ordering, and terminal conjunction. A row is closed only by executable evidence at its production seam or an explicit
+out-of-scope disposition; another happy-path run is not a completion condition.
+
+Correction validation remains complete in disposition but incremental in work: the current member report rechecks
+every criterion against the corrected reachable tree while carrying exact prior evidence for unaffected criteria;
+an adversarial companion, when invoked, still reruns the complete selected rubric while concentrating fresh attention
+on the corrective delta and its member/cross-member interactions. Only invalidated scope or authority reopens the
+original boundary itself. Private Frontline and generic prepublication never replay.
+
+Two adjacent concerns do not enter this batch. Ordinary singleton withdrawal can retain a stale public boundary and
+needs lifecycle/review ownership beyond bound stacked delivery. A general reusable scenario runner belongs with
+composable workflow and review-architecture evolution after these concrete production seams have executable tests.
 
 ## Authored partitions and adversarial attention
 

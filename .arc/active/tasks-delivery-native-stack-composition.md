@@ -552,6 +552,38 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
       presentation preflight, and containment-guarded adoption; the exact deviation reachability removes the
       incompatible disconnected terminal path and delegates to the ordinary checkpoint spine.
 
+- _Forward amendment (2026-08-30):_ The corrective transition audit exposed a persisted-state/physical-ref split at
+  the materialization retry seam. A state-exact member bypassed ref observation, so a deleted or moved member ref
+  could be reported as materialized. Reopen the Member 4 boundary to restore exact re-observation without adding a
+  second recovery route or weakening the existing operation reservation.
+
+    - `[x]` **4.7.R.a Restore physical member-ref authority on materialization retry**
+
+        - _Goal:_ A retry reobserves every state-exact non-terminal member ref; an exact ref is an idempotent no-op,
+          an absent ref republishes through the existing reserved deterministic operation, and a divergent or
+          unavailable ref refuses before mutation while persisted state and physical Git remain in agreement.
+
+        - _Outcome:_ State-exact member bindings now reobserve their physical ref. Exact refs remain idempotent,
+          absence enters the existing reserved materialization operation and republishes, and moved or unavailable
+          observations refuse without publication or state adoption.
+
+    - `[x]` **4.7.R.b Revalidate the repaired Member 4 boundary** — validate criteria at member scope
+
+        - _Goal:_ Re-run `Success Criteria > Member 4 — topology-transition` over the amended bounded diff and
+          cumulative tree, retaining unchanged evidence only where the physical-ref correction cannot reach it.
+
+        - _Outcome:_ Member 4 criteria report.
+            - _Criteria slice:_ `Success Criteria > Member 4 — topology-transition`.
+            - _Span:_ original member diff `a202eec2a..d26adf058` plus corrective tree delta
+              `e3b03a46c^{tree}..805749aa0`; reachability `805749aa0`. The recorded Phase 5 terminal-path
+              boundary-order deviation remains unchanged.
+            - _Criterion:_ `Success Criteria > Member 4 — topology-transition > 1`; _State:_ `[x]`;
+              _Evidence:_ the corrected tree retains the ordinary top branch/request, complete presentation
+              preflight, and containment-guarded ancestry adoption. Materialization now reobserves a state-exact
+              physical member ref, republishes only verified absence through the reserved operation, and refuses
+              divergence. The member-head build and focused suite prove exact, absent, moved, and unavailable
+              observations, including deletion and recreation against a real bare remote and Git-backed state.
+
 ## **Phase 5:** Terminal integration arm
 
 **Delivery member:** 5 — `terminal-integration`
@@ -2338,6 +2370,53 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           preserving the existing conjunction, policy driver, applicability authority, and member-only public review
           continuation without replaying Frontline or adding delivery review state.
 
+- _Forward amendment (2026-08-30):_ A production-seam audit replaced the synthetic rehearsal's confidence claim with
+  four reachable correction failures: review status checked Candidate authority at the historical terminal head,
+  same-Candidate continuation drift could not repair forward, incremental member requests could not pass canonical
+  admission, and a completed incremental attempt blocked the still-unsettled standard lane. Reopen Member 7 once for
+  the complete reachability correction; source policy, review obligation, and member ordering remain unchanged.
+
+    - `[x]` **7.7.R.m Restore corrective hosted-member reachability through production admission**
+
+        - _Goal:_ A renewed Candidate remains authoritative at the originating WU head while exact member targets
+          retain their immutable historical heads; status validates the persisted continuation against current
+          plan/state revision and member evidence, same-Candidate stale continuation refresh repairs forward through
+          versioned boundary storage, and an explicitly incremental first-outstanding request is emitted and admitted
+          without settling or blocking the required complete standard lane.
+
+        - _Outcome:_ Corrective status now authenticates the renewed Candidate at the originating head and validates
+          the exact persisted plan/state/member continuation before member projection. Same-Candidate retries refresh
+          that continuation through versioned boundary writes, explicit coverage survives canonical request
+          admission, and incremental results leave the complete first-outstanding lane executable.
+
+    - `[x]` **7.7.R.n Revalidate Member 7 with a Git-backed corrective transition rehearsal** — validate criteria at
+      member scope
+
+        - _Goal:_ Replace mocked shape confidence with repository-backed evidence over real commits, refs, versioned
+          plan/state/Candidate/boundary stores, production status and hosted admission handlers, interruption retry,
+          first-outstanding ordering, incremental non-settlement, and terminal conjunction; external provider effects
+          alone remain adapter-bound.
+
+        - _Outcome:_ Member 7 criteria report.
+            - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+            - _Span:_ original bounded diff `bb7e093c2..8106628b1` plus corrective tree delta
+              `8106628b1^{tree}..2f9822d92`; cumulative reachability `2f9822d92`. The retained boundary-order
+              deviation remains unchanged; the correction introduces no terminal-member content.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`;
+              _Evidence:_ the eight-member Git-backed rehearsal publishes real member refs and requests, persists
+              plan, state, Candidate, boundary, and lane records through repository stores, advances exactly one
+              retained member at a time, and settles only after all eight exact bindings discharge.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`;
+              _Evidence:_ prior exact contribution-applicability evidence remains reachable and unchanged. The
+              correction proves an effective incremental result stays non-settling and status immediately returns
+              the same member's required complete lane; no new review authority, attempt family, or equivalence
+              projection is introduced.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`;
+              _Evidence:_ production status validates current continuation evidence, emits the exact first-outstanding
+              action with requested coverage, and production request admission recomposes and compares that action
+              before provider access. Real-store coverage proves renewed-Candidate entry, stale-state refusal,
+              later-member refusal, exact admission, await persistence, ordered progression, and terminal conjunction.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`
@@ -2753,6 +2832,50 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 - _Summary:_ thirty-eight met, three intentionally superseded, zero unresolved. The prior broad
                   companion-pass decline carries forward; Member 8 consumed the complete Heavy two-pass allowance,
                   and no third independent pass is claimed.
+
+        - `[x]` **9.1.R.f Revalidate the corrective transition matrix at work-unit scope**
+
+            - _Goal:_ The terminal report consumes the amended Member 4 and Member 7 boundaries and proves the full
+              delivery remains coherent across physical ref/state authority, corrective Candidate continuation,
+              compaction re-entry, incremental review non-settlement, exact member ordering, and terminal review
+              conjunction without replaying private review or re-deriving unaffected member criteria.
+
+            - _Outcome:_ Work-unit criteria report.
+                - _Criteria slice:_ `Success Criteria`, comprising all eight recorded member groups and
+                  `Cross-member seams`.
+                - _Span:_ complete work-unit diff through `a491cff17` plus the exact Member 4 tree `805749aa0`,
+                  Member 7 tree `2f9822d92`, and this terminal evidence patch; reachability is the final corrective
+                  worktree. Previously recorded boundary-order deviations remain attached to their member reports.
+                - _Member groups:_ thirty-eight criteria are met, Member 1 criterion 1, Member 6 criterion 2, and
+                  Member 8 criterion 6 remain intentionally superseded, and zero criteria are unresolved. Member 4
+                  now proves physical ref authority at its published head; Member 7 proves the renewed public
+                  Candidate-to-terminal review progression at its published head.
+                - _Seam 1:_ corrective tasks and verification remain derived substages of stored `Integrating`.
+                  Interruption coverage refreshes Candidate/boundary evidence across state revisions, and the live
+                  recovery audit reproduced the exact origin, branch, head, dirty set, load set, and current cursor.
+                - _Seam 2:_ published correction resumes the retained hosted-member conjunction without private
+                  Frontline or generic prepublication. Existing provider-refresh and review-fix continuations remain
+                  unchanged and no review finding becomes task-list authority.
+                - _Seam 3:_ canonical plan and versioned state remain upstream of member status. The real eight-member
+                  rehearsal materializes exact refs from Git-backed stores, validates the persisted continuation,
+                  rejects stale evidence, and advances only the first outstanding member.
+                - _Seam 4:_ materialization reuses the existing reserved operation to repair only observed absence;
+                  moved or unavailable physical refs refuse. Review applicability continues to use the existing
+                  structural arbiter, while incremental coverage changes neither discharge nor equivalence authority.
+                - _Seam 5:_ both isolated member trees build and pass their focused suites. The aggregate build and
+                  full suite pass with 855 test files and 11,154 tests passing, plus one intentional skip each;
+                  Markdown, ARC contracts, TypeScript and shell lint, and both typechecks pass.
+                - _Seam 6:_ the correction trees attach cleanly to the historical Member 4 and Member 7 heads and are
+                  ready for ordinary correction-candidate construction. The live read-only position verb classifies
+                  the current append-only movement as `review-fix-routing-required` from stored `Integrating`; no
+                  provider or public delivery state moved during validation.
+                - _Integrity:_ the general singleton-withdrawal lifecycle gap is durably routed to
+                  `wu-lifecycle-state-model` with `review-checkout-lifecycle` coordination. A reusable scenario engine
+                  remains owned by `composable-workflows` and review architecture; neither concern rides this WU or
+                  remains unowned.
+                - _Summary:_ thirty-eight met, three intentionally superseded, zero unresolved. Unaffected member
+                  criteria carry only from their exact boundary reports; the corrected Member 4 and Member 7 groups
+                  were rechecked against their historical-head trees and the complete union.
 
         - _Outcome:_ The rebound tree matches the reviewed delivery content at `66da99a8f` with tree `7758a3b4a`;
           delivery state revision 94 has acknowledged the exact Member 7 verification continuation and blocks

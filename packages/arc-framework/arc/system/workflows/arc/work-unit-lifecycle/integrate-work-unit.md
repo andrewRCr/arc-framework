@@ -222,8 +222,9 @@ arc review respond -
 This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
 plan through the phase-ordered settlement path below, then re-enter through `arc review status`.
 
-The action already carries the selected source, exact opened target, complete coverage, and any delivery-member
-vehicle. `resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice,
+The action already carries the selected source, exact opened target, requested coverage, and any delivery-member
+vehicle. Status uses complete coverage by default; only the explicit supplemental route below returns incremental
+coverage. `resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice,
 and submits the returned `selectionAction` unchanged as `offer` beside that `selection` to:
 
 ```bash
@@ -288,9 +289,16 @@ After every target movement, make and disclose a **review applicability** judgme
 These are judgment signals, not an eligibility checklist or proof obligation. A confident bounded choice proceeds
 without asking permission and is retained for the final gate. An agent-selected supplemental review is disclosed
 as it runs and enters the same finding/disposition loop; it does not settle `standardReview` unless it ran that
-contract. A hosted supplemental request uses `coverage: incremental`; if its adapter reports
-`effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass needs
-new authority, material cost, or resolution of genuine uncertainty.
+contract. Request a hosted supplemental review only through the current first-outstanding member's typed status:
+
+```bash
+arc review status --target '{targetRef}' --coverage incremental --json
+```
+
+Pass the returned action unchanged; it carries `coverage: incremental`. After the supplemental attempt concludes,
+re-enter status without the coverage option so the still-required complete lane remains executable. If the adapter
+reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass
+needs new authority, material cost, or resolution of genuine uncertainty.
 
 Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and merge authorization;
 never rewrite a prior exact-target result as if it ran on the new head.

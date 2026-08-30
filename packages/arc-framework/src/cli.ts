@@ -1542,6 +1542,7 @@ reviewCmd
   .description("Resolve exact-target review, check, and base status")
   .requiredOption("--target <target-ref>", "JSON targetRef emitted by review change-request resolve")
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
+  .option("--coverage <coverage>", "Requested hosted coverage (complete or incremental)")
   .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
