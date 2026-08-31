@@ -60,7 +60,8 @@ describe("delivery entry handler", () => {
       planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
       hostedReviewAction: {
         kind: "continue-hosted-review",
-        command: "arc review status --target '{targetRef}' --json",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
         interactionText: "Resume hosted member review.",
       },
       recommendedActionText: "Resume hosted member review.",
