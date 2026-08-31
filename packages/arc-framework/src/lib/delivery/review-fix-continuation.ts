@@ -4,6 +4,7 @@ import type { DeliveryEntryInspectionResult } from "./entry-inspection.js";
 import type { DeliveryReviewFixRouteResult } from "./review-fix.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import type { DeliveryStateV1 } from "./schema.js";
+import { hasExactPendingSelectedRefresh } from "./suffix-reconciliation.js";
 import { sortByCanonicalBytes } from "../kernel/index.js";
 import type { ApprovedDispositionRecord } from
   "../../scripts/review-gate/core/advisory-records.js";
@@ -228,6 +229,22 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       }, "Rebind the exact terminal publication, then invoke this continuation again.");
     }
     if (route.route === "provider-refresh") {
+      if (input.state !== undefined
+        && hasExactPendingSelectedRefresh(input.state.value, route.selectedDeliverableId)) {
+        return dispatch({
+          kind: "delivery-refresh-execute" as const,
+          argv: ["arc", "delivery", "refresh", "execute", "-", "--json"] as const,
+          input: {
+            planId: entry.planId,
+            repository: request.repository,
+            remote: request.remote,
+            scope: {
+              kind: "dependent-suffix" as const,
+              selectedDeliverableId: entry.selectedDeliverableId,
+            },
+          },
+        }, "Execute the exact provider refresh, then invoke this continuation again.");
+      }
       return dispatch({
         kind: "delivery-review-fix-publish" as const,
         argv: ["arc", "delivery", "review-fix", "publish", "-", "--json"] as const,

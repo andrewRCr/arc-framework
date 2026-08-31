@@ -186,6 +186,46 @@ function activeState(mode: "review-fix" | "selected-change" | "provider-refresh"
   return { revision: 4, value: reserved.state };
 }
 
+function currentChainState(): DeliveryStateV1 {
+  const state = deliveryStateFixture(plan);
+  return {
+    ...state,
+    members: state.members.map((member, index) => {
+      if (index === 0) return member;
+      const predecessor = state.members[index - 1]?.coordinates;
+      if (predecessor === null || predecessor === undefined || member.coordinates === null) {
+        throw new Error("continuation fixture requires complete member coordinates");
+      }
+      return { ...member, coordinates: { ...member.coordinates, base: predecessor.head } };
+    }),
+  };
+}
+
+function pendingSelectedRefreshState(): { readonly revision: number; readonly value: DeliveryStateV1 } {
+  const state = currentChainState();
+  const selected = state.members[0];
+  if (selected?.coordinates === null || selected?.coordinates === undefined) {
+    throw new Error("continuation fixture requires selected coordinates");
+  }
+  const selectedCoordinates = selected.coordinates;
+  return {
+    revision: 4,
+    value: {
+      ...state,
+      members: state.members.map((member, index) => index === 0
+        ? {
+            ...member,
+            coordinates: {
+              ...selectedCoordinates,
+              head: "9".repeat(40),
+              tree: "8".repeat(40),
+            },
+          }
+        : member),
+    },
+  };
+}
+
 function route(
   kind: "provider-refresh" | "rematerialize" | "terminal-authoring" | "terminal-rebind",
 ): DeliveryReviewFixRouteResult {
@@ -331,11 +371,30 @@ describe("delivery review-fix continuation projection", () => {
       request,
       entry: correctionEntry(),
       route: route(kind),
-      state: { revision: 3, value: deliveryStateFixture(plan) },
+      state: { revision: 3, value: currentChainState() },
       activeBranch: "feat/example",
     });
     expect(result).toMatchObject({ status });
     if (actionKind !== undefined) expect(result).toMatchObject({ action: { kind: actionKind } });
+  });
+
+  it("advances a published selected correction into provider refresh", () => {
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      route: route("provider-refresh"),
+      state: pendingSelectedRefreshState(),
+      activeBranch: "feat/example",
+    })).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-refresh-execute",
+        input: {
+          planId: plan.planId,
+          scope: { kind: "dependent-suffix", selectedDeliverableId },
+        },
+      },
+    });
   });
 
   it.each([
