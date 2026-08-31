@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2579,19 +2579,45 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   existing invocation-scoped source selection. Reopen Member 7 for this status-composition correction only. Complete
   pass accounting, source ordering, discharge, ceiling policy, and the default configured source remain unchanged.
 
-    - `[ ]` **7.7.R.s Retain supplemental progress and explicit per-pass source choice**
+    - `[x]` **7.7.R.s Retain supplemental progress and explicit per-pass source choice**
 
         - _Goal:_ Work-unit review status reports every identity-qualified member attempt without letting incremental
           coverage consume or steer the required complete lane, and one explicit invocation may select a configured
           standard source through the existing policy driver without persisting that choice into later passes or
           members.
 
-        - Build `test-first` (one behavior at a time):
-            - A pure incremental result appears chronologically in member progress while `completedPasses` and the
-              complete-lane attempt tail remain unchanged.
-            - An explicit configured source reaches the first-outstanding member's canonical driver admission and
-              hosted request action; an omitted selection immediately returns to configured ordering.
-            - Invalid, unconfigured, or progress-reversing selections refuse before provider capacity is spent.
+        - _Outcome:_ Member 7 criteria report.
+            - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+            - _Span:_ original bounded member diff `bb7e093c2..8106628b1`; cumulative correction reachability is
+              terminal head `3bcb3c86889a0129fcda35d9c393cc01f6822722` at exact scoped-verification target tree
+              `86bc3a81fbf800debe25535da102f9db7ff05fd8`. Boundary-order deviation: the approved
+              supplemental-progress correction is projected back into Member 7 after publication; no terminal-member
+              content enters the bounded member diff.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ every
+              exact identity-qualified hosted attempt now appears in the ordered public member history, while the
+              existing first-outstanding member selection and complete retained-member conjunction remain the sole
+              discharge route. Git-backed production composition proves the supplemental attempt is visible without
+              advancing to another member.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ a pure
+              incremental attempt remains outside the complete-lane tail and consumes no complete pass, so it cannot
+              alter source fallback, discharge, or applicability. The correction changes no contribution comparison,
+              Candidate selection, or record family.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ work-unit
+              status passes one explicit configured hosted source through the existing policy driver, returns it in
+              the exact first-outstanding action, and carries the invocation through request-time canonical
+              recomposition. Production admission accepts that exact action; omission immediately returns to the
+              configured source, while unconfigured and progress-reversing selections refuse before provider access.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ the source
+              invocation is carried only in the request envelope and writes no delivery, Candidate, continuation, or
+              lane authority. The retained scoped-verification continuation and response-loss recovery paths are
+              unchanged and remain covered by the complete repository suite.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ source
+              judgment composes through the existing driver and hosted action rather than a delivery selector or new
+              procedure branch. Default ordering resumes on the next invocation; no orchestration record, quality
+              ledger, workflow engine, convergence policy, or persisted source preference was introduced.
+            - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
+              bounded correction adds no third pass, and the primary walk retains judgment over the exact delta.
+            - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 8:** Record retirement and doctrine
 
