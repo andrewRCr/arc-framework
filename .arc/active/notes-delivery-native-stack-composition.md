@@ -8,6 +8,7 @@
 - [Member checkouts and recovery authority](#member-checkouts-and-recovery-authority)
 - [Corrective integration and member-only review](#corrective-integration-and-member-only-review)
 - [Corrective transition audit boundary](#corrective-transition-audit-boundary)
+- [Supplemental progress and per-pass source choice](#supplemental-progress-and-per-pass-source-choice)
 - [Authored partitions and adversarial attention](#authored-partitions-and-adversarial-attention)
 - [First adversarial pass amendments](#first-adversarial-pass-amendments)
 - [Second adversarial pass amendments](#second-adversarial-pass-amendments)
@@ -218,6 +219,21 @@ produced the verified delta.
 Two adjacent concerns do not enter this batch. Ordinary singleton withdrawal can retain a stale public boundary and
 needs lifecycle/review ownership beyond bound stacked delivery. A general reusable scenario runner belongs with
 composable workflow and review-architecture evolution after these concrete production seams have executable tests.
+
+### Supplemental progress and per-pass source choice
+
+Member progress is factual history, while the policy driver's active attempt tail is complete-lane control state.
+Every hosted attempt whose repository, request, review target, and stable delivery-member identity match therefore
+appears chronologically in the public member cursor. Only a requested or effective complete attempt may enter the
+active complete-lane tail, and only an effectively complete terminal result consumes a pass. A pure incremental
+result remains visible without changing discharge, pass count, source fallback, or the next required complete pass.
+
+An Owner may select a configured hosted source for one work-unit status invocation. The existing standard-review
+driver remains the authority: it validates the selection against configuration, eligibility, prior source progress,
+and the exact ceiling consequence. The returned hosted action carries that force invocation through request-time
+canonical recomposition and binds it to the selected provider. Nothing persists the selection; omitting it on the
+next status call immediately restores configured source ordering, including when progression reaches another member.
+This is transport for existing source judgment, not convergence policy or a new review terminus.
 
 ## Authored partitions and adversarial attention
 

@@ -39,6 +39,7 @@ import {
 } from "./policy/delivery-local-review-admission.js";
 
 const ObjectIdSchema = GitObjectIdSchema;
+export const ReviewStatusSourceIdSchema = HostedProviderIdSchema;
 const BlockedReviewApplicabilitySchema = ReviewContributionApplicabilityResultSchema.refine(
   (projection) => projection.state !== "applicable" && projection.state !== "decision-required",
   "blocked review applicability must carry a closed non-decision result",
@@ -54,6 +55,7 @@ export const ReviewStatusWorkUnitInputSchema = z.strictObject({
   workUnitId: SlugSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
   coverage: HostedReviewCoverageSchema.optional(),
+  sourceId: ReviewStatusSourceIdSchema.optional(),
 });
 export type ReviewStatusWorkUnitInput = z.infer<typeof ReviewStatusWorkUnitInputSchema>;
 
@@ -424,6 +426,7 @@ export function composeDeliveryReviewObligation(input: {
     candidateId: string;
   };
   requestCoverage?: HostedReviewCoverage;
+  requestInvocation?: { readonly mode: "force"; readonly sourceId: string };
 }): RoutedReviewObligation {
   if (input.targets.length === 0 || input.targets.length !== input.discharges.length) {
     return {
@@ -561,6 +564,7 @@ export function composeDeliveryReviewObligation(input: {
       provider: provider.data,
       coverage: input.requestCoverage ?? "complete",
       vehicle: target.vehicle,
+      ...(input.requestInvocation === undefined ? {} : { invocation: input.requestInvocation }),
       ...(discharge.requestCeilingOverride === undefined
         ? {}
         : { ceilingOverride: discharge.requestCeilingOverride }),

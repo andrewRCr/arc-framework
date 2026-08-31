@@ -263,6 +263,27 @@ describe("hosted review request", () => {
       provider: "codex-pr",
       coverage: "complete",
     })).toThrow();
+    expect(() => HostedRequestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "codex-pr",
+      coverage: "complete",
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toThrow(/exact delivery-member vehicle/u);
+    expect(() => HostedRequestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: {
+        kind: "delivery-member",
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: DELIVERY_MEMBER.head,
+      },
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toThrow(/select the request provider/u);
   });
 
   it("returns a typed failure when the selected source is unavailable", async () => {

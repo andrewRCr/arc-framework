@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2573,6 +2573,25 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           selector-free controller. Exact structural containment and exact-tree gate reuse narrow the automatic
           branches, while production response-loss coverage closes acknowledgment through unchanged Candidate renewal
           and retained hosted-member re-entry without new orchestration, review, quality, or convergence authority.
+
+- _Forward amendment (2026-08-31):_ Live supplemental review proved that the public member cursor omitted an exact
+  incremental attempt from its factual history, and the same status surface could not carry the standard driver's
+  existing invocation-scoped source selection. Reopen Member 7 for this status-composition correction only. Complete
+  pass accounting, source ordering, discharge, ceiling policy, and the default configured source remain unchanged.
+
+    - `[ ]` **7.7.R.s Retain supplemental progress and explicit per-pass source choice**
+
+        - _Goal:_ Work-unit review status reports every identity-qualified member attempt without letting incremental
+          coverage consume or steer the required complete lane, and one explicit invocation may select a configured
+          standard source through the existing policy driver without persisting that choice into later passes or
+          members.
+
+        - Build `test-first` (one behavior at a time):
+            - A pure incremental result appears chronologically in member progress while `completedPasses` and the
+              complete-lane attempt tail remain unchanged.
+            - An explicit configured source reaches the first-outstanding member's canonical driver admission and
+              hosted request action; an omitted selection immediately returns to configured ordering.
+            - Invalid, unconfigured, or progress-reversing selections refuse before provider capacity is spent.
 
 ## **Phase 8:** Record retirement and doctrine
 

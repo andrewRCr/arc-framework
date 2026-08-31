@@ -776,6 +776,47 @@ describe("handleReviewStatus", () => {
     });
   });
 
+  it("passes an invocation-scoped source into work-unit status composition", async () => {
+    const output: string[] = [];
+    const resolveWorkUnit = vi.fn(async (_root, request) => ({
+      schemaVersion: 1 as const,
+      mode: "review-status" as const,
+      target: {
+        repository: "owner/repo",
+        headRef: "delivery/example/member-1",
+        headSha: "c".repeat(40),
+      },
+      requiredChecks: "green" as const,
+      routedObligation: {
+        state: "review-required" as const,
+        detail: `Selected ${request.sourceId ?? "default"}.`,
+      },
+      currentBaseOid: "b".repeat(40),
+      state: "review-required" as const,
+      nextAction: "run-review" as const,
+    }));
+
+    await handleReviewStatus({
+      workUnit: "example",
+      source: "codex-pr",
+      json: true,
+    }, undefined, {
+      resolveRoot: () => "/repo",
+      resolve: vi.fn(),
+      resolveWorkUnit,
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(resolveWorkUnit).toHaveBeenCalledWith("/repo", {
+      workUnitId: "example",
+      sourceId: "codex-pr",
+    });
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      routedObligation: { detail: "Selected codex-pr." },
+    });
+  });
+
   it("passes an exact ceiling override into status composition", async () => {
     const statusTarget = {
       repository: "owner/repo",

@@ -1064,6 +1064,7 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     "  api:repos/owner/repository/issues/41/comments)",
     `    : > '${providerCalled}'`,
     "    case \"$*\" in",
+    `      *"body=@codex review"*) printf '%s\\n' '${comment(41, "@codex review")}' ;;`,
     `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(41, "@coderabbitai review")}' ;;`,
     `      *) printf '%s\\n' '${comment(41, "@coderabbitai full review")}' ;;`,
     "    esac",
@@ -1071,6 +1072,7 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     "  api:repos/owner/repository/issues/42/comments)",
     `    : > '${providerCalled}'`,
     "    case \"$*\" in",
+    `      *"body=@codex review"*) printf '%s\\n' '${comment(42, "@codex review")}' ;;`,
     `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(42, "@coderabbitai review")}' ;;`,
     `      *) printf '%s\\n' '${comment(42, "@coderabbitai full review")}' ;;`,
     "    esac",
@@ -1416,6 +1418,67 @@ describe("hosted review fan-out lifecycle", () => {
         provider: "coderabbit-pr",
         coverage: "complete",
       },
+      deliveryCursor: {
+        currentMember: {
+          progress: {
+            completedPasses: 0,
+            attempts: [expect.objectContaining({
+              sourceId: "coderabbit-pr",
+              requestedCoverage: "incremental",
+              effectiveCoverage: "incremental",
+              outcome: "clean",
+            })],
+          },
+        },
+      },
+    });
+  });
+
+  it("admits one invocation-selected hosted source and then returns to configured ordering", async () => {
+    const harness = await createHarness();
+    const target = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
+    const selected = await readRoutedObligation(
+      harness.root,
+      harness.exec,
+      target,
+      42,
+      memberLookup,
+      harness.baseHead,
+      { sourceId: "codex-pr" },
+    );
+    expect(selected).toMatchObject({
+      state: "review-required",
+      action: {
+        provider: "codex-pr",
+        target: { headSha: harness.oldFirst },
+      },
+    });
+    if (!("action" in selected)) throw new Error("expected selected hosted action");
+
+    const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
+    const requested = await requestThroughProductionHandler(harness, fakeBin, selected.action);
+    expect(requested.exitCodes).toEqual([]);
+    expect(requested.output).toMatchObject({
+      state: "requested",
+      handle: { provider: "codex-pr", target: selected.action.target },
+    });
+    await expect(access(providerCalled)).resolves.toBeUndefined();
+
+    await expect(readRoutedObligation(
+      harness.root,
+      harness.exec,
+      target,
+      42,
+      memberLookup,
+      harness.baseHead,
+    )).resolves.toMatchObject({
+      state: "review-required",
+      action: { provider: "coderabbit-pr" },
     });
   });
 
