@@ -258,13 +258,16 @@ import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/
 import {
   createReviewStatusPort,
   readRoutedObligation,
+  resolveReviewStatusForWorkUnit,
 } from "../scripts/review-gate/status-composition.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   ReviewStatusCommandResultSchema,
   resolveReviewStatus,
   ReviewStatusTargetInputSchema,
+  ReviewStatusWorkUnitInputSchema,
   type ReviewStatusResult,
+  type ReviewStatusWorkUnitInput,
 } from "../scripts/review-gate/status.js";
 
 /**
@@ -350,9 +353,17 @@ const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
 };
 
 export const ReviewStatusCliInputSchema = z.strictObject({
-  target: z.string().trim().min(1),
+  target: z.string().trim().min(1).optional(),
+  workUnit: SlugSchema.optional(),
   ceilingOverride: z.string().trim().min(1).optional(),
   coverage: z.enum(["complete", "incremental"]).optional(),
+}).superRefine((input, context) => {
+  if ((input.target === undefined) === (input.workUnit === undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "exactly one of --target or --work-unit is required",
+    });
+  }
 });
 
 /** Syntax-owned input for the pre-publication review procedure. */
@@ -393,6 +404,7 @@ const reviewStatusInputRegistration: CommandInputRegistration = {
   schema: ReviewStatusCliInputSchema,
   schemaFields: {
     "option.target": "target",
+    "option.work-unit": "workUnit",
     "option.ceiling-override": "ceilingOverride",
     "option.coverage": "coverage",
   },
@@ -627,7 +639,8 @@ export interface ReviewChecksAwaitOptions {
 }
 
 export interface ReviewStatusOptions {
-  target: string;
+  target?: string;
+  workUnit?: string;
   ceilingOverride?: string;
   coverage?: HostedReviewCoverage;
   json?: boolean;
@@ -636,6 +649,7 @@ export interface ReviewStatusOptions {
 export interface ReviewStatusHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   resolve(cwd: string, input: z.infer<typeof ReviewStatusTargetInputSchema>): Promise<ReviewStatusResult>;
+  resolveWorkUnit(cwd: string, input: ReviewStatusWorkUnitInput): Promise<ReviewStatusResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -650,16 +664,19 @@ export async function handleReviewStatus(
   const dependencies: ReviewStatusHandlerDependencies = {
     resolveRoot: (cwd) => resolveArcRoot(cwd),
     resolve: (root, request) => resolveReviewStatus(request, createReviewStatusPort({ cwd: root, exec })),
+    resolveWorkUnit: (root, request) => resolveReviewStatusForWorkUnit({ cwd: root, exec, ...request }),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
   let decoded: unknown;
   let decodedCeilingOverride: unknown;
-  try {
-    decoded = JSON.parse(options.target) as unknown;
-  } catch {
-    decoded = null;
+  if (options.target !== undefined) {
+    try {
+      decoded = JSON.parse(options.target) as unknown;
+    } catch {
+      decoded = null;
+    }
   }
   if (options.ceilingOverride !== undefined) {
     try {
@@ -668,13 +685,26 @@ export async function handleReviewStatus(
       decodedCeilingOverride = null;
     }
   }
-  const parsed = ReviewStatusTargetInputSchema.safeParse({
-    target: decoded,
-    ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+  const parsedCli = ReviewStatusCliInputSchema.safeParse({
+    ...(options.target === undefined ? {} : { target: options.target }),
+    ...(options.workUnit === undefined ? {} : { workUnit: options.workUnit }),
+    ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: options.ceilingOverride }),
     ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
   });
-  if (!parsed.success) {
-    const detail = parsed.error.issues.map(({ message }) => message).join("; ");
+  const parsed = options.workUnit === undefined
+    ? ReviewStatusTargetInputSchema.safeParse({
+        target: decoded,
+        ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+        ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+      })
+    : ReviewStatusWorkUnitInputSchema.safeParse({
+        workUnitId: options.workUnit,
+        ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+        ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+      });
+  if (!parsedCli.success || !parsed.success) {
+    const detail = [...(parsedCli.success ? [] : parsedCli.error.issues), ...(parsed.success ? [] : parsed.error.issues)]
+      .map(({ message }) => message).join("; ");
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-status",
@@ -701,7 +731,7 @@ export async function handleReviewStatus(
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-status",
-      target: parsed.data.target,
+      target: "target" in parsed.data ? parsed.data.target : null,
       requiredChecks: "unavailable",
       routedObligation: { state: "blocked", detail },
       currentBaseOid: null,
@@ -712,7 +742,9 @@ export async function handleReviewStatus(
       remedy: spineRemedy(
         "Review status requires repository-local ARC state.",
         "Change to the target ARC project, then re-run",
-        ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
+        "target" in parsed.data
+          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
+          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
       ),
     }))}\n`);
     dependencies.setExitCode(1);
@@ -720,14 +752,16 @@ export async function handleReviewStatus(
   }
   try {
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse(
-      await dependencies.resolve(cwd, parsed.data),
+      await ("target" in parsed.data
+        ? dependencies.resolve(cwd, parsed.data)
+        : dependencies.resolveWorkUnit(cwd, parsed.data)),
     ))}\n`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-status",
-      target: parsed.data.target,
+      target: "target" in parsed.data ? parsed.data.target : null,
       requiredChecks: "unavailable",
       routedObligation: { state: "blocked", detail },
       currentBaseOid: null,
@@ -738,7 +772,9 @@ export async function handleReviewStatus(
       remedy: spineRemedy(
         "Review status could not read its repository or host evidence.",
         "Resolve the operational failure, then re-run",
-        ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
+        "target" in parsed.data
+          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
+          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
       ),
     }))}\n`);
     dependencies.setExitCode(1);

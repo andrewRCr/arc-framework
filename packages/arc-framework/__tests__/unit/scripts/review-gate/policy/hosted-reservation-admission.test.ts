@@ -218,6 +218,156 @@ describe("hosted reservation admission", () => {
       status: "complete",
       completedPasses: 1,
       attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+      attemptHistory: [
+        expect.objectContaining({
+          updatedAt: "2026-08-27T12:00:00.000Z",
+          headSha: "d".repeat(40),
+          sourceId: "coderabbit-pr",
+          outcome: "settled-findings",
+        }),
+        expect.objectContaining({
+          updatedAt: "2026-08-27T12:01:00.000Z",
+          headSha: deliveryVehicle.head,
+          sourceId: "coderabbit-pr",
+          outcome: "rate-limited",
+        }),
+      ],
+    });
+  });
+
+  it("requests a pass-three ceiling override after two findings passes settle without convergence", () => {
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/two-settled-passes",
+          updatedAt: "2026-08-27T12:00:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          changeRequestId: "pull/42",
+          headSha: deliveryVehicle.head,
+          completedPasses: 2,
+          attempts: [
+            hostedProgressAttempt({
+              attemptId: "attempt-pass-1",
+              sourceId: "coderabbit-pr",
+              outcome: "settled-findings",
+              vehicle: deliveryVehicle,
+            }),
+            hostedProgressAttempt({
+              attemptId: "attempt-pass-2",
+              sourceId: "coderabbit-pr",
+              outcome: "settled-findings",
+              vehicle: deliveryVehicle,
+            }),
+          ],
+        },
+      }],
+    };
+
+    expect(projectHostedReservationPolicyProgress({
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toMatchObject({
+      status: "complete",
+      completedPasses: 2,
+      attempts: [],
+      attemptHistory: [
+        { sourceId: "coderabbit-pr", outcome: "settled-findings" },
+        { sourceId: "coderabbit-pr", outcome: "settled-findings" },
+      ],
+    });
+
+    expect(resolveHostedReservationPolicy({
+      reservation: deliveryReservation,
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+      maxPasses: 2,
+    })).toMatchObject({
+      status: "resolved",
+      policy: {
+        state: "approval-required",
+        nextAction: "obtain-ceiling-override",
+        payload: {
+          consequence: {
+            exhaustedPassCount: 2,
+            nextPass: 3,
+          },
+        },
+      },
+    });
+  });
+
+  it("derives the active pass tail from durable time rather than snapshot record order", () => {
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [
+        {
+          version: 1,
+          state: {
+            schemaVersion: 1,
+            semanticsVersion: "review-operation/v1",
+            operationId: "lane-progress/newer-settlement",
+            updatedAt: "2026-08-27T12:02:00.000Z",
+            kind: "lane-progress",
+            lane: "standard",
+            repositoryId: "repo-1",
+            changeRequestId: "pull/42",
+            headSha: deliveryVehicle.head,
+            completedPasses: 1,
+            attempts: [hostedProgressAttempt({
+              attemptId: "attempt-settled",
+              sourceId: "coderabbit-pr",
+              outcome: "settled-findings",
+              vehicle: deliveryVehicle,
+            })],
+          },
+        },
+        {
+          version: 1,
+          state: {
+            schemaVersion: 1,
+            semanticsVersion: "review-operation/v1",
+            operationId: "lane-progress/older-unavailability",
+            updatedAt: "2026-08-27T12:01:00.000Z",
+            kind: "lane-progress",
+            lane: "standard",
+            repositoryId: "repo-1",
+            changeRequestId: "pull/42",
+            headSha: deliveryVehicle.head,
+            completedPasses: 0,
+            attempts: [hostedProgressAttempt({
+              attemptId: "attempt-unavailable",
+              sourceId: "coderabbit-pr",
+              outcome: "rate-limited",
+              vehicle: deliveryVehicle,
+            })],
+          },
+        },
+      ],
+    };
+
+    expect(projectHostedReservationPolicyProgress({
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toMatchObject({
+      status: "complete",
+      completedPasses: 1,
+      attempts: [],
+      attemptHistory: [
+        { updatedAt: "2026-08-27T12:01:00.000Z", outcome: "rate-limited" },
+        { updatedAt: "2026-08-27T12:02:00.000Z", outcome: "settled-findings" },
+      ],
     });
   });
 
@@ -271,7 +421,17 @@ describe("hosted reservation admission", () => {
       repositoryId: "repo-1",
       target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
       vehicle: deliveryVehicle,
-    })).toEqual({ status: "complete", completedPasses: 1, attempts: [] });
+    })).toEqual({
+      status: "complete",
+      completedPasses: 1,
+      attempts: [],
+      attemptHistory: [expect.objectContaining({
+        updatedAt: "2026-08-27T12:00:00.000Z",
+        headSha: priorHead,
+        sourceId: "delegated-agent",
+        outcome: "clean",
+      })],
+    });
   });
 
   it("counts a provider-upgraded supplemental review as a complete member pass", () => {
@@ -311,6 +471,14 @@ describe("hosted reservation admission", () => {
       status: "complete",
       completedPasses: 1,
       attempts: [{ sourceId: "coderabbit-pr", outcome: "clean" }],
+      attemptHistory: [expect.objectContaining({
+        updatedAt: "2026-08-27T12:00:00.000Z",
+        headSha: deliveryVehicle.head,
+        sourceId: "coderabbit-pr",
+        outcome: "clean",
+        requestedCoverage: "incremental",
+        effectiveCoverage: "complete",
+      })],
     });
   });
 
@@ -374,6 +542,9 @@ describe("hosted reservation admission", () => {
         ? {
             status: "complete",
             attempts: [{
+              operationId: "lane-progress/prior-safe-unavailability",
+              attemptId: "attempt-prior-unavailable",
+              updatedAt: "2026-08-27T12:00:00.000Z",
               sourceId,
               outcome: "rate-limited",
               requestedCoverage: "complete",

@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import {
   DeliveryReviewMemberVehicleSchema,
   type DeliveryReviewMemberVehicle,
@@ -49,12 +50,63 @@ export const ReviewStatusTargetInputSchema = z.strictObject({
   coverage: HostedReviewCoverageSchema.optional(),
 });
 export type ReviewStatusTargetInput = z.infer<typeof ReviewStatusTargetInputSchema>;
+export const ReviewStatusWorkUnitInputSchema = z.strictObject({
+  workUnitId: SlugSchema,
+  ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  coverage: HostedReviewCoverageSchema.optional(),
+});
+export type ReviewStatusWorkUnitInput = z.infer<typeof ReviewStatusWorkUnitInputSchema>;
+
+export const DeliveryReviewAttemptProgressSchema = z.strictObject({
+  updatedAt: z.iso.datetime({ offset: true }),
+  headSha: GitObjectIdSchema,
+  sourceId: z.string().trim().min(1),
+  outcome: z.string().trim().min(1),
+  requestedCoverage: HostedReviewCoverageSchema,
+  effectiveCoverage: HostedReviewCoverageSchema.nullable(),
+  findingCount: z.number().int().nonnegative(),
+  settledFindingCount: z.number().int().nonnegative(),
+}).superRefine((attempt, context) => {
+  if (attempt.settledFindingCount > attempt.findingCount) {
+    context.addIssue({
+      code: "custom",
+      path: ["settledFindingCount"],
+      message: "settled findings cannot exceed the attempt's finding count",
+    });
+  }
+});
+
+export const DeliveryReviewMemberProgressSchema = z.strictObject({
+  completedPasses: z.number().int().nonnegative(),
+  passCeiling: z.number().int().positive(),
+  attempts: z.array(DeliveryReviewAttemptProgressSchema),
+});
 
 export const DeliveryReviewConjunctionMemberSchema = z.strictObject({
+  position: z.number().int().positive(),
+  memberCount: z.number().int().positive(),
+  chunkKey: SlugSchema,
+  title: z.string().trim().min(1),
   target: HostedTargetSchema,
   vehicle: DeliveryReviewMemberVehicleSchema,
   state: z.enum(["discharged", "outstanding"]),
   detail: z.string().min(1),
+  progress: DeliveryReviewMemberProgressSchema,
+}).superRefine((member, context) => {
+  if (member.position > member.memberCount) {
+    context.addIssue({
+      code: "custom",
+      path: ["position"],
+      message: "delivery review member position must fit the conjunction",
+    });
+  }
+  if (member.target.headSha !== member.vehicle.head) {
+    context.addIssue({
+      code: "custom",
+      path: ["target", "headSha"],
+      message: "delivery review member target must match its vehicle head",
+    });
+  }
 });
 
 export const DeliveryReviewConjunctionSchema = z.strictObject({
@@ -70,8 +122,46 @@ export const DeliveryReviewConjunctionSchema = z.strictObject({
       message: "delivery review conjunction status must match its complete member set",
     });
   }
+  const first = conjunction.members[0];
+  for (const [index, member] of conjunction.members.entries()) {
+    if (member.position !== index + 1 || member.memberCount !== conjunction.members.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["members", index, "position"],
+        message: "delivery review conjunction members must preserve complete plan order",
+      });
+    }
+    if (first !== undefined
+      && (member.vehicle.planId !== first.vehicle.planId
+        || member.vehicle.workUnitId !== first.vehicle.workUnitId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["members", index, "vehicle"],
+        message: "delivery review conjunction members must share one delivery identity",
+      });
+    }
+  }
 });
 export type DeliveryReviewConjunction = z.infer<typeof DeliveryReviewConjunctionSchema>;
+
+export const DeliveryReviewCursorSchema = z.strictObject({
+  status: z.enum(["outstanding", "discharged"]),
+  completedMemberCount: z.number().int().nonnegative(),
+  memberCount: z.number().int().positive(),
+  currentMember: DeliveryReviewConjunctionMemberSchema.nullable(),
+}).superRefine((cursor, context) => {
+  if (cursor.completedMemberCount > cursor.memberCount
+    || (cursor.currentMember === null) !== (cursor.status === "discharged")
+    || (cursor.status === "discharged" && cursor.completedMemberCount !== cursor.memberCount)
+    || (cursor.currentMember !== null
+      && (cursor.currentMember.state !== "outstanding"
+        || cursor.currentMember.memberCount !== cursor.memberCount))) {
+    context.addIssue({
+      code: "custom",
+      message: "delivery review cursor must match its member completion state",
+    });
+  }
+});
 
 export const DeliveryLocalResumeActionSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -294,6 +384,10 @@ export function composeDeliveryReviewObligation(input: {
     pullRequest: number;
     headSha: string;
     vehicle: DeliveryReviewMemberVehicle;
+    position: number;
+    memberCount: number;
+    chunkKey: string;
+    title: string;
   }[];
   discharges: readonly {
     discharged: boolean;
@@ -305,6 +399,9 @@ export function composeDeliveryReviewObligation(input: {
     localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
     requestAdmission?: ReviewResolveEnvelope;
     requestCeilingOverride?: ReviewCeilingOverride;
+    completedPasses: number;
+    passCeiling: number;
+    attemptHistory: readonly z.infer<typeof DeliveryReviewAttemptProgressSchema>[];
   }[];
   applicabilityContext?: {
     workUnitId: string;
@@ -323,6 +420,10 @@ export function composeDeliveryReviewObligation(input: {
     const discharge = input.discharges[index];
     if (discharge === undefined) throw new Error("delivery review discharge is unavailable");
     return {
+      position: target.position,
+      memberCount: target.memberCount,
+      chunkKey: SlugSchema.parse(target.chunkKey),
+      title: target.title,
       target: HostedTargetSchema.parse({
         repository: target.repository,
         pullRequest: target.pullRequest,
@@ -331,6 +432,11 @@ export function composeDeliveryReviewObligation(input: {
       vehicle: target.vehicle,
       state: discharge.discharged ? "discharged" as const : "outstanding" as const,
       detail: discharge.detail,
+      progress: {
+        completedPasses: discharge.completedPasses,
+        passCeiling: discharge.passCeiling,
+        attempts: [...discharge.attemptHistory],
+      },
     };
   });
   const firstOutstandingIndex = input.discharges.findIndex((discharge) => !discharge.discharged);
@@ -465,6 +571,7 @@ const ReviewStatusBaseShape = {
   requiredChecks: RequiredCheckStatusSchema,
   routedObligation: RoutedReviewObligationSchema,
   currentBaseOid: GitObjectIdSchema.nullable(),
+  deliveryCursor: DeliveryReviewCursorSchema.optional(),
 };
 
 const ReviewStatusSettledSchema = z.strictObject({
@@ -640,6 +747,10 @@ export async function resolveReviewStatus(
   const request = ReviewStatusTargetInputSchema.parse(input);
   const observation = await port.observe(request.target, request.ceilingOverride, request.coverage);
   const actualHeadSha = ObjectIdSchema.parse(observation.actualHeadSha);
+  const conjunction = "conjunction" in observation.routedObligation
+    ? observation.routedObligation.conjunction
+    : undefined;
+  const currentMember = conjunction?.members.find((member) => member.state === "outstanding") ?? null;
   const base = {
     schemaVersion: 1 as const,
     mode: "review-status" as const,
@@ -649,6 +760,16 @@ export async function resolveReviewStatus(
     currentBaseOid: observation.currentBaseOid === null
       ? null
       : ObjectIdSchema.parse(observation.currentBaseOid),
+    ...(conjunction === undefined
+      ? {}
+      : {
+          deliveryCursor: DeliveryReviewCursorSchema.parse({
+            status: conjunction.status,
+            completedMemberCount: conjunction.members.filter((member) => member.state === "discharged").length,
+            memberCount: conjunction.members.length,
+            currentMember,
+          }),
+        }),
   };
   if (actualHeadSha !== request.target.headSha) {
     return {
