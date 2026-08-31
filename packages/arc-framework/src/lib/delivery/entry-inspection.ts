@@ -5,7 +5,6 @@ import { z } from "zod";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 import { resolveTaskListCursor } from "../task-list/cursor.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
-import { canonicalDigest } from "../kernel/index.js";
 import {
   ContinueHostedReviewActionSchema,
   ContinuePublicationActionSchema,
@@ -24,7 +23,10 @@ import {
   renderDeliveryPlanSection,
 } from "./task-list-render.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
-import type { DeliveryReviewFixVerificationContinuation } from "./review-fix.js";
+import {
+  projectDeliveryReviewFixVerificationContinuation,
+  type DeliveryReviewFixVerificationContinuation,
+} from "./review-fix-verification.js";
 
 const AttendedDeliveryEntryInspectionRequestSchema = z.strictObject({
   workUnitId: SlugSchema,
@@ -667,22 +669,16 @@ export async function inspectDeliveryEntry(
   }
   if (state.revision === null) return refused("state-incoherent");
   if (state.value.pendingReviewFixVerification !== null) {
-    const selectedDeliverableId = state.value.pendingReviewFixVerification.selectedDeliverableId;
-    const memberDeliverableIds = state.value.pendingReviewFixVerification.memberDeliverableIds;
+    const continuation = projectDeliveryReviewFixVerificationContinuation({
+      planId: plan.planId,
+      state: { revision: state.revision, value: state.value },
+    });
+    if (continuation === null) return refused("state-incoherent");
     return {
       status: "review-fix-verification-required",
-      nextAction: "verify-review-fix",
       planId: plan.planId,
       stateRevision: state.revision,
-      selectedDeliverableId,
-      verification: { memberDeliverableIds, tier1Required: true },
-      acknowledgementInput: {
-        planId: plan.planId,
-        selectedDeliverableId,
-        memberDeliverableIds,
-        expectedStateRevision: state.revision,
-        continuationDigest: canonicalDigest(state.value),
-      },
+      ...continuation,
       recommendedActionText:
         "Complete the pending changed-member verification and Tier 1 checks, close the correction task, then "
         + "acknowledge the exact review-fix continuation before resuming delivery.",

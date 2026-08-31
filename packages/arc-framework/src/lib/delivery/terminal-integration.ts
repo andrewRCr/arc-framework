@@ -2,9 +2,13 @@
 
 import type {
   CandidateCurrentnessProjection,
+  CandidateLineageTarget,
   CandidateManagedRecordV1,
 } from "../work-unit/candidate-attestation.js";
-import { CandidateManagedRecordV1Schema } from "../work-unit/candidate-attestation.js";
+import {
+  CandidateLineageTargetSchema,
+  CandidateManagedRecordV1Schema,
+} from "../work-unit/candidate-attestation.js";
 import type { CandidateEffectiveTargetProjection } from "../work-unit/candidate-effective-target.js";
 import type {
   DeliveryContributionEndpoints,
@@ -16,7 +20,8 @@ import type {
   DeliveryPlanV1,
   DeliveryStateV1,
 } from "./schema.js";
-import { DeliveryMemberCoordinatesV1Schema } from "./schema.js";
+import { DeliveryMemberCoordinatesV1Schema, DeliveryStateV1Schema } from "./schema.js";
+import { installDeliveryReviewFixVerification } from "./review-fix-verification.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 export interface DeliveryTerminalLanding {
@@ -102,11 +107,27 @@ export interface DeliveryTerminalRebindTopObservation extends DeliveryTerminalTo
   readonly headRepository: string;
 }
 
+/** Candidate authority admitted for an exact terminal correction before scoped verification is acknowledged. */
+export interface DeliveryTerminalReviewFixCandidate {
+  readonly schemaVersion: 1;
+  readonly mode: "candidate-effective-target";
+  readonly state: "review-fix";
+  readonly candidateId: string;
+  readonly durableBaselineTarget: CandidateLineageTarget;
+  readonly currentTarget: CandidateLineageTarget;
+  readonly selectedDeliverableId: string;
+  readonly convergenceVerification: "satisfied";
+}
+
+export type DeliveryTerminalCandidateRebindAuthority =
+  | CandidateEffectiveTargetProjection
+  | DeliveryTerminalReviewFixCandidate;
+
 export type DeliveryTerminalCoordinateRebindResult =
   | {
       readonly status: "rebound";
       readonly state: DeliveryStateV1;
-      readonly nextAction: "rerun-checkpoint";
+      readonly nextAction: "rerun-checkpoint" | "verify-review-fix";
     }
   | {
       readonly status: "refused";
@@ -126,7 +147,7 @@ export type DeliveryTerminalCoordinateRebindResult =
 export function rebindDeliveryTerminalCoordinates(input: {
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryStateV1;
-  readonly candidate: CandidateEffectiveTargetProjection;
+  readonly candidate: DeliveryTerminalCandidateRebindAuthority;
   readonly publication: {
     readonly settled: boolean;
     readonly candidateId: string;
@@ -136,7 +157,15 @@ export function rebindDeliveryTerminalCoordinates(input: {
   readonly request: DeliveryTerminalRebindTopObservation;
   readonly coordinates: DeliveryMemberCoordinatesV1;
 }): DeliveryTerminalCoordinateRebindResult {
-  if (input.candidate.state !== "current") {
+  if (input.candidate.state !== "current" && input.candidate.state !== "review-fix") {
+    return { status: "refused", reason: "candidate-not-current" };
+  }
+  const reviewFix = input.candidate.state === "review-fix";
+  const durableBaseline = CandidateLineageTargetSchema.safeParse(input.candidate.durableBaselineTarget);
+  const recognizedTarget = CandidateLineageTargetSchema.safeParse(
+    reviewFix ? input.candidate.currentTarget : input.candidate.recognizedTarget,
+  );
+  if (!durableBaseline.success || !recognizedTarget.success) {
     return { status: "refused", reason: "candidate-not-current" };
   }
   if (!input.publication.settled) {
@@ -144,7 +173,9 @@ export function rebindDeliveryTerminalCoordinates(input: {
   }
   if (input.publication.candidateId !== input.candidate.candidateId
     || input.publication.candidateSubjectDigest
-      !== input.candidate.recognizedTarget.subject.subjectDigest) {
+      !== (reviewFix
+        ? durableBaseline.data.subject.subjectDigest
+        : recognizedTarget.data.subject.subjectDigest)) {
     return { status: "refused", reason: "publication-boundary-mismatch" };
   }
   const validated = validateDeliveryStateAgainstPlan(input.state, input.plan);
@@ -159,35 +190,61 @@ export function rebindDeliveryTerminalCoordinates(input: {
   }
   const terminalIndex = validated.state.members.length - 1;
   const terminal = validated.state.members[terminalIndex];
-  const targetRef = validated.state.target?.ref;
+  const target = validated.state.target;
   if (terminal === undefined || terminal.ref === null || terminal.changeRequest === null
-    || terminal.coordinates === null || targetRef === undefined) {
+    || terminal.coordinates === null || target === null) {
     return { status: "refused", reason: "terminal-binding-missing" };
+  }
+  if (reviewFix && input.candidate.selectedDeliverableId !== terminal.deliverableId) {
+    return { status: "refused", reason: "candidate-coordinate-mismatch" };
+  }
+  if (reviewFix && durableBaseline.data.revision !== terminal.coordinates.head) {
+    return { status: "refused", reason: "candidate-not-current" };
   }
   const coordinates = DeliveryMemberCoordinatesV1Schema.safeParse(input.coordinates);
   if (!coordinates.success
-    || coordinates.data.head !== input.candidate.recognizedTarget.revision) {
+    || coordinates.data.head !== recognizedTarget.data.revision) {
     return { status: "refused", reason: "candidate-coordinate-mismatch" };
   }
+  const predecessor = validated.state.members[terminalIndex - 1];
+  const targetBaseMatches = target.coordinates !== null
+    && input.request.baseRef === target.ref.replace(/^refs\/heads\//u, "")
+    && coordinates.data.base === target.coordinates.head;
+  const predecessorBaseMatches = predecessor !== undefined
+    && predecessor.ref !== null
+    && predecessor.coordinates !== null
+    && input.request.baseRef === predecessor.ref.replace(/^refs\/heads\//u, "")
+    && coordinates.data.base === predecessor.coordinates.head;
   if (input.request.binding.providerId !== terminal.changeRequest.providerId
     || input.request.binding.changeRequestId !== terminal.changeRequest.changeRequestId
     || input.request.repository !== input.repository
     || input.request.headRepository !== input.repository
     || input.request.headRef !== terminal.ref.replace(/^refs\/heads\//u, "")
     || input.request.headSha !== coordinates.data.head
-    || input.request.baseRef !== targetRef.replace(/^refs\/heads\//u, "")
+    || (!targetBaseMatches && !predecessorBaseMatches)
     || input.request.state !== "open") {
     return { status: "refused", reason: "top-request-mismatch" };
   }
+  const rebound = {
+    ...validated.state,
+    members: validated.state.members.map((member, index) => index === terminalIndex
+      ? { ...member, coordinates: coordinates.data }
+      : member),
+  };
+  const parsedRebound = DeliveryStateV1Schema.safeParse(rebound);
+  if (!parsedRebound.success) return { status: "refused", reason: "state-mismatch" };
+  const state = reviewFix
+    ? installDeliveryReviewFixVerification({
+        state: parsedRebound.data,
+        selectedDeliverableId: input.candidate.selectedDeliverableId,
+        memberDeliverableIds: [input.candidate.selectedDeliverableId],
+      })
+    : parsedRebound.data;
+  if (state === null) return { status: "refused", reason: "state-mismatch" };
   return {
     status: "rebound",
-    state: {
-      ...validated.state,
-      members: validated.state.members.map((member, index) => index === terminalIndex
-        ? { ...member, coordinates: coordinates.data }
-        : member),
-    },
-    nextAction: "rerun-checkpoint",
+    state,
+    nextAction: reviewFix ? "verify-review-fix" : "rerun-checkpoint",
   };
 }
 

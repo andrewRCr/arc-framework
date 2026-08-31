@@ -521,9 +521,10 @@ Pass its returned `reconcileInput` unchanged to:
 arc delivery reconcile - --json
 ```
 
-Only `rebound / read-position` returns to `arc delivery position`; every other typed result stops. The reconcile
-verb independently revalidates the current Candidate, publication boundary, open terminal request, exact
-coordinates, and state version before rebinding.
+Only `rebound / verify-review-fix` enters the review-fix verification continuation below; every other typed result
+stops. The reconcile verb independently revalidates the verified durable Candidate baseline, append-only current
+terminal target, publication boundary, open terminal request, exact coordinates, selected terminal member, and
+state version before atomically rebinding the terminal and installing the pending continuation.
 
 The verb derives the candidate ref, detached gate checkout, and lifecycle paths; requires that checkout to be
 tracked-clean and exact; requires the candidate to extend the current bound member and its current non-terminal
@@ -563,7 +564,8 @@ adapter/operator concerns, while the workflow carries only the provider-neutral 
 
 ### Complete a review-fix verification continuation
 
-`applied / verify-review-fix` from refresh settlement, `rematerialized / verify-review-fix`, and
+`applied / verify-review-fix` from refresh settlement, `rematerialized / verify-review-fix`,
+`rebound / verify-review-fix` from terminal correction settlement, and
 `review-fix-verification-required / verify-review-fix` from execution entry all enter the same exact verification
 continuation. Invoke [`validate-criteria`][validate-criteria] at member scope once for each retained
 `memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved
@@ -571,8 +573,12 @@ conflicted dependent; the rematerialized selector contains every contribution th
 arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Then honor
 `tier1Required` by rerunning Tier 1 over the rebound top.
 
-When the result carries `acknowledgementInput`, retain that object unchanged and return it to the calling task loop;
-do not acknowledge before ordinary correction-task closure. The rematerialized route carries no acknowledgement.
+Retain the completed checks as one `verificationResult`: the primary selects `targeted`, `focused`, or `full` to
+describe the scope actually run and records non-empty evidence references for the member-criteria and Tier 1 results.
+This is verification evidence for the exact correction delta, not a review verdict or signal-convergence decision.
+
+Every settlement result carries `acknowledgementInput`. Retain every field of that locator unchanged and return it
+plus the `verificationResult` to the calling task loop; do not acknowledge before ordinary correction-task closure.
 These actions ride the same finding-disposition approval; do not add an interlock.
 
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:

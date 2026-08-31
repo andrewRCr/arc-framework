@@ -293,6 +293,7 @@ describe("delivery execution handler", () => {
       planId: plan.planId,
       selectedDeliverableId,
       repository: "owner/repo",
+      entryMode: "execution",
     });
     const planned = {
       status: "planned" as const,
@@ -330,8 +331,9 @@ describe("delivery execution handler", () => {
     const publishWrite = vi.fn();
     await handleDeliveryExecution("review-fix-publish", { input: "-", json: true }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
-        ...JSON.parse(planRequest),
-        checkoutPath: "/tmp/review-fix",
+        planId: plan.planId,
+        selectedDeliverableId,
+        repository: "owner/repo",
         remote: "origin",
       })),
       execute: vi.fn().mockResolvedValue(published),
@@ -355,11 +357,23 @@ describe("delivery execution handler", () => {
       memberDeliverableIds: [selectedDeliverableId],
       expectedStateRevision: 9,
       continuationDigest: `sha256:${"f".repeat(64)}`,
+      verification: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["criteria://member", "gates://tier-1"],
+      },
     };
     const acknowledged = {
       status: "acknowledged" as const,
       state: { revision: 10, value: state },
-      nextAction: "continue-work-unit" as const,
+      candidate: {
+        candidateId: `sha256:${"a".repeat(64)}`,
+        verificationId: `sha256:${"b".repeat(64)}`,
+        recordPath: ".arc/system/.internal/candidates/example.json",
+      },
+      nextAction: "renew-public-continuation" as const,
+      attestationAction: {
+        argv: ["arc", "attest", plan.workUnitId, "--json"] as const,
+      },
     };
     const execute = vi.fn().mockResolvedValue(acknowledged);
     const write = vi.fn();
@@ -1414,12 +1428,27 @@ describe("delivery execution handler", () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
     const changed = plan.members[0]!.deliverableId;
+    const pendingState = {
+      ...state,
+      pendingReviewFixVerification: {
+        selectedDeliverableId: changed,
+        memberDeliverableIds: [changed],
+      },
+    };
     const execute = vi.fn().mockResolvedValue({
       status: "rematerialized",
-      state: { revision: 8, value: state },
+      state: { revision: 8, value: pendingState },
+      selectedDeliverableId: changed,
       contributionVerdicts: [{ deliverableId: changed, contribution: "changed", proof: "selected-change" }],
       nextAction: "verify-review-fix",
       verification: { memberDeliverableIds: [changed], tier1Required: true },
+      acknowledgementInput: {
+        planId: plan.planId,
+        selectedDeliverableId: changed,
+        memberDeliverableIds: [changed],
+        expectedStateRevision: 8,
+        continuationDigest: `sha256:${"f".repeat(64)}`,
+      },
     });
     const write = vi.fn();
     await handleDeliveryExecution("rematerialize", { input: "-", json: true }, undefined, {
@@ -1444,6 +1473,10 @@ describe("delivery execution handler", () => {
       status: "rematerialized",
       nextAction: "verify-review-fix",
       verification: { memberDeliverableIds: [changed], tier1Required: true },
+      acknowledgementInput: {
+        selectedDeliverableId: changed,
+        expectedStateRevision: 8,
+      },
     });
   });
 

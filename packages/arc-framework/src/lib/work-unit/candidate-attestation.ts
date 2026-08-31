@@ -76,6 +76,25 @@ export const CandidateReviewResponseEvidenceV1Schema = z.strictObject({
 });
 export type CandidateReviewResponseEvidenceV1 = z.infer<typeof CandidateReviewResponseEvidenceV1Schema>;
 
+export const CandidateVerificationResponseEvidenceV1Schema = z.strictObject({
+  transitionKind: z.literal("verification-response"),
+  schemaVersion: z.literal(1),
+  semanticsVersion: CandidateSemanticsSchema,
+  candidateId: CandidateCanonicalDigestSchema,
+  verificationId: CandidateCanonicalDigestSchema,
+  oldTarget: CandidateLineageTargetSchema,
+  newTarget: CandidateLineageTargetSchema,
+  authorityRef: CandidateCanonicalDigestSchema,
+  verifiedBy: z.string().trim().min(1),
+  verifiedAt: z.iso.datetime(),
+  applicability: CandidateVerificationApplicabilitySchema,
+  verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
+  implementationChanged: z.boolean(),
+});
+export type CandidateVerificationResponseEvidenceV1 = z.infer<
+  typeof CandidateVerificationResponseEvidenceV1Schema
+>;
+
 const CandidateApplicabilitySelectionCommon = {
   transitionKind: z.literal("applicability-selection"),
   schemaVersion: z.literal(1),
@@ -122,6 +141,7 @@ export type CandidateReviewApplicabilitySelectionV1 = z.infer<
 
 export const CandidateLineageTransitionV1Schema = z.discriminatedUnion("transitionKind", [
   CandidateReviewResponseEvidenceV1Schema,
+  CandidateVerificationResponseEvidenceV1Schema,
   CandidateApplicabilitySelectionV1Schema,
   CandidateReviewApplicabilitySelectionV1Schema,
 ]);
@@ -203,15 +223,37 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
         message: "must match the attestation",
       });
     }
-    if (transition.transitionKind === "review-response") {
+    if (transition.transitionKind === "review-response" || transition.transitionKind === "verification-response") {
       validateSubject(transition.oldTarget.subject, ["transitions", index, "oldTarget", "subject"]);
       validateSubject(transition.newTarget.subject, ["transitions", index, "newTarget", "subject"]);
-      const { responseId, ...responseFields } = transition;
-      if (responseId !== canonicalDigest({ domain: "arc.candidate.review-response/v1", ...responseFields })) {
+      const responseDigestMatches = (() => {
+        if (transition.transitionKind === "review-response") {
+          const { responseId, ...fields } = transition;
+          return responseId === canonicalDigest({ domain: "arc.candidate.review-response/v1", ...fields });
+        }
+        const { verificationId, ...fields } = transition;
+        return verificationId === canonicalDigest({
+          domain: "arc.candidate.verification-response/v1",
+          ...fields,
+        });
+      })();
+      if (!responseDigestMatches) {
         context.addIssue({
           code: "custom",
-          path: ["transitions", index, "responseId"],
+          path: [
+            "transitions",
+            index,
+            transition.transitionKind === "review-response" ? "responseId" : "verificationId",
+          ],
           message: "must match the canonical response payload",
+        });
+      }
+      if (transition.transitionKind === "verification-response"
+        && !candidateTargetsEqual(transition.oldTarget, priorTarget)) {
+        context.addIssue({
+          code: "custom",
+          path: ["transitions", index, "oldTarget"],
+          message: "must continue the durable Candidate target",
         });
       }
       const changed = candidateSubjectsDiffer(transition.oldTarget.subject, transition.newTarget.subject);
@@ -379,6 +421,42 @@ export interface CreateCandidateReviewResponseEvidenceInput {
   implementationChanged: boolean;
 }
 
+export interface CreateCandidateVerificationResponseEvidenceInput {
+  candidateId: string;
+  oldTarget: z.input<typeof CandidateLineageTargetSchema>;
+  newTarget: z.input<typeof CandidateLineageTargetSchema>;
+  authorityRef: string;
+  verifiedBy: string;
+  verifiedAt: string;
+  applicability: CandidateVerificationApplicability;
+  verificationEvidenceRefs: readonly string[];
+  implementationChanged: boolean;
+}
+
+/** Bind one typed scoped-verification continuation to an exact Candidate delta. */
+export function createCandidateVerificationResponseEvidence(
+  input: CreateCandidateVerificationResponseEvidenceInput,
+): CandidateVerificationResponseEvidenceV1 {
+  const fields = {
+    transitionKind: "verification-response" as const,
+    schemaVersion: 1 as const,
+    semanticsVersion: "candidate-attestation/v1" as const,
+    candidateId: input.candidateId,
+    oldTarget: CandidateLineageTargetSchema.parse(input.oldTarget),
+    newTarget: CandidateLineageTargetSchema.parse(input.newTarget),
+    authorityRef: CandidateCanonicalDigestSchema.parse(input.authorityRef),
+    verifiedBy: input.verifiedBy,
+    verifiedAt: input.verifiedAt,
+    applicability: input.applicability,
+    verificationEvidenceRefs: [...input.verificationEvidenceRefs],
+    implementationChanged: input.implementationChanged,
+  };
+  return CandidateVerificationResponseEvidenceV1Schema.parse({
+    ...fields,
+    verificationId: canonicalDigest({ domain: "arc.candidate.verification-response/v1", ...fields }),
+  });
+}
+
 /**
  * Bind one approved review response and its primary-owned verification applicability to a Candidate lineage.
  *
@@ -452,6 +530,7 @@ export interface CandidateDurableBaselineProjection {
   candidateId: string;
   target: CandidateLineageTarget;
   implementationChanged: boolean;
+  verificationCompleted: boolean;
   selectedChange: CandidateApplicabilitySelectionV1 | null;
 }
 
@@ -465,11 +544,20 @@ export function reduceCandidateDurableBaseline(
     subject: record.subject,
   };
   let implementationChanged = false;
+  let verificationCompleted = true;
   let selectedChange: CandidateApplicabilitySelectionV1 | null = null;
   for (const transition of record.transitions) {
     if (transition.transitionKind === "review-response") {
       target = transition.newTarget;
       implementationChanged ||= transition.implementationChanged;
+      if (transition.implementationChanged) verificationCompleted = false;
+      selectedChange = null;
+      continue;
+    }
+    if (transition.transitionKind === "verification-response") {
+      target = transition.newTarget;
+      implementationChanged ||= transition.implementationChanged;
+      verificationCompleted = true;
       selectedChange = null;
       continue;
     }
@@ -484,7 +572,13 @@ export function reduceCandidateDurableBaseline(
     target = transition.currentTarget;
     selectedChange = null;
   }
-  return { candidateId: record.attestation.candidateId, target, implementationChanged, selectedChange };
+  return {
+    candidateId: record.attestation.candidateId,
+    target,
+    implementationChanged,
+    verificationCompleted,
+    selectedChange,
+  };
 }
 
 /**
@@ -512,7 +606,7 @@ export function projectCandidateCurrentness(input: {
   // head could never equal the response revision it was confirming, and pinning either revision
   // would break again at the next operational-only advance. The revision stays recorded as
   // provenance for which head carried the verification.
-  const convergenceSatisfied = !implementationChanged || record.lineageAttestations.some((attestation) =>
+  const convergenceSatisfied = baseline.verificationCompleted || record.lineageAttestations.some((attestation) =>
     attestation.target.subject.subjectDigest === subject.subjectDigest);
   return {
     status: "current",

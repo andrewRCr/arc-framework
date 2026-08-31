@@ -101,7 +101,7 @@ describe("DeliveryStateV1Schema", () => {
     expect(DeliveryStateV1Schema.safeParse(tornDown).success).toBe(true);
   });
 
-  it("requires a plan-ordered non-terminal verification set that includes the selected member", () => {
+  it("requires a plan-ordered verification set that includes the selected member", () => {
     const current = deliveryStateFixture(deliveryThreeMemberStackPlanFixture());
     const [selected, dependent, terminal] = current.members.map(({ deliverableId }) => deliverableId);
     const pending = {
@@ -113,11 +113,18 @@ describe("DeliveryStateV1Schema", () => {
       ...current,
       pendingReviewFixVerification: pending,
     }).success).toBe(true);
+    expect(DeliveryStateV1Schema.safeParse({
+      ...current,
+      pendingReviewFixVerification: {
+        selectedDeliverableId: terminal!,
+        memberDeliverableIds: [terminal!],
+      },
+    }).success).toBe(true);
     for (const memberDeliverableIds of [
       [dependent!, selected!],
       [selected!, selected!],
       [dependent!],
-      [selected!, terminal!],
+      [selected!, `sha256:${"f".repeat(64)}`],
     ]) {
       expect(DeliveryStateV1Schema.safeParse({
         ...current,

@@ -4,7 +4,7 @@ import { canonicalDigest, canonicalize } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type { DeliveryEligibilityCoordinates } from "./eligibility.js";
 import type { DeliveryNativeStackObservation } from "./native-stack.js";
-import type { DeliveryPositionFactsV1 } from "./position.js";
+import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import {
   DeliveryCanonicalDigestSchema,
   DeliveryStateV1Schema,
@@ -16,50 +16,66 @@ import {
   executeDeliverySuffixRewrite,
   hasExactPendingSelectedRefresh,
 } from "./suffix-reconciliation.js";
+import type {
+  DeliveryReviewFixVerificationAcknowledgementInput,
+} from "./review-fix-verification.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
+import {
+  CandidateLineageTargetSchema,
+  CandidateManagedRecordV1Schema,
+  createCandidateVerificationResponseEvidence,
+  projectCandidateCurrentness,
+  reduceCandidateDurableBaseline,
+  type CandidateLineageTarget,
+  type CandidateManagedRecordV1,
+  type CandidateVerificationApplicability,
+  type CandidateVerificationResponseEvidenceV1,
+} from "../work-unit/candidate-attestation.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
-/** Exact command input carried until one review-fix verification continuation is consumed. */
-export interface DeliveryReviewFixVerificationAcknowledgementInput {
-  readonly planId: string;
-  readonly selectedDeliverableId: string;
-  readonly memberDeliverableIds: readonly string[];
-  readonly expectedStateRevision: number;
-  readonly continuationDigest: string;
-}
+export type {
+  DeliveryReviewFixVerificationAcknowledgementInput,
+  DeliveryReviewFixVerificationContinuation,
+} from "./review-fix-verification.js";
 
-/** Provider-neutral verification work projected after a dependent review-fix refresh settles. */
-export interface DeliveryReviewFixVerificationContinuation {
+type DeliveryReviewFixRouteCommon = {
   readonly selectedDeliverableId: string;
-  readonly nextAction: "verify-review-fix";
-  readonly verification: {
-    readonly memberDeliverableIds: readonly string[];
-    readonly tier1Required: true;
-  };
-  readonly acknowledgementInput: DeliveryReviewFixVerificationAcknowledgementInput;
-}
+  readonly affectedDeliverableIds: readonly string[];
+  readonly recommendedActionText: string;
+};
 
 export type DeliveryReviewFixRouteResult =
   | {
       readonly status: "planned";
       readonly route: "provider-refresh";
-      readonly selectedDeliverableId: string;
-      readonly affectedDeliverableIds: readonly string[];
       readonly nextAction: "publish-selected-member";
       readonly candidateRequirements: {
         readonly requiredAncestorHeads: readonly string[];
       };
-      readonly recommendedActionText: string;
-    }
+    } & DeliveryReviewFixRouteCommon
   | {
       readonly status: "planned";
       readonly route: "rematerialize";
-      readonly selectedDeliverableId: string;
-      readonly affectedDeliverableIds: readonly string[];
       readonly nextAction: "rematerialize";
-      readonly recommendedActionText: string;
-    }
+    } & DeliveryReviewFixRouteCommon
+  | {
+      readonly status: "planned";
+      readonly route: "terminal-authoring";
+      readonly nextAction: "author-terminal";
+    } & DeliveryReviewFixRouteCommon
+  | {
+      readonly status: "planned";
+      readonly route: "terminal-rebind";
+      readonly nextAction: "reconcile-terminal-publication";
+      readonly reconcileInput: {
+        readonly planId: string;
+        readonly repository: string;
+        readonly remote: string;
+        readonly continuation: "read-position";
+        readonly reviewFixSelectedDeliverableId: string;
+      };
+    } & DeliveryReviewFixRouteCommon
   | {
       readonly status: "refused";
       readonly reason: string;
@@ -71,8 +87,15 @@ type DeliveryReviewFixRouteInput = {
   readonly state: DeliveryStateV1;
   readonly facts: DeliveryPositionFactsV1;
   readonly selectedDeliverableId: string;
-  readonly observation: DeliveryNativeStackObservation;
-};
+  readonly observation: DeliveryNativeStackObservation | null;
+} & (
+  | { readonly entryMode: "execution" }
+  | {
+      readonly entryMode: "integrating";
+      readonly repository: string;
+      readonly remote: string;
+    }
+);
 
 /** Select linked single-member publication or complete unlinked rematerialization from fresh presentation. */
 export function planDeliveryReviewFixRoute(
@@ -84,6 +107,55 @@ export function planDeliveryReviewFixRoute(
       status: "refused",
       reason: input.state.activeOperation === null ? "position-mismatch" : "operation-active",
       recommendedActionText: "Restore one exact idle delivery state before routing the review fix.",
+    };
+  }
+  const terminalDeliverableId = input.plan.members.at(-1)?.deliverableId;
+  if (input.selectedDeliverableId === terminalDeliverableId) {
+    const position = deriveDeliveryPosition(input.plan, input.state, input.facts);
+    if (position.status !== "derived"
+      || !position.position.boundSuffix.some(
+        (deliverableId) => deliverableId === input.selectedDeliverableId,
+      )) {
+      return {
+        status: "refused",
+        reason: "position-mismatch",
+        recommendedActionText: "Restore one exact bound terminal member before routing its correction.",
+      };
+    }
+    if (input.entryMode === "integrating" && input.facts.terminalAuthoringMovement !== undefined) {
+      if (input.facts.terminalAuthoringMovement.deliverableId !== input.selectedDeliverableId) {
+        return {
+          status: "refused",
+          reason: "position-mismatch",
+          recommendedActionText: "Restore one exact published terminal movement before rebinding its correction.",
+        };
+      }
+      return {
+        status: "planned",
+        route: "terminal-rebind",
+        selectedDeliverableId: input.selectedDeliverableId,
+        affectedDeliverableIds: [input.selectedDeliverableId],
+        nextAction: "reconcile-terminal-publication",
+        reconcileInput: {
+          planId: input.plan.planId,
+          repository: input.repository,
+          remote: input.remote,
+          continuation: "read-position",
+          reviewFixSelectedDeliverableId: input.selectedDeliverableId,
+        },
+        recommendedActionText:
+          "Rebind the exact published terminal Candidate, then resume delivery position.",
+      };
+    }
+    return {
+      status: "planned",
+      route: "terminal-authoring",
+      selectedDeliverableId: input.selectedDeliverableId,
+      affectedDeliverableIds: [input.selectedDeliverableId],
+      nextAction: "author-terminal",
+      recommendedActionText:
+        "Author the approved correction on the exact terminal work-unit branch; no delivery member rewrite is "
+        + "required.",
     };
   }
   const subject = deriveDeliveryProviderRefreshSubject({
@@ -104,6 +176,13 @@ export function planDeliveryReviewFixRoute(
       status: "refused",
       reason: "selected-member-invalid",
       recommendedActionText: "Select one currently bound non-terminal delivery member.",
+    };
+  }
+  if (input.observation === null) {
+    return {
+      status: "refused",
+      reason: "presentation-unavailable",
+      recommendedActionText: "Restore one exact provider presentation before routing the review fix.",
     };
   }
   const affectedDeliverableIds = subject.subject.affectedDeliverableIds.slice(selectedIndex);
@@ -187,6 +266,144 @@ export type DeliveryReviewFixVerificationAcknowledgementResult =
       readonly nextAction: "continue-work-unit";
     }
   | { readonly status: "refused"; readonly reason: string };
+
+export type DeliveryReviewFixCandidateVerificationResult =
+  | {
+      readonly status: "recorded" | "already-recorded";
+      readonly record: CandidateManagedRecordV1;
+      readonly transition: CandidateVerificationResponseEvidenceV1;
+      readonly nextAction: "renew-public-continuation";
+    }
+  | { readonly status: "refused"; readonly reason: string };
+
+/** Advance the existing Candidate through one exact acknowledged delivery-correction verification. */
+export function recordDeliveryReviewFixCandidateVerification(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly acknowledgement: Omit<DeliveryReviewFixVerificationAcknowledgementInput, "planId">;
+  readonly record: CandidateManagedRecordV1;
+  readonly currentTarget: unknown;
+  readonly verifiedBy: string;
+  readonly verifiedAt: string;
+  readonly applicability: CandidateVerificationApplicability;
+  readonly verificationEvidenceRefs: readonly string[];
+}): DeliveryReviewFixCandidateVerificationResult {
+  const state = DeliveryStateV1Schema.safeParse(input.state.value);
+  const record = CandidateManagedRecordV1Schema.safeParse(input.record);
+  const currentTarget = CandidateLineageTargetSchema.safeParse(input.currentTarget);
+  if (!state.success || !record.success || !currentTarget.success
+    || !Number.isSafeInteger(input.state.revision)
+    || validateDeliveryStateAgainstPlan(input.state.value, input.plan).status === "refused"
+    || record.data.attestation.workUnit !== input.plan.workUnitId) {
+    return { status: "refused", reason: "candidate-verification-invalid" };
+  }
+  const pendingMatches = input.state.revision === input.acknowledgement.expectedStateRevision
+    && state.data.pendingReviewFixVerification?.selectedDeliverableId
+      === input.acknowledgement.selectedDeliverableId
+    && canonicalize(state.data.pendingReviewFixVerification.memberDeliverableIds)
+      === canonicalize(input.acknowledgement.memberDeliverableIds)
+    && canonicalDigest(state.data) === input.acknowledgement.continuationDigest;
+  const replayPredecessor = input.state.revision === input.acknowledgement.expectedStateRevision + 1
+    && state.data.pendingReviewFixVerification === null
+    ? DeliveryStateV1Schema.safeParse({
+        ...state.data,
+        pendingReviewFixVerification: {
+          selectedDeliverableId: input.acknowledgement.selectedDeliverableId,
+          memberDeliverableIds: input.acknowledgement.memberDeliverableIds,
+        },
+      })
+    : null;
+  const acknowledgedReplay = replayPredecessor?.success === true
+    && canonicalDigest(replayPredecessor.data) === input.acknowledgement.continuationDigest;
+  if (!pendingMatches && !acknowledgedReplay) {
+    return { status: "refused", reason: "candidate-verification-continuation-mismatch" };
+  }
+  const terminalHead = state.data.members.at(-1)?.coordinates?.head;
+  if (terminalHead === undefined || terminalHead !== currentTarget.data.revision) {
+    return { status: "refused", reason: "candidate-verification-target-mismatch" };
+  }
+  const existing = record.data.transitions.flatMap((transition, index) =>
+    transition.transitionKind === "verification-response"
+      && transition.authorityRef === input.acknowledgement.continuationDigest
+      ? [{ transition, index }]
+      : []);
+  if (existing.length > 1) {
+    return { status: "refused", reason: "candidate-verification-duplicated" };
+  }
+  const retained = existing[0];
+  if (retained !== undefined) {
+    const priorRecord = CandidateManagedRecordV1Schema.safeParse({
+      ...record.data,
+      transitions: record.data.transitions.slice(0, retained.index),
+      lineageAttestations: record.data.lineageAttestations.filter(({ target }) =>
+        record.data.subject.subjectDigest === target.subject.subjectDigest
+        || record.data.transitions.slice(0, retained.index).some((transition) =>
+          "newTarget" in transition
+          && transition.newTarget.subject.subjectDigest === target.subject.subjectDigest)),
+    });
+    if (!priorRecord.success) return { status: "refused", reason: "candidate-verification-invalid" };
+    const prior = reduceCandidateDurableBaseline(priorRecord.data);
+    if (!sameCandidateTargetIdentity(retained.transition.oldTarget, prior.target)
+      || !sameCandidateTargetIdentity(retained.transition.newTarget, currentTarget.data)
+      || retained.transition.verifiedBy !== input.verifiedBy
+      || retained.transition.applicability !== input.applicability
+      || canonicalize(retained.transition.verificationEvidenceRefs)
+        !== canonicalize(input.verificationEvidenceRefs)) {
+      return { status: "refused", reason: "candidate-verification-replay-mismatch" };
+    }
+    return {
+      status: "already-recorded",
+      record: record.data,
+      transition: retained.transition,
+      nextAction: "renew-public-continuation",
+    };
+  }
+  const baseline = reduceCandidateDurableBaseline(record.data);
+  const baselineCurrentness = projectCandidateCurrentness({
+    record: record.data,
+    current: baseline.target,
+  });
+  if (baselineCurrentness.status !== "current"
+    || baselineCurrentness.convergenceVerification !== "satisfied") {
+    return { status: "refused", reason: "candidate-baseline-unverified" };
+  }
+  let transition: CandidateVerificationResponseEvidenceV1;
+  try {
+    transition = createCandidateVerificationResponseEvidence({
+      candidateId: record.data.attestation.candidateId,
+      oldTarget: baseline.target,
+      newTarget: currentTarget.data,
+      authorityRef: input.acknowledgement.continuationDigest,
+      verifiedBy: input.verifiedBy,
+      verifiedAt: input.verifiedAt,
+      applicability: input.applicability,
+      verificationEvidenceRefs: input.verificationEvidenceRefs,
+      implementationChanged:
+        baseline.target.subject.subjectDigest !== currentTarget.data.subject.subjectDigest,
+    });
+  } catch {
+    return { status: "refused", reason: "candidate-verification-invalid" };
+  }
+  const next = CandidateManagedRecordV1Schema.safeParse({
+    ...record.data,
+    transitions: [...record.data.transitions, transition],
+  });
+  if (!next.success) return { status: "refused", reason: "candidate-verification-invalid" };
+  return {
+    status: "recorded",
+    record: next.data,
+    transition,
+    nextAction: "renew-public-continuation",
+  };
+}
+
+function sameCandidateTargetIdentity(
+  left: CandidateLineageTarget,
+  right: CandidateLineageTarget,
+): boolean {
+  return left.revision === right.revision
+    && left.subject.subjectDigest === right.subject.subjectDigest;
+}
 
 /** Clear one exact pending review-fix verification continuation after its workflow consumes it. */
 export async function acknowledgeDeliveryReviewFixVerification(input: {
@@ -290,6 +507,7 @@ export async function publishSelectedDeliveryReviewFix(input: {
     facts: input.facts,
     selectedDeliverableId: input.selectedDeliverableId,
     observation: input.observation,
+    entryMode: "execution",
   });
   if (route.status === "refused") return route;
   if (route.route !== "provider-refresh") return { status: "refused", reason: "route-moved" };
@@ -302,6 +520,7 @@ export async function publishSelectedDeliveryReviewFix(input: {
       facts: reobserved.facts,
       selectedDeliverableId: input.selectedDeliverableId,
       observation: reobserved.observation,
+      entryMode: "execution",
     });
     return reobservedRoute.status === "planned" && reobservedRoute.route === "provider-refresh"
       ? reobservedRoute
