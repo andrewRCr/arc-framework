@@ -59,6 +59,7 @@ export interface WorkflowEntry {
 
 const PUSH_SITE = /`push-interlock` release.*`workflowPush`|# workflowPush\b|^\s*(?:arc sync|(?:npx )?arc release push)(?:\s|$)/u;
 const GLOBAL_PRE_PUSH_CONTRACT = /#pre-push-review.*Before every agent-managed push/iu;
+const WORKFLOW_ARC_FRONTMATTER_FIELDS = new Set(["methods", "extensions"]);
 
 /** Audit declaration and fire ordering for agent-managed workflow push sites. */
 export function auditPushExtensionCoverage(workflows: WorkflowEntry[]): string[] {
@@ -168,6 +169,18 @@ export function parseWorkflowFrontmatter(
     return { methods: [], extensions: [], parseError: "arc must be a mapping" };
   }
   const declarations = arc as Record<string, unknown>;
+  const unknownFields = Object.keys(declarations)
+    .filter((key) => !WORKFLOW_ARC_FRONTMATTER_FIELDS.has(key))
+    .sort();
+  if (unknownFields.length > 0) {
+    return {
+      methods: [],
+      extensions: [],
+      parseError: unknownFields
+        .map((key) => `unknown workflow \`arc\` frontmatter field \`${key}\``)
+        .join("; "),
+    };
+  }
   const methods = parseDeclarationArray(declarations.methods, "arc.methods");
   if (methods.error !== undefined) {
     return { methods: [], extensions: [], parseError: methods.error };

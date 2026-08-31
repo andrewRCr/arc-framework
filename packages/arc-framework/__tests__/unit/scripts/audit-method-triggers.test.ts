@@ -183,6 +183,11 @@ describe("parseWorkflowFrontmatter", () => {
     ["a mixed-type methods declaration", "arc:\n  methods: [alpha, 123]", "arc.methods must contain only strings"],
     ["a non-array extensions declaration", "arc:\n  extensions: post-x", "arc.extensions must be an array"],
     [
+      "an unknown arc field",
+      "arc:\n  method: [alpha]",
+      "unknown workflow `arc` frontmatter field `method`",
+    ],
+    [
       "a mixed-type extensions declaration",
       "arc:\n  extensions: [post-x, false]",
       "arc.extensions must contain only strings",
@@ -350,6 +355,21 @@ describe("audit", () => {
     const result = await audit(methods, extensions, workflows);
     expect(result.diagnostics).toContain(
       'Workflow "one.md" declares unknown method "missing" in arc.methods.',
+    );
+  });
+
+  it("rejects unknown workflow arc fields even when every method remains reachable", async () => {
+    const methods = writeMethodsDir(["alpha"]);
+    const extensions = writeExtensionsDir([]);
+    const workflows = join(tmp, "workflows");
+    mkdirSync(workflows, { recursive: true });
+    writeWorkflow("workflows/good.md", ["alpha"], []);
+    writeFile("workflows/typo.md", "---\narc:\n  method: [alpha]\n---\n");
+
+    const result = await audit(methods, extensions, workflows);
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics).toContain(
+      'Workflow "typo.md" has malformed frontmatter: unknown workflow `arc` frontmatter field `method`',
     );
   });
 
