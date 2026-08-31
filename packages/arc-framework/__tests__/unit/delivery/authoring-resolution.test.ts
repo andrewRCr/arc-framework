@@ -44,7 +44,7 @@ function pair(originalWorkUnitId = "original-unit"): DeliveryAuthoringPair {
         entry: "from-tasks",
         inputs: { taskListPath: "tasks.md" },
         facts: {},
-        identitySequence: ["task:1.1"],
+        identitySequence: ["task:1.1", "task:2.1"],
       },
     }),
     markdown: "# Map\n",

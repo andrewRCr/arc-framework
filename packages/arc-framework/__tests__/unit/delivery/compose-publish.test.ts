@@ -55,10 +55,11 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, membe
       role: { kind: "verification" as const, scope: "member" },
     }] : []),
   ];
+  const workUnitVerificationTaskId = memberCount === 1 ? "2.1" : "3.1";
   const parents = [
     ...memberParents,
     {
-      taskId: memberCount === 1 ? "2.1" : "3.1",
+      taskId: workUnitVerificationTaskId,
       semanticDigest: null,
       role: { kind: "verification" as const, scope: "work-unit" },
     },
@@ -84,7 +85,10 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, membe
       facts: {
         phaseGroups: memberParents.map(({ taskId }) => ({ phaseId: taskId.split(".")[0]!, taskIds: [taskId] })),
       },
-      identitySequence: memberParents.flatMap(({ taskId }) => [`phase:${taskId.split(".")[0]!}`, `task:${taskId}`]),
+      identitySequence: [
+        ...memberParents.flatMap(({ taskId }) => [`phase:${taskId.split(".")[0]!}`, `task:${taskId}`]),
+        `task:${workUnitVerificationTaskId}`,
+      ],
     },
   });
   const slots = {

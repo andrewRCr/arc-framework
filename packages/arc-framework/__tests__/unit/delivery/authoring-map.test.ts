@@ -40,7 +40,7 @@ function snapshot(): DeliveryAuthoringSnapshotV1 {
       entry: "from-tasks",
       inputs: { taskListPath: ".arc/active/tasks-delivery-plan-record.md" },
       facts: { phaseGroups: [{ phaseId: "1", taskIds: ["1.1", "1.2"] }] },
-      identitySequence: ["phase:1", "task:1.1", "task:1.2"],
+      identitySequence: ["phase:1", "task:1.1", "task:1.2", "task:2.1"],
     },
   });
 }
