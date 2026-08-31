@@ -64,7 +64,7 @@ function snapshot(mapId = "authoring-map") {
       entry: "from-tasks",
       inputs: { taskListPath: ".arc/active/tasks-delivery-plan-record.md" },
       facts: { phaseGroups: [{ phaseId: "1", taskIds: ["1.1"] }] },
-      identitySequence: ["phase:1", "task:1.1"],
+      identitySequence: ["phase:1", "task:1.1", "task:2.1"],
     },
   });
 }

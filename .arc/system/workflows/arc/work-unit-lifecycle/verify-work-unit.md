@@ -67,6 +67,10 @@ model:
   decision during implementation (add a **Superseded** note).
 - `[ ]` — **Not met.** A genuine gap that needs discussion before the work is complete.
 
+If the combined report contains any `[ ]` criterion, stop. Leave the terminal work-unit verification task
+incomplete and do not enter Step 3 until the gap is fixed, deliberately superseded (including an approved
+deferral), or otherwise resolved; then rerun the criteria walk against the current work-unit subject.
+
 **Criterion text is immutable.** Never rewrite a criterion to match what was built. The
 original text preserves intent; annotations capture reality.
 

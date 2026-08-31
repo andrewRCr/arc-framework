@@ -74,7 +74,7 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
       entry: "from-tasks",
       inputs: { taskListPath: "tasks.md" },
       facts: { phaseGroups: [{ phaseId: "1", taskIds: ["1.1"] }] },
-      identitySequence: ["phase:1", "task:1.1"],
+      identitySequence: ["phase:1", "task:1.1", "task:2.1"],
     },
   });
   const slots = {
