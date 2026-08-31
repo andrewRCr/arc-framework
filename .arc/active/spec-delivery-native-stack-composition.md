@@ -121,6 +121,12 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   unregistered under it, and convergence work routes to its owners.
 - No structural carry-forward into the attestation lineage. The terminal delivery arm composes existing records;
   extending lineage-continuation semantics is a recorded reopening trigger, not part of this design.
+- **Amended 2026-08-31 — exact scoped correction verification enters the existing Candidate transition sequence
+  after self-delivery proved the recorded trigger.** The preceding exclusion no longer covers the primary's typed
+  verification response to an exact delivery correction. That response binds the old and new Candidate targets,
+  the delivery continuation digest, verification applicability, evidence references, actor, and time in the existing
+  Candidate record; it is not a delivery-state field, new record family, generalized ledger, review verdict, or
+  provider proof. Unbound verification, review-signal convergence, and inferred evidence remain excluded.
 - **Amended 2026-08-22 — exact-bound applicability carry enters scope after terminal-reconcile design audit.** The
   preceding exclusion no longer covers carrying Candidate verification applicability across base movement when D4
   mechanically proves the contribution unchanged, or when the applicable authority makes an exact-bound selection
@@ -926,16 +932,26 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   selected deliverable and its existing member-verification plus Tier 1 continuation instead of replanning or
   authorizing another mutation. Every delivery mutation refuses until that continuation is consumed. After the
   workflow completes those checks and closes the correction task, an acknowledgment bound to the entry-emitted
-  state revision and canonical continuation digest clears the matching continuation by version check. A replay
-  after a lost acknowledgment response reconstructs and proves that exact one-field predecessor state; intervening
-  mutation, a mismatched selector, or any other stale input refuses. The field carries no check result and the
-  acknowledgment grants no verification, review, provider, publication, or mutation authority. This amendment
-  supersedes only D5.8 and D5.9 clauses that excluded the narrow durable field required to make their supported
-  interruption path executable.
+  state revision and canonical continuation digest carries the primary's typed applicability and evidence
+  references. Before clearing Delivery State, ARC appends one exact `verification-response` to the existing
+  Candidate transition sequence, binding its prior and current targets to that continuation digest. Only then does
+  the version check clear the matching continuation. A replay before the state clear recognizes the exact Candidate
+  transition while the pending continuation still anchors recovery; a replay after a lost response reconstructs and
+  proves the exact one-field predecessor state. Intervening mutation, a mismatched selector, changed verification
+  evidence, or any other stale input refuses.
 
-  **Forward clarification (2026-08-27):** the final `applied / verify-review-fix` response and execution-entry
-  replay project the same verification selector and exact acknowledgment input. Workflow prose passes that object
-  unchanged across ordinary task closure; it never reconstructs a selector, revision, or digest.
+  The Candidate transition is the durable check result and grants only scoped verification authority for that exact
+  Candidate delta. It grants no review, provider, publication, mutation, or generalized workflow authority. The
+  acknowledgment returns `renew-public-continuation` plus the exact ordinary attestation action. Attestation must
+  return `unchanged`, version-refresh the carried public delivery boundary, and allow fresh integration entry to
+  resume `continue-hosted-review`. Session init and compaction recovery remain in `Integrating`; neither whole-WU
+  verification, Frontline, nor generic prepublication reopens. This amendment supersedes only D5.8 and D5.9 clauses
+  that excluded the narrow durable field required to make their supported interruption path executable.
+
+  **Forward clarification (2026-08-27, amended 2026-08-31):** the final `applied / verify-review-fix` response and
+  execution-entry replay project the same verification selector and exact acknowledgment locator. Workflow prose
+  preserves every locator field unchanged across ordinary task closure, then appends only the primary-owned typed
+  verification result required above; it never reconstructs a selector, revision, or digest.
 
 - **D5.11 External adoption admits only an exact operator-resolved conflict set — amended 2026-08-27 after the
   supported fallback could not adopt its own resolved result.** The first dependent-suffix adoption attempt proves
@@ -961,6 +977,17 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   back to the selected member alone. Ordinary external adoption, provider-native refresh, and mechanically equivalent
   dependents retain their existing behavior. The consent input is response-only authority for one exact observation,
   not durable proof, review clearance, provider authority, or a reusable approval record.
+
+- **D5.12 Every correction settlement preserves the owed verification continuation — amended 2026-08-31 after
+  task-interlock review exposed two uncovered routes.** D5.10's continuation is the settlement invariant for every
+  supported review-fix route, not only a dependent refresh. Complete unregistered rematerialization installs it in
+  the final suffix-plus-top state write even when the top coordinates were already rebound. Exact terminal rebind
+  admits only the selected terminal member, a verified durable Candidate baseline, its append-only current target,
+  the retained publication boundary, exact open request, and one versioned terminal-coordinate write that installs
+  the same continuation. Both return the shared verification selector and acknowledgment locator, and response loss
+  re-enters through the pending state without repeating rematerialization, terminal publication, Frontline, generic
+  prepublication, or whole-work-unit verification. Registered settlement remains unchanged. No additional state
+  field, ledger, review authority, or convergence policy enters.
 
 ### D6 — Native registration and landing
 
@@ -2113,10 +2140,13 @@ added.
     member-verification, Tier 1 continuation, and acknowledgment input. If the final refresh or adoption response is
     lost, execution entry resumes that continuation without replanning or another provider mutation; every other
     delivery mutation remains blocked. After the checks and correction-task closure, acknowledgment bound to the
-    entry-emitted state revision and canonical continuation digest clears the continuation by version check and
-    converges idempotently after its own lost response, while mismatched, intervening, or stale requests refuse.
-    Ordinary refreshes record no continuation, and no provider-specific fact, check result, proof, review verdict,
-    or generalized workflow state becomes durable (Goal 7, D5.10, D9.5).
+    entry-emitted state revision and canonical continuation digest first appends an exact scoped
+    `verification-response` to the existing Candidate lineage and then clears the continuation by version check.
+    Replay converges both before and after the state clear, while mismatched, intervening, or stale requests refuse.
+    The returned exact attestation action must report `unchanged`, refresh the public boundary, and make fresh
+    integration entry resume hosted member review without lifecycle regression or whole-WU verification. Ordinary
+    refreshes record no continuation; no provider fact, proof, review verdict, generalized workflow state, or
+    authority beyond that exact scoped verification becomes durable (Goal 7, D5.10, D9.5).
 36. An attended dependent-suffix adoption that encounters a genuine mechanical-reapply conflict performs no ARC
     mutation and emits one exact operator-consent input bound to the current state revision, dependent scope,
     observed suffix digest, and complete conflicted deliverable/path set. An unchanged approved resubmission
@@ -2166,6 +2196,13 @@ added.
 44. Ordinary `arc reopen` refuses a coherently bound delivery before changing lifecycle or host state. Corrective
     Candidate renewal instead preserves the public delivery and recovers an exact member-review resume point bound to
     current Candidate, plan, member, and delivery evidence; stale or incoherent evidence remains stopped (D10.3).
+45. Registered dependent refresh, complete unregistered rematerialization, and exact terminal correction rebind all
+    settle into the same versioned pending review-fix verification continuation. Rematerialization installs it in
+    the terminal tail even when no coordinate write would otherwise be needed; terminal rebind proves the selected
+    terminal member, durable Candidate baseline, append-only current target, publication boundary, request, and state
+    version before installing it with the new coordinate. Every route returns the shared member-criteria, Tier 1, and
+    acknowledgment contract; response loss re-enters without repeating mutation or routing to whole-WU verification,
+    Frontline, or generic prepublication, and no second continuation or review authority exists (D5.10, D5.12).
 
 ## Open Questions
 

@@ -1587,7 +1587,9 @@ structural guarantee rather than operator discipline.
                       provider effect; exact acknowledgment clears once and recognizes its one-revision replay;
                       mismatched, intervening, and stale requests refuse. Reservation, rebind, composition,
                       retirement, terminal, and native-presentation mutations all stop while the continuation is
-                      pending, and no check result or provider fact enters durable state.
+                      pending, and no check result or provider fact entered durable state at this amendment boundary.
+                      Task 7.7.R.q later supersedes only that check-result exclusion after the missing Candidate
+                      bridge became reachable; the provider-fact exclusion and mutation barriers remain unchanged.
                     - _Adversarial companion:_ the authorized fresh-context pass found one reachable omission:
                       native link and unlink bypassed the pending barrier. Primary source verification repaired both
                       with exact plan/state binding before host access; built-CLI zero-host-call coverage and the
@@ -2190,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2474,6 +2476,32 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
             - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
               bounded re-entry proof adds no third pass and the primary walk retains judgment over the correction.
             - _Summary:_ three met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+
+- _Forward amendment (2026-08-31):_ Live Member 1 correction verification cleared its typed delivery continuation,
+  but the corrected top made the Candidate genuinely non-current. Entry therefore routed the already verified
+  member delta into whole-work-unit verification and compaction recovery followed it, losing the retained hosted
+  review position. Reopen Member 7 for the missing scoped-verification-to-Candidate bridge; preserve the existing
+  Candidate lineage, fixed-origin ownership, durable `Integrating` lifecycle, and exact public reservation.
+
+    - `[x]` **7.7.R.q Advance the Candidate through acknowledged scoped correction verification**
+
+        - _Goal:_ A completed delivery correction records its exact scoped verification on the existing Candidate
+          before clearing the pending delivery continuation, survives interruption on either side of that state
+          clear, and returns the ordinary public-continuation renewal action without replaying whole-WU verification,
+          Frontline, or generic prepublication.
+
+        - _Outcome:_ Candidate acknowledgment now version-writes and stages one exact scoped verification response
+          before clearing the pending state, recognizes matching replay on either side of that clear, and returns the
+          ordinary attestation action. Registered refresh, unregistered rematerialization, and terminal correction
+          share one pending continuation and acknowledgment locator; exact target, ownership, state, evidence, and
+          replay mismatches fail closed without changing lifecycle or review policy.
+
+    - `[ ]` **7.7.R.r Revalidate Member 7 scoped correction recovery** — validate criteria at member scope
+
+        - _Goal:_ Prove through production handlers and Git-backed stores that interruption before or after the
+          state clear converges, ordinary attestation returns `unchanged`, fresh entry resumes the exact retained
+          hosted member, and session-init/compaction projection remains `Integrating` without borrowing authority
+          from review-signal convergence.
 
 ## **Phase 8:** Record retirement and doctrine
 
@@ -3098,10 +3126,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   member-verification, Tier 1 continuation, and acknowledgment input. If the final refresh or adoption response is
   lost, execution entry resumes that continuation without replanning or another provider mutation; every other
   delivery mutation remains blocked. After the checks and correction-task closure, acknowledgment bound to the
-  entry-emitted state revision and canonical continuation digest clears the continuation by version check and
-  converges idempotently after its own lost response, while mismatched, intervening, or stale requests refuse.
-  Ordinary refreshes record no continuation, and no provider-specific fact, check result, proof, review verdict, or
-  generalized workflow state becomes durable.
+  entry-emitted state revision and canonical continuation digest first appends an exact scoped verification response
+  to the existing Candidate lineage and then clears the continuation by version check. Replay converges both before
+  and after state clear, while mismatched, intervening, or stale requests refuse. The exact returned attestation
+  action refreshes the public boundary and fresh integration entry resumes hosted member review without whole-WU
+  verification. Ordinary refreshes record no continuation; no provider fact, proof, review verdict, generalized
+  workflow state, or authority beyond that exact scoped verification becomes durable.
 
 - `[x]` An attended dependent-suffix adoption returns a mutation-free exact consent input when mechanical reapply
   conflicts, accepts only the unchanged freshly reobserved conflict set, and preserves structural proof for every
@@ -3144,6 +3174,11 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   unavailable; it never infers clearance or invites judgment. Existing typed review verbs carry the exact member
   selector from first-outstanding status through request, await, attempt, settle, and terminal conjunction, and
   executable vertical coverage proves the complete lifecycle without prose control flow or a new record family.
+
+- `[ ]` Registered dependent refresh, complete unregistered rematerialization, and exact terminal correction rebind
+  all install and return the same pending scoped-verification continuation. Response loss re-enters that continuation
+  without repeating mutation or routing to whole-WU verification, Frontline, or generic prepublication; no second
+  state mechanism, review authority, or convergence policy exists.
 
 ### Member 8 — `retirement-and-doctrine`
 

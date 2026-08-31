@@ -180,6 +180,56 @@ describe("delivery terminal integration", () => {
     });
   });
 
+  it("rebinds an exact terminal correction and installs its owed verification continuation", () => {
+    const f = terminalRebindFixture();
+    const terminal = f.state.members.at(-1)!;
+    const correctedHead = "f".repeat(40);
+    const correctedSubject = createCandidateSubjectSnapshot([{
+      path: "feature.ts",
+      digest: canonicalDigest({ content: "corrected candidate" }),
+      mode: "100644",
+      treatment: "reviewable",
+    }]);
+    const candidate = {
+      schemaVersion: 1 as const,
+      mode: "candidate-effective-target" as const,
+      state: "review-fix" as const,
+      candidateId: f.candidate.candidateId,
+      durableBaselineTarget: f.candidate.durableBaselineTarget,
+      currentTarget: { revision: correctedHead, subject: correctedSubject },
+      selectedDeliverableId: terminal.deliverableId,
+      convergenceVerification: "satisfied" as const,
+    } as unknown as typeof f.input.candidate;
+    const coordinates = { ...f.coordinates, head: correctedHead, tree: "e".repeat(40) };
+    const state = {
+      ...f.state,
+      members: f.state.members.map((member, index, members) => index === members.length - 1
+        ? { ...member, coordinates: { ...member.coordinates!, head: CANDIDATE_HEAD } }
+        : member),
+    };
+
+    expect(rebindDeliveryTerminalCoordinates({
+      ...f.input,
+      state,
+      candidate,
+      request: { ...f.input.request, headSha: correctedHead },
+      coordinates,
+    })).toEqual({
+      status: "rebound",
+      state: {
+        ...state,
+        members: state.members.map((member, index, members) => index === members.length - 1
+          ? { ...member, coordinates }
+          : member),
+        pendingReviewFixVerification: {
+          selectedDeliverableId: terminal.deliverableId,
+          memberDeliverableIds: [terminal.deliverableId],
+        },
+      },
+      nextAction: "verify-review-fix",
+    });
+  });
+
   it("rebinds the terminal while its request targets the exact immediate predecessor", () => {
     const f = terminalRebindFixture();
     const predecessor = f.state.members.at(-2)!;
@@ -203,6 +253,29 @@ describe("delivery terminal integration", () => {
       },
       nextAction: "rerun-checkpoint",
     });
+  });
+
+  it("refuses terminal correction authority whose durable Candidate does not match the retained terminal", () => {
+    const f = terminalRebindFixture();
+    const terminal = f.state.members.at(-1)!;
+    const correctedHead = "f".repeat(40);
+    const candidate = {
+      schemaVersion: 1 as const,
+      mode: "candidate-effective-target" as const,
+      state: "review-fix" as const,
+      candidateId: f.candidate.candidateId,
+      durableBaselineTarget: f.candidate.durableBaselineTarget,
+      currentTarget: { revision: correctedHead, subject: f.record.subject },
+      selectedDeliverableId: terminal.deliverableId,
+      convergenceVerification: "satisfied" as const,
+    } as unknown as typeof f.input.candidate;
+
+    expect(rebindDeliveryTerminalCoordinates({
+      ...f.input,
+      candidate,
+      request: { ...f.input.request, headSha: correctedHead },
+      coordinates: { ...f.coordinates, head: correctedHead },
+    })).toEqual({ status: "refused", reason: "candidate-not-current" });
   });
 
   it("preserves the exact protected-target path for a single-member delivery", () => {

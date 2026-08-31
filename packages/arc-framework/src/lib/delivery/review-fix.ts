@@ -16,29 +16,28 @@ import {
   executeDeliverySuffixRewrite,
   hasExactPendingSelectedRefresh,
 } from "./suffix-reconciliation.js";
+import type {
+  DeliveryReviewFixVerificationAcknowledgementInput,
+} from "./review-fix-verification.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
+import {
+  CandidateLineageTargetSchema,
+  CandidateManagedRecordV1Schema,
+  createCandidateVerificationResponseEvidence,
+  projectCandidateCurrentness,
+  reduceCandidateDurableBaseline,
+  type CandidateLineageTarget,
+  type CandidateManagedRecordV1,
+  type CandidateVerificationApplicability,
+  type CandidateVerificationResponseEvidenceV1,
+} from "../work-unit/candidate-attestation.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
-/** Exact command input carried until one review-fix verification continuation is consumed. */
-export interface DeliveryReviewFixVerificationAcknowledgementInput {
-  readonly planId: string;
-  readonly selectedDeliverableId: string;
-  readonly memberDeliverableIds: readonly string[];
-  readonly expectedStateRevision: number;
-  readonly continuationDigest: string;
-}
-
-/** Provider-neutral verification work projected after a dependent review-fix refresh settles. */
-export interface DeliveryReviewFixVerificationContinuation {
-  readonly selectedDeliverableId: string;
-  readonly nextAction: "verify-review-fix";
-  readonly verification: {
-    readonly memberDeliverableIds: readonly string[];
-    readonly tier1Required: true;
-  };
-  readonly acknowledgementInput: DeliveryReviewFixVerificationAcknowledgementInput;
-}
+export type {
+  DeliveryReviewFixVerificationAcknowledgementInput,
+  DeliveryReviewFixVerificationContinuation,
+} from "./review-fix-verification.js";
 
 type DeliveryReviewFixRouteCommon = {
   readonly selectedDeliverableId: string;
@@ -74,6 +73,7 @@ export type DeliveryReviewFixRouteResult =
         readonly repository: string;
         readonly remote: string;
         readonly continuation: "read-position";
+        readonly reviewFixSelectedDeliverableId: string;
       };
     } & DeliveryReviewFixRouteCommon
   | {
@@ -141,6 +141,7 @@ export function planDeliveryReviewFixRoute(
           repository: input.repository,
           remote: input.remote,
           continuation: "read-position",
+          reviewFixSelectedDeliverableId: input.selectedDeliverableId,
         },
         recommendedActionText:
           "Rebind the exact published terminal Candidate, then resume delivery position.",
@@ -265,6 +266,144 @@ export type DeliveryReviewFixVerificationAcknowledgementResult =
       readonly nextAction: "continue-work-unit";
     }
   | { readonly status: "refused"; readonly reason: string };
+
+export type DeliveryReviewFixCandidateVerificationResult =
+  | {
+      readonly status: "recorded" | "already-recorded";
+      readonly record: CandidateManagedRecordV1;
+      readonly transition: CandidateVerificationResponseEvidenceV1;
+      readonly nextAction: "renew-public-continuation";
+    }
+  | { readonly status: "refused"; readonly reason: string };
+
+/** Advance the existing Candidate through one exact acknowledged delivery-correction verification. */
+export function recordDeliveryReviewFixCandidateVerification(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly acknowledgement: Omit<DeliveryReviewFixVerificationAcknowledgementInput, "planId">;
+  readonly record: CandidateManagedRecordV1;
+  readonly currentTarget: unknown;
+  readonly verifiedBy: string;
+  readonly verifiedAt: string;
+  readonly applicability: CandidateVerificationApplicability;
+  readonly verificationEvidenceRefs: readonly string[];
+}): DeliveryReviewFixCandidateVerificationResult {
+  const state = DeliveryStateV1Schema.safeParse(input.state.value);
+  const record = CandidateManagedRecordV1Schema.safeParse(input.record);
+  const currentTarget = CandidateLineageTargetSchema.safeParse(input.currentTarget);
+  if (!state.success || !record.success || !currentTarget.success
+    || !Number.isSafeInteger(input.state.revision)
+    || validateDeliveryStateAgainstPlan(input.state.value, input.plan).status === "refused"
+    || record.data.attestation.workUnit !== input.plan.workUnitId) {
+    return { status: "refused", reason: "candidate-verification-invalid" };
+  }
+  const pendingMatches = input.state.revision === input.acknowledgement.expectedStateRevision
+    && state.data.pendingReviewFixVerification?.selectedDeliverableId
+      === input.acknowledgement.selectedDeliverableId
+    && canonicalize(state.data.pendingReviewFixVerification.memberDeliverableIds)
+      === canonicalize(input.acknowledgement.memberDeliverableIds)
+    && canonicalDigest(state.data) === input.acknowledgement.continuationDigest;
+  const replayPredecessor = input.state.revision === input.acknowledgement.expectedStateRevision + 1
+    && state.data.pendingReviewFixVerification === null
+    ? DeliveryStateV1Schema.safeParse({
+        ...state.data,
+        pendingReviewFixVerification: {
+          selectedDeliverableId: input.acknowledgement.selectedDeliverableId,
+          memberDeliverableIds: input.acknowledgement.memberDeliverableIds,
+        },
+      })
+    : null;
+  const acknowledgedReplay = replayPredecessor?.success === true
+    && canonicalDigest(replayPredecessor.data) === input.acknowledgement.continuationDigest;
+  if (!pendingMatches && !acknowledgedReplay) {
+    return { status: "refused", reason: "candidate-verification-continuation-mismatch" };
+  }
+  const terminalHead = state.data.members.at(-1)?.coordinates?.head;
+  if (terminalHead === undefined || terminalHead !== currentTarget.data.revision) {
+    return { status: "refused", reason: "candidate-verification-target-mismatch" };
+  }
+  const existing = record.data.transitions.flatMap((transition, index) =>
+    transition.transitionKind === "verification-response"
+      && transition.authorityRef === input.acknowledgement.continuationDigest
+      ? [{ transition, index }]
+      : []);
+  if (existing.length > 1) {
+    return { status: "refused", reason: "candidate-verification-duplicated" };
+  }
+  const retained = existing[0];
+  if (retained !== undefined) {
+    const priorRecord = CandidateManagedRecordV1Schema.safeParse({
+      ...record.data,
+      transitions: record.data.transitions.slice(0, retained.index),
+      lineageAttestations: record.data.lineageAttestations.filter(({ target }) =>
+        record.data.subject.subjectDigest === target.subject.subjectDigest
+        || record.data.transitions.slice(0, retained.index).some((transition) =>
+          "newTarget" in transition
+          && transition.newTarget.subject.subjectDigest === target.subject.subjectDigest)),
+    });
+    if (!priorRecord.success) return { status: "refused", reason: "candidate-verification-invalid" };
+    const prior = reduceCandidateDurableBaseline(priorRecord.data);
+    if (!sameCandidateTargetIdentity(retained.transition.oldTarget, prior.target)
+      || !sameCandidateTargetIdentity(retained.transition.newTarget, currentTarget.data)
+      || retained.transition.verifiedBy !== input.verifiedBy
+      || retained.transition.applicability !== input.applicability
+      || canonicalize(retained.transition.verificationEvidenceRefs)
+        !== canonicalize(input.verificationEvidenceRefs)) {
+      return { status: "refused", reason: "candidate-verification-replay-mismatch" };
+    }
+    return {
+      status: "already-recorded",
+      record: record.data,
+      transition: retained.transition,
+      nextAction: "renew-public-continuation",
+    };
+  }
+  const baseline = reduceCandidateDurableBaseline(record.data);
+  const baselineCurrentness = projectCandidateCurrentness({
+    record: record.data,
+    current: baseline.target,
+  });
+  if (baselineCurrentness.status !== "current"
+    || baselineCurrentness.convergenceVerification !== "satisfied") {
+    return { status: "refused", reason: "candidate-baseline-unverified" };
+  }
+  let transition: CandidateVerificationResponseEvidenceV1;
+  try {
+    transition = createCandidateVerificationResponseEvidence({
+      candidateId: record.data.attestation.candidateId,
+      oldTarget: baseline.target,
+      newTarget: currentTarget.data,
+      authorityRef: input.acknowledgement.continuationDigest,
+      verifiedBy: input.verifiedBy,
+      verifiedAt: input.verifiedAt,
+      applicability: input.applicability,
+      verificationEvidenceRefs: input.verificationEvidenceRefs,
+      implementationChanged:
+        baseline.target.subject.subjectDigest !== currentTarget.data.subject.subjectDigest,
+    });
+  } catch {
+    return { status: "refused", reason: "candidate-verification-invalid" };
+  }
+  const next = CandidateManagedRecordV1Schema.safeParse({
+    ...record.data,
+    transitions: [...record.data.transitions, transition],
+  });
+  if (!next.success) return { status: "refused", reason: "candidate-verification-invalid" };
+  return {
+    status: "recorded",
+    record: next.data,
+    transition,
+    nextAction: "renew-public-continuation",
+  };
+}
+
+function sameCandidateTargetIdentity(
+  left: CandidateLineageTarget,
+  right: CandidateLineageTarget,
+): boolean {
+  return left.revision === right.revision
+    && left.subject.subjectDigest === right.subject.subjectDigest;
+}
 
 /** Clear one exact pending review-fix verification continuation after its workflow consumes it. */
 export async function acknowledgeDeliveryReviewFixVerification(input: {

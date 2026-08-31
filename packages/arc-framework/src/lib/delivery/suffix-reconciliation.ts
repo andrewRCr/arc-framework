@@ -25,7 +25,10 @@ import type {
   DeliveryChainAbsorptionResult,
 } from "./chain-absorption.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
-import type { DeliveryReviewFixVerificationContinuation } from "./review-fix.js";
+import {
+  projectDeliveryReviewFixVerificationContinuation,
+  type DeliveryReviewFixVerificationContinuation,
+} from "./review-fix-verification.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
@@ -512,23 +515,15 @@ export async function settleReservedDeliverySuffixRefresh(input: {
     input.current.revision,
   );
   if (persisted.status !== "ok") return { status: "blocked", reason: "state-conflict" };
-  const pending = persisted.value.value.pendingReviewFixVerification;
-  if (pending === null) return { status: "applied", state: persisted.value };
-  const selectedDeliverableId = pending.selectedDeliverableId;
-  const memberDeliverableIds = pending.memberDeliverableIds;
+  const continuation = projectDeliveryReviewFixVerificationContinuation({
+    planId: input.plan.planId,
+    state: persisted.value,
+  });
+  if (continuation === null) return { status: "applied", state: persisted.value };
   return {
     status: "applied",
     state: persisted.value,
-    selectedDeliverableId,
-    nextAction: "verify-review-fix",
-    verification: { memberDeliverableIds, tier1Required: true },
-    acknowledgementInput: {
-      planId: input.plan.planId,
-      selectedDeliverableId,
-      memberDeliverableIds,
-      expectedStateRevision: persisted.value.revision,
-      continuationDigest: canonicalDigest(persisted.value.value),
-    },
+    ...continuation,
   };
 }
 

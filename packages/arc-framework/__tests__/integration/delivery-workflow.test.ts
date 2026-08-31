@@ -174,7 +174,7 @@ describe("packaged delivery workflow", () => {
     expect(mutationTail).toMatch(/tier1Required[\s\S]*Tier 1/iu);
     expect(mutationTail).toContain("acknowledgementInput");
     expect(mutationTail).toMatch(
-      /applied \/ verify-review-fix[\s\S]*review-fix-verification-required[\s\S]*same exact verification\s+continuation/iu,
+      /applied \/ verify-review-fix[\s\S]*rematerialized \/ verify-review-fix[\s\S]*rebound \/ verify-review-fix[\s\S]*review-fix-verification-required[\s\S]*same exact verification\s+continuation/iu,
     );
     expect(mutationTail).toMatch(/same finding-disposition approval/iu);
     expect(mutationTail).not.toContain("`integration-interlock`");
@@ -192,7 +192,7 @@ describe("packaged delivery workflow", () => {
     expect(reviewSection).toMatch(/project the exact approved[\s\S]*correction/iu);
     expect(reviewSection).toContain("plan, repository, remote, selected-member, and entry-mode locators");
     expect(reviewSection).toMatch(
-      /planned \/ terminal-rebind[\s\S]*reconcileInput[\s\S]*unchanged[\s\S]*arc delivery reconcile[\s\S]*rebound \/ read-position[\s\S]*arc delivery position/iu,
+      /planned \/ terminal-rebind[\s\S]*reconcileInput[\s\S]*unchanged[\s\S]*arc delivery reconcile[\s\S]*rebound \/ verify-review-fix[\s\S]*pending continuation/iu,
     );
     expect(reviewSection).toMatch(
       /provider-refresh[\s\S]*selected member[\s\S]*execute-provider-refresh[\s\S]*dependent-suffix/iu,
@@ -288,15 +288,19 @@ describe("packaged delivery workflow", () => {
     for (const workflow of [packaged, installed]) {
       expect(workflow).toContain("`review-fix-verification-required`");
       expect(workflow).toContain("acknowledgementInput");
+      expect(workflow).toContain("verificationResult");
       expect(workflow).toContain("arc delivery review-fix acknowledge - --json");
+      expect(workflow).toContain("attestationAction.argv");
       const closeTask = workflow.indexOf("Mark the task `[x]`");
       const acknowledge = workflow.indexOf("arc delivery review-fix acknowledge - --json", closeTask);
+      const renew = workflow.indexOf("attestationAction.argv", acknowledge);
       const completionExtension = workflow.indexOf("#post-task-completion", closeTask);
       expect(closeTask).toBeGreaterThan(-1);
       expect(closeTask).toBeLessThan(acknowledge);
-      expect(acknowledge).toBeLessThan(completionExtension);
+      expect(acknowledge).toBeLessThan(renew);
+      expect(renew).toBeLessThan(completionExtension);
       expect(workflow.slice(closeTask, completionExtension)).toMatch(
-        /unchanged[\s\S]*acknowledged[\s\S]*already-acknowledged[\s\S]*refused[\s\S]*stops/iu,
+        /acknowledged[\s\S]*already-acknowledged[\s\S]*renew-public-continuation[\s\S]*unchanged[\s\S]*continue-hosted-review[\s\S]*stops/iu,
       );
     }
   });

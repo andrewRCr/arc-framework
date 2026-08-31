@@ -55,9 +55,14 @@ describe("delivery suffix rematerialization", () => {
       rematerialized: {
         status: "rematerialized",
         state: { revision: 7, value: state },
-        contributionVerdicts: [],
+        selectedDeliverableId: highest.deliverableId,
+        contributionVerdicts: [{
+          deliverableId: highest.deliverableId,
+          contribution: "changed",
+          proof: "selected-change",
+        }],
         nextAction: "verify-review-fix",
-        verification: { memberDeliverableIds: [], tier1Required: true },
+        verification: { memberDeliverableIds: [highest.deliverableId], tier1Required: true },
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
@@ -85,9 +90,19 @@ describe("delivery suffix rematerialization", () => {
               tree: terminal.coordinates!.tree,
             },
           }]),
+          pendingReviewFixVerification: {
+            selectedDeliverableId: highest.deliverableId,
+            memberDeliverableIds: [highest.deliverableId],
+          },
         },
       },
       nextAction: "verify-review-fix",
+      acknowledgementInput: {
+        selectedDeliverableId: highest.deliverableId,
+        memberDeliverableIds: [highest.deliverableId],
+        expectedStateRevision: 8,
+        continuationDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      },
     });
   });
 
@@ -105,9 +120,10 @@ describe("delivery suffix rematerialization", () => {
       rematerialized: {
         status: "rematerialized",
         state: { revision: 7, value: state },
+        selectedDeliverableId: highest.deliverableId,
         contributionVerdicts: [],
         nextAction: "verify-review-fix",
-        verification: { memberDeliverableIds: [], tier1Required: true },
+        verification: { memberDeliverableIds: [highest.deliverableId], tier1Required: true },
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
@@ -146,14 +162,16 @@ describe("delivery suffix rematerialization", () => {
 
   it("refuses rematerialization when the fresh top no longer descends from the retained binding", async () => {
     const { state } = fixture();
+    const highest = state.members.at(-2)!;
     const terminal = state.members.at(-1)!;
     const result = await completeDeliverySuffixMutationTail({
       rematerialized: {
         status: "rematerialized",
         state: { revision: 7, value: state },
+        selectedDeliverableId: highest.deliverableId,
         contributionVerdicts: [],
         nextAction: "verify-review-fix",
-        verification: { memberDeliverableIds: [], tier1Required: true },
+        verification: { memberDeliverableIds: [highest.deliverableId], tier1Required: true },
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
@@ -174,14 +192,16 @@ describe("delivery suffix rematerialization", () => {
 
   it("refuses a stale writer at the terminal rebind", async () => {
     const { state } = fixture();
+    const highest = state.members.at(-2)!;
     const terminal = state.members.at(-1)!;
     const result = await completeDeliverySuffixMutationTail({
       rematerialized: {
         status: "rematerialized",
         state: { revision: 7, value: state },
+        selectedDeliverableId: highest.deliverableId,
         contributionVerdicts: [],
         nextAction: "verify-review-fix",
-        verification: { memberDeliverableIds: [], tier1Required: true },
+        verification: { memberDeliverableIds: [highest.deliverableId], tier1Required: true },
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
@@ -197,7 +217,7 @@ describe("delivery suffix rematerialization", () => {
     expect(result).toEqual({ status: "refused", reason: "state-moved" });
   });
 
-  it("adopts an already rebound top without creating another ancestry commit", async () => {
+  it("adopts an already rebound top and still persists the owed verification continuation", async () => {
     const { state } = fixture();
     const highest = state.members.at(-2)!;
     const terminal = state.members.at(-1)!;
@@ -211,9 +231,10 @@ describe("delivery suffix rematerialization", () => {
       rematerialized: {
         status: "rematerialized",
         state: { revision: 8, value: rebound },
+        selectedDeliverableId: highest.deliverableId,
         contributionVerdicts: [],
         nextAction: "verify-review-fix",
-        verification: { memberDeliverableIds: [], tier1Required: true },
+        verification: { memberDeliverableIds: [highest.deliverableId], tier1Required: true },
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
@@ -224,9 +245,38 @@ describe("delivery suffix rematerialization", () => {
       readAncestry: async () => "ancestor",
       adoptTop: async () => { throw new Error("must not create another adoption"); },
       publishTop: async () => ({ status: "adopted" }),
-      publishState: async () => { throw new Error("must not rewrite exact state"); },
+      publishState: async (_planId, value, expectedRevision) => expectedRevision === 8
+        ? { status: "ok", value: { revision: 9, value } }
+        : { status: "refused" },
     });
-    expect(result).toMatchObject({ status: "rematerialized", state: { revision: 8, value: rebound } });
+    expect(result).toMatchObject({
+      status: "rematerialized",
+      state: {
+        revision: 9,
+        value: {
+          pendingReviewFixVerification: {
+            selectedDeliverableId: highest.deliverableId,
+            memberDeliverableIds: [highest.deliverableId],
+          },
+        },
+      },
+      acknowledgementInput: { expectedStateRevision: 9 },
+    });
+    if (result.status !== "rematerialized") throw new Error("rematerialization tail must settle");
+    const replay = await completeDeliverySuffixMutationTail({
+      rematerialized: result,
+      commonBase: state.target!.coordinates!,
+      topRef: terminal.ref!,
+      top: { ref: terminal.ref!, head: terminal.coordinates!.head, tree: terminal.coordinates!.tree },
+      finalCandidate: terminal.coordinates!,
+      lifecyclePaths: [],
+    }, {
+      readAncestry: async () => "ancestor",
+      adoptTop: async () => { throw new Error("must not create another adoption"); },
+      publishTop: async () => ({ status: "adopted" }),
+      publishState: async () => { throw new Error("must not rewrite the exact pending continuation"); },
+    });
+    expect(replay).toEqual(result);
   });
 
   it("persists a moved live top even when predecessor absorption was already complete", async () => {
@@ -244,9 +294,10 @@ describe("delivery suffix rematerialization", () => {
       rematerialized: {
         status: "rematerialized",
         state: { revision: 8, value: rebound },
+        selectedDeliverableId: highest.deliverableId,
         contributionVerdicts: [],
         nextAction: "verify-review-fix",
-        verification: { memberDeliverableIds: [], tier1Required: true },
+        verification: { memberDeliverableIds: [highest.deliverableId], tier1Required: true },
       },
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,

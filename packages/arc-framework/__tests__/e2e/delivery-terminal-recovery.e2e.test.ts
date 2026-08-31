@@ -304,6 +304,7 @@ describe("delivery terminal recovery", () => {
 
   async function installTerminalRebindFixture(input: {
     readonly requestBase?: "target" | "predecessor";
+    readonly reviewFix?: boolean;
   } = {}): Promise<{
     readonly fixture: Awaited<ReturnType<typeof installFixture>>;
     readonly envelope: { readonly revision: number };
@@ -321,21 +322,12 @@ describe("delivery terminal recovery", () => {
       value: DeliveryStateV1;
     };
     const terminal = envelope.value.members.at(-1)!;
-    const currentHead = await git(repository, ["rev-parse", "HEAD"]);
-    const currentTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
-    const localBase = await git(repository, ["rev-parse", "refs/heads/main"]);
-    const authoritativeBase = await git(repository, ["rev-parse", "refs/remotes/origin/main"]);
-    expect(localBase).not.toBe(authoritativeBase);
-    const currentBase = await git(repository, [
-      "merge-base",
-      currentHead,
-      input.requestBase === "predecessor" ? fixture.triggerHead : authoritativeBase,
-    ]);
+    const candidateHead = await git(repository, ["rev-parse", "HEAD"]);
     const subject = createCandidateSubjectSnapshot([]);
     const attestation = createCandidateAttestation({
       workUnit: plan.workUnitId,
       subject,
-      baseRevision: currentHead,
+      baseRevision: candidateHead,
       attestedBy: "owner",
       attestedAt: "2026-08-22T12:00:00.000Z",
       verificationEvidenceRef: "verification://delivery-terminal",
@@ -372,6 +364,26 @@ describe("delivery terminal recovery", () => {
         ? []
         : [writeFile(join(repository, "top-remedy-mutated"), "")]),
     ]);
+    if (input.reviewFix === true) {
+      await writeFile(join(repository, "terminal-correction.ts"), "export const correction = true;\n");
+      await git(repository, ["add", "terminal-correction.ts"]);
+      await git(repository, ["commit", "-m", "fix terminal member"]);
+    }
+    const currentHead = await git(repository, ["rev-parse", "HEAD"]);
+    const currentTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+    if (input.reviewFix === true) {
+      await git(repository, ["push", "origin", `${currentHead}:refs/heads/member-2`]);
+      const fakeGh = join(repository, "fake-bin", "gh");
+      await writeFile(fakeGh, (await readFile(fakeGh, "utf8")).replaceAll(candidateHead, currentHead));
+    }
+    const localBase = await git(repository, ["rev-parse", "refs/heads/main"]);
+    const authoritativeBase = await git(repository, ["rev-parse", "refs/remotes/origin/main"]);
+    expect(localBase).not.toBe(authoritativeBase);
+    const currentBase = await git(repository, [
+      "merge-base",
+      currentHead,
+      input.requestBase === "predecessor" ? fixture.triggerHead : authoritativeBase,
+    ]);
     const stale = DeliveryStateV1Schema.parse({
       ...envelope.value,
       members: envelope.value.members.map((member, index, members) => index === members.length - 1
@@ -380,7 +392,7 @@ describe("delivery terminal recovery", () => {
             coordinates: {
               ...member.coordinates!,
               base: fixture.triggerHead,
-              head: fixture.triggerHead,
+              head: input.reviewFix === true ? candidateHead : fixture.triggerHead,
             },
           }
         : member),
@@ -657,6 +669,51 @@ describe("delivery terminal recovery", () => {
               coordinates: { base: currentBase, head: currentHead, tree: currentTree },
             },
           ],
+        },
+      },
+    });
+  });
+
+  it("settles a terminal correction into the same recoverable scoped-verification continuation", async () => {
+    const {
+      fixture,
+      envelope,
+      currentHead,
+      request,
+    } = await installTerminalRebindFixture({ reviewFix: true });
+    const selectedDeliverableId = deliveryStackPlanFixture().members.at(-1)!.deliverableId;
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        ...(JSON.parse(request) as Record<string, unknown>),
+        continuation: "read-position",
+        reviewFixSelectedDeliverableId: selectedDeliverableId,
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "rebound",
+      selectedDeliverableId,
+      nextAction: "verify-review-fix",
+      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      acknowledgementInput: {
+        planId: fixture.planId,
+        selectedDeliverableId,
+        memberDeliverableIds: [selectedDeliverableId],
+        expectedStateRevision: envelope.revision + 1,
+        continuationDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      },
+      state: {
+        value: {
+          members: [expect.anything(), { coordinates: { head: currentHead } }],
+          pendingReviewFixVerification: {
+            selectedDeliverableId,
+            memberDeliverableIds: [selectedDeliverableId],
+          },
         },
       },
     });

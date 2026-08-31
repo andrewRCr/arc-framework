@@ -9,6 +9,7 @@ import {
   createCandidateLineageAttestation,
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
+  createCandidateVerificationResponseEvidence,
   parseCandidateManagedRecord,
   projectCandidateCurrentness,
   serializeCandidateManagedRecord,
@@ -467,6 +468,48 @@ describe("Candidate lineage currentness", () => {
       convergenceVerification: "pending",
     });
     expect(response).toMatchObject({ applicability: "focused", verificationEvidenceRefs: ["test://candidate/focused"] });
+  });
+
+  it("advances through a scoped verification response without reopening convergence", () => {
+    const root = attestation();
+    const changed = snapshot(canonicalDigest({ source: "delivery-review-fix" }));
+    const response = createCandidateVerificationResponseEvidence({
+      candidateId: root.candidateId,
+      oldTarget: { revision: SHA_A, subject: snapshot() },
+      newTarget: { revision: SHA_B, subject: changed },
+      authorityRef: canonicalDigest({ continuation: "delivery-review-fix" }),
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-31T12:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: [
+        "criteria://delivery/member-1",
+        "gates://tier-1/current-top",
+      ],
+      implementationChanged: true,
+    });
+    const record = CandidateManagedRecordV1Schema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      transitions: [response],
+      lineageAttestations: [],
+    });
+
+    expect(response).toMatchObject({
+      transitionKind: "verification-response",
+      authorityRef: canonicalDigest({ continuation: "delivery-review-fix" }),
+      applicability: "focused",
+    });
+    expect(projectCandidateCurrentness({
+      record,
+      current: { revision: SHA_B, subject: changed },
+    })).toMatchObject({
+      status: "current",
+      recognizedRevision: SHA_B,
+      implementationChanged: true,
+      convergenceVerification: "satisfied",
+    });
   });
 
   it("preserves Candidate across operational-only churn", () => {

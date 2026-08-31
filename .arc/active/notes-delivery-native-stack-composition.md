@@ -184,6 +184,37 @@ an adversarial companion, when invoked, still reruns the complete selected rubri
 on the corrective delta and its member/cross-member interactions. Only invalidated scope or authority reopens the
 original boundary itself. Private Frontline and generic prepublication never replay.
 
+### Scoped correction verification must advance Candidate authority
+
+The live Member 1 pass-5 correction exposed the distinction the prior stale-continuation repair did not cover. That
+repair is correct when Delivery State advances but the Candidate subject remains current: `arc attest` can refresh
+the versioned public boundary without verification. A real correction changes the reviewable top, however, so the
+Candidate becomes genuinely non-current. Clearing `pendingReviewFixVerification` without recording the checks that
+just passed leaves entry with only the conservative whole-WU verification route; session-init and compaction recovery
+then faithfully project the wrong next step and the retained member/pass position becomes operationally invisible.
+
+The correction keeps lifecycle state monotonic in `Integrating` and extends the existing Candidate transition union
+with one `verification-response`. It binds the exact prior/current Candidate targets, the entry-emitted continuation
+digest, primary actor/time, applicability, and evidence references. This is the durable result of the already owed
+member criteria plus Tier 1 checks, not a new ledger, delivery-state proof, hosted-review verdict, or approximation of
+`review-signal-convergence`.
+
+Write ordering is recovery-significant: Candidate evidence is version-written and staged while the delivery
+continuation is still pending; only then may the versioned acknowledgement clear Delivery State. A crash before the
+clear re-enters through the still-pending continuation and recognizes the exact Candidate transition. A lost response
+after the clear reconstructs the exact one-field predecessor and recognizes the same transition. Any selector,
+digest, target, evidence, ownership, or state mismatch refuses. The acknowledgement then returns the exact ordinary
+attestation action; `unchanged` refreshes the public boundary, fresh integration entry resumes hosted review, and
+compaction recovery never enters whole-WU verification, Frontline, or generic prepublication.
+
+Task-interlock review exposed that the first implementation installed this authority only after registered
+dependent refresh. The invariant applies to all correction settlement routes. Complete unregistered rematerialization
+now installs the pending continuation in its final top/state transition even when the top was already rebound, and an
+exact terminal correction rebind validates the durable Candidate baseline, append-only current target, public
+boundary, selected terminal request, and state version before writing the terminal coordinate plus the same pending
+continuation. Both return the shared acknowledgment locator, so recovery never has to rederive which mutation route
+produced the verified delta.
+
 Two adjacent concerns do not enter this batch. Ordinary singleton withdrawal can retain a stale public boundary and
 needs lifecycle/review ownership beyond bound stacked delivery. A general reusable scenario runner belongs with
 composable workflow and review-architecture evolution after these concrete production seams have executable tests.
