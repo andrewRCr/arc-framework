@@ -388,8 +388,11 @@ criterion inert content and silently drop it from the walk; four or more spaces 
 parent and refuse the task list. A root criterion whose body begins with a task-ID-like token also refuses rather
 than becoming a criterion.
 
-Checked during the [verification phase](#verification-phase), not during implementation or
-archival. Member boundaries gather evidence but leave the markers unchanged. Markers are backtick-wrapped
+Grouped member criteria are checked through `validate-criteria` during each member's ordinary closing task.
+Those checks record boundary evidence but leave the markers unchanged. The terminal
+[verification phase](#verification-phase) consumes those reports, checks seam and union coherence, dispositions
+the member groups, and owns marker changes. Flat criteria are checked during terminal verification. Markers are
+backtick-wrapped
 (matching parent + subtask convention — see [§ Subtasks](#subtasks-third-level) for rationale). Always include
 "All quality gates pass" and "Ready for integration" as seam items for grouped criteria, or standard items in the
 flat form. The [`validate-criteria` method][validate-criteria] owns the three states and immutable-criterion-text

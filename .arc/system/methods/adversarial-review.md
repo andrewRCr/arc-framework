@@ -6,6 +6,7 @@ related:
   - implementation-audit
   - review-chunking
   - standard-review
+  - validate-criteria
 override-active: false
 ---
 
