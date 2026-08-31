@@ -264,6 +264,7 @@ import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   ReviewStatusCommandResultSchema,
   resolveReviewStatus,
+  ReviewStatusSourceIdSchema,
   ReviewStatusTargetInputSchema,
   ReviewStatusWorkUnitInputSchema,
   type ReviewStatusResult,
@@ -357,11 +358,19 @@ export const ReviewStatusCliInputSchema = z.strictObject({
   workUnit: SlugSchema.optional(),
   ceilingOverride: z.string().trim().min(1).optional(),
   coverage: z.enum(["complete", "incremental"]).optional(),
+  source: ReviewStatusSourceIdSchema.optional(),
 }).superRefine((input, context) => {
   if ((input.target === undefined) === (input.workUnit === undefined)) {
     context.addIssue({
       code: "custom",
       message: "exactly one of --target or --work-unit is required",
+    });
+  }
+  if (input.source !== undefined && input.workUnit === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["source"],
+      message: "--source requires --work-unit",
     });
   }
 });
@@ -407,6 +416,7 @@ const reviewStatusInputRegistration: CommandInputRegistration = {
     "option.work-unit": "workUnit",
     "option.ceiling-override": "ceilingOverride",
     "option.coverage": "coverage",
+    "option.source": "source",
   },
 };
 
@@ -643,6 +653,7 @@ export interface ReviewStatusOptions {
   workUnit?: string;
   ceilingOverride?: string;
   coverage?: HostedReviewCoverage;
+  source?: string;
   json?: boolean;
 }
 
@@ -690,6 +701,7 @@ export async function handleReviewStatus(
     ...(options.workUnit === undefined ? {} : { workUnit: options.workUnit }),
     ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: options.ceilingOverride }),
     ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+    ...(options.source === undefined ? {} : { source: options.source }),
   });
   const parsed = options.workUnit === undefined
     ? ReviewStatusTargetInputSchema.safeParse({
@@ -701,6 +713,7 @@ export async function handleReviewStatus(
         workUnitId: options.workUnit,
         ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
         ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+        ...(options.source === undefined ? {} : { sourceId: options.source }),
       });
   if (!parsedCli.success || !parsed.success) {
     const detail = [...(parsedCli.success ? [] : parsedCli.error.issues), ...(parsed.success ? [] : parsed.error.issues)]
@@ -2128,7 +2141,8 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
                   vehicle: deliveryVehicle,
                   candidate: context.candidateRecord,
                 });
-                if (discharge.discharged || discharge.nextSource !== request.provider) {
+                if (discharge.discharged
+                  || (request.invocation === undefined && discharge.nextSource !== request.provider)) {
                   throw new Error("Hosted delivery-member request no longer matches the fresh discharge position.");
                 }
                 assertHostedReservationPolicyAdmission({
@@ -2142,6 +2156,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
                   ...(discharge.requestAttempts === undefined
                     ? {}
                     : { requestAttempts: discharge.requestAttempts }),
+                  ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
                   ...(request.ceilingOverride === undefined
                     ? {}
                     : { ceilingOverride: request.ceilingOverride }),
@@ -2158,6 +2173,9 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
                       ? {}
                       : { ceilingOverride: request.ceilingOverride }),
                     coverage: request.coverage,
+                    ...(request.invocation === undefined
+                      ? {}
+                      : { sourceId: request.invocation.sourceId }),
                   },
                 );
                 if (currentObligation.state !== "review-required"

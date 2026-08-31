@@ -482,6 +482,54 @@ describe("hosted reservation admission", () => {
     });
   });
 
+  it("retains a pure supplemental review in member history without steering the complete lane", () => {
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/incremental-current",
+          updatedAt: "2026-08-31T18:00:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          changeRequestId: "pull/42",
+          headSha: deliveryVehicle.head,
+          completedPasses: 0,
+          attempts: [hostedProgressAttempt({
+            attemptId: "attempt-incremental",
+            sourceId: "coderabbit-pr",
+            outcome: "clean",
+            vehicle: deliveryVehicle,
+            requestedCoverage: "incremental",
+            effectiveCoverage: "incremental",
+          })],
+        },
+      }],
+    };
+
+    expect(projectHostedReservationPolicyProgress({
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toEqual({
+      status: "complete",
+      completedPasses: 0,
+      attempts: [],
+      attemptHistory: [expect.objectContaining({
+        updatedAt: "2026-08-31T18:00:00.000Z",
+        headSha: deliveryVehicle.head,
+        sourceId: "coderabbit-pr",
+        outcome: "clean",
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+      })],
+    });
+  });
+
   it("admits the next member pass from selector-qualified lineage progress", () => {
     const result = resolveHostedReservationPolicy({
       reservation: deliveryReservation,
@@ -500,6 +548,58 @@ describe("hosted reservation admission", () => {
         payload: { sourceId: "codex-pr", pass: 2, maxPasses: 2 },
       },
     });
+  });
+
+  it("applies an explicit source only to the current member-policy invocation", () => {
+    const input = {
+      reservation: deliveryReservation,
+      snapshot: { status: "complete", records: [] } as ReviewOperationStateSnapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+      maxPasses: 2,
+    };
+
+    expect(resolveHostedReservationPolicy({
+      ...input,
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toMatchObject({
+      status: "resolved",
+      policy: {
+        state: "ready",
+        nextAction: "hosted-request",
+        payload: { sourceId: "codex-pr" },
+      },
+    });
+    expect(resolveHostedReservationPolicy(input)).toMatchObject({
+      status: "resolved",
+      policy: {
+        state: "ready",
+        nextAction: "hosted-request",
+        payload: { sourceId: "coderabbit-pr" },
+      },
+    });
+  });
+
+  it("refuses unconfigured and progress-reversing source invocations", () => {
+    const input = {
+      reservation: deliveryReservation,
+      snapshot: { status: "complete", records: [] } as ReviewOperationStateSnapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+      maxPasses: 2,
+    };
+
+    expect(() => resolveHostedReservationPolicy({
+      ...input,
+      invocation: { mode: "force", sourceId: "other-pr" },
+    })).toThrow(/configured standard-review source/u);
+    expect(() => resolveHostedReservationPolicy({
+      ...input,
+      requestAttempts: [{ sourceId: "codex-pr", outcome: "rate-limited" }],
+      invocation: { mode: "force", sourceId: "coderabbit-pr" },
+    })).toThrow(/cannot precede recorded source progress/u);
   });
 
   it("preserves an applicable safe-unavailability prefix when the member head moves", async () => {
