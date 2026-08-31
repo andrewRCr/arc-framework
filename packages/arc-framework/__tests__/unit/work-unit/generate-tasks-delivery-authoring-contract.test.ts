@@ -60,10 +60,16 @@ describe("generate-tasks delivery authoring contract", () => {
     );
 
     for (const workflow of [packaged, installed]) {
-      expect(workflow).toContain("member-scope verification parent");
-      expect(workflow).toContain("— validate criteria at member scope");
-      expect(workflow).toContain("sole terminal work-unit verification task");
-      expect(workflow).not.toContain("ordinary implementation parent");
+      const closeOutStart = workflow.indexOf("- End each member's task range");
+      const closeOutEnd = workflow.indexOf("\n- Group Success Criteria", closeOutStart);
+      expect(closeOutStart).toBeGreaterThan(-1);
+      expect(closeOutEnd).toBeGreaterThan(closeOutStart);
+      const memberCloseOut = workflow.slice(closeOutStart, closeOutEnd);
+
+      expect(memberCloseOut).toContain("member-scope verification parent");
+      expect(memberCloseOut).toContain("— validate criteria at member scope");
+      expect(memberCloseOut).toContain("sole terminal work-unit verification task");
+      expect(memberCloseOut).not.toContain("ordinary implementation parent");
     }
   });
 });
