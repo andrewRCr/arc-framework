@@ -36,6 +36,42 @@ const hostedAction = {
   coverage: "complete" as const,
   vehicle: memberVehicle,
 };
+type DeliveryTargetInput = Parameters<typeof composeDeliveryReviewObligation>[0]["targets"][number];
+type DeliveryDischargeInput = Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number];
+
+function deliveryTarget(
+  exactTarget: typeof hostedAction.target,
+  vehicle = memberVehicle,
+  position = 1,
+  memberCount = 1,
+): DeliveryTargetInput {
+  return {
+    ...exactTarget,
+    vehicle,
+    position,
+    memberCount,
+    chunkKey: `member-${String(position)}`,
+    title: `Member ${String(position)}`,
+  };
+}
+
+function deliveryDischarge(
+  input: Omit<DeliveryDischargeInput, "completedPasses" | "passCeiling" | "attemptHistory">
+    & Partial<Pick<DeliveryDischargeInput, "completedPasses" | "passCeiling" | "attemptHistory">>,
+): DeliveryDischargeInput {
+  return {
+    completedPasses: 0,
+    passCeiling: 2,
+    attemptHistory: [],
+    ...input,
+  };
+}
+
+const conjunctionMemberProgress = {
+  completedPasses: 0,
+  passCeiling: 2,
+  attempts: [],
+};
 const hostedResponsePlan = {
   schemaVersion: 1 as const,
   target: createReviewTarget({
@@ -231,13 +267,13 @@ describe("review status", () => {
   it("rejects a delivery applicability intervention whose conjunction is missing", () => {
     const projection = reviewApplicabilityDecision();
     const obligation = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
         discharged: false,
         detail: "The prior member review has an uncovered residual.",
         nextSource: null,
         applicability: projection,
-      }],
+      })],
       applicabilityContext: {
         workUnitId: "example",
         expectedRecordVersion: canonicalDigest({ version: 2 }),
@@ -341,10 +377,15 @@ describe("review status", () => {
           kind: "delivery",
           status: "outstanding",
           members: [{
+            position: 1,
+            memberCount: 1,
+            chunkKey: memberVehicle.workUnitId,
+            title: "Member 1",
             target: hostedAction.target,
             vehicle: memberVehicle,
             state: "outstanding",
             detail: "Hosted review remains required.",
+            progress: conjunctionMemberProgress,
           }],
         },
         action: hostedAction,
@@ -356,18 +397,28 @@ describe("review status", () => {
       routedObligation: {
         conjunction: { kind: "delivery", status: "outstanding" },
       },
+      deliveryCursor: {
+        status: "outstanding",
+        completedMemberCount: 0,
+        memberCount: 1,
+        currentMember: {
+          position: 1,
+          title: "Member 1",
+          progress: conjunctionMemberProgress,
+        },
+      },
     });
   });
 
   it("returns the exact retained findings response before another hosted request", async () => {
     const obligation = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
         discharged: false,
         detail: "The earlier findings attempt remains unsettled.",
         nextSource: null,
         responsePlan: hostedResponsePlan,
-      }],
+      })],
     });
 
     expect(obligation).toMatchObject({
@@ -400,13 +451,13 @@ describe("review status", () => {
       attempts: [],
     });
     const obligation = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
         discharged: false,
         detail: "The member has exhausted its configured review passes.",
         nextSource: "coderabbit-pr",
         requestAdmission: policy,
-      }],
+      })],
     });
 
     expect(obligation).toMatchObject({
@@ -445,13 +496,13 @@ describe("review status", () => {
       attempts: [],
     });
     const obligation = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
         discharged: false,
         detail: "The member requires the delegated-agent fallback.",
         nextSource: "delegated-agent",
         requestAdmission: policy,
-      }],
+      })],
     });
 
     expect(obligation).toMatchObject({
@@ -478,13 +529,13 @@ describe("review status", () => {
   it("returns the exact delegated findings operation for local review resumption", async () => {
     const localResumeAction = { schemaVersion: 1 as const, operationId: "local-review-prior" };
     const obligation = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
         discharged: false,
         detail: "The delegated findings attempt remains unsettled.",
         nextSource: null,
         localResumeAction,
-      }],
+      })],
     });
 
     expect(obligation).toMatchObject({ state: "review-required", localResumeAction });
@@ -521,14 +572,14 @@ describe("review status", () => {
       ceilingOverride,
     });
     const obligation = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
         discharged: false,
         detail: "One additional member review pass was approved.",
         nextSource: "coderabbit-pr",
         requestAdmission: policy,
         requestCeilingOverride: ceilingOverride,
-      }],
+      })],
     });
 
     expect(obligation).toMatchObject({
@@ -566,14 +617,14 @@ describe("review status", () => {
       ceilingOverride,
     });
     const obligation = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
         discharged: false,
         detail: "One additional delegated member review pass was approved.",
         nextSource: "delegated-agent",
         requestAdmission: policy,
         requestCeilingOverride: ceilingOverride,
-      }],
+      })],
     });
 
     expect(obligation).toMatchObject({
@@ -605,13 +656,13 @@ describe("review status", () => {
     const expectedRecordVersion = canonicalDigest({ version: 2 });
     const candidateId = canonicalDigest({ candidate: 2 });
     const obligation = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
         discharged: false,
         detail: "The prior member review has an uncovered residual.",
         nextSource: null,
         applicability: projection,
-      }],
+      })],
       applicabilityContext: {
         workUnitId: "example",
         expectedRecordVersion,
@@ -641,14 +692,14 @@ describe("review status", () => {
   it("preserves a conflicting Candidate selection as a typed applicability stop", async () => {
     const applicability = reviewApplicabilityDecision();
     const obligation = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
         discharged: false,
         detail: "Conflicting Candidate applicability selections require correction.",
         nextSource: null,
         applicability,
         applicabilityAuthority: "blocked",
-      }],
+      })],
     });
 
     expect(obligation).toMatchObject({
@@ -673,13 +724,13 @@ describe("review status", () => {
     async (kind, state, nextAction, reason) => {
       const applicability = blockedApplicability(kind);
       const obligation = composeDeliveryReviewObligation({
-        targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-        discharges: [{
+        targets: [deliveryTarget(hostedAction.target)],
+        discharges: [deliveryDischarge({
           discharged: false,
           detail: `Applicability ${kind}.`,
           nextSource: null,
           applicability,
-        }],
+        })],
       });
 
       expect(obligation).toMatchObject({
@@ -703,22 +754,25 @@ describe("review status", () => {
     };
     const obligation = composeDeliveryReviewObligation({
       targets: [
-        { ...hostedAction.target, vehicle: memberVehicle },
-        {
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 2),
+        deliveryTarget({
           repository: "owner/repo",
           pullRequest: 42,
           headSha: secondVehicle.head,
-          vehicle: secondVehicle,
-        },
+        }, secondVehicle, 2, 2),
       ],
       discharges: [
-        {
+        deliveryDischarge({
           discharged: false,
           detail: "member one outstanding",
           nextSource: "coderabbit-pr",
           requestAdmission: readyAdmission("coderabbit-pr"),
-        },
-        { discharged: false, detail: "member two outstanding", nextSource: "coderabbit-pr" },
+        }),
+        deliveryDischarge({
+          discharged: false,
+          detail: "member two outstanding",
+          nextSource: "coderabbit-pr",
+        }),
       ],
     });
 
@@ -743,12 +797,17 @@ describe("review status", () => {
     };
     const obligation = composeDeliveryReviewObligation({
       targets: [
-        { ...hostedAction.target, vehicle: memberVehicle },
-        { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head, vehicle: secondVehicle },
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 2),
+        deliveryTarget(
+          { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head },
+          secondVehicle,
+          2,
+          2,
+        ),
       ],
       discharges: [
-        { discharged: true, detail: "member one discharged", nextSource: null },
-        {
+        deliveryDischarge({ discharged: true, detail: "member one discharged", nextSource: null }),
+        deliveryDischarge({
           discharged: false,
           detail: "member two outstanding",
           nextSource: "codex-pr",
@@ -757,7 +816,7 @@ describe("review status", () => {
             pullRequest: 42,
             headSha: secondVehicle.head,
           }),
-        },
+        }),
       ],
     });
 
@@ -782,12 +841,17 @@ describe("review status", () => {
     };
     const obligation = composeDeliveryReviewObligation({
       targets: [
-        { ...hostedAction.target, vehicle: memberVehicle },
-        { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head, vehicle: secondVehicle },
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 2),
+        deliveryTarget(
+          { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head },
+          secondVehicle,
+          2,
+          2,
+        ),
       ],
       discharges: [
-        { discharged: true, detail: "member one discharged", nextSource: null },
-        { discharged: true, detail: "member two discharged", nextSource: null },
+        deliveryDischarge({ discharged: true, detail: "member one discharged", nextSource: null }),
+        deliveryDischarge({ discharged: true, detail: "member two discharged", nextSource: null }),
       ],
     });
 
@@ -804,8 +868,8 @@ describe("review status", () => {
 
   it("exposes the discharged conjunction on terminal review status", async () => {
     const conjunction = composeDeliveryReviewObligation({
-      targets: [{ ...hostedAction.target, vehicle: memberVehicle }],
-      discharges: [{ discharged: true, detail: "member discharged", nextSource: null }],
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({ discharged: true, detail: "member discharged", nextSource: null })],
     });
 
     await expect(resolveReviewStatus({ target }, port({ routedObligation: conjunction }))).resolves.toMatchObject({
