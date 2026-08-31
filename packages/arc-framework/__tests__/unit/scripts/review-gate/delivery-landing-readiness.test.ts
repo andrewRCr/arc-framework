@@ -27,6 +27,10 @@ function observation(
         kind: "delivery",
         status: "discharged",
         members: [{
+          position: 1,
+          memberCount: 1,
+          chunkKey: "member-1",
+          title: "Member 1",
           target: { repository: target.repository, pullRequest: 41, headSha: head },
           vehicle: {
             kind: "delivery-member",
@@ -37,6 +41,11 @@ function observation(
           },
           state: "discharged",
           detail: "The exact member review is discharged.",
+          progress: {
+            completedPasses: 1,
+            passCeiling: 2,
+            attempts: [],
+          },
         }],
       },
     }),

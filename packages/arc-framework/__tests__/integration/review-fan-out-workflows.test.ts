@@ -113,8 +113,8 @@ describe("hosted review fan-out workflow", () => {
     expect(deliveryResume).toBeGreaterThanOrEqual(0);
     expect(singletonResume).toBeGreaterThan(deliveryResume);
     const publicDeliveryResume = section.slice(deliveryResume, singletonResume);
-    expect(section).toContain("selects the first outstanding retained target");
-    expect(publicDeliveryResume).not.toContain("integrationBoundary.nextAction.command");
+    expect(section).toContain("selects the first outstanding retained member");
+    expect(publicDeliveryResume).toContain("integrationBoundary.nextAction.command");
     expect(publicDeliveryResume).not.toContain("arc review pre-publication");
   });
 });

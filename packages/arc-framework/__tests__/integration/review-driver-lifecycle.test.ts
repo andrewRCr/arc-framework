@@ -69,9 +69,9 @@ describe("lifecycle review driver", () => {
   it("resumes the carried WU reservation through public review status", async () => {
     const workflow = await readFile(resolve(packageArc, integrateWorkflow), "utf8");
 
-    expect(workflow).toContain("arc review status --target '{targetRef}' --json");
+    expect(workflow).toContain("integrationBoundary.nextAction.command");
     expect(workflow).toContain("`continue-hosted-review`");
-    expect(workflow).toContain("selects the first outstanding retained target");
+    expect(workflow).toContain("selects the first outstanding retained member");
   });
 
   it("keeps attention suppression with the owner of each judgment", async () => {

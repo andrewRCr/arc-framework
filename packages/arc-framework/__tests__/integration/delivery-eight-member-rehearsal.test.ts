@@ -150,6 +150,10 @@ describe("eight-member delivery integration rehearsal", () => {
       repository: "owner/repo",
       pullRequest: 401 + index,
       headSha: member.coordinates!.head,
+      position: index + 1,
+      memberCount: state.members.length,
+      chunkKey: plan.members[index]!.chunkKey,
+      title: plan.members[index]!.title,
       vehicle: {
         kind: "delivery-member" as const,
         planId: plan.planId,
@@ -185,7 +189,11 @@ describe("eight-member delivery integration rehearsal", () => {
     };
     const outstanding = composeDeliveryReviewObligation({
       targets,
-      discharges: targets.map((_, index) => index === 0
+      discharges: targets.map((_, index) => ({
+        completedPasses: 0,
+        passCeiling: 2,
+        attemptHistory: [],
+        ...(index === 0
         ? {
             discharged: false,
             detail: "Retained findings await disposition.",
@@ -193,6 +201,7 @@ describe("eight-member delivery integration rehearsal", () => {
             responsePlan,
           }
         : { discharged: false, detail: "Review is pending.", nextSource: "coderabbit-pr" }),
+      })),
     });
     const statusTarget = {
       repository: "owner/repo",
@@ -219,6 +228,9 @@ describe("eight-member delivery integration rehearsal", () => {
         discharged: true,
         detail: "Hosted source is settled.",
         nextSource: null,
+        completedPasses: 1,
+        passCeiling: 2,
+        attemptHistory: [],
       })),
     });
     await expect(resolveReviewStatus({ target: statusTarget }, {

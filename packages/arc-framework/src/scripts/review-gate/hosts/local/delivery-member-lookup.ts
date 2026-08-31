@@ -118,14 +118,22 @@ DeliveryReservationRecordLookup, DeliveryTerminalRecordLookup {
       const coherence = validateDeliveryStateAgainstPlan(record.value.value, plan);
       if (coherence.status === "refused") return { status: "unavailable" };
       const targets = [];
-      for (const member of coherence.state.members) {
+      for (const [index, member] of coherence.state.members.entries()) {
         if (member.changeRequest === null || member.coordinates === null) {
+          return { status: "unavailable" };
+        }
+        const planMember = plan.members[index];
+        if (planMember === undefined || planMember.deliverableId !== member.deliverableId) {
           return { status: "unavailable" };
         }
         targets.push({
           planId: coherence.state.planId,
           deliverableId: member.deliverableId,
           workUnitId: coherence.state.workUnitId,
+          position: index + 1,
+          memberCount: coherence.state.members.length,
+          chunkKey: planMember.chunkKey,
+          title: planMember.title,
           ref: member.ref,
           providerId: member.changeRequest.providerId,
           changeRequestId: member.changeRequest.changeRequestId,

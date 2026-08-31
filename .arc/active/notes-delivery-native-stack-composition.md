@@ -99,6 +99,18 @@ affected heads, while work-unit seam and union verification preserve cross-membe
 correction resume point may extend the existing version-checked integration boundary, but no new lifecycle state,
 review ledger, correction ledger, storage axis, or branch-derived authority is introduced.
 
+The public stacked-review cursor is likewise a derived join, not another ledger. `arc review status --work-unit`
+validates the current integration boundary and retained delivery plan/state, joins each member's bound change request
+to standard-lane progress by stable deliverable identity, and returns the full ordered conjunction plus one exact
+next action for its first outstanding member. Each member exposes position/title, target, discharged/outstanding
+state, completed-pass count, configured ceiling, and chronological attempt history. A findings pass consumes a pass;
+settling its findings closes that attempt but does not discharge the member or masquerade as convergence. The active
+driver tail begins after the latest settled-findings attempt, so two settled findings passes correctly require an
+explicit pass-three ceiling override. Session entry, compaction recovery, ordinary re-entry, supplemental review, and
+ceiling approval preserve this WU-scoped cursor instead of asking an agent or Owner to reconstruct a member target.
+The exact historical `{targetRef}` placeholder is normalized on boundary read for upgrade compatibility; newly
+projected boundaries always carry the self-contained WU command.
+
 Before binding, the member coordinates come from existing delivery authoring authority: the canonical plan derives
 each private candidate ref and detached gate checkout, fresh eligibility closes their exact heads/trees against the
 protected base and originating top, and delivery materialization supplies each predecessor/head pair (using the

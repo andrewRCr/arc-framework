@@ -32,6 +32,14 @@ import {
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
 
+function lastMatchingIndex<T>(values: readonly T[], predicate: (value: T) => boolean): number {
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    if (value !== undefined && predicate(value)) return index;
+  }
+  return -1;
+}
+
 function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
   return attempt.local !== undefined || attempt.hosted?.effectiveCoverage === "complete";
 }
@@ -145,6 +153,10 @@ export interface HostedReservationTarget {
   readonly pullRequest: number;
   readonly headSha: string;
   readonly baseRevision: string;
+  readonly position?: number;
+  readonly memberCount?: number;
+  readonly chunkKey?: string;
+  readonly title?: string;
   readonly vehicle?: DeliveryReviewMemberVehicle;
 }
 
@@ -199,6 +211,10 @@ export async function resolveHostedReservationTargets(input: {
         pullRequest,
         headSha: binding.head,
         baseRevision: binding.base,
+        position: binding.position,
+        memberCount: binding.memberCount,
+        chunkKey: binding.chunkKey,
+        title: binding.title,
         vehicle: DeliveryReviewMemberVehicleSchema.parse({
           kind: "delivery-member",
           planId: binding.planId,
@@ -217,7 +233,7 @@ export async function resolveHostedReservationTargets(input: {
 /**
  * Decide whether a carried hosted-review reservation has been discharged.
  *
- * Discharge is a settled attempt — `clean` or `settled-findings` — by the first ordered source that
+ * Discharge is a complete `clean` attempt by the first ordered source that
  * was not safely unavailable on the standard lane anywhere in the Candidate span. It is read rather than written because a discharge
  * write needs a caller who remembers to make it, and a reservation nobody cleared is the realized
  * failure this replaces. The span rather than the approved head alone: a review that ran before a
@@ -264,7 +280,13 @@ export async function projectHostedReservationDischarge(input: {
     )));
   }
   const allAttempts = [...attemptsByHead.values()].flat();
-  const currentAttempts = attemptsByHead.get(target.headSha) ?? [];
+  const currentAttemptHistory = attemptsByHead.get(target.headSha) ?? [];
+  const latestSettledIndex = lastMatchingIndex(currentAttemptHistory, (attempt) => (
+    attempt.outcome === "settled-findings" && isCompleteStandardVerdict(attempt)
+  ));
+  const currentAttempts = latestSettledIndex < 0
+    ? currentAttemptHistory
+    : currentAttemptHistory.slice(latestSettledIndex + 1);
   const requestAttempts: HostedReservationRequestAttempt[] = [];
   const currentFindingRoutes = reservation.sources.flatMap((sourceId) => (
     currentAttempts
@@ -310,12 +332,49 @@ export async function projectHostedReservationDischarge(input: {
     earlierBySource.set(sourceId, read);
     return read;
   };
+  let activeEarlierBySource: Map<string, EarlierHostedAttemptApplicabilityRead> | null = null;
+  const earlierTimeline = { settledPass: false };
+  const readActiveEarlier = async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> => {
+    if (input.readEarlierAttemptApplicability === undefined) return null;
+    if (activeEarlierBySource === null) {
+      await Promise.all(reservation.sources.map((reservedSourceId) => readEarlier(reservedSourceId)));
+      const ordered = [...earlierBySource.values()].flatMap((read) => read.status === "complete"
+        ? read.attempts
+        : []);
+      ordered.sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)
+        || left.operationId.localeCompare(right.operationId)
+        || left.attemptId.localeCompare(right.attemptId));
+      const settledIndex = lastMatchingIndex(ordered, ({
+        outcome, applicability, requestedCoverage, effectiveCoverage,
+      }) => (
+        outcome === "settled-findings"
+        && applicability === "retain-prior-attempt"
+        && (requestedCoverage === "complete" || effectiveCoverage === "complete")
+      ));
+      earlierTimeline.settledPass = settledIndex >= 0;
+      const activeKeys = new Set(ordered.slice(settledIndex + 1).map((attempt) => (
+        `${attempt.operationId}\0${attempt.attemptId}`
+      )));
+      activeEarlierBySource = new Map([...earlierBySource].map(([reservedSourceId, read]) => [
+        reservedSourceId,
+        read.status !== "complete"
+          ? read
+          : {
+              ...read,
+              attempts: read.attempts.filter((attempt) => activeKeys.has(
+                `${attempt.operationId}\0${attempt.attemptId}`,
+              )),
+            },
+      ]));
+    }
+    return activeEarlierBySource.get(sourceId) ?? null;
+  };
   const retainedFindingsBeforeRequest = async (): Promise<HostedReservationDischarge | null> => {
     if (input.readEarlierAttemptApplicability === undefined) return null;
-    await Promise.all(reservation.sources.map((sourceId) => readEarlier(sourceId)));
+    await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
     const routes: PendingFindingRoute[] = [];
     for (const sourceId of reservation.sources) {
-      const earlier = earlierBySource.get(sourceId);
+      const earlier = activeEarlierBySource?.get(sourceId);
       const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
         ? input.requireEarlierApplicabilityEvidence(sourceId)
         : input.requireEarlierApplicabilityEvidence === true;
@@ -328,8 +387,8 @@ export async function projectHostedReservationDischarge(input: {
           nextSource: null,
         };
       }
-      if ((earlier.status === "not-found" && evidenceRequired)
-        || (earlier.status === "complete" && earlier.attempts.length === 0)) {
+      if ((earlier.status === "not-found" && evidenceRequired && !earlierTimeline.settledPass)
+        || (earlier.status === "complete" && earlier.attempts.length === 0 && !earlierTimeline.settledPass)) {
         return {
           discharged: false,
           detail: "Earlier review applicability evidence is incomplete.",
@@ -352,11 +411,11 @@ export async function projectHostedReservationDischarge(input: {
   for (const sourceId of reservation.sources) {
     const settledCurrentHead = currentAttempts.some((attempt) => attempt.sourceId === sourceId
       && isCompleteStandardVerdict(attempt)
-      && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
+      && attempt.outcome === "clean");
     const settledWithoutApplicabilityReader = input.readEarlierAttemptApplicability === undefined
       && allAttempts.some((attempt) => attempt.sourceId === sourceId
         && isCompleteStandardVerdict(attempt)
-        && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
+        && attempt.outcome === "clean");
     if (settledCurrentHead || settledWithoutApplicabilityReader) {
       return {
         discharged: true,
@@ -374,12 +433,13 @@ export async function projectHostedReservationDischarge(input: {
       continue;
     }
     if (input.readEarlierAttemptApplicability !== undefined) {
-      const earlier = await readEarlier(sourceId);
+      const earlier = await readActiveEarlier(sourceId);
       if (earlier === null) throw new Error("earlier applicability reader disappeared");
       const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
         ? input.requireEarlierApplicabilityEvidence(sourceId)
         : input.requireEarlierApplicabilityEvidence === true;
-      if (earlier.status === "not-found" && !evidenceRequired) {
+      if ((earlier.status === "not-found" && !evidenceRequired)
+        || (earlier.status === "complete" && earlier.attempts.length === 0 && earlierTimeline.settledPass)) {
         const retainedFindings = await retainedFindingsBeforeRequest();
         if (retainedFindings !== null) return retainedFindings;
         return {
@@ -426,15 +486,13 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const applicable = standardAttempts.filter(({ applicability }) => applicability === "retain-prior-attempt");
-      const settledApplicable = applicable.find(({ outcome, effectiveCoverage }) => effectiveCoverage === "complete"
-        && (outcome === "clean" || outcome === "settled-findings"));
-      if (settledApplicable !== undefined) {
+      const cleanApplicable = applicable.find(({ outcome, effectiveCoverage }) => effectiveCoverage === "complete"
+        && outcome === "clean");
+      if (cleanApplicable !== undefined) {
         return {
           discharged: true,
-          detail: settledApplicable.retentionBasis === "verified-fix-response"
-            ? `Hosted source \`${sourceId}\` through its verified changed-target response.`
-            : `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\` through `
-              + "contribution applicability.",
+          detail: `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\` through `
+            + "contribution applicability.",
           nextSource: null,
         };
       }

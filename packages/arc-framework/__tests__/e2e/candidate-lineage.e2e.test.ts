@@ -1700,7 +1700,7 @@ async function reserveHostedReview(root: string, approvedHead: string): Promise<
 }
 
 describe("routed review obligation", () => {
-  it("settles the reservation on the reserved source's recorded verdict", async () => {
+  it("keeps a settled-findings verdict outstanding until a complete clean pass", async () => {
     const { root, approvedHead } = await settledReviewLineage();
     await reserveHostedReview(root, approvedHead);
     const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
@@ -1762,8 +1762,8 @@ describe("routed review obligation", () => {
       headRef: "feat/example",
       headSha: approvedHead,
     }, 42)).resolves.toMatchObject({
-      state: "settled",
-      detail: expect.stringContaining("codex-pr"),
+      state: "review-required",
+      detail: expect.stringContaining("not produced a settled review"),
     });
   });
 

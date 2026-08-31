@@ -1646,6 +1646,61 @@ describe("hosted review fan-out lifecycle", () => {
     await expect(settleThroughHandler()).resolves.toMatchObject({ state: "settled", nextAction: "complete" });
     await expect(settleThroughHandler()).resolves.toMatchObject({ state: "already-settled", nextAction: "complete" });
 
+    const fixedMemberStatus = await statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: fixedHead,
+    });
+    expect(fixedMemberStatus).toMatchObject({
+      nextAction: "review-hosted-request",
+      action: {
+        target: { repository, pullRequest: 41, headSha: fixedHead },
+        vehicle: member(harness.plan, 0, fixedHead),
+      },
+      routedObligation: {
+        conjunction: {
+          status: "outstanding",
+          members: [
+            { state: "outstanding", progress: { completedPasses: 1 } },
+            { state: "outstanding" },
+          ],
+        },
+      },
+    });
+    if (fixedMemberStatus.nextAction !== "review-hosted-request") {
+      throw new Error("expected fixed member follow-up request");
+    }
+    const fixedMemberRequested = await requestThroughHandler(fixedMemberStatus.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-fixed-member-clean",
+        url: "https://example.test/review-fixed-member-clean",
+        createdAt: "2026-08-24T04:04:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec);
+    if (fixedMemberRequested.nextAction !== "await") throw new Error("expected fixed member review handle");
+    const fixedMemberAwait = await awaitThroughHandler(fixedMemberRequested.handle, {
+      kind: "clean",
+      reviewUrl: "https://example.test/review-fixed-member-clean",
+    });
+    const fixedMemberReview = targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.baseHead,
+      baseTree: harness.baseTree,
+      headSha: fixedHead,
+      headTree: fixedTree,
+    });
+    await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: fixedMemberAwait,
+      reviewTarget: fixedMemberReview.reviewTarget,
+      requirement: fixedMemberReview.requirement,
+      actorIdentity: "andrew",
+      now: "2026-08-24T04:05:00.000Z",
+    });
+
     const secondStatus = await statusThroughHandler(harness, {
       repository,
       headRef: "delivery/delivery-plan-record/first",
@@ -1667,7 +1722,7 @@ describe("hosted review fan-out lifecycle", () => {
         kind: "pull-request-review",
         id: "review-second-after-member-fix",
         url: "https://example.test/review-second-after-member-fix",
-        createdAt: "2026-08-24T04:04:00.000Z",
+        createdAt: "2026-08-24T04:06:00.000Z",
       },
       effectiveCoverage: "complete",
     }, harness.root, harness.exec);
@@ -1689,7 +1744,7 @@ describe("hosted review fan-out lifecycle", () => {
       reviewTarget: secondReview.reviewTarget,
       requirement: secondReview.requirement,
       actorIdentity: "andrew",
-      now: "2026-08-24T04:05:00.000Z",
+      now: "2026-08-24T04:07:00.000Z",
     });
 
     await expect(statusThroughHandler(harness, {
@@ -2235,6 +2290,69 @@ describe("hosted review fan-out lifecycle", () => {
       now: "2026-08-24T04:10:00.000Z",
     });
 
+    const thirdPassCeiling = await statusThroughHandler(harness, currentStatusTarget);
+    expect(thirdPassCeiling).toMatchObject({
+      state: "approval-required",
+      nextAction: "obtain-ceiling-override",
+      consequence: {
+        target: currentSecondTarget,
+        exhaustedPassCount: 2,
+        nextPass: 3,
+      },
+      routedObligation: {
+        conjunction: {
+          status: "outstanding",
+          members: [
+            { state: "discharged", vehicle: movedFirst },
+            { state: "outstanding", vehicle: currentSecond },
+          ],
+        },
+      },
+    });
+    if (thirdPassCeiling.nextAction !== "obtain-ceiling-override") {
+      throw new Error("expected a third-pass ceiling override");
+    }
+    const thirdPassStatus = await statusThroughHandler(
+      harness,
+      currentStatusTarget,
+      thirdPassCeiling.consequence,
+    );
+    expect(thirdPassStatus).toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        target: currentSecondTarget,
+        vehicle: currentSecond,
+        ceilingOverride: thirdPassCeiling.consequence,
+      },
+    });
+    if (thirdPassStatus.nextAction !== "review-hosted-request") {
+      throw new Error("expected overridden third-pass request");
+    }
+    const thirdPassRequested = await requestThroughHandler(thirdPassStatus.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-second-pass-three",
+        url: "https://example.test/review-second-pass-three",
+        createdAt: "2026-08-24T04:11:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec);
+    if (thirdPassRequested.nextAction !== "await") throw new Error("expected third-pass review handle");
+    const thirdPassAwait = await awaitThroughHandler(thirdPassRequested.handle, {
+      kind: "clean",
+      reviewUrl: "https://example.test/review-second-pass-three",
+    });
+    await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: thirdPassAwait,
+      reviewTarget: currentSecondReview.reviewTarget,
+      requirement: currentSecondReview.requirement,
+      actorIdentity: "andrew",
+      now: "2026-08-24T04:12:00.000Z",
+    });
+
     const terminal = await statusThroughHandler(harness, currentStatusTarget);
     expect(terminal).toMatchObject({
       state: "settled",
@@ -2264,8 +2382,8 @@ describe("hosted review fan-out lifecycle", () => {
       consequence: {
         target: { repository, pullRequest: 42, headSha: third.head },
         lane: "standard",
-        exhaustedPassCount: 2,
-        nextPass: 3,
+        exhaustedPassCount: 3,
+        nextPass: 4,
       },
       routedObligation: {
         conjunction: {
