@@ -19,6 +19,15 @@ import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-rend
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import {
+  createCandidateAttestation,
+  type CandidateManagedRecordV1,
+} from "../../src/lib/work-unit/candidate-attestation.js";
+import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
+import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
+import { projectPublicationBoundary } from
+  "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
@@ -465,6 +474,7 @@ describe("arc delivery position", () => {
 
   it("re-enters and acknowledges a settled review-fix verification after response loss", async () => {
     const fixture = await positionFixture("selected-change-external-refresh");
+    const workUnitBranch = `feat/${fixture.plan.workUnitId}`;
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const discardedSettlement = await runArcWithStdin(
       ["delivery", "refresh", "adopt", "-", "--json"],
@@ -478,6 +488,7 @@ describe("arc delivery position", () => {
       { env: fixture.env },
     );
     expect(discardedSettlement.exitCode, `${discardedSettlement.stderr}\n${discardedSettlement.stdout}`).toBe(0);
+    await git(fixture.repository, ["switch", "-c", workUnitBranch]);
 
     const pendingStateRead = await fixture.states.read(fixture.plan.planId);
     expect(pendingStateRead).toMatchObject({ status: "ok" });
@@ -529,6 +540,55 @@ describe("arc delivery position", () => {
     });
     expect(await readFile(pendingHostLog, "utf8")).toBe("");
 
+    const candidateTarget = await collectGitCandidateTarget({
+      cwd: fixture.repository,
+      name: fixture.plan.workUnitId,
+      baseBranch: "main",
+      exec: createExecaGitExec(),
+    });
+    const candidate: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: createCandidateAttestation({
+        workUnit: fixture.plan.workUnitId,
+        subject: candidateTarget.subject,
+        baseRevision: candidateTarget.revision,
+        attestedBy: "test-user",
+        attestedAt: "2026-08-31T12:00:00.000Z",
+        verificationEvidenceRef: "verification://review-fix/baseline",
+      }),
+      subject: candidateTarget.subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
+    await writeSubmissionBoundary(fixture.repository, projectPublicationBoundary({
+      workUnit: fixture.plan.workUnitId,
+      branch: workUnitBranch,
+      candidateId: candidate.attestation.candidateId,
+      candidateSubjectDigest: candidate.subject.subjectDigest,
+      reservation: {
+        schemaVersion: 1,
+        semanticsVersion: "standard-review-reservation/v1",
+        reservationId: `sha256:${"e".repeat(64)}`,
+        sources: ["codex-pr"],
+        target: {
+          kind: "delivery",
+          repository: "owner/repo",
+          workUnitId: fixture.plan.workUnitId,
+          planId: fixture.plan.planId,
+        },
+        obligation: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"f".repeat(64)}`,
+          retrigger: "full-final",
+          count: 1,
+        },
+      },
+      changeRequest: { repository: "owner/repo", pullRequest: 42 },
+    }), null);
     const taskListPath = join(fixture.repository, ".arc", "active", "tasks-delivery-plan-record.md");
     const taskList = [
       "# Task List: Delivery Plan Record",
@@ -553,16 +613,22 @@ describe("arc delivery position", () => {
     ), [
       `# Metadata: ${fixture.plan.workUnitId}`,
       "",
-      "- **State:** Active",
-      "- **Branch:** main",
+      "- **State:** Integrating",
+      "- **Owner:** test-user",
+      `- **Branch:** ${workUnitBranch}`,
       "- **Task List:** `tasks-delivery-plan-record.md`",
+      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Last Completed:** [none]",
+      "- **Next Task:** [none]",
+      "- **Next Action:** [none]",
       "",
     ].join("\n"));
 
     const entered = await runArcWithStdin(
       ["delivery", "entry", "inspect", "--input", "-", "--json"],
       fixture.repository,
-      `${JSON.stringify({ entryMode: "execution" })}\n`,
+      `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
     );
     expect(entered.exitCode, `${entered.stderr}\n${entered.stdout}`).toBe(0);
@@ -582,7 +648,25 @@ describe("arc delivery position", () => {
     });
 
     await writeFile(taskListPath, taskList.replace("### `[ ]` **1.1", "### `[x]` **1.1"));
-    const acknowledgementRequest = `${JSON.stringify(continuation.acknowledgementInput)}\n`;
+    await git(fixture.repository, ["add", "-A"]);
+    const locus = await runArc(["locus", "--json"], fixture.repository, { env: fixture.env });
+    expect(locus.exitCode, `${locus.stderr}\n${locus.stdout}`).toBe(0);
+    expect(JSON.parse(locus.stdout), locus.stdout).toMatchObject({
+      entering: {
+        kind: "selected",
+        row: {
+          kind: "work-unit",
+          subject: { kind: "work-unit", key: fixture.plan.workUnitId },
+        },
+      },
+    });
+    const acknowledgementRequest = `${JSON.stringify({
+      ...continuation.acknowledgementInput,
+      verification: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      },
+    })}\n`;
     const discarded = await runArcWithStdin(
       ["delivery", "review-fix", "acknowledge", "-", "--json"],
       fixture.repository,
@@ -601,19 +685,46 @@ describe("arc delivery position", () => {
     expect(JSON.parse(retried.stdout)).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "already-acknowledged",
-      nextAction: "continue-work-unit",
+      nextAction: "renew-public-continuation",
+      candidate: {
+        candidateId: candidate.attestation.candidateId,
+      },
+    });
+
+    const renewed = await runArc(["attest", fixture.plan.workUnitId, "--json"], fixture.repository, {
+      env: fixture.env,
+    });
+    expect(renewed.exitCode, `${renewed.stderr}\n${renewed.stdout}`).toBe(0);
+    expect(JSON.parse(renewed.stdout)).toMatchObject({
+      status: "unchanged",
+      locus: {
+        locus: "hosted-review-pending",
+        nextAction: { kind: "continue-hosted-review", workUnitId: fixture.plan.workUnitId },
+      },
     });
 
     const resumed = await runArcWithStdin(
       ["delivery", "entry", "inspect", "--input", "-", "--json"],
       fixture.repository,
-      `${JSON.stringify({ entryMode: "execution" })}\n`,
+      `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
     );
     expect(resumed.exitCode, `${resumed.stderr}\n${resumed.stdout}`).toBe(0);
     expect(JSON.parse(resumed.stdout)).toMatchObject({
-      status: "not-applicable",
-      nextAction: "continue-work-unit",
+      status: "continue-hosted-review",
+      nextAction: "continue-hosted-review",
+      hostedReviewAction: { kind: "continue-hosted-review", workUnitId: fixture.plan.workUnitId },
+    });
+
+    const session = await runArc(["status", "--session-init", "--json"], fixture.repository, {
+      env: fixture.env,
+    });
+    expect(session.exitCode, `${session.stderr}\n${session.stdout}`).toBe(0);
+    expect(JSON.parse(session.stdout)).toMatchObject({
+      active: {
+        ok: true,
+        value: { sessionType: "integration", currentWorkflow: "integrate-work-unit" },
+      },
     });
   });
 
@@ -671,6 +782,7 @@ describe("arc delivery position", () => {
         selectedDeliverableId: fixture.plan.members[1]!.deliverableId,
         repository: "owner/repo",
         remote: "origin",
+        entryMode: "execution",
       })}\n`,
       { env: fixture.env },
     );
@@ -711,6 +823,7 @@ describe("arc delivery position", () => {
         selectedDeliverableId: fixture.plan.members[0]!.deliverableId,
         repository: "owner/repo",
         remote: "origin",
+        entryMode: "integrating",
       })}\n`,
       { env: fixture.env },
     );
@@ -734,6 +847,7 @@ describe("arc delivery position", () => {
         selectedDeliverableId,
         repository: "owner/repo",
         remote: "origin",
+        entryMode: "integrating",
       })}\n`,
       { env: fixture.env },
     );

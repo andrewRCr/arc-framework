@@ -4,6 +4,7 @@ import {
   acknowledgeDeliveryReviewFixVerification,
   planDeliveryReviewFixRoute,
   publishSelectedDeliveryReviewFix,
+  recordDeliveryReviewFixCandidateVerification,
   type DeliveryReviewFixPublicationDependencies,
 } from "../../../src/lib/delivery/review-fix.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
@@ -12,6 +13,11 @@ import type { DeliveryRevisionedRecord } from "../../../src/lib/delivery/ports.j
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  projectCandidateCurrentness,
+} from "../../../src/lib/work-unit/candidate-attestation.js";
 
 function positionFacts(state: DeliveryStateV1, landedDeliverableIds: string[] = []) {
   return { target: state.target, members: state.members, landedDeliverableIds };
@@ -89,6 +95,121 @@ describe("delivery review-fix routing", () => {
     });
   });
 
+  it("records pending scoped verification before acknowledgement and replays after acknowledgement", () => {
+    const { plan, state: initial } = fixture();
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const memberDeliverableIds = [selectedDeliverableId];
+    const oldSubject = createCandidateSubjectSnapshot([{
+      path: "packages/arc-framework/src/example.ts",
+      mode: "100644",
+      digest: canonicalDigest({ source: "before" }),
+      treatment: "reviewable",
+    }]);
+    const newSubject = createCandidateSubjectSnapshot([{
+      path: "packages/arc-framework/src/example.ts",
+      mode: "100644",
+      digest: canonicalDigest({ source: "after" }),
+      treatment: "reviewable",
+    }]);
+    const oldHead = "a".repeat(40);
+    const newHead = "b".repeat(40);
+    const before: DeliveryStateV1 = {
+      ...initial,
+      members: initial.members.map((member, index, members) => index === members.length - 1
+        ? { ...member, coordinates: { ...member.coordinates!, head: newHead } }
+        : member),
+      pendingReviewFixVerification: { selectedDeliverableId, memberDeliverableIds },
+    };
+    const after: DeliveryStateV1 = { ...before, pendingReviewFixVerification: null };
+    const attestation = createCandidateAttestation({
+      workUnit: plan.workUnitId,
+      subject: oldSubject,
+      baseRevision: oldHead,
+      attestedBy: "andrew",
+      attestedAt: "2026-08-31T12:00:00.000Z",
+      verificationEvidenceRef: "tasks://verification",
+    });
+    const record = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "candidate-attestation/v1" as const,
+      attestation,
+      subject: oldSubject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    const currentTarget = { revision: newHead, subject: newSubject };
+    const result = recordDeliveryReviewFixCandidateVerification({
+      plan,
+      state: { revision: 9, value: before },
+      acknowledgement: {
+        selectedDeliverableId,
+        memberDeliverableIds,
+        expectedStateRevision: 9,
+        continuationDigest: canonicalDigest(before),
+      },
+      record,
+      currentTarget,
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-31T13:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+    });
+
+    expect(result).toMatchObject({
+      status: "recorded",
+      nextAction: "renew-public-continuation",
+      transition: {
+        transitionKind: "verification-response",
+        authorityRef: canonicalDigest(before),
+      },
+    });
+    if (result.status !== "recorded") throw new Error("expected recorded Candidate verification");
+    expect(projectCandidateCurrentness({ record: result.record, current: currentTarget })).toMatchObject({
+      status: "current",
+      convergenceVerification: "satisfied",
+    });
+
+    expect(recordDeliveryReviewFixCandidateVerification({
+      plan,
+      state: { revision: 9, value: before },
+      acknowledgement: {
+        selectedDeliverableId,
+        memberDeliverableIds,
+        expectedStateRevision: 9,
+        continuationDigest: canonicalDigest(before),
+      },
+      record: result.record,
+      currentTarget,
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-31T13:30:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+    })).toMatchObject({
+      status: "already-recorded",
+      nextAction: "renew-public-continuation",
+    });
+
+    expect(recordDeliveryReviewFixCandidateVerification({
+      plan,
+      state: { revision: 10, value: after },
+      acknowledgement: {
+        selectedDeliverableId,
+        memberDeliverableIds,
+        expectedStateRevision: 9,
+        continuationDigest: canonicalDigest(before),
+      },
+      record: result.record,
+      currentTarget,
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-31T14:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+    })).toMatchObject({
+      status: "already-recorded",
+      nextAction: "renew-public-continuation",
+    });
+  });
+
   it("refuses mismatched, intervening, and stale acknowledgement requests", async () => {
     const { plan, state: initial } = fixture();
     const selectedDeliverableId = plan.members[0]!.deliverableId;
@@ -150,6 +271,7 @@ describe("delivery review-fix routing", () => {
       facts,
       selectedDeliverableId,
       observation: { status: "registered", stackNumber: 42 },
+      entryMode: "execution",
     })).toMatchObject({
       status: "planned",
       route: "provider-refresh",
@@ -169,6 +291,7 @@ describe("delivery review-fix routing", () => {
       facts,
       selectedDeliverableId,
       observation: { status: "unregistered" },
+      entryMode: "execution",
     })).toMatchObject({
       status: "planned",
       route: "rematerialize",
@@ -192,7 +315,7 @@ describe("delivery review-fix routing", () => {
 
     for (const observation of observations) {
       expect(planDeliveryReviewFixRoute({
-        plan, state, facts: positionFacts(state), selectedDeliverableId, observation,
+        plan, state, facts: positionFacts(state), selectedDeliverableId, observation, entryMode: "execution",
       }))
         .toMatchObject({ status: "refused", reason: `presentation-${observation.status}` });
     }

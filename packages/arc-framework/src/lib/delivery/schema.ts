@@ -377,11 +377,11 @@ export const DeliveryStateV1Schema = z.strictObject({
   const selectedIndex = state.members.findIndex(
     ({ deliverableId }) => deliverableId === state.pendingReviewFixVerification?.selectedDeliverableId,
   );
-  if (selectedIndex < 0 || selectedIndex >= state.members.length - 1) {
+  if (selectedIndex < 0) {
     context.addIssue({
       code: "custom",
       path: ["pendingReviewFixVerification", "selectedDeliverableId"],
-      message: "pending review-fix verification must select a non-terminal state member",
+      message: "pending review-fix verification must select a state member",
     });
   }
   const verificationIds = state.pendingReviewFixVerification.memberDeliverableIds;
@@ -389,12 +389,11 @@ export const DeliveryStateV1Schema = z.strictObject({
     .filter(({ deliverableId }) => verificationIds.includes(deliverableId))
     .map(({ deliverableId }) => deliverableId);
   if (!verificationIds.includes(state.pendingReviewFixVerification.selectedDeliverableId)
-    || canonicalize(stateOrder) !== canonicalize(verificationIds)
-    || verificationIds.some((deliverableId) => state.members.at(-1)?.deliverableId === deliverableId)) {
+    || canonicalize(stateOrder) !== canonicalize(verificationIds)) {
     context.addIssue({
       code: "custom",
       path: ["pendingReviewFixVerification", "memberDeliverableIds"],
-      message: "pending review-fix verification members must be plan-ordered non-terminal state members including the selected member",
+      message: "pending review-fix verification members must be plan-ordered state members including the selected member",
     });
   }
   if (state.activeOperation !== null) {

@@ -21,6 +21,11 @@ import type {
 } from "./schema.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "./schema.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
+import {
+  installDeliveryReviewFixVerification,
+  projectDeliveryReviewFixVerificationContinuation,
+  type DeliveryReviewFixVerificationContinuation,
+} from "./review-fix-verification.js";
 
 /** One bound non-terminal ref that must be rewritten from the validated suffix. */
 export interface DeliverySuffixRewritePlan {
@@ -40,6 +45,7 @@ export interface DeliverySuffixContributionVerdict {
 export interface DeliverySuffixRematerializedResult {
   readonly status: "rematerialized";
   readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly selectedDeliverableId: string;
   readonly contributionVerdicts: readonly DeliverySuffixContributionVerdict[];
   readonly nextAction: "verify-review-fix";
   readonly verification: {
@@ -47,6 +53,12 @@ export interface DeliverySuffixRematerializedResult {
     readonly tier1Required: true;
   };
 }
+
+/** Final rematerialization result after the top and recoverable verification continuation settle together. */
+export type DeliverySuffixRematerializedSettledResult = Omit<
+  DeliverySuffixRematerializedResult,
+  "nextAction" | "verification"
+> & DeliveryReviewFixVerificationContinuation;
 
 /** Closed preparation result; no state or remote mutation occurs here. */
 export type PrepareDeliverySuffixRematerializationResult =
@@ -268,9 +280,16 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
     }
     const deliverableId = rewriteOrder[nextIndex];
     if (deliverableId === undefined) {
+      const selectedDeliverableId = contributionVerdicts.find(
+        ({ proof }) => proof === "selected-change",
+      )?.deliverableId;
+      if (selectedDeliverableId === undefined) {
+        return { status: "refused", reason: "selected-member-invalid" };
+      }
       return {
         status: "rematerialized",
         state: expectedState ?? fresh.current,
+        selectedDeliverableId,
         contributionVerdicts,
         nextAction: "verify-review-fix",
         verification: {
@@ -323,7 +342,7 @@ export async function completeDeliverySuffixMutationTail(input: {
     | { readonly status: "ok"; readonly value: DeliveryRevisionedRecord<DeliveryStateV1> }
     | { readonly status: "refused" }
   >;
-}): Promise<DeliverySuffixRematerializedResult | {
+}): Promise<DeliverySuffixRematerializedSettledResult | {
   readonly status: "refused";
   readonly reason:
     | "projection-invalid"
@@ -368,9 +387,7 @@ export async function completeDeliverySuffixMutationTail(input: {
     requestedHead: adoption.head,
   });
   if (publication.status === "refused") return { status: "refused", reason: "top-publication-refused" };
-  if (alreadyRebound && !topMoved) return input.rematerialized;
-
-  const parsed = DeliveryStateV1Schema.safeParse({
+  const rebound = DeliveryStateV1Schema.safeParse({
     ...current.value,
     members: current.value.members.map((member) => member.deliverableId === terminal.deliverableId
       ? {
@@ -383,11 +400,26 @@ export async function completeDeliverySuffixMutationTail(input: {
         }
       : member),
   });
-  if (!parsed.success) return { status: "refused", reason: "projection-invalid" };
-  const persisted = await dependencies.publishState(current.value.planId, parsed.data, current.revision);
-  if (persisted.status !== "ok" || persisted.value.revision !== current.revision + 1
-    || canonicalize(persisted.value.value) !== canonicalize(parsed.data)) {
-    return { status: "refused", reason: "state-moved" };
+  if (!rebound.success) return { status: "refused", reason: "projection-invalid" };
+  const projected = installDeliveryReviewFixVerification({
+    state: rebound.data,
+    selectedDeliverableId: input.rematerialized.selectedDeliverableId,
+    memberDeliverableIds: input.rematerialized.verification.memberDeliverableIds,
+  });
+  if (projected === null) return { status: "refused", reason: "projection-invalid" };
+  let settled = current;
+  if (canonicalize(projected) !== canonicalize(current.value)) {
+    const persisted = await dependencies.publishState(current.value.planId, projected, current.revision);
+    if (persisted.status !== "ok" || persisted.value.revision !== current.revision + 1
+      || canonicalize(persisted.value.value) !== canonicalize(projected)) {
+      return { status: "refused", reason: "state-moved" };
+    }
+    settled = persisted.value;
   }
-  return { ...input.rematerialized, state: persisted.value };
+  const continuation = projectDeliveryReviewFixVerificationContinuation({
+    planId: current.value.planId,
+    state: settled,
+  });
+  if (continuation === null) return { status: "refused", reason: "projection-invalid" };
+  return { ...input.rematerialized, state: settled, ...continuation };
 }
