@@ -20,6 +20,16 @@ export interface DeliveryReviewFixVerificationContinuation {
   readonly verification: {
     readonly memberDeliverableIds: readonly string[];
     readonly tier1Required: true;
+    readonly target: {
+      readonly head: string;
+      readonly tree: string;
+    };
+    readonly tier1Reuse: {
+      readonly kind: "exact-tree";
+      readonly targetTree: string;
+      readonly requiredResult: "passed";
+      readonly coveredInputs: "unchanged";
+    };
   };
   readonly acknowledgementInput: DeliveryReviewFixVerificationAcknowledgementInput;
 }
@@ -51,8 +61,9 @@ export function projectDeliveryReviewFixVerificationContinuation(input: {
   readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
 }): DeliveryReviewFixVerificationContinuation | null {
   const pending = input.state.value.pendingReviewFixVerification;
+  const terminal = input.state.value.members.at(-1)?.coordinates ?? null;
   if (input.state.value.planId !== input.planId || pending === null
-    || !Number.isSafeInteger(input.state.revision) || input.state.revision <= 0) {
+    || terminal === null || !Number.isSafeInteger(input.state.revision) || input.state.revision <= 0) {
     return null;
   }
   return {
@@ -61,6 +72,13 @@ export function projectDeliveryReviewFixVerificationContinuation(input: {
     verification: {
       memberDeliverableIds: pending.memberDeliverableIds,
       tier1Required: true,
+      target: { head: terminal.head, tree: terminal.tree },
+      tier1Reuse: {
+        kind: "exact-tree",
+        targetTree: terminal.tree,
+        requiredResult: "passed",
+        coveredInputs: "unchanged",
+      },
     },
     acknowledgementInput: {
       planId: input.planId,

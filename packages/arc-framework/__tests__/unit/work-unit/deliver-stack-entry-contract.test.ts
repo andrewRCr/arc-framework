@@ -19,12 +19,13 @@ describe("delivery discovered-entry workflow", () => {
     for (const route of [
       "not-applicable", "authoring-required", "canonicalize-provisional",
       "validate-canonical", "continue-publication", "resume-bound",
-      "correction-routing-required", "refused",
+      "correction-routing-required", "review-fix-verification-required", "refused",
     ]) expect(content).toContain(`\`${route}\``);
 
     expect(content).toContain("Render `laterEntryCostText` and `recommendedActionText` verbatim when present");
     expect(content).toContain("invokes `publicationAction.command` unchanged before reading position");
-    expect(content).toContain("`planned / terminal-authoring`");
+    expect(content).toContain("`authoring-required / author-terminal`");
+    expect(content).toContain("arc delivery review-fix continue - --json");
     expect(content).toContain("`refused` stops before every eligibility or mutation verb");
     expect(content).toContain("never parses headings, derives members, or re-decides cohesion");
   });
@@ -45,10 +46,8 @@ describe("delivery discovered-entry workflow", () => {
     expect(inspect).toBeLessThan(implementation);
     expect(packaged).toContain('{"entryMode":"execution"}');
     expect(packaged).toMatch(
-      /correction-routing-required[\s\S]*selectedDeliverableId[\s\S]*entryMode[\s\S]*plan-review-fix/iu,
+      /correction-routing-required[\s\S]*review-fix-verification-required[\s\S]*review-fix continue/iu,
     );
-    expect(packaged).toMatch(
-      /resume-bound[\s\S]*read-position-and-reconcile[\s\S]*rerun the entry inspection/iu,
-    );
+    expect(packaged).toMatch(/resume-bound[\s\S]*review-fix continue/iu);
   });
 });

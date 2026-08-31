@@ -390,6 +390,7 @@ function integrationTaskProgressionOptions(input: {
   freshContent: string;
   workflow: "process-task-loop" | "verify-work-unit" | "integrate-work-unit";
   loadSet: LoadSetManifest;
+  workUnitStage?: "delivery-correction";
 }): Partial<AuditRecoveryStateOptions> {
   const seedCursor = resolveTaskListCursor(APPENDED_INTEGRATION_TASKS);
   const freshCursor = resolveTaskListCursor(input.freshContent);
@@ -403,6 +404,7 @@ function integrationTaskProgressionOptions(input: {
       workflow: input.workflow,
       taskCursor: freshCursor,
       loadSet: input.loadSet,
+      ...(input.workUnitStage === undefined ? {} : { workUnitStage: input.workUnitStage }),
     },
   });
   const state = derivedFrame({
@@ -686,6 +688,26 @@ describe("auditRecoveryState", () => {
     expect(result.explainedDrift).toContainEqual(expect.objectContaining({
       kind: "integration-correction-progression",
       detail: expect.objectContaining({ transition: "task-to-verification" }),
+    }));
+  });
+
+  it("admits scoped correction continuation only while exact delivery verification remains pending", async () => {
+    const result = await run(integrationTaskProgressionOptions({
+      freshContent: CLOSED_CORRECTION_TASKS,
+      workflow: "integrate-work-unit",
+      loadSet: INTEGRATION_LOAD_SET,
+      workUnitStage: "delivery-correction",
+    }));
+
+    expect(result.status).toBe("ready");
+    expect(result.taskCursor).toEqual({
+      expected: expect.objectContaining({ leaf: expect.objectContaining({ id: "1.1.b" }) }),
+      actual: { status: "no-open-task" },
+      match: true,
+    });
+    expect(result.explainedDrift).toContainEqual(expect.objectContaining({
+      kind: "integration-correction-progression",
+      detail: expect.objectContaining({ transition: "task-to-continuation" }),
     }));
   });
 

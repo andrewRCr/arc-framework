@@ -71,7 +71,7 @@ export async function runDerivedLocusStateProbe(
           exec: options.exec,
         });
         if (result.status === "review-fix-verification-required") {
-          return { status: "verification-required" };
+          return { status: "scoped-verification-required" };
         }
         if (result.status === "candidate-verification-required") {
           return { status: "verification-required" };

@@ -15,7 +15,11 @@ import {
   validateDeliveryPublicReviewContinuation,
   type DeliveryPublicReviewContinuationV1,
 } from "./public-review-continuation.js";
-import { DeliveryCanonicalDigestSchema, DeliveryPlanIdSchema } from "./schema.js";
+import {
+  DeliveryCanonicalDigestSchema,
+  DeliveryGitObjectIdSchema,
+  DeliveryPlanIdSchema,
+} from "./schema.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 import {
   DELIVERY_PLAN_END_SENTINEL,
@@ -231,6 +235,16 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     verification: z.strictObject({
       memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
       tier1Required: z.literal(true),
+      target: z.strictObject({
+        head: DeliveryGitObjectIdSchema,
+        tree: DeliveryGitObjectIdSchema,
+      }),
+      tier1Reuse: z.strictObject({
+        kind: z.literal("exact-tree"),
+        targetTree: DeliveryGitObjectIdSchema,
+        requiredResult: z.literal("passed"),
+        coveredInputs: z.literal("unchanged"),
+      }),
     }),
     acknowledgementInput: z.strictObject({
       planId: DeliveryPlanIdSchema,
@@ -319,7 +333,11 @@ type ReadIntegrationBoundary =
 type ReadCandidate =
   | {
       readonly status: "ok";
-      readonly value: { readonly candidateId: string; readonly subjectDigest: string } | null;
+      readonly value: {
+        readonly candidateId: string;
+        readonly subjectDigest: string;
+        readonly verificationResponseCurrent?: boolean;
+      } | null;
     }
   | { readonly status: "non-current" }
   | { readonly status: "refused" };
@@ -701,6 +719,32 @@ export async function inspectDeliveryEntry(
       return refused("evidence-unavailable");
     }
     if (boundary.status === "refused") return refused("evidence-unavailable");
+    if (boundary.value?.locus === "hosted-review-pending"
+      && boundary.value.deliveryContinuation === undefined) {
+      let candidate: ReadCandidate;
+      try {
+        candidate = await dependencies.readCandidate();
+      } catch {
+        candidate = { status: "refused" };
+      }
+      if (candidate.status === "ok"
+        && candidate.value?.verificationResponseCurrent === true
+        && candidate.value.candidateId === boundary.value.candidateId
+        && boundary.value.nextAction.kind === "continue-hosted-review"
+        && boundary.value.reservation.target.kind === "delivery"
+        && boundary.value.reservation.target.planId === plan.planId
+        && boundary.value.reservation.target.workUnitId === plan.workUnitId) {
+        return {
+          status: "candidate-renewal-required",
+          nextAction: "renew-public-continuation",
+          planId: plan.planId,
+          stateRevision: state.revision,
+          attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] },
+          recommendedActionText:
+            "Renew the exact public delivery continuation through corrective Candidate attestation.",
+        };
+      }
+    }
     if (boundary.value?.locus === "hosted-review-pending"
       && boundary.value.deliveryContinuation !== undefined) {
       let candidate: ReadCandidate;

@@ -866,6 +866,11 @@ deliveryRefresh.command("adopt").description("Observe, prove, and adopt one exte
   )));
 const deliveryReviewFix = delivery.command("review-fix")
   .description("Route and publish one approved delivery-member review fix");
+deliveryReviewFix.command("continue").description("Resume the exact delivery review-fix continuation")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("review-fix-continue", { ...opts, input }, context)
+  )));
 deliveryReviewFix.command("plan").description("Select linked publication or complete rematerialization")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (

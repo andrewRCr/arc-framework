@@ -23,13 +23,12 @@ Before implementing the current task, inspect whether an already-bound delivery 
 printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect --input - --json
 ```
 
-Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required` carries its exact
-`selectedDeliverableId` and `entryMode` into the `plan-review-fix` correction route in
-[`supplemental/deliver-stack.md`](supplemental/deliver-stack.md) before authoring or publishing the task's change.
-`review-fix-verification-required` carries its exact `verification` and `acknowledgementInput` into that workflow's
-review-fix verification continuation without replanning or repeating provider mutation.
-`resume-bound` enters that workflow's `read-position-and-reconcile` route; after its typed recovery settles the active
-operation, rerun the entry inspection before implementing the task. `canonicalize-provisional` resumes the matching
+Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required`,
+`review-fix-verification-required`, and a correction-owned `resume-bound` invoke the selector-free
+`arc delivery review-fix continue - --json` procedure in
+[`supplemental/deliver-stack.md`](supplemental/deliver-stack.md). It derives the exact member, operation, verification,
+and acknowledgment from canonical state; dispatch its machine actions and re-enter it without reconstructing a
+selector. `canonicalize-provisional` resumes the matching
 delivery-entry route. `refused` renders `recommendedActionText` and stops; any other result also stops as an
 execution-entry contract violation.
 
@@ -212,19 +211,13 @@ execution-entry contract violation.
 
      - **First**: Mark the task `[x]`, cascade its parent to `[x]` when all subtasks are complete, and finish the
        prepared completion note. When item 3 fired, include the returned criteria evidence and span in that outcome.
-     - **Delivery correction acknowledgment (conditional):** When the delivery continuation returned an
-       `acknowledgementInput`, preserve all of its fields unchanged and append only the returned
-       `verificationResult` as `verification`, then pass that composed request to:
-
-       ```bash
-       arc delivery review-fix acknowledge - --json
-       ```
-
-       Only `acknowledged` or `already-acknowledged` with `nextAction: renew-public-continuation` continues. Invoke
-       the returned `attestationAction.argv` exactly and require `status: unchanged`; then rerun delivery entry with
-       `{ "entryMode": "integrating" }` and require `continue-hosted-review`. Any refusal, malformed action, other
-       attestation result, or other entry route stops. Never reconstruct or refresh the acknowledgment locator, and
-       never substitute whole-WU verification, Frontline, or generic prepublication.
+     - **Delivery correction acknowledgment (conditional):** When the delivery continuation returned
+       `verification-required`, complete the scoped result, close this task, and invoke its `resumeAction` with only
+       that result added as `verification`. Dispatch the returned exact acknowledgment action, re-enter the same
+       continuation, invoke its Candidate-renewal authority action and require `status: unchanged`, then re-enter and
+       require the retained hosted-review authority action. Any refusal, malformed action, other attestation result,
+       or other continuation route stops. Never reconstruct or refresh a locator, and never substitute whole-WU
+       verification, Frontline, or generic prepublication.
      - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
        list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
        Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to

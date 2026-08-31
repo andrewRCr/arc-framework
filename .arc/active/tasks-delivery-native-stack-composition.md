@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2496,12 +2496,83 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           share one pending continuation and acknowledgment locator; exact target, ownership, state, evidence, and
           replay mismatches fail closed without changing lifecycle or review policy.
 
-    - `[ ]` **7.7.R.r Revalidate Member 7 scoped correction recovery** — validate criteria at member scope
+    - `[x]` **7.7.R.r Revalidate Member 7 scoped correction recovery** — validate criteria at member scope
 
         - _Goal:_ Prove through production handlers and Git-backed stores that interruption before or after the
           state clear converges, ordinary attestation returns `unchanged`, fresh entry resumes the exact retained
           hosted member, and session-init/compaction projection remains `Integrating` without borrowing authority
           from review-signal convergence.
+
+        - _Forward amendment (2026-08-31):_ Self-delivery proved that the correction path remained too expensive and
+          that cursorless recovery mapped pending scoped verification onto terminal whole-work-unit verification.
+          Close the current criterion through one typed, resumable correction procedure; automatically absorb only
+          a structurally contained predecessor; and reuse Tier 1 only over an exact already-green rebound tree. This
+          pulls forward the delivery-specific usability floor while leaving generalized workflow composition,
+          review convergence, and gate-evidence architecture with their existing owners.
+
+        - `[x]` **7.7.R.r.a Keep scoped correction closeout out of terminal verification**
+
+            - Cursorless correction closeout now projects `delivery-correction` inside `Integrating`, loads the
+              integration workflow, and admits recovery's exact `task-to-continuation` transition only when the
+              closed cursor, pending scoped verification, checkout, work unit, and load-set progression all match.
+
+        - `[x]` **7.7.R.r.b Compose one resumable review-fix continuation**
+
+            - `arc delivery review-fix continue` derives the current member and next exact action from the active
+              cursor, plan, State, operation, Candidate, and public boundary. It emits strict dispatch or existing
+              authority leaves without accepting caller-authored member, operation, revision, or digest selectors.
+
+        - `[x]` **7.7.R.r.c Absorb already-contained predecessor movement mechanically**
+
+            - Fresh Git tree-entry comparison now proves every refreshed-predecessor change is already present in a
+              clean top before creating an exact two-parent commit that retains the top tree. Unavailable or
+              divergent proof continues through the existing content-merge and attended-conflict path.
+
+        - `[x]` **7.7.R.r.d Bind Tier 1 reuse to the exact rebound tree**
+
+            - Scoped verification now names the exact terminal head and tree and exposes only rerun or unchanged-input
+              exact-tree reuse. Acknowledgment revalidates that target and refuses any tree mismatch without adding a
+              delivery-owned gate record or quality authority.
+
+        - `[x]` **7.7.R.r.e Revalidate and dogfood the Member 7 continuation** — validate criteria at member scope
+
+            - Member 7 criteria report.
+                - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+                - _Span:_ bounded member diff `bb7e093c2..8106628b1`; cumulative implementation reachability is
+                  `26158c88e02e9fc4102f8211bd982adf5c8bb24c` plus exact worktree tree
+                  `a5cefaf8df4aff00dcdbfec30c0232db943ef430`. Boundary-order deviation: the approved Member 7 correction
+                  sequence through Task 7.7.R.r supplies the later dependency; no terminal-member content enters the
+                  bounded member diff.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the
+                  Git-backed eight-member lifecycle still derives every exact retained target, advances only the
+                  first outstanding member, and discharges only at the complete conjunction. Scoped-response recovery
+                  returns to that same hosted authority only after Candidate renewal and creates no clearance itself.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the
+                  existing contribution-applicability path and single structural arbiter remain authoritative for
+                  review preservation. Contained absorption uses fresh tree-entry proof solely to preserve ancestry;
+                  unavailable or divergent proof retains the ordinary content-merge path and writes no review state.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ status,
+                  request admission, await, settlement, and conjunction retain their exact member/source/pass/ceiling
+                  progression. The new controller returns the existing hosted action as an authority boundary and
+                  never enumerates members, reconstructs request input, or introduces a review record family.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ all
+                  correction settlement arms share the pending scoped-verification projection, exact target, and
+                  acknowledgment locator. Production response-loss coverage proves re-entry before clear and, after
+                  clear, a current Candidate `verification-response` followed by unchanged renewal and exact hosted
+                  resumption without mutation replay or whole-work-unit/private-review routing.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ the
+                  selector-free controller composes deterministic correction steps from canonical records, scoped
+                  closeout and compaction recovery remain in delivery integration, contained movement alone receives
+                  content-neutral absorption, and Tier 1 reuse is schema- and handler-bound to the exact rebound tree.
+                  No orchestration record, gate ledger, generic workflow engine, or convergence policy was added.
+                - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
+                  bounded correction receives no third pass, and the primary walk retains judgment over all findings.
+                - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+
+        - _Outcome:_ Scoped correction closeout now stays inside durable integration and resumes through one
+          selector-free controller. Exact structural containment and exact-tree gate reuse narrow the automatic
+          branches, while production response-loss coverage closes acknowledgment through unchanged Candidate renewal
+          and retained hosted-member re-entry without new orchestration, review, quality, or convergence authority.
 
 ## **Phase 8:** Record retirement and doctrine
 
@@ -3179,6 +3250,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   all install and return the same pending scoped-verification continuation. Response loss re-enters that continuation
   without repeating mutation or routing to whole-WU verification, Frontline, or generic prepublication; no second
   state mechanism, review authority, or convergence policy exists.
+
+- `[ ]` An approved member correction advances through one resumable, typed delivery procedure that stops only at
+  existing judgment, project-gate, conflict, review-policy, and integration-authority boundaries. Cursorless recovery
+  resumes that exact procedure; structurally contained predecessor movement absorbs content-neutrally; and Tier 1
+  reuse is admitted only for an exact already-green rebound tree. No orchestration record, quality ledger, generic
+  workflow engine, or convergence policy is added.
 
 ### Member 8 — `retirement-and-doctrine`
 

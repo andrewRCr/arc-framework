@@ -411,6 +411,42 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves one selector-free resumable review-fix continuation action", async () => {
+    const request = { repository: "owner/repo", remote: "origin" };
+    const selectedDeliverableId = deliveryStackPlanFixture().members[0]!.deliverableId;
+    const result = {
+      status: "dispatch" as const,
+      nextAction: "dispatch" as const,
+      action: {
+        kind: "delivery-review-fix-publish" as const,
+        argv: ["arc", "delivery", "review-fix", "publish", "-", "--json"] as const,
+        input: {
+          planId: "11111111-1111-4111-8111-111111111111",
+          selectedDeliverableId,
+          repository: "owner/repo",
+          remote: "origin",
+        },
+      },
+      recommendedActionText: "Dispatch the exact action, then invoke this continuation again.",
+    };
+    const execute = vi.fn().mockResolvedValue(result);
+    const write = vi.fn();
+
+    await handleDeliveryExecution("review-fix-continue" as never, { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).toHaveBeenCalledWith("review-fix-continue", request, undefined);
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery review-fix continue",
+      ...result,
+    });
+  });
+
   it("preserves the exact review-fix verification acknowledgement envelope", async () => {
     const plan = deliveryStackPlanFixture();
     const selectedDeliverableId = plan.members[0]!.deliverableId;
@@ -423,6 +459,16 @@ describe("delivery execution handler", () => {
       continuationDigest: `sha256:${"f".repeat(64)}`,
       verification: {
         applicability: "focused",
+        target: {
+          head: state.members.at(-1)!.coordinates!.head,
+          tree: state.members.at(-1)!.coordinates!.tree,
+        },
+        tier1: {
+          outcome: "passed",
+          provenance: "exact-tree-reuse",
+          targetTree: state.members.at(-1)!.coordinates!.tree,
+          coveredInputs: "unchanged",
+        },
         verificationEvidenceRefs: ["criteria://member", "gates://tier-1"],
       },
     };
@@ -1482,6 +1528,7 @@ describe("delivery execution handler", () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
     const changed = plan.members[0]!.deliverableId;
+    const terminal = state.members.at(-1)!.coordinates!;
     const pendingState = {
       ...state,
       pendingReviewFixVerification: {
@@ -1495,7 +1542,17 @@ describe("delivery execution handler", () => {
       selectedDeliverableId: changed,
       contributionVerdicts: [{ deliverableId: changed, contribution: "changed", proof: "selected-change" }],
       nextAction: "verify-review-fix",
-      verification: { memberDeliverableIds: [changed], tier1Required: true },
+      verification: {
+        memberDeliverableIds: [changed],
+        tier1Required: true,
+        target: { head: terminal.head, tree: terminal.tree },
+        tier1Reuse: {
+          kind: "exact-tree",
+          targetTree: terminal.tree,
+          requiredResult: "passed",
+          coveredInputs: "unchanged",
+        },
+      },
       acknowledgementInput: {
         planId: plan.planId,
         selectedDeliverableId: changed,
@@ -1521,7 +1578,17 @@ describe("delivery execution handler", () => {
     expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
       status: "rematerialized",
       nextAction: "verify-review-fix",
-      verification: { memberDeliverableIds: [changed], tier1Required: true },
+      verification: {
+        memberDeliverableIds: [changed],
+        tier1Required: true,
+        target: { head: terminal.head, tree: terminal.tree },
+        tier1Reuse: {
+          kind: "exact-tree",
+          targetTree: terminal.tree,
+          requiredResult: "passed",
+          coveredInputs: "unchanged",
+        },
+      },
       acknowledgementInput: {
         selectedDeliverableId: changed,
         expectedStateRevision: 8,

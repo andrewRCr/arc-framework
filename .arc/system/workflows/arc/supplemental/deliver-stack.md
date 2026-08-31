@@ -44,10 +44,9 @@ workflow never parses headings, derives members, or re-decides cohesion:
 - `validate-canonical` advances to eligibility.
 - `continue-publication` invokes `publicationAction.command` unchanged before reading position.
 - `resume-bound` reads delivery position and reconciles any named active operation before continuing.
-- `correction-routing-required` carries its exact `selectedDeliverableId` and `entryMode` into the correction route
-  below before authoring or publishing replacement content.
-- `review-fix-verification-required` carries its exact `verification` and `acknowledgementInput` directly into the
-  review-fix verification continuation below. Do not replan, republish, or repeat provider mutation.
+- `correction-routing-required` and `review-fix-verification-required` invoke the selector-free
+  `arc delivery review-fix continue - --json` procedure below. The controller owns the selected member, persisted
+  operation, exact verification, and acknowledgment locators; workflow prose carries none of them.
 - `refused` stops before every eligibility or mutation verb after rendering the precomposed refusal.
 
 The inspection is read-only. It never treats the presence of prose as delivery judgment and never binds state.
@@ -375,9 +374,10 @@ Dispatch only on its typed route. `review-member` enters the review and landing 
 `selectedDeliverableId`. `teardown-member` skips review and landing and enters the teardown path below with its
 exact `selectedDeliverableId`. `terminal-handoff` delegates to the terminal workflow. `operation-active` invokes
 `arc delivery reconcile - --json` with the same locators and follows the recovery dispatch above.
-`review-fix-routing-required` with `nextAction: plan-review-fix` renders its `recommendedActionText`, then enters
-the correction route below with its returned `entryMode` only after the correction's approved scope supplies the
-selected member. Never infer that selection from terminal branch movement. Every other refusal stops.
+`review-fix-routing-required` with `nextAction: plan-review-fix` renders its `recommendedActionText`, then invokes
+the selector-free `arc delivery review-fix continue - --json` procedure below with no member or operation selector.
+The controller derives the approved correction's member from the active task cursor; never infer that selection from
+terminal branch movement. Every other refusal stops.
 
 For `review-member`, settle exact member review authority above with the returned `selectedDeliverableId`. Only its
 `settled / continue-reconcile` result returns here for ordinary landing preparation.
@@ -490,77 +490,37 @@ approved conflict set may be classified as changed, and every other movement sti
 On decline, restore every returned external ref from `observedHead` to `restoreHead` through its exact Git lease;
 a lease collision stops without changing delivery state. Then rerun delivery position.
 
-Before authoring or publishing any approved correction while the canonical delivery remains bound, identify the
-selected member from the correction's approved scope and select the mutation route. Never infer the selected member
-from terminal branch movement:
+Before authoring or publishing any approved correction while the canonical delivery remains bound, enter the
+delivery-owned continuation with no member, operation, or state selector:
 
 ```bash
-arc delivery review-fix plan - --json
+arc delivery review-fix continue - --json
 ```
 
-Supply only the plan, repository, remote, selected-member, and entry-mode locators. Pass the returned `entryMode`
-unchanged; execution entry returns `execution`, while public position returns `integrating`. Never select the mode
-from branch movement. `planned / provider-refresh` means a fresh read found the canonical remaining chain exactly
-registered. An already-authored terminal correction is authoring movement only, not public position authority or
-member selection. On the registered route, render `recommendedActionText`, build the selected member's derived
-candidate from every returned `candidateRequirements.requiredAncestorHeads` value, project the exact approved
-correction onto it, and run its ordinary project gates before invoking:
+The request carries only the repository and remote identities. The command derives the current member and exact next
+step from the active task cursor, canonical plan, versioned Delivery State, persisted operation, Candidate, and
+public boundary. Re-enter the same command after every returned step; never invoke a low-level correction verb from
+a selector reconstructed in prose.
 
-```bash
-arc delivery review-fix publish - --json
-```
+- `dispatch / dispatch` invokes `action.argv` with `action.input` unchanged, then re-enters this continuation
+  without an interlock. The typed action may publish the selected correction, rematerialize the exact suffix, resume
+  provider refresh/adoption, reconcile a persisted operation, or acknowledge completed scoped verification.
+- `authoring-required / author-terminal` returns to the calling task loop for the named terminal member. Author and
+  run ordinary project gates on the work-unit branch, then invoke `resumeAction`; do not publish a member ref.
+- `verification-required / verify-review-fix` enters the scoped verification section below. After the correction
+  task closes, invoke `resumeAction` with only the returned verification result added to its input.
+- `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or hosted
+  review action. Candidate renewal requires `unchanged` before re-entry. A hosted-review action resumes the retained
+  member review directly.
+- `idle / continue-work-unit` returns to the current non-delivery task. Every `refused` or downstream
+  conflict/authority stop renders its typed reason and retains the durable continuation for retry.
 
-`planned / terminal-authoring` means the exact selected member is the bound terminal. Return to the calling task loop
-and author the correction on the work-unit branch; do not publish a member ref or rewrite the delivery suffix. The
-ordinary task gates and later work-unit publication own that top-only change.
-
-`planned / terminal-rebind` means ordinary publication has settled the explicitly selected terminal correction.
-Pass its returned `reconcileInput` unchanged to:
-
-```bash
-arc delivery reconcile - --json
-```
-
-Only `rebound / verify-review-fix` enters the review-fix verification continuation below; every other typed result
-stops. The reconcile verb independently revalidates the verified durable Candidate baseline, append-only current
-terminal target, publication boundary, open terminal request, exact coordinates, selected terminal member, and
-state version before atomically rebinding the terminal and installing the pending continuation.
-
-The verb derives the candidate ref, detached gate checkout, and lifecycle paths; requires that checkout to be
-tracked-clean and exact; requires the candidate to extend the current bound member and its current non-terminal
-predecessor when one exists; reobserves exact registration immediately before mutation; then lease-publishes only
-that member under `rewrite / selected-change`.
-`execute-provider-refresh` carries the returned selected member as a `dependent-suffix` scope directly into
-`arc delivery refresh execute`; do not stop for another attended choice. The executor keeps that selected head fixed,
-prepares only its dependents, and bypasses provider preparation when the dependent suffix is empty before completing
-the still-owed terminal-top absorption. Keep the returned verification selector across that continuation. External
-operator refresh plus
-`arc delivery refresh adopt` remains a fallback selected by refresh planning, not the registered review-fix default.
-For that external fallback, rerun `arc delivery refresh plan` with `trigger: operator-choice`,
-`mechanics: operator-initiated`, and the same `dependent-suffix` scope returned for the selected member. Continue only
-with the returned `plannedSuffix`, which contains the dependents strictly above that fixed selected member. After the
-operator refreshes exactly that suffix, invoke `arc delivery refresh adopt` with the same scope. The planning and
-adoption verbs reobserve and prove the result; workflow prose does not reconstruct the suffix.
-
-`planned / rematerialize` means a fresh read found the canonical remaining chain exactly unregistered. Apply the
-approved fix to the top authoring locus first, cut the complete suffix from that updated content, and run the ordinary
-project gates for every candidate at the locators returned by `arc delivery authoring locate`. Then invoke the
-composed fallback with the exact selected-member IDs:
-
-```bash
-arc delivery rematerialize - --json
-```
-
-The service derives the complete unlanded suffix's candidate refs and gate paths from the canonical plan, recloses
-suffix eligibility, and recomputes carried-contribution proof before every reserved rewrite.
-It executes in plan order, using each persisted result as the next predecessor; candidate movement or unselected
-contribution drift stops with the current reservation/state intact. Its exact eligibility refusal is authoritative;
-`completeness-mismatched` means the recut did not originate from top content carrying the approved fix. Never invoke
-the low-level rewrite verb as an operator-assembled batch.
-
-Every partial, incoherent, ambiguous, malformed, unsupported, or unavailable presentation stops before candidate
-authoring or mutation; do not infer linked or unlinked behavior from provider identity. Provider commands and UI are
-adapter/operator concerns, while the workflow carries only the provider-neutral route and affected suffix.
+The controller does not create an orchestration record. Registered publication, provider refresh, external adoption,
+unregistered rematerialization, terminal rebind, and response-loss recovery retain their existing exact service
+contracts; the controller only derives their strict inputs and prevents agent/user re-selection between them.
+A content-neutral terminal absorption is allowed only when fresh Git tree-entry proof shows the refreshed highest
+member's complete movement already exists in the checked-out top. Otherwise the ordinary content merge and attended
+conflict route remain authoritative.
 
 ### Complete a review-fix verification continuation
 
@@ -570,16 +530,22 @@ adapter/operator concerns, while the workflow carries only the provider-neutral 
 continuation. Invoke [`validate-criteria`][validate-criteria] at member scope once for each retained
 `memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved
 conflicted dependent; the rematerialized selector contains every contribution the arbiter found changed. An
-arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Then honor
-`tier1Required` by rerunning Tier 1 over the rebound top.
+arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Bind Tier 1 to
+`verification.target`. Rerun by default. Reuse is admissible only under `tier1Reuse` when an existing passed result
+names exactly `targetTree` and every covered input is unchanged; inconclusive evidence reruns the tier.
 
 Retain the completed checks as one `verificationResult`: the primary selects `targeted`, `focused`, or `full` to
-describe the scope actually run and records non-empty evidence references for the member-criteria and Tier 1 results.
-This is verification evidence for the exact correction delta, not a review verdict or signal-convergence decision.
+describe the scope actually run, echoes the exact `target`, records non-empty evidence references for the
+member-criteria and Tier 1 results, and records Tier 1 as passed with `provenance: rerun` or
+`provenance: exact-tree-reuse`. The reuse arm also records `coveredInputs: unchanged`; both arms echo the exact target
+tree. This is verification evidence for the exact correction delta, not a review verdict or signal-convergence
+decision.
 
 Every settlement result carries `acknowledgementInput`. Retain every field of that locator unchanged and return it
-plus the `verificationResult` to the calling task loop; do not acknowledge before ordinary correction-task closure.
-These actions ride the same finding-disposition approval; do not add an interlock.
+plus the `verificationResult` to the calling task loop. After ordinary correction-task closure, pass the result to
+the continuation's `resumeAction`; the controller composes the exact acknowledgment and re-enters Candidate renewal.
+Do not acknowledge before task closure. These actions ride the same finding-disposition approval; do not add an
+interlock.
 
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:
 

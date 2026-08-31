@@ -989,6 +989,29 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   prepublication, or whole-work-unit verification. Registered settlement remains unchanged. No additional state
   field, ledger, review authority, or convergence policy enters.
 
+- **D5.13 Correction continuation is one resumable typed procedure — amended 2026-08-31 after self-delivery made
+  the operational cost measurable.** An approved review fix enters one delivery-owned continuation that derives its
+  next exact action from the existing plan, versioned state, active operation, Candidate, and public boundary. It
+  advances deterministic publication, refresh, settlement, scoped acknowledgment, Candidate renewal, and hosted
+  review re-entry until it reaches authoring or project gates, a genuine content conflict, a review-policy decision,
+  or another existing authority boundary. Re-entry invokes the same procedure and never asks the agent to rebuild a
+  selector or remember which stage completed. Session-init and compaction recovery project a pending scoped
+  verification into this integration continuation, not the terminal whole-work-unit verification workflow.
+
+  The procedure adds no orchestration record. Existing version-checked Delivery State, active-operation,
+  `pendingReviewFixVerification`, Candidate-transition, and public-boundary facts remain its complete durable
+  substrate. This keeps the procedure storage-agnostic and forward-compatible with a compiled workflow agenda: the
+  CLI owns deterministic dispatch and emits exact actions, while workflow prose retains only judgment, project-gate,
+  and interlock leaves.
+
+  Terminal absorption may take a content-neutral two-parent arm only when fresh structural proof establishes that
+  the refreshed highest-member contribution is already present in the exact checked-out top. The commit retains the
+  prior top and refreshed highest member as its exact parents and preserves the top tree; unavailable, divergent, or
+  inconclusive proof retains the genuine content-merge path and its attended conflict behavior. Scoped verification
+  binds Tier 1 to the exact rebound top tree. A prior green Tier 1 result may be reused only when it names that same
+  tree and no covered input changed; otherwise the tier reruns. No reusable gate ledger or delivery-owned quality
+  authority is introduced.
+
 ### D6 — Native registration and landing
 
 - **D6.1 Routing.** Reobserve native registration before selecting the singleton arm. A linked stack routes through
