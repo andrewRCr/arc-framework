@@ -1,14 +1,30 @@
 import { describe, expect, it } from "vitest";
 
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import type { DeliveryEntryInspectionResult } from
   "../../../src/lib/delivery/entry-inspection.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
-import { projectDeliveryReviewFixContinuation } from
+import {
+  projectDeliveryReviewFixContinuation,
+  selectPendingDeliveryReviewFixAuthority,
+} from
   "../../../src/lib/delivery/review-fix-continuation.js";
 import { projectDeliveryReviewFixVerificationContinuation } from
   "../../../src/lib/delivery/review-fix-verification.js";
 import type { DeliveryReviewFixRouteResult } from "../../../src/lib/delivery/review-fix.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
+import { ApprovedDispositionRecordSchema } from
+  "../../../src/scripts/review-gate/core/advisory-records.js";
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../src/scripts/review-gate/core/dispositions.js";
+import {
+  consumeFixAuthorization,
+  createFixAuthorization,
+} from "../../../src/scripts/review-gate/core/fix-authorization.js";
+import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -16,6 +32,103 @@ const plan = deliveryStackPlanFixture();
 const request = { repository: "owner/repo", remote: "origin" } as const;
 const selectedDeliverableId = plan.members[0]!.deliverableId;
 const recommendedActionText = "Continue the exact correction.";
+
+function deliveryDispositionRecord(input: {
+  readonly operationId: string;
+  readonly workUnitId?: string;
+  readonly settled?: boolean;
+}) {
+  const oldTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "delivery-member",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: "a".repeat(40),
+    diffBaseTree: "b".repeat(40),
+    headSha: "c".repeat(40),
+    headTree: "d".repeat(40),
+  });
+  const newTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "delivery-member",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: "a".repeat(40),
+    diffBaseTree: "b".repeat(40),
+    headSha: "e".repeat(40),
+    headTree: "f".repeat(40),
+  });
+  const approvedDisposition = approveDispositionState({
+    proposed: proposeDispositionSet(createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId: oldTarget.targetId,
+      policyVersion: canonicalDigest({ policy: "review" }),
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "standard" }),
+      proposedBy: "agent-1",
+      findings: [{
+        findingId: "finding-1",
+        sourceIdentity: "codex-pr",
+        locus: "src/review.ts:42",
+        sourceVerification: "verified",
+        verificationRefs: ["review:finding-1"],
+        severity: "major",
+        disposition: "fix",
+        gating: "blocking",
+        rationale: "The source confirms the issue.",
+        recommendation: "Apply the fix.",
+        openQuestions: [],
+      }],
+    })),
+    approvedBy: "maintainer-1",
+    approvedAt: "2026-08-31T12:00:00Z",
+  });
+  const fixAuthorization = createFixAuthorization({ dispositionState: approvedDisposition, oldTarget });
+  const deliveryMember = {
+    kind: "delivery-member" as const,
+    planId: plan.planId,
+    deliverableId: selectedDeliverableId,
+    workUnitId: input.workUnitId ?? plan.workUnitId,
+    head: oldTarget.headSha,
+  };
+  return ApprovedDispositionRecordSchema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "review-advisory/v1",
+    repositoryId: "repo-1",
+    operationId: input.operationId,
+    candidate: null,
+    errand: null,
+    deliveryMember,
+    source: {
+      kind: "hosted",
+      attemptRef: `arc-review-source:v1:hosted:lane-progress%2F${input.operationId}:hosted%2F1`,
+    },
+    approvedDisposition,
+    fixAuthorization,
+    errandFixResponse: null,
+    deliveryMemberFixResponse: input.settled !== true
+      ? null
+      : {
+          oldTarget,
+          newTarget,
+          applicability: "focused",
+          fixConsumption: consumeFixAuthorization({
+            authorization: fixAuthorization,
+            oldTarget,
+            newTarget,
+            appliedBy: "agent-1",
+            consumedAt: "2026-08-31T13:00:00Z",
+            verificationRefs: ["verification://focused-fix"],
+            priorConsumptions: [],
+          }),
+          hostedTarget: { repository: "owner/repo", pullRequest: 42, headSha: oldTarget.headSha },
+          hostedFixTarget: { repository: "owner/repo", pullRequest: 42, headSha: newTarget.headSha },
+        },
+  });
+}
 
 function correctionEntry(): DeliveryEntryInspectionResult {
   return {
@@ -73,6 +186,46 @@ function activeState(mode: "review-fix" | "selected-change" | "provider-refresh"
   return { revision: 4, value: reserved.state };
 }
 
+function currentChainState(): DeliveryStateV1 {
+  const state = deliveryStateFixture(plan);
+  return {
+    ...state,
+    members: state.members.map((member, index) => {
+      if (index === 0) return member;
+      const predecessor = state.members[index - 1]?.coordinates;
+      if (predecessor === null || predecessor === undefined || member.coordinates === null) {
+        throw new Error("continuation fixture requires complete member coordinates");
+      }
+      return { ...member, coordinates: { ...member.coordinates, base: predecessor.head } };
+    }),
+  };
+}
+
+function pendingSelectedRefreshState(): { readonly revision: number; readonly value: DeliveryStateV1 } {
+  const state = currentChainState();
+  const selected = state.members[0];
+  if (selected?.coordinates === null || selected?.coordinates === undefined) {
+    throw new Error("continuation fixture requires selected coordinates");
+  }
+  const selectedCoordinates = selected.coordinates;
+  return {
+    revision: 4,
+    value: {
+      ...state,
+      members: state.members.map((member, index) => index === 0
+        ? {
+            ...member,
+            coordinates: {
+              ...selectedCoordinates,
+              head: "9".repeat(40),
+              tree: "8".repeat(40),
+            },
+          }
+        : member),
+    },
+  };
+}
+
 function route(
   kind: "provider-refresh" | "rematerialize" | "terminal-authoring" | "terminal-rebind",
 ): DeliveryReviewFixRouteResult {
@@ -105,6 +258,42 @@ function route(
 }
 
 describe("delivery review-fix continuation projection", () => {
+  it("selects the one exact pending hosted member response and ignores unrelated or settled residue", () => {
+    const pending = deliveryDispositionRecord({ operationId: "operation-pending" });
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [
+        deliveryDispositionRecord({ operationId: "operation-settled", settled: true }),
+        deliveryDispositionRecord({ operationId: "operation-unrelated", workUnitId: "other-work-unit" }),
+        pending,
+      ],
+    })).toEqual({
+      status: "selected",
+      planId: plan.planId,
+      selectedDeliverableId,
+      reviewedHead: pending.deliveryMember?.head,
+    });
+  });
+
+  it("refuses ambiguous or internally inexact pending hosted member authority", () => {
+    const first = deliveryDispositionRecord({ operationId: "operation-first" });
+    const second = deliveryDispositionRecord({ operationId: "operation-second" });
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [first, second],
+    })).toEqual({ status: "refused", reason: "review-fix-response-ambiguous" });
+
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [{
+        ...first,
+        fixAuthorization: first.fixAuthorization === null
+          ? null
+          : { ...first.fixAuthorization, oldHeadSha: "9".repeat(40) },
+      }],
+    })).toEqual({ status: "refused", reason: "review-fix-response-invalid" });
+  });
+
   it("binds pending verification and its acknowledgement to the exact terminal tree", () => {
     const initial = deliveryStateFixture(plan);
     const state = {
@@ -182,11 +371,30 @@ describe("delivery review-fix continuation projection", () => {
       request,
       entry: correctionEntry(),
       route: route(kind),
-      state: { revision: 3, value: deliveryStateFixture(plan) },
+      state: { revision: 3, value: currentChainState() },
       activeBranch: "feat/example",
     });
     expect(result).toMatchObject({ status });
     if (actionKind !== undefined) expect(result).toMatchObject({ action: { kind: actionKind } });
+  });
+
+  it("advances a published selected correction into provider refresh", () => {
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      route: route("provider-refresh"),
+      state: pendingSelectedRefreshState(),
+      activeBranch: "feat/example",
+    })).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-refresh-execute",
+        input: {
+          planId: plan.planId,
+          scope: { kind: "dependent-suffix", selectedDeliverableId },
+        },
+      },
+    });
   });
 
   it.each([

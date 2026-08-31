@@ -9,6 +9,7 @@
 - [Corrective integration and member-only review](#corrective-integration-and-member-only-review)
 - [Corrective transition audit boundary](#corrective-transition-audit-boundary)
 - [Supplemental progress and per-pass source choice](#supplemental-progress-and-per-pass-source-choice)
+- [Pending review-fix authority without a task cursor](#pending-review-fix-authority-without-a-task-cursor)
 - [Authored partitions and adversarial attention](#authored-partitions-and-adversarial-attention)
 - [First adversarial pass amendments](#first-adversarial-pass-amendments)
 - [Second adversarial pass amendments](#second-adversarial-pass-amendments)
@@ -234,6 +235,24 @@ and the exact ceiling consequence. The returned hosted action carries that force
 canonical recomposition and binds it to the selected provider. Nothing persists the selection; omitting it on the
 next status call immediately restores configured source ordering, including when progression reaches another member.
 This is transport for existing source judgment, not convergence policy or a new review terminus.
+
+### Pending review-fix authority without a task cursor
+
+Review-fix continuation has two independent ownership authorities. Verification-conformance corrections are task
+work and retain their existing open-cursor route. An approved review finding is instead a canonical review response:
+its disposition record already binds the work unit, delivery plan, deliverable, reviewed head, and fix authorization,
+and review doctrine prohibits manufacturing a task merely to make that member discoverable.
+
+When no task is open, the controller must therefore enumerate existing disposition records and select exactly one
+authorized, unsettled delivery-member fix for the active work unit and current plan. It validates the selected member
+against canonical Delivery State before dispatching the same correction procedure. Settled responses, unrelated work
+units or plans, missing authorization, malformed coordinates, and stale authority are ineligible; multiple eligible
+responses refuse as ambiguous rather than choosing by chronology or branch. This is composition over the existing
+record-of-record, not a new selector, input, ledger, or lifecycle state.
+
+Task-cursor routing continues to take precedence when an open conformance task exists. The changed-target response
+path remains responsible for versioning the verified current head onto the selected approved record, and ordinary
+cursorless integration remains unchanged when no pending approved member response exists.
 
 ## Authored partitions and adversarial attention
 

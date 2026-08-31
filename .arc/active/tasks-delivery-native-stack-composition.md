@@ -2619,6 +2619,54 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               bounded correction adds no third pass, and the primary walk retains judgment over the exact delta.
             - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
+- _Forward amendment (2026-08-31):_ An approved hosted delivery-member finding exposed that the review-fix
+  controller selected correction ownership only from an open task cursor. Review findings deliberately remain
+  review responses rather than task-list work, so the cursorless controller fell through to generic Candidate
+  verification despite an exact pending delivery-member authorization. Reopen Member 7 for this authority-composition
+  repair only; task-owned conformance correction routing, changed-target response settlement, and ordinary
+  no-correction integration remain unchanged.
+
+    - `[x]` **7.7.R.t Derive review-fix ownership from approved review responses**
+
+        - _Goal:_ With no open task, the review-fix controller selects exactly one pending approved delivery-member
+          fix response for the active work unit and current plan, validates its member against canonical Delivery
+          State, and dispatches the existing member correction procedure. Settled, unrelated, unauthorized, stale,
+          malformed, or ambiguous responses never become correction authority; an open conformance task retains the
+          existing task-cursor route.
+
+        - _Outcome:_ Member 7 criteria report.
+            - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+            - _Span:_ original bounded member diff `bb7e093c2..8106628b1`; the current correction is the exact
+              worktree delta from terminal tree `7b3d3af2521fee16600cb27510104d87f6934480` to implementation tree
+              `c6302a049885034a0ade1192e55e0fa56115652b`. Boundary-order deviation: the already-approved Member 1
+              verification correction at `ee364c02e` precedes this Member 7 controller repair on the originating
+              branch; its content remains outside the Member 7 correction delta.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the
+              controller now derives one exact pending hosted member response from the Git-common disposition
+              snapshot, proves its current plan and state membership, and dispatches the existing member route.
+              Settled and unrelated records remain non-authoritative, while ambiguity and stale evidence refuse.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the
+              correction changes no contribution-applicability, lane, or discharge projection. Existing
+              repository-backed changed-target settlement still advances and replays the authorized member response
+              at its current hosted head through the same durable record.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ the
+              selector-free continuation accepts only repository and remote, derives the reviewed member from
+              canonical response authority, and returns the existing typed rematerialization or publication action.
+              An open task still takes the prior cursor-owned route, and production E2E coverage proves both paths.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ pending
+              scoped verification, acknowledgment, Candidate renewal, and response-loss recovery are unchanged. The
+              complete correction and delivery suites retain all three settlement arms without whole-work-unit,
+              Frontline, or generic-prepublication fallback.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ one typed
+              continuation now composes both legitimate ownership sources: open conformance tasks first, otherwise
+              exactly one approved hosted member response. The existing disposition index and Delivery State supply
+              authority; no selector input, task manufactured from a finding, record family, ledger, workflow engine,
+              quality authority, or convergence policy was added.
+            - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
+              bounded authority-composition repair adds no third pass, and the primary walk retains judgment over the
+              exact delta.
+            - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`

@@ -4,6 +4,74 @@ import type { DeliveryEntryInspectionResult } from "./entry-inspection.js";
 import type { DeliveryReviewFixRouteResult } from "./review-fix.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import type { DeliveryStateV1 } from "./schema.js";
+import { hasExactPendingSelectedRefresh } from "./suffix-reconciliation.js";
+import { sortByCanonicalBytes } from "../kernel/index.js";
+import type { ApprovedDispositionRecord } from
+  "../../scripts/review-gate/core/advisory-records.js";
+import { validateFixAuthorization } from
+  "../../scripts/review-gate/core/fix-authorization.js";
+
+type PendingDeliveryReviewFixAuthority =
+  | { readonly status: "none" }
+  | {
+      readonly status: "selected";
+      readonly planId: string;
+      readonly selectedDeliverableId: string;
+      readonly reviewedHead: string;
+    }
+  | {
+      readonly status: "refused";
+      readonly reason: "review-fix-response-ambiguous" | "review-fix-response-invalid";
+    };
+
+function recordHasExactPendingDeliveryFixAuthority(record: ApprovedDispositionRecord): boolean {
+  const member = record.deliveryMember;
+  const authorization = record.fixAuthorization;
+  if (member === null || authorization === null || record.source.kind !== "hosted") return false;
+  try {
+    validateFixAuthorization(authorization);
+  } catch {
+    return false;
+  }
+  const authorizedFindingIds = sortByCanonicalBytes(
+    record.approvedDisposition.dispositionSet.findings
+      .filter(({ disposition }) => disposition === "fix")
+      .map(({ findingId }) => findingId),
+  );
+  return authorizedFindingIds.length > 0
+    && JSON.stringify(authorization.authorizedFindingIds) === JSON.stringify(authorizedFindingIds)
+    && authorization.dispositionSetId
+      === record.approvedDisposition.dispositionSet.dispositionSetId
+    && authorization.oldTargetId === record.approvedDisposition.dispositionSet.targetId
+    && authorization.oldHeadSha === member.head;
+}
+
+/**
+ * Select pending hosted delivery-member response authority for one active work unit.
+ *
+ * @param input - Active work-unit identity and the readable approved-disposition snapshot.
+ * @returns The exact member selection, a typed refusal, or absence of pending response authority.
+ */
+export function selectPendingDeliveryReviewFixAuthority(input: {
+  readonly workUnitId: string;
+  readonly records: readonly ApprovedDispositionRecord[];
+}): PendingDeliveryReviewFixAuthority {
+  const pending = input.records.filter((record) => record.deliveryMember?.workUnitId === input.workUnitId
+    && record.fixAuthorization !== null
+    && record.deliveryMemberFixResponse === null);
+  if (pending.some((record) => !recordHasExactPendingDeliveryFixAuthority(record))) {
+    return { status: "refused", reason: "review-fix-response-invalid" };
+  }
+  if (pending.length > 1) return { status: "refused", reason: "review-fix-response-ambiguous" };
+  const selected = pending[0];
+  if (selected?.deliveryMember === null || selected?.deliveryMember === undefined) return { status: "none" };
+  return {
+    status: "selected",
+    planId: selected.deliveryMember.planId,
+    selectedDeliverableId: selected.deliveryMember.deliverableId,
+    reviewedHead: selected.deliveryMember.head,
+  };
+}
 
 type VerificationResult = {
   readonly applicability: "targeted" | "focused" | "full";
@@ -161,6 +229,22 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       }, "Rebind the exact terminal publication, then invoke this continuation again.");
     }
     if (route.route === "provider-refresh") {
+      if (input.state !== undefined
+        && hasExactPendingSelectedRefresh(input.state.value, route.selectedDeliverableId)) {
+        return dispatch({
+          kind: "delivery-refresh-execute" as const,
+          argv: ["arc", "delivery", "refresh", "execute", "-", "--json"] as const,
+          input: {
+            planId: entry.planId,
+            repository: request.repository,
+            remote: request.remote,
+            scope: {
+              kind: "dependent-suffix" as const,
+              selectedDeliverableId: entry.selectedDeliverableId,
+            },
+          },
+        }, "Execute the exact provider refresh, then invoke this continuation again.");
+      }
       return dispatch({
         kind: "delivery-review-fix-publish" as const,
         argv: ["arc", "delivery", "review-fix", "publish", "-", "--json"] as const,

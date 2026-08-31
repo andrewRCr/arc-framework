@@ -376,8 +376,9 @@ exact `selectedDeliverableId`. `terminal-handoff` delegates to the terminal work
 `arc delivery reconcile - --json` with the same locators and follows the recovery dispatch above.
 `review-fix-routing-required` with `nextAction: plan-review-fix` renders its `recommendedActionText`, then invokes
 the selector-free `arc delivery review-fix continue - --json` procedure below with no member or operation selector.
-The controller derives the approved correction's member from the active task cursor; never infer that selection from
-terminal branch movement. Every other refusal stops.
+The controller derives the approved correction's member from the open correction task or, when none exists, the exact
+unsettled approved review response; never infer that selection from terminal branch movement. Every other refusal
+stops.
 
 For `review-member`, settle exact member review authority above with the returned `selectedDeliverableId`. Only its
 `settled / continue-reconcile` result returns here for ordinary landing preparation.
@@ -498,9 +499,10 @@ arc delivery review-fix continue - --json
 ```
 
 The request carries only the repository and remote identities. The command derives the current member and exact next
-step from the active task cursor, canonical plan, versioned Delivery State, persisted operation, Candidate, and
-public boundary. Re-enter the same command after every returned step; never invoke a low-level correction verb from
-a selector reconstructed in prose.
+step from the open correction task or, when none exists, the exact unsettled approved review response, then validates
+that authority against the canonical plan, versioned Delivery State, persisted operation, Candidate, and public
+boundary. Re-enter the same command after every returned step; never invoke a low-level correction verb from a
+selector reconstructed in prose.
 
 - `dispatch / dispatch` invokes `action.argv` with `action.input` unchanged, then re-enters this continuation
   without an interlock. The typed action may publish the selected correction, rematerialize the exact suffix, resume

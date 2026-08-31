@@ -120,8 +120,13 @@ import {
 } from "../lib/delivery/review-fix.js";
 import { projectDeliveryReviewFixVerificationContinuation } from
   "../lib/delivery/review-fix-verification.js";
-import { projectDeliveryReviewFixContinuation } from
+import {
+  projectDeliveryReviewFixContinuation,
+  selectPendingDeliveryReviewFixAuthority,
+} from
   "../lib/delivery/review-fix-continuation.js";
+import { inspectDeliveryPlanLocus } from "../lib/delivery/entry-inspection.js";
+import { validateDeliveryStateAgainstPlan } from "../lib/delivery/state.js";
 import {
   completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
@@ -199,6 +204,8 @@ import { assessDeliveryLandingReviewReadiness } from
   "../scripts/review-gate/delivery-landing-readiness.js";
 import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
+import { LocalApprovedDispositionRecordStore } from
+  "../scripts/review-gate/hosts/local/disposition-record-store.js";
 import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
 import { createReviewStatusPort } from "../scripts/review-gate/status-composition.js";
 import { defaultMergeLockPort } from "./review.js";
@@ -1390,7 +1397,8 @@ async function executeDeliveryCommand(
         ? null
         : resolveTaskListPath(active.path, meta.taskList);
       if (taskListPath === null) return { status: "refused", reason: "task-list-unavailable" };
-      const cursor = resolveTaskListCursor(await readFile(resolve(cwd, taskListPath), "utf8"));
+      const taskList = await readFile(resolve(cwd, taskListPath), "utf8");
+      const cursor = resolveTaskListCursor(taskList);
       if (cursor.status !== "no-open-task") {
         return cursor.status === "malformed"
           ? { status: "refused", reason: "task-cursor-unavailable" }
@@ -1400,7 +1408,53 @@ async function executeDeliveryCommand(
               recommendedActionText: "Continue the current non-delivery task before resuming delivery integration.",
             };
       }
-      entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "integrating" }, interaction);
+      let dispositionRecords;
+      try {
+        dispositionRecords = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+      } catch {
+        return { status: "refused", reason: "review-fix-response-unavailable" };
+      }
+      const selection = selectPendingDeliveryReviewFixAuthority({
+        workUnitId: active.name,
+        records: dispositionRecords,
+      });
+      if (selection.status === "refused") return selection;
+      if (selection.status === "selected") {
+        const [planRead, stateRead] = await Promise.all([
+          planStore.readCurrent(selection.planId),
+          stateStore.read(selection.planId),
+        ]);
+        if (planRead.status !== "ok" || planRead.value === null
+          || stateRead.status !== "ok" || stateRead.value === null
+          || planRead.value.workUnitId !== active.name
+          || stateRead.value.value.workUnitId !== active.name
+          || inspectDeliveryPlanLocus(taskList, planRead.value).status !== "canonical"
+          || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
+          return { status: "refused", reason: "review-fix-response-stale" };
+        }
+        const planMembers = planRead.value.members.filter(
+          ({ deliverableId }) => deliverableId === selection.selectedDeliverableId,
+        );
+        const stateMembers = stateRead.value.value.members.filter(
+          ({ deliverableId }) => deliverableId === selection.selectedDeliverableId,
+        );
+        if (planMembers.length !== 1 || stateMembers.length !== 1
+          || stateMembers[0]?.coordinates?.head !== selection.reviewedHead) {
+          return { status: "refused", reason: "review-fix-response-stale" };
+        }
+        entry = {
+          status: "correction-routing-required",
+          nextAction: "plan-review-fix",
+          planId: selection.planId,
+          stateRevision: stateRead.value.revision,
+          selectedDeliverableId: selection.selectedDeliverableId,
+          entryMode: "execution",
+          recommendedActionText:
+            "Plan the approved correction for the delivery member bound by the pending review response.",
+        };
+      } else {
+        entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "integrating" }, interaction);
+      }
     }
 
     if (entry.status === "review-fix-verification-required" || parsed.verification !== undefined) {
