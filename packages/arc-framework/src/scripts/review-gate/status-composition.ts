@@ -5,6 +5,7 @@ import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { createRawGitExec } from "../../lib/io-context.js";
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
@@ -38,15 +39,26 @@ import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-st
 import { hostedGhRunner } from "./hosted/gh-process.js";
 import type { HostedReviewCoverage } from "./hosted/request.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
-import { resolveHostedReservationPolicy } from "./policy/hosted-reservation-admission.js";
+import {
+  projectHostedReservationPolicyProgress,
+  resolveHostedReservationPolicy,
+} from "./policy/hosted-reservation-admission.js";
 import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
 import {
   composeDeliveryReviewObligation,
   composeSingletonReviewObligation,
+  resolveReviewStatus,
   type ReviewStatusObservation,
   type ReviewStatusPort,
+  type ReviewStatusResult,
+  type ReviewStatusTargetInput,
   type RoutedReviewObligation,
 } from "./status.js";
+
+function deliveryHeadRef(ref: string | null): string | null {
+  if (ref === null) return null;
+  return ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : ref;
+}
 
 async function readBasePosition(input: {
   cwd: string;
@@ -197,7 +209,20 @@ export async function readRoutedObligation(
         return { state: "blocked", detail: "The retained delivery-member review targets are unavailable." };
       }
       const deliveryTargets = resolution.targets.flatMap((memberTarget) => (
-        memberTarget.vehicle === undefined ? [] : [{ ...memberTarget, vehicle: memberTarget.vehicle }]
+        memberTarget.vehicle === undefined
+          || memberTarget.position === undefined
+          || memberTarget.memberCount === undefined
+          || memberTarget.chunkKey === undefined
+          || memberTarget.title === undefined
+          ? []
+          : [{
+              ...memberTarget,
+              vehicle: memberTarget.vehicle,
+              position: memberTarget.position,
+              memberCount: memberTarget.memberCount,
+              chunkKey: memberTarget.chunkKey,
+              title: memberTarget.title,
+            }]
       ));
       if (deliveryTargets.length !== resolution.targets.length) {
         return { state: "blocked", detail: "The retained delivery-member review selectors are unavailable." };
@@ -213,27 +238,56 @@ export async function readRoutedObligation(
         vehicle: memberTarget.vehicle,
         candidate: record,
       })));
-      let composedDischarges: Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"] = discharges;
+      const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
+      const store = new LocalReviewOperationStateStore(publisher);
+      const snapshot = await store.readOperationSnapshot();
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const policy = await resolveConfiguredLanePolicy({
+        lane: "standard",
+        settings,
+        preferences: {
+          readDeveloperSourceIds: () => Promise.resolve([]),
+          readProjectSourceIds: () => Promise.resolve([]),
+        },
+      });
+      const progress = deliveryTargets.map((memberTarget) => projectHostedReservationPolicyProgress({
+        snapshot,
+        repositoryId,
+        target: {
+          repository: memberTarget.repository,
+          pullRequest: memberTarget.pullRequest,
+          headSha: memberTarget.headSha,
+        },
+        vehicle: memberTarget.vehicle,
+      }));
+      const unavailableProgress = progress.find((memberProgress) => memberProgress.status === "unavailable");
+      if (unavailableProgress?.status === "unavailable") {
+        return { state: "blocked", detail: unavailableProgress.detail };
+      }
+      let composedDischarges: Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"] = discharges.map(
+        (discharge, index) => {
+          const memberProgress = progress[index];
+          if (memberProgress === undefined || memberProgress.status !== "complete") {
+            throw new Error("delivery-member review progress is unavailable");
+          }
+          return {
+            ...discharge,
+            completedPasses: memberProgress.completedPasses,
+            passCeiling: policy.maxPasses,
+            attemptHistory: memberProgress.attemptHistory,
+          };
+        },
+      );
       const firstOutstandingIndex = discharges.findIndex((discharge) => !discharge.discharged);
       const firstOutstanding = discharges[firstOutstandingIndex];
       const firstTarget = deliveryTargets[firstOutstandingIndex];
       if (firstOutstanding?.nextSource !== null
         && firstOutstanding?.nextSource !== undefined
         && firstTarget !== undefined) {
-        const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
-        const store = new LocalReviewOperationStateStore(publisher);
-        const policy = await resolveConfiguredLanePolicy({
-          lane: "standard",
-          settings,
-          preferences: {
-            readDeveloperSourceIds: () => Promise.resolve([]),
-            readProjectSourceIds: () => Promise.resolve([]),
-          },
-        });
         const admission = resolveHostedReservationPolicy({
           reservation,
-          snapshot: await store.readOperationSnapshot(),
-          repositoryId: await resolveRepositoryIdentity(publisher),
+          snapshot,
+          repositoryId,
           target: {
             repository: firstTarget.repository,
             pullRequest: firstTarget.pullRequest,
@@ -251,10 +305,10 @@ export async function readRoutedObligation(
         if (admission.status === "unavailable") {
           return { state: "blocked", detail: admission.detail };
         }
-        composedDischarges = discharges.map((discharge, index) => index !== firstOutstandingIndex
+        composedDischarges = composedDischarges.map((discharge, index) => index !== firstOutstandingIndex
           ? discharge
           : {
-              ...firstOutstanding,
+              ...discharge,
               requestAdmission: admission.policy,
               ...(judgment?.ceilingOverride === undefined
                 ? {}
@@ -296,7 +350,14 @@ export async function readRoutedObligation(
 }
 
 /** Bind GitHub, publication-boundary, and Git base reads to the status reducer. */
-export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): ReviewStatusPort {
+export function createReviewStatusPort(
+  input: { cwd: string; exec: GitExec },
+  precomputed?: {
+    readonly target: ChangeRequestTargetRef;
+    readonly pullRequest: number;
+    readonly routedObligation: RoutedReviewObligation;
+  },
+): ReviewStatusPort {
   return {
     observe: async (target, ceilingOverride, coverage) => {
       try {
@@ -329,20 +390,31 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
             ...base,
           };
         }
-        const routedObligation = await readRoutedObligation(
-          input.cwd,
-          input.exec,
-          target,
-          resolution.candidate.number,
-          memberLookup,
-          base.currentBaseOid ?? undefined,
-          ceilingOverride === undefined && coverage === undefined
-            ? undefined
+        const matchesPrecomputed = precomputed !== undefined
+          && precomputed.target.repository.toLowerCase() === target.repository.toLowerCase()
+          && precomputed.target.headRef === target.headRef
+          && precomputed.target.headSha === target.headSha;
+        const routedObligation = matchesPrecomputed
+          ? resolution.candidate.number === precomputed.pullRequest
+            ? precomputed.routedObligation
             : {
-                ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
-                ...(coverage === undefined ? {} : { coverage }),
-              },
-        );
+                state: "blocked" as const,
+                detail: "The selected delivery member's open change request does not match its retained binding.",
+              }
+          : await readRoutedObligation(
+              input.cwd,
+              input.exec,
+              target,
+              resolution.candidate.number,
+              memberLookup,
+              base.currentBaseOid ?? undefined,
+              ceilingOverride === undefined && coverage === undefined
+                ? undefined
+                : {
+                    ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
+                    ...(coverage === undefined ? {} : { coverage }),
+                  },
+            );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
         const repository = await checksPort.resolveRepository();
         if (repository.toLowerCase() !== target.repository.toLowerCase()) {
@@ -376,4 +448,92 @@ export function createReviewStatusPort(input: { cwd: string; exec: GitExec }): R
       }
     },
   };
+}
+
+/** Resolve the live stacked-delivery review action without reconstructing a member target. */
+export async function resolveReviewStatusForWorkUnit(input: {
+  readonly cwd: string;
+  readonly exec: GitExec;
+  readonly workUnitId: string;
+  readonly ceilingOverride?: ReviewStatusTargetInput["ceilingOverride"];
+  readonly coverage?: HostedReviewCoverage;
+}): Promise<ReviewStatusResult> {
+  const workUnitId = SlugSchema.parse(input.workUnitId);
+  const boundary = await readSubmissionBoundary(input.cwd, workUnitId);
+  if (boundary?.locus !== "hosted-review-pending"
+    || boundary.nextAction.kind !== "continue-hosted-review"
+    || boundary.nextAction.workUnitId !== workUnitId
+    || boundary.reservation.target.kind !== "delivery"
+    || boundary.reservation.target.workUnitId !== workUnitId) {
+    throw new Error("The work unit has no self-contained hosted delivery-review continuation.");
+  }
+  const memberLookup = new RepositoryDeliveryMemberLookup(input);
+  const delivery = await memberLookup.resolveTerminalRecords(workUnitId);
+  if (delivery.status !== "resolved"
+    || delivery.plan.planId !== boundary.reservation.target.planId
+    || delivery.state.planId !== delivery.plan.planId) {
+    throw new Error("The work unit's current delivery plan and state are unavailable.");
+  }
+  const terminalPlanMember = delivery.plan.members.at(-1);
+  const terminalStateMember = delivery.state.members.at(-1);
+  const terminalHeadRef = deliveryHeadRef(terminalStateMember?.ref ?? null);
+  const terminalPullRequest = Number(terminalStateMember?.changeRequest?.changeRequestId);
+  if (terminalPlanMember === undefined
+    || terminalStateMember === undefined
+    || terminalPlanMember.deliverableId !== terminalStateMember.deliverableId
+    || terminalStateMember.coordinates === null
+    || terminalHeadRef === null
+    || !Number.isSafeInteger(terminalPullRequest)
+    || terminalPullRequest <= 0) {
+    throw new Error("The terminal delivery-member review anchor is unavailable.");
+  }
+  const anchor = {
+    repository: boundary.reservation.target.repository,
+    headRef: terminalHeadRef,
+    headSha: terminalStateMember.coordinates.head,
+  };
+  const routed = await readRoutedObligation(
+    input.cwd,
+    input.exec,
+    anchor,
+    terminalPullRequest,
+    memberLookup,
+    undefined,
+    input.ceilingOverride === undefined && input.coverage === undefined
+      ? undefined
+      : {
+          ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+          ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
+        },
+  );
+  let selectedTarget = anchor;
+  let selectedPullRequest = terminalPullRequest;
+  if ("conjunction" in routed && routed.conjunction.status === "outstanding") {
+    const selected = routed.conjunction.members.find((member) => member.state === "outstanding");
+    const selectedState = selected === undefined
+      ? undefined
+      : delivery.state.members.find((member) => member.deliverableId === selected.vehicle.deliverableId);
+    const selectedHeadRef = deliveryHeadRef(selectedState?.ref ?? null);
+    if (selected === undefined
+      || selectedState?.coordinates === null
+      || selectedState?.coordinates.head !== selected.target.headSha
+      || selectedHeadRef === null) {
+      throw new Error("The selected delivery-member review target is unavailable.");
+    }
+    selectedTarget = {
+      repository: selected.target.repository,
+      headRef: selectedHeadRef,
+      headSha: selected.target.headSha,
+    };
+    selectedPullRequest = selected.target.pullRequest;
+  }
+  return resolveReviewStatus({
+    target: selectedTarget,
+    ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+    ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
+  }, createReviewStatusPort(input, {
+    target: selectedTarget,
+    pullRequest: selectedPullRequest,
+    routedObligation: routed,
+  }));
 }

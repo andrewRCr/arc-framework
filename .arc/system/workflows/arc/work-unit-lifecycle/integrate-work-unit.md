@@ -166,27 +166,33 @@ already settled or was a typed no-op before submission; do not invent a post-PR 
 must match the current Candidate and carries the ordered sources and exact obligation. Dispatch only on
 `integrationBoundary.nextAction.kind`:
 
-- `continue-hosted-review` requires a delivery reservation. Bind the open pull request, resolve its exact current
-  `targetRef`, and invoke:
-
-  ```bash
-  arc review status --target '{targetRef}' --json
-  ```
-
-  The public status reducer selects the first outstanding retained target from exact delivery and change-request
-  bindings, then returns the existing driver's next action. Do not invoke Frontline, generic prepublication, private
-  source selection, or a whole-work-unit fallback.
+- `continue-hosted-review` requires a delivery reservation. Execute `integrationBoundary.nextAction.command`. The
+  WU-scoped public status reducer joins the current delivery
+  bindings and durable review progress, selects the first outstanding retained member, observes that member's exact
+  change request and checks, and returns a top-level `deliveryCursor`, the complete supporting conjunction, and the
+  existing driver's next action. Do not invoke Frontline, generic
+  prepublication, private source selection, or a whole-work-unit fallback.
 - `continue-pre-publication-review` remains the ordinary singleton continuation. Invoke
   `integrationBoundary.nextAction.command` and continue only from `ready / hosted-request`; the returned policy
   preserves the reservation without rerunning chunking or source ordering and supplies `policy.payload.sourceId`
   plus the authorized `policy.payload.pass`. Bind the open pull request, resolve its exact current `targetRef`, and
-  invoke the same status command above.
+  invoke `arc review status --target '{targetRef}' --json`.
 
 Every other boundary action stops. Dispatch only on `nextAction` from the status result.
 
+Throughout this iteration, **re-enter status** means preserve the same status scope: execute the WU-scoped boundary
+command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
+judgment option before `--json`; never narrow a delivery continuation to an agent-reconstructed member target.
+
 `obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
-Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same target
-with the returned consequence serialized unchanged:
+Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same status
+scope with the returned consequence serialized unchanged. For a delivery, use:
+
+```bash
+arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --ceiling-override '{consequence}' --json
+```
+
+For an ordinary singleton, use:
 
 ```bash
 arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
@@ -276,7 +282,8 @@ prior count.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
   an uncertain request.
 
-After any concluded attempt, invoke `arc review status` again. The CLI selects the next retained target and source;
+After any concluded attempt, invoke the same boundary status action again. The CLI selects the next retained target
+and source;
 only `settled / continue-reconcile` with the typed discharge conjunction advances to Phase 2.
 
 While a hosted await is live, speculative drafting of Completion Notes, Release Notes, and the cleanup plan is
@@ -294,10 +301,16 @@ After every target movement, make and disclose a **review applicability** judgme
 These are judgment signals, not an eligibility checklist or proof obligation. A confident bounded choice proceeds
 without asking permission and is retained for the final gate. An agent-selected supplemental review is disclosed
 as it runs and enters the same finding/disposition loop; it does not settle `standardReview` unless it ran that
-contract. Request a hosted supplemental review only through the current first-outstanding member's typed status:
+contract. For an ordinary singleton, request a hosted supplemental review through its exact target:
 
 ```bash
 arc review status --target '{targetRef}' --coverage incremental --json
+```
+
+For a delivery, let WU status select the current first-outstanding member without reconstructing it:
+
+```bash
+arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --coverage incremental --json
 ```
 
 Pass the returned action unchanged; it carries `coverage: incremental`. After the supplemental attempt concludes,
