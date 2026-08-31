@@ -66,6 +66,9 @@ printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect --input
 Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.
 `continue-hosted-review` resumes at Step 2's public hosted-review iteration with its exact `hostedReviewAction`;
 do not resolve a singleton change request or enter delivery publication / position reconciliation.
+`review-fix-verification-required` invokes `arc delivery review-fix continue - --json` with only the repository and
+remote identities, then follows the resumable correction procedure in `deliver-stack.md`; do not enter whole-WU
+verification, Frontline, or singleton prepublication.
 `candidate-verification-required` leaves this workflow for Candidate verification closeout; it synthesizes no
 attestation or review action.
 `candidate-renewal-required` invokes its exact `attestationAction`, requires `unchanged`, then re-runs this entry

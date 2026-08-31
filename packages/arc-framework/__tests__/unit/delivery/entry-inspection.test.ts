@@ -36,7 +36,11 @@ function dependencies(input: {
   state?: ReturnType<typeof deliveryStateFixture> | null | "refused";
   stateRevision?: number;
   integrationBoundary?: ReturnType<typeof projectPublicationBoundary> | "refused";
-  candidate?: { candidateId: string; subjectDigest: string } | null | "non-current" | "refused";
+  candidate?: {
+    candidateId: string;
+    subjectDigest: string;
+    verificationResponseCurrent?: boolean;
+  } | null | "non-current" | "refused";
 } = {}) {
   return {
     readTaskList: vi.fn().mockResolvedValue(input.taskList ?? `${prefix}${suffix}`),
@@ -424,6 +428,36 @@ describe("delivery entry inspection", () => {
     });
   });
 
+  it("recovers Candidate renewal after scoped verification acknowledgment clears delivery state", async () => {
+    const fixture = publicContinuationFixture();
+    const { deliveryContinuation: omitted, ...acknowledgedBoundary } = fixture.boundary;
+    expect(omitted).toBeDefined();
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision + 1,
+      integrationBoundary: acknowledgedBoundary,
+      candidate: {
+        candidateId: fixture.candidateId,
+        subjectDigest: `sha256:${"1".repeat(64)}`,
+        verificationResponseCurrent: true,
+      },
+    }))).resolves.toMatchObject({
+      status: "candidate-renewal-required",
+      nextAction: "renew-public-continuation",
+      planId: plan.planId,
+      stateRevision: fixture.stateRevision + 1,
+      attestationAction: {
+        argv: ["arc", "attest", plan.workUnitId, "--json"],
+      },
+    });
+  });
+
   it("routes an older exact public continuation to Candidate renewal", async () => {
     const fixture = publicContinuationFixture();
 
@@ -588,8 +622,10 @@ describe("delivery entry inspection", () => {
     const multiPlan = deliveryFourMemberStackPlanFixture();
     const selectedDeliverableId = multiPlan.members[0]!.deliverableId;
     const memberDeliverableIds = [selectedDeliverableId, multiPlan.members[1]!.deliverableId];
+    const initialState = deliveryStateFixture(multiPlan);
+    const terminal = initialState.members.at(-1)!.coordinates!;
     const state = {
-      ...deliveryStateFixture(multiPlan),
+      ...initialState,
       pendingReviewFixVerification: { selectedDeliverableId, memberDeliverableIds },
     } as unknown as ReturnType<typeof deliveryStateFixture>;
     const taskList = `${prefix}${renderDeliveryPlanSection(multiPlan)}`
@@ -608,6 +644,13 @@ describe("delivery entry inspection", () => {
         verification: {
           memberDeliverableIds,
           tier1Required: true,
+          target: { head: terminal.head, tree: terminal.tree },
+          tier1Reuse: {
+            kind: "exact-tree",
+            targetTree: terminal.tree,
+            requiredResult: "passed",
+            coveredInputs: "unchanged",
+          },
         },
         acknowledgementInput: {
           planId: multiPlan.planId,
