@@ -108,11 +108,16 @@ function createRepositoryDeliveryInspectionDependencies(
           rawExec: createRawGitExec(input.cwd),
         });
         if (projected.state !== "current") return { status: "non-current" };
+        const tail = record.transitions.at(-1);
         return {
           status: "ok",
           value: {
             candidateId: record.attestation.candidateId,
             subjectDigest: projected.recognizedTarget.subject.subjectDigest,
+            verificationResponseCurrent: tail?.transitionKind === "verification-response"
+              && tail.newTarget.revision === projected.durableBaselineTarget.revision
+              && tail.newTarget.subject.subjectDigest
+                === projected.durableBaselineTarget.subject.subjectDigest,
           },
         };
       } catch {

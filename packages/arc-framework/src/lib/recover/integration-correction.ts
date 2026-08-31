@@ -27,6 +27,7 @@ export type IntegrationCorrectionTransition =
   | "public-to-task"
   | "task-to-task"
   | "task-to-verification"
+  | "task-to-continuation"
   | "verification-to-public";
 
 /** Task-list snapshots used to prove a candidate recovery progression structurally. */
@@ -138,7 +139,9 @@ export async function projectIntegrationCorrectionRecovery(
   }
   const projectedLoadSet = candidate === "task-to-task"
     ? input.seed.loadSet
-    : leaveTaskForVerification(input.seed.loadSet, exact.taskListPath);
+    : candidate === "task-to-verification"
+      ? leaveTaskForVerification(input.seed.loadSet, exact.taskListPath)
+      : leaveTaskForContinuation(input.seed.loadSet, exact.taskListPath);
   return projectedLoadSet === null
     ? { status: "refused", message: "task seed load set is not the canonical verification baseline" }
     : accepted(input, candidate, exact, projectedLoadSet, {
@@ -161,6 +164,8 @@ function candidateTransition(input: IntegrationCorrectionInput): IntegrationCorr
     && !cursorEqual(input.seed.taskCursor, actual.cursor)) return "task-to-task";
   if (before === "process-task-loop" && after === "verify-work-unit"
     && input.seed.taskCursor !== null && actual?.status === "no-open-task") return "task-to-verification";
+  if (before === "process-task-loop" && after === "integrate-work-unit"
+    && input.seed.taskCursor !== null && actual?.status === "no-open-task") return "task-to-continuation";
   if (before === "verify-work-unit" && after === "integrate-work-unit"
     && input.seed.taskCursor === null && actual?.status === "no-open-task") return "verification-to-public";
   return null;
@@ -185,6 +190,8 @@ function exactIntegrationContext(input: IntegrationCorrectionInput): ExactIntegr
     || entering.row.context.metaPath !== input.seed.metaPath
     || entering.row.context.taskListPath === null
     || entering.row.context.taskCursor === null
+    || (candidateTransition(input) === "task-to-continuation"
+      && entering.row.context.workUnitStage !== "delivery-correction")
     || !input.taskCursor?.ok
     || !taskCursorResultEqual(entering.row.context.taskCursor, input.taskCursor.value)
     || !input.loadSet.ok
@@ -261,6 +268,16 @@ function leaveTaskForVerification(seed: LoadSetManifest, taskListPath: string): 
   return replaceWorkflow(withoutTask, PROCESS_WORKFLOW, VERIFY_WORKFLOW);
 }
 
+function leaveTaskForContinuation(seed: LoadSetManifest, taskListPath: string): LoadSetManifest | null {
+  const partial = seed.entries.filter((entry) => entry.readMode.kind === "partial-strategic");
+  if (partial.length !== 1 || partial[0]?.path !== taskListPath) return null;
+  const withoutTask = {
+    manifestVersion: seed.manifestVersion,
+    entries: seed.entries.filter((entry) => entry !== partial[0]),
+  };
+  return replaceWorkflow(withoutTask, PROCESS_WORKFLOW, INTEGRATE_WORKFLOW);
+}
+
 function replaceWorkflow(seed: LoadSetManifest, before: string, after: string): LoadSetManifest | null {
   return replaceExactEntry(seed, before, [{ path: after, readMode: { kind: "full" } }]);
 }
@@ -318,7 +335,7 @@ function provesClosedSeedCursor(
   expected: TaskListCursor | null,
   freshContent: string,
   actual: TaskListCursorFileResult,
-  transition: "task-to-task" | "task-to-verification",
+  transition: "task-to-task" | "task-to-verification" | "task-to-continuation",
 ): boolean {
   if (expected === null) return false;
   const tasks = structuralTasks(freshContent);
@@ -331,7 +348,9 @@ function provesClosedSeedCursor(
   if (section?.kind !== "parent" || section.title !== expected.section.title
     || leaf === undefined || leaf.title !== expected.leaf.title || leaf.marker !== "x"
     || leaf.parentId !== expected.section.id) return false;
-  if (transition === "task-to-verification") return actual.status === "no-open-task";
+  if (transition === "task-to-verification" || transition === "task-to-continuation") {
+    return actual.status === "no-open-task";
+  }
   if (actual.status !== "found") return false;
   const next = byId.get(actual.cursor.leaf.id);
   return next !== undefined && next.line > leaf.line;

@@ -54,6 +54,7 @@ export interface SubjectMetaIO {
 /** Closed delivery-owned signal that can select integration verification. */
 export type DeliveryCorrectionProjection =
   | { readonly status: "none" }
+  | { readonly status: "scoped-verification-required" }
   | { readonly status: "verification-required" }
   | { readonly status: "candidate-renewal-required" }
   | { readonly status: "refused"; readonly message: string };
@@ -70,6 +71,7 @@ export type SubjectMetaProjection =
       stage: PlanningWorkflow | null;
       taskListPath: string | null;
       taskCursor: TaskListCursorFileResult | null;
+      workUnitStage?: LoadSetWorkUnitStage | null;
       cohortDocPath: string | null;
       loadSet: LoadSetManifest;
       integrationBoundary: IntegrationBoundaryLocus | null;
@@ -268,6 +270,7 @@ export async function projectCheckoutSubjectMeta(options: {
     stage: planningStage,
     taskListPath,
     taskCursor,
+    ...(workUnitStage === null ? {} : { workUnitStage }),
     cohortDocPath,
     loadSet: resolveLoadSetManifest({
       identity: options.identity,
@@ -320,6 +323,10 @@ function projectWorkUnitStage(input: {
   }
   if (input.sessionType !== "integration") return null;
   if (input.taskCursor?.status === "found") return "task-work";
+  if (input.taskCursor?.status === "no-open-task"
+    && input.deliveryCorrection.status === "scoped-verification-required") {
+    return "delivery-correction";
+  }
   if (input.taskCursor?.status === "no-open-task"
     && (input.candidateRenewalRequired
       || input.deliveryCorrection.status === "verification-required")) {

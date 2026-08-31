@@ -28,7 +28,7 @@ export type LoadSetSessionType = "planning" | "execution" | "prepublication" | "
 export type LoadSetPlanningStage = "draft-design" | "create-spec" | "generate-tasks";
 
 /** Deterministic work substage derived from canonical lifecycle facts. */
-export type LoadSetWorkUnitStage = "task-work" | "verification-closeout";
+export type LoadSetWorkUnitStage = "task-work" | "verification-closeout" | "delivery-correction";
 
 /** Already-resolved pointers needed to project the session load set. */
 export interface LoadSetProjectionInput {
@@ -144,7 +144,8 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
     entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/prepare-work-unit.md`));
   }
 
-  if (input.sessionType === "integration" && workUnitStage === null) {
+  if (input.sessionType === "integration"
+    && (workUnitStage === null || workUnitStage === "delivery-correction")) {
     entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/integrate-work-unit.md`));
   }
 

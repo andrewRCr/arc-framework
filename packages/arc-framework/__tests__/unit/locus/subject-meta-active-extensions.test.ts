@@ -453,7 +453,7 @@ describe("checkout subject active-extension seam", () => {
     });
   });
 
-  it("projects integration verification for a pending delivery correction continuation", async () => {
+  it("keeps pending delivery correction verification in the integration continuation", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
     const meta = `# Metadata: demo
@@ -490,16 +490,28 @@ describe("checkout subject active-extension seam", () => {
       }],
       io: {
         ...options.io,
-        projectDeliveryCorrection: async () => ({ status: "verification-required" as const }),
+        projectDeliveryCorrection: async () => ({ status: "scoped-verification-required" as const }),
       },
     });
 
     expect(result).toMatchObject({
       kind: "resolved",
       sessionType: "integration",
-      workflow: "verify-work-unit",
+      workflow: "integrate-work-unit",
       taskCursor: { status: "no-open-task" },
       integrationBoundary: boundary,
+    });
+    expect(resolverInputs.at(-1)).toMatchObject({
+      sessionType: "integration",
+      workUnitStage: "delivery-correction",
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      readMode: { kind: "full" },
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).not.toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      readMode: { kind: "full" },
     });
   });
 

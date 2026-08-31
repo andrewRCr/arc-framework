@@ -142,6 +142,7 @@ export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
         "public-to-task",
         "task-to-task",
         "task-to-verification",
+        "task-to-continuation",
         "verification-to-public",
       ]),
     }),

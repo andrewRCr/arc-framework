@@ -47,7 +47,8 @@ describe("packaged delivery workflow", () => {
     expect(packaged).toContain("arc delivery native land-status");
     expect(packaged).toContain("arc delivery refresh plan");
     expect(packaged).toContain("arc delivery refresh adopt");
-    expect(packaged).toContain("arc delivery review-fix plan");
+    expect(packaged).toContain("arc delivery review-fix continue");
+    expect(packaged).not.toContain("arc delivery review-fix plan");
     expect(packaged).toContain("arc delivery review-fix publish");
     expect(packaged).toContain("`review-fix-verification-required`");
     expect(packaged).toContain("opt-out `unlinked` result makes zero native host calls");
@@ -112,7 +113,7 @@ describe("packaged delivery workflow", () => {
       /operation-active[\s\S]*arc delivery reconcile - --json[\s\S]*Every other\s+refusal stops/u,
     );
     expect(positionDispatch).toMatch(
-      /review-fix-routing-required[\s\S]*plan-review-fix[\s\S]*recommendedActionText[\s\S]*Every other\s+refusal stops/u,
+      /review-fix-routing-required[\s\S]*review-fix continue[\s\S]*no member or operation selector[\s\S]*Every other\s+refusal stops/iu,
     );
     expect(reviewSection).toMatch(
       /native-stack-required[\s\S]*delivery-native-land-select[\s\S]*mode: sequential[\s\S]*canonical remaining chain/iu,
@@ -165,52 +166,27 @@ describe("packaged delivery workflow", () => {
       /workflow-interlock[\s\S]*exact conflict and restoration offer[\s\S]*approval[\s\S]*resolutionInput[\s\S]*conflictResolution/iu,
     );
     expect(refreshTail).toMatch(/decline[\s\S]*observedHead[\s\S]*restoreHead[\s\S]*exact Git lease/iu);
-    const rematerialize = reviewSection.indexOf("arc delivery rematerialize");
-    const teardown = reviewSection.indexOf("arc delivery teardown", rematerialize);
-    const mutationTail = reviewSection.slice(rematerialize, teardown);
-    expect(mutationTail).toContain("verify-review-fix");
-    expect(mutationTail).toContain("validate-criteria");
-    expect(mutationTail).toMatch(/memberDeliverableIds[\s\S]*contribution-equivalent[\s\S]*re-verifies nothing/iu);
-    expect(mutationTail).toMatch(/tier1Required[\s\S]*Tier 1/iu);
-    expect(mutationTail).toContain("acknowledgementInput");
-    expect(mutationTail).toMatch(
-      /applied \/ verify-review-fix[\s\S]*rematerialized \/ verify-review-fix[\s\S]*rebound \/ verify-review-fix[\s\S]*review-fix-verification-required[\s\S]*same exact verification\s+continuation/iu,
+    const controller = reviewSection.indexOf("arc delivery review-fix continue - --json", refreshAdopt);
+    const verification = reviewSection.indexOf("### Complete a review-fix verification continuation", controller);
+    const teardown = reviewSection.indexOf("arc delivery teardown", verification);
+    expect(controller).toBeGreaterThan(refreshAdopt);
+    expect(controller).toBeLessThan(verification);
+    expect(verification).toBeLessThan(teardown);
+    const correctionTail = reviewSection.slice(controller, teardown);
+    expect(correctionTail).toMatch(/request carries only[\s\S]*repository and remote identities/iu);
+    expect(correctionTail).toMatch(/dispatch \/ dispatch[\s\S]*action\.argv[\s\S]*action\.input[\s\S]*re-enters/iu);
+    expect(correctionTail).toMatch(
+      /authoring-required \/ author-terminal[\s\S]*verification-required \/ verify-review-fix[\s\S]*authority-required \/ dispatch-authority-action[\s\S]*idle \/ continue-work-unit/iu,
     );
-    expect(mutationTail).toMatch(/same finding-disposition approval/iu);
-    expect(mutationTail).not.toContain("`integration-interlock`");
-    const reviewFixPlan = reviewSection.indexOf("arc delivery review-fix plan");
-    const reviewFixPublish = reviewSection.indexOf("arc delivery review-fix publish", reviewFixPlan);
-    expect(reviewFixPlan).toBeLessThan(reviewFixPublish);
-    expect(reviewFixPublish).toBeLessThan(rematerialize);
-    expect(reviewSection).toMatch(
-      /Before authoring or publishing any approved correction[\s\S]*delivery remains bound[\s\S]*selected member[\s\S]*approved scope[\s\S]*never infer/iu,
+    expect(correctionTail).toMatch(/does not create an orchestration record/iu);
+    expect(correctionTail).toMatch(
+      /applied \/ verify-review-fix[\s\S]*rematerialized \/ verify-review-fix[\s\S]*rebound \/ verify-review-fix[\s\S]*same exact verification\s+continuation/iu,
     );
-    expect(reviewSection).toMatch(
-      /already-authored terminal correction[\s\S]*authoring\s+movement only[\s\S]*not public position authority[\s\S]*registered route/iu,
-    );
-    expect(reviewSection).toContain("candidateRequirements.requiredAncestorHeads");
-    expect(reviewSection).toMatch(/project the exact approved[\s\S]*correction/iu);
-    expect(reviewSection).toContain("plan, repository, remote, selected-member, and entry-mode locators");
-    expect(reviewSection).toMatch(
-      /planned \/ terminal-rebind[\s\S]*reconcileInput[\s\S]*unchanged[\s\S]*arc delivery reconcile[\s\S]*rebound \/ verify-review-fix[\s\S]*pending continuation/iu,
-    );
-    expect(reviewSection).toMatch(
-      /provider-refresh[\s\S]*selected member[\s\S]*execute-provider-refresh[\s\S]*dependent-suffix/iu,
-    );
-    expect(reviewSection).toMatch(
-      /external fallback[\s\S]*refresh plan[\s\S]*same `dependent-suffix` scope[\s\S]*plannedSuffix[\s\S]*strictly above[\s\S]*refresh adopt[\s\S]*same scope/iu,
-    );
-    expect(reviewSection).toMatch(
-      /planned \/ rematerialize[\s\S]*top authoring locus[\s\S]*complete suffix/iu,
-    );
-    expect(reviewSection).toMatch(
-      /planned \/ rematerialize[\s\S]*derives[\s\S]*candidate refs[\s\S]*gate paths/iu,
-    );
-    expect(reviewSection).not.toContain("raw candidate locators");
-    expect(reviewSection).not.toContain("requires its supplied checkout");
-    expect(reviewSection).toMatch(
-      /partial, incoherent, ambiguous, malformed, unsupported, or unavailable[\s\S]*stops/iu,
-    );
+    expect(correctionTail).toMatch(/memberDeliverableIds[\s\S]*contribution-equivalent[\s\S]*re-verifies nothing/iu);
+    expect(correctionTail).toMatch(/tier1Reuse[\s\S]*existing passed result[\s\S]*targetTree/iu);
+    expect(correctionTail).toMatch(/acknowledgementInput[\s\S]*verificationResult[\s\S]*resumeAction/iu);
+    expect(correctionTail).toMatch(/same finding-disposition approval/iu);
+    expect(correctionTail).not.toContain("`integration-interlock`");
     expect(reviewSection.indexOf("arc delivery teardown")).toBeLessThan(
       packaged.indexOf("## Terminal handoff") - packaged.indexOf("## Review and land the current member"),
     );
@@ -276,7 +252,7 @@ describe("packaged delivery workflow", () => {
     expect(nativeSection).toMatch(/The terminal\s+member is never included/u);
   });
 
-  it("acknowledges a persisted review-fix continuation only after ordinary task closure", async () => {
+  it("routes persisted review-fix acknowledgment through the controller only after task closure", async () => {
     const [packaged, installed] = await Promise.all([
       readFile(
         resolve(root, "packages/arc-framework/arc/system/workflows/arc/process-task-loop.template.md"),
@@ -287,20 +263,21 @@ describe("packaged delivery workflow", () => {
 
     for (const workflow of [packaged, installed]) {
       expect(workflow).toContain("`review-fix-verification-required`");
-      expect(workflow).toContain("acknowledgementInput");
-      expect(workflow).toContain("verificationResult");
-      expect(workflow).toContain("arc delivery review-fix acknowledge - --json");
-      expect(workflow).toContain("attestationAction.argv");
+      expect(workflow).toContain("selector-free");
+      expect(workflow).toContain("invoke its `resumeAction`");
+      expect(workflow).not.toContain("arc delivery review-fix acknowledge - --json");
       const closeTask = workflow.indexOf("Mark the task `[x]`");
-      const acknowledge = workflow.indexOf("arc delivery review-fix acknowledge - --json", closeTask);
-      const renew = workflow.indexOf("attestationAction.argv", acknowledge);
+      const resume = workflow.indexOf("invoke its `resumeAction`", closeTask);
+      const renew = workflow.indexOf("Candidate-renewal authority action", resume);
+      const hosted = workflow.indexOf("retained hosted-review authority action", renew);
       const completionExtension = workflow.indexOf("#post-task-completion", closeTask);
       expect(closeTask).toBeGreaterThan(-1);
-      expect(closeTask).toBeLessThan(acknowledge);
-      expect(acknowledge).toBeLessThan(renew);
-      expect(renew).toBeLessThan(completionExtension);
+      expect(closeTask).toBeLessThan(resume);
+      expect(resume).toBeLessThan(renew);
+      expect(renew).toBeLessThan(hosted);
+      expect(hosted).toBeLessThan(completionExtension);
       expect(workflow.slice(closeTask, completionExtension)).toMatch(
-        /acknowledged[\s\S]*already-acknowledged[\s\S]*renew-public-continuation[\s\S]*unchanged[\s\S]*continue-hosted-review[\s\S]*stops/iu,
+        /resumeAction[\s\S]*acknowledgment action[\s\S]*Candidate-renewal[\s\S]*unchanged[\s\S]*hosted-review[\s\S]*stops/iu,
       );
     }
   });

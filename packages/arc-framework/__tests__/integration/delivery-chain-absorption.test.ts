@@ -19,7 +19,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(async (root) => removeGitBackedDir(root)));
 });
 
-async function createAbsorptionFixture(input: { conflict?: boolean } = {}): Promise<{
+async function createAbsorptionFixture(input: { conflict?: boolean; contained?: boolean } = {}): Promise<{
   repository: string;
   git: (args: string[]) => Promise<string>;
   exec: RawGitExec;
@@ -47,8 +47,13 @@ async function createAbsorptionFixture(input: { conflict?: boolean } = {}): Prom
 
   await git(["switch", "-c", "feat/example"]);
   await writeFile(join(repository, "residual.txt"), "residual\n", "utf8");
-  if (input.conflict === true) await writeFile(join(repository, "shared.txt"), "top\n", "utf8");
-  await git(["add", "residual.txt", "shared.txt"]);
+  if (input.contained === true) {
+    await writeFile(join(repository, "base-movement.txt"), "landed elsewhere\n", "utf8");
+    await writeFile(join(repository, "shared.txt"), "moved base\n", "utf8");
+  } else if (input.conflict === true) {
+    await writeFile(join(repository, "shared.txt"), "top\n", "utf8");
+  }
+  await git(["add", "residual.txt", "shared.txt", ...(input.contained === true ? ["base-movement.txt"] : [])]);
   await git(["commit", "-m", "top residual"]);
   const top = await git(["rev-parse", "HEAD"]);
 
@@ -168,6 +173,28 @@ describe("delivery chain content absorption", () => {
       previousHighestMember: await fixture.coordinate(fixture.originalMember),
       highestMember: await fixture.coordinate(fixture.refreshedMember),
     })).resolves.toEqual(result);
+  });
+
+  it("creates a content-neutral two-parent absorption when the refreshed movement is already contained", async () => {
+    const fixture = await createAbsorptionFixture({ contained: true });
+    const commands: string[][] = [];
+    const result = await absorbGitDeliveryChain({
+      exec: async (args, options) => {
+        commands.push([...args]);
+        return fixture.exec(args, options);
+      },
+      topRef: "refs/heads/feat/example",
+      top: await fixture.coordinate(fixture.top),
+      previousHighestMember: await fixture.coordinate(fixture.originalMember),
+      highestMember: await fixture.coordinate(fixture.refreshedMember),
+    });
+
+    expect(result.status).toBe("absorbed");
+    if (result.status !== "absorbed") return;
+    expect(result.tree).toBe((await fixture.coordinate(fixture.top)).tree);
+    expect((await fixture.git(["rev-list", "--parents", "-n", "1", result.head])).split(" "))
+      .toEqual([result.head, fixture.top, fixture.refreshedMember]);
+    expect(commands.some(([command]) => command === "merge-tree")).toBe(false);
   });
 
   it("recovers an exact interrupted merge before retrying the absorption", async () => {

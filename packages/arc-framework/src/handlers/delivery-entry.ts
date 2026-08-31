@@ -89,7 +89,7 @@ export interface DeliveryEntryInspectHandlerDependencies {
 function defaultDependencies(): DeliveryEntryInspectHandlerDependencies {
   return {
     readText: (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    inspect: inspectRepositoryDeliveryEntry,
+    inspect: inspectActiveRepositoryDeliveryEntry,
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
   };
@@ -154,7 +154,8 @@ function resolveTaskListPath(cwd: string, activePath: string, taskList: string):
     : relation;
 }
 
-async function inspectRepositoryDeliveryEntry(
+/** Inspect delivery entry for the exact active work-unit checkout without reconstructing repository locators. */
+export async function inspectActiveRepositoryDeliveryEntry(
   input: z.infer<typeof InputSchema>,
   interaction?: InteractionContext,
 ): Promise<DeliveryEntryInspectionResult> {

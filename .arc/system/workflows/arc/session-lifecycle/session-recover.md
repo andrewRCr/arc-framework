@@ -76,8 +76,10 @@ Use the **fresh** report surfaces for context loading:
   is only the audit baseline.
 - For execution sessions whose projected workflow is `process-task-loop`, require
   `report.verdict.taskCursor.match === true` and use `report.verdict.taskCursor.actual.cursor` as the verified
-  task-list anchor. Exact execution closeout instead projects `workflow: verify-work-unit`, carries no verdict cursor
-  comparison, and requires the fresh task cursor to report `no-open-task`. For prepublication and integration
+  task-list anchor. Exact execution closeout normally projects `workflow: verify-work-unit`; when canonical delivery
+  state retains pending scoped review-fix verification, it instead projects `workflow: integrate-work-unit` with
+  `workUnitStage: delivery-correction`. Both cursorless closeout arms carry no verdict cursor comparison and require
+  the fresh task cursor to report `no-open-task`. For prepublication and integration
   sessions, apply the same rule when the report carries a non-null `taskCursor` comparison (seed or fresh recovery
   found a cursor); a cursorless phase state is valid when the task list has no open executable checkbox. If a
   required cursor is absent, malformed, or not `status: "found"`, stop; do not fall back to active-meta `Next Task`.
@@ -142,8 +144,9 @@ Preserve the manifest order when reconciling loaded content and deciding what pr
 context applies, even when the reads complete out of order.
 
 The load set already includes the state-selected lifecycle workflow when the recovered state has
-one. Open-task execution maps to `process-task-loop`, execution closeout maps to `verify-work-unit`, and
-prepublication or integration maps to its phase workflow. The mapping is a deterministic shipped table, so an
+one. Open-task execution maps to `process-task-loop`; ordinary execution closeout maps to `verify-work-unit`; scoped
+delivery-correction closeout maps to `integrate-work-unit`; and prepublication or integration maps to its phase
+workflow. The mapping is a deterministic shipped table, so an
 absent entry is a projection defect rather than a missing decision: load the mapped workflow and
 surface the omission rather than stopping — the gap is itself a signal about the audit that
 produced the load set, so it is reported, never swallowed. A planning resume has no such mapping

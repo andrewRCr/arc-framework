@@ -23,7 +23,7 @@ import {
   createCandidateAttestation,
   type CandidateManagedRecordV1,
 } from "../../src/lib/work-unit/candidate-attestation.js";
-import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
+import { readCandidateRecord, writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
 import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { projectPublicationBoundary } from
@@ -464,10 +464,13 @@ describe("arc delivery position", () => {
     };
     expect(envelope.active).toMatchObject({
       ok: true,
-      value: { sessionType: "integration", currentWorkflow: "verify-work-unit" },
+      value: { sessionType: "integration", currentWorkflow: "integrate-work-unit" },
     });
     expect(envelope.taskCursor).toEqual({ ok: true, value: { status: "no-open-task" } });
     expect(envelope.loadSet.value?.entries.map(({ path }) => path)).toContain(
+      ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    );
+    expect(envelope.loadSet.value?.entries.map(({ path }) => path)).not.toContain(
       ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
     );
   });
@@ -633,6 +636,9 @@ describe("arc delivery position", () => {
     );
     expect(entered.exitCode, `${entered.stderr}\n${entered.stdout}`).toBe(0);
     const continuation = JSON.parse(entered.stdout) as {
+      verification: {
+        target: { head: string; tree: string };
+      };
       acknowledgementInput: {
         planId: string;
         selectedDeliverableId: string;
@@ -645,6 +651,32 @@ describe("arc delivery position", () => {
       nextAction: "verify-review-fix",
       selectedDeliverableId,
       verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+    });
+
+    const controlled = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(controlled.exitCode, `${controlled.stderr}\n${controlled.stdout}`).toBe(0);
+    expect(JSON.parse(controlled.stdout)).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "verification-required",
+      selectedDeliverableId,
+      verification: {
+        target: continuation.verification.target,
+        tier1Reuse: {
+          kind: "exact-tree",
+          targetTree: continuation.verification.target.tree,
+          requiredResult: "passed",
+          coveredInputs: "unchanged",
+        },
+      },
+      acknowledgementInput: continuation.acknowledgementInput,
+      resumeAction: {
+        argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+      },
     });
 
     await writeFile(taskListPath, taskList.replace("### `[ ]` **1.1", "### `[x]` **1.1"));
@@ -664,6 +696,12 @@ describe("arc delivery position", () => {
       ...continuation.acknowledgementInput,
       verification: {
         applicability: "focused",
+        target: continuation.verification.target,
+        tier1: {
+          outcome: "passed",
+          provenance: "rerun",
+          targetTree: continuation.verification.target.tree,
+        },
         verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
       },
     })}\n`;
@@ -691,6 +729,48 @@ describe("arc delivery position", () => {
       },
     });
 
+    const acknowledgedStateRead = await fixture.states.read(fixture.plan.planId);
+    expect(acknowledgedStateRead).toMatchObject({ status: "ok" });
+    if (acknowledgedStateRead.status !== "ok" || acknowledgedStateRead.value === null) {
+      throw new Error("acknowledged review-fix state must be readable");
+    }
+    expect(acknowledgedStateRead.value.value).toMatchObject({
+      activeOperation: null,
+      pendingReviewFixVerification: null,
+    });
+    const acknowledgedCandidate = await readCandidateRecord(fixture.repository, fixture.plan.workUnitId);
+    expect(acknowledgedCandidate?.transitions.at(-1)).toMatchObject({
+      transitionKind: "verification-response",
+    });
+
+    const recoveredEntry = await runArcWithStdin(
+      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ entryMode: "integrating" })}\n`,
+      { env: fixture.env },
+    );
+    expect(recoveredEntry.exitCode, `${recoveredEntry.stderr}\n${recoveredEntry.stdout}`).toBe(0);
+    expect(JSON.parse(recoveredEntry.stdout)).toMatchObject({
+      status: "candidate-renewal-required",
+      nextAction: "renew-public-continuation",
+    });
+
+    const renewalRoute = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(renewalRoute.exitCode, `${renewalRoute.stderr}\n${renewalRoute.stdout}`).toBe(0);
+    expect(JSON.parse(renewalRoute.stdout)).toMatchObject({
+      status: "authority-required",
+      authority: "candidate-renewal",
+      action: {
+        kind: "candidate-renewal",
+        argv: ["arc", "attest", fixture.plan.workUnitId, "--json"],
+      },
+    });
+
     const renewed = await runArc(["attest", fixture.plan.workUnitId, "--json"], fixture.repository, {
       env: fixture.env,
     });
@@ -714,6 +794,22 @@ describe("arc delivery position", () => {
       status: "continue-hosted-review",
       nextAction: "continue-hosted-review",
       hostedReviewAction: { kind: "continue-hosted-review", workUnitId: fixture.plan.workUnitId },
+    });
+
+    const hostedRoute = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(hostedRoute.exitCode, `${hostedRoute.stderr}\n${hostedRoute.stdout}`).toBe(0);
+    expect(JSON.parse(hostedRoute.stdout)).toMatchObject({
+      status: "authority-required",
+      authority: "hosted-review",
+      action: {
+        kind: "hosted-review",
+        action: { kind: "continue-hosted-review", workUnitId: fixture.plan.workUnitId },
+      },
     });
 
     const session = await runArc(["status", "--session-init", "--json"], fixture.repository, {

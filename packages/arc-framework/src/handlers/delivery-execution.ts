@@ -14,6 +14,7 @@ import {
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { parseMetaFile } from "../lib/active/meta-reader.js";
 import {
   closeDeliveryEligibility,
   executeWithFreshDeliveryEligibility,
@@ -107,6 +108,8 @@ import {
 } from "../lib/delivery/review-fix.js";
 import { projectDeliveryReviewFixVerificationContinuation } from
   "../lib/delivery/review-fix-verification.js";
+import { projectDeliveryReviewFixContinuation } from
+  "../lib/delivery/review-fix-continuation.js";
 import {
   completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
@@ -148,6 +151,8 @@ import {
 } from "../lib/git-common-state.js";
 import { canonicalize, SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
+import { resolveTaskListPath } from "../commands/active/status.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import {
   readCandidateRecord,
@@ -186,12 +191,26 @@ import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
 import { createReviewStatusPort } from "../scripts/review-gate/status-composition.js";
 import { defaultMergeLockPort } from "./review.js";
 import { resolveCandidateMutationOwner } from "./candidate-mutation-owner.js";
+import { inspectActiveRepositoryDeliveryEntry } from "./delivery-entry.js";
 import { requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
+import { ContinueHostedReviewActionSchema, ContinuePublicationActionSchema } from
+  "../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const RefSchema = z.string().startsWith("refs/");
 const CandidateSchema = z.strictObject({ deliverableId: DeliveryCanonicalDigestSchema, ref: RefSchema });
 const CoordinateSchema = z.strictObject({ head: GitObjectIdSchema, tree: GitObjectIdSchema });
+const ReviewFixVerificationSchema = z.strictObject({
+  memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+  tier1Required: z.literal(true),
+  target: CoordinateSchema,
+  tier1Reuse: z.strictObject({
+    kind: z.literal("exact-tree"),
+    targetTree: GitObjectIdSchema,
+    requiredResult: z.literal("passed"),
+    coveredInputs: z.literal("unchanged"),
+  }),
+});
 const EligibilityMemberSchema = CandidateSchema.extend(CoordinateSchema.shape);
 const EligibilitySnapshotSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -438,11 +457,31 @@ const ReviewFixAcknowledgementInputSchema = z.strictObject({
   expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   continuationDigest: DeliveryCanonicalDigestSchema,
 });
+const ReviewFixTier1VerificationSchema = z.discriminatedUnion("provenance", [
+  z.strictObject({
+    outcome: z.literal("passed"),
+    provenance: z.literal("rerun"),
+    targetTree: GitObjectIdSchema,
+  }),
+  z.strictObject({
+    outcome: z.literal("passed"),
+    provenance: z.literal("exact-tree-reuse"),
+    targetTree: GitObjectIdSchema,
+    coveredInputs: z.literal("unchanged"),
+  }),
+]);
 const ReviewFixAcknowledgeSchema = ReviewFixAcknowledgementInputSchema.extend({
   verification: z.strictObject({
     applicability: z.enum(["targeted", "focused", "full"]),
+    target: CoordinateSchema,
+    tier1: ReviewFixTier1VerificationSchema,
     verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
   }),
+});
+const ReviewFixContinueSchema = z.strictObject({
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+  verification: ReviewFixAcknowledgeSchema.shape.verification.optional(),
 });
 
 const RequestSchemas = {
@@ -471,6 +510,7 @@ const RequestSchemas = {
   "review-fix-plan": ReviewFixPlanSchema,
   "review-fix-publish": ReviewFixPublishSchema,
   "review-fix-acknowledge": ReviewFixAcknowledgeSchema,
+  "review-fix-continue": ReviewFixContinueSchema,
 } as const;
 
 export type DeliveryExecutionCommand = keyof typeof RequestSchemas;
@@ -554,10 +594,162 @@ const InvalidServiceResultRefusalSchema = z.strictObject({
   recommendedActionText: z.string().min(1),
 });
 
+const ReviewFixContinuationResumeActionSchema = z.strictObject({
+  argv: z.tuple([
+    z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("continue"),
+    z.literal("-"), z.literal("--json"),
+  ]),
+  input: ReviewFixContinueSchema.omit({ verification: true }),
+});
+const ReviewFixContinuationDispatchActionSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("delivery-review-fix-publish"),
+    argv: z.tuple([
+      z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("publish"),
+      z.literal("-"), z.literal("--json"),
+    ]),
+    input: ReviewFixPublishSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("delivery-rematerialize"),
+    argv: z.tuple([
+      z.literal("arc"), z.literal("delivery"), z.literal("rematerialize"), z.literal("-"),
+      z.literal("--json"),
+    ]),
+    input: RematerializeSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("delivery-refresh-execute"),
+    argv: z.tuple([
+      z.literal("arc"), z.literal("delivery"), z.literal("refresh"), z.literal("execute"),
+      z.literal("-"), z.literal("--json"),
+    ]),
+    input: RefreshExecuteSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("delivery-refresh-adopt"),
+    argv: z.tuple([
+      z.literal("arc"), z.literal("delivery"), z.literal("refresh"), z.literal("adopt"),
+      z.literal("-"), z.literal("--json"),
+    ]),
+    input: RefreshAdoptSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("delivery-reconcile"),
+    argv: z.tuple([
+      z.literal("arc"), z.literal("delivery"), z.literal("reconcile"), z.literal("-"),
+      z.literal("--json"),
+    ]),
+    input: ReconcileSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("delivery-review-fix-acknowledge"),
+    argv: z.tuple([
+      z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("acknowledge"),
+      z.literal("-"), z.literal("--json"),
+    ]),
+    input: ReviewFixAcknowledgeSchema,
+  }),
+]);
+const ReviewFixContinuationAuthorityActionSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("candidate-renewal"),
+    argv: z.tuple([z.literal("arc"), z.literal("attest"), SlugSchema, z.literal("--json")]),
+  }),
+  z.strictObject({
+    kind: z.literal("hosted-review"),
+    action: ContinueHostedReviewActionSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("publication"),
+    action: ContinuePublicationActionSchema,
+  }),
+]);
+const ReviewFixRouteResultSchema = z.discriminatedUnion("route", [
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("provider-refresh"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("publish-selected-member"),
+    candidateRequirements: z.strictObject({ requiredAncestorHeads: z.array(GitObjectIdSchema).min(1) }),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("rematerialize"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("rematerialize"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("terminal-authoring"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("author-terminal"),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("planned"),
+    route: z.literal("terminal-rebind"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    nextAction: z.literal("reconcile-terminal-publication"),
+    reconcileInput: z.strictObject({
+      planId: DeliveryPlanIdSchema,
+      repository: z.string().min(1),
+      remote: z.string().min(1),
+      continuation: z.literal("read-position"),
+      reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema,
+    }),
+    recommendedActionText: z.string().min(1),
+  }),
+]);
+const ReviewFixContinuationResultSchema = z.union([
+  z.strictObject({
+    status: z.literal("dispatch"),
+    nextAction: z.literal("dispatch"),
+    action: ReviewFixContinuationDispatchActionSchema,
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("verification-required"),
+    nextAction: z.literal("verify-review-fix"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    verification: ReviewFixVerificationSchema,
+    acknowledgementInput: ReviewFixAcknowledgementInputSchema,
+    resumeAction: ReviewFixContinuationResumeActionSchema,
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("authoring-required"),
+    route: z.literal("terminal-authoring"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    nextAction: z.literal("author-terminal"),
+    resumeAction: ReviewFixContinuationResumeActionSchema,
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("authority-required"),
+    authority: z.enum(["candidate-renewal", "hosted-review", "publication"]),
+    nextAction: z.literal("dispatch-authority-action"),
+    action: ReviewFixContinuationAuthorityActionSchema,
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("idle"),
+    nextAction: z.literal("continue-work-unit"),
+    recommendedActionText: z.string().min(1),
+  }),
+]);
+
 const REVIEW_FIX_ROUTING_REQUIRED_TEXT = "Select the delivery member that owns the approved correction, then run "
   + "`arc delivery review-fix plan` before authoring or publishing replacement content.";
 
 const ResultSchema = z.union([
+  ReviewFixContinuationResultSchema,
   DeliveryRecoveryResultV1Schema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
@@ -614,10 +806,7 @@ const ResultSchema = z.union([
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     nextAction: z.literal("verify-review-fix"),
-    verification: z.strictObject({
-      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-      tier1Required: z.literal(true),
-    }),
+    verification: ReviewFixVerificationSchema,
     acknowledgementInput: ReviewFixAcknowledgementInputSchema,
   }),
   z.strictObject({
@@ -633,10 +822,7 @@ const ResultSchema = z.union([
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     nextAction: z.literal("verify-review-fix"),
-    verification: z.strictObject({
-      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-      tier1Required: z.literal(true),
-    }),
+    verification: ReviewFixVerificationSchema,
     acknowledgementInput: ReviewFixAcknowledgementInputSchema,
   }),
   z.strictObject({
@@ -650,10 +836,7 @@ const ResultSchema = z.union([
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     contributionVerdicts: z.array(ContributionVerdictSchema),
     nextAction: z.literal("verify-review-fix"),
-    verification: z.strictObject({
-      memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-      tier1Required: z.literal(true),
-    }),
+    verification: ReviewFixVerificationSchema,
     acknowledgementInput: ReviewFixAcknowledgementInputSchema,
   }),
   z.strictObject({
@@ -1176,6 +1359,72 @@ async function executeDeliveryCommand(
       ? { status: "located", planId: parsed.planId, locators: locators.locators }
       : { status: "refused", reason: locators.reason };
   }
+  if (command === "review-fix-continue") {
+    const parsed = ReviewFixContinueSchema.parse(request);
+    let entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction);
+    if (entry.status === "not-applicable") {
+      const active = await resolveActiveWu({ cwd });
+      if (active.status !== "resolved") {
+        return { status: "refused", reason: "active-work-unit-unavailable" };
+      }
+      const meta = parseMetaFile(await readFile(resolve(cwd, active.path), "utf8"));
+      const taskListPath = meta.taskList === null || meta.taskList === "[none]"
+        ? null
+        : resolveTaskListPath(active.path, meta.taskList);
+      if (taskListPath === null) return { status: "refused", reason: "task-list-unavailable" };
+      const cursor = resolveTaskListCursor(await readFile(resolve(cwd, taskListPath), "utf8"));
+      if (cursor.status !== "no-open-task") {
+        return cursor.status === "malformed"
+          ? { status: "refused", reason: "task-cursor-unavailable" }
+          : {
+              status: "idle",
+              nextAction: "continue-work-unit",
+              recommendedActionText: "Continue the current non-delivery task before resuming delivery integration.",
+            };
+      }
+      entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "integrating" }, interaction);
+    }
+
+    if (entry.status === "review-fix-verification-required" || parsed.verification !== undefined) {
+      return projectDeliveryReviewFixContinuation({ request: parsed, entry });
+    }
+
+    if (entry.status === "resume-bound") {
+      const stateRead = await stateStore.read(entry.planId);
+      if (stateRead.status !== "ok" || stateRead.value === null) {
+        return { status: "refused", reason: "delivery-unavailable" };
+      }
+      return projectDeliveryReviewFixContinuation({ request: parsed, entry, state: stateRead.value });
+    }
+
+    if (entry.status === "correction-routing-required") {
+      const planned = ReviewFixRouteResultSchema.safeParse(await executeDeliveryCommand(
+        "review-fix-plan",
+        {
+          planId: entry.planId,
+          selectedDeliverableId: entry.selectedDeliverableId,
+          repository: parsed.repository,
+          remote: parsed.remote,
+          entryMode: "integrating",
+        },
+        interaction,
+      ));
+      if (!planned.success) return { status: "refused", reason: "review-fix-route-unavailable" };
+      const [stateRead, active] = await Promise.all([
+        stateStore.read(entry.planId),
+        resolveActiveWu({ cwd }),
+      ]);
+      return projectDeliveryReviewFixContinuation({
+        request: parsed,
+        entry,
+        route: planned.data,
+        ...(stateRead.status === "ok" && stateRead.value !== null ? { state: stateRead.value } : {}),
+        ...(active.status === "resolved" && active.branch !== null ? { activeBranch: active.branch } : {}),
+      });
+    }
+
+    return projectDeliveryReviewFixContinuation({ request: parsed, entry });
+  }
   if (command === "review-fix-acknowledge") {
     const parsed = ReviewFixAcknowledgeSchema.parse(request);
     const [planRead, stateRead] = await Promise.all([
@@ -1185,6 +1434,13 @@ async function executeDeliveryCommand(
     if (planRead.status !== "ok" || planRead.value === null
       || stateRead.status !== "ok" || stateRead.value === null) {
       return { status: "refused", reason: "delivery-unavailable" };
+    }
+    const terminal = stateRead.value.value.members.at(-1)?.coordinates ?? null;
+    if (terminal === null
+      || parsed.verification.target.head !== terminal.head
+      || parsed.verification.target.tree !== terminal.tree
+      || parsed.verification.tier1.targetTree !== terminal.tree) {
+      return { status: "refused", reason: "verification-target-mismatch" };
     }
     try {
       const owner = await resolveCandidateMutationOwner({ cwd, exec });

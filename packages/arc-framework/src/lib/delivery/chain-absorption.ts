@@ -134,6 +134,93 @@ function mergeTreeOutput(bytes: Uint8Array): {
   }
 }
 
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
+}
+
+async function changedTreePaths(
+  exec: RawGitExec,
+  before: string,
+  after: string,
+): Promise<readonly string[] | null> {
+  try {
+    const bytes = (await exec([
+      "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--no-renames", before, after,
+    ], { objectAccess: "local-only" })).stdout;
+    const value = decoder.decode(bytes);
+    if (value.length > 0 && !value.endsWith("\0")) return null;
+    return [...new Set(value.split("\0").filter(Boolean))].sort();
+  } catch {
+    return null;
+  }
+}
+
+async function treeEntry(
+  exec: RawGitExec,
+  tree: string,
+  path: string,
+): Promise<Uint8Array | null> {
+  try {
+    return (await exec(
+      ["ls-tree", "-z", tree, "--", `:(literal)${path}`],
+      { objectAccess: "local-only" },
+    )).stdout;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Prove that every exact tree-entry change in the refreshed predecessor is already present in the top.
+ * `null` means the proof could not be observed and therefore grants no content-neutral action.
+ */
+async function highestMovementIsContained(
+  exec: RawGitExec,
+  previousHighestMember: { readonly head: string; readonly tree?: string },
+  highestMember: DeliveryContributionCoordinate,
+  top: DeliveryContributionCoordinate,
+): Promise<boolean | null> {
+  const paths = await changedTreePaths(exec, previousHighestMember.head, highestMember.head);
+  if (paths === null) return null;
+  for (const path of paths) {
+    const [highestEntry, topEntry] = await Promise.all([
+      treeEntry(exec, highestMember.tree, path),
+      treeEntry(exec, top.tree, path),
+    ]);
+    if (highestEntry === null || topEntry === null) return null;
+    if (!sameBytes(highestEntry, topEntry)) return false;
+  }
+  return true;
+}
+
+async function commitContentNeutralAbsorption(
+  input: DeliveryChainAbsorptionInput,
+): Promise<DeliveryChainAbsorptionResult> {
+  try {
+    const commit = text((await input.exec([
+      "commit-tree", input.top.tree,
+      "-p", input.top.head,
+      "-p", input.highestMember.head,
+      "-m", "Absorb contained delivery predecessor",
+    ])).stdout);
+    if (commit === null || !objectId.test(commit)) {
+      return { status: "refused", reason: "absorption-unavailable" };
+    }
+    await input.exec([
+      "update-ref", "-m", "delivery predecessor absorption",
+      input.topRef, commit, input.top.head,
+    ]);
+    const absorbed = await observeExactAbsorption(
+      input.exec, commit, input.top.head, input.highestMember.head,
+    );
+    return absorbed !== null && absorbed.tree === input.top.tree && await statusText(input.exec) === ""
+      ? { status: "absorbed", ...absorbed }
+      : { status: "refused", reason: "absorption-unavailable" };
+  } catch {
+    return { status: "refused", reason: "absorption-unavailable" };
+  }
+}
+
 async function preparedTreeIsCheckedOut(exec: RawGitExec, tree: string): Promise<boolean> {
   try {
     const [indexTree, untracked] = await Promise.all([
@@ -267,6 +354,13 @@ export async function absorbGitDeliveryChain(
       if (current !== input.top.head || await mergeInProgress(input.exec)) {
         return { status: "refused", reason: "absorption-unavailable" };
       }
+    }
+    const initialStatus = await statusText(input.exec);
+    if (initialStatus === null) return { status: "refused", reason: "absorption-unavailable" };
+    if (initialStatus === "" && await highestMovementIsContained(
+      input.exec, input.previousHighestMember, input.highestMember, input.top,
+    ) === true) {
+      return await commitContentNeutralAbsorption(input);
     }
     if (!await supportsMergeTreeWriteTree(input.exec, input.top.head)) {
       return { status: "refused", reason: "absorption-unavailable" };
