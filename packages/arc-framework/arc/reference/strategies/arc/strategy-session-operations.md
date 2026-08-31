@@ -305,8 +305,8 @@ active: false
   review of the others. Omit when empty
 - `override-active` (methods only) — `true` when the file's override body is populated; `false` when the
   default is in effect. Consumed by the framework-repo CI audit, docs generation, and authoring tooling —
-  not by session-init. Method bodies (both `.override` and `.default`) always load at workflow trigger, so
-  init-time override-presence surfacing serves no agent decision
+  not by session-init. Method bodies load only when their direct workflow or method consumer reaches the
+  corresponding fire-point, so init-time override-presence surfacing serves no agent decision
 - `override-mode` (methods only, optional) — override disposition, `replace` or `extend`. Absent ⇒ `replace`
   (the override supersedes the default); `extend` applies the default first, then the override on top. Carry it
   only on a method whose override is additive — absent-means-replace leaves every other method unchanged

@@ -144,7 +144,14 @@ describe("delivery task-list projection", () => {
     const first = replaceDeliveryPlanSection(starter, plan());
     if (first.status !== "rendered") throw new Error("expected first render");
     expect(first.content).toContain("- **Plan Revision:** `1`");
-    const prefixed = `UNTOUCHED PREFIX\n${first.content}UNTOUCHED SUFFIX`;
+    const withWhitespaceSpacer = first.content.replace(
+      "<!-- arc:delivery-plan:end -->\n\n## **Phase 1:** Build",
+      "<!-- arc:delivery-plan:end -->\n \t \n## **Phase 1:** Build",
+    );
+    expect(withWhitespaceSpacer).toContain(
+      "<!-- arc:delivery-plan:end -->\n \t \n## **Phase 1:** Build",
+    );
+    const prefixed = `UNTOUCHED PREFIX\n${withWhitespaceSpacer}UNTOUCHED SUFFIX`;
     const secondPlan = structuredClone(plan({ shared: true }));
     secondPlan.planRevision = 2;
     secondPlan.previousPlanDigest = digest("previous-plan");
@@ -161,6 +168,9 @@ describe("delivery task-list projection", () => {
     );
     expect(second.content).not.toContain(
       "<!-- arc:delivery-plan:end -->\n\n\n## **Phase 1:** Build",
+    );
+    expect(second.content).not.toContain(
+      "<!-- arc:delivery-plan:end -->\n\n \t \n## **Phase 1:** Build",
     );
   });
 
