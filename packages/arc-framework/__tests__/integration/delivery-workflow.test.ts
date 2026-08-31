@@ -110,10 +110,10 @@ describe("packaged delivery workflow", () => {
       reviewSection.indexOf("For `review-member`", positionRead),
     );
     expect(positionDispatch).toMatch(
-      /operation-active[\s\S]*arc delivery reconcile - --json[\s\S]*Every other\s+refusal stops/u,
+      /operation-active[\s\S]*arc delivery reconcile - --json[\s\S]*Every other\s+refusal\s+stops/u,
     );
     expect(positionDispatch).toMatch(
-      /review-fix-routing-required[\s\S]*review-fix continue[\s\S]*no member or operation selector[\s\S]*Every other\s+refusal stops/iu,
+      /review-fix-routing-required[\s\S]*review-fix continue[\s\S]*no member or operation selector[\s\S]*Every other\s+refusal\s+stops/iu,
     );
     expect(reviewSection).toMatch(
       /native-stack-required[\s\S]*delivery-native-land-select[\s\S]*mode: sequential[\s\S]*canonical remaining chain/iu,

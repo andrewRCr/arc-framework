@@ -19,6 +19,7 @@ import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-rend
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   createCandidateAttestation,
   type CandidateManagedRecordV1,
@@ -28,6 +29,17 @@ import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { projectPublicationBoundary } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { ApprovedDispositionRecordSchema } from
+  "../../src/scripts/review-gate/core/advisory-records.js";
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../src/scripts/review-gate/core/dispositions.js";
+import { createFixAuthorization } from "../../src/scripts/review-gate/core/fix-authorization.js";
+import { createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { LocalApprovedDispositionRecordStore } from
+  "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
@@ -381,6 +393,136 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
 }
 
 describe("arc delivery position", () => {
+  it("resumes one approved member fix without manufacturing a task cursor", async () => {
+    const fixture = await positionFixture();
+    const workUnitId = fixture.plan.workUnitId;
+    const branch = `feat/${workUnitId}`;
+    await git(fixture.repository, ["switch", "-c", branch]);
+    const activeDir = join(fixture.repository, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(join(activeDir, `tasks-${workUnitId}.md`), [
+      `# Task List: ${workUnitId}`,
+      "",
+      renderDeliveryPlanSection(fixture.plan),
+      "## **Phase 1:** Members",
+      "",
+      "### `[x]` **1.1 Close member one**",
+      "",
+      "### `[x]` **1.2 Close member two**",
+      "",
+      "### `[x]` **1.3 Close member three**",
+      "",
+    ].join("\n"));
+    await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
+      `# Metadata: ${workUnitId}`,
+      "",
+      "- **State:** Integrating",
+      "- **Owner:** test-user",
+      `- **Branch:** ${branch}`,
+      `- **Task List:** tasks-${workUnitId}.md`,
+      "- **Candidate:** [none]",
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Last Completed:** Task 1.3 — Close member three",
+      "- **Next Task:** [none]",
+      "- **Next Action:** Resume hosted review",
+      "",
+    ].join("\n"));
+    await git(fixture.repository, ["add", "-A"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
+
+    const stateRead = await fixture.states.read(fixture.plan.planId);
+    expect(stateRead).toMatchObject({ status: "ok" });
+    if (stateRead.status !== "ok" || stateRead.value === null) throw new Error("delivery state unavailable");
+    const selectedMember = stateRead.value.value.members[0];
+    const target = stateRead.value.value.target;
+    if (selectedMember?.coordinates === null || selectedMember?.coordinates === undefined
+      || target?.coordinates === null || target?.coordinates === undefined) {
+      throw new Error("review-fix fixture requires exact member and target coordinates");
+    }
+    const oldTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: selectedMember.coordinates.base,
+      diffBaseTree: target.coordinates.tree,
+      headSha: selectedMember.coordinates.head,
+      headTree: selectedMember.coordinates.tree,
+    });
+    const approvedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: oldTarget.targetId,
+        policyVersion: canonicalDigest({ policy: "review" }),
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        proposedBy: "agent-1",
+        findings: [{
+          findingId: "finding-1",
+          sourceIdentity: "codex-pr",
+          locus: "member-one.txt:1",
+          sourceVerification: "verified",
+          verificationRefs: ["review:finding-1"],
+          severity: "major",
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The source confirms the issue.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-08-31T12:00:00Z",
+    });
+    const publisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), fixture.repository);
+    await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
+      ApprovedDispositionRecordSchema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "review-advisory/v1",
+        repositoryId: "repo-1",
+        operationId: "operation-member-fix",
+        candidate: null,
+        errand: null,
+        deliveryMember: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: selectedMember.deliverableId,
+          workUnitId,
+          head: selectedMember.coordinates.head,
+        },
+        source: {
+          kind: "hosted",
+          attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+        },
+        approvedDisposition,
+        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+      }),
+    );
+
+    const result = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "dispatch",
+      action: {
+        kind: "delivery-rematerialize",
+        input: {
+          planId: fixture.plan.planId,
+          selectedDeliverableIds: [selectedMember.deliverableId],
+        },
+      },
+    });
+  });
+
   it("projects pending review-fix verification into the integration session", async () => {
     const fixture = await positionFixture();
     const workUnitId = fixture.plan.workUnitId;
