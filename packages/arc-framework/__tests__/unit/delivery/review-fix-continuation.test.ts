@@ -5,6 +5,7 @@ import type { DeliveryEntryInspectionResult } from
   "../../../src/lib/delivery/entry-inspection.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import {
+  pendingDeliveryReviewFixAuthorityIsCurrent,
   projectDeliveryReviewFixContinuation,
   selectPendingDeliveryReviewFixAuthority,
 } from
@@ -292,6 +293,34 @@ describe("delivery review-fix continuation projection", () => {
           : { ...first.fixAuthorization, oldHeadSha: "9".repeat(40) },
       }],
     })).toEqual({ status: "refused", reason: "review-fix-response-invalid" });
+  });
+
+  it("retains response authority only through the exact selected-publication chain break", () => {
+    const current = currentChainState();
+    const reviewedHead = current.members[0]?.coordinates?.head;
+    if (reviewedHead === undefined) throw new Error("continuation fixture requires reviewed coordinates");
+    const input = { selectedDeliverableId, reviewedHead };
+
+    expect(pendingDeliveryReviewFixAuthorityIsCurrent({ ...input, state: current })).toBe(true);
+
+    const pending = pendingSelectedRefreshState().value;
+    expect(pendingDeliveryReviewFixAuthorityIsCurrent({ ...input, state: pending })).toBe(true);
+
+    const wrongBreak = {
+      ...pending,
+      members: pending.members.map((member, index) => index === 1 && member.coordinates !== null
+        ? { ...member, coordinates: { ...member.coordinates, base: "7".repeat(40) } }
+        : member),
+    };
+    expect(pendingDeliveryReviewFixAuthorityIsCurrent({ ...input, state: wrongBreak })).toBe(false);
+
+    const refreshed = {
+      ...pending,
+      members: pending.members.map((member, index) => index === 1 && member.coordinates !== null
+        ? { ...member, coordinates: { ...member.coordinates, base: pending.members[0]!.coordinates!.head } }
+        : member),
+    };
+    expect(pendingDeliveryReviewFixAuthorityIsCurrent({ ...input, state: refreshed })).toBe(false);
   });
 
   it("binds pending verification and its acknowledgement to the exact terminal tree", () => {

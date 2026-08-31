@@ -2662,6 +2662,11 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               exactly one approved hosted member response. The existing disposition index and Delivery State supply
               authority; no selector input, task manufactured from a finding, record family, ledger, workflow engine,
               quality authority, or convergence policy was added.
+            - _Post-publication correction:_ live Member 1 dogfooding proved that selected-member publication advances
+              canonical state beyond the response's reviewed head before dependent refresh. Cursorless re-entry now
+              retains that response only when the first dependent still names the exact reviewed head and the selected
+              member is the sole chain break; arbitrary movement and an already-refreshed chain refuse. The production
+              controller and a built-CLI E2E both project the exact dependent-suffix refresh from this state.
             - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
               bounded authority-composition repair adds no third pass, and the primary walk retains judgment over the
               exact delta.

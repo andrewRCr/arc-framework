@@ -73,6 +73,28 @@ export function selectPendingDeliveryReviewFixAuthority(input: {
   };
 }
 
+/**
+ * Check whether one approved response still names the current correction position.
+ *
+ * @param input - Selected member, reviewed head, and current canonical delivery state.
+ * @returns True for the reviewed head itself or its exact published-but-unrefreshed chain break.
+ */
+export function pendingDeliveryReviewFixAuthorityIsCurrent(input: {
+  readonly selectedDeliverableId: string;
+  readonly reviewedHead: string;
+  readonly state: DeliveryStateV1;
+}): boolean {
+  const selectedIndex = input.state.members.findIndex(
+    ({ deliverableId }) => deliverableId === input.selectedDeliverableId,
+  );
+  if (selectedIndex < 0) return false;
+  const selected = input.state.members[selectedIndex];
+  if (selected?.coordinates?.head === input.reviewedHead) return true;
+  const dependent = input.state.members[selectedIndex + 1];
+  return dependent?.coordinates?.base === input.reviewedHead
+    && hasExactPendingSelectedRefresh(input.state, input.selectedDeliverableId);
+}
+
 type VerificationResult = {
   readonly applicability: "targeted" | "focused" | "full";
   readonly target: { readonly head: string; readonly tree: string };

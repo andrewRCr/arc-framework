@@ -121,6 +121,7 @@ import {
 import { projectDeliveryReviewFixVerificationContinuation } from
   "../lib/delivery/review-fix-verification.js";
 import {
+  pendingDeliveryReviewFixAuthorityIsCurrent,
   projectDeliveryReviewFixContinuation,
   selectPendingDeliveryReviewFixAuthority,
 } from
@@ -1439,7 +1440,11 @@ async function executeDeliveryCommand(
           ({ deliverableId }) => deliverableId === selection.selectedDeliverableId,
         );
         if (planMembers.length !== 1 || stateMembers.length !== 1
-          || stateMembers[0]?.coordinates?.head !== selection.reviewedHead) {
+          || !pendingDeliveryReviewFixAuthorityIsCurrent({
+            selectedDeliverableId: selection.selectedDeliverableId,
+            reviewedHead: selection.reviewedHead,
+            state: stateRead.value.value,
+          })) {
           return { status: "refused", reason: "review-fix-response-stale" };
         }
         entry = {
