@@ -43,6 +43,10 @@ export interface DeliveryDischargeTargetBinding {
   readonly planId: string;
   readonly deliverableId: string;
   readonly workUnitId: string;
+  readonly position: number;
+  readonly memberCount: number;
+  readonly chunkKey: string;
+  readonly title: string;
   readonly ref: string | null;
   readonly providerId: string;
   readonly changeRequestId: string;

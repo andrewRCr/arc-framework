@@ -11,6 +11,7 @@ import {
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
+  parseIntegrationBoundaryLocus,
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
   projectCorrectiveDeliveryReviewBoundary,
@@ -115,7 +116,37 @@ describe("integration boundary locus", () => {
       locus: "hosted-review-pending",
       nextAction: {
         kind: "continue-hosted-review",
-        command: "arc review status --target '{targetRef}' --json",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
+      },
+    });
+  });
+
+  it("normalizes the exact legacy delivery placeholder during a persisted-boundary read", () => {
+    const current = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+    if (current.nextAction.kind !== "continue-hosted-review") {
+      throw new Error("expected delivery continuation");
+    }
+    const legacy = {
+      ...current,
+      nextAction: {
+        kind: "continue-hosted-review" as const,
+        command: "arc review status --target '{targetRef}' --json" as const,
+        interactionText: current.nextAction.interactionText,
+      },
+    };
+
+    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
+      nextAction: {
+        kind: "continue-hosted-review",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
       },
     });
   });
@@ -158,7 +189,8 @@ describe("integration boundary locus", () => {
       locus: "hosted-review-pending",
       nextAction: {
         kind: "continue-hosted-review",
-        command: "arc review status --target '{targetRef}' --json",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
         interactionText: "Resume the retained delivery-member review conjunction.",
       },
       policy: null,
@@ -316,7 +348,8 @@ describe("integration boundary locus", () => {
       ...singleton,
       nextAction: {
         kind: "continue-hosted-review",
-        command: "arc review status --target '{targetRef}' --json",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
         interactionText: "Resume hosted review.",
       },
     }).success).toBe(false);

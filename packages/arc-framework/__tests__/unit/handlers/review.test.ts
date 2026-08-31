@@ -737,6 +737,45 @@ describe("handleReviewResolve", () => {
 });
 
 describe("handleReviewStatus", () => {
+  it("routes a work-unit cursor through joined delivery status without requiring a target", async () => {
+    const output: string[] = [];
+    const resolve = vi.fn();
+    const resolveWorkUnit = vi.fn(async (_root, request) => ({
+      schemaVersion: 1 as const,
+      mode: "review-status" as const,
+      target: {
+        repository: "owner/repo",
+        headRef: "delivery/example/member-1",
+        headSha: "c".repeat(40),
+      },
+      requiredChecks: "green" as const,
+      routedObligation: {
+        state: "review-required" as const,
+        detail: `Member one is selected for ${request.workUnitId}.`,
+      },
+      currentBaseOid: "b".repeat(40),
+      state: "review-required" as const,
+      nextAction: "run-review" as const,
+    }));
+
+    await handleReviewStatus({ workUnit: "example", json: true }, undefined, {
+      resolveRoot: () => "/repo",
+      resolve,
+      resolveWorkUnit,
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(resolveWorkUnit).toHaveBeenCalledWith("/repo", { workUnitId: "example" });
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      target: { headRef: "delivery/example/member-1" },
+      state: "review-required",
+      nextAction: "run-review",
+      routedObligation: { detail: "Member one is selected for example." },
+    });
+  });
+
   it("passes an exact ceiling override into status composition", async () => {
     const statusTarget = {
       repository: "owner/repo",

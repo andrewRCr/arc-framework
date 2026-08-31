@@ -168,6 +168,15 @@ function progress(
   return async (headSha) => entries[headSha] ?? { status: "unrecorded" };
 }
 
+function earlierAttempt<T extends { readonly sourceId: string }>(input: T) {
+  return {
+    operationId: `lane-progress/${input.sourceId}`,
+    attemptId: `attempt-${input.sourceId}`,
+    updatedAt: "2026-08-27T12:00:00.000Z",
+    ...input,
+  };
+}
+
 describe("hosted reservation discharge", () => {
   it("does not discharge the work unit from a top-only clean review", () => {
     expect(allHostedReservationTargetsDischarged([
@@ -205,11 +214,13 @@ describe("hosted reservation discharge", () => {
               planId: PLAN_ID, deliverableId: MEMBER_ONE,
               workUnitId: "delivery", ref: null,
               providerId: "github", changeRequestId: "41", base: oid("1"), head: oid("a"),
+              position: 1, memberCount: 2, chunkKey: "member-1", title: "Member 1",
             },
             {
               planId: PLAN_ID, deliverableId: MEMBER_TWO,
               workUnitId: "delivery", ref: null,
               providerId: "github", changeRequestId: "42", base: oid("2"), head: oid("b"),
+              position: 2, memberCount: 2, chunkKey: "member-2", title: "Member 2",
             },
           ],
         }),
@@ -223,6 +234,10 @@ describe("hosted reservation discharge", () => {
           pullRequest: 41,
           baseRevision: oid("1"),
           headSha: oid("a"),
+          position: 1,
+          memberCount: 2,
+          chunkKey: "member-1",
+          title: "Member 1",
           vehicle: {
             kind: "delivery-member",
             planId: PLAN_ID,
@@ -236,6 +251,10 @@ describe("hosted reservation discharge", () => {
           pullRequest: 42,
           baseRevision: oid("2"),
           headSha: oid("b"),
+          position: 2,
+          memberCount: 2,
+          chunkKey: "member-2",
+          title: "Member 2",
           vehicle: {
             kind: "delivery-member",
             planId: PLAN_ID,
@@ -284,6 +303,10 @@ describe("hosted reservation discharge", () => {
             changeRequestId: "41",
             base: oid("1"),
             head: oid("a"),
+            position: 1,
+            memberCount: 1,
+            chunkKey: "member-1",
+            title: "Member 1",
           }],
         }),
       },
@@ -312,6 +335,10 @@ describe("hosted reservation discharge", () => {
             changeRequestId: "41",
             base: oid("1"),
             head: oid("a"),
+            position: 1,
+            memberCount: 1,
+            chunkKey: "member-1",
+            title: "Member 1",
           }],
         }),
       },
@@ -340,6 +367,10 @@ describe("hosted reservation discharge", () => {
             changeRequestId: "41",
             base: oid("1"),
             head: oid("a"),
+            position: 1,
+            memberCount: 1,
+            chunkKey: "member-1",
+            title: "Member 1",
           }],
         }),
       },
@@ -361,11 +392,29 @@ describe("hosted reservation discharge", () => {
     })).resolves.toMatchObject({ discharged: true });
   });
 
-  it("discharges from a verdict the reserved source returned earlier in the span", async () => {
+  it("discharges from a clean verdict the reserved source returned earlier in the span", async () => {
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
       span: [oid("a"), oid("b")],
       target: target(oid("b")),
+      readLaneProgress: progress({
+        [oid("a")]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [attempt(oid("a"), "coderabbit-pr", "clean")],
+        },
+      }),
+    });
+
+    expect(result.discharged).toBe(true);
+    expect(result.detail).toBe("Hosted source `coderabbit-pr`.");
+  });
+
+  it("keeps a member outstanding after findings settle so the next pass can converge", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("a")],
+      target: target(oid("a")),
       readLaneProgress: progress({
         [oid("a")]: {
           status: "recorded",
@@ -375,8 +424,11 @@ describe("hosted reservation discharge", () => {
       }),
     });
 
-    expect(result.discharged).toBe(true);
-    expect(result.detail).toBe("Hosted source `coderabbit-pr`.");
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: "coderabbit-pr",
+      detail: expect.stringContaining("has not produced a settled review"),
+    });
   });
 
   it("does not discharge a complete member obligation from incremental hosted coverage", async () => {
@@ -680,13 +732,13 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async (sourceId) => ({
         status: "complete",
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId,
           outcome: sourceId === "coderabbit-pr" ? "rate-limited" : "clean",
           requestedCoverage: "complete",
           effectiveCoverage: sourceId === "coderabbit-pr" ? null : "complete",
           applicability: "retain-prior-attempt",
-        }],
+        })],
       }),
     });
 
@@ -705,13 +757,13 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async () => ({
         status: "complete",
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId: "coderabbit-pr",
           outcome: "clean",
           requestedCoverage: "incremental",
           effectiveCoverage: "complete",
           applicability: "retain-prior-attempt",
-        }],
+        })],
       }),
     });
 
@@ -754,14 +806,14 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async () => ({
         status: "complete",
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId: "coderabbit-pr",
           outcome: "findings",
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
           applicability: "retain-prior-attempt",
           responsePlan,
-        }],
+        })],
       }),
     });
 
@@ -781,14 +833,14 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async () => ({
         status: "complete",
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId: "delegated-agent",
           outcome: "findings",
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
           applicability: "retain-prior-attempt",
           localResumeAction: { schemaVersion: 1, operationId: "local-review-prior" },
-        }],
+        })],
       }),
     });
 
@@ -832,14 +884,14 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async () => ({
         status: "complete",
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId: "coderabbit-pr",
           outcome: "findings",
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
           applicability: "request-review",
           responsePlan,
-        }],
+        })],
       }),
     });
 
@@ -882,14 +934,14 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async (sourceId) => ({
         status: "complete",
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId,
           outcome: sourceId === "coderabbit-pr" ? "settled-findings" : "findings",
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
           applicability: sourceId === "coderabbit-pr" ? "request-review" : "retain-prior-attempt",
           ...(sourceId === "codex-pr" ? { responsePlan } : {}),
-        }],
+        })],
       }),
     });
 
@@ -915,13 +967,13 @@ describe("hosted reservation discharge", () => {
       }),
       readEarlierAttemptApplicability: async () => ({
         status: "complete",
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId: "coderabbit-pr",
           outcome: "settled-findings",
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
           applicability: "request-review",
-        }],
+        })],
       }),
     });
 
@@ -935,13 +987,13 @@ describe("hosted reservation discharge", () => {
     for (const readEarlierAttemptApplicability of [
       async () => ({
         status: "complete" as const,
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId: "coderabbit-pr",
           outcome: "rate-limited",
           requestedCoverage: "complete" as const,
           effectiveCoverage: null,
           applicability: "stop" as const,
-        }],
+        })],
       }),
       async () => ({ status: "unavailable" as const, detail: "Operation snapshot is incomplete." }),
       async () => ({ status: "complete" as const, attempts: [] }),
@@ -965,14 +1017,14 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async () => ({
         status: "complete",
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId: "coderabbit-pr",
           outcome: "rate-limited",
           requestedCoverage: "complete",
           effectiveCoverage: null,
           applicability: "stop",
           projection,
-        }],
+        })],
       }),
     })).resolves.toMatchObject({
       discharged: false,
@@ -989,13 +1041,13 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({}),
       readEarlierAttemptApplicability: async () => ({
         status: "complete",
-        attempts: [{
+        attempts: [earlierAttempt({
           sourceId: "coderabbit-pr",
           outcome: "rate-limited",
           requestedCoverage: "complete",
           effectiveCoverage: null,
           applicability: "request-review",
-        }],
+        })],
       }),
     })).resolves.toMatchObject({
       discharged: false,

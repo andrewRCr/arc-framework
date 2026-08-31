@@ -31,7 +31,21 @@ export const ContinuePrePublicationActionSchema = z.strictObject({
 });
 export const ContinueHostedReviewActionSchema = z.strictObject({
   kind: z.literal("continue-hosted-review"),
+  workUnitId: SlugSchema,
   ...ActionFields,
+}).superRefine((action, context) => {
+  if (action.command !== `arc review status --work-unit ${action.workUnitId} --json`) {
+    context.addIssue({
+      code: "custom",
+      path: ["command"],
+      message: "the hosted-review action must be self-contained for its work unit",
+    });
+  }
+});
+const LegacyContinueHostedReviewActionSchema = z.strictObject({
+  kind: z.literal("continue-hosted-review"),
+  command: z.literal("arc review status --target '{targetRef}' --json"),
+  interactionText: z.string().trim().min(1),
 });
 export const RunConvergenceVerificationActionSchema = z.strictObject({
   kind: z.literal("run-convergence-verification"),
@@ -173,6 +187,14 @@ export const HostedReviewPendingBoundarySchema = z.strictObject({
       message: "the hosted-review action must match the reservation target kind",
     });
   }
+  if (boundary.nextAction.kind === "continue-hosted-review"
+    && boundary.nextAction.workUnitId !== boundary.workUnit) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextAction", "workUnitId"],
+      message: "the hosted-review action must identify the boundary work unit",
+    });
+  }
   if (boundary.deliveryContinuation !== undefined
     && (!delivery
       || boundary.reservation.target.kind !== "delivery"
@@ -183,6 +205,19 @@ export const HostedReviewPendingBoundarySchema = z.strictObject({
       message: "the delivery continuation must match the carried delivery reservation",
     });
   }
+});
+
+// Boundaries written before work-unit status existed carried an unresolvable target placeholder.
+// This read-only migration schema stays outside the registered canonical schema because transforms
+// cannot be represented in JSON Schema.
+const LegacyHostedReviewPendingBoundarySchema = z.strictObject({
+  ...BoundaryCommonShape,
+  mode: z.literal("integration-boundary"),
+  locus: z.literal("hosted-review-pending"),
+  nextAction: LegacyContinueHostedReviewActionSchema,
+  policy: z.null(),
+  reservation: StandardReviewReservationV1Schema,
+  deliveryContinuation: DeliveryPublicReviewContinuationV1Schema.optional(),
 });
 
 export const IntegrationBoundaryLocusSchema = z.union([
@@ -197,7 +232,18 @@ export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSc
 
 /** Parse one structural integration boundary. */
 export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBoundaryLocus {
-  return IntegrationBoundaryLocusSchema.parse(input);
+  const canonical = IntegrationBoundaryLocusSchema.safeParse(input);
+  if (canonical.success) return canonical.data;
+  const legacy = LegacyHostedReviewPendingBoundarySchema.safeParse(input);
+  if (!legacy.success) return IntegrationBoundaryLocusSchema.parse(input);
+  return HostedReviewPendingBoundarySchema.parse({
+    ...legacy.data,
+    nextAction: {
+      ...legacy.data.nextAction,
+      workUnitId: legacy.data.workUnit,
+      command: `arc review status --work-unit ${legacy.data.workUnit} --json`,
+    },
+  });
 }
 
 const PublicationBoundaryInputSchema = z.strictObject({
@@ -320,7 +366,7 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
           ? "continue-pre-publication-review"
           : "continue-publication",
       command: deliveryHosted
-        ? "arc review status --target '{targetRef}' --json"
+        ? `arc review status --work-unit ${value.workUnit} --json`
         : hosted
           ? `arc review pre-publication ${value.workUnit} --json`
         : `git push -u origin ${value.branch}`,
@@ -329,6 +375,7 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
         : hosted
           ? "Continue the reserved hosted standard review."
         : "Resume publication at the idempotent push, then resolve or open the change request.",
+      ...(deliveryHosted ? { workUnitId: value.workUnit } : {}),
     },
     policy: null,
     reservation: value.reservation,
@@ -378,7 +425,8 @@ export function projectCorrectiveDeliveryReviewBoundary(input: {
     locus: "hosted-review-pending",
     nextAction: {
       kind: "continue-hosted-review",
-      command: "arc review status --target '{targetRef}' --json",
+      workUnitId: workUnit,
+      command: `arc review status --work-unit ${workUnit} --json`,
       interactionText: "Resume the retained delivery-member review conjunction.",
     },
     policy: null,
