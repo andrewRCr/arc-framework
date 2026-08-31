@@ -11,10 +11,10 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:333f786753dbb76e6e6b09e7b9a78d04b3793dc8aaa4999dc244908c79b5d639`
+- **Candidate:** `sha256:cfb49e78f4789a7f38980ea516b36479d79ff2c803237c97e85bc3bd179855da`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 9.1.R.f — Revalidate the corrective transition matrix at work-unit scope
+- **Last Completed:** Task 9.1.R.g — Revalidate stale-continuation recovery at work-unit scope
 - **Next Task:** [none]
 - **Blockers:** [none]
 
