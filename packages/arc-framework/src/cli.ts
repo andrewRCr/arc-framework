@@ -1530,6 +1530,7 @@ reviewCmd
   .option("--work-unit <slug>", "Resolve the live stacked-delivery review continuation")
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
   .option("--coverage <coverage>", "Requested hosted coverage (complete or incremental)")
+  .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
   .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

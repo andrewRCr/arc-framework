@@ -107,6 +107,7 @@ export async function readRoutedObligation(
   judgment?: {
     readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
     readonly coverage?: HostedReviewCoverage;
+    readonly sourceId?: string;
   },
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
@@ -301,6 +302,9 @@ export async function readRoutedObligation(
           ...(judgment?.ceilingOverride === undefined
             ? {}
             : { ceilingOverride: judgment.ceilingOverride }),
+          ...(judgment?.sourceId === undefined
+            ? {}
+            : { invocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
         });
         if (admission.status === "unavailable") {
           return { state: "blocked", detail: admission.detail };
@@ -309,6 +313,9 @@ export async function readRoutedObligation(
           ? discharge
           : {
               ...discharge,
+              ...(admission.policy.state === "ready"
+                ? { nextSource: admission.policy.payload.sourceId }
+                : {}),
               requestAdmission: admission.policy,
               ...(judgment?.ceilingOverride === undefined
                 ? {}
@@ -319,6 +326,9 @@ export async function readRoutedObligation(
         targets: deliveryTargets,
         discharges: composedDischarges,
         ...(judgment?.coverage === undefined ? {} : { requestCoverage: judgment.coverage }),
+        ...(judgment?.sourceId === undefined
+          ? {}
+          : { requestInvocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
         applicabilityContext: {
           workUnitId: workUnit,
           expectedRecordVersion: versionedRecord.version,
@@ -457,6 +467,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
   readonly workUnitId: string;
   readonly ceilingOverride?: ReviewStatusTargetInput["ceilingOverride"];
   readonly coverage?: HostedReviewCoverage;
+  readonly sourceId?: string;
 }): Promise<ReviewStatusResult> {
   const workUnitId = SlugSchema.parse(input.workUnitId);
   const boundary = await readSubmissionBoundary(input.cwd, workUnitId);
@@ -499,11 +510,12 @@ export async function resolveReviewStatusForWorkUnit(input: {
     terminalPullRequest,
     memberLookup,
     undefined,
-    input.ceilingOverride === undefined && input.coverage === undefined
+    input.ceilingOverride === undefined && input.coverage === undefined && input.sourceId === undefined
       ? undefined
       : {
           ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
           ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
+          ...(input.sourceId === undefined ? {} : { sourceId: input.sourceId }),
         },
   );
   let selectedTarget = anchor;

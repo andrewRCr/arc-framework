@@ -93,6 +93,7 @@ export interface HostedRequestEnvelope {
   provider: HostedProviderId;
   coverage: HostedReviewCoverage;
   vehicle?: HostedRequestVehicle;
+  invocation?: { readonly mode: "force"; readonly sourceId: string };
   ceilingOverride?: ReviewCeilingOverride;
 }
 
@@ -102,6 +103,10 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
   provider: HostedProviderIdSchema,
   coverage: HostedReviewCoverageSchema,
   vehicle: HostedRequestVehicleSchema.optional(),
+  invocation: z.strictObject({
+    mode: z.literal("force"),
+    sourceId: ReviewSourceIdSchema,
+  }).readonly().optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
 }).superRefine((request, context) => {
   if (request.ceilingOverride !== undefined && request.vehicle?.kind !== "delivery-member") {
@@ -109,6 +114,20 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
       code: "custom",
       path: ["ceilingOverride"],
       message: "a hosted ceiling override requires one exact delivery-member vehicle",
+    });
+  }
+  if (request.invocation !== undefined && request.vehicle?.kind !== "delivery-member") {
+    context.addIssue({
+      code: "custom",
+      path: ["invocation"],
+      message: "a hosted source invocation requires one exact delivery-member vehicle",
+    });
+  }
+  if (request.invocation !== undefined && request.invocation.sourceId !== request.provider) {
+    context.addIssue({
+      code: "custom",
+      path: ["invocation", "sourceId"],
+      message: "hosted source invocation must select the request provider",
     });
   }
 });

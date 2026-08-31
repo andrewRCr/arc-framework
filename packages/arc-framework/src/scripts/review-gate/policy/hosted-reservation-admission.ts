@@ -88,16 +88,17 @@ export function projectHostedReservationPolicyProgress(input: {
     for (const [attemptIndex, attempt] of state.attempts.entries()) {
       const hosted = attempt.hosted;
       const local = attempt.local;
-      const hostedMatches = state.changeRequestId === `pull/${String(input.target.pullRequest)}`
+      const hostedIdentityMatches = state.changeRequestId === `pull/${String(input.target.pullRequest)}`
         && hosted !== undefined
         && hosted.vehicle !== undefined
-        && (hosted.requestedCoverage === "complete" || hosted.effectiveCoverage === "complete")
         && hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
         && hosted.target.pullRequest === input.target.pullRequest
         && hosted.target.headSha === state.headSha
         && hosted.reviewTarget.repositoryId === input.repositoryId
         && hosted.reviewTarget.headSha === state.headSha
         && sameDeliveryReviewMemberIdentity(input.vehicle, hosted.vehicle);
+      const hostedCompleteMatches = hostedIdentityMatches
+        && (hosted.requestedCoverage === "complete" || hosted.effectiveCoverage === "complete");
       const localMatches = state.changeRequestId === null
         && local?.deliveryAdmission !== undefined
         && local.vehicle.kind === "delivery-member"
@@ -107,7 +108,7 @@ export function projectHostedReservationPolicyProgress(input: {
         && local.target.kind === "delivery-member"
         && local.target.repositoryId === input.repositoryId
         && local.target.headSha === state.headSha;
-      if (!hostedMatches && !localMatches) continue;
+      if (!hostedIdentityMatches && !localMatches) continue;
       historyTimeline.push({
         operationId: state.operationId,
         attemptIndex,
@@ -129,7 +130,7 @@ export function projectHostedReservationPolicyProgress(input: {
         completedPasses += 1;
       }
       if (state.headSha === input.target.headSha
-        && (localMatches || (hosted !== undefined
+        && (localMatches || (hostedCompleteMatches
           && sameDeliveryReviewMemberVehicle(input.vehicle, hosted.vehicle)))) {
         currentTimeline.push({
           updatedAt: state.updatedAt,
@@ -175,6 +176,7 @@ export function resolveHostedReservationPolicy(input: {
   readonly vehicle: DeliveryReviewMemberVehicle;
   readonly maxPasses: number;
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
+  readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
 }): HostedReservationPolicyResolution {
   const progress = projectHostedReservationPolicyProgress(input);
@@ -201,6 +203,7 @@ export function resolveHostedReservationPolicy(input: {
       maxPasses: input.maxPasses,
       completedPasses: progress.completedPasses,
       attempts,
+      ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
       ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
     }),
   };
@@ -216,6 +219,7 @@ export function assertHostedReservationPolicyAdmission(input: {
   readonly provider: string;
   readonly maxPasses: number;
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
+  readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
 }): void {
   const resolution = resolveHostedReservationPolicy(input);
