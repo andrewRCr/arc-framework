@@ -285,6 +285,25 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("returns to authoring when a clean changed locus still needs its required ancestor", () => {
+    expect(classifyDeliveryReviewFixAuthoringReadiness({
+      locus: {
+        kind: "candidate",
+        ref: "refs/arc/delivery-candidates/plan/member",
+        checkoutPath: "/repo/.git/arc/delivery-gates/plan/member",
+      },
+      publishedHead: "a".repeat(40),
+      observed: { head: "b".repeat(40), tree: "c".repeat(40), trackedDirty: false },
+      requiredAncestorHeads: ["d".repeat(40)],
+      ancestry: [{ ancestor: "d".repeat(40), status: "not-ancestor" }],
+    })).toEqual({
+      status: "authoring-required",
+      kind: "candidate",
+      ref: "refs/arc/delivery-candidates/plan/member",
+      checkoutPath: "/repo/.git/arc/delivery-gates/plan/member",
+    });
+  });
+
   it("refuses when the exact authoring checkout has moved away from its bound ref", () => {
     expect(classifyDeliveryReviewFixAuthoringReadiness({
       locus: { kind: "candidate", ref: "refs/heads/candidate", checkoutPath: "/repo/gate" },

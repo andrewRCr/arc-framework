@@ -205,13 +205,14 @@ export function classifyDeliveryReviewFixAuthoringReadiness(
   }
   for (const required of input.requiredAncestorHeads) {
     const matches = input.ancestry.filter(({ ancestor }) => ancestor === required);
-    if (matches.length !== 1 || matches[0]?.status !== "ancestor") {
-      return {
-        status: "refused",
-        reason: matches[0]?.status === "not-ancestor"
-          ? "authoring-required-ancestor-missing"
-          : "authoring-ancestry-unavailable",
-      };
+    if (matches.length !== 1) {
+      return { status: "refused", reason: "authoring-ancestry-unavailable" };
+    }
+    if (matches[0]?.status === "not-ancestor") {
+      return { status: "authoring-required", ...input.locus };
+    }
+    if (matches[0]?.status !== "ancestor") {
+      return { status: "refused", reason: "authoring-ancestry-unavailable" };
     }
   }
   return {
