@@ -29,6 +29,7 @@ import { proveGitDeliveryContribution } from "../../lib/delivery/git-contributio
 import { classifyDeliveryTerminalDrift } from "../../lib/delivery/terminal-integration.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import { resolveChangeRequest } from "../review-gate/change-request.js";
 import { lifecycleArtifactFacts, type ReviewReadinessFact } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
@@ -568,6 +569,7 @@ export function createIntegrationCheckpointDependencies(input: {
           baseRevision: terminal.coordinates.base,
         },
         delivery: deliveryLookup,
+        host: new GhDeliveryHostPort(hostedGhRunner),
       });
       if (targetResolution.status !== "resolved" || targetResolution.kind !== "delivery"
         || targetResolution.targets.length !== members.length) {

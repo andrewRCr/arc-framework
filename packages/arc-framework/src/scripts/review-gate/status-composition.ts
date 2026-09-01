@@ -1,6 +1,7 @@
 /** Production composition for exact-target review status. */
 
 import { readConfigSettings } from "../../lib/config/status-reader.js";
+import type { DeliveryHostPort } from "../../lib/delivery/host.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
@@ -33,6 +34,7 @@ import {
   type ChangeRequestTargetRef,
 } from "./change-request.js";
 import { createGhChangeRequestResolutionPort } from "./hosts/github/change-request.js";
+import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import { aggregateChecks } from "./checks-await.js";
 import { createGhRequiredChecksPort } from "./hosts/github/checks-await.js";
 import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lookup.js";
@@ -113,6 +115,7 @@ export async function readRoutedObligation(
     readonly coverage?: HostedReviewCoverage;
     readonly sourceId?: string;
   },
+  host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
     headRef: target.headRef,
@@ -209,6 +212,7 @@ export async function readRoutedObligation(
           baseRevision: record.attestation.baseRevision,
         },
         delivery: memberLookup,
+        host,
       });
       if (resolution.status !== "resolved" || resolution.kind !== "delivery") {
         return { state: "blocked", detail: "The retained delivery-member review targets are unavailable." };

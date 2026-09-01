@@ -6,6 +6,7 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
@@ -208,6 +209,7 @@ export async function resolveHostedReservationTargets(input: {
   readonly reservation: StandardReviewReservationV1 | null;
   readonly singleton: HostedReservationTarget;
   readonly delivery: DeliveryDischargeTargetLookup;
+  readonly host: Pick<DeliveryHostPort, "readRequest">;
 }): Promise<HostedReservationTargetResolution> {
   try {
     const marker = input.reservation?.target;
@@ -229,6 +231,8 @@ export async function resolveHostedReservationTargets(input: {
       return { status: "unavailable", targets: [] };
     }
     const targets: HostedReservationTarget[] = [];
+    const requestIds = new Set<string>();
+    let baseRevision = input.singleton.baseRevision;
     for (const binding of resolved.targets) {
       if (marker?.kind === "delivery"
         && (binding.planId !== marker.planId || binding.workUnitId !== marker.workUnitId)) {
@@ -239,11 +243,30 @@ export async function resolveHostedReservationTargets(input: {
       }
       const pullRequest = Number(binding.changeRequestId);
       if (!Number.isSafeInteger(pullRequest)) return { status: "unavailable", targets: [] };
+      const requestKey = `${binding.providerId}:${binding.changeRequestId}`;
+      if (requestIds.has(requestKey)) return { status: "unavailable", targets: [] };
+      requestIds.add(requestKey);
+      const observed = await input.host.readRequest(input.singleton.repository, {
+        providerId: binding.providerId,
+        changeRequestId: binding.changeRequestId,
+      });
+      if (observed.status !== "observed") return { status: "unavailable", targets: [] };
+      const request = observed.request;
+      const expectedHeadRef = binding.ref?.replace(/^refs\/heads\//u, "") ?? null;
+      if (request.binding.providerId !== binding.providerId
+        || request.binding.changeRequestId !== binding.changeRequestId
+        || request.repository.toLowerCase() !== input.singleton.repository.toLowerCase()
+        || request.headRepository.toLowerCase() !== input.singleton.repository.toLowerCase()
+        || request.state === "closed"
+        || (expectedHeadRef !== null && request.headRef !== expectedHeadRef)
+        || (request.state === "open" && request.headSha !== binding.head)) {
+        return { status: "unavailable", targets: [] };
+      }
       targets.push({
         repository: input.singleton.repository,
         pullRequest,
-        headSha: binding.head,
-        baseRevision: binding.base,
+        headSha: request.headSha,
+        baseRevision,
         position: binding.position,
         memberCount: binding.memberCount,
         chunkKey: binding.chunkKey,
@@ -253,9 +276,10 @@ export async function resolveHostedReservationTargets(input: {
           planId: binding.planId,
           deliverableId: binding.deliverableId,
           workUnitId: binding.workUnitId,
-          head: binding.head,
+          head: request.headSha,
         }),
       });
+      baseRevision = request.headSha;
     }
     return { status: "resolved", kind: "delivery", targets };
   } catch {

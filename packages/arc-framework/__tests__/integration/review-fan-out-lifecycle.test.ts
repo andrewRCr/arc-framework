@@ -19,6 +19,7 @@ import {
   handleReviewTerminusAccept,
 } from "../../src/handlers/review.js";
 import { canonicalDigest, canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import type { DeliveryHostPort } from "../../src/lib/delivery/host.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from
   "../../src/lib/delivery/local-stores.js";
 import {
@@ -303,6 +304,40 @@ interface FanOutHarness {
   movedFirstTree: string;
   currentSecond: string;
   currentSecondTree: string;
+}
+
+function deliveryHost(
+  harness: Pick<FanOutHarness, "root" | "plan" | "states">,
+): Pick<DeliveryHostPort, "readRequest"> {
+  return {
+    readRequest: async (requestedRepository, binding) => {
+      const record = await harness.states.read(harness.plan.planId);
+      if (record.status !== "ok" || record.value === null) return { status: "absent" };
+      const index = record.value.value.members.findIndex((member) => (
+        member.changeRequest?.providerId === binding.providerId
+        && member.changeRequest.changeRequestId === binding.changeRequestId
+      ));
+      const member = record.value.value.members[index];
+      if (member?.ref === null || member?.ref === undefined) return { status: "absent" };
+      const predecessorRef = index === 0
+        ? record.value.value.target?.ref
+        : record.value.value.members[index - 1]?.ref;
+      if (predecessorRef === null || predecessorRef === undefined) return { status: "absent" };
+      return {
+        status: "observed",
+        request: {
+          binding,
+          repository: requestedRepository,
+          headRepository: requestedRepository,
+          headRef: member.ref.replace(/^refs\/heads\//u, ""),
+          headSha: await git(harness.root, ["rev-parse", member.ref]),
+          baseRef: predecessorRef.replace(/^refs\/heads\//u, ""),
+          state: "open",
+          draft: false,
+        },
+      };
+    },
+  };
 }
 
 async function installCandidate(
@@ -608,7 +643,7 @@ async function moveDeliveryTargets(harness: FanOutHarness): Promise<void> {
 }
 
 async function statusThroughHandler(
-  harness: Pick<FanOutHarness, "root" | "exec" | "baseHead">,
+  harness: Pick<FanOutHarness, "root" | "exec" | "baseHead" | "plan" | "states">,
   target: { repository: string; headRef: string; headSha: string },
   ceilingOverride?: ReviewCeilingOverride,
   coverage?: HostedReviewCoverage,
@@ -637,8 +672,9 @@ async function statusThroughHandler(
             ? undefined
             : {
                 ...(admittedOverride === undefined ? {} : { ceilingOverride: admittedOverride }),
-                ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
-              },
+              ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
+            },
+          deliveryHost(harness),
         ),
         currentBaseOid: harness.baseHead,
         baseContained: true,
@@ -1065,6 +1101,20 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     headRefName: "prior-top",
     headRefOid: harness.priorSecond,
   }]);
+  const observedRequest = (
+    pullRequest: number,
+    headRef: string,
+    headSha: string,
+    baseRef: string,
+  ) => JSON.stringify({
+    number: pullRequest,
+    state: "open",
+    merged: false,
+    draft: false,
+    merge_commit_sha: null,
+    head: { ref: headRef, sha: headSha, repo: { full_name: repository } },
+    base: { ref: baseRef, repo: { full_name: repository } },
+  });
   const comment = (pullRequest: number, body: string) => JSON.stringify({
     node_id: `IC_${String(pullRequest)}`,
     html_url: `https://example.test/comment/${String(pullRequest)}`,
@@ -1087,12 +1137,20 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     "    esac",
     "    ;;",
     "  api:repos/owner/repository/pulls/41)",
-    `    : > '${providerCalled}'`,
-    `    printf '%s\\n' '${JSON.stringify({ head: { sha: harness.oldFirst } })}'`,
+    `    printf '%s\\n' '${observedRequest(
+      41,
+      "delivery/delivery-plan-record/first",
+      harness.oldFirst,
+      "main",
+    )}'`,
     "    ;;",
     "  api:repos/owner/repository/pulls/42)",
-    `    : > '${providerCalled}'`,
-    `    printf '%s\\n' '${JSON.stringify({ head: { sha: harness.priorSecond } })}'`,
+    `    printf '%s\\n' '${observedRequest(
+      42,
+      "prior-top",
+      harness.priorSecond,
+      "delivery/delivery-plan-record/first",
+    )}'`,
     "    ;;",
     "  api:user)",
     `    : > '${providerCalled}'`,
@@ -1628,6 +1686,7 @@ describe("hosted review fan-out lifecycle", () => {
       memberLookup,
       harness.baseHead,
       { sourceId: "codex-pr" },
+      deliveryHost(harness),
     );
     expect(selected).toMatchObject({
       state: "review-required",
@@ -1654,6 +1713,8 @@ describe("hosted review fan-out lifecycle", () => {
       42,
       memberLookup,
       harness.baseHead,
+      undefined,
+      deliveryHost(harness),
     )).resolves.toMatchObject({
       state: "review-required",
       action: { provider: "coderabbit-pr" },
