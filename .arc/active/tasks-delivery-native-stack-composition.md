@@ -2684,7 +2684,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   unchanged-Candidate renewal cycle. General workflow composition, convergence policy, storage redesign, and
   user-configurable commit autonomy remain with their recorded owners.
 
-    - `[x]` **7.7.R.u Drive the delivery correction to one typed stop**
+    - `[ ]` **7.7.R.u Drive the delivery correction to one typed stop**
 
         - _Goal:_ One selector-free invocation executes the existing deterministic correction tail, resumes after
           interruption without rederivation, and returns only at the closed judgment, review-spend, conflict,
@@ -2738,14 +2738,31 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               and prove contribution-equivalent dependents escape redundant criteria walks while changed dependents
               remain owed.
 
-        - `[ ]` **7.7.R.u.f Prove and revalidate the driven correction boundary** — validate criteria at member scope
+        - `[x]` **7.7.R.u.f Prove and revalidate the driven correction boundary** — validate criteria at member scope
 
-            - Drive one production-style E2E through approved response ownership, selected-member publication,
-              provider refresh, scoped verification, acknowledgment, same-Candidate boundary carry, and unresolved
-              hosted settlement. Re-run the Member 7 criteria walk, reconcile its two open master-checklist criteria,
-              and do not spend a new hosted pass or provider request before this case is green. After task closure,
-              record the next live Member 1 correction as the attended acceptance run rather than creating a review-
-              finding task cursor.
+            - The production-style E2E drives approved response ownership through publication, provider refresh,
+              verification, acknowledgment, same-Candidate boundary carry, and unresolved hosted settlement. The
+              first live drive published Member 7, refreshed the terminal top, and returned one exact verification
+              stop without hosted spend; exact-tree Tier 1 passed. Live acknowledgment then exposed that the record-
+              effect selector rejected the workflow's correctly staged task closure, so the forward amendment below
+              owns final criteria reconciliation and the Member 1 attended acceptance.
+
+        - _Forward amendment (2026-09-01):_ Live acknowledgment proved that machine-owned Candidate/boundary commits
+          could not coexist with the staged correction-task closure required by the task workflow. The exact record
+          commit already uses path-limited `--only` semantics, so unrelated staged content is safe to leave untouched.
+          The resumed acceptance also proved that an older pending verification masked newer exact correction
+          authoring. Reopen the rescue only to select exact record paths from a mixed index, supersede stale
+          verification through the existing authoring-readiness proof, project both repairs through Member 7, and
+          finish the same acceptance; no commit-autonomy, staging-policy, review, or workflow-engine authority is added.
+
+        - `[ ]` **7.7.R.u.g Complete staged-closure acceptance and Member 1 re-entry**
+
+            - _Goal:_ Machine-owned record settlement ignores unrelated staged task content while committing only
+              exact Candidate and boundary projections, while newer clean correction authoring supersedes an older
+              pending verification through the same route and ancestry proof. The driven live correction then reaches
+              scoped verification, acknowledgment, boundary carry, and the retained Member 1 review stop with the task
+              closure still staged. Re-run the Member 7 criteria walk and reconcile its final two master criteria
+              without another hosted pass.
 
 ## **Phase 8:** Record retirement and doctrine
 

@@ -142,7 +142,10 @@ import { settleDeliveryReviewFixRecordEffects } from
   "../lib/delivery/review-fix-record-effects.js";
 import { createDeliveryReviewFixReleaseEffectPorts } from
   "./delivery-review-fix-release-effects.js";
-import { inspectDeliveryPlanLocus } from "../lib/delivery/entry-inspection.js";
+import {
+  inspectDeliveryPlanLocus,
+  type DeliveryEntryInspectionResult,
+} from "../lib/delivery/entry-inspection.js";
 import { validateDeliveryStateAgainstPlan } from "../lib/delivery/state.js";
 import {
   completeDeliverySuffixMutationTail,
@@ -261,6 +264,10 @@ const ReviewFixVerificationSchema = z.strictObject({
     coveredInputs: z.literal("unchanged"),
   }),
 });
+type DeliveryCorrectionRoutingEntry = Extract<
+  DeliveryEntryInspectionResult,
+  { readonly status: "correction-routing-required" }
+>;
 const EligibilityMemberSchema = CandidateSchema.extend(CoordinateSchema.shape);
 const EligibilitySnapshotSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -1567,6 +1574,111 @@ async function executeDeliveryCommand(
         readonly projectionDigest: string;
         readonly residualDigest: string;
       } | undefined;
+      const prepareCorrection = async (correctionEntry: DeliveryCorrectionRoutingEntry) => {
+        const planned = ReviewFixRouteResultSchema.safeParse(await executeDeliveryCommand(
+          "review-fix-plan",
+          {
+            planId: correctionEntry.planId,
+            selectedDeliverableId: correctionEntry.selectedDeliverableId,
+            repository: parsed.repository,
+            remote: parsed.remote,
+            entryMode: "integrating",
+          },
+          interaction,
+        ));
+        if (!planned.success) {
+          return {
+            status: "refused" as const,
+            result: { status: "refused" as const, reason: "review-fix-route-unavailable" },
+          };
+        }
+        const [stateRead, active, currentPlanRead] = await Promise.all([
+          stateStore.read(correctionEntry.planId),
+          resolveActiveWu({ cwd }),
+          planStore.readCurrent(correctionEntry.planId),
+        ]);
+        let authoring;
+        if (stateRead.status === "ok" && stateRead.value !== null
+          && active.status === "resolved" && active.branch !== null
+          && currentPlanRead.status === "ok" && currentPlanRead.value !== null
+          && (planned.data.route === "provider-refresh"
+            || planned.data.route === "rematerialize"
+            || planned.data.route === "terminal-authoring")) {
+          const state = stateRead.value.value;
+          const selected = state.members.find(
+            ({ deliverableId }) => deliverableId === correctionEntry.selectedDeliverableId,
+          );
+          const terminalHead = state.members.at(-1)?.coordinates?.head;
+          if (selected?.coordinates !== null && selected?.coordinates !== undefined
+            && terminalHead !== undefined) {
+            const candidateRoute = planned.data.route === "provider-refresh";
+            const gitCommonDir = candidateRoute ? await resolveGitCommonDir(exec, cwd) : null;
+            const locator = candidateRoute && gitCommonDir !== null
+              ? deriveDeliveryResidueLocators(currentPlanRead.value, gitCommonDir)
+              : null;
+            const candidateLocator = locator?.status === "derived"
+              ? locator.locators.find(
+                  ({ deliverableId }) => deliverableId === correctionEntry.selectedDeliverableId,
+                )
+              : undefined;
+            const ref = candidateRoute
+              ? candidateLocator?.candidateRef ?? ""
+              : `refs/heads/${active.branch}`;
+            const checkoutPath = candidateRoute ? candidateLocator?.gatePath ?? "" : cwd;
+            if (ref !== "" && checkoutPath !== "") {
+              const [checkout, observedRef] = await Promise.all([
+                inspectDeliveryCandidateCheckout(exec, checkoutPath),
+                observeDeliveryEligibilityRef(exec, ref),
+              ]);
+              const observed = checkout;
+              const requiredAncestorHeads: readonly string[] = planned.data.route === "provider-refresh"
+                ? planned.data.candidateRequirements.requiredAncestorHeads
+                : [terminalHead];
+              const authoredPaths = observed === null
+                ? undefined
+                : (await exec(
+                    "git",
+                    ["diff", "--name-only", "-z", candidateRoute
+                      ? selected.coordinates.head
+                      : terminalHead, observed.head, "--"],
+                    { cwd: checkoutPath, objectAccess: "local-only" },
+                  )).stdout.split("\0").filter((path) => path !== "");
+              const requiredFindingPaths = approvedDispositionSet?.authorizedFindingLoci
+                .map(reviewFixFindingPath)
+                .filter((path): path is string => path !== null);
+              const ancestry = observed === null
+                ? []
+                : await Promise.all(requiredAncestorHeads.map(async (ancestor: string) => ({
+                    ancestor,
+                    status: await readAncestry(exec, ancestor, observed.head),
+                  })));
+              authoring = classifyDeliveryReviewFixAuthoringReadiness({
+                locus: { kind: candidateRoute ? "candidate" : "top", ref, checkoutPath },
+                publishedHead: candidateRoute ? selected.coordinates.head : terminalHead,
+                observed,
+                refCoordinates: observedRef,
+                ...(authoredPaths === undefined ? {} : { authoredPaths }),
+                ...(requiredFindingPaths === undefined ? {} : { requiredFindingPaths }),
+                requiredAncestorHeads,
+                ancestry,
+              });
+            }
+          }
+        }
+        return {
+          status: "prepared" as const,
+          authoring,
+          result: projectDeliveryReviewFixContinuation({
+            request: projectionRequest,
+            entry: correctionEntry,
+            route: planned.data,
+            ...(stateRead.status === "ok" && stateRead.value !== null ? { state: stateRead.value } : {}),
+            ...(active.status === "resolved" && active.branch !== null ? { activeBranch: active.branch } : {}),
+            ...(authoring === undefined ? {} : { authoring }),
+            ...(approvedDispositionSet === undefined ? {} : { approvedDispositionSet }),
+          }),
+        };
+      };
       let entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction);
     if (entry.status === "not-applicable") {
       const active = await resolveActiveWu({ cwd });
@@ -1732,6 +1844,26 @@ async function executeDeliveryCommand(
       }
     }
 
+      let preparedCorrection: Awaited<ReturnType<typeof prepareCorrection>> | undefined;
+      if (entry.status === "review-fix-verification-required"
+        && projectionRequest.verification === undefined) {
+        const correctionEntry: DeliveryCorrectionRoutingEntry = {
+          status: "correction-routing-required",
+          nextAction: "plan-review-fix",
+          planId: entry.planId,
+          stateRevision: entry.stateRevision,
+          selectedDeliverableId: entry.selectedDeliverableId,
+          entryMode: "execution",
+          recommendedActionText:
+            "Supersede the pending verification with the newer exact correction authoring.",
+        };
+        const prepared = await prepareCorrection(correctionEntry);
+        if (prepared.status === "prepared" && prepared.authoring?.status === "ready") {
+          entry = correctionEntry;
+          preparedCorrection = prepared;
+        }
+      }
+
       if (entry.status === "review-fix-verification-required"
         || projectionRequest.verification !== undefined) {
         return projectDeliveryReviewFixContinuation({ request: projectionRequest, entry });
@@ -1746,98 +1878,8 @@ async function executeDeliveryCommand(
       }
 
       if (entry.status === "correction-routing-required") {
-        const planned = ReviewFixRouteResultSchema.safeParse(await executeDeliveryCommand(
-          "review-fix-plan",
-          {
-            planId: entry.planId,
-            selectedDeliverableId: entry.selectedDeliverableId,
-            repository: parsed.repository,
-            remote: parsed.remote,
-            entryMode: "integrating",
-          },
-          interaction,
-        ));
-        if (!planned.success) return { status: "refused", reason: "review-fix-route-unavailable" };
-        const [stateRead, active, currentPlanRead] = await Promise.all([
-          stateStore.read(entry.planId),
-          resolveActiveWu({ cwd }),
-          planStore.readCurrent(entry.planId),
-        ]);
-        let authoring;
-        if (stateRead.status === "ok" && stateRead.value !== null
-          && active.status === "resolved" && active.branch !== null
-          && currentPlanRead.status === "ok" && currentPlanRead.value !== null
-          && (planned.data.route === "provider-refresh"
-            || planned.data.route === "rematerialize"
-            || planned.data.route === "terminal-authoring")) {
-          const state = stateRead.value.value;
-          const selected = state.members.find(
-            ({ deliverableId }) => deliverableId === entry.selectedDeliverableId,
-          );
-          const terminalHead = state.members.at(-1)?.coordinates?.head;
-          if (selected?.coordinates !== null && selected?.coordinates !== undefined
-            && terminalHead !== undefined) {
-            const candidateRoute = planned.data.route === "provider-refresh";
-            const gitCommonDir = candidateRoute ? await resolveGitCommonDir(exec, cwd) : null;
-            const locator = candidateRoute && gitCommonDir !== null
-              ? deriveDeliveryResidueLocators(currentPlanRead.value, gitCommonDir)
-              : null;
-            const candidateLocator = locator?.status === "derived"
-              ? locator.locators.find(({ deliverableId }) => deliverableId === entry.selectedDeliverableId)
-              : undefined;
-            const ref = candidateRoute
-              ? candidateLocator?.candidateRef ?? ""
-              : `refs/heads/${active.branch}`;
-            const checkoutPath = candidateRoute ? candidateLocator?.gatePath ?? "" : cwd;
-            if (ref !== "" && checkoutPath !== "") {
-              const [checkout, observedRef] = await Promise.all([
-                inspectDeliveryCandidateCheckout(exec, checkoutPath),
-                observeDeliveryEligibilityRef(exec, ref),
-              ]);
-              const observed = checkout;
-              const requiredAncestorHeads: readonly string[] = planned.data.route === "provider-refresh"
-                ? planned.data.candidateRequirements.requiredAncestorHeads
-                : [terminalHead];
-              const authoredPaths = observed === null
-                ? undefined
-                : (await exec(
-                    "git",
-                    ["diff", "--name-only", "-z", candidateRoute
-                      ? selected.coordinates.head
-                      : terminalHead, observed.head, "--"],
-                    { cwd: checkoutPath, objectAccess: "local-only" },
-                  )).stdout.split("\0").filter((path) => path !== "");
-              const requiredFindingPaths = approvedDispositionSet?.authorizedFindingLoci
-                .map(reviewFixFindingPath)
-                .filter((path): path is string => path !== null);
-              const ancestry = observed === null
-                ? []
-                : await Promise.all(requiredAncestorHeads.map(async (ancestor: string) => ({
-                    ancestor,
-                    status: await readAncestry(exec, ancestor, observed.head),
-                  })));
-              authoring = classifyDeliveryReviewFixAuthoringReadiness({
-                locus: { kind: candidateRoute ? "candidate" : "top", ref, checkoutPath },
-                publishedHead: candidateRoute ? selected.coordinates.head : terminalHead,
-                observed,
-                refCoordinates: observedRef,
-                ...(authoredPaths === undefined ? {} : { authoredPaths }),
-                ...(requiredFindingPaths === undefined ? {} : { requiredFindingPaths }),
-                requiredAncestorHeads,
-                ancestry,
-              });
-            }
-          }
-        }
-        return projectDeliveryReviewFixContinuation({
-          request: projectionRequest,
-          entry,
-          route: planned.data,
-          ...(stateRead.status === "ok" && stateRead.value !== null ? { state: stateRead.value } : {}),
-          ...(active.status === "resolved" && active.branch !== null ? { activeBranch: active.branch } : {}),
-          ...(authoring === undefined ? {} : { authoring }),
-          ...(approvedDispositionSet === undefined ? {} : { approvedDispositionSet }),
-        });
+        const prepared = preparedCorrection ?? await prepareCorrection(entry);
+        return prepared.result;
       }
 
       const continuation = projectDeliveryReviewFixContinuation({ request: projectionRequest, entry });
