@@ -2667,6 +2667,11 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               retains that response only when the first dependent still names the exact reviewed head and the selected
               member is the sole chain break; arbitrary movement and an already-refreshed chain refuse. The production
               controller and a built-CLI E2E both project the exact dependent-suffix refresh from this state.
+            - _Post-renewal correction:_ live response settlement proved that the same pending disposition remains
+              intentionally unresolved after the dependent refresh, scoped verification, and Candidate renewal. Once
+              the reviewed head is an ancestor of the corrected selected head, the controller now accepts only the
+              integration reader's `candidate-renewal-required` or `continue-hosted-review` authority instead of
+              replaying correction ownership; non-ancestral movement and every other entry state remain stale.
             - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
               bounded authority-composition repair adds no third pass, and the primary walk retains judgment over the
               exact delta.

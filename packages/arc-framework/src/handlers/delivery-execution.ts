@@ -1439,24 +1439,40 @@ async function executeDeliveryCommand(
         const stateMembers = stateRead.value.value.members.filter(
           ({ deliverableId }) => deliverableId === selection.selectedDeliverableId,
         );
-        if (planMembers.length !== 1 || stateMembers.length !== 1
-          || !pendingDeliveryReviewFixAuthorityIsCurrent({
+        if (planMembers.length !== 1 || stateMembers.length !== 1) {
+          return { status: "refused", reason: "review-fix-response-stale" };
+        }
+        if (!pendingDeliveryReviewFixAuthorityIsCurrent({
             selectedDeliverableId: selection.selectedDeliverableId,
             reviewedHead: selection.reviewedHead,
             state: stateRead.value.value,
           })) {
-          return { status: "refused", reason: "review-fix-response-stale" };
+          const selectedHead = stateMembers[0]?.coordinates?.head;
+          if (selectedHead === undefined || selectedHead === selection.reviewedHead
+            || await readAncestry(exec, selection.reviewedHead, selectedHead) !== "ancestor") {
+            return { status: "refused", reason: "review-fix-response-stale" };
+          }
+          const integratingEntry = await inspectActiveRepositoryDeliveryEntry(
+            { entryMode: "integrating" },
+            interaction,
+          );
+          if (integratingEntry.status !== "candidate-renewal-required"
+            && integratingEntry.status !== "continue-hosted-review") {
+            return { status: "refused", reason: "review-fix-response-stale" };
+          }
+          entry = integratingEntry;
+        } else {
+          entry = {
+            status: "correction-routing-required",
+            nextAction: "plan-review-fix",
+            planId: selection.planId,
+            stateRevision: stateRead.value.revision,
+            selectedDeliverableId: selection.selectedDeliverableId,
+            entryMode: "execution",
+            recommendedActionText:
+              "Plan the approved correction for the delivery member bound by the pending review response.",
+          };
         }
-        entry = {
-          status: "correction-routing-required",
-          nextAction: "plan-review-fix",
-          planId: selection.planId,
-          stateRevision: stateRead.value.revision,
-          selectedDeliverableId: selection.selectedDeliverableId,
-          entryMode: "execution",
-          recommendedActionText:
-            "Plan the approved correction for the delivery member bound by the pending review response.",
-        };
       } else {
         entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "integrating" }, interaction);
       }

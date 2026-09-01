@@ -634,6 +634,84 @@ describe("arc delivery position", () => {
     const fixture = await positionFixture("selected-change-external-refresh");
     const workUnitBranch = `feat/${fixture.plan.workUnitId}`;
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    const reviewedState = await fixture.states.read(fixture.plan.planId);
+    if (reviewedState.status !== "ok" || reviewedState.value === null
+      || reviewedState.value.value.target?.coordinates === null
+      || reviewedState.value.value.target === null) {
+      throw new Error("review-fix response fixture requires a bound target");
+    }
+    const reviewedMember = reviewedState.value.value.members.find(
+      ({ deliverableId }) => deliverableId === selectedDeliverableId,
+    );
+    if (reviewedMember?.coordinates === null || reviewedMember?.coordinates === undefined) {
+      throw new Error("review-fix response fixture requires a bound selected member");
+    }
+    const reviewedHead = await git(fixture.repository, [
+      "rev-parse", `${reviewedMember.coordinates.head}^`,
+    ]);
+    const oldTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: reviewedMember.coordinates.base,
+      diffBaseTree: reviewedState.value.value.target.coordinates.tree,
+      headSha: reviewedHead,
+      headTree: reviewedMember.coordinates.tree,
+    });
+    const approvedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: oldTarget.targetId,
+        policyVersion: canonicalDigest({ policy: "review" }),
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        proposedBy: "agent-1",
+        findings: [{
+          findingId: "finding-response-loss",
+          sourceIdentity: "codex-pr",
+          locus: "member-one.txt:1",
+          sourceVerification: "verified",
+          verificationRefs: ["review:finding-response-loss"],
+          severity: "major",
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The source confirms the issue.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-08-31T12:00:00Z",
+    });
+    const publisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), fixture.repository);
+    await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
+      ApprovedDispositionRecordSchema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "review-advisory/v1",
+        repositoryId: "repo-1",
+        operationId: "operation-response-loss",
+        candidate: null,
+        errand: null,
+        deliveryMember: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: selectedDeliverableId,
+          workUnitId: fixture.plan.workUnitId,
+          head: reviewedHead,
+        },
+        source: {
+          kind: "hosted",
+          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fresponse-loss:hosted%2F1",
+        },
+        approvedDisposition,
+        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+      }),
+    );
     const discardedSettlement = await runArcWithStdin(
       ["delivery", "refresh", "adopt", "-", "--json"],
       fixture.repository,
