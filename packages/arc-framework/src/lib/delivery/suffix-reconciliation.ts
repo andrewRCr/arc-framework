@@ -306,7 +306,20 @@ type ProviderAdoptionBlockedResult =
       readonly status: "blocked";
       readonly reason: string;
       readonly paths?: readonly string[];
+      readonly conflictPreparation?: DeliveryTerminalConflictPreparation;
     };
+
+export interface DeliveryTerminalConflictPreparation {
+  readonly topRef: string;
+  readonly logicalMergeBase: string;
+  readonly parents: {
+    readonly top: string;
+    readonly refreshedPredecessor: string;
+  };
+  readonly mergeTree: {
+    readonly argv: readonly string[];
+  };
+}
 
 export interface ProviderAdoptionSettlementDependencies {
   readonly observeResult: () => Promise<DeliveryProviderRefreshObservationResult>;
@@ -476,10 +489,29 @@ export async function settleReservedDeliverySuffixRefresh(input: {
       },
     });
     if (absorbed.status !== "absorbed") {
+      const conflictPreparation: DeliveryTerminalConflictPreparation | undefined =
+        absorbed.reason === "content-conflict"
+          ? {
+              topRef: terminal.ref,
+              logicalMergeBase: terminalCoordinates.base,
+              parents: {
+                top: terminalCoordinates.head,
+                refreshedPredecessor: highestMember.coordinates.head,
+              },
+              mergeTree: {
+                argv: [
+                  "git", "merge-tree", "--write-tree", "--merge-base", terminalCoordinates.base,
+                  "--name-only", "-z", "--no-messages", terminalCoordinates.head,
+                  highestMember.coordinates.head,
+                ],
+              },
+            }
+          : undefined;
       return {
         status: "blocked",
         reason: absorbed.reason,
         ...(absorbed.paths === undefined ? {} : { paths: absorbed.paths }),
+        ...(conflictPreparation === undefined ? {} : { conflictPreparation }),
       };
     }
     const published = await input.publishTop({

@@ -18,6 +18,12 @@ type PendingDeliveryReviewFixAuthority =
       readonly planId: string;
       readonly selectedDeliverableId: string;
       readonly reviewedHead: string;
+      readonly dispositionSetId: string;
+      readonly authorizedFindingIds: readonly string[];
+      readonly authorizedFindingLoci: readonly string[];
+      readonly operationId: string;
+      readonly repositoryId: string;
+      readonly attemptRef: string;
     }
   | {
       readonly status: "refused";
@@ -65,11 +71,22 @@ export function selectPendingDeliveryReviewFixAuthority(input: {
   if (pending.length > 1) return { status: "refused", reason: "review-fix-response-ambiguous" };
   const selected = pending[0];
   if (selected?.deliveryMember === null || selected?.deliveryMember === undefined) return { status: "none" };
+  if (selected.fixAuthorization === null) {
+    return { status: "refused", reason: "review-fix-response-invalid" };
+  }
   return {
     status: "selected",
     planId: selected.deliveryMember.planId,
     selectedDeliverableId: selected.deliveryMember.deliverableId,
     reviewedHead: selected.deliveryMember.head,
+    dispositionSetId: selected.fixAuthorization.dispositionSetId,
+    authorizedFindingIds: selected.fixAuthorization.authorizedFindingIds,
+    authorizedFindingLoci: selected.approvedDisposition.dispositionSet.findings
+      .filter(({ disposition }) => disposition === "fix")
+      .map(({ locus }) => locus),
+    operationId: selected.operationId,
+    repositoryId: selected.repositoryId,
+    attemptRef: selected.source.kind === "hosted" ? selected.source.attemptRef : "",
   };
 }
 
@@ -120,6 +137,77 @@ export interface DeliveryReviewFixContinueRequest {
   readonly verification?: VerificationResult;
 }
 
+export interface DeliveryReviewFixAuthoringObservation {
+  readonly locus: {
+    readonly kind: "candidate" | "top";
+    readonly ref: string;
+    readonly checkoutPath: string;
+  };
+  readonly publishedHead: string;
+  readonly observed: {
+    readonly head: string;
+    readonly tree: string;
+    readonly trackedDirty: boolean;
+  } | null;
+  readonly refCoordinates?: {
+    readonly head: string;
+    readonly tree: string;
+  } | null;
+  readonly authoredPaths?: readonly string[];
+  readonly requiredFindingPaths?: readonly string[];
+  readonly requiredAncestorHeads: readonly string[];
+  readonly ancestry: readonly {
+    readonly ancestor: string;
+    readonly status: "ancestor" | "not-ancestor" | "unresolvable";
+  }[];
+}
+
+export type DeliveryReviewFixAuthoringReadiness =
+  | ({ readonly status: "authoring-required" } & DeliveryReviewFixAuthoringObservation["locus"])
+  | ({ readonly status: "ready"; readonly head: string; readonly tree: string }
+      & DeliveryReviewFixAuthoringObservation["locus"])
+  | { readonly status: "refused"; readonly reason: string };
+
+/** Classify whether an exact correction authoring locus is ready for its route mutation. */
+export function classifyDeliveryReviewFixAuthoringReadiness(
+  input: DeliveryReviewFixAuthoringObservation,
+): DeliveryReviewFixAuthoringReadiness {
+  if (input.observed !== null && input.refCoordinates !== undefined
+    && (input.refCoordinates === null
+      || input.observed.head !== input.refCoordinates.head
+      || input.observed.tree !== input.refCoordinates.tree)) {
+    return { status: "refused", reason: "authoring-locus-moved" };
+  }
+  if (input.observed?.trackedDirty === true) {
+    return { status: "refused", reason: "authoring-locus-dirty" };
+  }
+  if (input.observed === null || input.observed.head === input.publishedHead) {
+    return { status: "authoring-required", ...input.locus };
+  }
+  if (input.requiredFindingPaths !== undefined && input.requiredFindingPaths.length > 0
+    && input.authoredPaths !== undefined
+    && !input.requiredFindingPaths.some((path) => input.authoredPaths?.includes(path))) {
+    return { status: "authoring-required", ...input.locus };
+  }
+  for (const required of input.requiredAncestorHeads) {
+    const matches = input.ancestry.filter(({ ancestor }) => ancestor === required);
+    if (matches.length !== 1 || matches[0]?.status !== "ancestor") {
+      return {
+        status: "refused",
+        reason: matches[0]?.status === "not-ancestor"
+          ? "authoring-required-ancestor-missing"
+          : "authoring-ancestry-unavailable",
+      };
+    }
+  }
+  return {
+    status: "ready",
+    ...input.locus,
+    head: input.observed.head,
+    tree: input.observed.tree,
+  };
+}
+
 /** Facts that are needed only by the entry route that consumes them. */
 export interface DeliveryReviewFixContinuationProjectionInput {
   readonly request: DeliveryReviewFixContinueRequest;
@@ -127,6 +215,12 @@ export interface DeliveryReviewFixContinuationProjectionInput {
   readonly state?: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly route?: DeliveryReviewFixRouteResult;
   readonly activeBranch?: string;
+  readonly authoring?: DeliveryReviewFixAuthoringReadiness;
+  readonly approvedDispositionSet?: {
+    readonly dispositionSetId: string;
+    readonly authorizedFindingIds: readonly string[];
+    readonly authorizedFindingLoci?: readonly string[];
+  };
 }
 
 function resumeAction(request: DeliveryReviewFixContinueRequest) {
@@ -233,15 +327,42 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     if (route.selectedDeliverableId !== entry.selectedDeliverableId) {
       return { status: "refused" as const, reason: "review-fix-route-mismatch" };
     }
-    if (route.route === "terminal-authoring") {
+    const authoringStop = () => {
+      if (input.authoring?.status === "refused") return input.authoring;
+      if (input.authoring?.status !== "authoring-required") {
+        return { status: "refused" as const, reason: "review-fix-authoring-readiness-unavailable" };
+      }
       return {
         status: "authoring-required" as const,
-        route: "terminal-authoring" as const,
+        route: route.route,
         selectedDeliverableId: route.selectedDeliverableId,
-        nextAction: "author-terminal" as const,
+        nextAction: "author-correction" as const,
+        authoring: {
+          kind: input.authoring.kind,
+          ref: input.authoring.ref,
+          checkoutPath: input.authoring.checkoutPath,
+        },
+        requiredAncestorHeads: route.route === "provider-refresh"
+          ? route.candidateRequirements.requiredAncestorHeads
+          : [],
+        ...(input.approvedDispositionSet === undefined
+          ? {}
+          : { approvedDispositionSet: input.approvedDispositionSet }),
         resumeAction: resumeAction(request),
         recommendedActionText: route.recommendedActionText,
       };
+    };
+    if (route.route === "terminal-authoring") {
+      return input.authoring === undefined
+        ? {
+            status: "authoring-required" as const,
+            route: "terminal-authoring" as const,
+            selectedDeliverableId: route.selectedDeliverableId,
+            nextAction: "author-terminal" as const,
+            resumeAction: resumeAction(request),
+            recommendedActionText: route.recommendedActionText,
+          }
+        : authoringStop();
     }
     if (route.route === "terminal-rebind") {
       return dispatch({
@@ -267,6 +388,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
           },
         }, "Execute the exact provider refresh, then invoke this continuation again.");
       }
+      if (input.authoring?.status !== "ready") return authoringStop();
       return dispatch({
         kind: "delivery-review-fix-publish" as const,
         argv: ["arc", "delivery", "review-fix", "publish", "-", "--json"] as const,
@@ -279,6 +401,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       }, route.recommendedActionText);
     }
     const protectedBaseRef = input.state?.value.target?.ref ?? null;
+    if (input.authoring?.status !== "ready") return authoringStop();
     if (protectedBaseRef === null || input.activeBranch === undefined) {
       return { status: "refused" as const, reason: "review-fix-rematerialization-unavailable" };
     }
@@ -298,10 +421,9 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
 
   if (entry.status === "candidate-renewal-required") {
     return {
-      status: "authority-required" as const,
-      authority: "candidate-renewal" as const,
-      nextAction: "dispatch-authority-action" as const,
-      action: { kind: "candidate-renewal" as const, argv: entry.attestationAction.argv },
+      status: "boundary-carry-required" as const,
+      planId: entry.planId,
+      stateRevision: entry.stateRevision,
       recommendedActionText: entry.recommendedActionText,
     };
   }
@@ -320,6 +442,15 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       authority: "hosted-review" as const,
       nextAction: "dispatch-authority-action" as const,
       action: { kind: "hosted-review" as const, action: entry.hostedReviewAction },
+      recommendedActionText: entry.recommendedActionText,
+    };
+  }
+  if (entry.status === "candidate-verification-required") {
+    return {
+      status: entry.status,
+      nextAction: entry.nextAction,
+      planId: entry.planId,
+      stateRevision: entry.stateRevision,
       recommendedActionText: entry.recommendedActionText,
     };
   }

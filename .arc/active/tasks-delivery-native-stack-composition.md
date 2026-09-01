@@ -2684,7 +2684,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   unchanged-Candidate renewal cycle. General workflow composition, convergence policy, storage redesign, and
   user-configurable commit autonomy remain with their recorded owners.
 
-    - `[ ]` **7.7.R.u Drive the delivery correction to one typed stop**
+    - `[x]` **7.7.R.u Drive the delivery correction to one typed stop**
 
         - _Goal:_ One selector-free invocation executes the existing deterministic correction tail, resumes after
           interruption without rederivation, and returns only at the closed judgment, review-spend, conflict,
@@ -2693,7 +2693,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
         - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue — decision
           record (2026-08-31).
 
-        - `[ ]` **7.7.R.u.a Execute the six correction dispatch actions in-process**
+        - `[x]` **7.7.R.u.a Execute the six correction dispatch actions in-process**
 
             - Keep the pure projector as the typed next-step classifier and add one injected, hard-coded action
               executor around the existing services; never spawn the CLI recursively. Compose the complete entry once,
@@ -2702,7 +2702,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               idempotent replay, retained-operation resume, no-progress refusal, hosted status re-entry, publication,
               and the closed attended-stop set without a generalized step engine or orchestration record.
 
-        - `[ ]` **7.7.R.u.b Make authoring and same-pass batching first-class**
+        - `[x]` **7.7.R.u.b Make authoring and same-pass batching first-class**
 
             - Add one read-only authoring-readiness classifier over the existing candidate/top locators and the same
               cleanliness, changed-head, and required-ancestor predicates enforced by publication and
@@ -2711,7 +2711,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               action while newer same-member work remains, and require that one disposition set to share one
               publication unless an explicit early-publish reason is supplied.
 
-        - `[ ]` **7.7.R.u.c Run record-only commits and pushes with an effect log**
+        - `[x]` **7.7.R.u.c Run record-only commits and pushes with an effect log**
 
             - Define a closed effect-log union for `dispatch`, `commit`, `push`, `boundary-carry`, and
               `no-op-replay`, then execute boundary-projection commits, applicability selection commits, and the
@@ -2721,7 +2721,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               heads, Candidate/state bindings, and replay outcomes in order; preserve approval stops for content,
               destructive, review-spend, and merge effects.
 
-        - `[ ]` **7.7.R.u.d Preserve exact authority across mechanical movement**
+        - `[x]` **7.7.R.u.d Preserve exact authority across mechanical movement**
 
             - Generalize the retained-response correction to pending review-fix responses only when strict ancestry
               plus the existing Git review-contribution projection proves an empty residual. Preserve an Owner
@@ -2730,7 +2730,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               basis, and retain every existing stale-response or re-selection stop when proof is absent,
               non-ancestral, divergent, interacting, or ambiguous.
 
-        - `[ ]` **7.7.R.u.e Remove manufactured renewal and repair the returned contracts**
+        - `[x]` **7.7.R.u.e Remove manufactured renewal and repair the returned contracts**
 
             - Carry the same-Candidate public boundary directly across acknowledgment's state revision instead of
               dispatching an `attest unchanged` cycle; keep genuine `establish-new-root` as a typed stop. Make every
@@ -2738,7 +2738,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               and prove contribution-equivalent dependents escape redundant criteria walks while changed dependents
               remain owed.
 
-        - `[ ]` **7.7.R.u.f Prove and revalidate the driven correction boundary** — validate criteria at member scope
+        - `[x]` **7.7.R.u.f Prove and revalidate the driven correction boundary** — validate criteria at member scope
 
             - Drive one production-style E2E through approved response ownership, selected-member publication,
               provider refresh, scoped verification, acknowledgment, same-Candidate boundary carry, and unresolved
@@ -2746,6 +2746,19 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               and do not spend a new hosted pass or provider request before this case is green. After task closure,
               record the next live Member 1 correction as the attended acceptance run rather than creating a review-
               finding task cursor.
+
+        - _Outcome:_ One hard-coded delivery-correction driver now executes only the six approved dispatch kinds
+          in-process, consumes a submitted verification after acknowledgment, and returns at typed authoring,
+          conflict, review-policy, integration, or failure stops with an ordered effect log. Authoring stops carry
+          the exact checkout/ref and complete approved finding batch; machine-owned boundary/applicability record
+          commits and pushes reuse the release orchestrators under the bounded correction exception. Strict
+          ancestry plus contribution equivalence preserves pending response and Owner applicability authority,
+          while same-Candidate boundary carry replaces the manufactured unchanged-attestation cycle and updates the
+          proven correction subject directly. The production-style registered-stack E2E drives approved response
+          ownership through selected publication, provider refresh, scoped verification, response consumption,
+          Candidate verification, boundary carry, record commit/push, and exact Member 1 hosted-review spend; the
+          complete delivery-position file passes 21/21 and the focused implementation suite passes 126/126. The
+          next live Member 1 correction is the post-closure attended acceptance run, not a new task cursor.
 
 ## **Phase 8:** Record retirement and doctrine
 

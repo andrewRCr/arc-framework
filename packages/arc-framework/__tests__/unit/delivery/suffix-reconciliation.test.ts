@@ -648,7 +648,19 @@ describe("delivery suffix reconciliation", () => {
       }),
       publishTop: async () => { throw new Error("must not publish"); },
       stateStore: { publish: async () => { throw new Error("must not persist"); } },
-    })).resolves.toEqual({ status: "blocked", reason: "content-conflict", paths: ["top.txt"] });
+    })).resolves.toMatchObject({
+      status: "blocked",
+      reason: "content-conflict",
+      paths: ["top.txt"],
+      conflictPreparation: {
+        topRef: reserved.value.members.at(-1)!.ref,
+        logicalMergeBase: reserved.value.members.at(-1)!.coordinates!.base,
+        parents: {
+          top: reserved.value.members.at(-1)!.coordinates!.head,
+          refreshedPredecessor: observed.members.at(-1)!.coordinates!.head,
+        },
+      },
+    });
     await expect(settleReservedDeliverySuffixRefresh({
       ...common,
       absorbTop: async () => ({ status: "absorbed", head: "a".repeat(40), tree: "b".repeat(40) }),

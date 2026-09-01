@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   acknowledgeDeliveryReviewFixVerification,
+  advanceDeliveryReviewFixResponse,
+  carryDeliveryReviewFixPublicBoundary,
   planDeliveryReviewFixRoute,
   publishSelectedDeliveryReviewFix,
   recordDeliveryReviewFixCandidateVerification,
@@ -18,6 +20,23 @@ import {
   createCandidateSubjectSnapshot,
   projectCandidateCurrentness,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
+import { projectDeliveryPublicReviewContinuation } from
+  "../../../src/lib/delivery/public-review-continuation.js";
+import {
+  projectCorrectiveDeliveryReviewBoundary,
+  projectPublicationBoundary,
+} from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { ApprovedDispositionRecordSchema } from
+  "../../../src/scripts/review-gate/core/advisory-records.js";
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../src/scripts/review-gate/core/dispositions.js";
+import { createFixAuthorization } from
+  "../../../src/scripts/review-gate/core/fix-authorization.js";
+import { createReviewTarget } from
+  "../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
 function positionFacts(state: DeliveryStateV1, landedDeliverableIds: string[] = []) {
   return { target: state.target, members: state.members, landedDeliverableIds };
@@ -54,6 +73,169 @@ function fixture() {
 }
 
 describe("delivery review-fix routing", () => {
+  it("records and exactly replays one verified hosted delivery-member fix response", () => {
+    const { plan } = fixture();
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const oldTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "1".repeat(40),
+      diffBaseTree: "2".repeat(40),
+      headSha: "3".repeat(40),
+      headTree: "4".repeat(40),
+    });
+    const approvedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: oldTarget.targetId,
+        policyVersion: canonicalDigest({ policy: "review" }),
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        proposedBy: "agent-1",
+        findings: [{
+          findingId: "finding-1",
+          sourceIdentity: "codex-pr",
+          locus: "src/example.ts:1",
+          sourceVerification: "verified",
+          verificationRefs: ["review:finding-1"],
+          severity: "major",
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The source confirms the issue.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-08-31T12:00:00Z",
+    });
+    const record = ApprovedDispositionRecordSchema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: "repo-1",
+      operationId: "operation-member-fix",
+      candidate: null,
+      errand: null,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: plan.planId,
+        deliverableId: selectedDeliverableId,
+        workUnitId: plan.workUnitId,
+        head: oldTarget.headSha,
+      },
+      source: {
+        kind: "hosted",
+        attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+      },
+      approvedDisposition,
+      fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+    });
+    const input = {
+      record,
+      oldTarget,
+      hostedTarget: { repository: "owner/repo", pullRequest: 42, headSha: oldTarget.headSha },
+      currentHead: "5".repeat(40),
+      currentTree: "6".repeat(40),
+      applicability: "focused" as const,
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verifiedAt: "2026-08-31T13:00:00Z",
+    };
+    const recorded = advanceDeliveryReviewFixResponse(input);
+    expect(recorded).toMatchObject({
+      status: "recorded",
+      newTarget: { headSha: input.currentHead, headTree: input.currentTree },
+      hostedFixTarget: { headSha: input.currentHead },
+      record: {
+        deliveryMemberFixResponse: {
+          applicability: "focused",
+          fixConsumption: { verificationRefs: input.verificationEvidenceRefs },
+        },
+      },
+    });
+    if (recorded.status !== "recorded") throw new Error("fix response must record");
+    expect(advanceDeliveryReviewFixResponse({
+      ...input,
+      record: recorded.record,
+      verifiedAt: "2026-08-31T14:00:00Z",
+    })).toMatchObject({ status: "already-recorded" });
+    expect(advanceDeliveryReviewFixResponse({
+      ...input,
+      record: recorded.record,
+      verificationEvidenceRefs: ["criteria://different"],
+    })).toEqual({ status: "refused", reason: "review-fix-response-replay-mismatch" });
+  });
+
+  it("carries the same Candidate boundary across the acknowledged state revision", () => {
+    const { plan, state } = fixture();
+    const before = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision: 9 });
+    if (before.status !== "projected") throw new Error("fixture continuation must project");
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidateSubjectDigest = `sha256:${"b".repeat(64)}`;
+    const previousCandidateSubjectDigest = `sha256:${"9".repeat(64)}`;
+    const sourceCandidateId = `sha256:${"c".repeat(64)}`;
+    const reservation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "standard-review-reservation/v1" as const,
+      reservationId: `sha256:${"d".repeat(64)}`,
+      sources: ["codex-pr"],
+      target: {
+        kind: "delivery" as const,
+        repository: "owner/repo",
+        workUnitId: plan.workUnitId,
+        planId: plan.planId,
+      },
+      obligation: {
+        obligation: "required" as const,
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final" as const,
+        count: 1,
+      },
+    };
+    const publication = projectPublicationBoundary({
+      workUnit: plan.workUnitId,
+      branch: "feat/example",
+      candidateId: sourceCandidateId,
+      candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
+      reservation,
+      changeRequest: null,
+    });
+    const boundary = projectCorrectiveDeliveryReviewBoundary({
+      workUnit: plan.workUnitId,
+      candidateId,
+      candidateSubjectDigest: previousCandidateSubjectDigest,
+      supersedesCandidateId: sourceCandidateId,
+      sourceBoundary: publication,
+      deliveryContinuation: before.continuation,
+    });
+
+    expect(carryDeliveryReviewFixPublicBoundary({
+      plan,
+      state: { revision: 10, value: state },
+      boundary,
+      candidateId,
+      sourceCandidateSubjectDigest: previousCandidateSubjectDigest,
+      candidateSubjectDigest,
+    })).toMatchObject({
+      status: "carried",
+      candidateId,
+      stateRevision: 10,
+      boundary: {
+        candidateId,
+        candidateSubjectDigest,
+        locus: "hosted-review-pending",
+        deliveryContinuation: { stateRevision: 10 },
+      },
+    });
+  });
+
   it("acknowledges one exact pending verification continuation", async () => {
     const { plan, state: initial } = fixture();
     const selectedDeliverableId = plan.members[0]!.deliverableId;

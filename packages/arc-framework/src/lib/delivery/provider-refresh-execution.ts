@@ -23,6 +23,7 @@ import {
   selectDeliveryProviderRefreshProofMovements,
   settleReservedDeliverySuffixRefresh,
   type DeliveryProviderSettlementAppliedResult,
+  type DeliveryTerminalConflictPreparation,
   type ProviderAdoptionSettlementDependencies,
   DeliveryProviderRefreshMovement,
   DeliveryProviderRefreshObservation,
@@ -180,18 +181,29 @@ export type ExecuteDeliveryProviderRefreshResult =
       readonly publication: DeliveryProviderRefreshPublicationResult;
       readonly reservation: DeliveryRevisionedRecord<DeliveryStateV1>;
     }
-  | { readonly status: "refused" | "blocked"; readonly reason: string; readonly paths?: readonly string[] }
+  | {
+      readonly status: "refused" | "blocked";
+      readonly reason: string;
+      readonly paths?: readonly string[];
+      readonly conflictPreparation?: DeliveryTerminalConflictPreparation;
+    }
   | {
       readonly status: "blocked";
       readonly reason: string;
       readonly paths?: readonly string[];
+      readonly conflictPreparation?: DeliveryTerminalConflictPreparation;
       readonly operationId: string;
       readonly nextAction: "reconcile" | "resolve-terminal-conflicts";
       readonly recommendedActionText: string;
     };
 
 function retainedOperationBlock(
-  result: { readonly status: "blocked"; readonly reason: string; readonly paths?: readonly string[] },
+  result: {
+    readonly status: "blocked";
+    readonly reason: string;
+    readonly paths?: readonly string[];
+    readonly conflictPreparation?: DeliveryTerminalConflictPreparation;
+  },
   operationId: string,
 ): ExecuteDeliveryProviderRefreshResult {
   if (result.reason === "content-conflict" && result.paths !== undefined && result.paths.length > 0) {

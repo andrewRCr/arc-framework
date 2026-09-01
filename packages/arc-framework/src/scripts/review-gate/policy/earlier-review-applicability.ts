@@ -17,6 +17,7 @@ import { projectGitReviewContributionApplicability } from
   "./git-review-contribution-applicability.js";
 import {
   reduceReviewApplicabilityAuthority,
+  reduceReviewApplicabilityAuthorityWithMechanicalCarry,
   reviewApplicabilityConsumerAction,
   type ReviewApplicabilityConsumerAction,
 } from "./review-applicability-authority.js";
@@ -183,13 +184,57 @@ export async function projectEarlierReviewApplicability(
           observeEndpoints: () => Promise.resolve({ head: query.currentHead, base: input.currentBase }),
         })
       : await input.projectApplicability(selector);
+    const projectSelector = (value: typeof selector) => input.projectApplicability === undefined
+      ? projectGitReviewContributionApplicability({
+          selector: value,
+          exec: input.exec,
+          observeEndpoints: () => Promise.resolve({ head: value.currentHead, base: value.currentBase }),
+        })
+      : input.projectApplicability(value);
+    const carried = projection?.state !== "decision-required"
+      ? []
+      : (await Promise.all(selections.map(async (selection) => {
+          const selected = selection.selector;
+          if (selection.candidateId !== input.candidate.attestation.candidateId
+            || selected.repositoryId !== selector.repositoryId
+            || selected.repository !== selector.repository
+            || selected.pullRequest !== selector.pullRequest
+            || selected.sourceId !== selector.sourceId
+            || selected.priorAttemptId !== selector.priorAttemptId
+            || selected.priorHead !== selector.priorHead
+            || selected.priorBase !== selector.priorBase
+            || selected.currentHead === selector.currentHead) return null;
+          const selectedProjection = await projectSelector(selected);
+          const mechanicalProjection = await projectSelector({
+            ...selector,
+            priorHead: selected.currentHead,
+            priorBase: selected.currentBase,
+            ...(selected.currentVehicle === undefined || selector.currentVehicle === undefined
+              ? { priorVehicle: undefined, currentVehicle: undefined }
+              : {
+                  priorVehicle: selected.currentVehicle,
+                  currentVehicle: selector.currentVehicle,
+                }),
+          });
+          return selectedProjection.state === "decision-required"
+            && mechanicalProjection.state === "applicable"
+            ? { selection, selectedProjection, mechanicalProjection }
+            : null;
+        }))).filter((value) => value !== null);
     const authority = projection === undefined
       ? null
-      : reduceReviewApplicabilityAuthority(
-          input.candidate.attestation.candidateId,
-          projection,
-          selections,
-        );
+      : carried.length === 0
+        ? reduceReviewApplicabilityAuthority(
+            input.candidate.attestation.candidateId,
+            projection,
+            selections,
+          )
+        : reduceReviewApplicabilityAuthorityWithMechanicalCarry(
+            input.candidate.attestation.candidateId,
+            projection,
+            selections,
+            carried,
+          );
     return {
       operationId: candidate.operationId,
       attemptId: candidate.attemptId,

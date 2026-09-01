@@ -1006,6 +1006,23 @@ describe("provider refresh publication classification", () => {
       status: "blocked",
       reason: "content-conflict",
       paths: ["shared.txt"],
+      conflictPreparation: {
+        topRef: reserved.state.members.at(-1)!.ref,
+        logicalMergeBase: reserved.state.members.at(-1)!.coordinates!.base,
+        parents: {
+          top: reserved.state.members.at(-1)!.coordinates!.head,
+          refreshedPredecessor: observed.members.at(-1)!.coordinates!.head,
+        },
+        mergeTree: {
+          argv: [
+            "git", "merge-tree", "--write-tree", "--merge-base",
+            reserved.state.members.at(-1)!.coordinates!.base,
+            "--name-only", "-z", "--no-messages",
+            reserved.state.members.at(-1)!.coordinates!.head,
+            observed.members.at(-1)!.coordinates!.head,
+          ],
+        },
+      },
       operationId,
       nextAction: "resolve-terminal-conflicts",
       recommendedActionText:

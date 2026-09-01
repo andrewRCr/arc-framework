@@ -5,6 +5,7 @@ import type { DeliveryEntryInspectionResult } from
   "../../../src/lib/delivery/entry-inspection.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import {
+  classifyDeliveryReviewFixAuthoringReadiness,
   pendingDeliveryReviewFixAuthorityIsCurrent,
   projectDeliveryReviewFixContinuation,
   selectPendingDeliveryReviewFixAuthority,
@@ -259,6 +260,75 @@ function route(
 }
 
 describe("delivery review-fix continuation projection", () => {
+  it("recognizes a clean changed authoring head that contains every required ancestor", () => {
+    expect(classifyDeliveryReviewFixAuthoringReadiness({
+      locus: {
+        kind: "candidate",
+        ref: "refs/arc/delivery-candidates/plan/member",
+        checkoutPath: "/repo/.git/arc/delivery-gates/plan/member",
+      },
+      publishedHead: "a".repeat(40),
+      observed: { head: "b".repeat(40), tree: "c".repeat(40), trackedDirty: false },
+      requiredAncestorHeads: ["a".repeat(40), "d".repeat(40)],
+      ancestry: [
+        { ancestor: "a".repeat(40), status: "ancestor" },
+        { ancestor: "d".repeat(40), status: "ancestor" },
+      ],
+    })).toEqual({
+      status: "ready",
+      kind: "candidate",
+      ref: "refs/arc/delivery-candidates/plan/member",
+      checkoutPath: "/repo/.git/arc/delivery-gates/plan/member",
+      head: "b".repeat(40),
+      tree: "c".repeat(40),
+    });
+  });
+
+  it("refuses when the exact authoring checkout has moved away from its bound ref", () => {
+    expect(classifyDeliveryReviewFixAuthoringReadiness({
+      locus: { kind: "candidate", ref: "refs/heads/candidate", checkoutPath: "/repo/gate" },
+      publishedHead: "a".repeat(40),
+      observed: {
+        head: "b".repeat(40),
+        tree: "c".repeat(40),
+        trackedDirty: false,
+      },
+      refCoordinates: {
+        head: "d".repeat(40),
+        tree: "e".repeat(40),
+      },
+      requiredAncestorHeads: ["a".repeat(40)],
+      ancestry: [{ ancestor: "a".repeat(40), status: "ancestor" }],
+    })).toEqual({ status: "refused", reason: "authoring-locus-moved" });
+  });
+
+  it("defers a stale publish when head movement does not touch any approved finding locus", () => {
+    expect(classifyDeliveryReviewFixAuthoringReadiness({
+      locus: { kind: "top", ref: "refs/heads/feat/example", checkoutPath: "/repo" },
+      publishedHead: "a".repeat(40),
+      observed: { head: "b".repeat(40), tree: "c".repeat(40), trackedDirty: false },
+      authoredPaths: [".arc/active/meta-example.md"],
+      requiredFindingPaths: ["src/finding.ts"],
+      requiredAncestorHeads: ["a".repeat(40)],
+      ancestry: [{ ancestor: "a".repeat(40), status: "ancestor" }],
+    })).toEqual({
+      status: "authoring-required",
+      kind: "top",
+      ref: "refs/heads/feat/example",
+      checkoutPath: "/repo",
+    });
+  });
+
+  it("refuses a dirty authoring checkout before treating an unchanged head as ready to edit", () => {
+    expect(classifyDeliveryReviewFixAuthoringReadiness({
+      locus: { kind: "top", ref: "refs/heads/feat/example", checkoutPath: "/repo" },
+      publishedHead: "a".repeat(40),
+      observed: { head: "a".repeat(40), tree: "b".repeat(40), trackedDirty: true },
+      requiredAncestorHeads: ["a".repeat(40)],
+      ancestry: [{ ancestor: "a".repeat(40), status: "ancestor" }],
+    })).toEqual({ status: "refused", reason: "authoring-locus-dirty" });
+  });
+
   it("selects the one exact pending hosted member response and ignores unrelated or settled residue", () => {
     const pending = deliveryDispositionRecord({ operationId: "operation-pending" });
     expect(selectPendingDeliveryReviewFixAuthority({
@@ -273,6 +343,12 @@ describe("delivery review-fix continuation projection", () => {
       planId: plan.planId,
       selectedDeliverableId,
       reviewedHead: pending.deliveryMember?.head,
+      dispositionSetId: pending.approvedDisposition.dispositionSet.dispositionSetId,
+      authorizedFindingIds: ["finding-1"],
+      authorizedFindingLoci: ["src/review.ts:42"],
+      operationId: pending.operationId,
+      repositoryId: pending.repositoryId,
+      attemptRef: pending.source.kind === "hosted" ? pending.source.attemptRef : "",
     });
   });
 
@@ -402,9 +478,58 @@ describe("delivery review-fix continuation projection", () => {
       route: route(kind),
       state: { revision: 3, value: currentChainState() },
       activeBranch: "feat/example",
+      ...(kind === "provider-refresh" || kind === "rematerialize"
+        ? {
+            authoring: {
+              status: "ready" as const,
+              kind: kind === "provider-refresh" ? "candidate" as const : "top" as const,
+              ref: kind === "provider-refresh"
+                ? "refs/arc/delivery-candidates/plan/member"
+                : "refs/heads/feat/example",
+              checkoutPath: kind === "provider-refresh" ? "/repo/.git/gate/member" : "/repo",
+              head: "a".repeat(40),
+              tree: "b".repeat(40),
+            },
+          }
+        : {}),
     });
     expect(result).toMatchObject({ status });
     if (actionKind !== undefined) expect(result).toMatchObject({ action: { kind: actionKind } });
+  });
+
+  it("returns a submit-ready non-terminal authoring stop with the complete approved finding batch", () => {
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      route: route("provider-refresh"),
+      state: { revision: 3, value: currentChainState() },
+      authoring: {
+        status: "authoring-required",
+        kind: "candidate",
+        ref: "refs/arc/delivery-candidates/plan/member",
+        checkoutPath: "/repo/.git/gate/member",
+      },
+      approvedDispositionSet: {
+        dispositionSetId: `sha256:${"f".repeat(64)}`,
+        authorizedFindingIds: ["finding-1", "finding-2"],
+      },
+    })).toMatchObject({
+      status: "authoring-required",
+      route: "provider-refresh",
+      selectedDeliverableId,
+      authoring: {
+        kind: "candidate",
+        ref: "refs/arc/delivery-candidates/plan/member",
+        checkoutPath: "/repo/.git/gate/member",
+      },
+      approvedDispositionSet: {
+        dispositionSetId: `sha256:${"f".repeat(64)}`,
+        authorizedFindingIds: ["finding-1", "finding-2"],
+      },
+      resumeAction: {
+        input: request,
+      },
+    });
   });
 
   it("advances a published selected correction into provider refresh", () => {
@@ -427,20 +552,10 @@ describe("delivery review-fix continuation projection", () => {
   });
 
   it.each([
-    ["candidate-renewal-required", "candidate-renewal"],
     ["continue-publication", "publication"],
     ["continue-hosted-review", "hosted-review"],
   ] as const)("preserves the %s authority boundary", (status, authority) => {
-    const entry = status === "candidate-renewal-required"
-      ? {
-          status,
-          nextAction: "renew-public-continuation" as const,
-          planId: plan.planId,
-          stateRevision: 10,
-          attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] as const },
-          recommendedActionText,
-        }
-      : status === "continue-publication"
+    const entry = status === "continue-publication"
         ? {
             status,
             nextAction: "continue-publication" as const,
@@ -469,6 +584,44 @@ describe("delivery review-fix continuation projection", () => {
     expect(projectDeliveryReviewFixContinuation({ request, entry })).toMatchObject({
       status: "authority-required",
       authority,
+    });
+  });
+
+  it("projects stale same-Candidate renewal as an internal boundary carry", () => {
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: {
+        status: "candidate-renewal-required",
+        nextAction: "renew-public-continuation",
+        planId: plan.planId,
+        stateRevision: 10,
+        attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] },
+        recommendedActionText,
+      },
+    })).toEqual({
+      status: "boundary-carry-required",
+      planId: plan.planId,
+      stateRevision: 10,
+      recommendedActionText,
+    });
+  });
+
+  it("returns the real Candidate-verification continuation instead of idle", () => {
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: {
+        status: "candidate-verification-required",
+        nextAction: "verify-work-unit",
+        planId: plan.planId,
+        stateRevision: 10,
+        recommendedActionText,
+      },
+    })).toEqual({
+      status: "candidate-verification-required",
+      nextAction: "verify-work-unit",
+      planId: plan.planId,
+      stateRevision: 10,
+      recommendedActionText,
     });
   });
 });

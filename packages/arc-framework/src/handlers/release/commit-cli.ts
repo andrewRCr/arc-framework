@@ -236,7 +236,7 @@ async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
  *
  * @returns A `SpawnGit` adapter with captured output and guarded stdin transport
  */
-export function createSpawnGit(context?: InteractionContext): SpawnGit {
+export function createSpawnGit(context?: InteractionContext, inheritOutput = true): SpawnGit {
   return async ({ args, cwd, stdin }) => {
     const invocation = ["commit", ...args];
     const forbidden = context?.subprocess.terminalPrompts === "forbidden";
@@ -256,8 +256,8 @@ export function createSpawnGit(context?: InteractionContext): SpawnGit {
       ...(stdin === undefined
         ? { stdin: context?.subprocess.ambientStdin === "closed" ? "ignore" as const : "inherit" as const }
         : { input: stdin }),
-      stdout: ["inherit", "pipe"],
-      stderr: ["inherit", "pipe"],
+      stdout: inheritOutput ? ["inherit", "pipe"] : "pipe",
+      stderr: inheritOutput ? ["inherit", "pipe"] : "pipe",
       reject: false,
       stripFinalNewline: false,
       maxBuffer: MAX_GIT_OUTPUT_BYTES,
