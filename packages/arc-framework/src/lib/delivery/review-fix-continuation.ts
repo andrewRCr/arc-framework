@@ -389,6 +389,12 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     if (route.route === "provider-refresh") {
       if (input.state !== undefined
         && hasExactPendingSelectedRefresh(input.state.value, route.selectedDeliverableId)) {
+        const operation = input.state.value.activeOperation;
+        if (operation !== null && (operation.kind !== "rewrite"
+          || operation.mode !== "provider-refresh"
+          || operation.reviewFixSelectedDeliverableId !== route.selectedDeliverableId)) {
+          return { status: "refused" as const, reason: "review-fix-operation-mismatch" };
+        }
         return dispatch({
           kind: "delivery-refresh-execute" as const,
           argv: ["arc", "delivery", "refresh", "execute", "-", "--json"] as const,
@@ -400,6 +406,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
               kind: "dependent-suffix" as const,
               selectedDeliverableId: entry.selectedDeliverableId,
             },
+            ...(operation === null ? {} : { operationId: operation.operationId }),
           },
         }, "Execute the exact provider refresh, then invoke this continuation again.");
       }

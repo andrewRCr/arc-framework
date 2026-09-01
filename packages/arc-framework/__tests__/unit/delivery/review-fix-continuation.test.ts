@@ -571,6 +571,46 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("resumes a pending selected refresh with its exact persisted operation", () => {
+    const pending = pendingSelectedRefreshState();
+    const operation = activeState("provider-refresh").value.activeOperation;
+    if (operation === null) throw new Error("continuation fixture requires an active refresh operation");
+
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      route: route("provider-refresh"),
+      state: {
+        ...pending,
+        value: { ...pending.value, activeOperation: operation },
+      },
+      activeBranch: "feat/example",
+    })).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-refresh-execute",
+        input: { operationId: operation.operationId },
+      },
+    });
+  });
+
+  it("refuses a pending selected refresh bound to a different active operation", () => {
+    const pending = pendingSelectedRefreshState();
+    const operation = activeState("provider-adoption").value.activeOperation;
+    if (operation === null) throw new Error("continuation fixture requires an active adoption operation");
+
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      route: route("provider-refresh"),
+      state: {
+        ...pending,
+        value: { ...pending.value, activeOperation: operation },
+      },
+      activeBranch: "feat/example",
+    })).toEqual({ status: "refused", reason: "review-fix-operation-mismatch" });
+  });
+
   it.each([
     ["continue-publication", "publication"],
     ["continue-hosted-review", "hosted-review"],

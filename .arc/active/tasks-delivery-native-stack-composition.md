@@ -2842,6 +2842,17 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               cases, production/test typechecks, and TypeScript lint pass. No standing grant, supersession,
               convergence, new storage family, or generic workflow control was added.
 
+        - `[x]` **7.7.R.u.i Preserve the exact refresh operation through conflict resume**
+
+            - _Goal:_ A provider-refresh conflict resumed after exact two-parent resolution reuses its persisted
+              operation selector and cannot fall into an `operation-mismatch` retry.
+
+            - The two focused cases failed against the prior projector, then passed after the pending-refresh arm
+              carried a matching active provider-refresh `operationId` and refused every non-matching operation.
+              Initial unreserved refresh remains selector-free and continues to reserve normally.
+            - All 59 focused review-fix tests and all 21 production delivery-position E2E cases pass, along with
+              production/test typechecks, focused TypeScript and Markdown lint, and all three ARC contract checks.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`
