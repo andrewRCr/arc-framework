@@ -1364,7 +1364,7 @@ describe("arc delivery position", () => {
     ]).then((line) => line.split("\t")[0]));
   });
 
-  it("drives a registered review correction through verification to hosted review", async () => {
+  it("drives a registered review correction through superseded verification to hosted review", async () => {
     const fixture = await positionFixture("registered-current");
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const current = await fixture.states.read(fixture.plan.planId);
@@ -1633,6 +1633,67 @@ describe("arc delivery position", () => {
     expect(await git(fixture.repository, ["rev-parse", locator.candidateRef])).toBe(correctionHead);
     expect(await git(locator.gatePath, ["rev-parse", "HEAD"])).toBe(correctionHead);
 
+    await writeFile(join(locator.gatePath, "member-one.txt"), "member one corrected again\n");
+    await git(locator.gatePath, ["add", "member-one.txt"]);
+    await git(locator.gatePath, ["commit", "--no-verify", "-m", "revise selected review fix"]);
+    const revisedCorrectionHead = await git(locator.gatePath, ["rev-parse", "HEAD"]);
+    await git(fixture.repository, ["update-ref", locator.candidateRef, revisedCorrectionHead]);
+    await writeFile(join(
+      fixture.repository,
+      ".arc",
+      "active",
+      `tasks-${fixture.plan.workUnitId}.md`,
+    ), [
+      `# Task List: ${fixture.plan.workUnitId}`,
+      "",
+      renderDeliveryPlanSection(fixture.plan),
+      "## **Phase 1:** Members",
+      "",
+      "### `[ ]` **1.1 Close member one**",
+      "",
+    ].join("\n"));
+    await git(fixture.repository, ["add", ".arc/active"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "reopen correction task"]);
+
+    const superseded = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(superseded.exitCode, `${superseded.stderr}\n${superseded.stdout}`).toBe(0);
+    const supersedingVerificationStop = JSON.parse(superseded.stdout) as {
+      verification: { target: { head: string; tree: string } };
+    };
+    expect(supersedingVerificationStop, superseded.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "verification-required",
+      selectedDeliverableId,
+      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      effectLog: [
+        { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
+        { kind: "dispatch", actionKind: "delivery-refresh-execute", resultStatus: "applied" },
+      ],
+    });
+    expect(supersedingVerificationStop.verification.target.head)
+      .not.toBe(verificationStop.verification.target.head);
+    expect(await git(fixture.repository, ["rev-parse", locator.candidateRef])).toBe(revisedCorrectionHead);
+    await writeFile(join(
+      fixture.repository,
+      ".arc",
+      "active",
+      `tasks-${fixture.plan.workUnitId}.md`,
+    ), [
+      `# Task List: ${fixture.plan.workUnitId}`,
+      "",
+      renderDeliveryPlanSection(fixture.plan),
+      "## **Phase 1:** Members",
+      "",
+      "### `[x]` **1.1 Close member one**",
+      "",
+    ].join("\n"));
+    await git(fixture.repository, ["add", ".arc/active"]);
+
     const resumed = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
@@ -1641,11 +1702,11 @@ describe("arc delivery position", () => {
         remote: "origin",
         verification: {
           applicability: "focused",
-          target: verificationStop.verification.target,
+          target: supersedingVerificationStop.verification.target,
           tier1: {
             outcome: "passed",
             provenance: "exact-tree-reuse",
-            targetTree: verificationStop.verification.target.tree,
+            targetTree: supersedingVerificationStop.verification.target.tree,
             coveredInputs: "unchanged",
           },
           verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
