@@ -27,8 +27,8 @@ override-active: false
 
 The caller supplies one scope value. That value binds all three validation coordinates together:
 
-- `criteria` — the member group at member scope, or recorded delivery-member reports plus the seam group at
-  work-unit scope;
+- `criteria` — the member group at member scope; the flat Success Criteria section at work-unit scope when no
+  Delivery Plan is present; or recorded delivery-member reports plus the seam group at work-unit scope when one is;
 - `diff` — the bounded member diff or complete work-unit diff; and
 - `reachability` — the cumulative tree through that member or the complete work-unit tree.
 
@@ -36,11 +36,14 @@ Do not widen or reconstruct one coordinate independently of the others. At membe
 inspect the bounded diff and reachable tree, and resolve each criterion in the selected member group against
 source-grounded evidence.
 
-At work-unit scope, disposition each member group from its recorded boundary report; do not re-derive member
-criteria from the complete work-unit diff. Require one report whose span matches each planned member, carry its
-criterion text, evidence, and state forward, then use the complete diff and reachable tree to detect regressions
-across group boundaries and walk the seam group and union coherence. A missing or mismatched member report is an
-unresolved `[ ]`, not permission to reopen that member's bounded walk.
+At work-unit scope, first inspect whether the task list contains a Delivery Plan. When none is present, open the
+upstream design/spec artifact, inspect the complete work-unit diff and reachable tree, and resolve every criterion
+in the flat Success Criteria section against actual outcomes. When a Delivery Plan is present, disposition each
+member group from its recorded boundary report; do not re-derive member criteria from the complete work-unit diff.
+Require one report whose span matches each planned member, carry its criterion text, evidence, and state forward,
+then use the complete diff and reachable tree to detect regressions across group boundaries and walk the seam group
+and union coherence. A missing or mismatched member report is an unresolved `[ ]`, not permission to reopen that
+member's bounded walk.
 
 Use the three-state model in every report:
 
@@ -51,8 +54,10 @@ Use the three-state model in every report:
 Criterion text is immutable. Report the original text and attach evidence or disposition; never rewrite the
 criterion to agree with the implementation.
 
-Return one entry per criterion in the selected scope. At work-unit scope, member entries carry their recorded
-boundary evidence plus any union-level regression disposition; seam entries carry evidence from the terminal walk:
+Return one entry per criterion in the selected scope. At work-unit scope without a
+Delivery Plan, entries carry evidence from the terminal flat-criteria walk. With a Delivery Plan, member entries
+carry their recorded boundary evidence plus any union-level regression disposition, and seam entries carry evidence
+from the terminal walk:
 
 ```yaml
 criteria:
@@ -64,8 +69,8 @@ summary:         # count by state and any unresolved gap
 ```
 
 At member scope, record the report as ordinary closing-task evidence without changing the task list's criterion
-checkboxes. At work-unit scope, consume those reports, validate seam and union coherence, and let the terminal
-verification workflow own marking after it consumes the combined report.
+checkboxes. At work-unit scope, let the terminal verification workflow own marking after it consumes the flat report
+or the combined member-and-seam report.
 
 ### Adversarial companion
 
