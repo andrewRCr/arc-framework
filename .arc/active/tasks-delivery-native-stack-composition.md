@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2738,7 +2738,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               and prove contribution-equivalent dependents escape redundant criteria walks while changed dependents
               remain owed.
 
-        - `[x]` **7.7.R.u.f Prove and revalidate the driven correction boundary** — validate criteria at member scope
+        - `[ ]` **7.7.R.u.f Prove and revalidate the driven correction boundary** — validate criteria at member scope
 
             - Drive one production-style E2E through approved response ownership, selected-member publication,
               provider refresh, scoped verification, acknowledgment, same-Candidate boundary carry, and unresolved
@@ -2746,19 +2746,6 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               and do not spend a new hosted pass or provider request before this case is green. After task closure,
               record the next live Member 1 correction as the attended acceptance run rather than creating a review-
               finding task cursor.
-
-        - _Outcome:_ One hard-coded delivery-correction driver now executes only the six approved dispatch kinds
-          in-process, consumes a submitted verification after acknowledgment, and returns at typed authoring,
-          conflict, review-policy, integration, or failure stops with an ordered effect log. Authoring stops carry
-          the exact checkout/ref and complete approved finding batch; machine-owned boundary/applicability record
-          commits and pushes reuse the release orchestrators under the bounded correction exception. Strict
-          ancestry plus contribution equivalence preserves pending response and Owner applicability authority,
-          while same-Candidate boundary carry replaces the manufactured unchanged-attestation cycle and updates the
-          proven correction subject directly. The production-style registered-stack E2E drives approved response
-          ownership through selected publication, provider refresh, scoped verification, response consumption,
-          Candidate verification, boundary carry, record commit/push, and exact Member 1 hosted-review spend; the
-          complete delivery-position file passes 21/21 and the focused implementation suite passes 126/126. The
-          next live Member 1 correction is the post-closure attended acceptance run, not a new task cursor.
 
 ## **Phase 8:** Record retirement and doctrine
 

@@ -125,6 +125,7 @@ import { projectDeliveryReviewFixVerificationContinuation } from
 import {
   classifyDeliveryReviewFixAuthoringReadiness,
   pendingDeliveryReviewFixAuthorityIsCurrent,
+  pendingDeliveryReviewFixCanResumeFromIntegrationStatus,
   projectDeliveryReviewFixContinuation,
   selectPendingDeliveryReviewFixAuthority,
 } from
@@ -1710,8 +1711,7 @@ async function executeDeliveryCommand(
             { entryMode: "integrating" },
             interaction,
           );
-          if (integratingEntry.status !== "candidate-renewal-required"
-            && integratingEntry.status !== "continue-hosted-review") {
+          if (!pendingDeliveryReviewFixCanResumeFromIntegrationStatus(integratingEntry.status)) {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
           entry = integratingEntry;

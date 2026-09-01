@@ -7,6 +7,7 @@ import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js
 import {
   classifyDeliveryReviewFixAuthoringReadiness,
   pendingDeliveryReviewFixAuthorityIsCurrent,
+  pendingDeliveryReviewFixCanResumeFromIntegrationStatus,
   projectDeliveryReviewFixContinuation,
   selectPendingDeliveryReviewFixAuthority,
 } from
@@ -604,6 +605,14 @@ describe("delivery review-fix continuation projection", () => {
       stateRevision: 10,
       recommendedActionText,
     });
+  });
+
+  it.each([
+    "candidate-renewal-required",
+    "candidate-verification-required",
+    "continue-hosted-review",
+  ] as const)("preserves a proven pending response through %s", (status) => {
+    expect(pendingDeliveryReviewFixCanResumeFromIntegrationStatus(status)).toBe(true);
   });
 
   it("returns the real Candidate-verification continuation instead of idle", () => {

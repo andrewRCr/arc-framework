@@ -112,6 +112,20 @@ export function pendingDeliveryReviewFixAuthorityIsCurrent(input: {
     && hasExactPendingSelectedRefresh(input.state, input.selectedDeliverableId);
 }
 
+/**
+ * Check whether mechanically preserved response authority may resume from an integration entry.
+ *
+ * @param status - Fresh integrating-entry status after exact contribution applicability succeeds.
+ * @returns True when the entry remains on the retained public-review continuation.
+ */
+export function pendingDeliveryReviewFixCanResumeFromIntegrationStatus(
+  status: DeliveryEntryInspectionResult["status"],
+): boolean {
+  return status === "candidate-renewal-required"
+    || status === "candidate-verification-required"
+    || status === "continue-hosted-review";
+}
+
 type VerificationResult = {
   readonly applicability: "targeted" | "focused" | "full";
   readonly target: { readonly head: string; readonly tree: string };
