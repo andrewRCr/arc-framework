@@ -4,7 +4,10 @@ import type { DeliveryEntryInspectionResult } from "./entry-inspection.js";
 import type { DeliveryReviewFixRouteResult } from "./review-fix.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import type { DeliveryStateV1 } from "./schema.js";
-import { hasExactPendingSelectedRefresh } from "./suffix-reconciliation.js";
+import {
+  findExactPendingSelectedRefresh,
+  hasExactPendingSelectedRefresh,
+} from "./suffix-reconciliation.js";
 import { sortByCanonicalBytes } from "../kernel/index.js";
 import type { ApprovedDispositionRecord } from
   "../../scripts/review-gate/core/advisory-records.js";
@@ -249,6 +252,34 @@ function dispatch(action: object, recommendedActionText: string) {
   return { status: "dispatch" as const, nextAction: "dispatch" as const, action, recommendedActionText };
 }
 
+function projectPendingSelectedRefresh(input: {
+  readonly request: DeliveryReviewFixContinueRequest;
+  readonly planId: string;
+  readonly selectedDeliverableId: string;
+  readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+}) {
+  const operation = input.state.value.activeOperation;
+  if (operation !== null && (operation.kind !== "rewrite"
+    || operation.mode !== "provider-refresh"
+    || operation.reviewFixSelectedDeliverableId !== input.selectedDeliverableId)) {
+    return { status: "refused" as const, reason: "review-fix-operation-mismatch" };
+  }
+  return dispatch({
+    kind: "delivery-refresh-execute" as const,
+    argv: ["arc", "delivery", "refresh", "execute", "-", "--json"] as const,
+    input: {
+      planId: input.planId,
+      repository: input.request.repository,
+      remote: input.request.remote,
+      scope: {
+        kind: "dependent-suffix" as const,
+        selectedDeliverableId: input.selectedDeliverableId,
+      },
+      ...(operation === null ? {} : { operationId: operation.operationId }),
+    },
+  }, "Execute the exact provider refresh, then invoke this continuation again.");
+}
+
 /**
  * Project the next exact machine action or existing authority stop from canonical facts.
  * The projector mutates nothing and never accepts a member, operation, revision, or digest selector from its caller.
@@ -280,6 +311,18 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
   }
   if (request.verification !== undefined) {
     return { status: "refused" as const, reason: "verification-continuation-not-pending" };
+  }
+
+  if (entry.status === "candidate-verification-required" && input.state !== undefined) {
+    const selectedDeliverableId = findExactPendingSelectedRefresh(input.state.value);
+    if (selectedDeliverableId !== null) {
+      return projectPendingSelectedRefresh({
+        request,
+        planId: entry.planId,
+        selectedDeliverableId,
+        state: input.state,
+      });
+    }
   }
 
   if (entry.status === "resume-bound") {
@@ -389,26 +432,12 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     if (route.route === "provider-refresh") {
       if (input.state !== undefined
         && hasExactPendingSelectedRefresh(input.state.value, route.selectedDeliverableId)) {
-        const operation = input.state.value.activeOperation;
-        if (operation !== null && (operation.kind !== "rewrite"
-          || operation.mode !== "provider-refresh"
-          || operation.reviewFixSelectedDeliverableId !== route.selectedDeliverableId)) {
-          return { status: "refused" as const, reason: "review-fix-operation-mismatch" };
-        }
-        return dispatch({
-          kind: "delivery-refresh-execute" as const,
-          argv: ["arc", "delivery", "refresh", "execute", "-", "--json"] as const,
-          input: {
-            planId: entry.planId,
-            repository: request.repository,
-            remote: request.remote,
-            scope: {
-              kind: "dependent-suffix" as const,
-              selectedDeliverableId: entry.selectedDeliverableId,
-            },
-            ...(operation === null ? {} : { operationId: operation.operationId }),
-          },
-        }, "Execute the exact provider refresh, then invoke this continuation again.");
+        return projectPendingSelectedRefresh({
+          request,
+          planId: entry.planId,
+          selectedDeliverableId: route.selectedDeliverableId,
+          state: input.state,
+        });
       }
       if (input.authoring?.status !== "ready") return authoringStop();
       return dispatch({

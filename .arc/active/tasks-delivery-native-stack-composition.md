@@ -2853,6 +2853,18 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
             - All 59 focused review-fix tests and all 21 production delivery-position E2E cases pass, along with
               production/test typechecks, focused TypeScript and Markdown lint, and all three ARC contract checks.
 
+        - `[x]` **7.7.R.u.j Finish a published member refresh before Candidate verification**
+
+            - _Goal:_ An exact published-member chain break remains the correction driver's next deterministic
+              action even when the originating WU checkout has also advanced the terminal Candidate.
+
+            - The focused case failed against the live priority inversion, then passed after Candidate-verification
+              entry supplied canonical Delivery State to the projector and a unique chain break composed the exact
+              provider-refresh action. Candidate verification remains unchanged when no such break exists.
+            - All 60 focused review-fix tests and all 21 production delivery-position E2E cases pass, along with
+              production/test typechecks and focused TypeScript lint. The next live Member 7 projection is the
+              handler-level acceptance run for the source-checkout movement that exposed the gap.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`
