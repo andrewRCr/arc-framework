@@ -2907,6 +2907,15 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               typechecks passed. The live retained operation accepted the exclusive selector, reached its known
               terminal manifest conflict, and applied after the approved exact two-parent resolution.
 
+        - `[x]` **7.7.R.u.n Select only the pending response during correction acknowledgment**
+
+            - _Goal:_ Historical completed responses for the selected delivery member do not make its one current
+              pending response ambiguous during scoped verification acknowledgment.
+
+            - _Outcome:_ Acknowledgment now excludes completed historical member responses before enforcing pending
+              response uniqueness. The production correction E2E retains both a completed prior response and one
+              current pending response, while the existing multiple-pending refusal remains unchanged.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`

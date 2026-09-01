@@ -16,6 +16,7 @@ import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { deriveDeliveryProviderRefreshSubject } from "../../src/lib/delivery/provider-refresh-observation.js";
 import { deriveDeliveryResidueLocators } from "../../src/lib/delivery/residue-reaping.js";
+import { advanceDeliveryReviewFixResponse } from "../../src/lib/delivery/review-fix.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
@@ -829,8 +830,8 @@ describe("arc delivery position", () => {
         },
       }],
     }, 0);
-    await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
-      ApprovedDispositionRecordSchema.parse({
+    const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+    const pendingResponseRecord = ApprovedDispositionRecordSchema.parse({
         schemaVersion: 1,
         semanticsVersion: "review-advisory/v1",
         repositoryId: "repo-1",
@@ -852,8 +853,32 @@ describe("arc delivery position", () => {
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
-      }),
-    );
+    });
+    const historicalResponse = advanceDeliveryReviewFixResponse({
+      record: {
+        ...pendingResponseRecord,
+        operationId: "operation-response-loss-historical",
+        source: {
+          kind: "hosted",
+          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fhistorical:hosted%2F1",
+        },
+      },
+      oldTarget,
+      hostedTarget: { repository: "owner/repo", pullRequest: 400, headSha: oldTarget.headSha },
+      currentHead: reviewedMember.coordinates.head,
+      currentTree: reviewedMember.coordinates.tree,
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://historical-member-fix"],
+      verifiedAt: "2026-08-31T11:00:00Z",
+    });
+    if (historicalResponse.status === "refused") throw new Error(historicalResponse.reason);
+    await dispositionStore.appendDispositionRecord(historicalResponse.record);
+    await dispositionStore.appendDispositionRecord(pendingResponseRecord);
+    expect((await dispositionStore.listDispositionRecords()).filter((record) => (
+      record.deliveryMember?.planId === fixture.plan.planId
+      && record.deliveryMember.deliverableId === selectedDeliverableId
+      && record.fixAuthorization !== null
+    ))).toHaveLength(2);
     const discardedSettlement = await runArcWithStdin(
       ["delivery", "refresh", "adopt", "-", "--json"],
       fixture.repository,

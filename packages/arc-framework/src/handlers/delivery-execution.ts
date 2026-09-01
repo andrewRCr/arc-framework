@@ -2099,6 +2099,7 @@ async function executeDeliveryCommand(
         && record.deliveryMember.deliverableId === parsed.selectedDeliverableId
         && record.deliveryMember.workUnitId === workUnitId
         && record.fixAuthorization !== null
+        && record.deliveryMemberFixResponse === null
       ));
       if (matchingResponseRecords.length > 1) {
         return { status: "refused", reason: "review-fix-response-ambiguous" };
