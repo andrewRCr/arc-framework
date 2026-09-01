@@ -50,7 +50,7 @@ async function writeStateRecord(cwd: string, recordName: string, content: string
   await writeFile(join(stateDirectory(cwd), recordName), content, "utf8");
 }
 
-async function publish(cwd: string, value: DeliveryStateV1, expectedRevision = 0): Promise<void> {
+async function publishStateOnly(cwd: string, value: DeliveryStateV1, expectedRevision = 0): Promise<void> {
   const store = new RepositoryDeliveryStateStore(
     new RepositoryGitCommonStatePublisher(makeGitExec(cwd), cwd),
   );
@@ -67,28 +67,36 @@ async function publishPlan(cwd: string, plan: DeliveryPlanV1): Promise<void> {
   expect(published.status).toBe("ok");
 }
 
+async function publish(cwd: string, value: DeliveryStateV1, expectedRevision = 0): Promise<void> {
+  const store = new RepositoryDeliveryPlanStore(
+    new RepositoryGitCommonStatePublisher(makeGitExec(cwd), cwd),
+    DeliveryPlanV1Codec,
+  );
+  const existing = await store.readCurrent(value.planId);
+  expect(existing.status).toBe("ok");
+  if (existing.status === "ok" && existing.value === null) {
+    await publishPlan(cwd, deliveryPlanFixture(value.planId));
+  }
+  await publishStateOnly(cwd, value, expectedRevision);
+}
+
 function state(options: {
   readonly heads?: readonly string[];
   readonly planId?: string;
-  readonly workUnitId?: string;
 } = {}): DeliveryStateV1 {
   const planId = options.planId ?? PLAN_ID;
-  const heads = options.heads ?? [FIRST_HEAD];
-  return DeliveryStateV1Schema.parse({
-    schemaVersion: 1,
-    semanticsVersion: "delivery-state/v1",
-    planId,
-    workUnitId: options.workUnitId ?? "delivery-plan-record",
-    boundPlan: { planRevision: 1, planDigest: canonicalDigest({ planId, revision: 1 }) },
-    target: { ref: "refs/heads/main", coordinates: null },
-    members: heads.map((head, index) => ({
-      deliverableId: canonicalDigest({ member: index, planId }),
-      ref: `refs/heads/delivery/example/member-${index}`,
-      changeRequest: null,
-      coordinates: { base: BASE, head, tree: TREE },
-    })),
-    activeOperation: null,
-  });
+  const current = deliveryStateFixture(deliveryPlanFixture(planId));
+  const heads = options.heads ?? [FIRST_HEAD, "e".repeat(40)];
+  current.target = { ref: "refs/heads/main", coordinates: null };
+  for (const [index, member] of current.members.entries()) {
+    member.ref = `refs/heads/delivery/example/member-${index}`;
+    member.coordinates = {
+      base: BASE,
+      head: heads[index] ?? "e".repeat(40),
+      tree: TREE,
+    };
+  }
+  return DeliveryStateV1Schema.parse(current);
 }
 
 describe("repository delivery member lookup", () => {
@@ -146,6 +154,33 @@ describe("repository delivery member lookup", () => {
       .resolves.toEqual({ status: "unbound" });
   });
 
+  it("refuses a bound head when its current plan is unavailable", async () => {
+    const { cwd, lookup } = await repository();
+    await publishStateOnly(cwd, state());
+
+    await expect(lookup.resolveMemberByHead(FIRST_HEAD))
+      .resolves.toEqual({ status: "unavailable" });
+  });
+
+  it("refuses a bound head when state no longer matches the current plan revision or order", async () => {
+    const staleRevision = await repository();
+    const plan = deliveryPlanFixture(PLAN_ID);
+    const staleState = state();
+    staleState.boundPlan.planDigest = canonicalDigest({ stale: "plan" });
+    await publishPlan(staleRevision.cwd, plan);
+    await publishStateOnly(staleRevision.cwd, staleState);
+    await expect(staleRevision.lookup.resolveMemberByHead(FIRST_HEAD))
+      .resolves.toEqual({ status: "unavailable" });
+
+    const staleOrder = await repository();
+    const reordered = state();
+    reordered.members.reverse();
+    await publishPlan(staleOrder.cwd, plan);
+    await publishStateOnly(staleOrder.cwd, reordered);
+    await expect(staleOrder.lookup.resolveMemberByHead(FIRST_HEAD))
+      .resolves.toEqual({ status: "unavailable" });
+  });
+
   it("resolves a bound head to its owning plan, member, work unit, and recorded commits", async () => {
     const { cwd, lookup } = await repository();
     const current = state({ heads: [FIRST_HEAD, SECOND_HEAD] });
@@ -201,7 +236,7 @@ describe("repository delivery member lookup", () => {
   it("reports an ambiguous match as unavailable rather than picking a candidate", async () => {
     const { cwd, lookup } = await repository();
     await publish(cwd, state());
-    await publish(cwd, state({ planId: OTHER_PLAN_ID, workUnitId: "another-work-unit" }));
+    await publish(cwd, state({ planId: OTHER_PLAN_ID }));
 
     await expect(lookup.resolveMemberByHead(FIRST_HEAD)).resolves.toEqual({ status: "unavailable" });
   });
@@ -253,7 +288,6 @@ describe("repository delivery member lookup", () => {
     await publish(second.cwd, state({
       heads: [SECOND_HEAD],
       planId: OTHER_PLAN_ID,
-      workUnitId: "another-work-unit",
     }));
 
     await expect(first.lookup.resolveMemberByHead(FIRST_HEAD)).resolves.toMatchObject({
@@ -263,7 +297,7 @@ describe("repository delivery member lookup", () => {
     await expect(first.lookup.resolveMemberByHead(SECOND_HEAD)).resolves.toEqual({ status: "unbound" });
     await expect(second.lookup.resolveMemberByHead(SECOND_HEAD)).resolves.toMatchObject({
       status: "resolved",
-      member: { planId: OTHER_PLAN_ID, workUnitId: "another-work-unit" },
+      member: { planId: OTHER_PLAN_ID, workUnitId: "delivery-plan-record" },
     });
     await expect(second.lookup.resolveMemberByHead(FIRST_HEAD)).resolves.toEqual({ status: "unbound" });
   });

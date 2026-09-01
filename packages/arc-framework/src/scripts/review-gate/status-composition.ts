@@ -11,8 +11,10 @@ import {
   resolveGitCandidateTargetBase,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
+  type DeliveryDischargeTargetLookup,
   type DeliveryMemberLookup,
 } from "./core/delivery-member-lookup.js";
 import { resolveReviewSubject } from "./core/review-subject.js";
@@ -73,7 +75,10 @@ export async function readRoutedObligation(
   exec: GitExec,
   target: ChangeRequestTargetRef,
   pullRequest: number,
-  memberLookup: DeliveryMemberLookup = new RepositoryDeliveryMemberLookup({ cwd, exec }),
+  memberLookup: DeliveryMemberLookup & DeliveryDischargeTargetLookup = new RepositoryDeliveryMemberLookup({
+    cwd,
+    exec,
+  }),
   currentBaseRevision?: string,
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
@@ -129,7 +134,13 @@ export async function readRoutedObligation(
     if (reservation === null) {
       return { state: "settled", detail: "No hosted review was reserved across publication." };
     }
-    const discharge = await createHostedReservationDischargeReader({ cwd, exec })({
+    const discharge = await createHostedReservationDischargeReader({
+      cwd,
+      exec,
+      delivery: memberLookup,
+      host: new GhDeliveryHostPort(hostedGhRunner),
+    })({
+      workUnitId: workUnit,
       reservation,
       baseRevision: record.attestation.baseRevision,
       approvedHead: target.headSha,

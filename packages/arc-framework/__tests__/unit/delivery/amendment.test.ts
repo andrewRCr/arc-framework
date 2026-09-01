@@ -26,15 +26,8 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
       ],
     },
     tasks: {
-      parents: [
-        { taskId: "1.1", role: { kind: "implementation" } },
-        { taskId: "1.2", role: { kind: "verification", scope: "member" } },
-        { taskId: "1.3", role: { kind: "implementation" } },
-        { taskId: "1.4", role: { kind: "verification", scope: "member" } },
-        { taskId: "1.5", role: { kind: "implementation" } },
-        { taskId: "1.6", role: { kind: "verification", scope: "member" } },
-        { taskId: "2.1", role: { kind: "verification", scope: "work-unit" } },
-      ],
+      implementation: [{ taskId: "1.1" }, { taskId: "1.2" }, { taskId: "1.3" }],
+      verificationTaskId: "2.1",
     },
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
@@ -43,7 +36,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         chunkKey: "first",
         title: "First member",
         contract: "Publish the first contract.",
-        taskIds: ["1.1", "1.2"],
+        taskIds: ["1.1"],
         designElementIds: ["detailed:core-contract"],
         mainlineLandability: "integration-only",
       },
@@ -51,7 +44,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         chunkKey: "second",
         title: "Second member",
         contract: "Publish the second contract.",
-        taskIds: ["1.3", "1.4"],
+        taskIds: ["1.2"],
         designElementIds: ["detailed:support-contract"],
         mainlineLandability: "integration-only",
       },
@@ -59,7 +52,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         chunkKey: "third",
         title: "Third member",
         contract: "Publish the third contract.",
-        taskIds: ["1.5", "1.6"],
+        taskIds: ["1.3"],
         designElementIds: ["detailed:tail-contract"],
         mainlineLandability: "integration-only",
       },
@@ -104,48 +97,17 @@ function constructPlan(
     }],
   });
   if (design.status !== "bound") throw new Error("fixture design inventory must bind");
-  const parents = [
-    {
-      taskId: "1.1",
-      semanticDigest: canonicalDigest({ goal: semantics.task?.["1.1"] ?? "First" }),
-      role: { kind: "implementation" as const },
-    },
-    {
-      taskId: "1.2",
-      semanticDigest: canonicalDigest({ goal: "Verify first" }),
-      role: { kind: "verification" as const, scope: "member" },
-    },
-    {
-      taskId: "1.3",
-      semanticDigest: canonicalDigest({ goal: semantics.task?.["1.3"] ?? "Second" }),
-      role: { kind: "implementation" as const },
-    },
-    {
-      taskId: "1.4",
-      semanticDigest: canonicalDigest({ goal: "Verify second" }),
-      role: { kind: "verification" as const, scope: "member" },
-    },
-    {
-      taskId: "1.5",
-      semanticDigest: canonicalDigest({ goal: semantics.task?.["1.5"] ?? "Third" }),
-      role: { kind: "implementation" as const },
-    },
-    {
-      taskId: "1.6",
-      semanticDigest: canonicalDigest({ goal: "Verify third" }),
-      role: { kind: "verification" as const, scope: "member" },
-    },
-    {
-      taskId: "2.1",
-      semanticDigest: null,
-      role: { kind: "verification" as const, scope: "work-unit" },
-    },
+  const implementation = [
+    { taskId: "1.1", semanticDigest: canonicalDigest({ goal: semantics.task?.["1.1"] ?? "First" }) },
+    { taskId: "1.2", semanticDigest: canonicalDigest({ goal: semantics.task?.["1.2"] ?? "Second" }) },
+    { taskId: "1.3", semanticDigest: canonicalDigest({ goal: semantics.task?.["1.3"] ?? "Third" }) },
   ];
   const result = constructDeliveryPlanRevision({
     authoring,
     taskInventory: {
-      inventoryDigest: canonicalDigest(parents),
-      parents,
+      inventoryDigest: canonicalDigest(implementation),
+      implementation,
+      verificationTaskId: "2.1",
     },
     designInventory: design.inventory,
     predecessor,
@@ -259,12 +221,12 @@ describe("classifyDeliveryPlanAmendment", () => {
 
     const additive = successor(current, (authoring) => {
       authoring.members[1]!.taskIds = [
-        authoring.members[0]!.taskIds.at(-1)!,
         ...authoring.members[1]!.taskIds,
+        authoring.members[2]!.taskIds[0]!,
       ];
       authoring.members[1]!.designElementIds = [
         ...authoring.members[1]!.designElementIds,
-        authoring.members[0]!.designElementIds[0]!,
+        authoring.members[2]!.designElementIds[0]!,
       ];
     });
     expect(classify({ current, proposed: additive, bound: [secondId] }))
@@ -279,24 +241,17 @@ describe("classifyDeliveryPlanAmendment", () => {
       affectedDeliverableIds: [firstId, thirdId],
     });
 
-    const sharedAuthoring = authoringInput();
-    sharedAuthoring.members[1]!.taskIds = [
-      sharedAuthoring.members[0]!.taskIds.at(-1)!,
-      ...sharedAuthoring.members[1]!.taskIds,
-    ];
-    const sharedCurrent = constructPlan(null, sharedAuthoring);
-    const reducedCoverage = constructPlan(sharedCurrent);
-    const sharedSecondId = sharedCurrent.members[1]!.deliverableId as CanonicalDigest;
-    expect(classify({
-      current: sharedCurrent,
-      proposed: reducedCoverage,
-      bound: [sharedSecondId],
-    })).toEqual({
+    const movedCoverage = successor(current, (authoring) => {
+      const movedTask = authoring.members[1]!.taskIds[0]!;
+      authoring.members[1]!.taskIds = [authoring.members[0]!.taskIds.at(-1)!];
+      authoring.members[2]!.taskIds = [...authoring.members[2]!.taskIds, movedTask];
+    });
+    expect(classify({ current, proposed: movedCoverage, bound: [secondId] })).toEqual({
       status: "replacement-required",
-      affectedDeliverableIds: [sharedSecondId],
+      affectedDeliverableIds: [secondId],
     });
 
-    const movedSemantics = successor(current, () => undefined, { task: { "1.3": "Moved second semantics" } });
+    const movedSemantics = successor(current, () => undefined, { task: { "1.2": "Moved second semantics" } });
     expect(classify({ current, proposed: movedSemantics, bound: [secondId] })).toEqual({
       status: "replacement-required",
       affectedDeliverableIds: [secondId],

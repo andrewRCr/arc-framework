@@ -43,21 +43,10 @@ const OTHER_PLAN_ID = "9cd88752-ef99-4e21-a41f-234bc98f35e0";
 
 function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
   const taskDigest = canonicalDigest({ goal: "Implement" });
-  const parents = [
-    {
-      taskId: "1.1",
-      semanticDigest: taskDigest,
-      role: { kind: "verification" as const, scope: "member" },
-    },
-    {
-      taskId: "2.1",
-      semanticDigest: null,
-      role: { kind: "verification" as const, scope: "work-unit" },
-    },
-  ];
   const taskInventory = {
-    inventoryDigest: canonicalDigest(parents),
-    parents,
+    inventoryDigest: canonicalDigest([{ taskId: "1.1", semanticDigest: taskDigest }]),
+    implementation: [{ taskId: "1.1", semanticDigest: taskDigest }],
+    verificationTaskId: "2.1",
   } as const;
   const designInventory = {
     artifacts: [{ artifactId: "spec.md", revisionDigest: canonicalDigest({ spec: 1 }) }],
@@ -74,7 +63,7 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
       entry: "from-tasks",
       inputs: { taskListPath: "tasks.md" },
       facts: { phaseGroups: [{ phaseId: "1", taskIds: ["1.1"] }] },
-      identitySequence: ["phase:1", "task:1.1", "task:2.1"],
+      identitySequence: ["phase:1", "task:1.1"],
     },
   });
   const slots = {
@@ -101,7 +90,7 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null) {
       semanticsVersion: "delivery-plan/v1",
       workUnitId: "delivery-plan-record",
       design: { artifacts: [{ artifactId: "spec.md" }], elements: [] },
-      tasks: { parents: parents.map(({ taskId, role }) => ({ taskId, role })) },
+      tasks: { implementation: [{ taskId: "1.1" }], verificationTaskId: "2.1" },
       entry: "from-tasks",
       projection: slots.projection,
       members: [{

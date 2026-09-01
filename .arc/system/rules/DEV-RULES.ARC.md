@@ -514,8 +514,8 @@ Load these documents when you reach the relevant work — not during session ini
 - **Before authoring a workflow:** Consult [Workflow Authoring Strategy][workflow-authoring] —
   frontmatter schema, author-side declaration rule, body conventions
 
-- **For method defaults and overrides:** At a direct fire-point, load the relevant
-  [`system/methods/`][arc-methods-dir] files on-demand
+- **For method defaults and overrides:** Workflow documents include method dependencies blocks
+  that trigger loading of the relevant [`system/methods/`][arc-methods-dir] files on-demand
 
 - **For quality gate tier definitions:** Load the [Quality Gates Strategy][quality-gates] —
   Tier 1/2/3 boundaries, escalation guidance
