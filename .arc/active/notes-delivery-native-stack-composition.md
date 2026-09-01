@@ -475,3 +475,36 @@ evidence). Standing lifecycle-advancement direction across re-entry — the exis
 approval-semantics backlog owners. Incremental-versus-complete pass economics — `review-signal-convergence`.
 Probe, seed, and note-discovery performance — `session-init-performance`. Tier 2/3 convergence (Tier 3 exceeds
 Tier 2 by `build` alone) — quality-gates housekeeping.
+
+### Amendment 1 — equivalent-offer aggregation (2026-09-01)
+
+Live Member 1 re-entry exposed a case the original record did not anticipate: applicability is projected per
+retained review attempt, so one semantic Owner judgment ("the later clean passes already cover this residual")
+returned as three serial attended stops — same member, same source, same current head, differing only by retained
+attempt identity — each costing a selection, a record commit, a push, and a recomposition. The stops are
+individually legal under the typed set, but the second and third carried no new decision, against the record's own
+no-gate-without-a-decision intent. This amendment is in-charter, not deferred review architecture: the cohort
+record assigns review applicability across non-substantive head movement to this work unit, and nothing here
+decides whether further review is worthwhile.
+
+Decided behavior: review status composes pending applicability offers into equivalence classes keyed by member,
+source, current head, residual-equivalence, and prior head within the already-reviewed pass set. One attended
+offer presents the class; the Owner's single answer applies to every member of it; the driver records each exact
+selection individually per the existing Candidate contract, coalesced into one commit and one push (confirm the
+contract binds record content, not commit cardinality; if it genuinely demands per-record commits, surface that as
+its own question rather than assuming). Any offer outside the class boundary — a different source, a changed head,
+a new or materially different residual — remains a separate attended stop. No standing grant object is persisted:
+a bounded batch authority expressed by the Owner in-session is the answer format, not a stored contract — the
+durable standing-direction design stays with `lifecycle-advancement-provenance`.
+
+Proof: extend the production end-to-end case with two retained equivalent attempts, asserting one aggregated
+offer, individual selection records, and one commit/push; the next natural live occurrence is the acceptance run.
+Sequencing: Member 1's remaining CodeRabbit applicability queue clears first under the already-granted bounded
+batch rule (reaching the outstanding Codex obligation is the urgent path); the amendment lands before member
+cycling resumes beyond that, since every future correction adds retained attempts and replays this shape at
+growing depth.
+
+Routed out, not built here: mechanical supersession — never offering an attempt whose residual a later clean pass
+at a descendant head provably covers — is review-evidence liveness, owned by `review-orchestration-right-sizing`
+and adjacent to the existing terminal-record garbage-collection capture; captured to `USER-INBOX` with this
+instance as evidence.
