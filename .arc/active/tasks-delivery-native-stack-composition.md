@@ -2916,6 +2916,15 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               response uniqueness. The production correction E2E retains both a completed prior response and one
               current pending response, while the existing multiple-pending refusal remains unchanged.
 
+        - `[x]` **7.7.R.u.o Bind acknowledgment evidence to the verified terminal revision**
+
+            - _Goal:_ Newer WU authoring does not block acknowledgment of an already-verified delivery terminal or
+              become covered by that older scoped verification.
+
+            - _Outcome:_ Acknowledgment collects Candidate evidence from the exact delivery terminal named by the
+              scoped verification, even when the WU checkout has advanced. The newer reviewable delta remains
+              outside that evidence and deterministically returns through Candidate verification.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`

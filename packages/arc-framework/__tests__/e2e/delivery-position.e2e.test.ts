@@ -1078,6 +1078,11 @@ describe("arc delivery position", () => {
       },
     });
 
+    await writeFile(join(fixture.repository, "rescue-follow-up.txt"), "newer rescue authoring\n");
+    await git(fixture.repository, ["add", "rescue-follow-up.txt"]);
+    await git(fixture.repository, ["commit", "-m", "newer rescue authoring"]);
+    expect(await git(fixture.repository, ["rev-parse", "HEAD"])).not.toBe(continuation.verification.target.head);
+
     await writeFile(taskListPath, taskList.replace("### `[ ]` **1.1", "### `[x]` **1.1"));
     const locus = await runArc(["locus", "--json"], fixture.repository, { env: fixture.env });
     expect(locus.exitCode, `${locus.stderr}\n${locus.stdout}`).toBe(0);
@@ -1143,6 +1148,7 @@ describe("arc delivery position", () => {
     const acknowledgedCandidate = await readCandidateRecord(fixture.repository, fixture.plan.workUnitId);
     expect(acknowledgedCandidate?.transitions.at(-1)).toMatchObject({
       transitionKind: "verification-response",
+      newTarget: { revision: continuation.verification.target.head },
     });
 
     const recoveredEntry = await runArcWithStdin(
@@ -1153,8 +1159,8 @@ describe("arc delivery position", () => {
     );
     expect(recoveredEntry.exitCode, `${recoveredEntry.stderr}\n${recoveredEntry.stdout}`).toBe(0);
     expect(JSON.parse(recoveredEntry.stdout)).toMatchObject({
-      status: "continue-hosted-review",
-      nextAction: "continue-hosted-review",
+      status: "candidate-verification-required",
+      nextAction: "verify-work-unit",
     });
 
     const session = await runArc(["status", "--session-init", "--json"], fixture.repository, {
@@ -1164,7 +1170,7 @@ describe("arc delivery position", () => {
     expect(JSON.parse(session.stdout)).toMatchObject({
       active: {
         ok: true,
-        value: { sessionType: "integration", currentWorkflow: "integrate-work-unit" },
+        value: { sessionType: "integration", currentWorkflow: "verify-work-unit" },
       },
     });
   });

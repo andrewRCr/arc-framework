@@ -2171,12 +2171,18 @@ async function executeDeliveryCommand(
         await dispositionStore.appendDispositionRecord(advanced.record);
       }
       const settings = (await readConfigSettings(cwd)).settings;
+      const checkoutCoordinates = await observeDeliveryEligibilityRef(exec, "HEAD");
+      if (checkoutCoordinates === null) {
+        return { status: "refused", reason: "candidate-verification-unavailable" };
+      }
+      const verifiedRevision = checkoutCoordinates.head === terminal.head ? undefined : terminal.head;
       const [candidate, currentTarget, unstagedReviewablePaths, actor, boundarySnapshot] = await Promise.all([
         readCandidateRecordVersioned(cwd, planRead.value.workUnitId),
         collectGitCandidateTarget({
           cwd,
           name: planRead.value.workUnitId,
           baseBranch: settings["branch.base"],
+          ...(verifiedRevision === undefined ? {} : { revision: verifiedRevision }),
           exec,
         }),
         collectUnstagedReviewablePaths({
