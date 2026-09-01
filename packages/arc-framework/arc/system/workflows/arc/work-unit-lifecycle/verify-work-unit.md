@@ -13,9 +13,8 @@ arc:
 # Workflow: Verify Completion
 
 Every task list ends with a verification phase containing a single task that points here. Delivery-member closing
-tasks fire criteria validation as member-scope verification tasks without loading this workflow. They remain distinct
-from the sole terminal work-unit verification task. The terminal task description is intentionally thin — this
-workflow is the authoritative protocol.
+tasks may fire criteria validation at member scope without becoming additional verification tasks or loading this
+workflow. The terminal task description is intentionally thin — this workflow is the authoritative protocol.
 Complete the first two steps below, mark the single verification task `[x]` with completion notes covering what
 was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable edit, then complete Step 3.
 
@@ -40,23 +39,9 @@ Run the full quality gate suite as defined by the project's [Quality Gates Strat
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
 clean throughout implementation, the full-suite run serves as attestation that everything passes as a whole.
 
-## Step 2 — Validate Success Criteria at Work-Unit Scope
+## Step 2 — Validate Success Criteria Against Design Artifact
 
-Inspect the task list for a Delivery Plan, then run the criteria walk at work-unit scope with exactly one of these
-criteria shapes.
-
-Without a Delivery Plan:
-
-```yaml
-validate-criteria:
-  scope:
-    kind: work-unit
-    criteria: task list's complete flat Success Criteria section
-    diff: complete work-unit diff
-    reachability: complete work-unit tree
-```
-
-With a Delivery Plan:
+Run the criteria walk at work-unit scope:
 
 ```yaml
 validate-criteria:
@@ -69,10 +54,9 @@ validate-criteria:
     reachability: complete work-unit tree
 ```
 
-Without a Delivery Plan, open the upstream design/spec artifact and compare every flat criterion against actual
-outcomes in the complete diff and tree. With a Delivery Plan, the method dispositions member groups from their
-recorded reports and walks only the seam group and union coherence against the complete tree. Consume the resulting
-report, then mark each criterion in the task list's Success Criteria section (see
+The method dispositions member groups from their recorded reports and walks only the seam group and union coherence
+against the complete tree. Consume its combined report, then mark each criterion in the task list's Success Criteria
+section (see
 [task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
 model:
 
@@ -82,16 +66,13 @@ model:
   decision during implementation (add a **Superseded** note).
 - `[ ]` — **Not met.** A genuine gap that needs discussion before the work is complete.
 
-If the combined report contains any `[ ]` criterion, stop. Leave the terminal work-unit verification task
-incomplete and do not enter Step 3 until the gap is fixed, deliberately superseded (including an approved
-deferral), or otherwise resolved; then rerun the criteria walk against the current work-unit subject.
-
 **Criterion text is immutable.** Never rewrite a criterion to match what was built. The
 original text preserves intent; annotations capture reality.
 
 **Key convention:** Success criteria are only marked during this verification phase, not
 during implementation. Implementation tasks get checked as work progresses; success criteria
-get checked when the implementer validates the scoped criteria against implementation evidence.
+get checked when the implementer steps back and validates outcomes against the upstream design
+artifact.
 
 Before closing the criteria pass, verify delivery integrity:
 

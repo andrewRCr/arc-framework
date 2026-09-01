@@ -31,18 +31,8 @@ function plan() {
     },
     tasks: {
       inventoryDigest: canonicalDigest({ tasks: 1 }),
-      parents: [
-        {
-          taskId: "1.1",
-          semanticDigest: canonicalDigest({ task: 1 }),
-          role: { kind: "implementation" },
-        },
-        {
-          taskId: "2.1",
-          semanticDigest: null,
-          role: { kind: "verification", scope: "work-unit" },
-        },
-      ],
+      implementation: [{ taskId: "1.1", semanticDigest: canonicalDigest({ task: 1 }) }],
+      verificationTaskId: "2.1",
     },
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },

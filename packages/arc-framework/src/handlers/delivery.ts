@@ -845,14 +845,12 @@ function taskInventoryFromSnapshot(
   assertCanonicalDigest(inventoryDigest);
   return {
     inventoryDigest,
-    parents: tasks.parents.map((task) => {
-      if (task.semanticDigest !== null) assertCanonicalDigest(task.semanticDigest);
-      return {
-        taskId: task.taskId,
-        semanticDigest: task.semanticDigest,
-        role: task.role,
-      };
+    implementation: tasks.implementation.map((task) => {
+      const semanticDigest = task.semanticDigest;
+      assertCanonicalDigest(semanticDigest);
+      return { taskId: task.taskId, semanticDigest };
     }),
+    verificationTaskId: tasks.verificationTaskId,
   };
 }
 

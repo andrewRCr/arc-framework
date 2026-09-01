@@ -118,7 +118,6 @@ export type CodeRabbitReviewBodyParseResult =
   | {
     kind: "parsed";
     actionableCount: number | null;
-    supplementalCounts: Readonly<Record<SupplementalCategory, number>>;
     findings: ReviewBodyFinding[];
   }
   | { kind: "malformed"; reason: string };
@@ -147,7 +146,7 @@ function nonNegativeInteger(value: string): number | null {
 }
 
 function summaryMatches(body: string): SummaryMatch[] {
-  return [...body.matchAll(/^[\t ]*(?:>[\t ]*)*<summary>([^<\r\n]+)<\/summary>/gimu)].map((match) => ({
+  return [...body.matchAll(/<summary>([^<\r\n]+)<\/summary><blockquote>/giu)].map((match) => ({
     text: (match[1] as string).trim(),
     start: match.index,
     end: match.index + match[0].length,
@@ -173,20 +172,6 @@ function malformed(reason: string): CodeRabbitReviewBodyParseResult {
   return { kind: "malformed", reason };
 }
 
-function diagnostic(
-  reason: string,
-  context: Readonly<Record<string, string | number>>,
-): string {
-  return `${reason}: ${JSON.stringify(context)}`;
-}
-
-function malformedWithContext(
-  reason: string,
-  context: Readonly<Record<string, string | number>>,
-): CodeRabbitReviewBodyParseResult {
-  return malformed(diagnostic(reason, context));
-}
-
 function parseSupplementalSection(
   review: HostedGitHubReview,
   body: string,
@@ -199,13 +184,8 @@ function parseSupplementalSection(
     if (count === null) return [];
     return [{ path: match.text.slice(0, countMatch.index).trim(), count, start: match.end }];
   });
-  const groupTotal = groups.reduce((total, group) => total + group.count, 0);
-  if (groupTotal !== section.count) {
-    return malformedWithContext("provider-supplemental-group-count-mismatch", {
-      category: section.category,
-      advertised: section.count,
-      groupTotal,
-    });
+  if (groups.reduce((total, group) => total + group.count, 0) !== section.count) {
+    return malformed(`provider-${section.category}-group-count-mismatch`);
   }
 
   const findings: ReviewBodyFinding[] = [];
@@ -214,45 +194,21 @@ function parseSupplementalSection(
     const groupBody = body.slice(group.start, groupEnd);
     const markers = [...groupBody.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
     if (markers.length !== group.count) {
-      return malformedWithContext("provider-supplemental-finding-count-mismatch", {
-        category: section.category,
-        group: group.path,
-        advertised: group.count,
-        markers: markers.length,
-      });
+      return malformed(`provider-${section.category}-finding-count-mismatch`);
     }
 
     let itemStart = 0;
     for (const marker of markers) {
       const fingerprint = marker[1] as string;
       const item = groupBody.slice(itemStart, marker.index);
-      const loci = [...item.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+)`:\s*_/gmu)];
+      const loci = [...item.matchAll(/^`([^`\r\n]+)`:\s*_/gmu)];
       const locusMatch = loci.at(-1);
       const parsedSeverity = severity(item);
-      const findingContext = {
-        category: section.category,
-        group: group.path,
-        fingerprint,
-      };
-      if (group.path.length === 0) {
-        return malformedWithContext("provider-body-finding-group-path-empty", findingContext);
-      }
-      if (locusMatch?.[1] === undefined) {
-        return malformedWithContext("provider-body-finding-locus-unrecognized", findingContext);
-      }
-      if (parsedSeverity === null) {
-        return malformedWithContext("provider-body-finding-severity-unrecognized", findingContext);
+      if (locusMatch?.[1] === undefined || parsedSeverity === null || group.path.length === 0) {
+        return malformed("malformed-provider-body-finding");
       }
       const findingBody = item.slice(locusMatch.index).trim();
-      const metadataLineEnd = item.indexOf("\n", locusMatch.index);
-      const substantiveBody = metadataLineEnd === -1
-        ? ""
-        : item.slice(metadataLineEnd + 1)
-          .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "")
-          .trim();
-      if (substantiveBody.length === 0) {
-        return malformedWithContext("provider-body-finding-empty", findingContext);
-      }
+      if (findingBody.length === 0) return malformed("malformed-provider-body-finding");
       findings.push({
         findingId: `${review.id}:${fingerprint}`,
         origin: "review-body",
@@ -279,17 +235,13 @@ export function parseCodeRabbitReviewBody(
   )];
   const actionableText = actionableMatches[0]?.[1];
   if (actionableMatches.length > 1) {
-    return malformedWithContext("provider-actionable-count-ambiguous", {
-      matches: actionableMatches.length,
-    });
+    return malformed("malformed-provider-actionable-count");
   }
   const actionableCount = actionableText === undefined
     ? null
     : nonNegativeInteger(actionableText);
   if (actionableText !== undefined && actionableCount === null) {
-    return malformedWithContext("provider-actionable-count-invalid", {
-      value: actionableText.trim(),
-    });
+    return malformed("malformed-provider-actionable-count");
   }
 
   const promptStart = review.body.search(/<summary>[^<\r\n]*Prompt for all review comments/iu);
@@ -307,44 +259,20 @@ export function parseCodeRabbitReviewBody(
     );
     if (parsed.kind === "malformed") return parsed;
     if (parsed.findings.length !== section.count) {
-      return malformedWithContext("provider-supplemental-section-count-mismatch", {
-        category: section.category,
-        advertised: section.count,
-        parsed: parsed.findings.length,
-      });
+      return malformed(`provider-${section.category}-finding-count-mismatch`);
     }
     findings.push(...parsed.findings);
   }
 
   const advertisedSupplementalCount = sections.reduce((total, section) => total + section.count, 0);
-  const supplementalCounts = {
-    nitpick: sections
-      .filter((section) => section.category === "nitpick")
-      .reduce((total, section) => total + section.count, 0),
-    "outside-diff": sections
-      .filter((section) => section.category === "outside-diff")
-      .reduce((total, section) => total + section.count, 0),
-  };
   const markerCount = [...detailBody.matchAll(/<!--\s*cr-comment:v1:[a-f0-9]+\s*-->/giu)].length;
   if (findings.length !== advertisedSupplementalCount || markerCount !== findings.length) {
-    return malformedWithContext("provider-supplemental-total-count-mismatch", {
-      advertised: advertisedSupplementalCount,
-      parsed: findings.length,
-      markers: markerCount,
-    });
+    return malformed("provider-supplemental-finding-count-mismatch");
   }
-  const seenFingerprints = new Set<string>();
-  const duplicate = findings.find((item) => {
-    if (seenFingerprints.has(item.fingerprint)) return true;
-    seenFingerprints.add(item.fingerprint);
-    return false;
-  });
-  if (duplicate !== undefined) {
-    return malformedWithContext("provider-body-finding-fingerprint-duplicate", {
-      fingerprint: duplicate.fingerprint,
-    });
+  if (new Set(findings.map((item) => item.fingerprint)).size !== findings.length) {
+    return malformed("duplicate-provider-body-finding");
   }
-  return { kind: "parsed", actionableCount, supplementalCounts, findings };
+  return { kind: "parsed", actionableCount, findings };
 }
 
 function newestTerminalReview(reviews: HostedGitHubReview[]): HostedGitHubReview | undefined {
@@ -462,39 +390,15 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
             && comment.headSha === target.headSha
             && comment.reviewId === review.id)
           .map((comment) => ({ threadId: thread.id, comment })));
-      const parsedComments = candidateComments.map(({ threadId, comment }) => ({
-        threadId,
-        comment,
-        parsed: finding(threadId, comment),
-      }));
-      const rejectedComment = parsedComments.find((candidate) => candidate.parsed === null);
-      if (rejectedComment !== undefined) {
-        const { threadId, comment } = rejectedComment;
-        const context = {
-          threadId,
-          commentId: comment.id,
-          path: comment.path,
-          ...(comment.line === null ? {} : { line: comment.line }),
-        };
-        return {
-          kind: "terminal-failure",
-          reason: comment.line === null
-            ? diagnostic("provider-thread-finding-locus-unavailable", context)
-            : diagnostic("provider-thread-finding-severity-unrecognized", context),
-        };
+      const findings = candidateComments.flatMap(({ threadId, comment }) => {
+        const parsed = finding(threadId, comment);
+        return parsed === null ? [] : [parsed];
+      });
+      if (candidateComments.length !== findings.length) {
+        return { kind: "terminal-failure", reason: "malformed-provider-finding" };
       }
-      const findings = parsedComments.map((candidate) => candidate.parsed)
-        .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
       if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
-        return {
-          kind: "terminal-failure",
-          reason: diagnostic("provider-actionable-finding-count-mismatch", {
-            advertised: parsedBody.actionableCount,
-            inline: findings.length,
-            outsideDiff: parsedBody.supplementalCounts["outside-diff"],
-            nitpick: parsedBody.supplementalCounts.nitpick,
-          }),
-        };
+        return { kind: "terminal-failure", reason: "provider-actionable-finding-count-mismatch" };
       }
       const allFindings = [...findings, ...parsedBody.findings];
       if (allFindings.length > 0) {

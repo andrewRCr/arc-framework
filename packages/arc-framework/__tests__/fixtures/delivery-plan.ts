@@ -46,19 +46,10 @@ function buildDeliveryPlanFixture(
 ): DeliveryPlanV1 {
   const ordinalNames = ["First", "Second", "Third", "Fourth", "Fifth"];
   const chunkKeys = ["first", "second", "third", "fourth", "fifth"];
-  const assignableParents = Array.from({ length: memberCount }, (_, index) => ({
+  const implementation = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
     semanticDigest: canonicalDigest({ goal: ordinalNames[index] }),
-    role: { kind: "verification" as const, scope: "member" },
   }));
-  const parents = [
-    ...assignableParents,
-    {
-      taskId: "2.1",
-      semanticDigest: null,
-      role: { kind: "verification" as const, scope: "work-unit" },
-    },
-  ];
   const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
     schemaVersion: 1,
     semanticsVersion: "delivery-plan/v1",
@@ -68,11 +59,12 @@ function buildDeliveryPlanFixture(
       elements: [{ elementId: "detailed:state-contract" }],
     },
     tasks: {
-      parents: parents.map(({ taskId, role }) => ({ taskId, role })),
+      implementation: implementation.map(({ taskId }) => ({ taskId })),
+      verificationTaskId: "2.1",
     },
     entry: "from-tasks",
     projection: { kind: projection },
-    members: assignableParents.map(({ taskId }, index) => ({
+    members: implementation.map(({ taskId }, index) => ({
       chunkKey: chunkKeys[index],
       title: memberTitles[index],
       contract: `Publish the ${chunkKeys[index]} contract.`,
@@ -94,8 +86,9 @@ function buildDeliveryPlanFixture(
   const result = constructDeliveryPlanRevision({
     authoring,
     taskInventory: {
-      inventoryDigest: canonicalDigest(parents),
-      parents,
+      inventoryDigest: canonicalDigest(implementation),
+      implementation,
+      verificationTaskId: "2.1",
     },
     designInventory: design.inventory,
     predecessor: null,

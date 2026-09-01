@@ -195,9 +195,7 @@ violation.
          reachability: cumulative tree through this member
      ```
 
-  4. **Report and stop:** Use the resolved completion branch when item 3 does not apply or reports no unresolved
-     criterion. Use the unresolved member-report branch only when item 3 returns an unresolved `[ ]`. Then stop
-     through the shared interlock.
+  4. **Report and stop:** Select the report branch from item 3, then stop through the shared interlock.
 
      **Unresolved member-report branch:** When item 3 returned an unresolved `[ ]`, leave the closing task `[ ]`.
      Preserve the report as boundary evidence, but do not cascade parent completion, run the completion extension,
