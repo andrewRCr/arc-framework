@@ -18,6 +18,7 @@
 - [Live GitHub Stacks API observation](#live-github-stacks-api-observation)
 - [Guard-test digest history](#guard-test-digest-history)
 - [Consumed `integration-boundary-accuracy` substrate](#consumed-integration-boundary-accuracy-substrate)
+- [Correction-cycle rescue — decision record (2026-08-31)](#correction-cycle-rescue--decision-record-2026-08-31)
 
 ## Comparator vs plan-semantics fingerprinting
 
@@ -366,3 +367,111 @@ The design consumes the landed typed substrate rather than minting parallel read
 resolve` (member pull-request resolution / reverse lookup), `arc review status`, `arc base merge`,
 `arc review merge-method resolve`, and the provider-neutral bounded wait — a stack-merge-API await is that wait's
 natural third instantiation.
+
+## Correction-cycle rescue — decision record (2026-08-31)
+
+Owner-approved decision record for finishing this integration. It settles what the review-correction path must
+become before live member cycling resumes, what is deliberately excluded, and how the change lands. Written so the
+resuming session can act without re-deriving any of it; the underlying evidence lives in the
+`USER-INBOX § Right-size stacked review correction as one resumable control loop` capture and its siblings.
+
+### Evidence base, compressed
+
+Six integration days produced 255 distinct commits (deduped across stack rematerialization): 45% repaired the
+delivery/review/lifecycle machinery itself under dogfood, 36% were attest/publish/reopen/renew/absorb ceremony, and
+3% carried an actual hosted-review finding fix. A prescribed correction cycle contains 1–3 decision-bearing stops
+against 6–10 deterministic-only stops, 5–7 manual re-invocations of the correction continuation, 3–5 full
+review-status recompositions, and 7–12 full delivery-entry recompositions; observed attended cost ran 45–105
+minutes per cycle. Mature stacked-PR practice (Graphite, `gh stack`, git-machete, jj) lands the equivalent
+mechanical span as one command plus unattended CI wait, with human attention reserved for semantic conflicts and
+the re-review-scope decision. The machinery-repair bucket is largely paid; the ceremony bucket is structural and
+recurs per cycle, so it is what the rescue removes. One emblem: `5678fd278` is an empty commit created solely to
+advance a head past a typed ancestry check.
+
+### Decisions
+
+1. **Hosted member cycling is paused** until the rescue slice lands and its acceptance run passes. No new hosted
+   passes, no new provider spend; the pending narrow correction (retained review-fix response across a provably
+   mechanical refresh) commits first so the boundary is durable.
+2. **The correction cycle becomes one driven control loop owned by the CLI.** The existing
+   `review-fix continue` projector already composes complete argv+input for its six dispatch kinds; the driver
+   executes them in-process instead of handing them back, and returns only typed stops. This is hard-coded,
+   delivery-correction-specific code-tier logic under `strategy-procedure-evolution` Principle 1 — deliberately
+   not a general workflow engine, step vocabulary, or agent-interpreted control flow.
+3. **Machine-owned record-only commits and pushes run inside the driver without per-fire approval.** The
+   Review-Increment bounded exception already admits candidate-tail cleanup and lifecycle ceremony ahead of the
+   final interlock; the boundary-projection commit, applicability `commit-selection` commit, and the top push
+   after renewal are that class. Each drive emits an effect log (commits created, refs pushed, renewals
+   performed) surfaced in the completion report — disclosure, not approval. The user-facing configurability of
+   this posture (some operators will want a stop here) is deliberately deferred and routed to the backlog's
+   approval-semantics owners; the default here is autonomous-with-disclosure.
+4. **Whether a restack invalidates prior review authority is decided by proof, not by re-asking.** Generalizing
+   the retained-response fallback: head movement that is provably mechanical — strict ancestor descent with
+   contribution-equivalent reviewed content under the existing arbiter — preserves pending review-fix responses
+   and Owner applicability selections, recording the proof; anything unprovable fails closed to the existing
+   re-ask. This is the industry posture (restacks do not dismiss approvals) made exact.
+5. **The boundary-renewal cycle stops being self-inflicted.** `acknowledge` bumps the state revision that the
+   integration boundary pins, so renewal fires every cycle by construction and `arc attest` returns `unchanged`.
+   The driver folds record-only renewal in (or the boundary tolerates same-Candidate revision advance); a
+   `blocked / establish-new-root` result remains a typed stop with its continuation surfaced, never auto-run.
+
+### Driver contract
+
+`arc delivery review-fix continue` (driven form) executes deterministic steps until a typed stop. Exhaustive stop
+set: **finding-disposition approval** (entering the cycle); **authoring** (the fix itself — `authoring-required`
+becomes a first-class arm for the non-terminal route rather than prose inside `recommendedActionText`);
+**one consolidated verification stop** per cycle (member-scoped `validate-criteria` walks and the
+`verificationResult` composition stay agent judgment; Tier 1 execution is mechanical and may run machine-owned
+against the composed target); **semantically ambiguous conflict** — returned with the reserved merge base, both
+parents, and a prepared isolated resolution workspace or exact `merge-tree` invocation plus a resume action, so
+natural-merge semantics cannot be substituted by accident; **new review spend** (ceiling override, hosted request
+where a metered pass is consumed, an applicability selection not mechanically preserved under Decision 4);
+**destructive authority**; and **exact-head integration/merge authorization**. Everything else — publish, refresh
+execute/adopt, reconcile, acknowledge, renewal, record commits, top push, re-entry — is driver-internal. The
+driver resumes idempotently from the persisted operation record after interruption or compaction, and running as
+one process collapses the repeated status/entry recompositions to one observation per drive.
+
+### Contract repairs riding the slice
+
+- Every emitted next action is directly submit-ready (the hosted `await` envelope today requires an
+  undocumented reconstructed wrapper).
+- A stale publish action is deferred or recomposed when newer unauthored same-member work exists; the agent no
+  longer detects that sequencing mismatch manually.
+- `idle / continue-work-unit` returns the real continuation when the entry status is
+  `candidate-verification-required` instead of reporting nothing actionable.
+- Confirm the contribution-equivalence escape actually exempts unchanged dependents from per-member criteria
+  re-walks in practice; a correction to a low member should not cost seven walks.
+- Same-member findings batch into one republish by default; publishing between findings of one pass is the
+  exception and needs a reason.
+
+### Hard boundaries
+
+No review-convergence policy (owned by `review-signal-convergence`); no generalized orchestration, step
+vocabulary, or composition substrate (owned by `composable-workflows` / `review-orchestration-right-sizing`); no
+storage redesign; minimal new investment in the filtered member-ref projection machinery, which the storage
+direction already records for retirement once operational state materializes off-branch. If the rescue cannot be
+built inside these boundaries, stop expanding and finish the remaining members through a fixed manual runbook.
+
+### Process shape
+
+The rescue lands through the established correction model: one forward design amendment to
+`spec-delivery-native-stack-composition.md` (driver contract, typed stop set, mechanical-preservation rule) plus a
+reopened corrective task group — no replay of the planning stages. The design is settled by field evidence and
+this record; the cohort's hardening-admission boundary asks that new mechanism arrive as a deliberate design
+amendment, which this satisfies. A targeted task audit over the new group at resume is cheap insurance and
+optional. Acceptance: one production-style end-to-end case covering review-response-owned correction × provider
+refresh × verification × Candidate renewal × unresolved hosted settlement, driven through the composed loop (the
+pending e2e addition is most of the fixture); then the next live Member 1 correction is the acceptance run —
+attended stops limited to the typed set above, attended time in minutes. While hosted or CI waits run, this WU
+parks and disjoint project work advances; integration becomes an asynchronous lane rather than the project's
+foreground.
+
+### Routed out, not lost
+
+Generalized control-loop doctrine, the duplicated review dispatch tables, and prose-orchestration removal —
+`review-orchestration-right-sizing` / `composable-workflows` (captures exist; refreshed with this week's
+evidence). Standing lifecycle-advancement direction across re-entry — the existing
+`lifecycle-advancement-provenance` capture. Commit-autonomy user-facing configurability — new capture to the
+approval-semantics backlog owners. Incremental-versus-complete pass economics — `review-signal-convergence`.
+Probe, seed, and note-discovery performance — `session-init-performance`. Tier 2/3 convergence (Tier 3 exceeds
+Tier 2 by `build` alone) — quality-gates housekeeping.
