@@ -470,7 +470,7 @@
     "system/methods/validate-criteria.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "01ca2133f67220526dbc361ee0d2fb85282b4fe94ed04799c0d1ae32e3a9f0ef"
+      "pristine_hash": "30061d8f757417624c4c1dda71b9b9122b0608e70b5aa42ff1337adb870edfbb"
     },
     "system/methods/README.md": {
       "classification": "Framework",
