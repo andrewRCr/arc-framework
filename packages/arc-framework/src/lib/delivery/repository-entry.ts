@@ -115,6 +115,8 @@ function createRepositoryDeliveryInspectionDependencies(
           cwd: input.cwd,
           exec: input.exec,
           candidate: projected,
+          workUnitId,
+          baseBranch: input.baseBranch,
         });
         return {
           status: "ok",

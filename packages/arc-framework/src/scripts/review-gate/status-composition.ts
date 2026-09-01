@@ -166,6 +166,8 @@ export async function readRoutedObligation(
         cwd,
         exec,
         candidate: effective,
+        workUnitId: workUnit,
+        baseBranch,
       });
       if (delivery.status !== "resolved"
         || validateDeliveryPublicReviewContinuation({

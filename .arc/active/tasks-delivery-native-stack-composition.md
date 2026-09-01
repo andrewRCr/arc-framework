@@ -3059,6 +3059,11 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           Repeated identical record settlement and an advancing non-terminating drive now fail at explicit bounded
           stops instead of spinning. The complete 21-case production correction E2E, both typechecks, all lint and
           ARC contract gates, the standalone build, and the full 11,259-test suite pass; no hosted pass was spent.
+          The live Candidate re-root then exercised the drive bound by making each terminal rebind chase its own
+          boundary-only commit. Public-continuation proof now also considers an exact single-parent prior coordinate
+          only when strict ancestry and unchanged Candidate subject prove that record movement is mechanical; the
+          state rebind still occurs once so hosted request coordinates remain current, while the resulting record
+          commit no longer manufactures another carry. The focused classifier and all 21 production E2E cases pass.
 
     - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
 

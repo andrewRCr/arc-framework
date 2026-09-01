@@ -32,6 +32,10 @@ export type DeliveryPublicReviewContinuationV1 = z.infer<
 export interface DeliveryTerminalCoordinateAdvanceProof {
   readonly priorHead: string;
   readonly priorTree: string;
+  readonly alternatePriorCoordinates?: readonly {
+    readonly head: string;
+    readonly tree: string;
+  }[];
   readonly currentHead: string;
   readonly currentTree: string;
   readonly proof: "subject-equality" | "tree-equality" | "mechanical-reapply";
@@ -129,27 +133,34 @@ export function validateDeliveryPublicReviewContinuation(input: {
   if (advance !== undefined) {
     const terminalIndex = input.state.members.length - 1;
     const terminal = input.state.members[terminalIndex]?.coordinates ?? null;
-    const prior = DeliveryMemberCoordinatesV1Schema.safeParse(terminal === null ? null : {
-      ...terminal,
-      head: advance.priorHead,
-      tree: advance.priorTree,
-    });
     const current = DeliveryMemberCoordinatesV1Schema.safeParse(terminal === null ? null : {
       ...terminal,
       head: advance.currentHead,
       tree: advance.currentTree,
     });
-    if (prior.success && current.success && terminal !== null
+    const priorCoordinates = [
+      { head: advance.priorHead, tree: advance.priorTree },
+      ...(advance.alternatePriorCoordinates ?? []),
+    ];
+    if (current.success && terminal !== null
       && input.stateRevision > continuation.data.stateRevision
-      && prior.data.head !== current.data.head
       && canonicalDigest(terminal) === canonicalDigest(current.data)) {
-      const priorMembers = input.state.members.map((member, index) => index === terminalIndex
-        ? { ...member, coordinates: prior.data }
-        : member);
-      const priorState = { ...input.state, members: priorMembers };
-      if (canonicalDigest(priorState) === continuation.data.stateDigest
-        && canonicalDigest(priorMembers) === continuation.data.memberEvidenceDigest) {
-        return { status: "current" };
+      for (const coordinates of priorCoordinates) {
+        const prior = DeliveryMemberCoordinatesV1Schema.safeParse({
+          ...terminal,
+          head: coordinates.head,
+          tree: coordinates.tree,
+        });
+        if (prior.success && prior.data.head !== current.data.head) {
+          const priorMembers = input.state.members.map((member, index) => index === terminalIndex
+            ? { ...member, coordinates: prior.data }
+            : member);
+          const priorState = { ...input.state, members: priorMembers };
+          if (canonicalDigest(priorState) === continuation.data.stateDigest
+            && canonicalDigest(priorMembers) === continuation.data.memberEvidenceDigest) {
+            return { status: "current" };
+          }
+        }
       }
     }
   }
