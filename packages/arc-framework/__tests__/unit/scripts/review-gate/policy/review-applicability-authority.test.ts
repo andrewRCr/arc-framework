@@ -7,6 +7,7 @@ import type { CandidateReviewApplicabilitySelectionV1 } from
   "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   reduceReviewApplicabilityAuthority,
+  reduceReviewApplicabilityAuthorityWithMechanicalCarry,
   reviewApplicabilityConsumerAction,
 } from
   "../../../../../src/scripts/review-gate/policy/review-applicability-authority.js";
@@ -66,6 +67,56 @@ function selection(
 }
 
 describe("review applicability authority", () => {
+  it("preserves an exact Owner selection across a contribution-equivalent mechanical extension", () => {
+    const selectedProjection = decision();
+    const ownerSelection = selection(selectedProjection, "covered");
+    const projection = classifyReviewContributionApplicability({
+      ...selectedProjection.selector,
+      currentHead: oid("c"),
+      currentBase: oid("7"),
+    }, {
+      endpoints: {
+        before: selectedProjection.projection.before,
+        after: {
+          predecessor: { head: oid("7"), tree: oid("8") },
+          member: { head: oid("c"), tree: oid("9") },
+        },
+      },
+      proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
+    });
+    const mechanicalProjection = classifyReviewContributionApplicability({
+      ...selectedProjection.selector,
+      priorHead: selectedProjection.selector.currentHead,
+      priorBase: selectedProjection.selector.currentBase,
+      currentHead: oid("c"),
+      currentBase: oid("7"),
+    }, {
+      endpoints: {
+        before: selectedProjection.projection.after,
+        after: {
+          predecessor: { head: oid("7"), tree: oid("8") },
+          member: { head: oid("c"), tree: oid("9") },
+        },
+      },
+      proof: { status: "accepted", proof: "mechanical-reapply" },
+    });
+    if (projection.state !== "decision-required" || mechanicalProjection.state !== "applicable") {
+      throw new Error("mechanical carry fixtures must classify");
+    }
+
+    expect(reduceReviewApplicabilityAuthorityWithMechanicalCarry(
+      CANDIDATE_ID,
+      projection,
+      [ownerSelection],
+      [{ selection: ownerSelection, selectedProjection, mechanicalProjection }],
+    )).toMatchObject({
+      state: "applicable",
+      authority: "owner-covered",
+      projection,
+      selection: ownerSelection,
+    });
+  });
+
   it("keeps an unresolved residual factual and turns only the exact choices into consumer outcomes", () => {
     const projection = decision();
     expect(reduceReviewApplicabilityAuthority(CANDIDATE_ID, projection, [])).toEqual({

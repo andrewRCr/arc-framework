@@ -3,7 +3,7 @@
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -15,6 +15,7 @@ import {
 import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { deriveDeliveryProviderRefreshSubject } from "../../src/lib/delivery/provider-refresh-observation.js";
+import { deriveDeliveryResidueLocators } from "../../src/lib/delivery/residue-reaping.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
@@ -37,9 +38,14 @@ import {
   proposeDispositionSet,
 } from "../../src/scripts/review-gate/core/dispositions.js";
 import { createFixAuthorization } from "../../src/scripts/review-gate/core/fix-authorization.js";
-import { createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { LocalApprovedDispositionRecordStore } from
   "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
+import { LocalReviewOperationStateStore } from
+  "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
@@ -66,6 +72,7 @@ type ActiveOperationScenario =
   | "native"
   | "provider-refresh-partial"
   | "landed-prefix"
+  | "registered-current"
   | "terminal-authoring"
   | "registered-terminal-authoring"
   | "registered-local-terminal-authoring"
@@ -84,6 +91,8 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
   await git(repository, ["commit", "-m", "init"]);
   await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
   await git(repository, ["remote", "add", "origin", remote]);
+  await git(repository, ["config", `url.${remote}.insteadOf`, "git@github.com:owner/repo.git"]);
+  await git(repository, ["remote", "set-url", "origin", "git@github.com:owner/repo.git"]);
 
   const targetHead = await git(repository, ["rev-parse", "HEAD"]);
   const targetTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
@@ -123,8 +132,9 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
   ]);
   const selectedChangeSettled = activeOperation === "selected-change-settled"
     || activeOperation === "selected-change-external-refresh";
-  const firstBranch = selectedChangeSettled ? "delivery/member-1" : "member-1";
-  const secondBranch = selectedChangeSettled ? "delivery/member-2" : "member-2";
+  const registeredCurrent = activeOperation === "registered-current";
+  const firstBranch = selectedChangeSettled || registeredCurrent ? "delivery/member-1" : "member-1";
+  const secondBranch = selectedChangeSettled || registeredCurrent ? "delivery/member-2" : "member-2";
   const publishedFirstHead = activeOperation === "provider-refresh-partial"
     ? refreshedFirstHead
     : activeOperation === "selected-change-terminal-authoring-applied"
@@ -155,6 +165,10 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     `${publishedSecondHead}:refs/heads/${secondBranch}`,
     `${publishedThirdHead}:refs/heads/member-3`,
   ]);
+  if (firstBranch.startsWith("delivery/") && secondBranch.startsWith("delivery/")) {
+    await git(repository, ["update-ref", `refs/heads/${firstBranch}`, publishedFirstHead]);
+    await git(repository, ["update-ref", `refs/heads/${secondBranch}`, publishedSecondHead]);
+  }
   if (activeOperation === "selected-change-external-refresh") {
     await git(repository, ["update-ref", `refs/heads/${firstBranch}`, selectedFirstHead]);
     await git(repository, ["update-ref", `refs/heads/${secondBranch}`, secondHead]);
@@ -195,7 +209,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
       {
         deliverableId: plan.members[2]!.deliverableId,
         ref: "refs/heads/member-3",
-        changeRequest: terminalAuthoring
+        changeRequest: terminalAuthoring || registeredCurrent
           ? { providerId: "github", changeRequestId: "403" }
           : null,
         coordinates: { base: secondHead, head: thirdHead, tree: thirdTree },
@@ -340,10 +354,69 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
       JSON.parse(request(403, "member-3", "%s", secondBranch)) as unknown,
     ],
   }]);
+  const registeredFirstReviewTarget = JSON.stringify([{
+    number: 401,
+    url: "https://example.test/401",
+    state: "OPEN",
+    baseRefName: "main",
+    headRefName: firstBranch,
+    headRefOid: "%s",
+  }]);
   await writeFile(fakeGh, [
     "#!/bin/sh",
     "if [ -n \"${ARC_FAKE_GH_LOG:-}\" ]; then printf '%s\\n' \"$*\" >> \"$ARC_FAKE_GH_LOG\"; fi",
     "remote_head() { git ls-remote origin \"refs/heads/$1\" | cut -f1; }",
+    "if [ \"$1\" = \"stack\" ]; then",
+    "  case \"$2\" in",
+    "    --version) printf '%s\\n' 'gh stack test'; exit 0 ;;",
+    "    checkout)",
+    "      git fetch origin '+refs/heads/" + firstBranch + ":refs/heads/" + firstBranch + "' "
+      + "'+refs/heads/" + secondBranch + ":refs/heads/" + secondBranch + "' "
+      + "'+refs/heads/main:refs/heads/main' >/dev/null 2>&1 || exit 1",
+    "      exit 0",
+    "      ;;",
+    "    rebase)",
+    "      first=$(git rev-parse 'refs/heads/" + firstBranch + "') || exit 1",
+    "      member_two_blob=$(git rev-parse 'refs/heads/" + secondBranch + ":member-two.txt') || exit 1",
+    "      git read-tree \"$first^{tree}\" || exit 1",
+    "      git update-index --add --cacheinfo 100644,\"$member_two_blob\",member-two.txt || exit 1",
+    "      second_tree=$(git write-tree) || exit 1",
+    "      second=$(printf '%s\\n' 'provider refresh member two' | git -c user.name=test -c user.email=test@example.com commit-tree \"$second_tree\" -p \"$first\") || exit 1",
+    "      git update-ref 'refs/heads/" + secondBranch + "' \"$second\" || exit 1",
+    "      exit 0",
+    "      ;;",
+    "    view)",
+    "      first=$(git rev-parse 'refs/heads/" + firstBranch + "') || exit 1",
+    "      second=$(git rev-parse 'refs/heads/" + secondBranch + "') || exit 1",
+    "      first_base=$(git rev-parse 'refs/heads/main') || exit 1",
+    "      second_base=$first",
+    "      printf '{\"trunk\":\"main\",\"currentBranch\":\"" + firstBranch + "\",\"branches\":["
+      + "{\"name\":\"" + firstBranch + "\",\"head\":\"%s\",\"base\":\"%s\",\"isCurrent\":true,"
+      + "\"isMerged\":false,\"isQueued\":false,\"needsRebase\":false,\"pr\":{\"number\":401,"
+      + "\"url\":\"https://example.test/401\",\"state\":\"OPEN\"}},"
+      + "{\"name\":\"" + secondBranch + "\",\"head\":\"%s\",\"base\":\"%s\",\"isCurrent\":false,"
+      + "\"isMerged\":false,\"isQueued\":false,\"needsRebase\":false,\"pr\":{\"number\":402,"
+      + "\"url\":\"https://example.test/402\",\"state\":\"OPEN\"}}]}\\n' "
+      + "\"$first\" \"$first_base\" \"$second\" \"$second_base\"",
+    "      exit 0",
+    "      ;;",
+    "    *) echo \"unexpected gh stack invocation: $*\" >&2; exit 1 ;;",
+    "  esac",
+    "fi",
+    "if [ \"$1\" = \"repo\" ] && [ \"$2\" = \"view\" ]; then",
+    "  printf '%s\\n' '{\"nameWithOwner\":\"owner/repo\"}'; exit 0",
+    "fi",
+    "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ]; then",
+    activeOperation === "registered-current"
+      ? `  printf '${registeredFirstReviewTarget}\\n' "$(remote_head '${firstBranch}')"; exit 0`
+      : "  echo \"unexpected gh pr list invocation: $*\" >&2; exit 1",
+    "fi",
+    "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"checks\" ]; then",
+    "  printf '%s\\n' '[]'; exit 0",
+    "fi",
+    "if [ \"$1\" = \"api\" ] && [ \"$2\" = \"--paginate\" ] && [ \"$3\" = \"--slurp\" ]; then",
+    "  printf '%s\\n' '[[]]'; exit 0",
+    "fi",
     "if [ \"${ARC_FAKE_TARGET_UNAVAILABLE:-0}\" = \"1\" ]; then exit 1; fi",
     "case \"$2\" in",
     "  repos/owner/repo/git/ref/heads/main)",
@@ -352,6 +425,8 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     `  repos/owner/repo/git/commits/${targetHead})`,
     `    printf '%s\\n' '${JSON.stringify({ tree: { sha: targetTree } })}'`,
     "    ;;",
+    "  repos/owner/repo/branches/main)",
+    "    printf '%s\\n' '{}';;",
     "  repos/owner/repo/pulls/401)",
     activeOperation === "landed-prefix"
       ? `    printf '%s\\n' '${request(401, firstBranch, publishedFirstHead, "main", "merged")}'`
@@ -371,6 +446,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     "  repos/owner/repo/stacks)",
     activeOperation === "registered-terminal-authoring"
       || activeOperation === "registered-local-terminal-authoring"
+      || activeOperation === "registered-current"
       || activeOperation === "selected-change-settled"
       || activeOperation === "selected-change-external-refresh"
       ? `    printf '${registeredStack}\\n' "$(remote_head '${firstBranch}')" `
@@ -510,15 +586,23 @@ describe("arc delivery position", () => {
       { env: fixture.env },
     );
     expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    expect(JSON.parse(result.stdout), result.stdout).toMatchObject({
       command: "delivery review-fix continue",
-      status: "dispatch",
-      action: {
-        kind: "delivery-rematerialize",
-        input: {
-          planId: fixture.plan.planId,
-          selectedDeliverableIds: [selectedMember.deliverableId],
-        },
+      status: "authoring-required",
+      route: "rematerialize",
+      selectedDeliverableId: selectedMember.deliverableId,
+      authoring: {
+        kind: "top",
+        ref: `refs/heads/${branch}`,
+        checkoutPath: fixture.repository,
+      },
+      approvedDispositionSet: {
+        authorizedFindingIds: ["finding-1"],
+        authorizedFindingLoci: ["member-one.txt:1"],
+      },
+      resumeAction: {
+        argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+        input: { repository: "owner/repo", remote: "origin" },
       },
     });
   });
@@ -621,6 +705,142 @@ describe("arc delivery position", () => {
     const fixture = await positionFixture("selected-change-external-refresh");
     const workUnitBranch = `feat/${fixture.plan.workUnitId}`;
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    const reviewedState = await fixture.states.read(fixture.plan.planId);
+    if (reviewedState.status !== "ok" || reviewedState.value === null
+      || reviewedState.value.value.target?.coordinates === null
+      || reviewedState.value.value.target === null) {
+      throw new Error("review-fix response fixture requires a bound target");
+    }
+    const reviewedMember = reviewedState.value.value.members.find(
+      ({ deliverableId }) => deliverableId === selectedDeliverableId,
+    );
+    if (reviewedMember?.coordinates === null || reviewedMember?.coordinates === undefined) {
+      throw new Error("review-fix response fixture requires a bound selected member");
+    }
+    const reviewedHead = await git(fixture.repository, [
+      "rev-parse", `${reviewedMember.coordinates.head}^`,
+    ]);
+    const oldTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: reviewedMember.coordinates.base,
+      diffBaseTree: reviewedState.value.value.target.coordinates.tree,
+      headSha: reviewedHead,
+      headTree: reviewedMember.coordinates.tree,
+    });
+    const approvedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: oldTarget.targetId,
+        policyVersion: canonicalDigest({ policy: "review" }),
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        proposedBy: "agent-1",
+        findings: [{
+          findingId: "finding-response-loss",
+          sourceIdentity: "codex-pr",
+          locus: "member-one.txt:1",
+          sourceVerification: "verified",
+          verificationRefs: ["review:finding-response-loss"],
+          severity: "major",
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The source confirms the issue.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-08-31T12:00:00Z",
+    });
+    const publisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), fixture.repository);
+    const responseRequirement = createReviewRequirement({
+      target: oldTarget,
+      projection: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"f".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "checkpoint",
+    });
+    if (responseRequirement === null) throw new Error("response-loss requirement must derive");
+    await new LocalReviewOperationStateStore(publisher).publishOperation({
+      schemaVersion: 1,
+      semanticsVersion: "review-operation/v1",
+      operationId: "lane-progress/response-loss",
+      updatedAt: "2026-08-31T12:00:00Z",
+      kind: "lane-progress",
+      lane: "standard",
+      repositoryId: "repo-1",
+      changeRequestId: "pull/401",
+      headSha: reviewedHead,
+      completedPasses: 1,
+      attempts: [{
+        attemptId: "operation-response-loss",
+        sourceId: "codex-pr",
+        outcome: "findings",
+        hosted: {
+          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          vehicle: {
+            kind: "delivery-member",
+            planId: fixture.plan.planId,
+            deliverableId: selectedDeliverableId,
+            workUnitId: fixture.plan.workUnitId,
+            head: reviewedHead,
+          },
+          reviewTarget: oldTarget,
+          requirement: responseRequirement,
+          actorIdentity: "host-actor-1",
+          findings: [{
+            findingId: "finding-response-loss",
+            origin: "review-thread",
+            commentId: "comment-response-loss",
+            threadId: "thread-response-loss",
+            settlement: "reply-and-resolve",
+            severity: "major",
+            locus: "member-one.txt:1",
+            url: "https://example.test/thread-response-loss",
+          }],
+          dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+          settledFindingIds: [],
+        },
+      }],
+    }, 0);
+    await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
+      ApprovedDispositionRecordSchema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "review-advisory/v1",
+        repositoryId: "repo-1",
+        operationId: "operation-response-loss",
+        candidate: null,
+        errand: null,
+        deliveryMember: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: selectedDeliverableId,
+          workUnitId: fixture.plan.workUnitId,
+          head: reviewedHead,
+        },
+        source: {
+          kind: "hosted",
+          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fresponse-loss:hosted%2F1",
+        },
+        approvedDisposition,
+        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+      }),
+    );
     const discardedSettlement = await runArcWithStdin(
       ["delivery", "refresh", "adopt", "-", "--json"],
       fixture.repository,
@@ -769,7 +989,6 @@ describe("arc delivery position", () => {
       "- **Next Action:** [none]",
       "",
     ].join("\n"));
-
     const entered = await runArcWithStdin(
       ["delivery", "entry", "inspect", "--input", "-", "--json"],
       fixture.repository,
@@ -822,7 +1041,6 @@ describe("arc delivery position", () => {
     });
 
     await writeFile(taskListPath, taskList.replace("### `[ ]` **1.1", "### `[x]` **1.1"));
-    await git(fixture.repository, ["add", "-A"]);
     const locus = await runArc(["locus", "--json"], fixture.repository, { env: fixture.env });
     expect(locus.exitCode, `${locus.stderr}\n${locus.stdout}`).toBe(0);
     expect(JSON.parse(locus.stdout), locus.stdout).toMatchObject({
@@ -834,7 +1052,8 @@ describe("arc delivery position", () => {
         },
       },
     });
-    const acknowledgementRequest = `${JSON.stringify({
+    await git(fixture.repository, ["add", "-A"]);
+    const acknowledgementRequest = {
       ...continuation.acknowledgementInput,
       verification: {
         applicability: "focused",
@@ -846,29 +1065,32 @@ describe("arc delivery position", () => {
         },
         verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
       },
-    })}\n`;
-    const discarded = await runArcWithStdin(
+    };
+    const resumed = await runArcWithStdin(
       ["delivery", "review-fix", "acknowledge", "-", "--json"],
       fixture.repository,
-      acknowledgementRequest,
+      `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
     );
-    expect(discarded.exitCode, `${discarded.stderr}\n${discarded.stdout}`).toBe(0);
-
-    const retried = await runArcWithStdin(
+    expect(resumed.exitCode, `${resumed.stderr}\n${resumed.stdout}`).toBe(0);
+    expect(JSON.parse(resumed.stdout), resumed.stdout).toMatchObject({
+      command: "delivery review-fix acknowledge",
+      status: "acknowledged",
+      nextAction: "continue-hosted-review",
+      boundaryCarry: { candidateId: candidate.attestation.candidateId },
+    });
+    const replayed = await runArcWithStdin(
       ["delivery", "review-fix", "acknowledge", "-", "--json"],
       fixture.repository,
-      acknowledgementRequest,
+      `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
     );
-    expect(retried.exitCode, `${retried.stderr}\n${retried.stdout}`).toBe(0);
-    expect(JSON.parse(retried.stdout)).toMatchObject({
+    expect(replayed.exitCode, `${replayed.stderr}\n${replayed.stdout}`).toBe(0);
+    expect(JSON.parse(replayed.stdout), replayed.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "already-acknowledged",
-      nextAction: "renew-public-continuation",
-      candidate: {
-        candidateId: candidate.attestation.candidateId,
-      },
+      nextAction: "continue-hosted-review",
+      boundaryCarry: { candidateId: candidate.attestation.candidateId },
     });
 
     const acknowledgedStateRead = await fixture.states.read(fixture.plan.planId);
@@ -893,65 +1115,8 @@ describe("arc delivery position", () => {
     );
     expect(recoveredEntry.exitCode, `${recoveredEntry.stderr}\n${recoveredEntry.stdout}`).toBe(0);
     expect(JSON.parse(recoveredEntry.stdout)).toMatchObject({
-      status: "candidate-renewal-required",
-      nextAction: "renew-public-continuation",
-    });
-
-    const renewalRoute = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
-      fixture.repository,
-      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
-      { env: fixture.env },
-    );
-    expect(renewalRoute.exitCode, `${renewalRoute.stderr}\n${renewalRoute.stdout}`).toBe(0);
-    expect(JSON.parse(renewalRoute.stdout)).toMatchObject({
-      status: "authority-required",
-      authority: "candidate-renewal",
-      action: {
-        kind: "candidate-renewal",
-        argv: ["arc", "attest", fixture.plan.workUnitId, "--json"],
-      },
-    });
-
-    const renewed = await runArc(["attest", fixture.plan.workUnitId, "--json"], fixture.repository, {
-      env: fixture.env,
-    });
-    expect(renewed.exitCode, `${renewed.stderr}\n${renewed.stdout}`).toBe(0);
-    expect(JSON.parse(renewed.stdout)).toMatchObject({
-      status: "unchanged",
-      locus: {
-        locus: "hosted-review-pending",
-        nextAction: { kind: "continue-hosted-review", workUnitId: fixture.plan.workUnitId },
-      },
-    });
-
-    const resumed = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
-      fixture.repository,
-      `${JSON.stringify({ entryMode: "integrating" })}\n`,
-      { env: fixture.env },
-    );
-    expect(resumed.exitCode, `${resumed.stderr}\n${resumed.stdout}`).toBe(0);
-    expect(JSON.parse(resumed.stdout)).toMatchObject({
       status: "continue-hosted-review",
       nextAction: "continue-hosted-review",
-      hostedReviewAction: { kind: "continue-hosted-review", workUnitId: fixture.plan.workUnitId },
-    });
-
-    const hostedRoute = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
-      fixture.repository,
-      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
-      { env: fixture.env },
-    );
-    expect(hostedRoute.exitCode, `${hostedRoute.stderr}\n${hostedRoute.stdout}`).toBe(0);
-    expect(JSON.parse(hostedRoute.stdout)).toMatchObject({
-      status: "authority-required",
-      authority: "hosted-review",
-      action: {
-        kind: "hosted-review",
-        action: { kind: "continue-hosted-review", workUnitId: fixture.plan.workUnitId },
-      },
     });
 
     const session = await runArc(["status", "--session-init", "--json"], fixture.repository, {
@@ -1197,6 +1362,513 @@ describe("arc delivery position", () => {
     expect(terminalHead).toBe(await git(fixture.repository, [
       "ls-remote", "origin", "refs/heads/member-3",
     ]).then((line) => line.split("\t")[0]));
+  });
+
+  it("drives a registered review correction through verification to hosted review", async () => {
+    const fixture = await positionFixture("registered-current");
+    const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    const current = await fixture.states.read(fixture.plan.planId);
+    const selectedMember = current.status === "ok"
+      ? current.value?.value.members.find(({ deliverableId }) => deliverableId === selectedDeliverableId)
+      : undefined;
+    if (selectedMember?.ref === null || selectedMember?.ref === undefined || selectedMember.coordinates === null) {
+      throw new Error("selected review-fix member must be bound");
+    }
+    if (current.status !== "ok" || current.value === null || current.value.value.target === null
+      || current.value.value.target.coordinates === null) {
+      throw new Error("selected review-fix target must be bound");
+    }
+    const reviewedHead = selectedMember.coordinates.head;
+    const targetCoordinates = current.value.value.target.coordinates;
+    await git(fixture.repository, ["update-ref", selectedMember.ref, selectedMember.coordinates.head]);
+    const selectedTree = await git(fixture.repository, ["rev-parse", `${fixture.selectedFirstHead}^{tree}`]);
+    let correctionHead = await git(fixture.repository, [
+      "commit-tree", selectedTree, "-p", fixture.selectedFirstHead, "-m", "second selected review fix",
+    ]);
+    const gitCommonDir = resolve(
+      fixture.repository,
+      await git(fixture.repository, ["rev-parse", "--git-common-dir"]),
+    );
+    const derived = deriveDeliveryResidueLocators(fixture.plan, gitCommonDir);
+    expect(derived.status).toBe("derived");
+    if (derived.status !== "derived") throw new Error("review-fix locators must derive");
+    const locator = derived.locators.find(({ deliverableId }) => deliverableId === selectedDeliverableId);
+    if (locator === undefined) throw new Error("selected review-fix locator must exist");
+    await git(fixture.repository, ["update-ref", locator.candidateRef, correctionHead]);
+    await git(fixture.repository, ["worktree", "add", "--detach", locator.gatePath, correctionHead]);
+    await writeFile(join(locator.gatePath, "member-one.txt"), "member one corrected\n");
+    await git(locator.gatePath, ["add", "member-one.txt"]);
+    await git(locator.gatePath, ["commit", "--no-verify", "-m", "apply selected review fix"]);
+    correctionHead = await git(locator.gatePath, ["rev-parse", "HEAD"]);
+    await git(fixture.repository, ["update-ref", locator.candidateRef, correctionHead]);
+    await mkdir(join(fixture.repository, ".arc", "active"), { recursive: true });
+    await writeFile(join(
+      fixture.repository,
+      ".arc",
+      "active",
+      `tasks-${fixture.plan.workUnitId}.md`,
+    ), [
+      `# Task List: ${fixture.plan.workUnitId}`,
+      "",
+      renderDeliveryPlanSection(fixture.plan),
+      "## **Phase 1:** Members",
+      "",
+      "### `[x]` **1.1 Close member one**",
+      "",
+    ].join("\n"));
+    await git(fixture.repository, ["switch", "-c", "member-3", current.value.value.members.at(-1)!.coordinates!.head]);
+    const candidateTarget = await collectGitCandidateTarget({
+      cwd: fixture.repository,
+      name: fixture.plan.workUnitId,
+      baseBranch: "main",
+      exec: createExecaGitExec(),
+    });
+    const candidate: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: createCandidateAttestation({
+        workUnit: fixture.plan.workUnitId,
+        subject: candidateTarget.subject,
+        baseRevision: candidateTarget.revision,
+        attestedBy: "test-user",
+        attestedAt: "2026-08-31T12:00:00.000Z",
+        verificationEvidenceRef: "verification://review-fix/baseline",
+      }),
+      subject: candidateTarget.subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    await writeFile(join(
+      fixture.repository,
+      ".arc",
+      "active",
+      `meta-${fixture.plan.workUnitId}.md`,
+    ), [
+      `# Metadata: ${fixture.plan.workUnitId}`,
+      "",
+      "- **State:** Integrating",
+      "- **Owner:** test-user",
+      "- **Branch:** member-3",
+      `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
+      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Last Completed:** [none]",
+      "- **Next Task:** [none]",
+      "- **Next Action:** [none]",
+      "",
+    ].join("\n"));
+    await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
+    await writeSubmissionBoundary(fixture.repository, projectPublicationBoundary({
+      workUnit: fixture.plan.workUnitId,
+      branch: "member-3",
+      candidateId: candidate.attestation.candidateId,
+      candidateSubjectDigest: candidate.subject.subjectDigest,
+      reservation: {
+        schemaVersion: 1,
+        semanticsVersion: "standard-review-reservation/v1",
+        reservationId: `sha256:${"e".repeat(64)}`,
+        sources: ["codex-pr"],
+        target: {
+          kind: "delivery",
+          repository: "owner/repo",
+          workUnitId: fixture.plan.workUnitId,
+          planId: fixture.plan.planId,
+        },
+        obligation: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"f".repeat(64)}`,
+          retrigger: "full-final",
+          count: 1,
+        },
+      },
+      changeRequest: { repository: "owner/repo", pullRequest: 403 },
+    }), null);
+    await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
+    const oldTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: selectedMember.coordinates.base,
+      diffBaseTree: targetCoordinates.tree,
+      headSha: reviewedHead,
+      headTree: selectedMember.coordinates.tree,
+    });
+    const approvedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: oldTarget.targetId,
+        policyVersion: canonicalDigest({ policy: "review" }),
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        proposedBy: "agent-1",
+        findings: [{
+          findingId: "finding-published",
+          sourceIdentity: "codex-pr",
+          locus: "member-one.txt:1",
+          sourceVerification: "verified",
+          verificationRefs: ["review:finding-published"],
+          severity: "major",
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The source confirms the issue.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-08-31T12:00:00Z",
+    });
+    const publisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), fixture.repository);
+    const requirement = createReviewRequirement({
+      target: oldTarget,
+      projection: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"f".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "checkpoint",
+    });
+    if (requirement === null) throw new Error("hosted review requirement must derive");
+    const finding = {
+      findingId: "finding-published",
+      origin: "review-thread" as const,
+      commentId: "comment-published",
+      threadId: "thread-published",
+      settlement: "reply-and-resolve" as const,
+      severity: "major" as const,
+      locus: "member-one.txt:1",
+      url: "https://example.test/thread-published",
+    };
+    await new LocalReviewOperationStateStore(publisher).publishOperation({
+      schemaVersion: 1,
+      semanticsVersion: "review-operation/v1",
+      operationId: "lane-progress/published",
+      updatedAt: "2026-08-31T12:00:00Z",
+      kind: "lane-progress",
+      lane: "standard",
+      repositoryId: "repo-1",
+      changeRequestId: "pull/401",
+      headSha: reviewedHead,
+      completedPasses: 1,
+      attempts: [{
+        attemptId: "operation-published-member-fix",
+        sourceId: "codex-pr",
+        outcome: "findings",
+        hosted: {
+          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          vehicle: {
+            kind: "delivery-member",
+            planId: fixture.plan.planId,
+            deliverableId: selectedDeliverableId,
+            workUnitId: fixture.plan.workUnitId,
+            head: reviewedHead,
+          },
+          reviewTarget: oldTarget,
+          requirement,
+          actorIdentity: "host-actor-1",
+          findings: [finding],
+          dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+          settledFindingIds: [],
+        },
+      }],
+    }, 0);
+    await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
+      ApprovedDispositionRecordSchema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "review-advisory/v1",
+        repositoryId: "repo-1",
+        operationId: "operation-published-member-fix",
+        candidate: null,
+        errand: null,
+        deliveryMember: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: selectedDeliverableId,
+          workUnitId: fixture.plan.workUnitId,
+          head: reviewedHead,
+        },
+        source: {
+          kind: "hosted",
+          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fpublished:hosted%2F1",
+        },
+        approvedDisposition,
+        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+      }),
+    );
+
+    const continued = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(continued.exitCode, `${continued.stderr}\n${continued.stdout}`).toBe(0);
+    const verificationStop = JSON.parse(continued.stdout) as {
+      verification: { target: { head: string; tree: string } };
+    };
+    expect(verificationStop, continued.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "verification-required",
+      selectedDeliverableId,
+      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      effectLog: [
+        { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
+        { kind: "dispatch", actionKind: "delivery-refresh-execute", resultStatus: "applied" },
+      ],
+    });
+    expect(await git(fixture.repository, ["rev-parse", locator.candidateRef])).toBe(correctionHead);
+    expect(await git(locator.gatePath, ["rev-parse", "HEAD"])).toBe(correctionHead);
+
+    const resumed = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        repository: "owner/repo",
+        remote: "origin",
+        verification: {
+          applicability: "focused",
+          target: verificationStop.verification.target,
+          tier1: {
+            outcome: "passed",
+            provenance: "exact-tree-reuse",
+            targetTree: verificationStop.verification.target.tree,
+            coveredInputs: "unchanged",
+          },
+          verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+        },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(resumed.exitCode, `${resumed.stderr}\n${resumed.stdout}`).toBe(0);
+    expect(JSON.parse(resumed.stdout), resumed.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "review-status-required",
+      stopKind: "review-spend",
+      effectLog: [
+        { kind: "dispatch", actionKind: "delivery-review-fix-acknowledge", resultStatus: "acknowledged" },
+        { kind: "boundary-carry", candidateId: candidate.attestation.candidateId },
+        { kind: "commit", recordClass: "candidate-boundary-projection" },
+        { kind: "push", ref: "refs/heads/member-3" },
+      ],
+    });
+  });
+
+  it("plans a bound terminal correction as ordinary top authoring", async () => {
+    const fixture = await positionFixture();
+    const selectedDeliverableId = fixture.plan.members.at(-1)!.deliverableId;
+    const result = await runArcWithStdin(
+      ["delivery", "review-fix", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        selectedDeliverableId,
+        repository: "owner/repo",
+        remote: "origin",
+        entryMode: "execution",
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery review-fix plan",
+      status: "planned",
+      route: "terminal-authoring",
+      selectedDeliverableId,
+      affectedDeliverableIds: [selectedDeliverableId],
+      nextAction: "author-terminal",
+    });
+  });
+
+  it("plans a published terminal correction as exact rebind before resuming position", async () => {
+    const fixture = await positionFixture("terminal-authoring");
+    const selectedDeliverableId = fixture.plan.members.at(-1)!.deliverableId;
+    const result = await runArcWithStdin(
+      ["delivery", "review-fix", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        selectedDeliverableId,
+        repository: "owner/repo",
+        remote: "origin",
+        entryMode: "integrating",
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery review-fix plan",
+      status: "planned",
+      route: "terminal-rebind",
+      selectedDeliverableId,
+      affectedDeliverableIds: [selectedDeliverableId],
+      nextAction: "reconcile-terminal-publication",
+      reconcileInput: {
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        continuation: "read-position",
+      },
+    });
+  });
+
+  it("plans the operator fallback for a selected member whose dependent suffix still needs refresh", async () => {
+    const fixture = await positionFixture("selected-change-settled");
+    const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    const dependentDeliverableId = fixture.plan.members[1]!.deliverableId;
+    const result = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        trigger: { kind: "landing-refused", reason: "conflict" },
+        mechanics: "operator-initiated",
+        scope: { kind: "dependent-suffix", selectedDeliverableId },
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery refresh plan",
+      status: "refresh-required",
+      mechanics: "operator-initiated",
+      plannedSuffix: [dependentDeliverableId],
+    });
+  });
+
+  it("requires the exact selected-member scope for review-fix fallback planning", async () => {
+    const fixture = await positionFixture("selected-change-settled");
+    const request = {
+      planId: fixture.plan.planId,
+      repository: "owner/repo",
+      remote: "origin",
+      trigger: { kind: "landing-refused", reason: "conflict" },
+      mechanics: "operator-initiated",
+    } as const;
+    const missing = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify(request)}\n`,
+      { env: fixture.env },
+    );
+    expect(missing.exitCode).toBe(1);
+    expect(JSON.parse(missing.stdout)).toMatchObject({
+      status: "refused",
+      reason: "selected-member-invalid",
+    });
+
+    const complete = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        ...request,
+        scope: { kind: "complete-remainder" },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(complete.exitCode).toBe(1);
+    expect(JSON.parse(complete.stdout)).toMatchObject({
+      status: "refused",
+      reason: "selected-member-invalid",
+    });
+
+    const wrong = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        ...request,
+        scope: {
+          kind: "dependent-suffix",
+          selectedDeliverableId: fixture.plan.members.at(-1)!.deliverableId,
+        },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(wrong.exitCode).toBe(1);
+    expect(JSON.parse(wrong.stdout)).toMatchObject({
+      status: "refused",
+      reason: "selected-member-invalid",
+    });
+
+    const unchanged = await runArcWithStdin(
+      ["delivery", "refresh", "plan", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        ...request,
+        scope: {
+          kind: "dependent-suffix",
+          selectedDeliverableId: fixture.plan.members[1]!.deliverableId,
+        },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(unchanged.exitCode).toBe(1);
+    expect(JSON.parse(unchanged.stdout)).toMatchObject({
+      status: "refused",
+      reason: "selected-member-invalid",
+    });
+  });
+
+  it("adopts an externally refreshed dependent suffix after selected-member publication", async () => {
+    const fixture = await positionFixture("selected-change-external-refresh");
+    const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
+    const result = await runArcWithStdin(
+      ["delivery", "refresh", "adopt", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        repository: "owner/repo",
+        remote: "origin",
+        scope: { kind: "dependent-suffix", selectedDeliverableId },
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    const adopted = JSON.parse(result.stdout) as {
+      readonly state: { readonly value: DeliveryStateV1 };
+    };
+    expect(adopted).toMatchObject({
+      command: "delivery refresh adopt",
+      status: "applied",
+      selectedDeliverableId,
+      nextAction: "verify-review-fix",
+      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      acknowledgementInput: {
+        planId: fixture.plan.planId,
+        selectedDeliverableId,
+        continuationDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      },
+      state: {
+        value: {
+          activeOperation: null,
+          pendingReviewFixVerification: {
+            selectedDeliverableId,
+            memberDeliverableIds: [selectedDeliverableId],
+          },
+        },
+      },
+    });
+    expect(adopted.state.value.members[0]?.coordinates?.head).toBe(fixture.selectedFirstHead);
+    expect(adopted.state.value.members[1]?.coordinates?.base).toBe(fixture.selectedFirstHead);
   });
 
   it("refuses ordinary external adoption while a selected correction awaits dependent refresh", async () => {

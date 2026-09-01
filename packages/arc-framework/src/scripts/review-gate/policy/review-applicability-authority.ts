@@ -45,6 +45,12 @@ export type ReviewApplicabilityConsumerAction =
   | "request-review"
   | "stop";
 
+export interface MechanicallyCarriedReviewApplicabilitySelection {
+  readonly selection: CandidateReviewApplicabilitySelectionV1;
+  readonly selectedProjection: DecisionProjection;
+  readonly mechanicalProjection: ApplicableProjection;
+}
+
 /** Collapse the authority result identically for request and discharge consumers. */
 export function reviewApplicabilityConsumerAction(
   result: ReviewApplicabilityAuthorityResult,
@@ -76,6 +82,52 @@ export function reduceReviewApplicabilityAuthority(
   if (exact.length > 1) return { state: "blocked", reason: "selection-conflict", projection };
   const selection = exact[0];
   if (selection === undefined) return { state: "decision-required", projection };
+  return selection.choice === "covered"
+    ? { state: "applicable", authority: "owner-covered", projection, selection }
+    : { state: "review-required", authority: "owner-review-required", projection, selection };
+}
+
+/** Reduce authority while preserving an exact Owner selection across a separately proved mechanical segment. */
+export function reduceReviewApplicabilityAuthorityWithMechanicalCarry(
+  candidateId: string,
+  projection: ReviewContributionApplicabilityResult,
+  selections: readonly CandidateReviewApplicabilitySelectionV1[],
+  carried: readonly MechanicallyCarriedReviewApplicabilitySelection[],
+): ReviewApplicabilityAuthorityResult {
+  const exact = reduceReviewApplicabilityAuthority(candidateId, projection, selections);
+  if (projection.state !== "decision-required") return exact;
+  if (exact.state !== "decision-required") return exact;
+  const matches = carried.filter(({ selection, selectedProjection, mechanicalProjection }) => {
+    const selected = selection.selector;
+    const current = projection.selector;
+    const mechanical = mechanicalProjection.selector;
+    return selections.some((candidate) => canonicalize(candidate) === canonicalize(selection))
+      && selection.candidateId === candidateId
+      && canonicalize(selectedProjection.selector) === canonicalize(selected)
+      && selectedProjection.projectionDigest === selection.projectionDigest
+      && selectedProjection.residualDigest === selection.residualDigest
+      && selectedProjection.verdict === projection.verdict
+      && canonicalize(selectedProjection.paths) === canonicalize(projection.paths)
+      && selected.repositoryId === current.repositoryId
+      && selected.repository === current.repository
+      && selected.pullRequest === current.pullRequest
+      && selected.sourceId === current.sourceId
+      && selected.priorAttemptId === current.priorAttemptId
+      && selected.priorHead === current.priorHead
+      && selected.priorBase === current.priorBase
+      && selected.currentHead === mechanical.priorHead
+      && selected.currentBase === mechanical.priorBase
+      && mechanical.currentHead === current.currentHead
+      && mechanical.currentBase === current.currentBase
+      && mechanicalProjection.contributionChanged === false
+      && mechanicalProjection.proof !== "head-unchanged";
+  });
+  if (matches.length === 0) return exact;
+  if (matches.length > 1) {
+    return { state: "blocked", reason: "selection-conflict", projection };
+  }
+  const selection = matches[0]?.selection;
+  if (selection === undefined) return exact;
   return selection.choice === "covered"
     ? { state: "applicable", authority: "owner-covered", projection, selection }
     : { state: "review-required", authority: "owner-review-required", projection, selection };

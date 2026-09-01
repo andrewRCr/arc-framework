@@ -20,6 +20,21 @@ import type {
   DeliveryReviewFixVerificationAcknowledgementInput,
 } from "./review-fix-verification.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
+import { projectDeliveryPublicReviewContinuation } from "./public-review-continuation.js";
+import type { IntegrationBoundaryLocus } from
+  "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  ApprovedDispositionRecordSchema,
+  type ApprovedDispositionRecord,
+} from "../../scripts/review-gate/core/advisory-records.js";
+import { consumeFixAuthorization } from
+  "../../scripts/review-gate/core/fix-authorization.js";
+import {
+  createReviewTarget,
+} from "../../scripts/review-gate/core/gate-contract-v2.js";
+import type { ReviewTarget } from
+  "../../scripts/review-gate/core/gate-contract-v2-schema.js";
+import type { HostedTarget } from "../../scripts/review-gate/hosted/request.js";
 import {
   CandidateLineageTargetSchema,
   CandidateManagedRecordV1Schema,
@@ -33,6 +48,147 @@ import {
 } from "../work-unit/candidate-attestation.js";
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
+
+export type DeliveryReviewFixResponseAdvanceResult =
+  | {
+      readonly status: "recorded" | "already-recorded";
+      readonly record: ApprovedDispositionRecord;
+      readonly newTarget: ReviewTarget;
+      readonly hostedFixTarget: HostedTarget;
+    }
+  | { readonly status: "refused"; readonly reason: string };
+
+/** Bind one verified delivery correction to its exact pending hosted response authority. */
+export function advanceDeliveryReviewFixResponse(input: {
+  readonly record: ApprovedDispositionRecord;
+  readonly oldTarget: ReviewTarget;
+  readonly hostedTarget: HostedTarget;
+  readonly currentHead: string;
+  readonly currentTree: string;
+  readonly applicability: CandidateVerificationApplicability;
+  readonly verificationEvidenceRefs: readonly string[];
+  readonly verifiedAt: string;
+}): DeliveryReviewFixResponseAdvanceResult {
+  const record = ApprovedDispositionRecordSchema.safeParse(input.record);
+  if (!record.success || record.data.deliveryMember === null || record.data.fixAuthorization === null
+    || record.data.source.kind !== "hosted" || input.oldTarget.kind !== "delivery-member"
+    || input.oldTarget.targetId !== record.data.approvedDisposition.dispositionSet.targetId
+    || input.oldTarget.headSha !== record.data.deliveryMember.head
+    || input.hostedTarget.headSha !== input.oldTarget.headSha
+    || input.verificationEvidenceRefs.length === 0) {
+    return { status: "refused", reason: "review-fix-response-invalid" };
+  }
+  let newTarget: ReviewTarget;
+  try {
+    newTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: input.oldTarget.repositoryId,
+      baseRef: input.oldTarget.baseRef,
+      diffBaseSha: input.oldTarget.diffBaseSha,
+      diffBaseTree: input.oldTarget.diffBaseTree,
+      headSha: input.currentHead,
+      headTree: input.currentTree,
+    });
+  } catch {
+    return { status: "refused", reason: "review-fix-response-invalid" };
+  }
+  const hostedFixTarget = { ...input.hostedTarget, headSha: input.currentHead };
+  const existing = record.data.deliveryMemberFixResponse;
+  if (existing !== null) {
+    return canonicalize({
+      oldTarget: existing.oldTarget,
+      newTarget: existing.newTarget,
+      applicability: existing.applicability,
+      verificationEvidenceRefs: existing.fixConsumption.verificationRefs,
+      hostedTarget: existing.hostedTarget,
+      hostedFixTarget: existing.hostedFixTarget,
+    }) === canonicalize({
+      oldTarget: input.oldTarget,
+      newTarget,
+      applicability: input.applicability,
+      verificationEvidenceRefs: input.verificationEvidenceRefs,
+      hostedTarget: input.hostedTarget,
+      hostedFixTarget,
+    })
+      ? { status: "already-recorded", record: record.data, newTarget, hostedFixTarget }
+      : { status: "refused", reason: "review-fix-response-replay-mismatch" };
+  }
+  try {
+    const fixConsumption = consumeFixAuthorization({
+      authorization: record.data.fixAuthorization,
+      oldTarget: input.oldTarget,
+      newTarget,
+      appliedBy: record.data.approvedDisposition.dispositionSet.proposedBy,
+      consumedAt: input.verifiedAt,
+      verificationRefs: [...input.verificationEvidenceRefs],
+      priorConsumptions: [],
+    });
+    const advanced = ApprovedDispositionRecordSchema.parse({
+      ...record.data,
+      deliveryMemberFixResponse: {
+        oldTarget: input.oldTarget,
+        newTarget,
+        applicability: input.applicability,
+        fixConsumption,
+        hostedTarget: input.hostedTarget,
+        hostedFixTarget,
+      },
+    });
+    return { status: "recorded", record: advanced, newTarget, hostedFixTarget };
+  } catch {
+    return { status: "refused", reason: "review-fix-response-invalid" };
+  }
+}
+
+export type DeliveryReviewFixBoundaryCarryResult =
+  | {
+      readonly status: "carried";
+      readonly boundary: IntegrationBoundaryLocus;
+      readonly candidateId: string;
+      readonly stateRevision: number;
+    }
+  | { readonly status: "refused"; readonly reason: string };
+
+/** Carry one Candidate identity's public review boundary across a proven correction response. */
+export function carryDeliveryReviewFixPublicBoundary(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly boundary: IntegrationBoundaryLocus;
+  readonly candidateId: string;
+  readonly sourceCandidateSubjectDigest: string;
+  readonly candidateSubjectDigest: string;
+}): DeliveryReviewFixBoundaryCarryResult {
+  const boundary = input.boundary;
+  if (boundary.mode !== "integration-boundary"
+    || boundary.locus !== "hosted-review-pending"
+    || boundary.workUnit !== input.plan.workUnitId
+    || boundary.candidateId !== input.candidateId
+    || boundary.candidateSubjectDigest !== input.sourceCandidateSubjectDigest
+    || boundary.nextAction.kind !== "continue-hosted-review"
+    || boundary.reservation.target.kind !== "delivery"
+    || boundary.reservation.target.planId !== input.plan.planId
+    || boundary.reservation.target.workUnitId !== input.plan.workUnitId) {
+    return { status: "refused", reason: "public-boundary-mismatch" };
+  }
+  const projected = projectDeliveryPublicReviewContinuation({
+    plan: input.plan,
+    state: input.state.value,
+    stateRevision: input.state.revision,
+  });
+  if (projected.status === "refused") return projected;
+  return {
+    status: "carried",
+    boundary: {
+      ...boundary,
+      candidateSubjectDigest: input.candidateSubjectDigest,
+      deliveryContinuation: projected.continuation,
+    },
+    candidateId: input.candidateId,
+    stateRevision: input.state.revision,
+  };
+}
 
 export type {
   DeliveryReviewFixVerificationAcknowledgementInput,

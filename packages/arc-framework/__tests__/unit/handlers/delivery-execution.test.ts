@@ -416,9 +416,11 @@ describe("delivery execution handler", () => {
         verificationId: `sha256:${"b".repeat(64)}`,
         recordPath: ".arc/system/.internal/candidates/example.json",
       },
-      nextAction: "renew-public-continuation" as const,
-      attestationAction: {
-        argv: ["arc", "attest", plan.workUnitId, "--json"] as const,
+      nextAction: "continue-hosted-review" as const,
+      boundaryCarry: {
+        path: `.arc/system/.internal/candidates/${plan.workUnitId}.boundary.json`,
+        candidateId: `sha256:${"a".repeat(64)}`,
+        stateRevision: 10,
       },
     };
     const execute = vi.fn().mockResolvedValue(acknowledged);
