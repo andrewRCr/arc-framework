@@ -180,6 +180,11 @@ type ProviderHistoryCollisionRecovery =
     }
   | { readonly status: "refused"; readonly reason: string; readonly detail?: string };
 
+type ProviderHistoryConflictResolution =
+  | { readonly status: "pending" }
+  | { readonly status: "accepted"; readonly head: string; readonly tree: string }
+  | { readonly status: "refused" };
+
 async function checkedOutRef(git: GitExec, cwd: string): Promise<string | null> {
   try {
     const { stdout } = await git("git", ["symbolic-ref", "-q", "HEAD"], { cwd });
@@ -190,9 +195,37 @@ async function checkedOutRef(git: GitExec, cwd: string): Promise<string | null> 
   }
 }
 
+async function readProviderHistoryConflictResolution(input: {
+  readonly git: GitExec;
+  readonly cwd: string;
+  readonly ref: string;
+  readonly oldHead: string;
+  readonly oldTree: string;
+  readonly refreshedPredecessorHead: string;
+}): Promise<ProviderHistoryConflictResolution> {
+  const coordinates = await readCoordinates(input.git, input.cwd, input.ref);
+  if (coordinates === null) return { status: "refused" };
+  if (coordinates.head === input.oldHead) {
+    return coordinates.tree === input.oldTree ? { status: "pending" } : { status: "refused" };
+  }
+  try {
+    const parentLine = (await input.git(
+      "git",
+      ["rev-list", "--parents", "-n", "1", coordinates.head],
+      { cwd: input.cwd },
+    )).stdout.trim();
+    return parentLine === `${coordinates.head} ${input.oldHead} ${input.refreshedPredecessorHead}`
+      ? { status: "accepted", ...coordinates }
+      : { status: "refused" };
+  } catch {
+    return { status: "refused" };
+  }
+}
+
 async function absorbProviderHistoryCollision(input: {
   readonly git: GitExec;
   readonly cwd: string;
+  readonly resolutionCwd: string;
   readonly before: DeliveryOperationSnapshotV1;
   readonly selectedIndex: number;
   readonly targetHead: string;
@@ -242,6 +275,53 @@ async function absorbProviderHistoryCollision(input: {
           ? mergeTreeOutput(failure.stdout)
           : null;
         if (conflicted !== null && conflicted.paths.length > 0) {
+          const resolution = await readProviderHistoryConflictResolution({
+            git: input.git,
+            cwd: input.resolutionCwd,
+            ref: beforeMember.ref,
+            oldHead: beforeMember.coordinates.head,
+            oldTree: beforeMember.coordinates.tree,
+            refreshedPredecessorHead: predecessorHead,
+          });
+          if (resolution.status === "refused") {
+            return {
+              status: "refused",
+              reason: "conflict-resolution-mismatch",
+              detail: "The named local member ref does not contain the exact approved two-parent resolution.",
+            };
+          }
+          if (resolution.status === "accepted") {
+            const imported = await readCoordinates(input.git, input.cwd, resolution.head);
+            if (imported?.head !== resolution.head || imported.tree !== resolution.tree) {
+              return { status: "refused", reason: "workspace-unavailable" };
+            }
+            await input.git("git", ["read-tree", "--reset", "-u", resolution.tree], { cwd: input.cwd });
+            await input.git("git", [
+              "update-ref", "-m", "delivery conflict resolution import",
+              beforeMember.ref, resolution.head, beforeMember.coordinates.head,
+            ], { cwd: input.cwd });
+            coordinates = await readCoordinates(input.git, input.cwd, beforeMember.ref);
+            const parentLine = (await input.git(
+              "git",
+              ["rev-list", "--parents", "-n", "1", resolution.head],
+              { cwd: input.cwd },
+            )).stdout.trim();
+            const clean = (await input.git(
+              "git",
+              ["status", "--porcelain=v1"],
+              { cwd: input.cwd },
+            )).stdout.trim() === "";
+            if (coordinates?.head !== resolution.head || coordinates.tree !== resolution.tree
+              || parentLine !== `${resolution.head} ${beforeMember.coordinates.head} ${predecessorHead}`
+              || await checkedOutRef(input.git, input.cwd) !== beforeMember.ref || !clean) {
+              return { status: "refused", reason: "workspace-unavailable" };
+            }
+            members.push({
+              ...beforeMember,
+              coordinates: { base: predecessorHead, head: resolution.head, tree: resolution.tree },
+            });
+            continue;
+          }
           return {
             status: "blocked",
             reason: "content-conflict",
@@ -500,6 +580,7 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
             collisionRecovery = await absorbProviderHistoryCollision({
               git: this.options.git,
               cwd: temporaryPath,
+              resolutionCwd: this.options.checkoutPath,
               before: input.before,
               selectedIndex: input.scope.kind === "dependent-suffix" ? selectedIndex : -1,
               targetHead: localTarget.head,

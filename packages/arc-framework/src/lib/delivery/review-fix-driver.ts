@@ -141,7 +141,8 @@ function deliveryReviewFixConflictStop(
     },
     effectLog,
     recommendedActionText:
-      "Resolve the exact prepared two-parent conflict, then submit the returned correction resume unchanged.",
+      "Record the exact prepared two-parent merge on conflictPreparation.topRef locally without pushing it, "
+      + "then submit the returned correction resume unchanged.",
   };
 }
 
