@@ -39,9 +39,23 @@ Run the full quality gate suite as defined by the project's [Quality Gates Strat
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
 clean throughout implementation, the full-suite run serves as attestation that everything passes as a whole.
 
-## Step 2 — Validate Success Criteria Against Design Artifact
+## Step 2 — Validate Success Criteria at Work-Unit Scope
 
-Run the criteria walk at work-unit scope:
+Inspect the task list for a Delivery Plan, then run the criteria walk at work-unit scope with exactly one of these
+criteria shapes.
+
+Without a Delivery Plan:
+
+```yaml
+validate-criteria:
+  scope:
+    kind: work-unit
+    criteria: task list's complete flat Success Criteria section
+    diff: complete work-unit diff
+    reachability: complete work-unit tree
+```
+
+With a Delivery Plan:
 
 ```yaml
 validate-criteria:
@@ -54,9 +68,10 @@ validate-criteria:
     reachability: complete work-unit tree
 ```
 
-The method dispositions member groups from their recorded reports and walks only the seam group and union coherence
-against the complete tree. Consume its combined report, then mark each criterion in the task list's Success Criteria
-section (see
+Without a Delivery Plan, open the upstream design/spec artifact and compare every flat criterion against actual
+outcomes in the complete diff and tree. With a Delivery Plan, the method dispositions member groups from their
+recorded reports and walks only the seam group and union coherence against the complete tree. Consume the resulting
+report, then mark each criterion in the task list's Success Criteria section (see
 [task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
 model:
 
@@ -65,6 +80,10 @@ model:
 - `[~]` — **Superseded.** Intentionally dropped, deferred, or made irrelevant by a design
   decision during implementation (add a **Superseded** note).
 - `[ ]` — **Not met.** A genuine gap that needs discussion before the work is complete.
+
+If the combined report contains any `[ ]` criterion, stop. Leave the terminal work-unit verification task
+incomplete and do not enter Step 3 until the gap is fixed, deliberately superseded (including an approved
+deferral), or otherwise resolved; then rerun the criteria walk against the current work-unit subject.
 
 **Criterion text is immutable.** Never rewrite a criterion to match what was built. The
 original text preserves intent; annotations capture reality.

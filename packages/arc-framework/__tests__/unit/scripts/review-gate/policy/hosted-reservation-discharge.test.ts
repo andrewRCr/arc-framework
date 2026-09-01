@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import type { DeliveryHostPort } from "../../../../../src/lib/delivery/host.js";
+import type { GitExec } from "../../../../../src/lib/git/index.js";
 import {
   createReviewRequirement,
   createReviewTarget,
@@ -11,6 +12,7 @@ import {
 import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   allHostedReservationTargetsDischarged,
+  createHostedReservationDischargeReader,
   projectHostedReservationDischarge,
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
@@ -226,6 +228,94 @@ describe("hosted reservation discharge", () => {
       },
       host: deliveryHost({ "41": { headSha: oid("b") } }),
     })).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
+  it("fails closed when the retained ref does not match the observed head ref", async () => {
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      singleton: { ...target(oid("f")), baseRevision: oid("0") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [{
+            planId: "plan-1", deliverableId: "member-1", workUnitId: "delivery",
+            ref: "refs/heads/delivery/plan-1/member-1",
+            providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("a"),
+          }],
+        }),
+      },
+      host: deliveryHost({ "41": { headSha: oid("a"), headRef: "unrelated-branch" } }),
+    })).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
+  const resolveBoundTargets = (
+    targets: readonly {
+      planId: string;
+      deliverableId: string;
+      workUnitId: string;
+      ref: null;
+      providerId: string;
+      changeRequestId: string;
+      base: string;
+      head: string;
+    }[],
+  ) => resolveHostedReservationTargets({
+    workUnitId: "delivery",
+    singleton: { ...target(oid("f")), baseRevision: oid("0") },
+    delivery: { resolveDischargeTargets: async () => ({ status: "resolved" as const, targets }) },
+    host: deliveryHost({
+      "41": { headSha: oid("a") },
+      "0": { headSha: oid("a") },
+      "1e3": { headSha: oid("a") },
+    }),
+  });
+
+  it("fails closed on duplicate change-request bindings", async () => {
+    const binding = {
+      planId: "plan-1", deliverableId: "member-1", workUnitId: "delivery", ref: null,
+      providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("a"),
+    };
+
+    await expect(resolveBoundTargets([binding, binding]))
+      .resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
+  it.each(["0", "1e3"])("fails closed on malformed change-request binding %s", async (changeRequestId) => {
+    await expect(resolveBoundTargets([{
+      planId: "plan-1", deliverableId: "member-1", workUnitId: "delivery", ref: null,
+      providerId: "github", changeRequestId, base: oid("0"), head: oid("a"),
+    }])).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
+  it("keeps an unreadable delivery-member span undischarged", async () => {
+    const exec: GitExec = async () => {
+      throw new Error("unknown member commit");
+    };
+    const reader = createHostedReservationDischargeReader({
+      cwd: "/tmp/repository",
+      exec,
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [{
+            planId: "plan-1", deliverableId: "member-1", workUnitId: "delivery", ref: null,
+            providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("a"),
+          }],
+        }),
+      },
+      host: deliveryHost({ "41": { headSha: oid("a") } }),
+    });
+
+    await expect(reader({
+      workUnitId: "delivery",
+      reservation: reservation(),
+      baseRevision: oid("0"),
+      approvedHead: oid("a"),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    })).resolves.toEqual({
+      discharged: false,
+      detail: "Delivery member 1: The reserved hosted-review target span is unavailable.",
+    });
   });
 
   it("contains an unavailable delivery read without falling back to a single target", async () => {
