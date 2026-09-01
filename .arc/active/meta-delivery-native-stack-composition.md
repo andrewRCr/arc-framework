@@ -11,7 +11,7 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:5542bdd45568c21857d787b3d3ae9e1bea79b2adf142e93ceeb55173da06d8e4`
+- **Candidate:** `sha256:e5d490deb8f9def4f97915d174e0aa03bc395c743bec1b1a5f846745a3ef762d`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 9.1.R.g — Revalidate stale-continuation recovery at work-unit scope
