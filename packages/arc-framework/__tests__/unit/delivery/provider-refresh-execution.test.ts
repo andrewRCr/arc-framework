@@ -260,6 +260,69 @@ describe("provider refresh publication classification", () => {
     expect(candidateRefs.size).toBe(0);
   });
 
+  it("promotes a prepared natural-merge conflict to the attended conflict contract", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const targetHead = fixture.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(190 + index) },
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0 ? targetHead : members[index - 1]!.coordinates!.head,
+        },
+      })),
+    };
+    const facts = positionFacts(state);
+    const conflictPreparation = {
+      topRef: state.members[1]!.ref!,
+      logicalMergeBase: oid("4"),
+      parents: { top: oid("5"), refreshedPredecessor: oid("6") },
+      mergeTree: {
+        argv: [
+          "git", "merge-tree", "--write-tree", "--merge-base", oid("4"),
+          "--name-only", "-z", "--no-messages", oid("5"), oid("6"),
+        ],
+      },
+    } as const;
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      repository: "owner/repo",
+      scope: { kind: "complete-remainder" },
+      facts,
+    }, {
+      preparation: { prepare: async () => ({
+        status: "refused" as const,
+        reason: "content-conflict",
+        paths: ["conflicted.ts"],
+        conflictPreparation,
+      }) },
+      preflightTop: async () => { throw new Error("must not preflight"); },
+      observePublishedHeads: async () => { throw new Error("must not observe"); },
+      rewriteMemberRef: async () => { throw new Error("must not publish"); },
+      observeResult: async () => { throw new Error("must not settle"); },
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish top"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite locally"); },
+      cleanupPreparedCandidates: async () => { throw new Error("must not clean"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({
+      status: "blocked",
+      reason: "content-conflict",
+      paths: ["conflicted.ts"],
+      conflictPreparation,
+    });
+  });
+
   it("identifies a retained reservation and its recovery action on a later block", async () => {
     const { plan, operationId, reserved } = reservedRefreshTargetMovementFixture();
     const active = reserved.state.activeOperation;

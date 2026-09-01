@@ -64,6 +64,43 @@ function conflictPaths(bytes: Uint8Array): string[] | null {
   return paths.length === 0 ? null : paths;
 }
 
+async function readAncestry(
+  exec: RawGitExec,
+  ancestor: string,
+  descendant: string,
+): Promise<"ancestor" | "not-ancestor" | null> {
+  const args = ["merge-base", "--is-ancestor", ancestor, descendant];
+  try {
+    await exec(args, { objectAccess: "local-only" });
+    return "ancestor";
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    return failure.kind === "nonzero-exit" && failure.exitCode === 1 ? "not-ancestor" : null;
+  }
+}
+
+async function uniquePhysicalPredecessor(
+  exec: RawGitExec,
+  refreshedPredecessor: string,
+  oldMember: string,
+): Promise<DeliveryContributionCoordinate | null> {
+  const args = ["merge-base", "--all", refreshedPredecessor, oldMember];
+  try {
+    const result = await exec(args, { objectAccess: "local-only" });
+    const decoded = text(result.stdout);
+    const boundaries = decoded === null
+      ? []
+      : [...new Set(decoded.split(/\s+/u).filter(Boolean))];
+    const [head] = boundaries;
+    if (boundaries.length !== 1 || head === undefined || !objectId.test(head)) return null;
+    const treeResult = await exec(["rev-parse", `${head}^{tree}`], { objectAccess: "local-only" });
+    const tree = text(treeResult.stdout);
+    return tree !== null && objectId.test(tree) ? { head, tree } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Reapply one pinned contribution and compare its structural result to the provider tree. */
 export async function proveGitDeliveryContribution(input: DeliveryContributionEndpoints & {
   readonly exec: RawGitExec;
@@ -115,4 +152,34 @@ export async function proveGitDeliveryContribution(input: DeliveryContributionEn
     }
     return { status: "refused", reason: "git-failure" };
   }
+}
+
+/** Prove one provider-refresh movement while retaining the ordinary contribution contract. */
+export async function proveGitDeliveryProviderRefreshContribution(input: DeliveryContributionEndpoints & {
+  readonly exec: RawGitExec;
+}): Promise<DeliveryContributionProofResult> {
+  const coordinates = [
+    input.before.predecessor, input.before.member, input.after.predecessor, input.after.member,
+  ];
+  if (!(await Promise.all(coordinates.map(async (coordinate) => verifyCoordinate(input.exec, coordinate))))
+    .every(Boolean)) return { status: "refused", reason: "contribution-endpoints-unverified" };
+  const ancestry = await readAncestry(
+    input.exec,
+    input.before.predecessor.head,
+    input.before.member.head,
+  );
+  if (ancestry === null) return { status: "refused", reason: "git-failure" };
+  if (ancestry === "ancestor") return proveGitDeliveryContribution(input);
+  const physicalPredecessor = await uniquePhysicalPredecessor(
+    input.exec,
+    input.after.predecessor.head,
+    input.before.member.head,
+  );
+  if (physicalPredecessor === null) {
+    return { status: "refused", reason: "contribution-endpoints-unverified" };
+  }
+  return proveGitDeliveryContribution({
+    ...input,
+    before: { ...input.before, predecessor: physicalPredecessor },
+  });
 }

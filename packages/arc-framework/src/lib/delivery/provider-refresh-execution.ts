@@ -107,6 +107,7 @@ export type DeliveryProviderRefreshPreparationResult =
       readonly reason: string;
       readonly paths?: readonly string[];
       readonly detail?: string;
+      readonly conflictPreparation?: DeliveryTerminalConflictPreparation;
     };
 
 export interface DeliveryProviderRefreshPreparationPort {
@@ -280,7 +281,19 @@ export async function executeDeliveryProviderRefresh(_input: {
           scope: input.scope,
           before: derived.subject.before,
         });
-    if (prepared.status === "refused") return prepared;
+    if (prepared.status === "refused") {
+      return prepared.reason === "content-conflict"
+        && prepared.paths !== undefined
+        && prepared.paths.length > 0
+        && prepared.conflictPreparation !== undefined
+        ? {
+            status: "blocked",
+            reason: "content-conflict",
+            paths: prepared.paths,
+            conflictPreparation: prepared.conflictPreparation,
+          }
+        : prepared;
+    }
     const requested = DeliveryOperationSnapshotV1Schema.safeParse(prepared.observation.snapshot);
     if (!requested.success) {
       const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);

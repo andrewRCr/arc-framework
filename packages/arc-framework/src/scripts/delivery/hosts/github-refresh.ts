@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { deleteDeliveryRefreshCandidateRef } from "../../../lib/delivery/git-materialization.js";
 import type { GitExec } from "../../../lib/git/exec.js";
+import { normalizeGitRejection } from "../../../lib/git/process-error.js";
 import {
   deriveDeliveryProviderRefreshCandidates,
   type DeliveryProviderRefreshCandidate,
@@ -21,6 +22,8 @@ import {
   type DeliveryNativeStackPort,
 } from "../../../lib/delivery/native-stack.js";
 import type { DeliveryOperationSnapshotV1, DeliveryPlanV1 } from "../../../lib/delivery/schema.js";
+import type { DeliveryTerminalConflictPreparation } from
+  "../../../lib/delivery/suffix-reconciliation.js";
 import {
   DeliveryProviderProcessError,
   type DeliveryProviderProcessRunner,
@@ -159,9 +162,258 @@ async function isAncestor(git: GitExec, cwd: string, ancestor: string, descendan
   }
 }
 
+function mergeTreeOutput(value: string): { readonly tree: string; readonly paths: readonly string[] } | null {
+  const values = value.split("\0").filter((item) => item !== "");
+  const [tree, ...paths] = values;
+  return tree !== undefined && objectId.test(tree)
+    ? { tree, paths: [...new Set(paths)].sort() }
+    : null;
+}
+
+type ProviderHistoryCollisionRecovery =
+  | { readonly status: "recovered"; readonly members: DeliveryOperationSnapshotV1["members"] }
+  | {
+      readonly status: "blocked";
+      readonly reason: "content-conflict";
+      readonly paths: readonly string[];
+      readonly conflictPreparation: DeliveryTerminalConflictPreparation;
+    }
+  | { readonly status: "refused"; readonly reason: string; readonly detail?: string };
+
+type ProviderHistoryConflictResolution =
+  | { readonly status: "pending" }
+  | { readonly status: "accepted"; readonly head: string; readonly tree: string }
+  | { readonly status: "refused" };
+
+async function checkedOutRef(git: GitExec, cwd: string): Promise<string | null> {
+  try {
+    const { stdout } = await git("git", ["symbolic-ref", "-q", "HEAD"], { cwd });
+    const ref = stdout.trim();
+    return ref.startsWith("refs/heads/") ? ref : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readProviderHistoryConflictResolution(input: {
+  readonly git: GitExec;
+  readonly cwd: string;
+  readonly ref: string;
+  readonly oldHead: string;
+  readonly oldTree: string;
+  readonly refreshedPredecessorHead: string;
+}): Promise<ProviderHistoryConflictResolution> {
+  const coordinates = await readCoordinates(input.git, input.cwd, input.ref);
+  if (coordinates === null) return { status: "refused" };
+  if (coordinates.head === input.oldHead) {
+    return coordinates.tree === input.oldTree ? { status: "pending" } : { status: "refused" };
+  }
+  try {
+    const parentLine = (await input.git(
+      "git",
+      ["rev-list", "--parents", "-n", "1", coordinates.head],
+      { cwd: input.cwd },
+    )).stdout.trim();
+    return parentLine === `${coordinates.head} ${input.oldHead} ${input.refreshedPredecessorHead}`
+      ? { status: "accepted", ...coordinates }
+      : { status: "refused" };
+  } catch {
+    return { status: "refused" };
+  }
+}
+
+async function absorbProviderHistoryCollision(input: {
+  readonly git: GitExec;
+  readonly cwd: string;
+  readonly resolutionCwd: string;
+  readonly before: DeliveryOperationSnapshotV1;
+  readonly selectedIndex: number;
+  readonly targetHead: string;
+}): Promise<ProviderHistoryCollisionRecovery> {
+  try {
+    await input.git("git", ["rebase", "--abort"], { cwd: input.cwd });
+  } catch {
+    return {
+      status: "refused",
+      reason: "conflict",
+      detail: "The provider reported a conflict without a recoverable Git rebase state.",
+    };
+  }
+  const members: DeliveryOperationSnapshotV1["members"][number][] = [];
+  for (const [index, beforeMember] of input.before.members.entries()) {
+    if (beforeMember.ref === null || beforeMember.coordinates === null) {
+      return { status: "refused", reason: "scope-mismatch" };
+    }
+    const predecessorHead = index === 0 ? input.targetHead : members[index - 1]?.coordinates?.head;
+    if (predecessorHead === undefined) return { status: "refused", reason: "scope-mismatch" };
+    let coordinates = await readCoordinates(input.git, input.cwd, beforeMember.ref);
+    if (coordinates === null) return { status: "refused", reason: "scope-mismatch" };
+    if (index <= input.selectedIndex) {
+      if (coordinates.head !== beforeMember.coordinates.head) {
+        return { status: "refused", reason: "scope-mismatch" };
+      }
+    } else if (coordinates.head !== beforeMember.coordinates.head) {
+      if (!await isAncestor(input.git, input.cwd, predecessorHead, coordinates.head)) {
+        return { status: "refused", reason: "scope-mismatch" };
+      }
+    } else if (beforeMember.coordinates.base !== predecessorHead) {
+      await input.git("git", ["switch", "--", beforeMember.ref.slice("refs/heads/".length)], { cwd: input.cwd });
+      const status = (await input.git("git", ["status", "--porcelain=v1"], { cwd: input.cwd })).stdout.trim();
+      if (status !== "" || await checkedOutRef(input.git, input.cwd) !== beforeMember.ref) {
+        return { status: "refused", reason: "workspace-unavailable" };
+      }
+      const mergeArgs = [
+        "merge-tree", "--write-tree", "--merge-base", beforeMember.coordinates.base,
+        "--name-only", "-z", "--no-messages", beforeMember.coordinates.head, predecessorHead,
+      ];
+      let merged: ReturnType<typeof mergeTreeOutput>;
+      try {
+        merged = mergeTreeOutput((await input.git("git", mergeArgs, { cwd: input.cwd })).stdout);
+      } catch (error) {
+        const failure = normalizeGitRejection(error, { command: "git", args: mergeArgs });
+        const conflicted = failure.kind === "nonzero-exit" && failure.exitCode === 1
+          ? mergeTreeOutput(failure.stdout)
+          : null;
+        if (conflicted !== null && conflicted.paths.length > 0) {
+          const resolution = await readProviderHistoryConflictResolution({
+            git: input.git,
+            cwd: input.resolutionCwd,
+            ref: beforeMember.ref,
+            oldHead: beforeMember.coordinates.head,
+            oldTree: beforeMember.coordinates.tree,
+            refreshedPredecessorHead: predecessorHead,
+          });
+          if (resolution.status === "refused") {
+            return {
+              status: "refused",
+              reason: "conflict-resolution-mismatch",
+              detail: "The named local member ref does not contain the exact approved two-parent resolution.",
+            };
+          }
+          if (resolution.status === "accepted") {
+            const imported = await readCoordinates(input.git, input.cwd, resolution.head);
+            if (imported?.head !== resolution.head || imported.tree !== resolution.tree) {
+              return { status: "refused", reason: "workspace-unavailable" };
+            }
+            await input.git("git", ["read-tree", "--reset", "-u", resolution.tree], { cwd: input.cwd });
+            await input.git("git", [
+              "update-ref", "-m", "delivery conflict resolution import",
+              beforeMember.ref, resolution.head, beforeMember.coordinates.head,
+            ], { cwd: input.cwd });
+            coordinates = await readCoordinates(input.git, input.cwd, beforeMember.ref);
+            const parentLine = (await input.git(
+              "git",
+              ["rev-list", "--parents", "-n", "1", resolution.head],
+              { cwd: input.cwd },
+            )).stdout.trim();
+            const clean = (await input.git(
+              "git",
+              ["status", "--porcelain=v1"],
+              { cwd: input.cwd },
+            )).stdout.trim() === "";
+            if (coordinates?.head !== resolution.head || coordinates.tree !== resolution.tree
+              || parentLine !== `${resolution.head} ${beforeMember.coordinates.head} ${predecessorHead}`
+              || await checkedOutRef(input.git, input.cwd) !== beforeMember.ref || !clean) {
+              return { status: "refused", reason: "workspace-unavailable" };
+            }
+            members.push({
+              ...beforeMember,
+              coordinates: { base: predecessorHead, head: resolution.head, tree: resolution.tree },
+            });
+            continue;
+          }
+          return {
+            status: "blocked",
+            reason: "content-conflict",
+            paths: conflicted.paths,
+            conflictPreparation: {
+              topRef: beforeMember.ref,
+              logicalMergeBase: beforeMember.coordinates.base,
+              parents: { top: beforeMember.coordinates.head, refreshedPredecessor: predecessorHead },
+              mergeTree: { argv: ["git", ...mergeArgs] },
+            },
+          };
+        }
+        return { status: "refused", reason: "workspace-unavailable" };
+      }
+      if (merged === null || merged.paths.length > 0) {
+        return { status: "refused", reason: "workspace-unavailable" };
+      }
+      const { stdout: commitOut } = await input.git("git", [
+        "commit-tree", merged.tree,
+        "-p", beforeMember.coordinates.head,
+        "-p", predecessorHead,
+        "-m", "Absorb refreshed delivery predecessor",
+      ], { cwd: input.cwd });
+      const commit = commitOut.trim();
+      if (!objectId.test(commit)) return { status: "refused", reason: "workspace-unavailable" };
+      await input.git("git", ["read-tree", "--reset", "-u", merged.tree], { cwd: input.cwd });
+      await input.git("git", [
+        "update-ref", "-m", "delivery predecessor absorption",
+        beforeMember.ref, commit, beforeMember.coordinates.head,
+      ], { cwd: input.cwd });
+      coordinates = await readCoordinates(input.git, input.cwd, beforeMember.ref);
+      const parentLine = (await input.git(
+        "git",
+        ["rev-list", "--parents", "-n", "1", commit],
+        { cwd: input.cwd },
+      )).stdout.trim();
+      const clean = (await input.git("git", ["status", "--porcelain=v1"], { cwd: input.cwd })).stdout.trim() === "";
+      if (coordinates?.head !== commit || coordinates.tree !== merged.tree
+        || parentLine !== `${commit} ${beforeMember.coordinates.head} ${predecessorHead}` || !clean) {
+        return { status: "refused", reason: "workspace-unavailable" };
+      }
+    }
+    members.push({
+      ...beforeMember,
+      coordinates: { base: predecessorHead, head: coordinates.head, tree: coordinates.tree },
+    });
+  }
+  return { status: "recovered", members };
+}
+
 function providerFailureDetail(error: DeliveryProviderProcessError): string {
   const source = error.stderr.trim() || error.stdout.trim() || error.message;
   return source.replace(/\s+/gu, " ").trim().slice(0, MAX_PROVIDER_FAILURE_DETAIL_LENGTH);
+}
+
+class ProviderRefreshPreparationRefusal extends Error {
+  constructor(
+    readonly reason: string,
+    readonly detail?: string,
+  ) {
+    super(detail ?? reason);
+  }
+}
+
+async function uniqueForkBoundary(
+  git: GitExec,
+  cwd: string,
+  selectedHead: string,
+  dependentHead: string,
+): Promise<string> {
+  let stdout: string;
+  try {
+    ({ stdout } = await git(
+      "git",
+      ["merge-base", "--all", selectedHead, dependentHead],
+      { cwd },
+    ));
+  } catch {
+    throw new ProviderRefreshPreparationRefusal(
+      "scope-mismatch",
+      "The selected member and first dependent do not have a usable fork boundary.",
+    );
+  }
+  const boundaries = [...new Set(stdout.trim().split(/\s+/u).filter((value) => value !== ""))];
+  const [boundary] = boundaries;
+  if (boundaries.length !== 1 || boundary === undefined || !objectId.test(boundary)) {
+    throw new ProviderRefreshPreparationRefusal(
+      "scope-mismatch",
+      "The selected member and first dependent do not have one unambiguous fork boundary.",
+    );
+  }
+  return boundary;
 }
 
 async function seedSelectedPredecessorTransition(
@@ -174,9 +426,15 @@ async function seedSelectedPredecessorTransition(
   const firstDependent = before.members[selectedIndex + 1];
   const selectedRef = selected?.ref;
   const selectedHead = selected?.coordinates?.head;
-  const previousHead = firstDependent?.coordinates?.base;
+  const dependentHead = firstDependent?.coordinates?.head;
+  const recordedPredecessor = firstDependent?.coordinates?.base;
   if (selectedRef === null || selectedRef === undefined || selectedHead === undefined
-    || previousHead === undefined || previousHead === selectedHead) return;
+    || dependentHead === undefined || recordedPredecessor === undefined
+    || recordedPredecessor === selectedHead) return;
+  const previousHead = await isAncestor(git, cwd, recordedPredecessor, dependentHead)
+    ? recordedPredecessor
+    : await uniqueForkBoundary(git, cwd, selectedHead, dependentHead);
+  if (previousHead === selectedHead) return;
   const message = "provider refresh predecessor transition";
   await git("git", ["update-ref", "-m", message, selectedRef, previousHead, selectedHead], { cwd });
   await git("git", ["update-ref", "-m", message, selectedRef, selectedHead, previousHead], { cwd });
@@ -311,51 +569,78 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
             await seedSelectedPredecessorTransition(this.options.git, temporaryPath, input.before, selectedIndex);
           }
           await this.options.git("git", ["switch", "--", selectedBranch], { cwd: temporaryPath });
-          await this.options.gh.run([
-            "stack", "rebase", "--upstack",
-            ...(input.scope.kind === "dependent-suffix" ? ["--no-trunk"] : []),
-          ], { cwd: temporaryPath });
-          const afterView = decodeGhStackView(
-            (await this.options.gh.run(["stack", "view", "--json"], { cwd: temporaryPath })).stdout,
-          );
-          const refreshedTarget = await readCoordinates(
-            this.options.git,
-            temporaryPath,
-            `refs/heads/${targetName}`,
-          );
-          if (afterView === null || refreshedTarget === null
-            || afterView.trunk !== targetName
-            || refreshedTarget.head !== localTarget.head || refreshedTarget.tree !== localTarget.tree
-            || afterView.branches.length !== input.before.members.length) {
-            result = { status: "refused", reason: "malformed-result" };
+          let collisionRecovery: ProviderHistoryCollisionRecovery | null = null;
+          try {
+            await this.options.gh.run([
+              "stack", "rebase", "--upstack",
+              ...(input.scope.kind === "dependent-suffix" ? ["--no-trunk"] : []),
+            ], { cwd: temporaryPath });
+          } catch (error) {
+            if (!(error instanceof DeliveryProviderProcessError) || error.exitCode !== 3) throw error;
+            collisionRecovery = await absorbProviderHistoryCollision({
+              git: this.options.git,
+              cwd: temporaryPath,
+              resolutionCwd: this.options.checkoutPath,
+              before: input.before,
+              selectedIndex: input.scope.kind === "dependent-suffix" ? selectedIndex : -1,
+              targetHead: localTarget.head,
+            });
+          }
+          if (collisionRecovery !== null && collisionRecovery.status !== "recovered") {
+            result = collisionRecovery.status === "blocked"
+              ? {
+                  status: "refused",
+                  reason: collisionRecovery.reason,
+                  paths: collisionRecovery.paths,
+                  conflictPreparation: collisionRecovery.conflictPreparation,
+                }
+              : collisionRecovery;
           } else {
+            const refreshedTarget = await readCoordinates(
+              this.options.git,
+              temporaryPath,
+              `refs/heads/${targetName}`,
+            );
             const requestedMembers: DeliveryOperationSnapshotV1["members"][number][] = [];
-            for (const [index, beforeMember] of input.before.members.entries()) {
-              const branch = afterView.branches[index];
-              const registrationMember = registration.members[index];
-              if (branch === undefined || registrationMember === undefined
-                || branch.name !== registrationMember.headRef
-                || String(branch.pr.number) !== registrationMember.changeRequestId
-                || branch.pr.state !== "OPEN") {
-                requestedMembers.length = 0;
-                break;
+            if (collisionRecovery?.status === "recovered") {
+              requestedMembers.push(...collisionRecovery.members);
+            } else {
+              const afterView = decodeGhStackView(
+                (await this.options.gh.run(["stack", "view", "--json"], { cwd: temporaryPath })).stdout,
+              );
+              if (afterView !== null && afterView.trunk === targetName
+                && afterView.branches.length === input.before.members.length) {
+                for (const [index, beforeMember] of input.before.members.entries()) {
+                  const branch = afterView.branches[index];
+                  const registrationMember = registration.members[index];
+                  if (branch === undefined || registrationMember === undefined
+                    || branch.name !== registrationMember.headRef
+                    || String(branch.pr.number) !== registrationMember.changeRequestId
+                    || branch.pr.state !== "OPEN") {
+                    requestedMembers.length = 0;
+                    break;
+                  }
+                  const coordinates = await readCoordinates(this.options.git, temporaryPath, branch.head);
+                  const expectedBase = index === 0 ? refreshedTarget?.head : afterView.branches[index - 1]?.head;
+                  if (coordinates === null || expectedBase === undefined || branch.base !== expectedBase
+                    || (input.scope.kind === "dependent-suffix" && index <= selectedIndex
+                      && branch.head !== beforeMember.coordinates?.head)) {
+                    requestedMembers.length = 0;
+                    break;
+                  }
+                  requestedMembers.push({
+                    deliverableId: beforeMember.deliverableId,
+                    ref: beforeMember.ref,
+                    changeRequest: beforeMember.changeRequest,
+                    coordinates: { base: branch.base, head: branch.head, tree: coordinates.tree },
+                  });
+                }
               }
-              const coordinates = await readCoordinates(this.options.git, temporaryPath, branch.head);
-              const expectedBase = index === 0 ? refreshedTarget.head : afterView.branches[index - 1]?.head;
-              if (coordinates === null || expectedBase === undefined || branch.base !== expectedBase
-                || (input.scope.kind === "dependent-suffix" && index <= selectedIndex
-                  && branch.head !== beforeMember.coordinates?.head)) {
-                requestedMembers.length = 0;
-                break;
-              }
-              requestedMembers.push({
-                deliverableId: beforeMember.deliverableId,
-                ref: beforeMember.ref,
-                changeRequest: beforeMember.changeRequest,
-                coordinates: { base: branch.base, head: branch.head, tree: coordinates.tree },
-              });
             }
-            if (requestedMembers.length !== input.before.members.length) {
+            if (refreshedTarget === null
+              || refreshedTarget.head !== localTarget.head || refreshedTarget.tree !== localTarget.tree) {
+              result = { status: "refused", reason: "malformed-result" };
+            } else if (requestedMembers.length !== input.before.members.length) {
               result = { status: "refused", reason: "scope-mismatch" };
             } else {
               const snapshot: DeliveryOperationSnapshotV1 = {
@@ -397,8 +682,10 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
         }
       }
     } catch (error) {
-      result = error instanceof DeliveryProviderProcessError && error.exitCode === 3
-        ? { status: "refused", reason: "conflict" }
+      result = error instanceof ProviderRefreshPreparationRefusal
+        ? { status: "refused", reason: error.reason, detail: error.detail }
+        : error instanceof DeliveryProviderProcessError && error.exitCode === 3
+        ? { status: "refused", reason: "conflict", detail: providerFailureDetail(error) }
         : error instanceof DeliveryProviderProcessError
           ? { status: "refused", reason: "unavailable", detail: providerFailureDetail(error) }
           : { status: "refused", reason: "unavailable" };
