@@ -576,6 +576,34 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("finishes an earlier published correction before planning a later member task", () => {
+    const laterMember = plan.members[1];
+    if (laterMember === undefined) throw new Error("continuation fixture requires a later member");
+    const laterEntry = correctionEntry();
+    if (laterEntry.status !== "correction-routing-required") {
+      throw new Error("continuation fixture requires a correction route");
+    }
+
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: {
+        ...laterEntry,
+        selectedDeliverableId: laterMember.deliverableId,
+      },
+      state: pendingSelectedRefreshState(),
+      activeBranch: "feat/example",
+    })).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-refresh-execute",
+        input: {
+          planId: plan.planId,
+          scope: { kind: "dependent-suffix", selectedDeliverableId },
+        },
+      },
+    });
+  });
+
   it("finishes a unique pending selected refresh before Candidate verification", () => {
     expect(projectDeliveryReviewFixContinuation({
       request,

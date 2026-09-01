@@ -17,7 +17,9 @@ import type {
 } from "./chain-absorption.js";
 import {
   changedDeliveryProviderRefreshMovements,
+  collectDeliveryProviderRefreshConflicts,
   deliveryTerminalAbsorptionOwed,
+  describeDeliveryProviderRefreshSubjectMismatch,
   findExactPendingSelectedRefresh,
   proveDeliveryProviderRefreshMovements,
   selectDeliveryProviderRefreshProofMovements,
@@ -101,6 +103,7 @@ export type DeliveryProviderRefreshPreparationResult =
       readonly status: "prepared";
       readonly observation: DeliveryProviderRefreshObservation;
       readonly candidates: readonly DeliveryProviderRefreshCandidate[];
+      readonly locallyResolvedDeliverableIds?: readonly string[];
     }
   | {
       readonly status: "refused";
@@ -185,6 +188,7 @@ export type ExecuteDeliveryProviderRefreshResult =
   | {
       readonly status: "refused" | "blocked";
       readonly reason: string;
+      readonly detail?: string;
       readonly paths?: readonly string[];
       readonly conflictPreparation?: DeliveryTerminalConflictPreparation;
     }
@@ -334,18 +338,72 @@ export async function executeDeliveryProviderRefresh(_input: {
       || (input.scope.kind === "dependent-suffix" && dependentPrefixHeadMoved)
       || (movements.length === 0
         && !deliveryTerminalAbsorptionOwed(input.current.value, requested.data))) {
+      const preparedMismatchReasons = [
+        ...(movements === null
+          ? [`movement-set:${describeDeliveryProviderRefreshSubjectMismatch(
+              derived.subject.before,
+              { ...prepared.observation, snapshot: requested.data },
+            ) ?? "unknown"}`]
+          : []),
+        ...(expectedCandidates === null ? ["candidate-subject"] : []),
+        ...(expectedCandidates !== null
+          && canonicalize(expectedCandidates) !== canonicalize(prepared.candidates)
+          ? ["candidate-set"] : []),
+        ...(input.scope.kind === "dependent-suffix" && dependentPrefixHeadMoved
+          ? ["selected-prefix-moved"] : []),
+        ...(movements !== null && movements.length === 0
+          && !deliveryTerminalAbsorptionOwed(input.current.value, requested.data)
+          ? ["no-effect"] : []),
+      ];
       const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
       return cleaned.status === "cleaned"
-        ? { status: "refused", reason: "prepared-result-mismatch" }
+        ? {
+            status: "refused",
+            reason: "prepared-result-mismatch",
+            detail: preparedMismatchReasons.join(","),
+          }
         : { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
     }
-    const proof = await proveDeliveryProviderRefreshMovements(movements, deps.proveContribution);
-    if (proof !== null) {
+    const locallyResolvedDeliverableIds = prepared.locallyResolvedDeliverableIds ?? [];
+    const movementIds = new Set(movements.map(({ deliverableId }) => deliverableId));
+    const localResolutionIds = new Set(locallyResolvedDeliverableIds);
+    if ((input.scope.kind !== "dependent-suffix" && locallyResolvedDeliverableIds.length > 0)
+      || localResolutionIds.size !== locallyResolvedDeliverableIds.length
+      || locallyResolvedDeliverableIds.some((deliverableId) => !movementIds.has(deliverableId))) {
       const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
       if (cleaned.status === "refused") {
         return { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
       }
-      return proof;
+      return { status: "refused", reason: "conflict-resolution-mismatch" };
+    }
+    let approvedConflictDeliverableIds: readonly string[] = [];
+    if (locallyResolvedDeliverableIds.length > 0) {
+      const assessment = await collectDeliveryProviderRefreshConflicts(movements, deps.proveContribution);
+      if (assessment.status === "refused") {
+        const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
+        if (cleaned.status === "refused") {
+          return { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
+        }
+        return assessment;
+      }
+      const unapproved = assessment.conflicts.find(({ deliverableId }) => !localResolutionIds.has(deliverableId));
+      if (unapproved !== undefined) {
+        const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
+        if (cleaned.status === "refused") {
+          return { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
+        }
+        return { status: "refused", reason: "contribution-conflicted", paths: unapproved.paths };
+      }
+      approvedConflictDeliverableIds = assessment.conflicts.map(({ deliverableId }) => deliverableId);
+    } else {
+      const proof = await proveDeliveryProviderRefreshMovements(movements, deps.proveContribution);
+      if (proof !== null) {
+        const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
+        if (cleaned.status === "refused") {
+          return { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
+        }
+        return proof;
+      }
     }
     if (deliveryTerminalAbsorptionOwed(input.current.value, requested.data)) {
       const terminal = input.current.value.members.at(-1);
@@ -380,7 +438,10 @@ export async function executeDeliveryProviderRefresh(_input: {
       ...(input.scope.kind === "dependent-suffix"
         ? {
             reviewFixSelectedDeliverableId: input.scope.selectedDeliverableId,
-            reviewFixVerificationDeliverableIds: [input.scope.selectedDeliverableId],
+            reviewFixVerificationDeliverableIds: [
+              input.scope.selectedDeliverableId,
+              ...approvedConflictDeliverableIds,
+            ],
           }
         : {}),
     });

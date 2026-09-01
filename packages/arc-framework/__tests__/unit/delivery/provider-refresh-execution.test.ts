@@ -619,6 +619,108 @@ describe("provider refresh publication classification", () => {
     });
   });
 
+  it("publishes an exact locally approved dependent conflict and scopes its verification", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const targetHead = fixture.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
+    const selectedHead = oid("f");
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(725 + index) },
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0 ? targetHead : members[index - 1]!.coordinates!.head,
+          head: index === 0 ? selectedHead : member.coordinates.head,
+        },
+      })),
+    };
+    const facts = positionFacts(state);
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts });
+    if (derived.status !== "derived") throw new Error("refresh subject must derive");
+    const before = derived.subject.before;
+    const selected = before.members[0]!;
+    const approvedConflict = before.members[1]!;
+    const requested: DeliveryOperationSnapshotV1 = {
+      target: before.target,
+      members: before.members.map((member, index) => ({
+        ...member,
+        coordinates: member.coordinates === null ? null : index === 0
+          ? member.coordinates
+          : {
+              base: index === 1 ? selected.coordinates!.head : oid("a"),
+              head: index === 1 ? oid("a") : oid("b"),
+              tree: index === 1 ? oid("c") : oid("d"),
+            },
+      })),
+    };
+    const candidateResult = deriveDeliveryProviderRefreshCandidates({ plan, before, requested });
+    if (candidateResult.status !== "derived") throw new Error("candidates must derive");
+    const remoteHeads = new Map(before.members.map((member) => [
+      member.deliverableId,
+      member.coordinates!.head,
+    ]));
+    let current: { revision: number; value: DeliveryStateV1 } = { revision: 7, value: state };
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current,
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix", selectedDeliverableId: selected.deliverableId },
+      facts,
+    }, {
+      preparation: { prepare: async () => ({
+        status: "prepared",
+        observation: { snapshot: requested, targetMovement: "exact" },
+        candidates: candidateResult.candidates,
+        locallyResolvedDeliverableIds: [approvedConflict.deliverableId],
+      }) },
+      preflightTop: readyTop,
+      observePublishedHeads: async (snapshot) => snapshot.members.map((member) => ({
+        deliverableId: member.deliverableId,
+        head: remoteHeads.get(member.deliverableId) ?? null,
+      })),
+      rewriteMemberRef: async ({ ref, requestedHead }) => {
+        const member = requested.members.find((candidate) => candidate.ref === ref)!;
+        remoteHeads.set(member.deliverableId, requestedHead);
+        return { status: "rewritten" };
+      },
+      observeResult: async () => ({
+        status: "observed",
+        observation: { snapshot: requested, targetMovement: "exact" },
+      }),
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async ({ deliverableId }) => deliverableId === approvedConflict.deliverableId
+        ? { status: "refused" as const, reason: "contribution-conflicted" as const, paths: ["shared.ts"] }
+        : { status: "accepted" as const, proof: "mechanical-reapply" as const },
+      absorbTop: async () => ({ status: "absorbed", head: oid("e"), tree: oid("0") }),
+      publishTop: async () => ({ status: "published" }),
+      rewriteLocalRef: async () => ({ status: "adopted" }),
+      cleanupPreparedCandidates: async () => ({ status: "cleaned" }),
+      stateStore: { publish: async (_planId, value, revision) => {
+        if (revision !== current.revision) return { status: "refused", reason: "version-conflict" };
+        current = { revision: revision + 1, value };
+        return { status: "ok", value: current };
+      } },
+    });
+
+    if (result.status !== "applied") throw new Error(JSON.stringify(result));
+    expect(result).toMatchObject({
+      status: "applied",
+      state: {
+        value: {
+          activeOperation: null,
+          pendingReviewFixVerification: {
+            selectedDeliverableId: selected.deliverableId,
+            memberDeliverableIds: [selected.deliverableId, approvedConflict.deliverableId],
+          },
+        },
+      },
+    });
+  });
+
   it("refuses dependent refresh when the selected member has not published a correction", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
@@ -875,7 +977,11 @@ describe("provider refresh publication classification", () => {
       rewriteLocalRef: async () => ({ status: "refused" }),
       cleanupPreparedCandidates: cleanup,
       stateStore: { publish: reserve },
-    })).resolves.toEqual({ status: "refused", reason: "prepared-result-mismatch" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "prepared-result-mismatch",
+      detail: `movement-set:member-base:1:expected-${oid("7")}:observed-${oid("f")}`,
+    });
     expect(cleanup).toHaveBeenCalledOnce();
     expect(reserve).not.toHaveBeenCalled();
     expect(rewrite).not.toHaveBeenCalled();

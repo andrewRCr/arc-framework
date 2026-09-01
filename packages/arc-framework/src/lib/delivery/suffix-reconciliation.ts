@@ -116,17 +116,16 @@ export function hasExactPendingSelectedRefresh(
   return true;
 }
 
-/**
- * Resolve the selected member at the sole pending-refresh break in the current delivery chain.
- *
- * @param state - Current delivery state
- * @returns The exact selected deliverable, or null when no unique pending selected refresh exists
- */
+/** Resolve the earliest selected member whose published head has not reached its dependent suffix. */
 export function findExactPendingSelectedRefresh(state: DeliveryStateV1): string | null {
-  return state.members
-    .slice(0, -1)
-    .find(({ deliverableId }) => hasExactPendingSelectedRefresh(state, deliverableId))
-    ?.deliverableId ?? null;
+  for (let index = 0; index < state.members.length - 1; index += 1) {
+    const selected = state.members[index];
+    const dependent = state.members[index + 1];
+    if (selected?.coordinates === null || selected?.coordinates === undefined
+      || dependent?.coordinates === null || dependent?.coordinates === undefined) continue;
+    if (dependent.coordinates.base !== selected.coordinates.head) return selected.deliverableId;
+  }
+  return null;
 }
 
 function snapshotFor(
@@ -157,27 +156,34 @@ function isPlannedNonterminalSuffix(
     && canonicalize(nonterminal.slice(start)) === canonicalize(affectedDeliverableIds);
 }
 
-function observationMatchesSubject(
+/** Identify the first exact structural mismatch in a provider-refresh observation. */
+export function describeDeliveryProviderRefreshSubjectMismatch(
   before: DeliveryOperationSnapshotV1,
   observed: DeliveryProviderRefreshObservation,
-): boolean {
+): string | null {
   const targetCoordinates = observed.snapshot.target?.coordinates;
-  const targetMatches = targetCoordinates !== null && targetCoordinates !== undefined
-    && observed.snapshot.target?.ref === before.target?.ref
-    && (observed.targetMovement === "append-only"
-      || canonicalize(observed.snapshot.target) === canonicalize(before.target));
-  if (!targetMatches || observed.snapshot.members.length !== before.members.length) return false;
-  return before.members.every((member, index) => {
+  if (targetCoordinates === null || targetCoordinates === undefined) return "target-coordinates";
+  if (observed.snapshot.target?.ref !== before.target?.ref) return "target-ref";
+  if (observed.targetMovement !== "append-only"
+    && canonicalize(observed.snapshot.target) !== canonicalize(before.target)) return "target-movement";
+  if (observed.snapshot.members.length !== before.members.length) return "member-count";
+  for (const [index, member] of before.members.entries()) {
     const result = observed.snapshot.members[index];
     const expectedBase = index === 0
       ? targetCoordinates.head
       : observed.snapshot.members[index - 1]?.coordinates?.head;
-    return result !== undefined && result.deliverableId === member.deliverableId
-      && result.ref === member.ref
-      && canonicalize(result.changeRequest) === canonicalize(member.changeRequest)
-      && result.coordinates !== null
-      && result.coordinates.base === expectedBase;
-  });
+    if (result === undefined) return `member-missing:${index}`;
+    if (result.deliverableId !== member.deliverableId) return `member-id:${index}`;
+    if (result.ref !== member.ref) return `member-ref:${index}`;
+    if (canonicalize(result.changeRequest) !== canonicalize(member.changeRequest)) {
+      return `member-change-request:${index}`;
+    }
+    if (result.coordinates === null) return `member-coordinates:${index}`;
+    if (result.coordinates.base !== expectedBase) {
+      return `member-base:${index}:expected-${expectedBase ?? "unavailable"}:observed-${result.coordinates.base}`;
+    }
+  }
+  return null;
 }
 
 /** Derive every changed member after validating one exact provider-refresh subject. */
@@ -185,7 +191,7 @@ export function changedDeliveryProviderRefreshMovements(
   before: DeliveryOperationSnapshotV1,
   observed: DeliveryProviderRefreshObservation,
 ): DeliveryProviderRefreshMovement[] | null {
-  if (!observationMatchesSubject(before, observed)) return null;
+  if (describeDeliveryProviderRefreshSubjectMismatch(before, observed) !== null) return null;
   return before.members.flatMap((member, index) => {
     const result = observed.snapshot.members[index];
     if (result === undefined || canonicalize(result.coordinates) === canonicalize(member.coordinates)) return [];
@@ -234,7 +240,7 @@ export async function proveDeliveryProviderRefreshMovements(
   return null;
 }
 
-async function collectDeliveryProviderRefreshConflicts(
+export async function collectDeliveryProviderRefreshConflicts(
   movements: readonly DeliveryProviderRefreshMovement[],
   proveContribution: (
     movement: DeliveryProviderRefreshMovement,

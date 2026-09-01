@@ -316,7 +316,8 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     return { status: "refused" as const, reason: "verification-continuation-not-pending" };
   }
 
-  if (entry.status === "candidate-verification-required" && input.state !== undefined) {
+  if ((entry.status === "candidate-verification-required" || entry.status === "correction-routing-required")
+    && input.state !== undefined) {
     const selectedDeliverableId = findExactPendingSelectedRefresh(input.state.value);
     if (selectedDeliverableId !== null) {
       return projectPendingSelectedRefresh({

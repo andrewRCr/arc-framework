@@ -171,7 +171,11 @@ function mergeTreeOutput(value: string): { readonly tree: string; readonly paths
 }
 
 type ProviderHistoryCollisionRecovery =
-  | { readonly status: "recovered"; readonly members: DeliveryOperationSnapshotV1["members"] }
+  | {
+      readonly status: "recovered";
+      readonly members: DeliveryOperationSnapshotV1["members"];
+      readonly locallyResolvedDeliverableIds: readonly string[];
+    }
   | {
       readonly status: "blocked";
       readonly reason: "content-conflict";
@@ -222,6 +226,46 @@ async function readProviderHistoryConflictResolution(input: {
   }
 }
 
+async function normalizeProviderHistoryConflictResolutions(input: {
+  readonly git: GitExec;
+  readonly cwd: string;
+  readonly before: DeliveryOperationSnapshotV1;
+  readonly targetHead: string;
+  readonly members: DeliveryOperationSnapshotV1["members"];
+}): Promise<{
+  readonly members: DeliveryOperationSnapshotV1["members"];
+  readonly locallyResolvedDeliverableIds: readonly string[];
+} | null> {
+  const normalized: DeliveryOperationSnapshotV1["members"][number][] = [];
+  const locallyResolvedDeliverableIds: string[] = [];
+  for (const [index, member] of input.members.entries()) {
+    const beforeMember = input.before.members[index];
+    const expectedBase = index === 0 ? input.targetHead : normalized[index - 1]?.coordinates?.head;
+    if (beforeMember === undefined || member.coordinates === null || expectedBase === undefined) return null;
+    if (member.coordinates.base === expectedBase) {
+      normalized.push(member);
+      continue;
+    }
+    if (beforeMember.ref === null || beforeMember.coordinates === null) return null;
+    const resolution = await readProviderHistoryConflictResolution({
+      git: input.git,
+      cwd: input.cwd,
+      ref: beforeMember.ref,
+      oldHead: beforeMember.coordinates.head,
+      oldTree: beforeMember.coordinates.tree,
+      refreshedPredecessorHead: expectedBase,
+    });
+    if (resolution.status !== "accepted"
+      || resolution.head !== member.coordinates.head || resolution.tree !== member.coordinates.tree) return null;
+    normalized.push({
+      ...member,
+      coordinates: { ...member.coordinates, base: expectedBase },
+    });
+    locallyResolvedDeliverableIds.push(member.deliverableId);
+  }
+  return { members: normalized, locallyResolvedDeliverableIds };
+}
+
 async function absorbProviderHistoryCollision(input: {
   readonly git: GitExec;
   readonly cwd: string;
@@ -240,6 +284,7 @@ async function absorbProviderHistoryCollision(input: {
     };
   }
   const members: DeliveryOperationSnapshotV1["members"][number][] = [];
+  const locallyResolvedDeliverableIds: string[] = [];
   for (const [index, beforeMember] of input.before.members.entries()) {
     if (beforeMember.ref === null || beforeMember.coordinates === null) {
       return { status: "refused", reason: "scope-mismatch" };
@@ -320,6 +365,7 @@ async function absorbProviderHistoryCollision(input: {
               ...beforeMember,
               coordinates: { base: predecessorHead, head: resolution.head, tree: resolution.tree },
             });
+            locallyResolvedDeliverableIds.push(beforeMember.deliverableId);
             continue;
           }
           return {
@@ -369,7 +415,7 @@ async function absorbProviderHistoryCollision(input: {
       coordinates: { base: predecessorHead, head: coordinates.head, tree: coordinates.tree },
     });
   }
-  return { status: "recovered", members };
+  return { status: "recovered", members, locallyResolvedDeliverableIds };
 }
 
 function providerFailureDetail(error: DeliveryProviderProcessError): string {
@@ -622,7 +668,7 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
                   }
                   const coordinates = await readCoordinates(this.options.git, temporaryPath, branch.head);
                   const expectedBase = index === 0 ? refreshedTarget?.head : afterView.branches[index - 1]?.head;
-                  if (coordinates === null || expectedBase === undefined || branch.base !== expectedBase
+                  if (coordinates === null || expectedBase === undefined
                     || (input.scope.kind === "dependent-suffix" && index <= selectedIndex
                       && branch.head !== beforeMember.coordinates?.head)) {
                     requestedMembers.length = 0;
@@ -637,15 +683,33 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
                 }
               }
             }
+            const normalizedMembers = refreshedTarget === null
+              ? null
+              : await normalizeProviderHistoryConflictResolutions({
+                  git: this.options.git,
+                  cwd: this.options.checkoutPath,
+                  before: input.before,
+                  targetHead: refreshedTarget.head,
+                  members: requestedMembers,
+                });
+            const locallyResolvedDeliverableIds = normalizedMembers === null
+              ? []
+              : input.before.members
+                  .map(({ deliverableId }) => deliverableId)
+                  .filter((deliverableId) => (
+                    collisionRecovery?.status === "recovered"
+                    && collisionRecovery.locallyResolvedDeliverableIds.includes(deliverableId)
+                  ) || normalizedMembers.locallyResolvedDeliverableIds.includes(deliverableId));
             if (refreshedTarget === null
               || refreshedTarget.head !== localTarget.head || refreshedTarget.tree !== localTarget.tree) {
               result = { status: "refused", reason: "malformed-result" };
-            } else if (requestedMembers.length !== input.before.members.length) {
+            } else if (normalizedMembers === null
+              || normalizedMembers.members.length !== input.before.members.length) {
               result = { status: "refused", reason: "scope-mismatch" };
             } else {
               const snapshot: DeliveryOperationSnapshotV1 = {
                 target: { ref: targetRef, coordinates: refreshedTarget },
-                members: requestedMembers,
+                members: normalizedMembers.members,
               };
               const candidateResult = deriveDeliveryProviderRefreshCandidates({
                 plan: input.plan,
@@ -675,6 +739,9 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
                   status: "prepared",
                   observation: { snapshot, targetMovement },
                   candidates: candidateResult.candidates,
+                  ...(locallyResolvedDeliverableIds.length === 0
+                    ? {}
+                    : { locallyResolvedDeliverableIds }),
                 };
               }
             }

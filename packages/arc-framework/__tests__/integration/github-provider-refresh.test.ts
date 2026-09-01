@@ -578,6 +578,7 @@ describe("GitHub provider refresh preparation", () => {
     const branchNames = [selectedName, firstDependentName, secondDependentName] as const;
     const remoteHeads = [selected, firstDependent, secondDependent] as const;
     let providerFirstDependentHead = firstDependent;
+    const providerFirstDependentBase = selected;
     const remoteView = (): GhStackView => ({
       trunk: "main",
       currentBranch: selectedName,
@@ -586,7 +587,8 @@ describe("GitHub provider refresh preparation", () => {
         head: index === 1 ? providerFirstDependentHead : remoteHeads[index]!,
         base: index === 0
           ? base
-          : index === 2 ? providerFirstDependentHead : remoteHeads[index - 1]!,
+          : index === 1 ? providerFirstDependentBase
+            : providerFirstDependentHead,
         isCurrent: index === 0,
         isMerged: false,
         isQueued: false,
@@ -680,6 +682,7 @@ describe("GitHub provider refresh preparation", () => {
         { deliverableId: plan.members[1]!.deliverableId, head: resolution },
         { deliverableId: plan.members[2]!.deliverableId },
       ],
+      locallyResolvedDeliverableIds: [plan.members[1]!.deliverableId],
     });
     expect(await git(repository, ["rev-parse", `refs/heads/${firstDependentName}`])).toBe(resolution);
     expect(await git(repository, ["ls-remote", "--refs", "origin", `refs/heads/${firstDependentName}`]))

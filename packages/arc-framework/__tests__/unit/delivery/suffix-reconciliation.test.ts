@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   adoptExternalDeliverySuffixRefresh as adoptExternalDeliverySuffixRefreshCore,
   executeDeliverySuffixRewrite,
+  findExactPendingSelectedRefresh,
   settleReservedDeliverySuffixRefresh,
   type DeliveryProviderRefreshMovement,
 } from "../../../src/lib/delivery/suffix-reconciliation.js";
@@ -141,6 +142,29 @@ function reservedProviderRefreshFixture() {
 }
 
 describe("delivery suffix reconciliation", () => {
+  it("selects the earliest pending refresh when later publication creates a second chain break", () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const targetHead = fixture.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
+    const current = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => {
+        if (member.coordinates === null) throw new Error("fixture member must be bound");
+        const base = index === 0 ? targetHead : members[index - 1]!.coordinates!.head;
+        return { ...member, coordinates: { ...member.coordinates, base } };
+      }),
+    };
+    const broken = {
+      ...current,
+      members: current.members.map((member, index) => index === 0 || index === 2
+        ? { ...member, coordinates: { ...member.coordinates, head: String(index + 8).repeat(40) } }
+        : member),
+    };
+
+    expect(findExactPendingSelectedRefresh(broken)).toBe(plan.members[0]!.deliverableId);
+  });
+
   it("reserves an observed refresh before settling the terminal top and one final state", async () => {
     const { plan, state, affected, before, observed } = providerRefreshFixture();
     const events: string[] = [];
