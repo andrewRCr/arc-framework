@@ -1389,6 +1389,74 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   selected member at a time and is not taught delivery multiplicity. Missing, dirty, moved, reordered, or incoherent
   authoring evidence refuses the delivery projection before any lane can receive an aggregate Candidate target.
 
+- **D8.12 Drive one correction to its next typed stop — amended 2026-08-31 after self-delivery proved the
+  projector correct but the attended procedure unusable.** `arc delivery review-fix continue` remains selector-free,
+  but its public form now owns one hard-coded delivery-correction driver over the existing six dispatch actions:
+  selected-member publication, complete-suffix rematerialization, provider refresh execution, provider refresh
+  adoption, delivery reconciliation, and scoped-verification acknowledgment. The pure projector remains the
+  internal next-step classifier. One injected internal executor invokes the existing command services directly;
+  the driver never shells back into `arc`. It composes the complete delivery entry once per drive, advances an
+  invocation-scoped snapshot from validated effect results and targeted canonical state reads, and repeats the full
+  entry read only after restart, an external-effect boundary, or a typed ambiguity. A visited progress fingerprint
+  over action, state revision, operation, boundary version, and relevant heads refuses a repeated no-progress step
+  instead of spinning. The driver resumes idempotently from the existing active operation, Candidate transition,
+  delivery continuation, and integration boundary; it adds no workflow language, generalized step vocabulary,
+  orchestration record, or second state machine.
+
+    - **The attended stop set is closed.** The correction procedure returns for finding-disposition approval before
+      it enters the driver; replacement-content authoring; one consolidated scoped-verification judgment; a
+      semantically ambiguous conflict; new metered review spend or an applicability selection that cannot be
+      preserved mechanically; destructive authority; or exact-head integration authorization. A real invariant,
+      malformed record, unavailable authority, failed effect, or unsupported capability still returns its existing
+      typed refusal or block and never becomes an inferred continuation. `authoring-required` covers terminal and
+      non-terminal routes and returns the exact selected member, authoring locus, required ancestors, and a
+      submit-ready resume envelope rather than hiding authoring inside recommendation prose.
+
+      Hosted status re-entry and correction publication are internal composition or effect steps. The driver
+      executes the read-only hosted status path far enough to return its actual finding-disposition, ceiling,
+      applicability, or provider-request boundary; it never labels the status command itself as new review spend.
+
+    - **Record-only effects are machine-owned and disclosed.** Boundary-projection commits, applicability
+      `commit-selection` commits, and the post-renewal top push execute inside the driver under the existing bounded
+      Review-Increment exception, without a per-effect approval stop. The result carries an ordered effect log of
+      typed `dispatch`, `commit`, `push`, `boundary-carry`, and `no-op-replay` entries. Commit entries bind their
+      record-only class and created head; pushes bind ref, before head, and after head; boundary carries bind Candidate
+      and state revision. The driver reuses the release commit and push orchestrators, including hooks, branch guards,
+      and audit attribution, with captured diagnostics that cannot corrupt JSON output. The log is disclosure for
+      the completion report, not new durable authority. Content commits, destructive pushes, hosted requests that
+      spend a pass, and merge effects remain outside this arm.
+
+    - **Provably mechanical head movement preserves pending authority.** A pending delivery-member review-fix
+      response or exact Owner `review-applicability-selection` survives movement only when the prior head is a strict
+      ancestor of the current head and D4's existing arbiter proves contribution-equivalent reviewed content with an
+      empty residual. The exact prior/current coordinates and arbiter basis are returned with the preservation result
+      and effect disclosure; the existing response remains the authority. An Owner applicability selection is never
+      rewritten or machine-authored: its exact bound prior-to-current segment composes with the newly proved
+      current-to-new mechanical segment at the consumer read. Any absent, divergent, interacting, non-ancestral, or
+      ambiguous evidence fails closed to the existing response-stale or applicability-selection stop. No review
+      verdict, inference, or new proof ledger enters Delivery State.
+
+    - **Scoped acknowledgment no longer manufactures Candidate renewal.** When acknowledgment appends the exact
+      verification response and clears the matching pending continuation, it carries the same-Candidate public
+      boundary forward to the post-clear state revision directly, with versioned replay on either side of the write.
+      The procedure does not route through an `arc attest` call that can only return `unchanged`. A genuinely changed
+      Candidate subject still returns `blocked / establish-new-root` with its exact continuation and is never
+      auto-run. Any record-only projection commit and top push needed to publish the carried boundary use the
+      machine-owned effect arm above.
+
+    - **Every continuation is executable as returned.** Hosted `await`, publication, reconciliation, refresh,
+      acknowledgment, and resume actions carry complete schema wrappers and inputs. Non-terminal authoring readiness
+      reuses the candidate and top locators plus the exact ancestry and cleanliness predicates enforced by publish or
+      rematerialization; absence of a newly authored valid head returns `authoring-required` before mutation. A
+      previously projected publish is deferred or recomposed when newer unauthored work exists for the same member.
+      `idle / continue-work-unit`
+      returns the actual Candidate-verification continuation when one exists and otherwise reports an honest no-op.
+      Conflict stops carry the reserved logical merge base, both parents, an exact isolated preparation or
+      `merge-tree` invocation, and a submit-ready resume action. Contribution-equivalent dependents bypass redundant
+      member criteria walks through the existing D7 escape, while any changed dependent stays owed. All approved
+      findings for one member pass batch into one publication by default; an earlier publish requires an explicit
+      reason.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh

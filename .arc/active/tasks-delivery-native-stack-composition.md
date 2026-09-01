@@ -2677,6 +2677,76 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               exact delta.
             - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
+- _Forward amendment (2026-08-31):_ Six days of self-delivery proved that the selector-free correction projector
+  returned correct individual actions but still left the agent to execute the deterministic procedure. Reopen
+  Member 7 for one delivery-correction-specific driver that owns those existing actions through the next real
+  decision, preserves exact authority across mechanically proved movement, and removes its self-inflicted
+  unchanged-Candidate renewal cycle. General workflow composition, convergence policy, storage redesign, and
+  user-configurable commit autonomy remain with their recorded owners.
+
+    - `[ ]` **7.7.R.u Drive the delivery correction to one typed stop**
+
+        - _Goal:_ One selector-free invocation executes the existing deterministic correction tail, resumes after
+          interruption without rederivation, and returns only at the closed judgment, review-spend, conflict,
+          destructive, or integration-authority boundaries while disclosing every machine-owned record effect.
+
+        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue — decision
+          record (2026-08-31).
+
+        - `[ ]` **7.7.R.u.a Execute the six correction dispatch actions in-process**
+
+            - Keep the pure projector as the typed next-step classifier and add one injected, hard-coded action
+              executor around the existing services; never spawn the CLI recursively. Compose the complete entry once,
+              advance an invocation snapshot from validated results and targeted reads, and stop on a repeated
+              action/state/operation/boundary/head progress fingerprint. Build `test-first` through dispatch success,
+              idempotent replay, retained-operation resume, no-progress refusal, hosted status re-entry, publication,
+              and the closed attended-stop set without a generalized step engine or orchestration record.
+
+        - `[ ]` **7.7.R.u.b Make authoring and same-pass batching first-class**
+
+            - Add one read-only authoring-readiness classifier over the existing candidate/top locators and the same
+              cleanliness, changed-head, and required-ancestor predicates enforced by publication and
+              rematerialization. Return `authoring-required` for terminal and non-terminal routes with the exact locus,
+              ancestor requirements, complete approved disposition set, and resume envelope. Defer a stale publish
+              action while newer same-member work remains, and require that one disposition set to share one
+              publication unless an explicit early-publish reason is supplied.
+
+        - `[ ]` **7.7.R.u.c Run record-only commits and pushes with an effect log**
+
+            - Define a closed effect-log union for `dispatch`, `commit`, `push`, `boundary-carry`, and
+              `no-op-replay`, then execute boundary-projection commits, applicability selection commits, and the
+              post-carry top push as machine-owned correction effects. Reuse the pure release commit/push
+              orchestrators so hooks, branch guards, audit attribution, deterministic messages, and Context footers
+              remain enforced; capture diagnostics away from JSON stdout. Return exact commits, refs, before/after
+              heads, Candidate/state bindings, and replay outcomes in order; preserve approval stops for content,
+              destructive, review-spend, and merge effects.
+
+        - `[ ]` **7.7.R.u.d Preserve exact authority across mechanical movement**
+
+            - Generalize the retained-response correction to pending review-fix responses only when strict ancestry
+              plus the existing Git review-contribution projection proves an empty residual. Preserve an Owner
+              applicability selection by composing its immutable exact bound segment with a newly proved mechanical
+              segment at the consumer read, never by writing or impersonating a new selection. Return the exact proof
+              basis, and retain every existing stale-response or re-selection stop when proof is absent,
+              non-ancestral, divergent, interacting, or ambiguous.
+
+        - `[ ]` **7.7.R.u.e Remove manufactured renewal and repair the returned contracts**
+
+            - Carry the same-Candidate public boundary directly across acknowledgment's state revision instead of
+              dispatching an `attest unchanged` cycle; keep genuine `establish-new-root` as a typed stop. Make every
+              action submit-ready, make `idle` honest, return exact conflict preparation coordinates and resume input,
+              and prove contribution-equivalent dependents escape redundant criteria walks while changed dependents
+              remain owed.
+
+        - `[ ]` **7.7.R.u.f Prove and revalidate the driven correction boundary** — validate criteria at member scope
+
+            - Drive one production-style E2E through approved response ownership, selected-member publication,
+              provider refresh, scoped verification, acknowledgment, same-Candidate boundary carry, and unresolved
+              hosted settlement. Re-run the Member 7 criteria walk, reconcile its two open master-checklist criteria,
+              and do not spend a new hosted pass or provider request before this case is green. After task closure,
+              record the next live Member 1 correction as the attended acceptance run rather than creating a review-
+              finding task cursor.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`
