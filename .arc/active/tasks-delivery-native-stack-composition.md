@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2684,7 +2684,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   unchanged-Candidate renewal cycle. General workflow composition, convergence policy, storage redesign, and
   user-configurable commit autonomy remain with their recorded owners.
 
-    - `[ ]` **7.7.R.u Drive the delivery correction to one typed stop**
+    - `[x]` **7.7.R.u Drive the delivery correction to one typed stop**
 
         - _Goal:_ One selector-free invocation executes the existing deterministic correction tail, resumes after
           interruption without rederivation, and returns only at the closed judgment, review-spend, conflict,
@@ -2755,7 +2755,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           verification through the existing authoring-readiness proof, project both repairs through Member 7, and
           finish the same acceptance; no commit-autonomy, staging-policy, review, or workflow-engine authority is added.
 
-        - `[ ]` **7.7.R.u.g Complete staged-closure acceptance and Member 1 re-entry**
+        - `[x]` **7.7.R.u.g Complete staged-closure acceptance and Member 1 re-entry**
 
             - _Goal:_ Machine-owned record settlement ignores unrelated staged task content while committing only
               exact Candidate and boundary projections, while newer clean correction authoring supersedes an older
@@ -2764,11 +2764,11 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               closure still staged. Re-run the Member 7 criteria walk and reconcile its final two master criteria
               without another hosted pass.
 
-            - _Note:_ Interim Member 7 criteria report from the first staged-closure acceptance attempt.
+            - _Outcome:_ Member 7 criteria report.
                 - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
                 - _Span:_ original bounded member diff `bb7e093c2..8106628b1`; cumulative correction reachability is
-                  terminal head `af889fe48387088ea547e3f1723fb6e641a62825` at tree
-                  `7be1f1a6c865b203c63f950a2f0e1675fcc808d2`. Boundary-order deviation: the driven correction rescue is
+                  terminal head `0cf5eeb1582acd936c4400290488d9371cc7eb55` at tree
+                  `78a7161f4fd49007311b6cd70155ce7b60d642a3`. Boundary-order deviation: the driven correction rescue is
                   projected back into Member 7 after publication; no terminal-member content enters the bounded diff.
                 - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the
                   existing ordered member-status and conjunction projection remain the only discharge route. The
@@ -2788,17 +2788,22 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                   rematerialization, and terminal correction. The E2E loses and supersedes one verification response,
                   commits an open correction, stages its closure, then acknowledges only the replacement exact tree
                   before same-Candidate boundary carry and hosted re-entry; all 21 production cases pass.
-                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[ ]`; _Evidence:_ the
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ the
                   delivery-specific driver executes only its six closed dispatch kinds plus boundary carry and record
                   settlement, detects repeated canonical progress, and returns typed verification, conflict, hosted,
-                  or integration stops with an ordered effect log. The live acceptance published Member 7, refreshed
-                  the top, acknowledged the exact green rebound tree, carried the boundary, committed the record, and
-                  pushed the top, but an older unpreserved Member 1 response then preempted canonical hosted status
-                  with `review-fix-response-stale`. The forward amendment below owns that final routing gap.
+                  or integration stops with an ordered effect log. A valid response whose contribution changed now
+                  yields only to the exact canonical hosted continuation; unavailable, malformed, moving, and
+                  non-hosted states still refuse. The extended E2E failed first on the stale refusal and then passed
+                  all 21 production cases. The repeated live drive published Member 7 and refreshed the top in one
+                  invocation; its rebound tree exactly equals the already-green correction tree, so the typed Tier 1
+                  reuse contract applies without a rerun. The follow-up invocation acknowledged that target, carried
+                  Candidate state revision 197, committed boundary projection `d2e49b473`, pushed the top, preserved
+                  this staged closure, and returned Member 1's exact `resolve-review-applicability` stop. No
+                  orchestration record, quality ledger, generic workflow engine, or convergence policy was added.
                 - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
                   bounded rescue receives no third pass, and the primary walk retains judgment over the exact delta.
-                - _Summary:_ four met, zero superseded, one unresolved. Criterion 4 is reconciled below; criterion 5
-                  remains open pending the amended live acceptance.
+                - _Summary:_ five met, zero superseded, zero unresolved. The final two Success Criteria markers are
+                  reconciled below.
 
             - _Forward amendment (2026-09-01):_ The first staged-closure acceptance completed every machine-owned
               effect, then proved that an older response whose contribution is no longer mechanically preservable can
@@ -3487,7 +3492,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   without repeating mutation or routing to whole-WU verification, Frontline, or generic prepublication; no second
   state mechanism, review authority, or convergence policy exists.
 
-- `[ ]` An approved member correction advances through one resumable, typed delivery procedure that stops only at
+- `[x]` An approved member correction advances through one resumable, typed delivery procedure that stops only at
   existing judgment, project-gate, conflict, review-policy, and integration-authority boundaries. Cursorless recovery
   resumes that exact procedure; structurally contained predecessor movement absorbs content-neutrally; and Tier 1
   reuse is admitted only for an exact already-green rebound tree. No orchestration record, quality ledger, generic
