@@ -270,7 +270,7 @@ describe("hosted reservation discharge", () => {
         {
           repository: "arc-framework/example",
           pullRequest: 41,
-          baseRevision: oid("0"),
+          baseRevision: oid("1"),
           headSha: oid("a"),
           position: 1,
           memberCount: 2,
@@ -287,7 +287,7 @@ describe("hosted reservation discharge", () => {
         {
           repository: "arc-framework/example",
           pullRequest: 42,
-          baseRevision: oid("a"),
+          baseRevision: oid("2"),
           headSha: oid("b"),
           position: 2,
           memberCount: 2,

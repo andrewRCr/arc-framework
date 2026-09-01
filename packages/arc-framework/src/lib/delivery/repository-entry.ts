@@ -28,6 +28,8 @@ import {
   RepositoryDeliveryStateStore,
 } from "./local-stores.js";
 import { DeliveryPlanV1Codec } from "./plan.js";
+import { projectGitDeliveryTerminalCoordinateAdvance } from
+  "./public-review-continuation-git.js";
 import {
   GitDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
@@ -109,6 +111,11 @@ function createRepositoryDeliveryInspectionDependencies(
         });
         if (projected.state !== "current") return { status: "non-current" };
         const tail = record.transitions.at(-1);
+        const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
+          cwd: input.cwd,
+          exec: input.exec,
+          candidate: projected,
+        });
         return {
           status: "ok",
           value: {
@@ -118,6 +125,7 @@ function createRepositoryDeliveryInspectionDependencies(
               && tail.newTarget.revision === projected.durableBaselineTarget.revision
               && tail.newTarget.subject.subjectDigest
                 === projected.durableBaselineTarget.subject.subjectDigest,
+            ...(terminalCoordinateAdvance === undefined ? {} : { terminalCoordinateAdvance }),
           },
         };
       } catch {

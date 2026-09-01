@@ -5,6 +5,7 @@ import { z } from "zod";
 import { canonicalDigest } from "../kernel/index.js";
 import {
   DeliveryCanonicalDigestSchema,
+  DeliveryMemberCoordinatesV1Schema,
   DeliveryPlanIdSchema,
   type DeliveryPlanV1,
   type DeliveryStateV1,
@@ -27,6 +28,14 @@ export const DeliveryPublicReviewContinuationV1Schema = z.strictObject({
 export type DeliveryPublicReviewContinuationV1 = z.infer<
   typeof DeliveryPublicReviewContinuationV1Schema
 >;
+
+export interface DeliveryTerminalCoordinateAdvanceProof {
+  readonly priorHead: string;
+  readonly priorTree: string;
+  readonly currentHead: string;
+  readonly currentTree: string;
+  readonly proof: "subject-equality" | "tree-equality" | "mechanical-reapply";
+}
 
 /** Closed projection result for exact public delivery review evidence. */
 export type ProjectDeliveryPublicReviewContinuationResult =
@@ -89,6 +98,7 @@ export function validateDeliveryPublicReviewContinuation(input: {
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryStateV1;
   readonly stateRevision: number;
+  readonly terminalCoordinateAdvance?: DeliveryTerminalCoordinateAdvanceProof;
 }): { readonly status: "current" } | {
   readonly status: "refused";
   readonly reason:
@@ -110,12 +120,42 @@ export function validateDeliveryPublicReviewContinuation(input: {
     || continuation.data.planDigest !== projected.continuation.planDigest) {
     return { status: "refused", reason: "plan-mismatch" };
   }
-  if (continuation.data.stateRevision !== projected.continuation.stateRevision
-    || continuation.data.stateDigest !== projected.continuation.stateDigest) {
-    return { status: "refused", reason: "state-mismatch" };
+  const stateMatches = continuation.data.stateRevision === projected.continuation.stateRevision
+    && continuation.data.stateDigest === projected.continuation.stateDigest;
+  const membersMatch = continuation.data.memberEvidenceDigest
+    === projected.continuation.memberEvidenceDigest;
+  if (stateMatches && membersMatch) return { status: "current" };
+  const advance = input.terminalCoordinateAdvance;
+  if (advance !== undefined) {
+    const terminalIndex = input.state.members.length - 1;
+    const terminal = input.state.members[terminalIndex]?.coordinates ?? null;
+    const prior = DeliveryMemberCoordinatesV1Schema.safeParse(terminal === null ? null : {
+      ...terminal,
+      head: advance.priorHead,
+      tree: advance.priorTree,
+    });
+    const current = DeliveryMemberCoordinatesV1Schema.safeParse(terminal === null ? null : {
+      ...terminal,
+      head: advance.currentHead,
+      tree: advance.currentTree,
+    });
+    if (prior.success && current.success && terminal !== null
+      && input.stateRevision > continuation.data.stateRevision
+      && prior.data.head !== current.data.head
+      && canonicalDigest(terminal) === canonicalDigest(current.data)) {
+      const priorMembers = input.state.members.map((member, index) => index === terminalIndex
+        ? { ...member, coordinates: prior.data }
+        : member);
+      const priorState = { ...input.state, members: priorMembers };
+      if (canonicalDigest(priorState) === continuation.data.stateDigest
+        && canonicalDigest(priorMembers) === continuation.data.memberEvidenceDigest) {
+        return { status: "current" };
+      }
+    }
   }
-  if (continuation.data.memberEvidenceDigest !== projected.continuation.memberEvidenceDigest) {
+  if (!stateMatches) return { status: "refused", reason: "state-mismatch" };
+  if (!membersMatch) {
     return { status: "refused", reason: "member-evidence-mismatch" };
   }
-  return { status: "current" };
+  return { status: "refused", reason: "state-mismatch" };
 }

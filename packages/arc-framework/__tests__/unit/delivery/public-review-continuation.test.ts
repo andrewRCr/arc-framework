@@ -82,6 +82,51 @@ describe("delivery public review continuation", () => {
     })).toEqual({ status: "current" });
   });
 
+  it("preserves a continuation across one proven terminal-coordinate-only advance", () => {
+    const state = publicState();
+    const projected = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision: 7 });
+    if (projected.status !== "projected") throw new Error("fixture continuation must project");
+    const currentHead = "f".repeat(40);
+    const advanced = structuredClone(state);
+    advanced.members.at(-1)!.coordinates = {
+      ...advanced.members.at(-1)!.coordinates!,
+      head: currentHead,
+      tree: "e".repeat(40),
+    };
+
+    expect(validateDeliveryPublicReviewContinuation({
+      continuation: projected.continuation,
+      plan,
+      state: advanced,
+      stateRevision: 8,
+      terminalCoordinateAdvance: {
+        priorHead: state.members.at(-1)!.coordinates!.head,
+        priorTree: state.members.at(-1)!.coordinates!.tree,
+        currentHead,
+        currentTree: "e".repeat(40),
+        proof: "subject-equality",
+      },
+    })).toEqual({ status: "current" });
+
+    advanced.members[0] = {
+      ...advanced.members[0]!,
+      coordinates: { ...advanced.members[0]!.coordinates!, head: "9".repeat(40) },
+    };
+    expect(validateDeliveryPublicReviewContinuation({
+      continuation: projected.continuation,
+      plan,
+      state: advanced,
+      stateRevision: 8,
+      terminalCoordinateAdvance: {
+        priorHead: state.members.at(-1)!.coordinates!.head,
+        priorTree: state.members.at(-1)!.coordinates!.tree,
+        currentHead,
+        currentTree: "e".repeat(40),
+        proof: "subject-equality",
+      },
+    })).toEqual({ status: "refused", reason: "state-mismatch" });
+  });
+
   it("classifies stale plan, state, and member bindings without accepting a partial match", () => {
     const state = publicState();
     const projected = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision: 7 });

@@ -4,13 +4,16 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { defaultMergeLockPort, handleReviewReadiness } from "../../src/handlers/review.js";
-import { RepositoryDeliveryStateStore } from "../../src/lib/delivery/local-stores.js";
+import {
+  RepositoryDeliveryPlanStore,
+  RepositoryDeliveryStateStore,
+} from "../../src/lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import {
   DeliveryStateV1Schema,
   type DeliveryStateV1,
 } from "../../src/lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import type { HostedProcessRunner } from "../../src/scripts/review-gate/hosted/gh-process.js";
 import {
   MergeLockTransitionRequestSchema,
@@ -18,12 +21,14 @@ import {
   type MergeLockTransitionRequest,
 } from "../../src/scripts/review-gate/merge-lock.js";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
+import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
 const HEAD = "a".repeat(40);
 const BASE = "c".repeat(40);
 const TREE = "b".repeat(40);
 const WORK_UNIT = "delivery-plan-record";
+const plan = deliveryStackPlanFixture(PLAN_ID);
 
 const roots: string[] = [];
 
@@ -37,17 +42,17 @@ function state(): DeliveryStateV1 {
     semanticsVersion: "delivery-state/v1",
     planId: PLAN_ID,
     workUnitId: WORK_UNIT,
-    boundPlan: { planRevision: 1, planDigest: canonicalDigest({ planId: PLAN_ID, revision: 1 }) },
+    boundPlan: { planRevision: plan.planRevision, planDigest: plan.planDigest },
     target: null,
     members: [
       {
-        deliverableId: canonicalDigest({ member: 0, planId: PLAN_ID }),
+        deliverableId: plan.members[0]!.deliverableId,
         ref: "opaque-member-0",
         changeRequest: null,
         coordinates: { base: BASE, head: HEAD, tree: TREE },
       },
       {
-        deliverableId: canonicalDigest({ member: 1, planId: PLAN_ID }),
+        deliverableId: plan.members[1]!.deliverableId,
         ref: "opaque-member-1",
         changeRequest: null,
         coordinates: { base: HEAD, head: "d".repeat(40), tree: TREE },
@@ -58,15 +63,17 @@ function state(): DeliveryStateV1 {
   });
 }
 
-const DELIVERABLE_ID = state().members[0]!.deliverableId;
+const DELIVERABLE_ID = plan.members[0]!.deliverableId;
 
 /** A repository whose Git-common delivery state binds {@link HEAD} to a member. */
 async function boundRepository(): Promise<string> {
   const cwd = await createTempRepo("arc-review-readiness-binding-");
   roots.push(cwd);
-  const store = new RepositoryDeliveryStateStore(
-    new RepositoryGitCommonStatePublisher(makeGitExec(cwd), cwd),
-  );
+  const publisher = new RepositoryGitCommonStatePublisher(makeGitExec(cwd), cwd);
+  const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  const planPublished = await planStore.publishCurrent(PLAN_ID, plan, null);
+  expect(planPublished.status).toBe("ok");
+  const store = new RepositoryDeliveryStateStore(publisher);
   const published = await store.publish(PLAN_ID, state(), 0);
   expect(published.status).toBe("ok");
   return cwd;

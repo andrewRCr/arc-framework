@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2684,7 +2684,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   unchanged-Candidate renewal cycle. General workflow composition, convergence policy, storage redesign, and
   user-configurable commit autonomy remain with their recorded owners.
 
-    - `[ ]` **7.7.R.u Drive the delivery correction to one typed stop**
+    - `[x]` **7.7.R.u Drive the delivery correction to one typed stop**
 
         - _Goal:_ One selector-free invocation executes the existing deterministic correction tail, resumes after
           interruption without rederivation, and returns only at the closed judgment, review-spend, conflict,
@@ -2925,25 +2925,140 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               scoped verification, even when the WU checkout has advanced. The newer reviewable delta remains
               outside that evidence and deterministically returns through Candidate verification.
 
-        - `[ ]` **7.7.R.u.p Resume a pre-reservation provider conflict from its approved local merge**
+        - `[x]` **7.7.R.u.p Resume a pre-reservation provider conflict from its approved local merge**
 
             - _Goal:_ An attended provider-history conflict can resume from the exact approved two-parent commit
               without publishing outside the refresh reservation or making the selector-free driver rederive work.
 
-            - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue —
-              decision record (2026-08-31), Amendment 3.
+            - _Outcome:_ The driver accepted the approved local resolution only after exact ref, readability,
+              ordered-parent, and remote-stasis checks, then the ordinary refresh reservation lease-published the
+              resolved Member 4 and its dependents. Delivery State revision 223 has no active operation and retains
+              one exact scoped-verification continuation for Members 3–7 at terminal head `ec6eea08f` and tree
+              `417b50d04`. The five continuation-selected criteria reports resolve as follows.
 
-            - Build `test-first` (one behavior at a time):
-                - Keep remote member coordinates and Delivery State unchanged when provider preparation returns a
-                  genuine conflict with its logical base, exact parents, named local ref, paths, and resume action.
-                - On re-entry, accept only a locally readable commit on that exact ref whose ordered parents are the
-                  returned old member and refreshed predecessor; import it into isolated provider preparation and
-                  continue the suffix without a second attended stop.
-                - Refuse missing, stale, reversed-parent, extra-parent, unreadable, differently named, or remotely
-                  premature resolutions without reserving or adopting state.
-                - Prove the ordinary refresh reservation lease-publishes the approved merge and dependents, reaches
-                  scoped verification through the unchanged public resume envelope, and updates its guidance to keep
-                  pre-reservation resolutions local.
+                - _Criteria slice:_ `Success Criteria > Member 3 — review-gate-resolution`.
+                - _Span:_ bounded diff `e6319fb94..7f10d5d2d`; cumulative reachability `7f10d5d2d` at tree
+                  `02bf93f0a`. Boundary-order deviation: the approved Member 3 review correction and later Task
+                  7.7.R.u.p settlement are inspected through the current terminal tree `417b50d04`.
+                - _Criterion:_ `Success Criteria > Member 3 — review-gate-resolution > 1`; _State:_ `[x]`;
+                  _Evidence:_ reverse lookup now resolves one current plan, validates the bound state against that
+                  plan before deriving a member, and refuses absent, duplicated, stale-revision, or reordered plan
+                  evidence. Status and integration discharge share the same coherent lookup, while member and gate
+                  checkouts remain operation inputs rather than session loci.
+
+                - _Criteria slice:_ `Success Criteria > Member 4 — topology-transition`.
+                - _Span:_ bounded diff `7f10d5d2d..8c636f511`; cumulative reachability `8c636f511` at tree
+                  `65d44651e`. Boundary-order deviation: the post-publication correction is carried by the exact
+                  two-parent absorption of prior Member 4 `57ccba1d5` and corrected predecessor `7f10d5d2d`.
+                - _Criterion:_ `Success Criteria > Member 4 — topology-transition > 1`; _State:_ `[x]`;
+                  _Evidence:_ the canonical state still binds the originating branch as the terminal top and one
+                  connected member chain. The resumed correction published no control branch or disconnected
+                  request; Member 4's approved natural merge records the old member first and refreshed predecessor
+                  second without changing the terminal presentation or adoption contracts.
+
+                - _Criteria slice:_ `Success Criteria > Member 5 — terminal-integration`.
+                - _Span:_ bounded diff `8c636f511..60c603b93`; cumulative reachability `60c603b93` at tree
+                  `371c9fe19`. Boundary-order deviation: the refreshed topology predecessor is absorbed by the exact
+                  two-parent Member 5 commit over prior head `b7cdfdf20`.
+                - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 1`; _State:_ `[x]`;
+                  _Evidence:_ checkpoint composition still enters the ordinary integration spine and now supplies
+                  the production delivery host when deriving the complete retained review conjunction.
+                - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 2`; _State:_ `[x]`;
+                  _Evidence:_ the correction leaves teardown, retained bindings, host retarget observation, and the
+                  explicit failure-only top-remedy route untouched; current state retains every request binding.
+                - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 3`; _State:_ `[x]`;
+                  _Evidence:_ no base-reconcile or Candidate-applicability contract changed. The correction is bound
+                  instead to the exact scoped target and pending continuation, so it cannot authorize terminal
+                  integration or substitute whole-work-unit verification.
+                - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 4`; _State:_ `[x]`;
+                  _Evidence:_ the retained provider operation resumed by its exclusive operation selector, settled
+                  to `activeOperation: null`, and re-entered through the unchanged informative continuation rather
+                  than reconstructing a reservation subject.
+
+                - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+                - _Span:_ bounded diff `60c603b93..3490d939a`; cumulative reachability `3490d939a` at tree
+                  `a73338aa6`. Boundary-order deviation: the terminal predecessor refresh is absorbed by the exact
+                  two-parent Member 6 commit over prior head `d2e29cea9`.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`; _State:_ `[x]`;
+                  _Evidence:_ protected-target movement remains observation input only; the live correction was
+                  selected by an owed dependent refresh, not by unrelated movement of `main`.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`; _State:_ `[~]`;
+                  _Evidence:_ the recorded D5.9 supersession remains authoritative; external adoption is still an
+                  attended fallback and was not used to grant the live provider publication.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`; _State:_ `[x]`;
+                  _Evidence:_ the correction leaves native landing's full-suffix structural reconciliation intact;
+                  every refreshed dependent entered the verification selector instead of receiving clearance.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`; _State:_ `[x]`;
+                  _Evidence:_ no native selection or semantic stacked-refusal route changed; the active provider
+                  refresh followed its retained rewrite operation and never became a landing authorization.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`; _State:_ `[x]`;
+                  _Evidence:_ registration remains scoped to the seven non-terminal members and the originating top
+                  remains outside provider registration and rewrite authority.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`; _State:_ `[x]`;
+                  _Evidence:_ the correction changes no native opt-in decision or host-call-free opt-out path.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`; _State:_ `[x]`;
+                  _Evidence:_ approved local conflict content remained local until the provider-refresh reservation
+                  existed; that reservation then lease-published the exact requested suffix bottom-up and installed
+                  the complete chain in one versioned state settlement.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`; _State:_ `[x]`;
+                  _Evidence:_ the selector-free driver rederived the refresh from canonical plan/state and returned
+                  the exact verification continuation; callers supplied no member observation facts.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 9`; _State:_ `[x]`;
+                  _Evidence:_ the selected Member 3 correction remained fixed while only its dependent suffix was
+                  refreshed; the terminal top was settled separately through the existing absorption arm.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 10`; _State:_ `[x]`;
+                  _Evidence:_ final settlement atomically retained the selected member plus all four changed
+                  dependents, and response replay returns the same exact target, Tier 1 reuse offer, and
+                  acknowledgment locator without another provider mutation.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 11`; _State:_ `[x]`;
+                  _Evidence:_ the external-adoption consent contract and lease-restoration path are unchanged; the
+                  live path used the stricter provider-refresh resolution evidence instead.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 12`; _State:_ `[x]`;
+                  _Evidence:_ repeated correction preparation still uses the unique provider fork boundary and the
+                  single structural arbiter; no new lineage or provider assertion was introduced.
+                - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 13`; _State:_ `[x]`;
+                  _Evidence:_ pre-reservation conflict output kept state and remotes unchanged and named the logical
+                  base, exact parents, local ref, and paths. Re-entry accepted only the exact local two-parent
+                  resolution, and every suffix absorption retains exact old-member/refreshed-predecessor ancestry.
+
+                - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+                - _Span:_ bounded diff `3490d939a..3dbf99df6`; cumulative reachability `3dbf99df6` at tree
+                  `e56607f4c`; the later terminal absorption is `ec6eea08f` at tree `417b50d04`. Boundary-order
+                  deviation: Task 7.7.R.u.p's driver repair and the Member 3 review correction are projected after
+                  the original Member 7 boundary and inspected through that terminal tree.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`;
+                  _Evidence:_ discharge freshly observes every retained pull request, preserves a merged request's
+                  immutable reviewed head, and builds the cumulative member bases in plan order. Both production
+                  status and integration checkpoint consume that complete conjunction.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`;
+                  _Evidence:_ the correction changes no applicability authority or structural arbiter. Every
+                  refreshed dependent remains explicitly verification-owed; no head movement is treated as review
+                  clearance.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`;
+                  _Evidence:_ Candidate transitions remain the sole durable applicability authority, while the
+                  current request observations only supply fresh immutable review coordinates and fail closed on an
+                  open-head mismatch.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`;
+                  _Evidence:_ registered refresh settlement installed the same pending scoped-verification contract
+                  used by every correction arm, with selected and dependent members retained in plan order.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`;
+                  _Evidence:_ one selector-free driver invocation resumed the approved local merge, completed the
+                  reserved suffix publication and terminal absorption, and returned only at the consolidated exact
+                  verification stop. Its effect log contains the refresh dispatch and no hosted-review spend.
+
+                - _Summary:_ 23 met, one superseded, zero unresolved. The Heavy-class adversarial companion remains
+                  exhausted at its recorded two-pass cap, so this bounded correction receives no third pass.
+
+        - _Final driven-acceptance hardening:_ The production correction E2E exposed three seams that only compose
+          after record settlement: Candidate-accepted terminal movement had to preserve the exact public review
+          continuation in both entry and hosted-status readers; the driver had to reconcile that terminal record
+          before projecting a Candidate-renewal carry; and open delivery requests had to derive applicability from
+          each retained member's bound base rather than the work-unit Candidate root. The shared strict-ancestry Git
+          proof now preserves only a terminal-coordinate-only advance, the ordinary reconcile action performs the
+          record rebind before renewal, and merged-request discharge retains its historical rolling-base behavior.
+          Repeated identical record settlement and an advancing non-terminating drive now fail at explicit bounded
+          stops instead of spinning. The complete 21-case production correction E2E, both typechecks, all lint and
+          ARC contract gates, the standalone build, and the full 11,259-test suite pass; no hosted pass was spent.
 
     - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
 

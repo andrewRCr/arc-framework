@@ -18,6 +18,8 @@ import {
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { validateDeliveryPublicReviewContinuation } from
   "../../lib/delivery/public-review-continuation.js";
+import { projectGitDeliveryTerminalCoordinateAdvance } from
+  "../../lib/delivery/public-review-continuation-git.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
   type DeliveryDischargeTargetLookup,
@@ -147,16 +149,6 @@ export async function readRoutedObligation(
       : undefined;
     let effective: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>>;
     if (correctiveContinuation !== undefined) {
-      const delivery = await memberLookup.resolveTerminalRecords(workUnit);
-      if (delivery.status !== "resolved"
-        || validateDeliveryPublicReviewContinuation({
-          continuation: correctiveContinuation,
-          plan: delivery.plan,
-          state: delivery.state,
-          stateRevision: delivery.stateRevision,
-        }).status !== "current") {
-        return { state: "blocked", detail: "The public delivery continuation is not current." };
-      }
       effective = await projectGitCandidateEffectiveTarget({
         cwd,
         name: workUnit,
@@ -166,6 +158,25 @@ export async function readRoutedObligation(
         exec,
         rawExec: createRawGitExec(cwd),
       });
+      if (effective.state !== "current") {
+        return { state: "blocked", detail: "The owning work-unit Candidate is not current." };
+      }
+      const delivery = await memberLookup.resolveTerminalRecords(workUnit);
+      const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
+        cwd,
+        exec,
+        candidate: effective,
+      });
+      if (delivery.status !== "resolved"
+        || validateDeliveryPublicReviewContinuation({
+          continuation: correctiveContinuation,
+          plan: delivery.plan,
+          state: delivery.state,
+          stateRevision: delivery.stateRevision,
+          ...(terminalCoordinateAdvance === undefined ? {} : { terminalCoordinateAdvance }),
+        }).status !== "current") {
+        return { state: "blocked", detail: "The public delivery continuation is not current." };
+      }
     } else {
       const targetBase = await resolveGitCandidateTargetBase({
         cwd,

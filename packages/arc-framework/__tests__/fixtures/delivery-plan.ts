@@ -18,6 +18,14 @@ export function deliveryStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1
   return buildDeliveryPlanFixture(planId, "stack-to-main");
 }
 
+/** Construct a valid two-member stack plan for a caller-selected work unit. */
+export function deliveryStackPlanForWorkUnitFixture(
+  workUnitId: string,
+  planId = defaultPlanId,
+): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 2, undefined, workUnitId);
+}
+
 /** Construct a valid stack plan with caller-selected member titles. */
 export function deliveryStackPlanWithMemberTitlesFixture(titles: readonly string[]): DeliveryPlanV1 {
   return buildDeliveryPlanFixture(defaultPlanId, "stack-to-main", titles.length, titles);

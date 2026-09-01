@@ -367,6 +367,22 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     headRefName: firstBranch,
     headRefOid: "%s",
   }]);
+  const registeredSecondReviewTarget = JSON.stringify([{
+    number: 402,
+    url: "https://example.test/402",
+    state: "OPEN",
+    baseRefName: firstBranch,
+    headRefName: secondBranch,
+    headRefOid: "%s",
+  }]);
+  const registeredThirdReviewTarget = JSON.stringify([{
+    number: 403,
+    url: "https://example.test/403",
+    state: "OPEN",
+    baseRefName: secondBranch,
+    headRefName: "member-3",
+    headRefOid: "%s",
+  }]);
   await writeFile(fakeGh, [
     "#!/bin/sh",
     "if [ -n \"${ARC_FAKE_GH_LOG:-}\" ]; then printf '%s\\n' \"$*\" >> \"$ARC_FAKE_GH_LOG\"; fi",
@@ -413,7 +429,18 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     "fi",
     "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ]; then",
     activeOperation === "registered-current"
-      ? `  printf '${registeredFirstReviewTarget}\\n' "$(remote_head '${firstBranch}')"; exit 0`
+      ? [
+        "  case \"$*\" in",
+        `    *"--head ${firstBranch}"*) printf '${registeredFirstReviewTarget}\\n' `
+          + `"$(remote_head '${firstBranch}')" ;;`,
+        `    *"--head ${secondBranch}"*) printf '${registeredSecondReviewTarget}\\n' `
+          + `"$(remote_head '${secondBranch}')" ;;`,
+        `    *"--head member-3"*) printf '${registeredThirdReviewTarget}\\n' `
+          + `"$(remote_head 'member-3')" ;;`,
+        "    *) printf '%s\\n' '[]' ;;",
+        "  esac",
+        "  exit 0",
+      ].join("\n")
       : "  echo \"unexpected gh pr list invocation: $*\" >&2; exit 1",
     "fi",
     "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"checks\" ]; then",
@@ -439,7 +466,9 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     `  repos/owner/repo/git/commits/${targetHead})`,
     `    printf '%s\\n' '${JSON.stringify({ tree: { sha: targetTree } })}'`,
     "    ;;",
-    "  repos/owner/repo/branches/main)",
+    "  repos/owner/repo/branches/main|"
+      + "repos/owner/repo/branches/delivery%2Fmember-1|"
+      + "repos/owner/repo/branches/delivery%2Fmember-2)",
     "    printf '%s\\n' '{}';;",
     "  repos/owner/repo/pulls/401)",
     activeOperation === "landed-prefix"
@@ -1769,6 +1798,7 @@ describe("arc delivery position", () => {
         { kind: "boundary-carry", candidateId: candidate.attestation.candidateId },
         { kind: "commit", recordClass: "candidate-boundary-projection" },
         { kind: "push", ref: "refs/heads/member-3" },
+        { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
       ],
     });
 
