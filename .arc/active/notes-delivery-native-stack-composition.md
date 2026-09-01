@@ -529,3 +529,26 @@ This is transport and durable scoping of shipped Owner authority, not signal-con
 severity threshold, standing grant, Candidate transition, operation-state outcome, record family, or generic driver
 is added. Future `review-signal-convergence` remains authoritative for deriving convergence from durable result and
 disposition evidence; its minors-only rule would independently reach the same live Member 1 outcome.
+
+### Amendment 3 — executable pre-reservation conflict resume (2026-09-01)
+
+The live Member 3 correction reached the rescue's intended attended conflict stop while provider preparation was
+restacking Member 4. The result carried the logical merge base, exact parents, conflicted path, merge-tree command,
+and selector-free resume envelope, but no way for the resumed provider preparation to consume the approved resolved
+tree. Its temporary workspace was deleted on refusal. Publishing the exact two-parent merge manually then made
+canonical position observation refuse before preparation because Delivery State correctly retained the old head.
+The typed stop was diagnostic rather than executable, contrary to the rescue contract.
+
+Decided behavior: a pre-reservation provider-history conflict keeps the remote ref and Delivery State unchanged. The
+attended resolution is recorded only on the exact named local member ref. Re-entry validates that ref as one locally
+readable commit with the returned old member first parent and refreshed predecessor second parent, imports that exact
+commit into the fresh isolated provider preparation, and continues through the existing reservation and lease
+publication. Missing or mismatched local evidence and any premature remote movement refuse. The returned guidance
+states the local-only boundary explicitly. No conflict record, generalized workspace mechanism, caller-authored
+member selector, or autonomous resolution is added; the local exact commit is the already-approved content input and
+the existing provider-refresh operation remains the sole mutation authority after reservation.
+
+The live ref was restored by exact lease from the prematurely published merge to its state-authoritative old head;
+the approved merge remains on the clean local member ref as the acceptance fixture. Task 7.7.R.u.p owns the bounded
+repair and must drive this same correction through reserved publication and scoped verification before hosted member
+cycling resumes.
