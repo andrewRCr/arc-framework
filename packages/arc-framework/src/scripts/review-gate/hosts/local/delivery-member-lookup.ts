@@ -57,14 +57,29 @@ export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, Del
     if (resolution.value === null) return { status: "unbound" };
 
     const { deliverableId, planId, state, workUnitId } = resolution.value;
+    let plans;
+    try {
+      plans = await this.plans.enumerateCurrentReadOnly();
+    } catch {
+      return { status: "unavailable" };
+    }
+    if (plans.status === "refused") return { status: "unavailable" };
+    const matching = plans.value.filter((plan) => plan.workUnitId === workUnitId);
+    const plan = matching.length === 1 && matching[0]?.planId === planId
+      ? matching[0]
+      : undefined;
+    if (plan === undefined) return { status: "unavailable" };
+    const coherence = validateDeliveryStateAgainstPlan(state, plan);
+    if (coherence.status === "refused") return { status: "unavailable" };
+    const current = coherence.state;
     // The store selects only on recorded coordinates, so a match always carries
     // them; the fallback keeps the port total rather than guarding a real case.
-    const memberIndex = state.members.findIndex((candidate) => candidate.deliverableId === deliverableId);
-    const coordinates = state.members[memberIndex]?.coordinates ?? null;
+    const memberIndex = current.members.findIndex((candidate) => candidate.deliverableId === deliverableId);
+    const coordinates = current.members[memberIndex]?.coordinates ?? null;
     if (memberIndex < 0 || coordinates === null) return { status: "unavailable" };
     const baseRef = branchName(memberIndex === 0
-      ? state.target?.ref ?? null
-      : state.members[memberIndex - 1]?.ref ?? null);
+      ? current.target?.ref ?? null
+      : current.members[memberIndex - 1]?.ref ?? null);
     return {
       status: "resolved",
       member: {
@@ -73,9 +88,9 @@ export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, Del
         workUnitId,
         base: coordinates.base,
         baseRef,
-        headRef: branchName(state.members[memberIndex]?.ref ?? null),
+        headRef: branchName(current.members[memberIndex]?.ref ?? null),
         head: coordinates.head,
-        isFinalMember: state.members[state.members.length - 1]?.deliverableId === deliverableId,
+        isFinalMember: current.members[current.members.length - 1]?.deliverableId === deliverableId,
       },
     };
   }

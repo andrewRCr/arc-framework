@@ -17,6 +17,7 @@ import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.
 import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import { resolveChangeRequest } from "../review-gate/change-request.js";
 import { lifecycleArtifactFacts, type ReviewReadinessFact } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
@@ -220,7 +221,11 @@ export function createIntegrationCheckpointDependencies(input: {
     return identityPromise;
   };
   const composeLineageReview = createLineageReviewComposer(input);
-  const readHostedReservationDischarge = createHostedReservationDischargeReader(input);
+  const readHostedReservationDischarge = createHostedReservationDischargeReader({
+    ...input,
+    delivery: new RepositoryDeliveryMemberLookup(input),
+    host: new GhDeliveryHostPort(hostedGhRunner),
+  });
   const lifecycleStorage = input.lifecycleStorage ?? {
     readSnapshot: async () => {
       const { head } = await currentHead(input.exec, input.cwd);
@@ -319,6 +324,7 @@ export function createIntegrationCheckpointDependencies(input: {
         },
       });
       const discharge = await readHostedReservationDischarge({
+        workUnitId: workUnit,
         reservation: boundary.reservation,
         baseRevision: value.record.attestation.baseRevision,
         approvedHead: currentness.recognizedRevision,
