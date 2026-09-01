@@ -72,6 +72,7 @@ type ActiveOperationScenario =
   | "native"
   | "provider-refresh-partial"
   | "landed-prefix"
+  | "registered-current"
   | "terminal-authoring"
   | "registered-terminal-authoring"
   | "registered-local-terminal-authoring"
