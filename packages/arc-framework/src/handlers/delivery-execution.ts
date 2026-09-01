@@ -1873,6 +1873,14 @@ async function executeDeliveryCommand(
         return projectDeliveryReviewFixContinuation({ request: projectionRequest, entry, state: stateRead.value });
       }
 
+      if (entry.status === "candidate-verification-required") {
+        const stateRead = await stateStore.read(entry.planId);
+        if (stateRead.status !== "ok" || stateRead.value === null) {
+          return { status: "refused", reason: "delivery-unavailable" };
+        }
+        return projectDeliveryReviewFixContinuation({ request: projectionRequest, entry, state: stateRead.value });
+      }
+
       if (entry.status === "correction-routing-required") {
         const prepared = preparedCorrection ?? await prepareCorrection(entry);
         return prepared.result;

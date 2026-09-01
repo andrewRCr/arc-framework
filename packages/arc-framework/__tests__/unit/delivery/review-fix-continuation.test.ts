@@ -571,6 +571,29 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("finishes a unique pending selected refresh before Candidate verification", () => {
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: {
+        status: "candidate-verification-required",
+        nextAction: "verify-work-unit",
+        planId: plan.planId,
+        stateRevision: 4,
+        recommendedActionText,
+      },
+      state: pendingSelectedRefreshState(),
+    })).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-refresh-execute",
+        input: {
+          planId: plan.planId,
+          scope: { kind: "dependent-suffix", selectedDeliverableId },
+        },
+      },
+    });
+  });
+
   it("resumes a pending selected refresh with its exact persisted operation", () => {
     const pending = pendingSelectedRefreshState();
     const operation = activeState("provider-refresh").value.activeOperation;
