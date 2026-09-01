@@ -72,12 +72,26 @@ describe("prepublication workflow boundary", () => {
       expect(verification).toContain("    - validate-criteria");
       expect(verification).not.toContain("    - adversarial-review");
       expect(verification).toContain("validate-criteria:\n  scope:\n    kind: work-unit");
+      expect(verification).toContain("Without a Delivery Plan:");
+      expect(verification).toContain("criteria: task list's complete flat Success Criteria section");
+      expect(verification).toContain("open the upstream design/spec artifact");
+      expect(verification).toContain("With a Delivery Plan:");
       expect(verification).toContain("member-groups: recorded delivery-member criteria reports");
       expect(verification).toContain("seams: task list's Cross-member seams group");
-      expect(verification).not.toContain("criteria: task list's complete Success Criteria section");
+      expect(verification).toContain("At least one executable check fails");
+      expect(verification).toContain("Present-tense architecture and completion claims distinguish");
+      expect(verification).toContain("Every deferred part of original intent");
       expect(taskLoop).toContain("    - validate-criteria");
       expect(taskLoop).not.toContain("    - adversarial-review");
       expect(validateCriteria).toContain("arc:\n  methods:\n    - adversarial-review");
+      expect(validateCriteria).toContain("When none is present, open the\nupstream design/spec artifact");
+      expect(validateCriteria).toContain("flat Success Criteria section against actual outcomes");
+      expect(validateCriteria).toContain("When a Delivery Plan is present");
+      expect(validateCriteria).toContain("offer one fresh-context pass over the same selected scope");
+      const unresolvedStop = verification.indexOf("If the combined report contains any `[ ]` criterion, stop.");
+      const attestationStep = verification.indexOf("## Step 3 — Attest the Candidate");
+      expect(unresolvedStop).toBeGreaterThan(-1);
+      expect(attestationStep).toBeGreaterThan(unresolvedStop);
       const coherentUnit = taskLoop.indexOf("2. **Coherent unit completion:**");
       const memberBoundary = taskLoop.indexOf("3. **Delivery-member boundary (conditional):**");
       const reportAndStop = taskLoop.indexOf("4. **Report and stop:**");
@@ -99,7 +113,7 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).toContain("leave the closing task `[ ]`");
       expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toContain("Mark the task `[x]`");
       expect(validateCriteria).toMatch(/do not re-derive member\s+criteria/u);
-      expect(validateCriteria).toContain("walk the seam group and union coherence");
+      expect(validateCriteria).toMatch(/walk the seam group\s+and union coherence/u);
     }
   });
 
