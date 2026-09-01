@@ -25,6 +25,7 @@ import { ReviewContributionApplicabilityResultSchema } from
   "./policy/review-contribution-applicability.js";
 import {
   ReviewApplicabilityDecisionProjectionSchema,
+  ReviewApplicabilitySelectionBatchOfferSchema,
   ReviewApplicabilitySelectionOfferSchema,
 } from "./policy/review-applicability-resolution.js";
 import { HostedFindingsResponsePlanSchema } from "./core/response-plan-schema.js";
@@ -44,6 +45,10 @@ const BlockedReviewApplicabilitySchema = ReviewContributionApplicabilityResultSc
   (projection) => projection.state !== "applicable" && projection.state !== "decision-required",
   "blocked review applicability must carry a closed non-decision result",
 );
+const ReviewApplicabilitySelectionActionSchema = z.union([
+  ReviewApplicabilitySelectionOfferSchema,
+  ReviewApplicabilitySelectionBatchOfferSchema,
+]);
 
 export const ReviewStatusTargetInputSchema = z.strictObject({
   target: ChangeRequestTargetRefSchema,
@@ -220,7 +225,7 @@ export const RoutedReviewObligationSchema = z.union([
     state: z.literal("review-required"),
     detail: z.string().min(1),
     scope: z.literal("singleton"),
-    selectionAction: ReviewApplicabilitySelectionOfferSchema,
+    selectionAction: ReviewApplicabilitySelectionActionSchema,
   }),
   z.strictObject({
     state: z.literal("review-required"),
@@ -229,7 +234,7 @@ export const RoutedReviewObligationSchema = z.union([
       (conjunction) => conjunction.status === "outstanding",
       "delivery review applicability requires an outstanding conjunction",
     ),
-    selectionAction: ReviewApplicabilitySelectionOfferSchema,
+    selectionAction: ReviewApplicabilitySelectionActionSchema,
   }),
   z.strictObject({
     state: z.literal("review-required"),
@@ -297,6 +302,7 @@ interface ReviewApplicabilityContext {
 interface ReviewDischargeIntervention {
   readonly detail: string;
   readonly applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
+  readonly equivalentApplicabilities?: readonly z.infer<typeof ReviewContributionApplicabilityResultSchema>[];
   readonly applicabilityAuthority?: "decision-required" | "blocked";
   readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
   readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
@@ -326,17 +332,26 @@ function composeReviewDischargeIntervention(
         detail: "The review applicability decision is missing its canonical Candidate coordinates.",
       };
     }
+    const equivalent = discharge.equivalentApplicabilities?.filter(
+      (projection): projection is z.infer<typeof ReviewApplicabilityDecisionProjectionSchema> => (
+        projection.state === "decision-required"
+      ),
+    ) ?? [];
     return RoutedReviewObligationSchema.parse({
       state: "review-required",
       detail: discharge.detail,
       ...subject,
       selectionAction: {
         schemaVersion: 1,
-        kind: "review-applicability-selection",
+        kind: equivalent.length < 2
+          ? "review-applicability-selection"
+          : "review-applicability-selection-batch",
         workUnitId: applicabilityContext.workUnitId,
         expectedRecordVersion: applicabilityContext.expectedRecordVersion,
         candidateId: applicabilityContext.candidateId,
-        projection: discharge.applicability,
+        ...(equivalent.length < 2
+          ? { projection: discharge.applicability }
+          : { projections: equivalent }),
         choices: ["covered", "review-required"],
         interactionText: "Choose `covered` only when the exact residual is already covered; otherwise choose "
           + "`review-required`.",
@@ -411,6 +426,7 @@ export function composeDeliveryReviewObligation(input: {
     detail: string;
     nextSource: string | null;
     applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
+    equivalentApplicabilities?: readonly z.infer<typeof ReviewContributionApplicabilityResultSchema>[];
     applicabilityAuthority?: "decision-required" | "blocked";
     responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
     localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
@@ -617,7 +633,7 @@ const ReviewStatusApplicabilitySelectionSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("review-required"),
   nextAction: z.literal("resolve-review-applicability"),
-  selectionAction: ReviewApplicabilitySelectionOfferSchema,
+  selectionAction: ReviewApplicabilitySelectionActionSchema,
 });
 const ReviewStatusFindingsResponseSchema = z.strictObject({
   ...ReviewStatusBaseShape,

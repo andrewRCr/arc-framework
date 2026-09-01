@@ -5,6 +5,7 @@ import {
   sameDeliveryReviewMemberVehicle,
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
+import { canonicalize } from "../../../lib/canonical/canonical-json.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
@@ -134,10 +135,42 @@ export interface HostedReservationDischarge {
   detail: string;
   nextSource: string | null;
   applicability?: ReviewContributionApplicabilityResult;
+  equivalentApplicabilities?: readonly ReviewContributionApplicabilityResult[];
   applicabilityAuthority?: "decision-required" | "blocked";
   responsePlan?: HostedFindingsResponsePlan;
   localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
+}
+
+function applicabilityEquivalenceKey(
+  projection: ReviewContributionApplicabilityResult,
+): string | null {
+  if (projection.state !== "decision-required") return null;
+  const selector = projection.selector;
+  const currentVehicle = selector.currentVehicle;
+  return canonicalize({
+    member: currentVehicle === undefined
+      ? { repository: selector.repository, pullRequest: selector.pullRequest }
+      : {
+          planId: currentVehicle.planId,
+          deliverableId: currentVehicle.deliverableId,
+          workUnitId: currentVehicle.workUnitId,
+        },
+    sourceId: selector.sourceId,
+    currentHead: selector.currentHead,
+    residual: {
+      verdict: projection.verdict,
+      paths: projection.paths,
+      before: {
+        predecessorTree: projection.projection.before.predecessor.tree,
+        memberTree: projection.projection.before.member.tree,
+      },
+      after: {
+        predecessorTree: projection.projection.after.predecessor.tree,
+        memberTree: projection.projection.after.member.tree,
+      },
+    },
+  });
 }
 
 /** Decide the work-unit obligation from its ordered member discharges. */
@@ -463,13 +496,27 @@ export async function projectHostedReservationDischarge(input: {
       const standardAttempts = selected.filter(({ requestedCoverage, effectiveCoverage }) => (
         requestedCoverage === "complete" || effectiveCoverage === "complete"
       ));
-      const stopped = standardAttempts.find(({ applicability }) => applicability === "stop");
+      const stoppedAttempts = standardAttempts.filter(({ applicability }) => applicability === "stop");
+      const stopped = stoppedAttempts[0];
       if (stopped !== undefined) {
+        const equivalenceKey = stopped.projection === undefined
+          ? null
+          : applicabilityEquivalenceKey(stopped.projection);
+        const equivalentApplicabilities = equivalenceKey === null
+          ? []
+          : stoppedAttempts.flatMap(({ projection, authorityState }) => (
+              projection !== undefined
+                && authorityState === "decision-required"
+                && applicabilityEquivalenceKey(projection) === equivalenceKey
+                ? [projection]
+                : []
+            ));
         return {
           discharged: false,
           detail: `Hosted source \`${sourceId}\` has an unresolved contribution-applicability decision.`,
           nextSource: null,
           ...(stopped.projection === undefined ? {} : { applicability: stopped.projection }),
+          ...(equivalentApplicabilities.length < 2 ? {} : { equivalentApplicabilities }),
           ...(stopped.authorityState === undefined
             ? {}
             : { applicabilityAuthority: stopped.authorityState }),

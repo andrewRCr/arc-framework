@@ -54,7 +54,21 @@ export type ReviewApplicabilitySelectionOffer = z.infer<
   typeof ReviewApplicabilitySelectionOfferSchema
 >;
 
-export const ReviewApplicabilityResolutionCommandInputSchema = z.strictObject({
+export const ReviewApplicabilitySelectionBatchOfferSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  kind: z.literal("review-applicability-selection-batch"),
+  workUnitId: z.string().trim().min(1),
+  expectedRecordVersion: DigestSchema,
+  candidateId: DigestSchema,
+  projections: z.array(ReviewApplicabilityDecisionProjectionSchema).min(2),
+  choices: z.tuple([z.literal("covered"), z.literal("review-required")]),
+  interactionText: z.string().trim().min(1),
+});
+export type ReviewApplicabilitySelectionBatchOffer = z.infer<
+  typeof ReviewApplicabilitySelectionBatchOfferSchema
+>;
+
+const ReviewApplicabilitySelectionCommandSchema = z.strictObject({
   kind: z.literal("review-applicability-selection"),
   offer: ReviewApplicabilitySelectionOfferSchema,
   selection: z.strictObject({
@@ -63,6 +77,19 @@ export const ReviewApplicabilityResolutionCommandInputSchema = z.strictObject({
     choice: z.enum(["covered", "review-required"]),
   }),
 });
+const ReviewApplicabilitySelectionBatchCommandSchema = z.strictObject({
+  kind: z.literal("review-applicability-selection-batch"),
+  offer: ReviewApplicabilitySelectionBatchOfferSchema,
+  selection: z.strictObject({
+    selectedBy: z.string().trim().min(1),
+    selectedAt: z.iso.datetime({ offset: true }),
+    choice: z.enum(["covered", "review-required"]),
+  }),
+});
+export const ReviewApplicabilityResolutionCommandInputSchema = z.union([
+  ReviewApplicabilitySelectionCommandSchema,
+  ReviewApplicabilitySelectionBatchCommandSchema,
+]);
 export type ReviewApplicabilityResolutionCommandInput = z.infer<
   typeof ReviewApplicabilityResolutionCommandInputSchema
 >;
@@ -119,6 +146,9 @@ export function reviewApplicabilityResolutionInputFromCommand(
   rawInput: ReviewApplicabilityResolutionCommandInput,
 ): ReviewApplicabilityResolutionInput {
   const input = ReviewApplicabilityResolutionCommandInputSchema.parse(rawInput);
+  if (input.kind !== "review-applicability-selection") {
+    throw new Error("A batch applicability command cannot be reduced to one selection.");
+  }
   return ReviewApplicabilityResolutionInputSchema.parse({
     schemaVersion: 1,
     expectedRecordVersion: input.offer.expectedRecordVersion,
@@ -130,6 +160,27 @@ export function reviewApplicabilityResolutionInputFromCommand(
     selectedAt: input.selection.selectedAt,
     choice: input.selection.choice,
   });
+}
+
+/** Expand one attended singleton or batch answer into its exact Candidate selections. */
+export function reviewApplicabilityResolutionInputsFromCommand(
+  rawInput: ReviewApplicabilityResolutionCommandInput,
+): readonly ReviewApplicabilityResolutionInput[] {
+  const input = ReviewApplicabilityResolutionCommandInputSchema.parse(rawInput);
+  const projections = input.kind === "review-applicability-selection"
+    ? [input.offer.projection]
+    : input.offer.projections;
+  return projections.map((projection) => ReviewApplicabilityResolutionInputSchema.parse({
+    schemaVersion: 1,
+    expectedRecordVersion: input.offer.expectedRecordVersion,
+    candidateId: input.offer.candidateId,
+    selector: projection.selector,
+    projectionDigest: projection.projectionDigest,
+    residualDigest: projection.residualDigest,
+    selectedBy: input.selection.selectedBy,
+    selectedAt: input.selection.selectedAt,
+    choice: input.selection.choice,
+  }));
 }
 
 export interface ReviewApplicabilityResolutionContext {
@@ -253,5 +304,105 @@ export async function resolveReviewApplicability(
     nextAction: input.choice === "covered" ? "continue" : "request-review",
     candidateId: input.candidateId,
     choice: input.choice,
+  });
+}
+
+/** Re-derive and append one equivalent class through a single version-checked Candidate write. */
+export async function resolveReviewApplicabilityBatch(
+  context: ReviewApplicabilityResolutionContext,
+  rawInputs: readonly ReviewApplicabilityResolutionInput[],
+): Promise<ReviewApplicabilityResolutionResult> {
+  const inputs = z.array(ReviewApplicabilityResolutionInputSchema).min(2).parse(rawInputs);
+  const [first] = inputs;
+  if (first === undefined) throw new Error("A review applicability batch requires projections.");
+  if (inputs.some((input) => input.expectedRecordVersion !== first.expectedRecordVersion
+    || input.candidateId !== first.candidateId
+    || input.selectedBy !== first.selectedBy
+    || input.selectedAt !== first.selectedAt
+    || input.choice !== first.choice)) {
+    return result({ state: "selection-conflict", nextAction: "stop" });
+  }
+  const requested = inputs.map(selection);
+  if (requested.some((candidate, index) => requested.some((other, otherIndex) => (
+    otherIndex !== index && sameAuthorityKey(candidate, other)
+  )))) {
+    return result({ state: "selection-conflict", nextAction: "stop" });
+  }
+  const versioned = await context.readRecord();
+  if (versioned.record === null || versioned.version === null) {
+    return result({
+      state: "projection-failed",
+      nextAction: "return-to-projection",
+      reason: "candidate-unavailable",
+      projection: null,
+    });
+  }
+  if (versioned.record.attestation.candidateId !== first.candidateId) {
+    return result({ state: "stale-bound-input", nextAction: "reclassify", reason: "candidate-id-changed" });
+  }
+  const recorded = candidateReviewApplicabilitySelections(versioned.record);
+  const exactReplay = requested.map((candidate) => recorded.some(
+    (existing) => canonicalize(existing) === canonicalize(candidate),
+  ));
+  if (requested.some((candidate, index) => !exactReplay[index]
+    && recorded.some((existing) => sameAuthorityKey(existing, candidate)))) {
+    return result({ state: "selection-conflict", nextAction: "stop" });
+  }
+  if (exactReplay.some((replay) => !replay) && versioned.version !== first.expectedRecordVersion) {
+    return result({ state: "version-conflict", nextAction: "rerun" });
+  }
+  for (const input of inputs) {
+    let projection: ReviewContributionApplicabilityResult;
+    try {
+      projection = ReviewContributionApplicabilityResultSchema.parse(
+        await context.projectApplicability(input.selector),
+      );
+    } catch {
+      return result({
+        state: "projection-failed",
+        nextAction: "return-to-projection",
+        reason: "execution-unavailable",
+        projection: null,
+      });
+    }
+    if (canonicalize(projection.selector) !== canonicalize(input.selector)) {
+      return result({ state: "stale-bound-input", nextAction: "reclassify", reason: "selector-changed" });
+    }
+    if (projection.state !== "decision-required") {
+      return result({
+        state: "projection-failed",
+        nextAction: "return-to-projection",
+        reason: "decision-no-longer-required",
+        projection,
+      });
+    }
+    if (projection.projectionDigest !== input.projectionDigest) {
+      return result({ state: "stale-bound-input", nextAction: "reclassify", reason: "projection-changed" });
+    }
+    if (projection.residualDigest !== input.residualDigest) {
+      return result({ state: "stale-bound-input", nextAction: "reclassify", reason: "residual-changed" });
+    }
+  }
+  if (exactReplay.every(Boolean)) {
+    return result({
+      state: "exact-replay",
+      nextAction: first.choice === "covered" ? "continue" : "request-review",
+      candidateId: first.candidateId,
+      choice: first.choice,
+    });
+  }
+  const missing = requested.filter((_candidate, index) => !exactReplay[index]);
+  const nextRecord = CandidateManagedRecordV1Schema.parse({
+    ...versioned.record,
+    transitions: [...versioned.record.transitions, ...missing],
+  });
+  if (await context.writeRecord(nextRecord, first.expectedRecordVersion) === "version-conflict") {
+    return result({ state: "version-conflict", nextAction: "rerun" });
+  }
+  return result({
+    state: "resolved",
+    nextAction: first.choice === "covered" ? "continue" : "request-review",
+    candidateId: first.candidateId,
+    choice: first.choice,
   });
 }

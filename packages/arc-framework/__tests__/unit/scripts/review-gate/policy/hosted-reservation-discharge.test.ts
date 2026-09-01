@@ -35,7 +35,10 @@ const delegatedAdmission = (
   pass: 1,
 });
 
-function unresolvedApplicability() {
+function unresolvedApplicability(
+  priorAttemptId = "attempt-prior",
+  paths: readonly string[] = ["src/index.ts"],
+) {
   const selector = {
     schemaVersion: 1 as const,
     repositoryId: "repo-1",
@@ -43,7 +46,7 @@ function unresolvedApplicability() {
     pullRequest: 42,
     lane: "standard" as const,
     sourceId: "coderabbit-pr",
-    priorAttemptId: "attempt-prior",
+    priorAttemptId,
     priorHead: oid("a"),
     currentHead: oid("b"),
     priorBase: oid("0"),
@@ -60,7 +63,7 @@ function unresolvedApplicability() {
         member: { head: oid("b"), tree: oid("5") },
       },
     },
-    proof: { status: "refused", reason: "contribution-diverged", paths: ["src/index.ts"] },
+    proof: { status: "refused", reason: "contribution-diverged", paths: [...paths] },
   });
   if (projection.state !== "decision-required") throw new Error("expected unresolved applicability");
   return projection;
@@ -1030,6 +1033,37 @@ describe("hosted reservation discharge", () => {
       discharged: false,
       nextSource: null,
       applicability: projection,
+    });
+  });
+
+  it("carries one equivalent class of unresolved projections to the status consumer", async () => {
+    const first = unresolvedApplicability("attempt-first");
+    const second = unresolvedApplicability("attempt-second");
+    const distinctResidual = unresolvedApplicability("attempt-third", ["src/other.ts"]);
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation(),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [first, second, distinctResidual].map((projection, index) => earlierAttempt({
+          attemptId: `attempt-${String(index + 1)}`,
+          updatedAt: `2026-08-27T12:0${String(index)}:00.000Z`,
+          sourceId: "coderabbit-pr",
+          outcome: "rate-limited",
+          requestedCoverage: "complete",
+          effectiveCoverage: null,
+          applicability: "stop",
+          projection,
+          authorityState: "decision-required",
+        })),
+      }),
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: null,
+      applicability: first,
+      equivalentApplicabilities: [first, second],
     });
   });
 

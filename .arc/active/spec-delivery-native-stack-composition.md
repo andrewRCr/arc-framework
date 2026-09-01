@@ -1426,6 +1426,18 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       the completion report, not new durable authority. Content commits, destructive pushes, hosted requests that
       spend a pass, and merge effects remain outside this arm.
 
+    - **Equivalent applicability offers consume one attended judgment.** Review status composes pending
+      decision-required projections into one class only when they name the same delivery member, review source, and
+      current head; their bounded residual facts are contribution-equivalent after removing exact retained-attempt
+      identity; and every prior head belongs to the already-reviewed pass set. The attended offer retains every
+      exact projection in deterministic attempt order and accepts one shared `covered | review-required` answer.
+      Candidate resolution rederives every projection before mutation, appends one existing exact-bound
+      `review-applicability-selection` transition per projection through one version-checked record write, and fails
+      the whole batch on any stale, conflicting, unavailable, or no-longer-required member. The existing record-only
+      effect arm therefore commits and pushes the one changed Candidate file once. A different source, member,
+      current head, or materially different residual remains a separate stop. No standing grant, supersession rule,
+      convergence judgment, record family, or generalized composition mechanism is added.
+
     - **Provably mechanical head movement preserves pending authority.** A pending delivery-member review-fix
       response or exact Owner `review-applicability-selection` survives movement only when the prior head is a strict
       ancestor of the current head and D4's existing arbiter proves contribution-equivalent reviewed content with an
@@ -2294,6 +2306,12 @@ added.
     version before installing it with the new coordinate. Every route returns the shared member-criteria, Tier 1, and
     acknowledgment contract; response loss re-enters without repeating mutation or routing to whole-WU verification,
     Frontline, or generic prepublication, and no second continuation or review authority exists (D5.10, D5.12).
+46. Two retained review attempts that differ only by exact attempt identity while sharing one delivery member,
+    source, current head, and contribution-equivalent bounded residual produce one attended applicability offer.
+    One Owner answer rederives and appends both existing exact selection transitions atomically, then the correction
+    driver emits one Candidate commit and one push. A stale member makes the batch write nothing, and a changed
+    source, member, current head, or residual remains independently attended; no persisted batch grant, attempt
+    supersession, convergence policy, or generalized control-loop substrate is introduced (D8.12).
 
 ## Open Questions
 

@@ -22,6 +22,7 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
+  candidateReviewApplicabilitySelections,
   createCandidateAttestation,
   type CandidateManagedRecordV1,
 } from "../../src/lib/work-unit/candidate-attestation.js";
@@ -44,6 +45,8 @@ import {
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { LocalApprovedDispositionRecordStore } from
   "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
+import { resolveRepositoryIdentity } from
+  "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
@@ -1718,117 +1721,145 @@ describe("arc delivery position", () => {
       ],
     });
 
-    const staleFinding = {
-      findingId: "finding-stale-unpreserved",
-      origin: "review-thread" as const,
-      commentId: "comment-stale-unpreserved",
-      threadId: "thread-stale-unpreserved",
-      settlement: "reply-and-resolve" as const,
-      severity: "major" as const,
-      locus: "member-one.txt:1",
-      url: "https://example.test/thread-stale-unpreserved",
-    };
-    const staleApprovedDisposition = approveDispositionState({
-      proposed: proposeDispositionSet(createDispositionSet({
-        schemaVersion: 2,
-        semanticsVersion: "review-gate/v2",
-        targetId: oldTarget.targetId,
-        policyVersion: canonicalDigest({ policy: "review" }),
-        rubricVersion: "standard-review/v1",
-        rubricDigest: canonicalDigest({ rubric: "standard" }),
-        proposedBy: "agent-1",
-        findings: [{
-          findingId: staleFinding.findingId,
-          sourceIdentity: "codex-pr",
-          locus: staleFinding.locus,
-          sourceVerification: "verified",
-          verificationRefs: ["review:finding-stale-unpreserved"],
-          severity: "major",
-          disposition: "fix",
-          gating: "blocking",
-          rationale: "The source confirms the issue.",
-          recommendation: "Apply the fix.",
-          openQuestions: [],
-        }],
-      })),
-      approvedBy: "maintainer-1",
-      approvedAt: "2026-08-31T12:15:00Z",
+    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const retainedTarget = createReviewTarget({
+      schemaVersion: oldTarget.schemaVersion,
+      semanticsVersion: oldTarget.semanticsVersion,
+      kind: oldTarget.kind,
+      repositoryId,
+      baseRef: oldTarget.baseRef,
+      diffBaseSha: oldTarget.diffBaseSha,
+      diffBaseTree: oldTarget.diffBaseTree,
+      headSha: oldTarget.headSha,
+      headTree: oldTarget.headTree,
     });
-    await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
-      operationId: "lane-progress/stale-unpreserved",
-      updatedAt: "2026-08-31T12:15:00Z",
-      kind: "lane-progress",
-      lane: "standard",
-      repositoryId: "repo-1",
-      changeRequestId: "pull/401",
-      headSha: reviewedHead,
-      completedPasses: 1,
-      attempts: [{
-        attemptId: "operation-stale-unpreserved",
-        sourceId: "codex-pr",
-        outcome: "findings",
-        hosted: {
-          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-          requestedCoverage: "complete",
-          effectiveCoverage: "complete",
-          vehicle: {
-            kind: "delivery-member",
-            planId: fixture.plan.planId,
-            deliverableId: selectedDeliverableId,
-            workUnitId: fixture.plan.workUnitId,
-            head: reviewedHead,
-          },
-          reviewTarget: oldTarget,
-          requirement,
-          actorIdentity: "host-actor-1",
-          findings: [staleFinding],
-          dispositionSetId: staleApprovedDisposition.dispositionSet.dispositionSetId,
-          settledFindingIds: [],
-        },
-      }],
-    }, 0);
-    await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
-      ApprovedDispositionRecordSchema.parse({
+    const retainedRequirement = createReviewRequirement({
+      target: retainedTarget,
+      projection: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"f".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "checkpoint",
+    });
+    if (retainedRequirement === null) throw new Error("retained review requirement must derive");
+    const retainedAttemptIds = ["retained-first", "retained-second"];
+    for (const [index, retainedAttemptId] of retainedAttemptIds.entries()) {
+      await new LocalReviewOperationStateStore(publisher).publishOperation({
         schemaVersion: 1,
-        semanticsVersion: "review-advisory/v1",
-        repositoryId: "repo-1",
-        operationId: "operation-stale-unpreserved",
-        candidate: null,
-        errand: null,
-        deliveryMember: {
-          kind: "delivery-member",
-          planId: fixture.plan.planId,
-          deliverableId: selectedDeliverableId,
-          workUnitId: fixture.plan.workUnitId,
-          head: reviewedHead,
-        },
-        source: {
-          kind: "hosted",
-          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fstale-unpreserved:hosted%2F1",
-        },
-        approvedDisposition: staleApprovedDisposition,
-        fixAuthorization: createFixAuthorization({ dispositionState: staleApprovedDisposition, oldTarget }),
-        errandFixResponse: null,
-        deliveryMemberFixResponse: null,
-      }),
-    );
+        semanticsVersion: "review-operation/v1",
+        operationId: `lane-progress/${retainedAttemptId}`,
+        updatedAt: `2026-08-31T12:${15 + index}:00Z`,
+        kind: "lane-progress",
+        lane: "standard",
+        repositoryId,
+        changeRequestId: "pull/401",
+        headSha: reviewedHead,
+        completedPasses: 1,
+        attempts: [{
+          attemptId: `operation-${retainedAttemptId}`,
+          sourceId: "codex-pr",
+          outcome: "clean",
+          hosted: {
+            target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+            requestedCoverage: "complete",
+            effectiveCoverage: "complete",
+            vehicle: {
+              kind: "delivery-member",
+              planId: fixture.plan.planId,
+              deliverableId: selectedDeliverableId,
+              workUnitId: fixture.plan.workUnitId,
+              head: reviewedHead,
+            },
+            reviewTarget: retainedTarget,
+            requirement: retainedRequirement,
+            actorIdentity: "host-actor-1",
+            findings: [],
+            dispositionSetId: null,
+            settledFindingIds: [],
+          },
+        }],
+      }, 0);
+    }
 
-    const resumedWithStaleResponse = await runArcWithStdin(
+    const resumedWithRetainedAttempts = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
     );
     expect(
-      resumedWithStaleResponse.exitCode,
-      `${resumedWithStaleResponse.stderr}\n${resumedWithStaleResponse.stdout}`,
+      resumedWithRetainedAttempts.exitCode,
+      `${resumedWithRetainedAttempts.stderr}\n${resumedWithRetainedAttempts.stdout}`,
     ).toBe(0);
-    expect(JSON.parse(resumedWithStaleResponse.stdout), resumedWithStaleResponse.stdout).toMatchObject({
+    const aggregatedStop = JSON.parse(resumedWithRetainedAttempts.stdout) as {
+      reviewStatus: {
+        selectionAction: {
+          kind: string;
+          projections: readonly { selector: { priorAttemptId: string } }[];
+        };
+      };
+    };
+    expect(aggregatedStop, resumedWithRetainedAttempts.stdout).toMatchObject({
       command: "delivery review-fix continue",
       status: "review-status-required",
+      nextAction: "resolve-review-applicability",
+      reviewStatus: {
+        selectionAction: {
+          kind: "review-applicability-selection-batch",
+          projections: [
+            { selector: { priorAttemptId: "operation-retained-first" } },
+            { selector: { priorAttemptId: "operation-retained-second" } },
+          ],
+        },
+      },
     });
+
+    const resolvedBatch = await runArcWithStdin(
+      ["candidate", "applicability", "resolve", fixture.plan.workUnitId, "-"],
+      fixture.repository,
+      `${JSON.stringify({
+        kind: "review-applicability-selection-batch",
+        offer: aggregatedStop.reviewStatus.selectionAction,
+        selection: {
+          selectedBy: "maintainer-1",
+          selectedAt: "2026-08-31T12:30:00Z",
+          choice: "covered",
+        },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(resolvedBatch.exitCode, `${resolvedBatch.stderr}\n${resolvedBatch.stdout}`).toBe(0);
+    expect(JSON.parse(resolvedBatch.stdout), resolvedBatch.stdout).toMatchObject({
+      mode: "review-applicability-resolve",
+      state: "resolved",
+      nextAction: "commit-selection",
+      choice: "covered",
+    });
+    const selectedCandidate = await readCandidateRecord(fixture.repository, fixture.plan.workUnitId);
+    expect(selectedCandidate).not.toBeNull();
+    expect(candidateReviewApplicabilitySelections(selectedCandidate!).map(
+      ({ selector }) => selector.priorAttemptId,
+    )).toEqual(retainedAttemptIds.map((attemptId) => `operation-${attemptId}`));
+
+    const continuedAfterBatch = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(continuedAfterBatch.exitCode, `${continuedAfterBatch.stderr}\n${continuedAfterBatch.stdout}`).toBe(0);
+    const afterBatch = JSON.parse(continuedAfterBatch.stdout) as {
+      effectLog: readonly { kind: string; recordClass?: string }[];
+    };
+    expect(afterBatch.effectLog.filter(({ kind }) => kind === "commit")).toEqual([
+      expect.objectContaining({ kind: "commit", recordClass: "review-applicability-selection" }),
+    ]);
+    expect(afterBatch.effectLog.filter(({ kind }) => kind === "push")).toHaveLength(1);
   });
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {

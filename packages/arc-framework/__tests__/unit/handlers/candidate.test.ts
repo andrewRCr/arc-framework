@@ -32,7 +32,7 @@ function makeRequest() {
   };
 }
 
-function makeReviewRequest() {
+function makeReviewRequest(priorAttemptId = "attempt-prior") {
   const selector = {
     schemaVersion: 1 as const,
     repositoryId: "repository-1",
@@ -40,7 +40,7 @@ function makeReviewRequest() {
     pullRequest: 42,
     lane: "standard" as const,
     sourceId: "codex-pr",
-    priorAttemptId: "attempt-prior",
+    priorAttemptId,
     priorHead: SHA_A,
     currentHead: SHA_B,
     priorBase: SHA_A,
@@ -84,6 +84,25 @@ function makeReviewRequest() {
   };
 }
 
+function makeReviewBatchRequest() {
+  const first = makeReviewRequest("attempt-first");
+  const second = makeReviewRequest("attempt-second");
+  return {
+    kind: "review-applicability-selection-batch" as const,
+    offer: {
+      schemaVersion: first.offer.schemaVersion,
+      kind: "review-applicability-selection-batch" as const,
+      workUnitId: first.offer.workUnitId,
+      expectedRecordVersion: first.offer.expectedRecordVersion,
+      candidateId: first.offer.candidateId,
+      projections: [first.offer.projection, second.offer.projection],
+      choices: first.offer.choices,
+      interactionText: first.offer.interactionText,
+    },
+    selection: first.selection,
+  };
+}
+
 describe("handleCandidateApplicabilityResolve", () => {
   it("parses one strict request and emits the validated service result", async () => {
     const output: string[] = [];
@@ -123,6 +142,40 @@ describe("handleCandidateApplicabilityResolve", () => {
     const output: string[] = [];
     const executed: unknown[] = [];
     const request = makeReviewRequest();
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
+      readText: async () => JSON.stringify(request),
+      execute: async (_root, _name, parsed) => {
+        executed.push(parsed);
+        return {
+          schemaVersion: 1,
+          mode: "review-applicability-resolve",
+          state: "resolved",
+          nextAction: "continue",
+          candidateId: request.offer.candidateId,
+          choice: request.selection.choice,
+        };
+      },
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(executed).toEqual([request]);
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      mode: "review-applicability-resolve",
+      state: "resolved",
+      nextAction: "continue",
+      choice: "covered",
+    });
+  });
+
+  it("passes one complete batch offer to the Candidate write seam", async () => {
+    const output: string[] = [];
+    const executed: unknown[] = [];
+    const request = makeReviewBatchRequest();
 
     await handleCandidateApplicabilityResolve("example", "-", undefined, {
       resolveRoot: () => "/repo",

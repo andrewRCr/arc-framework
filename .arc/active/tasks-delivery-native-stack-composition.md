@@ -2813,6 +2813,35 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               E2E through this cross-member stale-response case, then repeat only the live post-ack acceptance without
               requesting a hosted pass.
 
+        - _Forward amendment (2026-09-01):_ Live Member 1 re-entry returned one semantic CodeRabbit applicability
+          judgment as five serial exact-attempt offers. Preserve the exact Candidate transition contract but compose
+          equivalent pending offers into one attended class and settle its individual selections through one record
+          write, commit, and push. Review-evidence supersession, convergence, standing grants, and generic workflow
+          composition remain with their recorded owners.
+
+        - `[x]` **7.7.R.u.h Aggregate equivalent applicability offers atomically**
+
+            - _Goal:_ Review status returns one attended offer for equivalent retained attempts of the same member,
+              source, and current head; one bounded Owner answer atomically records every exact selection in stable
+              order; and the correction driver discloses one Candidate commit and push before recomposing. Any stale
+              class member or changed source, member, head, or residual writes nothing and remains independently
+              attended.
+
+            - Extend the production correction E2E with two equivalent retained attempts and prove one offer, two
+              durable exact transitions, and one commit/push effect pair. Retain singleton selection compatibility
+              and add no persisted grant, evidence-supersession rule, convergence policy, storage family, or generic
+              workflow engine.
+
+            - _Outcome:_ Review discharge now selects the first deterministic equivalence class by member, source,
+              current head, and contribution-residual facts while retaining each exact attempt projection. Status
+              emits the singleton contract unchanged or one bounded batch offer. Candidate resolution rederives the
+              entire batch before one version-checked write, rejects duplicate/conflicting/stale members without a
+              partial append, and preserves each existing exact transition. The production correction E2E records
+              two retained selections from one answer and then observes exactly one Candidate commit and one push;
+              a distinct residual remains outside the class. All 21 delivery-position E2E cases, 82 focused unit
+              cases, production/test typechecks, and TypeScript lint pass. No standing grant, supersession,
+              convergence, new storage family, or generic workflow control was added.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`

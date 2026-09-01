@@ -120,7 +120,7 @@ function readyAdmission(
   });
 }
 
-function reviewApplicabilityDecision() {
+function reviewApplicabilityDecision(priorAttemptId = "attempt-prior") {
   const priorVehicle = DeliveryReviewMemberVehicleSchema.parse({
     ...memberVehicle,
     head: oid("a"),
@@ -132,7 +132,7 @@ function reviewApplicabilityDecision() {
     pullRequest: hostedAction.target.pullRequest,
     lane: "standard" as const,
     sourceId: hostedAction.provider,
-    priorAttemptId: "attempt-prior",
+    priorAttemptId,
     priorHead: priorVehicle.head,
     currentHead: memberVehicle.head,
     priorBase: oid("1"),
@@ -704,6 +704,42 @@ describe("review status", () => {
       },
     });
     if (!("selectionAction" in obligation)) throw new Error("expected applicability selection action");
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "resolve-review-applicability",
+      selectionAction: obligation.selectionAction,
+    });
+  });
+
+  it("returns one batch offer for equivalent retained applicability attempts", async () => {
+    const first = reviewApplicabilityDecision("attempt-first");
+    const second = reviewApplicabilityDecision("attempt-second");
+    const expectedRecordVersion = canonicalDigest({ version: 3 });
+    const candidateId = canonicalDigest({ candidate: 3 });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "Two retained attempts share one exact residual judgment.",
+        nextSource: null,
+        applicability: first,
+        equivalentApplicabilities: [first, second],
+      })],
+      applicabilityContext: { workUnitId: "example", expectedRecordVersion, candidateId },
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      selectionAction: {
+        kind: "review-applicability-selection-batch",
+        workUnitId: "example",
+        expectedRecordVersion,
+        candidateId,
+        projections: [first, second],
+        choices: ["covered", "review-required"],
+      },
+    });
+    if (!("selectionAction" in obligation)) throw new Error("expected batch applicability selection action");
     await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
       state: "review-required",
       nextAction: "resolve-review-applicability",
