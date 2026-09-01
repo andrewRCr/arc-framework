@@ -31,7 +31,7 @@ function taskList(): string {
     "",
     "## **Phase beta:** Second group",
     "",
-    "### `[ ]` **1.2 Close the first member** — validate criteria at member scope",
+    "### `[ ]` **1.2 Second task**",
     "",
     "- _Goal:_ Implement the second behavior.",
     "",
@@ -90,16 +90,13 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
           elements: [{ elementId: "detailed:deliverable-contract" }],
         },
         tasks: {
-          parents: [
-            { taskId: "9.4", role: { kind: "implementation" } },
-            { taskId: "1.2", role: { kind: "verification", scope: "member" } },
-            { taskId: "7.9", role: { kind: "verification", scope: "work-unit" } },
-          ],
+          implementation: [{ taskId: "9.4" }, { taskId: "1.2" }],
+          verificationTaskId: "7.9",
         },
       },
     });
     if (result.status !== "prepared") return;
-    expect(result.markdown).toContain('"scope": "work-unit"');
+    expect(result.markdown).toContain('"verificationTaskId": "7.9"');
     expect(result.markdown).toContain('"eligibleForMembership": false');
   });
 
@@ -198,7 +195,7 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
     });
   });
 
-  it("refuses the work-unit verifier as an explicit member source", () => {
+  it("refuses the verification parent as an explicit member source", () => {
     const result = prepare();
     expect(result.status).toBe("prepared");
     if (result.status !== "prepared") return;
@@ -213,7 +210,7 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
         members: [member("verification")],
         seams: [],
       },
-    })).toEqual({ status: "refused", reason: "work-unit-verification-task-ineligible" });
+    })).toEqual({ status: "refused", reason: "verification-task-ineligible" });
   });
 
   it("refuses malformed design input without producing authoring material", () => {

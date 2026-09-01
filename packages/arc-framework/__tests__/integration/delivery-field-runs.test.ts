@@ -113,17 +113,12 @@ describe("recorded delivery field runs", () => {
       ? "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1"
       : "9cd88752-ef99-4e21-a41f-234bc98f35e0";
     const seams = adjacentFieldSeams(run);
-    const terminalParent = {
-      taskId: "1.1",
-      semanticDigest: null,
-      role: { kind: "verification" as const, scope: "work-unit" },
-    };
     const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
       schemaVersion: 1,
       semanticsVersion: "delivery-plan/v1",
       workUnitId: run.workUnitId,
       design: { artifacts: [{ artifactId: `spec-${run.workUnitId}.md` }], elements: [] },
-      tasks: { parents: [{ taskId: terminalParent.taskId, role: terminalParent.role }] },
+      tasks: { implementation: [], verificationTaskId: "1.1" },
       entry: "from-branch",
       projection: { kind: "stack-to-main" },
       members: run.members.map((member) => ({
@@ -139,8 +134,9 @@ describe("recorded delivery field runs", () => {
     const construction = constructDeliveryPlanRevision({
       authoring,
       taskInventory: {
-        inventoryDigest: canonicalDigest([terminalParent]),
-        parents: [terminalParent],
+        inventoryDigest: canonicalDigest([]),
+        implementation: [],
+        verificationTaskId: "1.1",
       },
       designInventory: {
         artifacts: [{

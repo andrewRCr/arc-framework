@@ -445,7 +445,7 @@ describe("branch-derived delivery facts", () => {
     });
   });
 
-  it("keeps work-unit verification attribution out of member task coverage", async () => {
+  it("keeps verification attribution out of member task coverage", async () => {
     await commitFile(repository, "verification.txt", "verified\n", [
       "test(delivery): verify the work unit",
       "",
@@ -652,7 +652,7 @@ function taskListFixture(): string {
     "    - `[ ]` **1.1.a First part**",
     "    - `[ ]` **1.1.b Second part**",
     "",
-    "### `[ ]` **1.R Close the member** — validate criteria at member scope",
+    "### `[ ]` **1.R Revise the contract**",
     "",
     "- _Goal:_ Revise the contract.",
     "",

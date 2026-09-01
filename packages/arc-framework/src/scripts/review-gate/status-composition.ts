@@ -15,6 +15,8 @@ import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { validateDeliveryPublicReviewContinuation } from
   "../../lib/delivery/public-review-continuation.js";
+import type { DeliveryHostPort } from "../../lib/delivery/host.js";
+import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
   type DeliveryDischargeTargetLookup,
@@ -109,6 +111,7 @@ export async function readRoutedObligation(
     readonly coverage?: HostedReviewCoverage;
     readonly sourceId?: string;
   },
+  deliveryHost: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
     headRef: target.headRef,
@@ -205,6 +208,7 @@ export async function readRoutedObligation(
           baseRevision: record.attestation.baseRevision,
         },
         delivery: memberLookup,
+        host: deliveryHost,
       });
       if (resolution.status !== "resolved" || resolution.kind !== "delivery") {
         return { state: "blocked", detail: "The retained delivery-member review targets are unavailable." };

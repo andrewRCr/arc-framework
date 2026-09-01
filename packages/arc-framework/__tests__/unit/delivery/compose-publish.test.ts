@@ -47,26 +47,17 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, membe
     {
       taskId: "1.1",
       semanticDigest: taskDigest,
-      role: { kind: "verification" as const, scope: "member" },
     },
     ...(memberCount === 2 ? [{
       taskId: "2.1",
       semanticDigest: taskDigest,
-      role: { kind: "verification" as const, scope: "member" },
     }] : []),
   ];
   const workUnitVerificationTaskId = memberCount === 1 ? "2.1" : "3.1";
-  const parents = [
-    ...memberParents,
-    {
-      taskId: workUnitVerificationTaskId,
-      semanticDigest: null,
-      role: { kind: "verification" as const, scope: "work-unit" },
-    },
-  ];
   const taskInventory = {
-    inventoryDigest: canonicalDigest(parents),
-    parents,
+    inventoryDigest: canonicalDigest(memberParents),
+    implementation: memberParents,
+    verificationTaskId: workUnitVerificationTaskId,
   } as const;
   const designInventory = {
     artifacts: [{ artifactId: "spec.md", revisionDigest: canonicalDigest({ spec: 1 }) }],
@@ -124,7 +115,10 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, membe
       semanticsVersion: "delivery-plan/v1",
       workUnitId: "delivery-plan-record",
       design: { artifacts: [{ artifactId: "spec.md" }], elements: [] },
-      tasks: { parents: parents.map(({ taskId, role }) => ({ taskId, role })) },
+      tasks: {
+        implementation: memberParents.map(({ taskId }) => ({ taskId })),
+        verificationTaskId: workUnitVerificationTaskId,
+      },
       entry: "from-tasks",
       projection: slots.projection,
       members: slots.members.map((member, index) => ({

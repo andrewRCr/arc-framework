@@ -1036,13 +1036,10 @@ describe("arc delivery", () => {
       expect(JSON.parse(compose.stdout)).toMatchObject({
         status: "refused",
         reason: "coverage-refused",
-        issues: [
-          {
-            kind: "member-task-order",
-            memberIndices: run.members.map((_, index) => index),
-          },
-          { kind: "member-verification-task-unbound", taskIds: ["1.1"] },
-        ],
+        issues: [{
+          kind: "member-task-order",
+          memberIndices: run.members.map((_, index) => index),
+        }],
       });
     },
   );
@@ -1204,8 +1201,8 @@ describe("arc delivery", () => {
       "",
     ].join("\n");
     const twoPhaseTasks = onePhaseTasks.replace(
-      "### `[ ]` **1.2 Implement the companion** — validate criteria at member scope",
-      `${phaseHeading}### \`[ ]\` **1.2 Implement the companion** — validate criteria at member scope`,
+      "### `[ ]` **1.2 Implement the companion**",
+      `${phaseHeading}### \`[ ]\` **1.2 Implement the companion**`,
     );
     await writeFile(taskListPath, twoPhaseTasks);
     const author = await runArc([
@@ -1309,7 +1306,7 @@ describe("arc delivery", () => {
     expect(verification.exitCode).toBe(1);
     expect(JSON.parse(verification.stdout)).toMatchObject({
       status: "refused",
-      reason: "work-unit-verification-task-ineligible",
+      reason: "verification-task-ineligible",
     });
   });
 
@@ -1338,14 +1335,8 @@ describe("arc delivery", () => {
       design: { artifacts: [{ artifactId: "spec.md", revisionDigest: DIGEST }], elements: [] },
       tasks: {
         inventoryDigest: DIGEST,
-        parents: [
-          { taskId: "1.1", semanticDigest: DIGEST, role: { kind: "implementation" } },
-          {
-            taskId: "2.1",
-            semanticDigest: null,
-            role: { kind: "verification", scope: "work-unit" },
-          },
-        ],
+        implementation: [{ taskId: "1.1", semanticDigest: DIGEST }],
+        verificationTaskId: "2.1",
       },
       source: {
         entry: "from-tasks",
@@ -1408,12 +1399,12 @@ async function installTaskFixture(repository: string, includeSecondTask = false)
     "",
     "## **Phase alpha:** Implementation",
     "",
-    "### `[ ]` **1.1 Implement the contract** — validate criteria at member scope",
+    "### `[ ]` **1.1 Implement the contract**",
     "",
     "- _Goal:_ Implement the delivery contract.",
     "",
     ...(includeSecondTask ? [
-      "### `[ ]` **1.2 Implement the companion** — validate criteria at member scope",
+      "### `[ ]` **1.2 Implement the companion**",
       "",
       "- _Goal:_ Implement the companion behavior.",
       "",

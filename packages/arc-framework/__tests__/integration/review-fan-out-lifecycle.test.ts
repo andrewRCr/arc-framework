@@ -599,8 +599,35 @@ async function moveDeliveryTargets(harness: FanOutHarness): Promise<void> {
   await writeBoundary(harness, candidate, "feat/delivery-plan-record", "bound");
 }
 
+function deliveryHostFromState(harness: Pick<FanOutHarness, "state">) {
+  return {
+    readRequest: async (repository: string, binding: { providerId: string; changeRequestId: string }) => {
+      const member = harness.state.members.find((candidate) => (
+        candidate.changeRequest?.providerId === binding.providerId
+        && candidate.changeRequest.changeRequestId === binding.changeRequestId
+      ));
+      if (member?.coordinates === null || member?.coordinates === undefined || member.ref === null) {
+        return { status: "absent" as const };
+      }
+      return {
+        status: "observed" as const,
+        request: {
+          binding,
+          repository,
+          headRepository: repository,
+          headRef: member.ref.replace(/^refs\/heads\//u, ""),
+          headSha: member.coordinates.head,
+          baseRef: "main",
+          state: "open" as const,
+          draft: false,
+        },
+      };
+    },
+  };
+}
+
 async function statusThroughHandler(
-  harness: Pick<FanOutHarness, "root" | "exec" | "baseHead">,
+  harness: Pick<FanOutHarness, "root" | "exec" | "baseHead" | "state">,
   target: { repository: string; headRef: string; headSha: string },
   ceilingOverride?: ReviewCeilingOverride,
   coverage?: HostedReviewCoverage,
@@ -631,6 +658,7 @@ async function statusThroughHandler(
                 ...(admittedOverride === undefined ? {} : { ceilingOverride: admittedOverride }),
                 ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
               },
+          deliveryHostFromState(harness),
         ),
         currentBaseOid: harness.baseHead,
         baseContained: true,
@@ -644,7 +672,7 @@ async function statusThroughHandler(
 }
 
 interface EightMemberHarness extends Pick<FanOutHarness,
-  "root" | "exec" | "plan" | "states" | "store" | "repositoryId" | "baseHead" | "baseTree"> {
+  "root" | "exec" | "plan" | "states" | "store" | "repositoryId" | "baseHead" | "baseTree" | "state"> {
   readonly heads: readonly string[];
   readonly trees: readonly string[];
 }
@@ -819,6 +847,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
     repositoryId: await resolveRepositoryIdentity(publisher),
     baseHead,
     baseTree,
+    state: published.state.value,
     heads,
     trees,
   };
@@ -991,7 +1020,7 @@ async function selectReviewRequiredUntilRouted(
         workUnit: harness.plan.workUnitId,
       }),
       readText: async () => JSON.stringify({
-        kind: "review-applicability-selection",
+        kind: status.selectionAction.kind,
         offer: status.selectionAction,
         selection: {
           selectedBy: "andrew",
@@ -1002,7 +1031,7 @@ async function selectReviewRequiredUntilRouted(
       write: (text) => output.push(text),
       setExitCode: (code) => exitCodes.push(code),
     });
-    expect(exitCodes).toEqual([]);
+    expect(exitCodes, output.join("\n")).toEqual([]);
     expect(JSON.parse(output.join(""))).toMatchObject({ state: "resolved", choice: "review-required" });
   }
   throw new Error("review applicability selections did not reach a routed status");
@@ -1028,6 +1057,19 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     headRefName: "prior-top",
     headRefOid: harness.priorSecond,
   }]);
+  const apiRequest = (
+    number: number,
+    headRef: string,
+    headSha: string,
+    baseRef: string,
+  ) => JSON.stringify({
+    number,
+    state: "open",
+    merged: false,
+    draft: false,
+    head: { ref: headRef, sha: headSha, repo: { full_name: repository } },
+    base: { ref: baseRef, repo: { full_name: repository } },
+  });
   const comment = (pullRequest: number, body: string) => JSON.stringify({
     node_id: `IC_${String(pullRequest)}`,
     html_url: `https://example.test/comment/${String(pullRequest)}`,
@@ -1050,12 +1092,15 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     "    esac",
     "    ;;",
     "  api:repos/owner/repository/pulls/41)",
-    `    : > '${providerCalled}'`,
-    `    printf '%s\\n' '${JSON.stringify({ head: { sha: harness.oldFirst } })}'`,
+    `    printf '%s\\n' '${apiRequest(
+      41,
+      "delivery/delivery-plan-record/first",
+      harness.oldFirst,
+      "main",
+    )}'`,
     "    ;;",
     "  api:repos/owner/repository/pulls/42)",
-    `    : > '${providerCalled}'`,
-    `    printf '%s\\n' '${JSON.stringify({ head: { sha: harness.priorSecond } })}'`,
+    `    printf '%s\\n' '${apiRequest(42, "prior-top", harness.priorSecond, "delivery/delivery-plan-record/first")}'`,
     "    ;;",
     "  api:user)",
     `    : > '${providerCalled}'`,
@@ -1450,6 +1495,7 @@ describe("hosted review fan-out lifecycle", () => {
       memberLookup,
       harness.baseHead,
       { sourceId: "codex-pr" },
+      deliveryHostFromState(harness),
     );
     expect(selected).toMatchObject({
       state: "review-required",
@@ -1476,6 +1522,8 @@ describe("hosted review fan-out lifecycle", () => {
       42,
       memberLookup,
       harness.baseHead,
+      undefined,
+      deliveryHostFromState(harness),
     )).resolves.toMatchObject({
       state: "review-required",
       action: { provider: "coderabbit-pr" },

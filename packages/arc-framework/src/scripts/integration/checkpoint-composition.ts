@@ -29,6 +29,7 @@ import { proveGitDeliveryContribution } from "../../lib/delivery/git-contributio
 import { classifyDeliveryTerminalDrift } from "../../lib/delivery/terminal-integration.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import { resolveChangeRequest } from "../review-gate/change-request.js";
 import { lifecycleArtifactFacts, type ReviewReadinessFact } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
@@ -277,8 +278,13 @@ export function createIntegrationCheckpointDependencies(input: {
     return identityPromise;
   };
   const composeLineageReview = createLineageReviewComposer(input);
-  const readHostedReservationDischarge = createHostedReservationDischargeReader(input);
   const deliveryLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
+  const deliveryHost = new GhDeliveryHostPort(hostedGhRunner);
+  const readHostedReservationDischarge = createHostedReservationDischargeReader({
+    ...input,
+    delivery: deliveryLookup,
+    host: deliveryHost,
+  });
   const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
   const lifecycleStorage = input.lifecycleStorage ?? {
     readSnapshot: async () => {
@@ -568,6 +574,7 @@ export function createIntegrationCheckpointDependencies(input: {
           baseRevision: terminal.coordinates.base,
         },
         delivery: deliveryLookup,
+        host: deliveryHost,
       });
       if (targetResolution.status !== "resolved" || targetResolution.kind !== "delivery"
         || targetResolution.targets.length !== members.length) {
@@ -576,15 +583,14 @@ export function createIntegrationCheckpointDependencies(input: {
       const reviewTargets = members.map((member, index) => {
         const target = targetResolution.targets[index];
         if (target === undefined || member.changeRequest === null || member.coordinates === null
-          || target.pullRequest !== Number(member.changeRequest.changeRequestId)
-          || target.headSha !== member.coordinates.head) {
+          || target.pullRequest !== Number(member.changeRequest.changeRequestId)) {
           throw new Error(`Delivery member ${member.deliverableId} has a mismatched review target.`);
         }
         return {
           deliverableId: member.deliverableId,
           providerId: member.changeRequest.providerId,
           changeRequestId: member.changeRequest.changeRequestId,
-          head: member.coordinates.head,
+          head: target.headSha,
         };
       });
       const discharges = await Promise.all(targetResolution.targets.map(async (target) => (
@@ -685,6 +691,7 @@ export function createIntegrationCheckpointDependencies(input: {
             detail: `Every derived delivery-member review is discharged (${delivery.checks.targets.length} checked).`,
           }
         : await readHostedReservationDischarge({
+            workUnitId: workUnit,
             reservation: publicationBoundary.reservation,
             baseRevision: value.record.attestation.baseRevision,
             approvedHead: currentness.recognizedRevision,
