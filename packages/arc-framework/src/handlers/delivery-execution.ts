@@ -1793,23 +1793,33 @@ async function executeDeliveryCommand(
               return { head: member.coordinates.head, base: member.coordinates.base };
             },
           });
-          if (applicability.state !== "applicable"
-            || applicability.contributionChanged !== false
-            || applicability.proof === "head-unchanged") {
+          const mechanicallyPreserved = applicability.state === "applicable"
+            && applicability.contributionChanged === false
+            && applicability.proof !== "head-unchanged";
+          const requiresCurrentReviewAuthority = applicability.state === "decision-required"
+            && applicability.contributionChanged === true;
+          if (!mechanicallyPreserved && !requiresCurrentReviewAuthority) {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
-          authorityPreservation = {
-            reviewedHead: selection.reviewedHead,
-            currentHead: selectedHead,
-            proof: applicability.proof,
-            projectionDigest: applicability.projectionDigest,
-            residualDigest: applicability.residualDigest,
-          };
           const integratingEntry = await inspectActiveRepositoryDeliveryEntry(
             { entryMode: "integrating" },
             interaction,
           );
-          if (!pendingDeliveryReviewFixCanResumeFromIntegrationStatus(integratingEntry.status)) {
+          if (applicability.state === "applicable"
+            && applicability.contributionChanged === false
+            && applicability.proof !== "head-unchanged") {
+            authorityPreservation = {
+              reviewedHead: selection.reviewedHead,
+              currentHead: selectedHead,
+              proof: applicability.proof,
+              projectionDigest: applicability.projectionDigest,
+              residualDigest: applicability.residualDigest,
+            };
+          }
+          const mayResume = mechanicallyPreserved
+            ? pendingDeliveryReviewFixCanResumeFromIntegrationStatus(integratingEntry.status)
+            : integratingEntry.status === "continue-hosted-review";
+          if (!mayResume) {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
           entry = integratingEntry;

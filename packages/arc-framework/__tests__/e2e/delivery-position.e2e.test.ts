@@ -1726,6 +1726,118 @@ describe("arc delivery position", () => {
         { kind: "push", ref: "refs/heads/member-3" },
       ],
     });
+
+    const staleFinding = {
+      findingId: "finding-stale-unpreserved",
+      origin: "review-thread" as const,
+      commentId: "comment-stale-unpreserved",
+      threadId: "thread-stale-unpreserved",
+      settlement: "reply-and-resolve" as const,
+      severity: "major" as const,
+      locus: "member-one.txt:1",
+      url: "https://example.test/thread-stale-unpreserved",
+    };
+    const staleApprovedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: oldTarget.targetId,
+        policyVersion: canonicalDigest({ policy: "review" }),
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        proposedBy: "agent-1",
+        findings: [{
+          findingId: staleFinding.findingId,
+          sourceIdentity: "codex-pr",
+          locus: staleFinding.locus,
+          sourceVerification: "verified",
+          verificationRefs: ["review:finding-stale-unpreserved"],
+          severity: "major",
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The source confirms the issue.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-08-31T12:15:00Z",
+    });
+    await new LocalReviewOperationStateStore(publisher).publishOperation({
+      schemaVersion: 1,
+      semanticsVersion: "review-operation/v1",
+      operationId: "lane-progress/stale-unpreserved",
+      updatedAt: "2026-08-31T12:15:00Z",
+      kind: "lane-progress",
+      lane: "standard",
+      repositoryId: "repo-1",
+      changeRequestId: "pull/401",
+      headSha: reviewedHead,
+      completedPasses: 1,
+      attempts: [{
+        attemptId: "operation-stale-unpreserved",
+        sourceId: "codex-pr",
+        outcome: "findings",
+        hosted: {
+          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          vehicle: {
+            kind: "delivery-member",
+            planId: fixture.plan.planId,
+            deliverableId: selectedDeliverableId,
+            workUnitId: fixture.plan.workUnitId,
+            head: reviewedHead,
+          },
+          reviewTarget: oldTarget,
+          requirement,
+          actorIdentity: "host-actor-1",
+          findings: [staleFinding],
+          dispositionSetId: staleApprovedDisposition.dispositionSet.dispositionSetId,
+          settledFindingIds: [],
+        },
+      }],
+    }, 0);
+    await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
+      ApprovedDispositionRecordSchema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "review-advisory/v1",
+        repositoryId: "repo-1",
+        operationId: "operation-stale-unpreserved",
+        candidate: null,
+        errand: null,
+        deliveryMember: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: selectedDeliverableId,
+          workUnitId: fixture.plan.workUnitId,
+          head: reviewedHead,
+        },
+        source: {
+          kind: "hosted",
+          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fstale-unpreserved:hosted%2F1",
+        },
+        approvedDisposition: staleApprovedDisposition,
+        fixAuthorization: createFixAuthorization({ dispositionState: staleApprovedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+      }),
+    );
+
+    const resumedWithStaleResponse = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      resumedWithStaleResponse.exitCode,
+      `${resumedWithStaleResponse.stderr}\n${resumedWithStaleResponse.stdout}`,
+    ).toBe(0);
+    expect(JSON.parse(resumedWithStaleResponse.stdout), resumedWithStaleResponse.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "review-status-required",
+    });
   });
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {
