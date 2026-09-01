@@ -250,22 +250,6 @@ export function createDeliveryReviewFixReleaseEffectPorts(input: {
         return { status: "refused" as const, reason: "record-effect-branch-unavailable" };
       }
       const head = (await input.exec("git", ["rev-parse", "HEAD"], { cwd: input.cwd })).stdout.trim();
-      const ref = `refs/heads/${branch}`;
-      const remote = await observeDeliveryRemoteRef(input.exec, input.remote, ref);
-      if (remote.status === "refused") {
-        return { status: "refused" as const, reason: "record-effect-remote-unavailable" };
-      }
-      if (remote.status === "absent") {
-        return { status: "refused" as const, reason: "record-effect-recovery-unprovable" };
-      }
-      if (remote.head === head) return { status: "none" as const };
-      let parent: string;
-      try {
-        parent = (await input.exec("git", ["rev-parse", "HEAD^"], { cwd: input.cwd })).stdout.trim();
-      } catch {
-        return { status: "none" as const };
-      }
-      if (parent !== remote.head) return { status: "none" as const };
       const [pathsResult, messageResult] = await Promise.all([
         input.exec(
           "git",
@@ -285,15 +269,30 @@ export function createDeliveryReviewFixReleaseEffectPorts(input: {
         return { status: "refused" as const, reason: "record-effect-recovery-ambiguous" };
       }
       const matched = matches[0];
-      return matched === undefined
-        ? { status: "none" as const }
-        : {
-            status: "recoverable" as const,
-            recordClass: matched.recordClass,
-            branch,
-            head,
-            beforeHead: remote.head,
-          };
+      if (matched === undefined) return { status: "none" as const };
+      const ref = `refs/heads/${branch}`;
+      const remote = await observeDeliveryRemoteRef(input.exec, input.remote, ref);
+      if (remote.status === "refused") {
+        return { status: "refused" as const, reason: "record-effect-remote-unavailable" };
+      }
+      if (remote.status === "absent") {
+        return { status: "refused" as const, reason: "record-effect-recovery-unprovable" };
+      }
+      if (remote.head === head) return { status: "none" as const };
+      let parent: string;
+      try {
+        parent = (await input.exec("git", ["rev-parse", "HEAD^"], { cwd: input.cwd })).stdout.trim();
+      } catch {
+        return { status: "none" as const };
+      }
+      if (parent !== remote.head) return { status: "none" as const };
+      return {
+        status: "recoverable" as const,
+        recordClass: matched.recordClass,
+        branch,
+        head,
+        beforeHead: remote.head,
+      };
     },
     readCurrentBranch: () => currentBranch(input.exec, input.cwd),
     readRemoteHead: async (ref) => {
