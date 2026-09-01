@@ -80,6 +80,8 @@ import {
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   readSubmissionBoundaryVersioned,
+  resolveSubmissionBoundaryPath,
+  SubmissionBoundaryVersionConflictError,
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
 import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
@@ -270,6 +272,13 @@ import {
   type ReviewStatusResult,
   type ReviewStatusWorkUnitInput,
 } from "../scripts/review-gate/status.js";
+import {
+  DeliveryReviewTerminusAcceptanceInputSchema,
+  DeliveryReviewTerminusAcceptanceResultSchema,
+  resolveDeliveryReviewTerminusAcceptance,
+  type DeliveryReviewTerminusAcceptanceInput,
+  type DeliveryReviewTerminusAcceptanceResult,
+} from "../scripts/review-gate/policy/delivery-review-terminus.js";
 
 /**
  * Build the request-source operand schema owned by one review command.
@@ -303,6 +312,7 @@ const REVIEW_JSON_COMMAND_PATHS = [
   "review local resume",
   "review respond",
   "review reduce",
+  "review terminus accept",
 ] as const;
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
@@ -792,6 +802,76 @@ export async function handleReviewStatus(
     }))}\n`);
     dependencies.setExitCode(1);
   }
+}
+
+export interface ReviewTerminusAcceptHandlerDependencies extends ReviewHandlerBoundary {
+  accept(
+    request: DeliveryReviewTerminusAcceptanceInput,
+    root: string,
+    interaction?: InteractionContext,
+  ): Promise<DeliveryReviewTerminusAcceptanceResult>;
+}
+
+async function acceptDeliveryReviewTerminus(
+  request: DeliveryReviewTerminusAcceptanceInput,
+  root: string,
+  interaction?: InteractionContext,
+): Promise<DeliveryReviewTerminusAcceptanceResult> {
+  const exec = createGitExec(interaction?.subprocess);
+  const ownerDependencies = createPrePublicationCompositionDependencies({ cwd: root, exec });
+  const result = await resolveDeliveryReviewTerminusAcceptance(request, {
+    readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(root, workUnitId),
+    readOwnerAuthority: (workUnitId) => ownerDependencies.readOwnerTerminusAuthority(workUnitId),
+    readCurrentOffer: async (workUnitId) => {
+      const status = await resolveReviewStatusForWorkUnit({ cwd: root, exec, workUnitId });
+      return status.nextAction === "obtain-ceiling-override"
+        ? status.terminusAction ?? null
+        : null;
+    },
+    writeBoundary: async (boundary, expectedVersion) => {
+      try {
+        return {
+          status: "written",
+          path: await writeSubmissionBoundary(root, boundary, expectedVersion),
+        };
+      } catch (error) {
+        if (error instanceof SubmissionBoundaryVersionConflictError) return { status: "version-conflict" };
+        throw error;
+      }
+    },
+  });
+  if (result.state !== "recorded") return result;
+  const boundaryPath = resolveSubmissionBoundaryPath(request.offer.workUnitId);
+  if (result.boundaryPath !== boundaryPath) {
+    throw new Error("The recorded Owner terminus returned an unexpected boundary path.");
+  }
+  await exec("git", ["add", "--", boundaryPath], { cwd: root });
+  return result;
+}
+
+/** Accept one exact delivery-member Owner terminus and emit one typed JSON result. */
+export async function handleReviewTerminusAccept(
+  source: string,
+  interaction?: InteractionContext,
+  overrides: Partial<ReviewTerminusAcceptHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies: ReviewTerminusAcceptHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    accept: acceptDeliveryReviewTerminus,
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode: "review-terminus-accept",
+    source,
+    requestSchema: DeliveryReviewTerminusAcceptanceInputSchema,
+    resultSchema: DeliveryReviewTerminusAcceptanceResultSchema,
+    dependencies,
+    execute: (request, root) => dependencies.accept(
+      DeliveryReviewTerminusAcceptanceInputSchema.parse(request),
+      root,
+      interaction,
+    ),
+  });
 }
 
 export interface ReviewChecksAwaitHandlerDependencies {

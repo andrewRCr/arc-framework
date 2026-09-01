@@ -169,6 +169,7 @@ import {
   handleReviewMergeMethodResolve,
   handleReviewChecksAwait,
   handleReviewStatus,
+  handleReviewTerminusAccept,
   handleReviewReduce,
   handleReviewRespond,
   type ReviewPrePublicationOptions,
@@ -1554,6 +1555,18 @@ reviewCmd
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, options: ReviewStatusOptions) => handleReviewStatus(options, context),
+  ));
+
+reviewCmd
+  .command("terminus")
+  .description("Explicit review-terminus operations")
+  .command("accept")
+  .description("Accept one exact delivery-member Owner terminus as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action(withInteractionContext(
+    { machineReadable: true },
+    (context, input: string) => handleReviewTerminusAccept(input, context),
   ));
 
 reviewCmd

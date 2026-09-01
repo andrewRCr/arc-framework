@@ -154,14 +154,31 @@ describe("integration boundary locus", () => {
   it("rebinds the carried public delivery reservation to one exact renewed-Candidate continuation", () => {
     const sourceCandidateId = `sha256:${"c".repeat(64)}`;
     const currentCandidateId = `sha256:${"d".repeat(64)}`;
-    const source = projectPublicationBoundary({
-      workUnit: "example",
-      candidateId: sourceCandidateId,
-      candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
-      branch: "feat/example",
-      reservation: deliveryReservation(),
-      changeRequest: null,
+    const memberTerminus = {
+      vehicle: {
+        kind: "delivery-member" as const,
+        planId: "11111111-1111-4111-8111-111111111111",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: "a".repeat(40),
+      },
+      terminus: ownerAcceptedTerminus,
+    };
+    const source = IntegrationBoundaryLocusSchema.parse({
+      ...projectPublicationBoundary({
+        workUnit: "example",
+        candidateId: sourceCandidateId,
+        candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+        branch: "feat/example",
+        reservation: deliveryReservation(),
+        changeRequest: null,
+      }),
+      deliveryReviewTermini: [memberTerminus],
     });
+    expect(IntegrationBoundaryLocusSchema.safeParse({
+      ...source,
+      deliveryReviewTermini: [memberTerminus, memberTerminus],
+    }).success).toBe(false);
     const deliveryContinuation = {
       schemaVersion: 1 as const,
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
@@ -196,6 +213,7 @@ describe("integration boundary locus", () => {
       policy: null,
       reservation: source.reservation,
       terminus: source.terminus,
+      deliveryReviewTermini: [memberTerminus],
       deliveryContinuation,
     });
   });

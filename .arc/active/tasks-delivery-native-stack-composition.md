@@ -2925,7 +2925,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               scoped verification, even when the WU checkout has advanced. The newer reviewable delta remains
               outside that evidence and deterministically returns through Candidate verification.
 
-    - `[ ]` **7.7.R.v Restore per-member Owner terminus parity**
+    - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
 
         - _Goal:_ An explicit Work Unit Owner terminus closes only the exact first-outstanding delivery member,
           remains durable across re-entry, and advances status to the next member without claiming a clean or
@@ -2943,6 +2943,16 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               invalidate changed member coordinates, and advance the conjunction without affecting later members.
             - Preserve the record through unrelated corrective boundary renewal, update the public integration
               workflow in both Framework copies, and prove durable re-entry without provider spend.
+
+        - _Outcome:_ Work-unit review status now emits one submit-ready Owner-terminus offer at the exact delivery
+          member ceiling. The acceptance command authenticates the live Work Unit Owner, revalidates Candidate,
+          boundary, member, head, and pass coordinates, and records or replays the exact member conclusion through
+          boundary CAS. Pending findings and applicability remain first, changed member coordinates stop applying,
+          corrective Candidate renewal preserves exact records, and admission selection now advances to the next
+          outstanding member before composing its executable action. The shipped integration workflow carries the
+          typed stop/accept/re-entry path without calling the member clean or converged. Both typechecks, lint gates,
+          ARC contract checks, the production-style ceiling-to-next-member case, and the complete 11,247-test suite
+          pass; acceptance and re-entry leave the hosted review-operation store unchanged.
 
 ## **Phase 8:** Record retirement and doctrine
 

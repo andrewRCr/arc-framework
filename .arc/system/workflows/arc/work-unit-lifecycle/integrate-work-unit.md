@@ -187,9 +187,10 @@ Throughout this iteration, **re-enter status** means preserve the same status sc
 command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
 judgment option before `--json`; never narrow a delivery continuation to an agent-reconstructed member target.
 
-`obtain-ceiling-override` renders the exact `consequence` and stops without requesting.
-Only explicit approval of that exact consequence admits one additional pass; on approval, re-enter the same status
-scope with the returned consequence serialized unchanged. For a delivery, use:
+`obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
+`terminusAction.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
+one additional pass; on approval, re-enter the same status scope with the returned consequence serialized unchanged.
+For a delivery, use:
 
 ```bash
 arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --ceiling-override '{consequence}' --json
@@ -200,6 +201,18 @@ For an ordinary singleton, use:
 ```bash
 arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
 ```
+
+When the Owner instead accepts the returned delivery-member terminus, pass `terminusAction` unchanged as `offer`
+beside the explicit `judgment.mode: owner-accepted` to:
+
+```bash
+arc review terminus accept -
+```
+
+`recorded / commit-boundary` stages the exact boundary record. Commit and push it, then re-enter status.
+`exact-replay / continue` re-enters directly. `refused / rerun-status` re-enters without reusing the stale offer;
+every other result stops. The terminus records explicit Owner authority only; never report the member clean or
+converged from it.
 
 `review-hosted-request` means pass the returned action unchanged to:
 

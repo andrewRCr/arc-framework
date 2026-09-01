@@ -12,6 +12,7 @@ import { classifyReviewContributionApplicability } from
 import { resolveReviewPolicy } from
   "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
+  bindDeliveryReviewTerminusOffer,
   composeDeliveryReviewObligation,
   composeSingletonReviewObligation,
   RoutedReviewObligationSchema,
@@ -496,6 +497,194 @@ describe("review status", () => {
       state: "approval-required",
       nextAction: "obtain-ceiling-override",
       consequence: obligation.consequence,
+    });
+  });
+
+  it("binds a ceiling stop to one submit-ready exact member terminus offer", async () => {
+    const policy = resolveReviewPolicy({
+      schemaVersion: 1,
+      target: hostedAction.target,
+      lane: "standard",
+      standardReview: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      sources: ["coderabbit-pr"],
+      maxPasses: 2,
+      completedPasses: 2,
+      attempts: [],
+    });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The member has exhausted its configured review passes.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: policy,
+        completedPasses: 2,
+      })],
+    });
+    const status = await resolveReviewStatus({ target }, port({ routedObligation: obligation }));
+
+    expect(bindDeliveryReviewTerminusOffer(status, {
+      workUnitId: "example",
+      expectedBoundaryVersion: `sha256:${"b".repeat(64)}`,
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+    })).toMatchObject({
+      nextAction: "obtain-ceiling-override",
+      terminusAction: {
+        kind: "delivery-member-owner-terminus",
+        workUnitId: "example",
+        target: hostedAction.target,
+        vehicle: memberVehicle,
+        completedPasses: 2,
+      },
+    });
+  });
+
+  it("advances past only the exact Owner-accepted member terminus", () => {
+    const secondVehicle = DeliveryReviewMemberVehicleSchema.parse({
+      ...memberVehicle,
+      deliverableId: `sha256:${"f".repeat(64)}`,
+      head: oid("d"),
+    });
+    const secondTarget = { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 2),
+        deliveryTarget(secondTarget, secondVehicle, 2, 2),
+      ],
+      discharges: [
+        deliveryDischarge({
+          discharged: false,
+          detail: "member one reached its ceiling",
+          nextSource: "coderabbit-pr",
+          completedPasses: 2,
+        }),
+        deliveryDischarge({
+          discharged: false,
+          detail: "member two requires review",
+          nextSource: "coderabbit-pr",
+          requestAdmission: readyAdmission("coderabbit-pr", secondTarget),
+        }),
+      ],
+      ownerTermini: [{
+        vehicle: memberVehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 2,
+        },
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      action: { target: secondTarget, vehicle: secondVehicle },
+      conjunction: { members: [{ state: "discharged" }, { state: "outstanding" }] },
+    });
+  });
+
+  it("keeps pending findings ahead of an exact member terminus", () => {
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The earlier findings attempt remains unsettled.",
+        nextSource: null,
+        responsePlan: hostedResponsePlan,
+      })],
+      ownerTermini: [{
+        vehicle: memberVehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 2,
+        },
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      responsePlan: hostedResponsePlan,
+      conjunction: { members: [{ state: "outstanding" }] },
+    });
+  });
+
+  it("keeps pending applicability ahead of an exact member terminus", () => {
+    const projection = reviewApplicabilityDecision();
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The prior member review has an uncovered residual.",
+        nextSource: null,
+        applicability: projection,
+      })],
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 4 }),
+        candidateId: canonicalDigest({ candidate: 4 }),
+      },
+      ownerTermini: [{
+        vehicle: memberVehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 0,
+        },
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      selectionAction: { projection },
+      conjunction: { members: [{ state: "outstanding" }] },
+    });
+  });
+
+  it("does not apply an Owner terminus after the member head moves", () => {
+    const priorVehicle = DeliveryReviewMemberVehicleSchema.parse({ ...memberVehicle, head: oid("9") });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The moved member requires review.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: readyAdmission("coderabbit-pr"),
+        completedPasses: 2,
+      })],
+      ownerTermini: [{
+        vehicle: priorVehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 2,
+        },
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      action: { target: hostedAction.target, vehicle: memberVehicle },
+      conjunction: { members: [{ state: "outstanding" }] },
     });
   });
 

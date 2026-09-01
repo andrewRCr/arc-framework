@@ -11,7 +11,9 @@ import {
   projectGitCandidateEffectiveTarget,
   resolveGitCandidateTargetBase,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
-import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import {
+  readSubmissionBoundaryVersioned,
+} from "../../lib/work-unit/submission-boundary-store.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { validateDeliveryPublicReviewContinuation } from
   "../../lib/delivery/public-review-continuation.js";
@@ -45,8 +47,10 @@ import {
 } from "./policy/hosted-reservation-admission.js";
 import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
 import {
+  bindDeliveryReviewTerminusOffer,
   composeDeliveryReviewObligation,
   composeSingletonReviewObligation,
+  isDeliveryReviewMemberDischargedByOwnerTerminus,
   resolveReviewStatus,
   type ReviewStatusObservation,
   type ReviewStatusPort,
@@ -123,7 +127,7 @@ export async function readRoutedObligation(
   }
   const workUnit = subject.workUnitId;
   try {
-    const boundary = await readSubmissionBoundary(cwd, workUnit);
+    const boundary = (await readSubmissionBoundaryVersioned(cwd, workUnit)).boundary;
     if (boundary === null) {
       return { state: "blocked", detail: "The publication boundary is unavailable." };
     }
@@ -279,7 +283,15 @@ export async function readRoutedObligation(
           };
         },
       );
-      const firstOutstandingIndex = discharges.findIndex((discharge) => !discharge.discharged);
+      const firstOutstandingIndex = composedDischarges.findIndex((discharge, index) => {
+        const memberTarget = deliveryTargets[index];
+        return !discharge.discharged && (memberTarget === undefined
+          || !isDeliveryReviewMemberDischargedByOwnerTerminus({
+            target: memberTarget,
+            discharge,
+            ownerTermini: boundary.deliveryReviewTermini,
+          }));
+      });
       const firstOutstanding = discharges[firstOutstandingIndex];
       const firstTarget = deliveryTargets[firstOutstandingIndex];
       if (firstOutstanding?.nextSource !== null
@@ -334,6 +346,7 @@ export async function readRoutedObligation(
           expectedRecordVersion: versionedRecord.version,
           candidateId: record.attestation.candidateId,
         },
+        ownerTermini: boundary.deliveryReviewTermini,
       });
     }
     const discharge = await readDischarge({
@@ -470,12 +483,15 @@ export async function resolveReviewStatusForWorkUnit(input: {
   readonly sourceId?: string;
 }): Promise<ReviewStatusResult> {
   const workUnitId = SlugSchema.parse(input.workUnitId);
-  const boundary = await readSubmissionBoundary(input.cwd, workUnitId);
+  const versionedBoundary = await readSubmissionBoundaryVersioned(input.cwd, workUnitId);
+  const boundary = versionedBoundary.boundary;
   if (boundary?.locus !== "hosted-review-pending"
     || boundary.nextAction.kind !== "continue-hosted-review"
     || boundary.nextAction.workUnitId !== workUnitId
     || boundary.reservation.target.kind !== "delivery"
-    || boundary.reservation.target.workUnitId !== workUnitId) {
+    || boundary.reservation.target.workUnitId !== workUnitId
+    || boundary.candidateSubjectDigest === null
+    || versionedBoundary.version === null) {
     throw new Error("The work unit has no self-contained hosted delivery-review continuation.");
   }
   const memberLookup = new RepositoryDeliveryMemberLookup(input);
@@ -539,7 +555,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     };
     selectedPullRequest = selected.target.pullRequest;
   }
-  return resolveReviewStatus({
+  const result = await resolveReviewStatus({
     target: selectedTarget,
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
     ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
@@ -548,4 +564,10 @@ export async function resolveReviewStatusForWorkUnit(input: {
     pullRequest: selectedPullRequest,
     routedObligation: routed,
   }));
+  return bindDeliveryReviewTerminusOffer(result, {
+    workUnitId,
+    expectedBoundaryVersion: versionedBoundary.version,
+    candidateId: boundary.candidateId,
+    candidateSubjectDigest: boundary.candidateSubjectDigest,
+  });
 }

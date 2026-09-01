@@ -108,6 +108,10 @@ describe("hosted review fan-out workflow", () => {
       "While a hosted await is live",
     );
     expectTypedProgression(section);
+    expect(section).toMatch(
+      /terminusAction[\s\S]*arc review terminus accept -[\s\S]*recorded \/ commit-boundary[\s\S]*exact-replay \/ continue[\s\S]*refused \/ rerun-status/iu,
+    );
+    expect(section).toMatch(/terminus[\s\S]*never[\s\S]*(?:clean|converged)/iu);
     const deliveryResume = section.indexOf("`continue-hosted-review`");
     const singletonResume = section.indexOf("`continue-pre-publication-review`", deliveryResume);
     expect(deliveryResume).toBeGreaterThanOrEqual(0);
