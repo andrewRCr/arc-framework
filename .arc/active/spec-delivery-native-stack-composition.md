@@ -1469,6 +1469,23 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       findings for one member pass batch into one publication by default; an earlier publish requires an explicit
       reason.
 
+- **D8.13 Preserve the existing Owner terminus at member scope — amended 2026-09-01 after live Member 1 review
+  reached its ceiling.** The standard-review driver already accepts an explicit Work Unit Owner terminus without
+  claiming a clean or converged pass. A Delivery Plan transports that same authority through the work-unit status
+  cursor for only its first outstanding member. Status returns a submit-ready offer bound to the exact Candidate,
+  boundary version, delivery-member vehicle, head, and observed completed-pass count. A separate acceptance command
+  authenticates the live identity as the Work Unit Owner, re-resolves the offer, and appends one exact member-bound
+  terminus through the existing version-checked integration-boundary store. Exact replay is a no-op; stale Candidate,
+  boundary, member, head, pass, or authority refuses before mutation.
+
+  Stored member termini are ordered and exact-head scoped. They remain review authority rather than delivery state,
+  survive unrelated Candidate renewal while their member vehicle remains exact, and stop applying as soon as that
+  member head or delivery identity changes. Pending findings, unresolved applicability, and malformed or unavailable
+  review evidence retain precedence; acceptance never synthesizes a provider result, pass completion, severity
+  summary, or convergence claim. The conjunction advances only past the accepted member and continues with the next
+  outstanding member. This restores existing driver parity and adds no signal-convergence rule, standing grant,
+  review verdict, operation outcome, record family, or generalized control flow.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh

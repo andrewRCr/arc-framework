@@ -2925,6 +2925,25 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               scoped verification, even when the WU checkout has advanced. The newer reviewable delta remains
               outside that evidence and deterministically returns through Candidate verification.
 
+    - `[ ]` **7.7.R.v Restore per-member Owner terminus parity**
+
+        - _Goal:_ An explicit Work Unit Owner terminus closes only the exact first-outstanding delivery member,
+          remains durable across re-entry, and advances status to the next member without claiming a clean or
+          converged review result.
+
+        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue — decision
+          record (2026-08-31), Amendment 2.
+
+        - Build `test-first` (one behavior at a time):
+            - Return one submit-ready Owner-terminus offer from a delivery-member ceiling stop, bound to the exact
+              Candidate, boundary version, member vehicle and head, and completed-pass count.
+            - Authenticate the active identity as the Work Unit Owner, re-resolve every bound coordinate, and append
+              or replay one member terminus through the version-checked integration-boundary store.
+            - Apply a stored terminus only to its exact member, preserve pending findings and applicability stops,
+              invalidate changed member coordinates, and advance the conjunction without affecting later members.
+            - Preserve the record through unrelated corrective boundary renewal, update the public integration
+              workflow in both Framework copies, and prove durable re-entry without provider spend.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`

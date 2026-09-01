@@ -508,3 +508,24 @@ Routed out, not built here: mechanical supersession — never offering an attemp
 at a descendant head provably covers — is review-evidence liveness, owned by `review-orchestration-right-sizing`
 and adjacent to the existing terminal-record garbage-collection capture; captured to `USER-INBOX` with this
 instance as evidence.
+
+### Amendment 2 — member-scoped Owner terminus parity (2026-09-01)
+
+After the final Member 1 record-only minor was settled, status correctly reached the configured ceiling but offered
+only another-pass authorization. The generic standard-review driver already supports an explicit Work Unit Owner
+terminus, yet stacked delivery transported source choice, coverage, and ceiling authority while omitting that existing
+judgment. The single Candidate-wide boundary terminus cannot be reused: doing so would close the complete work-unit
+standard lane and skip every remaining delivery member.
+
+Decided behavior: restore parity through one exact member-bound wrapper around the existing
+`review-terminus/v1` conclusion. A ceiling status returns the complete acceptance offer; a separate mutating command
+authenticates the live Owner, revalidates the Candidate, boundary version, first-outstanding vehicle and head, and
+completed-pass count, then appends the conclusion through the existing version-checked integration-boundary store.
+The record applies only to that exact member head and lets the conjunction select its next member. Pending findings
+or applicability decisions retain precedence, and changed coordinates require fresh direction. The operation never
+reports clean, pass-complete, evaluator-satisfied, or converged.
+
+This is transport and durable scoping of shipped Owner authority, not signal-convergence policy. No provider outcome,
+severity threshold, standing grant, Candidate transition, operation-state outcome, record family, or generic driver
+is added. Future `review-signal-convergence` remains authoritative for deriving convergence from durable result and
+disposition evidence; its minors-only rule would independently reach the same live Member 1 outcome.
