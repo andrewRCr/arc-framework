@@ -58,6 +58,21 @@ interface CachedCandidate {
   current: Awaited<ReturnType<typeof collectGitCandidateTarget>>;
 }
 
+/**
+ * Decide whether the open request targets the configured base or its validated delivery predecessor.
+ *
+ * @param input - Observed request base plus the two authoritative admitted-base sources.
+ * @returns True only when one authority admits the observed base.
+ */
+export function checkpointBaseIsAccepted(input: {
+  candidateBaseRef: string;
+  configuredBaseRef: string;
+  acceptableDeliveryBaseRefs: readonly string[];
+}): boolean {
+  return input.candidateBaseRef === input.configuredBaseRef
+    || input.acceptableDeliveryBaseRefs.includes(input.candidateBaseRef);
+}
+
 export type IntegrationLifecycleReadFs = NonNullable<
   Parameters<typeof resolveComposedLifecycleIndex>[0]["fs"]
 >;
@@ -96,24 +111,25 @@ async function resolveOpenChangeRequest(exec: GitExec, cwd: string) {
   const target = await currentHead(exec, cwd);
   const baseRef = (await readConfigSettings(cwd)).settings["branch.base"];
   const memberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd });
+  const acceptableBaseRefs = await resolveAcceptableDeliveryBaseRefs(memberLookup, target.head);
   const result = await resolveChangeRequest(
     {
       headRef: target.branch,
       headSha: target.head,
       baseRef,
-      acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(memberLookup, target.head),
+      acceptableBaseRefs,
     },
     createGhChangeRequestResolutionPort(exec, cwd),
   );
   if (result.state !== "open") {
     throw new Error(`The exact integration head has no reusable open change request (${result.state}).`);
   }
-  return result;
+  return { changeRequest: result, acceptableBaseRefs };
 }
 
 async function readHostFact(exec: GitExec, cwd: string): Promise<ReconcileHostFact> {
   try {
-    const changeRequest = await resolveOpenChangeRequest(exec, cwd);
+    const { changeRequest } = await resolveOpenChangeRequest(exec, cwd);
     const repository = changeRequest.targetRef.repository;
     const pullRequest = changeRequest.candidate.number;
     const live = parseRecord(
@@ -290,13 +306,14 @@ export function createIntegrationCheckpointDependencies(input: {
       );
     },
     composeReady: async ({ workUnit, lifecycle, candidate: currentness }) => {
-      const [value, changeRequest, boundary] = await Promise.all([
+      const [value, resolvedChangeRequest, boundary] = await Promise.all([
         candidate(workUnit),
         resolveOpenChangeRequest(input.exec, input.cwd),
         readSubmissionBoundary(input.cwd, workUnit),
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");
       if (boundary === null) throw new Error("The durable publication boundary is unavailable.");
+      const { changeRequest, acceptableBaseRefs } = resolvedChangeRequest;
       if (boundary.candidateId !== value.record.attestation.candidateId
         || boundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
         throw new Error("The durable publication boundary belongs to a different Candidate subject.");
@@ -305,7 +322,11 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The durable publication boundary has not entered public integration.");
       }
       const configuredBase = (await settings()).settings["branch.base"];
-      if (changeRequest.candidate.baseRefName !== configuredBase) {
+      if (!checkpointBaseIsAccepted({
+        candidateBaseRef: changeRequest.candidate.baseRefName,
+        configuredBaseRef: configuredBase,
+        acceptableDeliveryBaseRefs: acceptableBaseRefs,
+      })) {
         throw new Error("The open change request targets a different branch than the configured base.");
       }
       // The boundary's own derivation decides whether a hosted review is due at this exact head;

@@ -186,10 +186,18 @@ export function createHostedReservationDischargeReader(input: {
     reservation: StandardReviewReservationV1,
     target: HostedReservationTarget,
   ): Promise<HostedReservationDischarge> => {
-    const { stdout } = await input.exec("git", ["rev-list", `${target.baseRevision}..${target.headSha}`], {
-      cwd: input.cwd,
-      objectAccess: "local-only",
-    });
+    let stdout: string;
+    try {
+      ({ stdout } = await input.exec("git", ["rev-list", `${target.baseRevision}..${target.headSha}`], {
+        cwd: input.cwd,
+        objectAccess: "local-only",
+      }));
+    } catch {
+      return {
+        discharged: false,
+        detail: "The reserved hosted-review target span is unavailable.",
+      };
+    }
     const span = [target.baseRevision, ...stdout.trim().split("\n").filter((line) => line !== "")];
     return projectHostedReservationDischarge({
       reservation,
