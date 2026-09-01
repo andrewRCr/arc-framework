@@ -10,7 +10,7 @@ const candidatePath = `.arc/system/.internal/candidates/${workUnitId}.json`;
 const boundaryPath = `.arc/system/.internal/candidates/${workUnitId}.boundary.json`;
 
 describe("delivery review-fix record effects", () => {
-  it("classifies only the exact machine-owned record paths", () => {
+  it("isolates exact machine-owned record paths from staged content", () => {
     expect(classifyDeliveryReviewFixStagedRecords({
       workUnitId,
       paths: [boundaryPath, candidatePath],
@@ -23,9 +23,15 @@ describe("delivery review-fix record effects", () => {
       workUnitId,
       paths: [candidatePath, "src/content.ts"],
     })).toEqual({
-      status: "refused",
-      reason: "record-effect-stage-contaminated",
+      status: "ready",
+      recordClass: "review-applicability-selection",
+      paths: [candidatePath],
+    });
+    expect(classifyDeliveryReviewFixStagedRecords({
+      workUnitId,
       paths: ["src/content.ts"],
+    })).toEqual({
+      status: "idle",
     });
   });
 
