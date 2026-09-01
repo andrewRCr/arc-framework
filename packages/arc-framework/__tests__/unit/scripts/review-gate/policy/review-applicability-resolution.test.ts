@@ -11,6 +11,7 @@ import {
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   resolveReviewApplicability,
+  resolveReviewApplicabilityBatch,
   type ReviewApplicabilityResolutionContext,
 } from "../../../../../src/scripts/review-gate/policy/review-applicability-resolution.js";
 import { classifyReviewContributionApplicability } from
@@ -187,5 +188,51 @@ describe("review applicability resolution", () => {
       reason: "selector-changed",
     });
     expect(fixture.writes()).toBe(0);
+  });
+
+  it("atomically appends every exact selection in one equivalent batch", async () => {
+    const fixture = harness();
+    const secondSelector = { ...fixture.input.selector, priorAttemptId: "attempt-equivalent" };
+    const secondProjection = classifyReviewContributionApplicability(secondSelector, {
+      endpoints: fixture.projection.projection,
+      proof: {
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: [...fixture.projection.paths],
+      },
+    });
+    if (secondProjection.state !== "decision-required") throw new Error("expected second decision fixture");
+    const context = {
+      ...fixture.context,
+      projectApplicability: async (selector: typeof fixture.input.selector) => (
+        selector.priorAttemptId === secondSelector.priorAttemptId ? secondProjection : fixture.projection
+      ),
+    };
+
+    await expect(resolveReviewApplicabilityBatch(context, [
+      fixture.input,
+      {
+        ...fixture.input,
+        selector: secondSelector,
+        projectionDigest: secondProjection.projectionDigest,
+        residualDigest: secondProjection.residualDigest,
+      },
+    ])).resolves.toMatchObject({ state: "resolved", choice: "covered" });
+    expect(fixture.writes()).toBe(1);
+    expect(fixture.record().transitions).toMatchObject([
+      { transitionKind: "review-applicability-selection", selector: fixture.input.selector },
+      { transitionKind: "review-applicability-selection", selector: secondSelector },
+    ]);
+  });
+
+  it("writes nothing when one member of an applicability batch is stale", async () => {
+    const fixture = harness();
+    const secondSelector = { ...fixture.input.selector, priorAttemptId: "attempt-stale" };
+    await expect(resolveReviewApplicabilityBatch(fixture.context, [
+      fixture.input,
+      { ...fixture.input, selector: secondSelector },
+    ])).resolves.toMatchObject({ state: "stale-bound-input", reason: "selector-changed" });
+    expect(fixture.writes()).toBe(0);
+    expect(fixture.record().transitions).toEqual([]);
   });
 });

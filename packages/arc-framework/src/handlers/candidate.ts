@@ -41,8 +41,10 @@ import { projectGitReviewContributionApplicability } from
 import {
   ReviewApplicabilityResolutionCommandInputSchema,
   ReviewApplicabilityResolutionResultSchema,
+  type ReviewApplicabilityResolutionInput,
   resolveReviewApplicability,
-  reviewApplicabilityResolutionInputFromCommand,
+  resolveReviewApplicabilityBatch,
+  reviewApplicabilityResolutionInputsFromCommand,
 } from "../scripts/review-gate/policy/review-applicability-resolution.js";
 import type { CandidateMutationOwner } from "../lib/work-unit/candidate-mutation-owner.js";
 import {
@@ -168,40 +170,47 @@ async function executeCandidateApplicabilityResolution(
     if (input.offer.workUnitId !== name) {
       throw new Error("Review applicability offer belongs to a different work unit.");
     }
-    const request = reviewApplicabilityResolutionInputFromCommand(input);
+    const requests = reviewApplicabilityResolutionInputsFromCommand(input);
     const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: root, exec: git });
-    resolution = await resolveReviewApplicability({
+    const context = {
       readRecord: () => readCandidateRecordVersioned(root, name),
-      projectApplicability: (selector) => projectGitReviewContributionApplicability({
-        selector,
-        exec: rawGit,
-        observeEndpoints: async () => {
-          if (selector.currentVehicle !== undefined) {
-            const member = await memberLookup.resolveMemberByHead(selector.currentVehicle.head);
-            if (member.status !== "resolved") {
-              throw new Error("Current delivery-member applicability coordinates are unavailable.");
+      projectApplicability: (selector: ReviewApplicabilityResolutionInput["selector"]) => (
+        projectGitReviewContributionApplicability({
+          selector,
+          exec: rawGit,
+          observeEndpoints: async () => {
+            if (selector.currentVehicle !== undefined) {
+              const member = await memberLookup.resolveMemberByHead(selector.currentVehicle.head);
+              if (member.status !== "resolved") {
+                throw new Error("Current delivery-member applicability coordinates are unavailable.");
+              }
+              const actualVehicle = DeliveryReviewMemberVehicleSchema.parse({
+                kind: "delivery-member",
+                planId: member.member.planId,
+                deliverableId: member.member.deliverableId,
+                workUnitId: member.member.workUnitId,
+                head: member.member.head,
+              });
+              if (!sameDeliveryReviewMemberVehicle(selector.currentVehicle, actualVehicle)) {
+                throw new Error("Current delivery-member applicability coordinates changed.");
+              }
+              return { head: member.member.head, base: member.member.base };
             }
-            const actualVehicle = DeliveryReviewMemberVehicleSchema.parse({
-              kind: "delivery-member",
-              planId: member.member.planId,
-              deliverableId: member.member.deliverableId,
-              workUnitId: member.member.workUnitId,
-              head: member.member.head,
-            });
-            if (!sameDeliveryReviewMemberVehicle(selector.currentVehicle, actualVehicle)) {
-              throw new Error("Current delivery-member applicability coordinates changed.");
-            }
-            return { head: member.member.head, base: member.member.base };
-          }
-          const [head, base] = await Promise.all([
-            readObjectId("HEAD^{commit}"),
-            currentBase(),
-          ]);
-          return { head, base };
-        },
-      }),
+            const [head, base] = await Promise.all([
+              readObjectId("HEAD^{commit}"),
+              currentBase(),
+            ]);
+            return { head, base };
+          },
+        })
+      ),
       writeRecord,
-    }, request);
+    };
+    const [request] = requests;
+    if (request === undefined) throw new Error("Review applicability offer has no projection.");
+    resolution = requests.length === 1
+      ? await resolveReviewApplicability(context, request)
+      : await resolveReviewApplicabilityBatch(context, requests);
   } else {
     resolution = await resolveCandidateApplicability({
       readRecord: () => readCandidateRecordVersioned(root, name),
