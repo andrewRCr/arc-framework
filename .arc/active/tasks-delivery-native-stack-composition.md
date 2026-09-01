@@ -2796,10 +2796,8 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                   non-hosted states still refuse. The extended E2E failed first on the stale refusal and then passed
                   all 21 production cases. The repeated live drive published Member 7 and refreshed the top in one
                   invocation; its rebound tree exactly equals the already-green correction tree, so the typed Tier 1
-                  reuse contract applies without a rerun. The follow-up invocation acknowledged that target, carried
-                  Candidate state revision 197, committed boundary projection `d2e49b473`, pushed the top, preserved
-                  this staged closure, and returned Member 1's exact `resolve-review-applicability` stop. No
-                  orchestration record, quality ledger, generic workflow engine, or convergence policy was added.
+                  reuse contract applies without a rerun. No orchestration record, quality ledger, generic workflow
+                  engine, or convergence policy was added.
                 - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
                   bounded rescue receives no third pass, and the primary walk retains judgment over the exact delta.
                 - _Summary:_ five met, zero superseded, zero unresolved. The final two Success Criteria markers are
