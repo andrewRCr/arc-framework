@@ -552,11 +552,10 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
-  it("advances a published selected correction into provider refresh", () => {
+  it("resumes a published selected correction without re-planning", () => {
     expect(projectDeliveryReviewFixContinuation({
       request,
       entry: correctionEntry(),
-      route: route("provider-refresh"),
       state: pendingSelectedRefreshState(),
       activeBranch: "feat/example",
     })).toMatchObject({

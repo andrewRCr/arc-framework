@@ -1604,6 +1604,27 @@ describe("arc delivery position", () => {
       }),
     );
 
+    const publishedBeforeInterruption = await runArcWithStdin(
+      ["delivery", "review-fix", "publish", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({
+        planId: fixture.plan.planId,
+        selectedDeliverableId,
+        repository: "owner/repo",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      publishedBeforeInterruption.exitCode,
+      `${publishedBeforeInterruption.stderr}\n${publishedBeforeInterruption.stdout}`,
+    ).toBe(0);
+    expect(JSON.parse(publishedBeforeInterruption.stdout), publishedBeforeInterruption.stdout).toMatchObject({
+      command: "delivery review-fix publish",
+      status: "published",
+      selectedDeliverableId,
+    });
+
     const continued = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
@@ -1620,7 +1641,6 @@ describe("arc delivery position", () => {
       selectedDeliverableId,
       verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
       effectLog: [
-        { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
         { kind: "dispatch", actionKind: "delivery-refresh-execute", resultStatus: "applied" },
       ],
     });

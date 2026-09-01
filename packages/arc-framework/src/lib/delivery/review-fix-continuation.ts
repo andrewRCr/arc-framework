@@ -378,6 +378,15 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
   }
 
   if (entry.status === "correction-routing-required") {
+    if (input.state !== undefined
+      && hasExactPendingSelectedRefresh(input.state.value, entry.selectedDeliverableId)) {
+      return projectPendingSelectedRefresh({
+        request,
+        planId: entry.planId,
+        selectedDeliverableId: entry.selectedDeliverableId,
+        state: input.state,
+      });
+    }
     const route = input.route;
     if (route === undefined || route.status === "refused") {
       return route ?? { status: "refused" as const, reason: "review-fix-route-unavailable" };

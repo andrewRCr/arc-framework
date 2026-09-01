@@ -1896,6 +1896,17 @@ async function executeDeliveryCommand(
       }
 
       if (entry.status === "correction-routing-required") {
+        const stateRead = await stateStore.read(entry.planId);
+        if (stateRead.status === "ok" && stateRead.value !== null) {
+          const resumed = projectDeliveryReviewFixContinuation({
+            request: projectionRequest,
+            entry,
+            state: stateRead.value,
+          });
+          if (resumed.status === "dispatch") {
+            return resumed;
+          }
+        }
         const prepared = preparedCorrection ?? await prepareCorrection(entry);
         return prepared.result;
       }

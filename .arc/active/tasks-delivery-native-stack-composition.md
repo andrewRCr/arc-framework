@@ -2684,7 +2684,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   unchanged-Candidate renewal cycle. General workflow composition, convergence policy, storage redesign, and
   user-configurable commit autonomy remain with their recorded owners.
 
-    - `[x]` **7.7.R.u Drive the delivery correction to one typed stop**
+    - `[ ]` **7.7.R.u Drive the delivery correction to one typed stop**
 
         - _Goal:_ One selector-free invocation executes the existing deterministic correction tail, resumes after
           interruption without rederivation, and returns only at the closed judgment, review-spend, conflict,
@@ -2864,6 +2864,26 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
             - All 60 focused review-fix tests and all 21 production delivery-position E2E cases pass, along with
               production/test typechecks and focused TypeScript lint. The next live Member 7 projection is the
               handler-level acceptance run for the source-checkout movement that exposed the gap.
+
+        - `[x]` **7.7.R.u.k Resume an interrupted published correction without replanning**
+
+            - _Goal:_ A fresh selector-free invocation observes an exact published-member chain break and executes
+              its retained provider refresh without returning through correction planning, even when the prior
+              driver process ended between those two effects.
+
+            - _Outcome:_ The pure projector and production handler now dispatch the exact pending refresh directly
+              from canonical Delivery State after an interrupted publication. Initial correction authoring still
+              plans normally, and persisted-operation mismatch guards remain unchanged.
+
+        - `[ ]` **7.7.R.u.l Absorb provider history collisions through exact natural-merge semantics**
+
+            - _Goal:_ A provider rebase collision caused only by duplicate branch history does not become an attended
+              conflict when the exact logical-base/two-parent merge is clean; a genuine content conflict retains its
+              paths and complete preparation coordinates.
+
+            - Build `test-first` through a real-Git provider preparation that collides during history replay, then
+              prove the natural merge prepares contribution-equivalent suffix candidates without provider push
+              authority. Keep actual merge-tree conflicts as typed stops and preserve ordinary provider success.
 
 ## **Phase 8:** Record retirement and doctrine
 
