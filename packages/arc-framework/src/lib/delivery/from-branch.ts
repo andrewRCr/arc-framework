@@ -38,7 +38,6 @@ import { bindDesignInventory } from "./design-inventory.js";
 import { DeliveryPlanAuthoringInputV1Schema } from "./schema.js";
 import {
   buildDeliveryTaskInventory,
-  isDeliveryTaskAssignable,
   type DeliveryTaskInventory,
 } from "./task-inventory.js";
 
@@ -205,7 +204,7 @@ export type PrepareDeliveryFromBranchAuthoringResult =
       | "invalid-design-inventory"
       | "task-list-malformed"
       | "verification-phase-missing"
-      | "work-unit-verification-task-ambiguous"
+      | "verification-task-ambiguous"
       | "invalid-authoring-identity"
       | "commit-attribution-unreadable"
       | "contribution-step-missing"
@@ -409,7 +408,8 @@ export function resolveDeliveryFromBranchProjection(input: {
       elements: input.snapshot.design.elements.map(({ elementId }) => ({ elementId })),
     },
     tasks: {
-      parents: input.snapshot.tasks.parents.map(({ taskId, role }) => ({ taskId, role })),
+      implementation: input.snapshot.tasks.implementation.map(({ taskId }) => ({ taskId })),
+      verificationTaskId: input.snapshot.tasks.verificationTaskId,
     },
     entry: "from-branch",
     projection: input.slots.projection,
@@ -601,7 +601,10 @@ async function deriveTaskAttributions(
   readonly reason: "commit-attribution-unreadable";
 }> {
   const orderedTaskIds = taskListIds(taskListContent);
-  const parentTaskIds = inventory.parents.map((task) => task.taskId);
+  const parentTaskIds = [
+    ...inventory.implementation.map((task) => task.taskId),
+    inventory.verificationTaskId,
+  ];
   const taskAttributions: {
     readonly commit: string;
     readonly referencedTaskIds: readonly string[];
@@ -711,8 +714,7 @@ function taskIdsForSegment(
   const represented = new Set(attributions
     .filter((attribution) => commitIds.includes(attribution.commit))
     .flatMap((attribution) => attribution.taskIds));
-  return snapshot.tasks.parents
-    .filter(isDeliveryTaskAssignable)
+  return snapshot.tasks.implementation
     .map((task) => task.taskId)
     .filter((taskId) => represented.has(taskId));
 }

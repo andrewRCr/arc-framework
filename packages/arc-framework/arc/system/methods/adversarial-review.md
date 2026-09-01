@@ -6,7 +6,6 @@ related:
   - implementation-audit
   - review-chunking
   - standard-review
-  - validate-criteria
 override-active: false
 ---
 
@@ -19,7 +18,7 @@ override-active: false
 >   and has a supplied rubric to attack.
 >
 > - **Signature:** `adversarial-review(rubric, artifacts, orientation, pass-cap, prior-findings?,
->   authored-partition?, aggregate-evidence?, partition-map?)` → findings report
+>   authored-partition?, partition-map?)` → findings report
 > - **Contract:** Given a supplied rubric and stage artifacts, run that rubric adversarially with fresh context,
 >   primary-held judgment, caller-owned launch policy, and convergence-oriented follow-up. Findings are advisory for
 >   mutation until the primary verifies and disposes them; the method never creates a hard gate or satisfying
@@ -84,7 +83,6 @@ adversarial-review:
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3 (§ Exit gate)
   prior-findings:  # pass two onward — prior findings + applied fixes; omitted on pass one
   authored-partition: # attention carrier only — existing contract-closed groups; omitted otherwise
-  aggregate-evidence: # authored-partition aggregate only — scoped reports + complete coverage facts
   partition-map:   # partitioned pass only — named slices + ownership boundaries; omitted otherwise
 ```
 
@@ -98,13 +96,11 @@ adversarial-review:
 | `pass-cap`           | `Class`-scaled        | Primary-side cap on spawned passes; not serialized.            |
 | `prior-findings`     | pass two onward       | Prior findings and applied fixes; omitted from the first pass. |
 | `authored-partition` | attention carrier     | Existing contract-closed groups (§ Authored-partition mode).   |
-| `aggregate-evidence` | aggregate call only   | Current scoped reports plus complete coverage facts.           |
 | `partition-map`      | partitioned pass only | Named slices + ownership boundaries (§ Novel fan-out hook).    |
 
-`rubric`, `artifacts`, `orientation`, `prior-findings`, `authored-partition`, `aggregate-evidence`, and
-`partition-map` (when present) are subagent-context inputs. Serialize the inputs needed by each fresh call.
-`pass-cap` is a primary-side loop bound only: the primary uses it to decide how many logical passes it may run, but a
-reviewer never sees that bound.
+`rubric`, `artifacts`, `orientation`, `prior-findings`, `authored-partition`, and `partition-map` (when present) are
+subagent-context inputs. Serialize the inputs needed by each fresh call. `pass-cap` is a primary-side loop bound
+only: the primary uses it to decide how many logical passes it may run, but a reviewer never sees that bound.
 
 **Return schema:**
 
@@ -147,9 +143,6 @@ Prior findings and fixes:
 
 Authored partition:
 {authored-partition | "None. Use one whole-target reviewer."}
-
-Aggregate evidence:
-{aggregate-evidence | "None. This is not an authored-partition aggregate call."}
 
 Partition map:
 {partition-map | "None. This is a standard non-partitioned pass."}
@@ -245,9 +238,6 @@ serialize its exact assigned group set, corresponding artifact slice, and comple
 one fresh seam-and-aggregate reviewer over the complete union. The aggregate consumes every scoped report plus the
 authored partition's complete coverage facts, verifies full coverage and cross-group seams, and emits the
 whole-target result; every call together remains one logical pass.
-
-Omit `aggregate-evidence` from the scoped calls. Supply it only to the aggregate call, serialized as every scoped
-report plus the authored partition's complete coverage facts. It is current-pass evidence, never `prior-findings`.
 
 This carrier does not invent or automatically derive partitions, create 1:1 member fan-out, persist state, add a CLI
 surface, or add an interlock. Without a stable authored partition, use one whole-target reviewer. It does not satisfy

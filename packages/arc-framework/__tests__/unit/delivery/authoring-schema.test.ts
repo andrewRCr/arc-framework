@@ -25,23 +25,14 @@ describe("delivery authoring snapshot", () => {
       },
       tasks: {
         inventoryDigest: canonicalDigest([
-          { taskId: "1.1", semanticDigest: taskOneDigest, role: { kind: "implementation" } },
-          { taskId: "1.2", semanticDigest: taskTwoDigest, role: { kind: "implementation" } },
-          {
-            taskId: "2.1",
-            semanticDigest: null,
-            role: { kind: "verification", scope: "work-unit" },
-          },
+          { taskId: "1.1", semanticDigest: taskOneDigest },
+          { taskId: "1.2", semanticDigest: taskTwoDigest },
         ]),
-        parents: [
-          { taskId: "1.1", semanticDigest: taskOneDigest, role: { kind: "implementation" } },
-          { taskId: "1.2", semanticDigest: taskTwoDigest, role: { kind: "implementation" } },
-          {
-            taskId: "2.1",
-            semanticDigest: null,
-            role: { kind: "verification", scope: "work-unit" },
-          },
+        implementation: [
+          { taskId: "1.1", semanticDigest: taskOneDigest },
+          { taskId: "1.2", semanticDigest: taskTwoDigest },
         ],
+        verificationTaskId: "2.1",
       },
       source: {
         entry: "from-tasks",

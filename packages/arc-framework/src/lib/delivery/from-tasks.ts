@@ -13,12 +13,7 @@ import {
 import type { DeliveryCompositionProjection } from "./compose.js";
 import { bindDesignInventory } from "./design-inventory.js";
 import { DeliveryPlanAuthoringInputV1Schema } from "./schema.js";
-import {
-  buildDeliveryTaskInventory,
-  isDeliveryTaskAssignable,
-  isWorkUnitVerificationTask,
-  type DeliveryTaskInventory,
-} from "./task-inventory.js";
+import { buildDeliveryTaskInventory, type DeliveryTaskInventory } from "./task-inventory.js";
 import { canonicalize } from "../kernel/index.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 
@@ -74,7 +69,7 @@ export type PrepareDeliveryFromTasksAuthoringResult =
       | "invalid-design-inventory"
       | "task-list-malformed"
       | "verification-phase-missing"
-      | "work-unit-verification-task-ambiguous"
+      | "verification-task-ambiguous"
       | "invalid-authoring-identity";
   };
 
@@ -109,9 +104,7 @@ export function prepareDeliveryFromTasksAuthoring(
         identitySequence: facts.value.phaseGroups.flatMap((phase) => [
           `phase:${phase.phaseId}`,
           ...phase.taskIds.map((taskId) => `task:${taskId}`),
-        ]).concat(tasks.inventory.parents
-          .filter(isWorkUnitVerificationTask)
-          .map((task) => `task:${task.taskId}`)),
+        ]).concat(`task:${tasks.inventory.verificationTaskId}`),
       },
     });
     return {
@@ -161,7 +154,7 @@ export function resolveDeliveryFromTasksProjection(_input: {
   readonly reason:
     | "from-tasks-facts-malformed"
     | "boundary-member-mismatch"
-    | "work-unit-verification-task-ineligible"
+    | "verification-task-ineligible"
     | "authoring-projection-invalid";
 }
   | { readonly status: "resolved"; readonly projection: DeliveryCompositionProjection } {
@@ -179,13 +172,10 @@ export function resolveDeliveryFromTasksProjection(_input: {
       sourceIds: phase.taskIds,
     }))
     : input.slots.boundary.segments;
-  const workUnitVerificationTaskIds = new Set(input.snapshot.tasks.parents
-    .filter(isWorkUnitVerificationTask)
-    .map((task) => task.taskId));
-  if (segments.some((segment) => segment.sourceIds.some((taskId) => (
-    workUnitVerificationTaskIds.has(taskId)
-  )))) {
-    return { status: "refused", reason: "work-unit-verification-task-ineligible" };
+  if (segments.some((segment) => (
+    segment.sourceIds.includes(input.snapshot.tasks.verificationTaskId)
+  ))) {
+    return { status: "refused", reason: "verification-task-ineligible" };
   }
   if (segments.length !== input.slots.members.length
     || segments.some((segment, index) => segment.chunkKey !== input.slots.members[index]?.chunkKey)) {
@@ -201,7 +191,8 @@ export function resolveDeliveryFromTasksProjection(_input: {
       elements: input.snapshot.design.elements.map(({ elementId }) => ({ elementId })),
     },
     tasks: {
-      parents: input.snapshot.tasks.parents.map(({ taskId, role }) => ({ taskId, role })),
+      implementation: input.snapshot.tasks.implementation.map(({ taskId }) => ({ taskId })),
+      verificationTaskId: input.snapshot.tasks.verificationTaskId,
     },
     entry: "from-tasks",
     projection: input.slots.projection,
@@ -219,9 +210,7 @@ export function resolveDeliveryFromTasksProjection(_input: {
     projection: {
       authoring: authoring.data,
       boundary: input.slots.boundary,
-      contributionStepIds: input.snapshot.tasks.parents
-        .filter(isDeliveryTaskAssignable)
-        .map((task) => task.taskId),
+      contributionStepIds: input.snapshot.tasks.implementation.map((task) => task.taskId),
       memberContributionSteps: segments.map((segment) => ({
         chunkKey: segment.chunkKey,
         contributionStepIds: segment.sourceIds,
@@ -234,12 +223,13 @@ function eligibilityMatchesSnapshot(
   snapshot: DeliveryAuthoringSnapshotV1,
   facts: z.infer<typeof DeliveryFromTasksFactsSchema>,
 ): boolean {
-  return JSON.stringify(facts.membershipEligibility) === JSON.stringify(
-    snapshot.tasks.parents.map((task) => ({
+  return JSON.stringify(facts.membershipEligibility) === JSON.stringify([
+    ...snapshot.tasks.implementation.map((task) => ({
       taskId: task.taskId,
-      eligibleForMembership: isDeliveryTaskAssignable(task),
+      eligibleForMembership: true,
     })),
-  );
+    { taskId: snapshot.tasks.verificationTaskId, eligibleForMembership: false },
+  ]);
 }
 
 function deriveFromTasksFacts(
@@ -249,9 +239,7 @@ function deriveFromTasksFacts(
   | { readonly status: "refused"; readonly reason: "task-list-malformed" } {
   const scan = scanTaskListStructure(content);
   if (scan.status === "malformed") return { status: "refused", reason: "task-list-malformed" };
-  const assignable = new Set(tasks.parents
-    .filter(isDeliveryTaskAssignable)
-    .map((task) => task.taskId));
+  const implementation = new Set(tasks.implementation.map((task) => task.taskId));
   const groups: { phaseId: string; title: string; taskIds: string[] }[] = [];
   let current: { phaseId: string; title: string; taskIds: string[] } | null = null;
   for (const event of scan.events) {
@@ -260,12 +248,12 @@ function deriveFromTasksFacts(
       groups.push(current);
       continue;
     }
-    if (event.type !== "parent" || !assignable.has(event.item.id)) continue;
+    if (event.type !== "parent" || !implementation.has(event.item.id)) continue;
     if (current === null) return { status: "refused", reason: "task-list-malformed" };
     current.taskIds.push(event.item.id);
   }
   const phaseGroups = groups.filter((group) => group.taskIds.length > 0);
-  if (phaseGroups.flatMap((group) => group.taskIds).length !== assignable.size
+  if (phaseGroups.flatMap((group) => group.taskIds).length !== implementation.size
     || new Set(phaseGroups.map((group) => group.phaseId)).size !== phaseGroups.length) {
     return { status: "refused", reason: "task-list-malformed" };
   }
@@ -273,10 +261,13 @@ function deriveFromTasksFacts(
     status: "ok",
     value: {
       phaseGroups,
-      membershipEligibility: tasks.parents.map((task) => ({
-        taskId: task.taskId,
-        eligibleForMembership: isDeliveryTaskAssignable(task),
-      })),
+      membershipEligibility: [
+        ...tasks.implementation.map((task) => ({
+          taskId: task.taskId,
+          eligibleForMembership: true,
+        })),
+        { taskId: tasks.verificationTaskId, eligibleForMembership: false },
+      ],
     },
   };
 }
