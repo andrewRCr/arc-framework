@@ -1143,6 +1143,12 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
   DeliveryCloseoutBlockedSchema,
   RetainedOperationBlockSchema,
+  z.strictObject({
+    status: z.literal("blocked"),
+    reason: z.literal("content-conflict"),
+    paths: z.array(z.string().min(1)).min(1),
+    conflictPreparation: DeliveryTerminalConflictPreparationSchema,
+  }),
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), reservation: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
     status: z.literal("blocked"),

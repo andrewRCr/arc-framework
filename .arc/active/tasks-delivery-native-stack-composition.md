@@ -2684,7 +2684,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   unchanged-Candidate renewal cycle. General workflow composition, convergence policy, storage redesign, and
   user-configurable commit autonomy remain with their recorded owners.
 
-    - `[ ]` **7.7.R.u Drive the delivery correction to one typed stop**
+    - `[x]` **7.7.R.u Drive the delivery correction to one typed stop**
 
         - _Goal:_ One selector-free invocation executes the existing deterministic correction tail, resumes after
           interruption without rederivation, and returns only at the closed judgment, review-spend, conflict,
@@ -2875,7 +2875,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               from canonical Delivery State after an interrupted publication. Initial correction authoring still
               plans normally, and persisted-operation mismatch guards remain unchanged.
 
-        - `[ ]` **7.7.R.u.l Absorb provider history collisions through exact natural-merge semantics**
+        - `[x]` **7.7.R.u.l Absorb provider history collisions through exact natural-merge semantics**
 
             - _Goal:_ A provider rebase collision caused only by duplicate branch history does not become an attended
               conflict when the exact logical-base/two-parent merge is clean; a genuine content conflict retains its
@@ -2884,6 +2884,13 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
             - Build `test-first` through a real-Git provider preparation that collides during history replay, then
               prove the natural merge prepares contribution-equivalent suffix candidates without provider push
               authority. Keep actual merge-tree conflicts as typed stops and preserve ordinary provider success.
+
+            - _Outcome:_ Provider preparation now distinguishes replay-only collisions from semantic conflicts. After
+              aborting the provider's retained rebase, it preserves the already refreshed prefix and uses the exact
+              recorded logical base to construct clean two-parent suffix absorptions without pushing provider refs.
+              A genuine merge-tree conflict is promoted with stable paths and complete resume coordinates. The
+              real-Git collision integration, 34 focused unit cases, all 21 production correction E2E cases,
+              production/test typechecks, and focused TypeScript lint pass.
 
 ## **Phase 8:** Record retirement and doctrine
 

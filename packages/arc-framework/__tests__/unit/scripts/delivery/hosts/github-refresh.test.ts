@@ -443,7 +443,11 @@ describe("GitHub provider refresh adapter", () => {
       repository: "owner/repo",
       scope: { kind: "dependent-suffix", selectedDeliverableId: before.members[0]!.deliverableId },
       before,
-    })).resolves.toEqual({ status: "refused", reason: "conflict" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "conflict",
+      detail: "The provider reported a conflict without a recoverable Git rebase state.",
+    });
     conflict = false;
     unavailable = true;
     const unavailableResult = await port.prepare({
