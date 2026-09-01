@@ -16,26 +16,18 @@ export type DeliveryReviewFixStagedRecordClassification =
       readonly status: "ready";
       readonly recordClass: DeliveryReviewFixRecordClass;
       readonly paths: readonly string[];
-    }
-  | {
-      readonly status: "refused";
-      readonly reason: "record-effect-stage-contaminated";
-      readonly paths: readonly string[];
     };
 
-/** Restrict autonomous commits to the two exact correction record paths. */
+/** Select only the exact correction records from the current staged set. */
 export function classifyDeliveryReviewFixStagedRecords(input: {
   readonly workUnitId: string;
   readonly paths: readonly string[];
 }): DeliveryReviewFixStagedRecordClassification {
-  const paths = sortByCanonicalBytes([...new Set(input.paths)]);
-  if (paths.length === 0) return { status: "idle" };
   const candidatePath = resolveCandidateRecordRelativePath(input.workUnitId);
   const boundaryPath = resolveSubmissionBoundaryPath(input.workUnitId);
-  const unexpected = paths.filter((path) => path !== candidatePath && path !== boundaryPath);
-  if (unexpected.length > 0) {
-    return { status: "refused", reason: "record-effect-stage-contaminated", paths: unexpected };
-  }
+  const paths = sortByCanonicalBytes([...new Set(input.paths)])
+    .filter((path) => path === candidatePath || path === boundaryPath);
+  if (paths.length === 0) return { status: "idle" };
   const hasCandidate = paths.includes(candidatePath);
   const hasBoundary = paths.includes(boundaryPath);
   return {
@@ -107,7 +99,6 @@ export async function settleDeliveryReviewFixRecordEffects(input: {
     workUnitId: input.workUnitId,
     paths: await input.ports.listStagedPaths(),
   });
-  if (classified.status === "refused") return classified;
   let recordClass: DeliveryReviewFixRecordClass;
   let head: string;
   let branch: string;
