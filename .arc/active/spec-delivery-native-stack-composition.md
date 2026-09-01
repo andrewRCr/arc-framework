@@ -1012,6 +1012,16 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   tree and no covered input changed; otherwise the tier reruns. No reusable gate ledger or delivery-owned quality
   authority is introduced.
 
+  A provider-history collision discovered before reservation keeps the remote member ref and Delivery State at the
+  recorded old head. After the attended conflict decision, the operator records the resolved commit only on the
+  returned named local member ref. Re-entry accepts that local ref as resolution authority only when it resolves to
+  one commit whose ordered parents are exactly the returned old member head and refreshed predecessor and whose tree
+  is locally readable. Provider preparation imports that exact commit into its isolated result, continues the suffix,
+  then lets the ordinary reservation and lease publication publish every requested member. A missing, stale,
+  reversed-parent, extra-parent, unreadable, differently named, or prematurely published resolution refuses without
+  state adoption. No conflict record, caller-reconstructed member selector, autonomous resolution, or unreserved
+  provider publication is added.
+
 ### D6 — Native registration and landing
 
 - **D6.1 Routing.** Reobserve native registration before selecting the singleton arm. A linked stack routes through
@@ -1464,10 +1474,12 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       `idle / continue-work-unit`
       returns the actual Candidate-verification continuation when one exists and otherwise reports an honest no-op.
       Conflict stops carry the reserved logical merge base, both parents, an exact isolated preparation or
-      `merge-tree` invocation, and a submit-ready resume action. Contribution-equivalent dependents bypass redundant
-      member criteria walks through the existing D7 escape, while any changed dependent stays owed. All approved
-      findings for one member pass batch into one publication by default; an earlier publish requires an explicit
-      reason.
+      `merge-tree` invocation, the exact local-only resolution ref, and a submit-ready resume action. For a
+      pre-reservation provider-history collision, the returned guidance keeps that resolved ref local until the
+      driver validates and publishes it through the reserved refresh. Contribution-equivalent dependents bypass
+      redundant member criteria walks through the existing D7 escape, while any changed dependent stays owed. All
+      approved findings for one member pass batch into one publication by default; an earlier publish requires an
+      explicit reason.
 
 - **D8.13 Preserve the existing Owner terminus at member scope — amended 2026-09-01 after live Member 1 review
   reached its ceiling.** The standard-review driver already accepts an explicit Work Unit Owner terminus without

@@ -2684,7 +2684,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   unchanged-Candidate renewal cycle. General workflow composition, convergence policy, storage redesign, and
   user-configurable commit autonomy remain with their recorded owners.
 
-    - `[x]` **7.7.R.u Drive the delivery correction to one typed stop**
+    - `[ ]` **7.7.R.u Drive the delivery correction to one typed stop**
 
         - _Goal:_ One selector-free invocation executes the existing deterministic correction tail, resumes after
           interruption without rederivation, and returns only at the closed judgment, review-spend, conflict,
@@ -2924,6 +2924,26 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
             - _Outcome:_ Acknowledgment collects Candidate evidence from the exact delivery terminal named by the
               scoped verification, even when the WU checkout has advanced. The newer reviewable delta remains
               outside that evidence and deterministically returns through Candidate verification.
+
+        - `[ ]` **7.7.R.u.p Resume a pre-reservation provider conflict from its approved local merge**
+
+            - _Goal:_ An attended provider-history conflict can resume from the exact approved two-parent commit
+              without publishing outside the refresh reservation or making the selector-free driver rederive work.
+
+            - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue —
+              decision record (2026-08-31), Amendment 3.
+
+            - Build `test-first` (one behavior at a time):
+                - Keep remote member coordinates and Delivery State unchanged when provider preparation returns a
+                  genuine conflict with its logical base, exact parents, named local ref, paths, and resume action.
+                - On re-entry, accept only a locally readable commit on that exact ref whose ordered parents are the
+                  returned old member and refreshed predecessor; import it into isolated provider preparation and
+                  continue the suffix without a second attended stop.
+                - Refuse missing, stale, reversed-parent, extra-parent, unreadable, differently named, or remotely
+                  premature resolutions without reserving or adopting state.
+                - Prove the ordinary refresh reservation lease-publishes the approved merge and dependents, reaches
+                  scoped verification through the unchanged public resume envelope, and updates its guidance to keep
+                  pre-reservation resolutions local.
 
     - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
 
