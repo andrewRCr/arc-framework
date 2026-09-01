@@ -14,6 +14,7 @@ import {
   projectDeliveryPublicReviewContinuation,
   validateDeliveryPublicReviewContinuation,
   type DeliveryPublicReviewContinuationV1,
+  type DeliveryTerminalCoordinateAdvanceProof,
 } from "./public-review-continuation.js";
 import {
   DeliveryCanonicalDigestSchema,
@@ -337,6 +338,7 @@ type ReadCandidate =
         readonly candidateId: string;
         readonly subjectDigest: string;
         readonly verificationResponseCurrent?: boolean;
+        readonly terminalCoordinateAdvance?: DeliveryTerminalCoordinateAdvanceProof;
       } | null;
     }
   | { readonly status: "non-current" }
@@ -777,6 +779,9 @@ export async function inspectDeliveryEntry(
         plan,
         state: state.value,
         stateRevision: state.revision,
+        ...(candidate.value.terminalCoordinateAdvance === undefined
+          ? {}
+          : { terminalCoordinateAdvance: candidate.value.terminalCoordinateAdvance }),
       });
       if (continuation.status === "refused") {
         if (continuation.reason === "state-mismatch"

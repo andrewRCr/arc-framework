@@ -40,6 +40,13 @@ function dependencies(input: {
     candidateId: string;
     subjectDigest: string;
     verificationResponseCurrent?: boolean;
+    terminalCoordinateAdvance?: {
+      priorHead: string;
+      priorTree: string;
+      currentHead: string;
+      currentTree: string;
+      proof: "subject-equality" | "tree-equality" | "mechanical-reapply";
+    };
   } | null | "non-current" | "refused";
 } = {}) {
   return {
@@ -482,6 +489,45 @@ describe("delivery entry inspection", () => {
       attestationAction: {
         argv: ["arc", "attest", plan.workUnitId, "--json"],
       },
+    });
+  });
+
+  it("preserves hosted review across a proven same-Candidate terminal record advance", async () => {
+    const fixture = publicContinuationFixture();
+    const priorHead = fixture.state.members.at(-1)!.coordinates!.head;
+    const currentHead = "f".repeat(40);
+    const advanced = structuredClone(fixture.state);
+    advanced.members.at(-1)!.coordinates = {
+      ...advanced.members.at(-1)!.coordinates!,
+      head: currentHead,
+      tree: "e".repeat(40),
+    };
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: advanced,
+      stateRevision: fixture.stateRevision + 1,
+      integrationBoundary: fixture.boundary,
+      candidate: {
+        candidateId: fixture.candidateId,
+        subjectDigest: fixture.candidateSubjectDigest,
+        terminalCoordinateAdvance: {
+          priorHead,
+          priorTree: fixture.state.members.at(-1)!.coordinates!.tree,
+          currentHead,
+          currentTree: "e".repeat(40),
+          proof: "subject-equality",
+        },
+      },
+    }))).resolves.toMatchObject({
+      status: "continue-hosted-review",
+      nextAction: "continue-hosted-review",
+      planId: plan.planId,
+      stateRevision: fixture.stateRevision + 1,
     });
   });
 

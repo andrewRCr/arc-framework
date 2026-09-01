@@ -195,6 +195,42 @@ describe("delivery review-fix driver", () => {
     expect(project).toHaveBeenCalledOnce();
   });
 
+  it("refuses a repeated identical record settlement without spinning", async () => {
+    const effect = { kind: "commit" as const, recordClass: "boundary-projection", head: "3".repeat(40) };
+    const settleRecordEffects = vi.fn().mockResolvedValue({ status: "settled", effects: [effect] });
+
+    await expect(driveDeliveryReviewFixContinuation({
+      project: vi.fn(),
+      execute: vi.fn(),
+      settleRecordEffects,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "delivery-review-fix-no-progress",
+      actionKind: "record-settlement",
+      effectLog: [effect, effect],
+    });
+    expect(settleRecordEffects).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds an advancing correction that never reaches an attended stop", async () => {
+    let revision = 0;
+    const action: DeliveryReviewFixDriveDispatchAction = { kind: "delivery-reconcile" };
+    const project = vi.fn(async () => ({
+      step: { status: "dispatch" as const, action, recommendedActionText: "Reconcile." },
+      progress: { ...progress, stateRevision: revision += 1 },
+    }));
+    const execute = vi.fn().mockResolvedValue({ status: "position" });
+
+    await expect(driveDeliveryReviewFixContinuation({ project, execute })).resolves.toMatchObject({
+      status: "refused",
+      reason: "delivery-review-fix-drive-limit",
+      effectLog: expect.arrayContaining([
+        { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "position" },
+      ]),
+    });
+    expect(execute).toHaveBeenCalledTimes(16);
+  });
+
   it("returns exact conflict preparation and a submit-ready correction resume", async () => {
     const action: DeliveryReviewFixDriveDispatchAction = {
       kind: "delivery-refresh-execute",

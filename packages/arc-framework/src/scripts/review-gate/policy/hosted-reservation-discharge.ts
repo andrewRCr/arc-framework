@@ -234,7 +234,7 @@ export async function resolveHostedReservationTargets(input: {
     }
     const targets: HostedReservationTarget[] = [];
     const requestIds = new Set<string>();
-    let baseRevision = input.singleton.baseRevision;
+    let landedBaseRevision = input.singleton.baseRevision;
     for (const binding of resolved.targets) {
       if (marker?.kind === "delivery"
         && (binding.planId !== marker.planId || binding.workUnitId !== marker.workUnitId)) {
@@ -268,7 +268,7 @@ export async function resolveHostedReservationTargets(input: {
         repository: input.singleton.repository,
         pullRequest,
         headSha: request.headSha,
-        baseRevision,
+        baseRevision: request.state === "open" ? binding.base : landedBaseRevision,
         position: binding.position,
         memberCount: binding.memberCount,
         chunkKey: binding.chunkKey,
@@ -281,7 +281,7 @@ export async function resolveHostedReservationTargets(input: {
           head: request.headSha,
         }),
       });
-      baseRevision = request.headSha;
+      landedBaseRevision = request.headSha;
     }
     return { status: "resolved", kind: "delivery", targets };
   } catch {

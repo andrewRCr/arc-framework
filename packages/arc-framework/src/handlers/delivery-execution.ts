@@ -911,8 +911,15 @@ const ReviewFixContinuationResultSchema = z.union([
   z.strictObject({
     status: z.literal("refused"),
     reason: z.literal("delivery-review-fix-no-progress"),
-    actionKind: ReviewFixDriveProgressActionKindSchema,
+    actionKind: z.union([ReviewFixDriveActionKindSchema, z.literal("boundary-carry")]),
     progress: ReviewFixDriveProgressSchema,
+    effectLog: z.array(ReviewFixDriveEffectSchema),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.literal("delivery-review-fix-no-progress"),
+    actionKind: z.literal("record-settlement"),
     effectLog: z.array(ReviewFixDriveEffectSchema),
     recommendedActionText: z.string().min(1),
   }),
@@ -1589,6 +1596,44 @@ async function executeDeliveryCommand(
         readonly projectionDigest: string;
         readonly residualDigest: string;
       } | undefined;
+      const projectTerminalRecordRebind = async (planId: string) => {
+        const [currentPlan, currentState, active] = await Promise.all([
+          planStore.readCurrent(planId),
+          stateStore.read(planId),
+          resolveActiveWu({ cwd }),
+        ]);
+        if (currentPlan.status !== "ok" || currentPlan.value === null
+          || currentState.status !== "ok" || currentState.value === null
+          || active.status !== "resolved" || active.branch === null) {
+          return { status: "refused" as const, reason: "delivery-unavailable" };
+        }
+        const terminal = currentState.value.value.members.at(-1);
+        if (terminal?.ref !== `refs/heads/${active.branch}` || terminal.coordinates === null) {
+          return { status: "not-required" as const };
+        }
+        const terminalRef = await observeDeliveryEligibilityRef(exec, terminal.ref);
+        if (terminalRef === null) {
+          return { status: "refused" as const, reason: "terminal-rebind-unavailable" };
+        }
+        if (terminalRef.head === terminal.coordinates.head) {
+          return { status: "not-required" as const };
+        }
+        return {
+          status: "dispatch" as const,
+          action: {
+            kind: "delivery-reconcile" as const,
+            argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+            input: {
+              planId,
+              repository: parsed.repository,
+              remote: parsed.remote,
+              continuation: "read-position" as const,
+            },
+          },
+          recommendedActionText:
+            "Rebind the machine-owned terminal record advance before recomposing hosted review status.",
+        };
+      };
       const prepareCorrection = async (correctionEntry: DeliveryCorrectionRoutingEntry) => {
         const planned = ReviewFixRouteResultSchema.safeParse(await executeDeliveryCommand(
           "review-fix-plan",
@@ -1943,10 +1988,19 @@ async function executeDeliveryCommand(
         return prepared.result;
       }
 
+      if (entry.status === "candidate-renewal-required") {
+        const terminalRebind = await projectTerminalRecordRebind(entry.planId);
+        if (terminalRebind.status !== "not-required") return terminalRebind;
+      }
       const continuation = projectDeliveryReviewFixContinuation({ request: projectionRequest, entry });
       if (continuation.status !== "authority-required" || continuation.authority !== "hosted-review") {
         return continuation;
       }
+      if (entry.status !== "continue-hosted-review") {
+        return { status: "refused" as const, reason: "review-status-entry-mismatch" };
+      }
+      const terminalRebind = await projectTerminalRecordRebind(entry.planId);
+      if (terminalRebind.status !== "not-required") return terminalRebind;
       try {
         const reviewStatus = await resolveReviewStatusForWorkUnit({
           cwd,

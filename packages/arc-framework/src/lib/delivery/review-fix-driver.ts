@@ -199,7 +199,18 @@ export async function driveDeliveryReviewFixContinuation<
 >(ports: DeliveryReviewFixDrivePorts<TAction>): Promise<Readonly<Record<string, unknown>>> {
   const effectLog: DeliveryReviewFixDriveEffect[] = [];
   const visited = new Set<string>();
+  let steps = 0;
   for (;;) {
+    steps += 1;
+    if (steps > 16) {
+      return {
+        status: "refused",
+        reason: "delivery-review-fix-drive-limit",
+        effectLog,
+        recommendedActionText:
+          "The correction exceeded its bounded in-process drive. Inspect the advancing effect sequence before retrying.",
+      };
+    }
     if (ports.settleRecordEffects !== undefined) {
       const settlement = await ports.settleRecordEffects();
       if (settlement.status === "refused") {
@@ -214,7 +225,24 @@ export async function driveDeliveryReviewFixContinuation<
         };
       }
       effectLog.push(...settlement.effects);
-      if (settlement.status === "settled") continue;
+      if (settlement.status === "settled") {
+        const fingerprint = canonicalize({
+          action: { kind: "record-settlement", effects: settlement.effects },
+        });
+        if (visited.has(fingerprint)) {
+          return {
+            status: "refused",
+            reason: "delivery-review-fix-no-progress",
+            actionKind: "record-settlement",
+            effectLog,
+            recommendedActionText:
+              "The correction repeated the same record settlement without reaching an idle state. "
+              + "Inspect the record-effect recovery probe before retrying.",
+          };
+        }
+        visited.add(fingerprint);
+        continue;
+      }
     }
     const projected = await ports.project();
     if (isDeliveryReviewFixBoundaryCarryStep(projected.step)) {
