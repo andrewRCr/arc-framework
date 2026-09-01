@@ -476,14 +476,20 @@ describe("delivery review-fix continuation projection", () => {
     ["provider-refresh", "delivery-refresh-execute"],
     ["provider-adoption", "delivery-refresh-adopt"],
   ] as const)("resumes a persisted %s operation through %s", (mode, actionKind) => {
-    expect(projectDeliveryReviewFixContinuation({
+    const state = activeState(mode);
+    const result = projectDeliveryReviewFixContinuation({
       request,
       entry: resumeEntry(),
-      state: activeState(mode),
-    })).toMatchObject({
+      state,
+    });
+    expect(result).toMatchObject({
       status: "dispatch",
       action: { kind: actionKind, input: { planId: plan.planId } },
     });
+    if ((mode === "provider-refresh" || mode === "provider-adoption") && result.status === "dispatch") {
+      expect(result.action).toMatchObject({ input: { operationId: state.value.activeOperation?.operationId } });
+      expect(result.action).not.toHaveProperty("input.scope");
+    }
   });
 
   it.each([
@@ -598,7 +604,7 @@ describe("delivery review-fix continuation projection", () => {
     const operation = activeState("provider-refresh").value.activeOperation;
     if (operation === null) throw new Error("continuation fixture requires an active refresh operation");
 
-    expect(projectDeliveryReviewFixContinuation({
+    const result = projectDeliveryReviewFixContinuation({
       request,
       entry: correctionEntry(),
       route: route("provider-refresh"),
@@ -607,11 +613,17 @@ describe("delivery review-fix continuation projection", () => {
         value: { ...pending.value, activeOperation: operation },
       },
       activeBranch: "feat/example",
-    })).toMatchObject({
-      status: "dispatch",
-      action: {
-        kind: "delivery-refresh-execute",
-        input: { operationId: operation.operationId },
+    });
+    expect(result).toMatchObject({ status: "dispatch", action: { kind: "delivery-refresh-execute" } });
+    if (result.status !== "dispatch") throw new Error("retained refresh must dispatch");
+    expect(result.action).toEqual({
+      kind: "delivery-refresh-execute",
+      argv: ["arc", "delivery", "refresh", "execute", "-", "--json"],
+      input: {
+        planId: plan.planId,
+        repository: request.repository,
+        remote: request.remote,
+        operationId: operation.operationId,
       },
     });
   });

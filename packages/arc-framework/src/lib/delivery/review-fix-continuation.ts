@@ -271,11 +271,14 @@ function projectPendingSelectedRefresh(input: {
       planId: input.planId,
       repository: input.request.repository,
       remote: input.request.remote,
-      scope: {
-        kind: "dependent-suffix" as const,
-        selectedDeliverableId: input.selectedDeliverableId,
-      },
-      ...(operation === null ? {} : { operationId: operation.operationId }),
+      ...(operation === null
+        ? {
+            scope: {
+              kind: "dependent-suffix" as const,
+              selectedDeliverableId: input.selectedDeliverableId,
+            },
+          }
+        : { operationId: operation.operationId }),
     },
   }, "Execute the exact provider refresh, then invoke this continuation again.");
 }
@@ -343,7 +346,6 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
           planId: entry.planId,
           repository: request.repository,
           remote: request.remote,
-          scope: { kind: "dependent-suffix" as const, selectedDeliverableId },
           operationId: operation.operationId,
         },
       }, "Resume the exact persisted provider refresh, then invoke this continuation again.");
@@ -359,7 +361,6 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
           planId: entry.planId,
           repository: request.repository,
           remote: request.remote,
-          scope: { kind: "dependent-suffix" as const, selectedDeliverableId },
           operationId: operation.operationId,
         },
       }, "Resume the exact persisted provider adoption, then invoke this continuation again.");

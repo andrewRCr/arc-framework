@@ -2892,6 +2892,21 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               real-Git collision integration, 34 focused unit cases, all 21 production correction E2E cases,
               production/test typechecks, and focused TypeScript lint pass.
 
+        - `[x]` **7.7.R.u.m Resume retained provider operations with one exclusive selector**
+
+            - _Goal:_ A correction retry submits an active provider refresh or adoption by its persisted operation ID
+              alone; it never combines that recovery selector with the initial suffix scope and therefore cannot
+              reject its own canonical resume as `operation-mismatch`.
+
+            - Strengthen the pure projector cases to require exact submit-ready input for both resume entry shapes,
+              preserve initial selector-free scope derivation, and rerun the live retained Member 1 operation.
+
+            - _Outcome:_ Active provider refresh and adoption dispatches now carry only their persisted operation ID;
+              initial refreshes still derive the selected suffix through `scope`. The exact-shape projector case
+              failed against the combined selectors, then all 42 focused continuation/driver cases and both
+              typechecks passed. The live retained operation accepted the exclusive selector, reached its known
+              terminal manifest conflict, and applied after the approved exact two-parent resolution.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`
