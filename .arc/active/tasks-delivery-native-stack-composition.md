@@ -2764,6 +2764,52 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               closure still staged. Re-run the Member 7 criteria walk and reconcile its final two master criteria
               without another hosted pass.
 
+            - _Note:_ Interim Member 7 criteria report from the first staged-closure acceptance attempt.
+                - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+                - _Span:_ original bounded member diff `bb7e093c2..8106628b1`; cumulative correction reachability is
+                  terminal head `af889fe48387088ea547e3f1723fb6e641a62825` at tree
+                  `7be1f1a6c865b203c63f950a2f0e1675fcc808d2`. Boundary-order deviation: the driven correction rescue is
+                  projected back into Member 7 after publication; no terminal-member content enters the bounded diff.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the
+                  existing ordered member-status and conjunction projection remain the only discharge route. The
+                  production-style E2E returns to the retained hosted action only after the exact corrected member is
+                  verified, and the live drive spent no hosted pass while replacing the obsolete verification target.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the
+                  existing contribution arbiter and Candidate applicability records remain unchanged. Mechanical
+                  authority preservation still requires strict ancestry plus an empty contribution residual, while
+                  stale-verification supersession requires the existing clean, changed-head, and ancestry readiness
+                  proof; unavailable, dirty, unmoved, or divergent authoring retains the prior stop.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ one
+                  selector-free request carries repository and remote only; canonical entry, route, state, member,
+                  operation, and hosted status facts select every action. The production E2E and live drive both
+                  execute publish then refresh without caller-authored member, pass, or continuation coordinates.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ the
+                  shared persisted continuation and acknowledgment locator still cover registered refresh,
+                  rematerialization, and terminal correction. The E2E loses and supersedes one verification response,
+                  commits an open correction, stages its closure, then acknowledges only the replacement exact tree
+                  before same-Candidate boundary carry and hosted re-entry; all 21 production cases pass.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[ ]`; _Evidence:_ the
+                  delivery-specific driver executes only its six closed dispatch kinds plus boundary carry and record
+                  settlement, detects repeated canonical progress, and returns typed verification, conflict, hosted,
+                  or integration stops with an ordered effect log. The live acceptance published Member 7, refreshed
+                  the top, acknowledged the exact green rebound tree, carried the boundary, committed the record, and
+                  pushed the top, but an older unpreserved Member 1 response then preempted canonical hosted status
+                  with `review-fix-response-stale`. The forward amendment below owns that final routing gap.
+                - _Adversarial companion:_ the Heavy-class Member 7 companion already consumed its two-pass cap; this
+                  bounded rescue receives no third pass, and the primary walk retains judgment over the exact delta.
+                - _Summary:_ four met, zero superseded, one unresolved. Criterion 4 is reconciled below; criterion 5
+                  remains open pending the amended live acceptance.
+
+            - _Forward amendment (2026-09-01):_ The first staged-closure acceptance completed every machine-owned
+              effect, then proved that an older response whose contribution is no longer mechanically preservable can
+              preempt the canonical `continue-hosted-review` entry with `review-fix-response-stale`. When the exact
+              response, operation, member, ancestry, and contribution projection are valid and that projection
+              returns its existing `decision-required` authority boundary, yield to the canonical hosted status so it
+              returns the exact applicability or finding-response stop. Keep malformed, non-ancestral, unavailable,
+              unsupported, moving, ambiguous, and non-hosted re-entry states fail-closed. Extend the production-style
+              E2E through this cross-member stale-response case, then repeat only the live post-ack acceptance without
+              requesting a hosted pass.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`
@@ -3436,7 +3482,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   selector from first-outstanding status through request, await, attempt, settle, and terminal conjunction, and
   executable vertical coverage proves the complete lifecycle without prose control flow or a new record family.
 
-- `[ ]` Registered dependent refresh, complete unregistered rematerialization, and exact terminal correction rebind
+- `[x]` Registered dependent refresh, complete unregistered rematerialization, and exact terminal correction rebind
   all install and return the same pending scoped-verification continuation. Response loss re-enters that continuation
   without repeating mutation or routing to whole-WU verification, Frontline, or generic prepublication; no second
   state mechanism, review authority, or convergence policy exists.
