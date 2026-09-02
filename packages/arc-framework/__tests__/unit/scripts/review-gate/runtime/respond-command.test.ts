@@ -340,11 +340,12 @@ function candidateLineageBinding(
   record: CandidateManagedRecordV1,
   current: { revision: string; subject: ReturnType<typeof candidateSubject> },
 ) {
+  const baseline = reduceCandidateDurableBaseline(record);
   return {
     workUnit: "example",
     record,
     recordVersion: canonicalDigest(record),
-    reviewed: effectiveCurrent(record, { revision: records.target.headSha, subject: record.subject }),
+    reviewed: effectiveCurrent(record, { revision: records.target.headSha, subject: baseline.target.subject }),
     effective: effectiveCurrent(record, current),
     current,
     unstagedReviewablePaths: [],

@@ -428,7 +428,12 @@ describe("GhDeliveryHostPort", () => {
         "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "base=main", ...tail,
       ]]);
     }
-    await expect(new GhDeliveryHostPort(runner({})).applyTopRemedy({
+    const malformedCalls: string[][] = [];
+    const malformedRunner: HostedProcessRunner = { run: async (args) => {
+      malformedCalls.push(args);
+      return { stdout: "{}", stderr: "" };
+    } };
+    await expect(new GhDeliveryHostPort(malformedRunner).applyTopRemedy({
       providerId: "other",
       repository,
       changeRequestId: "401",
@@ -440,6 +445,7 @@ describe("GhDeliveryHostPort", () => {
       protectedBaseRef: "main",
       action: "retarget",
     })).resolves.toEqual({ status: "refused", reason: "malformed" });
+    expect(malformedCalls).toEqual([]);
   });
 
   it("normalizes the protected target head and tree without guessing", async () => {
