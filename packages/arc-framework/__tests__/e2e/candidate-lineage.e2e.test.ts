@@ -473,8 +473,9 @@ describe("review-fix Candidate lineage", () => {
     // nobody reviewed — the two preconditions are then mutually exclusive.
     await archiveArtifacts(root);
 
-    await expect(checkpointOver(root, "with-integration")).resolves.not.toMatchObject({
-      reason: "candidate-unexplained-delta",
+    await expect(checkpointOver(root, "with-integration")).resolves.toMatchObject({
+      state: "candidate-publication-required",
+      nextAction: "resume-pre-publication",
     });
   });
 
@@ -640,9 +641,10 @@ describe("review-fix Candidate lineage", () => {
     const record = await readCandidateRecord(root, "example");
     expect(candidateReviewResponses(record ?? { transitions: [] }).at(-1)?.oldTarget.revision).toBe(mergedHead);
     await git(root, ["commit", "-m", "record verified response"]);
-    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })(
-      "example",
+    await expect(composeLineageReview(
+      root,
       await git(root, ["rev-parse", "HEAD^{commit}"]),
+      localBase,
     )).resolves.toMatchObject({
       dispositionIds: [dispositions.dispositionSet.dispositionSetId],
     });
@@ -1128,7 +1130,7 @@ describe("review-fix Candidate lineage", () => {
 
   it("composes the settlement plan its approved responses back", async () => {
     const { root, approvedHead } = await settledReviewLineage();
-    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+    const composed = await composeLineageReview(root, approvedHead);
 
     expect(composed.dispositionIds).toHaveLength(1);
     expect(composed.actions).toHaveLength(1);
@@ -1136,6 +1138,18 @@ describe("review-fix Candidate lineage", () => {
       channel: "review-response",
       dispositionId: composed.dispositionIds[0],
       fixTarget: { headSha: approvedHead },
+    });
+  });
+
+  it("binds settlement composition to the checkpoint-validated base after the base ref moves", async () => {
+    const { root, approvedHead } = await settledReviewLineage();
+    const approvedBase = await git(root, ["rev-parse", "main^{commit}"]);
+    await git(root, ["update-ref", "refs/heads/main", approvedHead, approvedBase]);
+
+    await expect(composeLineageReview(root, approvedHead, approvedBase)).resolves.toMatchObject({
+      actions: [expect.objectContaining({
+        fixTarget: expect.objectContaining({ headSha: approvedHead }),
+      })],
     });
   });
 
@@ -1230,7 +1244,7 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "hosted convergence verification"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
 
-    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+    const composed = await composeLineageReview(root, approvedHead);
     expect(composed.actions).toHaveLength(1);
     expect(composed.actions[0]).toMatchObject({
       channel: "review-response",
@@ -1259,7 +1273,7 @@ describe("review-fix Candidate lineage", () => {
       result: undefined,
     }));
 
-    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
+    await expect(composeLineageReview(root, approvedHead))
       .rejects.toThrow(/review operation behind approved dispositions .* is unavailable/u);
   });
 
@@ -1284,7 +1298,7 @@ describe("review-fix Candidate lineage", () => {
       return { kind: "write", content: `${JSON.stringify(record)}\n`, result: undefined };
     });
 
-    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
+    await expect(composeLineageReview(root, approvedHead))
       .rejects.toThrow(/approved disposition record .* is unavailable/u);
   });
 
@@ -1302,7 +1316,7 @@ describe("review-fix Candidate lineage", () => {
       candidate: { workUnit: approved.candidate.workUnit, candidateId: `sha256:${"9".repeat(64)}` },
     });
 
-    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
+    await expect(composeLineageReview(root, approvedHead))
       .resolves.toMatchObject({ dispositionIds: [approved.approvedDisposition.dispositionSet.dispositionSetId] });
   });
 
@@ -1321,7 +1335,7 @@ describe("review-fix Candidate lineage", () => {
       result: undefined,
     }));
 
-    await expect(createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead))
+    await expect(composeLineageReview(root, approvedHead))
       .resolves.toMatchObject({ dispositionIds: [approved.approvedDisposition.dispositionSet.dispositionSetId] });
   });
 
@@ -1333,7 +1347,7 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "--allow-empty", "-m", "submit transition"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
 
-    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+    const composed = await composeLineageReview(root, approvedHead);
 
     // The deferred set moves no implementation and therefore does not advance the Candidate lineage.
     // Its durable approval still authorizes one exact-target replay action at checkpoint settlement.
@@ -1363,7 +1377,7 @@ describe("review-fix Candidate lineage", () => {
     // No fix means no commit or re-attestation of its own. The approved record remains durable input
     // to the post-approval plan, whose replay settles the channel at this exact head.
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
-    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+    const composed = await composeLineageReview(root, approvedHead);
 
     expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.actions.map(({ dispositionId }) => dispositionId))
@@ -1414,7 +1428,7 @@ describe("review-fix Candidate lineage", () => {
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
     expect(approvedHead).not.toBe(deferredHead);
 
-    const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+    const composed = await composeLineageReview(root, approvedHead);
 
     expect(composed.dispositionIds).toContain(deferred.dispositionSet.dispositionSetId);
     expect(composed.dispositionIds).toContain(dispositions.dispositionSet.dispositionSetId);
@@ -1515,9 +1529,18 @@ async function inRepository<T>(root: string, run: () => Promise<T>): Promise<T> 
   }
 }
 
+async function composeLineageReview(
+  root: string,
+  approvedHead: string,
+  approvedBase?: string,
+) {
+  const base = approvedBase ?? await git(root, ["rev-parse", "main^{commit}"]);
+  return createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead, base);
+}
+
 /** Persist the composition through the production checkpoint store and return its handle. */
 async function persistComposition(root: string, approvedHead: string): Promise<string> {
-  const composed = await createLineageReviewComposer({ cwd: root, exec: gitExec })("example", approvedHead);
+  const composed = await composeLineageReview(root, approvedHead);
   return inRepository(root, async () => createIntegrationCheckpointDependencies({
     cwd: root,
     exec: gitExec,
