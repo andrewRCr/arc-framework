@@ -188,6 +188,34 @@ describe("delivery review-fix driver", () => {
     });
   });
 
+  it("drives private gate rematerialization and discloses its exact replay", async () => {
+    const action: DeliveryReviewFixDriveDispatchAction = {
+      kind: "delivery-review-fix-authoring-rematerialize",
+    };
+    const project = vi.fn()
+      .mockResolvedValueOnce({
+        step: { status: "dispatch", action, recommendedActionText: "Prepare the gate." },
+        progress,
+      })
+      .mockResolvedValueOnce({
+        step: { status: "authoring-required", nextAction: "author-correction" },
+        progress,
+      });
+
+    await expect(driveDeliveryReviewFixContinuation({
+      project,
+      execute: async () => ({ status: "already-rematerialized", replayed: true }),
+    })).resolves.toEqual({
+      status: "authoring-required",
+      nextAction: "author-correction",
+      effectLog: [{
+        kind: "no-op-replay",
+        actionKind: "delivery-review-fix-authoring-rematerialize",
+        resultStatus: "already-rematerialized",
+      }],
+    });
+  });
+
   it("carries a stale same-Candidate boundary internally before re-entering hosted status", async () => {
     const project = vi.fn()
       .mockResolvedValueOnce({

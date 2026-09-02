@@ -1,7 +1,7 @@
 /** Strict CLI composition for delivery execution services. */
 
-import { readdir, readFile, stat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { access, mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -133,6 +133,12 @@ import {
   selectPendingDeliveryReviewFixAuthority,
 } from
   "../lib/delivery/review-fix-continuation.js";
+import {
+  createDeliveryReviewFixCandidatePair,
+  observeDeliveryReviewFixCandidateGate,
+  prepareDeliveryReviewFixCandidateGate,
+  resetDeliveryReviewFixCandidateGate,
+} from "../lib/delivery/review-fix-candidate-gate.js";
 import {
   classifyDeliveryReviewFixReviewStatusStop,
   driveDeliveryReviewFixContinuation,
@@ -286,6 +292,17 @@ const ReviewFixAuthoringRebindSchema = z.strictObject({
   publishedHead: GitObjectIdSchema,
   requiredAncestorHeads: z.array(GitObjectIdSchema),
   requiredFindingPaths: z.array(z.string().min(1)).optional(),
+});
+const ReviewFixAuthoringRematerializeSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  selectedDeliverableId: DeliveryCanonicalDigestSchema,
+  expectedStateRevision: z.number().int().positive(),
+  ref: RefSchema,
+  checkoutPath: z.string().min(1),
+  beforeHead: GitObjectIdSchema.nullable(),
+  beforeTree: GitObjectIdSchema.nullable(),
+  requestedHead: GitObjectIdSchema,
+  requestedTree: GitObjectIdSchema,
 });
 type DeliveryCorrectionRoutingEntry = Extract<
   DeliveryEntryInspectionResult,
@@ -784,6 +801,7 @@ const ReviewFixContinuationAuthorityActionSchema = z.discriminatedUnion("kind", 
   }),
 ]);
 const ReviewFixDriveActionKindSchema = z.enum([
+  "delivery-review-fix-authoring-rematerialize",
   "delivery-review-fix-authoring-rebind",
   "delivery-review-fix-publish",
   "delivery-rematerialize",
@@ -1417,6 +1435,15 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface DeliveryExecutionHandlerDependencies {
   readText(source: string): Promise<string>;
   execute(command: DeliveryExecutionCommand, request: unknown, interaction?: InteractionContext): Promise<unknown>;
@@ -1737,11 +1764,30 @@ async function executeDeliveryCommand(
               : `refs/heads/${active.branch}`;
             const checkoutPath = candidateRoute ? candidateLocator?.gatePath ?? "" : cwd;
             if (ref !== "" && checkoutPath !== "") {
-              const [checkout, observedRef] = await Promise.all([
-                inspectDeliveryCandidateCheckout(exec, checkoutPath),
+              const [checkout, observedRef, candidateGate] = await Promise.all([
+                candidateRoute
+                  ? Promise.resolve(null)
+                  : inspectDeliveryCandidateCheckout(exec, checkoutPath),
                 observeDeliveryEligibilityRef(exec, ref),
+                candidateRoute
+                  ? observeDeliveryReviewFixCandidateGate({ exec, path: checkoutPath, pathExists })
+                  : Promise.resolve(null),
               ]);
-              const observed = checkout;
+              if (candidateGate?.status === "refused") {
+                return {
+                  status: "prepared" as const,
+                  authoring: undefined,
+                  result: {
+                    status: "refused" as const,
+                    reason: `authoring-locus-${candidateGate.reason}`,
+                  },
+                };
+              }
+              const observed = candidateRoute
+                ? candidateGate?.status === "observed"
+                  ? { head: candidateGate.head, tree: candidateGate.tree, trackedDirty: false }
+                  : null
+                : checkout;
               const requiredAncestorHeads: readonly string[] = planned.data.route === "provider-refresh"
                 ? planned.data.candidateRequirements.requiredAncestorHeads
                 : [terminalHead];
@@ -1801,6 +1847,44 @@ async function executeDeliveryCommand(
                 requiredAncestorHeads,
                 ancestry,
               });
+              if (candidateRoute && authoring.status === "authoring-required") {
+                const gateAbsent = candidateGate?.status === "absent";
+                const refAbsent = observedRef === null;
+                if (gateAbsent !== refAbsent) {
+                  return {
+                    status: "prepared" as const,
+                    authoring: undefined,
+                    result: { status: "refused" as const, reason: "authoring-candidate-pair-split" },
+                  };
+                }
+                const ancestryRequiresPreparation = ancestry.some(({ status }) => status === "not-ancestor");
+                if ((gateAbsent && refAbsent) || ancestryRequiresPreparation) {
+                  return {
+                    status: "prepared" as const,
+                    authoring: undefined,
+                    result: {
+                      status: "dispatch" as const,
+                      nextAction: "dispatch" as const,
+                      action: {
+                        kind: "delivery-review-fix-authoring-rematerialize" as const,
+                        input: {
+                          planId: correctionEntry.planId,
+                          selectedDeliverableId: correctionEntry.selectedDeliverableId,
+                          expectedStateRevision: stateRead.value.revision,
+                          ref,
+                          checkoutPath,
+                          beforeHead: observedRef?.head ?? null,
+                          beforeTree: observedRef?.tree ?? null,
+                          requestedHead: selected.coordinates.head,
+                          requestedTree: selected.coordinates.tree,
+                        },
+                      },
+                      recommendedActionText:
+                        "Prepare the exact clean private candidate gate at the current public member, then continue.",
+                    },
+                  };
+                }
+              }
             }
           }
         }
@@ -2240,9 +2324,101 @@ async function executeDeliveryCommand(
         ? { status: "already-rebound" as const, replayed: true }
         : { status: "rebound" as const };
     };
+    const executeAuthoringRematerialize = async (input: unknown) => {
+      const rematerializeInput = ReviewFixAuthoringRematerializeSchema.safeParse(input);
+      if (!rematerializeInput.success) {
+        return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
+      }
+      const expected = rematerializeInput.data;
+      if ((expected.beforeHead === null) !== (expected.beforeTree === null)) {
+        return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
+      }
+      const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
+        planStore.readCurrent(expected.planId),
+        stateStore.read(expected.planId),
+        resolveActiveWu({ cwd }),
+        resolveGitCommonDir(exec, cwd),
+      ]);
+      if (planRead.status !== "ok" || planRead.value === null
+        || stateRead.status !== "ok" || stateRead.value === null
+        || stateRead.value.revision !== expected.expectedStateRevision
+        || stateRead.value.value.activeOperation !== null
+        || active.status !== "resolved" || active.name !== planRead.value.workUnitId
+        || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
+        return { status: "refused" as const, reason: "authoring-rematerialize-authority-moved" };
+      }
+      const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
+      const locators = locatorResult.status === "derived"
+        ? locatorResult.locators.filter(
+            ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
+          )
+        : [];
+      const stateMembers = stateRead.value.value.members.filter(
+        ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
+      );
+      const locator = locators[0];
+      const member = stateMembers[0];
+      if (locators.length !== 1 || stateMembers.length !== 1 || locator === undefined || member === undefined
+        || locator.candidateRef !== expected.ref || resolve(locator.gatePath) !== resolve(expected.checkoutPath)
+        || member.coordinates === null || member.ref === null
+        || member.coordinates.head !== expected.requestedHead
+        || member.coordinates.tree !== expected.requestedTree) {
+        return { status: "refused" as const, reason: "authoring-rematerialize-coordinate-mismatch" };
+      }
+      const publicCoordinates = await observeDeliveryEligibilityRef(exec, member.ref);
+      if (publicCoordinates?.head !== expected.requestedHead
+        || publicCoordinates.tree !== expected.requestedTree) {
+        return { status: "refused" as const, reason: "authoring-rematerialize-public-moved" };
+      }
+      const observeCandidate = async () => {
+        const local = await observeDeliveryLocalRef(exec, expected.ref);
+        if (local.status === "refused") {
+          return { status: "refused" as const, reason: local.reason };
+        }
+        if (local.status === "absent") return { status: "absent" as const };
+        const coordinates = await observeDeliveryEligibilityRef(exec, expected.ref);
+        return coordinates === null || coordinates.head !== local.head
+          ? { status: "refused" as const, reason: "coordinate-unavailable" }
+          : { status: "observed" as const, ...coordinates };
+      };
+      return prepareDeliveryReviewFixCandidateGate({
+        before: expected.beforeHead === null || expected.beforeTree === null
+          ? { head: expected.requestedHead, tree: expected.requestedTree }
+          : { head: expected.beforeHead, tree: expected.beforeTree },
+        current: { head: expected.requestedHead, tree: expected.requestedTree },
+      }, {
+        observeGate: () => observeDeliveryReviewFixCandidateGate({
+          exec,
+          path: expected.checkoutPath,
+          pathExists,
+        }),
+        observeCandidate,
+        rewriteCandidate: ({ beforeHead, requestedHead }) => rebindDeliveryCandidateRef({
+          exec,
+          ref: expected.ref,
+          beforeHead,
+          requestedHead,
+        }),
+        resetGate: ({ beforeHead, requestedHead }) => resetDeliveryReviewFixCandidateGate({
+          exec,
+          path: expected.checkoutPath,
+          beforeHead,
+          requestedHead,
+        }),
+        createPair: (coordinates) => createDeliveryReviewFixCandidatePair({
+          exec,
+          ref: expected.ref,
+          path: expected.checkoutPath,
+          coordinates,
+          ensureParent: async (path) => {
+            await mkdir(dirname(path), { recursive: true });
+          },
+        }),
+      });
+    };
     type DeliveryReviewFixServiceActionKind = Exclude<
       DeliveryReviewFixDriveDispatchAction["kind"],
-      "delivery-review-fix-authoring-rebind" | "review-respond"
+      "delivery-review-fix-authoring-rematerialize" | "delivery-review-fix-authoring-rebind" | "review-respond"
     >;
     const commands: Readonly<Record<
       DeliveryReviewFixServiceActionKind,
@@ -2262,7 +2438,9 @@ async function executeDeliveryCommand(
       },
       execute: async (action) => {
         let result;
-        if (action.kind === "delivery-review-fix-authoring-rebind") {
+        if (action.kind === "delivery-review-fix-authoring-rematerialize") {
+          result = await executeAuthoringRematerialize(action.input);
+        } else if (action.kind === "delivery-review-fix-authoring-rebind") {
           result = await executeAuthoringRebind(action.input);
         } else if (action.kind === "review-respond") {
           try {

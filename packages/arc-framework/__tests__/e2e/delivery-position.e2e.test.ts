@@ -1594,9 +1594,9 @@ describe("arc delivery position", () => {
     const reviewedHead = selectedMember.coordinates.head;
     const targetCoordinates = current.value.value.target.coordinates;
     await git(fixture.repository, ["update-ref", selectedMember.ref, selectedMember.coordinates.head]);
-    const selectedTree = await git(fixture.repository, ["rev-parse", `${fixture.selectedFirstHead}^{tree}`]);
-    let correctionHead = await git(fixture.repository, [
-      "commit-tree", selectedTree, "-p", fixture.selectedFirstHead, "-m", "second selected review fix",
+    const staleCandidateHead = await git(fixture.repository, [
+      "commit-tree", selectedMember.coordinates.tree, "-p", selectedMember.coordinates.base,
+      "-m", "prior machine candidate materialization",
     ]);
     const gitCommonDir = resolve(
       fixture.repository,
@@ -1607,12 +1607,8 @@ describe("arc delivery position", () => {
     if (derived.status !== "derived") throw new Error("review-fix locators must derive");
     const locator = derived.locators.find(({ deliverableId }) => deliverableId === selectedDeliverableId);
     if (locator === undefined) throw new Error("selected review-fix locator must exist");
-    await git(fixture.repository, ["update-ref", locator.candidateRef, correctionHead]);
-    await git(fixture.repository, ["worktree", "add", "--detach", locator.gatePath, correctionHead]);
-    await writeFile(join(locator.gatePath, "member-one.txt"), "member one corrected\n");
-    await git(locator.gatePath, ["add", "member-one.txt"]);
-    await git(locator.gatePath, ["commit", "--no-verify", "-m", "apply selected review fix"]);
-    correctionHead = await git(locator.gatePath, ["rev-parse", "HEAD"]);
+    await git(fixture.repository, ["update-ref", locator.candidateRef, staleCandidateHead]);
+    await git(fixture.repository, ["worktree", "add", "--detach", locator.gatePath, staleCandidateHead]);
     await mkdir(join(fixture.repository, ".arc", "active"), { recursive: true });
     await writeFile(join(
       fixture.repository,
@@ -1824,6 +1820,32 @@ describe("arc delivery position", () => {
         deliveryMemberFixResponse: null,
       }),
     );
+
+    const prepared = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(prepared.exitCode, `${prepared.stderr}\n${prepared.stdout}`).toBe(0);
+    expect(JSON.parse(prepared.stdout), prepared.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "authoring-required",
+      selectedDeliverableId,
+      authoring: { kind: "candidate", ref: locator.candidateRef, checkoutPath: locator.gatePath },
+      effectLog: [{
+        kind: "dispatch",
+        actionKind: "delivery-review-fix-authoring-rematerialize",
+        resultStatus: "rematerialized",
+      }],
+    });
+    expect(await git(fixture.repository, ["rev-parse", locator.candidateRef])).toBe(reviewedHead);
+    expect(await git(locator.gatePath, ["rev-parse", "HEAD"])).toBe(reviewedHead);
+
+    await writeFile(join(locator.gatePath, "member-one.txt"), "member one corrected\n");
+    await git(locator.gatePath, ["add", "member-one.txt"]);
+    await git(locator.gatePath, ["commit", "--no-verify", "-m", "apply selected review fix"]);
+    const correctionHead = await git(locator.gatePath, ["rev-parse", "HEAD"]);
 
     const continued = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
