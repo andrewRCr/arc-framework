@@ -135,6 +135,21 @@ describe("resolveCandidateApplicability", () => {
     expect(fixture.record().transitions).toHaveLength(1);
   });
 
+  it("establishes a new lineage root for a changed selection", async () => {
+    const fixture = harness();
+
+    await expect(resolveCandidateApplicability(fixture.context, {
+      ...fixture.input,
+      choice: "changed",
+    })).resolves.toMatchObject({
+      state: "resolved",
+      nextAction: "establish-new-root",
+      candidateId: fixture.request.candidateId,
+      choice: "changed",
+    });
+    expect(fixture.writeCount()).toBe(1);
+  });
+
   it("requires completed targeted evidence in the same selection input", () => {
     const fixture = harness();
 
