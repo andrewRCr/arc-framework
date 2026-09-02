@@ -603,6 +603,22 @@ describe("session-init delivery position facts", () => {
     });
     expect(reserved.status).toBe("reserved");
     if (reserved.status !== "reserved") return;
+    const foreignReservation = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
+      operationId: "top-remedy-foreign-repository",
+      kind: "top-remedy",
+      affectedDeliverableIds: [top.deliverableId],
+      expectedStateRevision: 7,
+      before,
+      requested: before,
+      effect: { ...effect, repository: "owner/other" },
+    });
+    expect(foreignReservation.status).toBe("reserved");
+    if (foreignReservation.status !== "reserved") return;
+    const foreignDependencies = exactDependencies(state);
+    await expect(observeRepositoryDeliveryPosition(plan, foreignReservation.state, 8, foreignDependencies))
+      .resolves.toEqual({ status: "refused" });
+    expect(foreignDependencies.host.readRequest).not.toHaveBeenCalled();
+
     const requestFor = (changeRequestId: string, topBaseRef: string) => ({
       status: "observed" as const,
       request: {

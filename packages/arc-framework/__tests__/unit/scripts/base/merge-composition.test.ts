@@ -31,8 +31,9 @@ describe("base merge composition", () => {
     expect(state.head).toBe(oid("d"));
   });
 
-  it("refuses a successful merge whose parents do not match the guarded endpoints", async () => {
+  it("removes an unexpected merge while preserving its independently moved first parent", async () => {
     const state = { head: oid("c") };
+    const updates: string[][] = [];
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
     const exec: GitExec = async (_command, args) => {
       if (args[0] === "status") return ok();
@@ -41,14 +42,22 @@ describe("base merge composition", () => {
         state.head = oid("d");
         return ok();
       }
-      if (args[0] === "rev-list") return ok(`${state.head} ${oid("a")} ${oid("c")}\n`);
+      if (args[0] === "rev-list") return ok(`${state.head} ${oid("e")} ${oid("a")}\n`);
+      if (args[0] === "update-ref") {
+        updates.push([...args]);
+        expect(args).toEqual(["update-ref", "HEAD", oid("e"), oid("d")]);
+        state.head = oid("e");
+        return ok();
+      }
+      if (args[0] === "reset") return ok();
       throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
     };
 
     await expect(createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec })
       .mergeAppendOnly(oid("a"), oid("c")))
       .rejects.toThrow("Git created a merge commit with unexpected parents.");
-    expect(state.head).toBe(oid("d"));
+    expect(state.head).toBe(oid("e"));
+    expect(updates).toHaveLength(1);
   });
 
   it("turns a bounded fetch timeout into a typed operational refusal", async () => {

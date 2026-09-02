@@ -104,7 +104,28 @@ export function createBaseMergePort(input: {
         const after = await resolveOid(input.exec, input.cwd, "HEAD");
         const parents = await resolveParents(input.exec, input.cwd, after);
         if (parents.length !== 2 || parents[0] !== headOid || parents[1] !== baseOid) {
-          throw new Error("Git created a merge commit with unexpected parents.");
+          const failure = new Error("Git created a merge commit with unexpected parents.");
+          const actualPredecessor = parents[0];
+          if (actualPredecessor === undefined
+            || await resolveOid(input.exec, input.cwd, "HEAD") !== after) throw failure;
+          try {
+            await input.exec("git", ["update-ref", "HEAD", actualPredecessor, after], { cwd: input.cwd });
+            await input.exec("git", ["reset", "--hard", "HEAD"], { cwd: input.cwd });
+            const [restored, clean, stillMerging] = await Promise.all([
+              resolveOid(input.exec, input.cwd, "HEAD"),
+              input.exec("git", ["status", "--porcelain=v1"], {
+                cwd: input.cwd,
+                objectAccess: "local-only",
+              }).then(({ stdout }) => stdout === ""),
+              mergeInProgress(input.exec, input.cwd),
+            ]);
+            if (restored !== actualPredecessor || !clean || stillMerging) {
+              throw new Error("Git could not remove the unexpected merge commit.");
+            }
+          } catch (error) {
+            throw new Error("Git could not remove the unexpected merge commit.", { cause: error });
+          }
+          throw failure;
         }
         return { status: "merged", headOid: after };
       } catch (error) {
