@@ -238,6 +238,10 @@ describe("delivery review-fix driver", () => {
           "--name-only", "-z", "--no-messages", "2".repeat(40), "3".repeat(40),
         ],
       },
+      workspace: {
+        path: "/repo/.git/arc/delivery-resolutions/plan/member",
+        head: "2".repeat(40),
+      },
     };
     const project = vi.fn().mockResolvedValue({
       step: { status: "dispatch", action, recommendedActionText: "Refresh." },
@@ -265,7 +269,8 @@ describe("delivery review-fix driver", () => {
         resultStatus: "blocked",
       }],
       recommendedActionText:
-        "Record the exact prepared two-parent merge on conflictPreparation.topRef locally without pushing it, "
+        "Resolve the reported paths in conflictPreparation.workspace, record the exact prepared two-parent "
+        + "merge there without pushing it, "
         + "then submit the returned correction resume unchanged.",
     });
   });

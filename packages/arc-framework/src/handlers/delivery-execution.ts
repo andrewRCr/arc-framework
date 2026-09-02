@@ -510,6 +510,10 @@ const DeliveryTerminalConflictPreparationSchema = z.strictObject({
       z.literal("--no-messages"), GitObjectIdSchema, GitObjectIdSchema,
     ]),
   }),
+  workspace: z.strictObject({
+    path: z.string().min(1),
+    head: GitObjectIdSchema,
+  }).optional(),
 });
 const RefreshPlanSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,

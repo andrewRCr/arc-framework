@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deriveDeliveryResolutionWorkspacePath,
   deriveDeliveryResidueLocators,
   observeDeliveryGateCheckout,
   reapCompletedDeliveryResidue,
@@ -36,6 +37,19 @@ describe("delivery closeout residue", () => {
       candidateRef: `refs/arc/delivery-candidates/${plan.planId}/${member.chunkKey}`,
       gatePath: `/repo/.git/arc/delivery-gates/${plan.planId}/${member.chunkKey}`,
     })));
+  });
+
+  it("derives one deterministic resolution workspace inside the Git-common ARC namespace", () => {
+    const { plan } = closeoutFixture();
+    const member = plan.members[1]!;
+    expect(deriveDeliveryResolutionWorkspacePath({
+      plan,
+      deliverableId: member.deliverableId,
+      gitCommonDir: "/repo/.git",
+    })).toEqual({
+      status: "derived",
+      path: `/repo/.git/arc/delivery-resolutions/${plan.planId}/${member.chunkKey}`,
+    });
   });
 
   it("reaps exact two-sided member refs and candidate/gate pairs while retaining state bindings", async () => {

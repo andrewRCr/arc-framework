@@ -75,6 +75,34 @@ export function deriveDeliveryResidueLocators(
   };
 }
 
+/** Derive one deterministic ARC-owned detached conflict-resolution workspace. */
+export function deriveDeliveryResolutionWorkspacePath(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly deliverableId: string;
+  readonly gitCommonDir: string;
+}):
+  | { readonly status: "derived"; readonly path: string }
+  | {
+      readonly status: "refused";
+      readonly reason: "plan-invalid" | "git-common-dir-invalid" | "member-unavailable";
+    } {
+  const parsed = DeliveryPlanV1Schema.safeParse(input.plan);
+  if (!parsed.success) return { status: "refused", reason: "plan-invalid" };
+  if (!isAbsolute(input.gitCommonDir)) return { status: "refused", reason: "git-common-dir-invalid" };
+  const member = parsed.data.members.find(({ deliverableId }) => deliverableId === input.deliverableId);
+  if (member === undefined) return { status: "refused", reason: "member-unavailable" };
+  return {
+    status: "derived",
+    path: join(
+      resolve(input.gitCommonDir),
+      "arc",
+      "delivery-resolutions",
+      parsed.data.planId,
+      member.chunkKey,
+    ),
+  };
+}
+
 /**
  * Observe only the registered checkout at one exact derived gate path.
  *

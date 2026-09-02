@@ -1,7 +1,7 @@
 /** Real-Git coverage for native provider refresh preparation and fork-point recovery. */
 
 import { execFile } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -657,22 +657,36 @@ describe("GitHub provider refresh preparation", () => {
         topRef: `refs/heads/${firstDependentName}`,
         logicalMergeBase: originalSelected,
         parents: { top: firstDependent, refreshedPredecessor: selected },
+        workspace: { head: firstDependent },
       },
     });
     expect(await git(repository, ["ls-remote", "--refs", "origin", `refs/heads/${firstDependentName}`]))
       .toContain(firstDependent);
 
-    await git(repository, ["switch", firstDependentName]);
+    const resolutionWorkspace = conflict.status === "refused"
+      && conflict.conflictPreparation !== undefined
+      ? conflict.conflictPreparation.workspace?.path ?? null
+      : null;
+    if (resolutionWorkspace === null) throw new Error("prepared resolution workspace must be returned");
+    expect(await git(resolutionWorkspace, ["rev-parse", "HEAD"])).toBe(firstDependent);
+    const operatorNote = join(resolutionWorkspace, "operator-note.txt");
+    await writeFile(operatorNote, "preserve me\n", "utf8");
+    await expect(port.prepare(request)).resolves.toMatchObject({
+      status: "refused",
+      reason: "conflict-resolution-mismatch",
+    });
+    expect(await readFile(operatorNote, "utf8")).toBe("preserve me\n");
+    await rm(operatorNote);
     await expect(execFileAsync(
       "git",
       ["merge", "--no-ff", selectedName, "-m", "approved conflict resolution"],
-      { cwd: repository },
+      { cwd: resolutionWorkspace },
     )).rejects.toBeDefined();
-    await writeFile(join(repository, "shared.txt"), "dependent\nselected\n", "utf8");
-    await git(repository, ["add", "shared.txt"]);
-    await git(repository, ["commit", "-m", "approved conflict resolution"]);
-    const resolution = await git(repository, ["rev-parse", "HEAD"]);
-    expect(await git(repository, ["rev-list", "--parents", "-n", "1", resolution]))
+    await writeFile(join(resolutionWorkspace, "shared.txt"), "dependent\nselected\n", "utf8");
+    await git(resolutionWorkspace, ["add", "shared.txt"]);
+    await git(resolutionWorkspace, ["commit", "-m", "approved conflict resolution"]);
+    const resolution = await git(resolutionWorkspace, ["rev-parse", "HEAD"]);
+    expect(await git(resolutionWorkspace, ["rev-list", "--parents", "-n", "1", resolution]))
       .toBe(`${resolution} ${firstDependent} ${selected}`);
 
     const resumed = await port.prepare(request);
