@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3265,6 +3265,31 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
             - _Adversarial companion:_ the Heavy Member 7 two-pass cap remains exhausted; this bounded guard does not
               claim or spend a third pass.
             - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+
+    - `[ ]` **7.7.R.z Rematerialize exact stale candidate gates before correction authoring**
+
+        - _Goal:_ A registered non-terminal correction reaches the current public member through its exact clean
+          machine-owned candidate gate without discarding authored work, re-deriving topology, or requiring manual
+          gate repair after provider movement.
+
+        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Amendment 7 — provider refresh
+          cannot move checked-out member refs (2026-09-02).
+
+        - Derive and revalidate the exact repository, plan, member, state-revision, public-head, candidate-ref, and
+          gate-path coordinates before every preparation effect. Preserve the existing strict post-authoring rebind,
+          scoped verification, and publication contracts.
+
+        - Build `test-first` (one behavior at a time):
+            - Fresh absence prepares the deterministic private pair, an exact current pair replays, and an exact
+              clean detached stale pair whose `HEAD` equals its candidate ref compare-and-swap rematerializes to the
+              current selected public head before returning the existing `authoring-required` stop.
+            - Dirty, authored-ahead, split, attached, foreign-path, malformed, ambiguous, operation-in-progress, and
+              state/head/ref race evidence refuses without moving the gate, candidate ref, Delivery State,
+              canonical refs, or remotes.
+            - The correction driver records private preparation or no-op replay in its ordered effect log, spends no
+              hosted-provider capacity, and preserves its closed typed stop set and no-progress protection.
+            - Bootstrap the implementation through the exact clean stale Member 7 gate, prove the production-style
+              composed loop, and use the pending Member 6 correction as the attended live acceptance.
 
 ## **Phase 8:** Record retirement and doctrine
 

@@ -915,6 +915,17 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   hold canonical member refs. ARC never updates a checked-out member ref behind its worktree or rewrites that
   worktree's index/files; the operator realigns or removes the named checkout and retries.
 
+  **Forward clarification (2026-09-02):** registered non-terminal review-fix authoring first prepares only the
+  deterministic private candidate ref and detached gate derived from repository, plan, and member identity. When
+  that exact pair is present at an older machine materialization, ARC may compare-and-swap rematerialize it to the
+  revalidated current selected-member head only after proving the gate is registered at the exact path, detached,
+  fully clean and operation-free, and its `HEAD` equals the candidate ref. Absence uses fresh preparation; an exact
+  current pair replays without mutation. Dirty, authored-ahead, split, attached, foreign, malformed, ambiguous, or
+  raced evidence refuses without mutation. The correction driver effect-logs successful private preparation and
+  then returns its existing `authoring-required` stop. This authority moves no canonical ref or remote, does not
+  settle review or spend provider capacity, and leaves strict post-authoring rebind, scoped verification, and
+  publication unchanged.
+
   Repeated settlement treats the prior highest-member coordinate in the reservation's `before` snapshot as the
   logical three-way base for absorbing the refreshed highest member into the terminal top. This prevents a
   contribution-equivalent provider rewrite from replaying the old suffix while preserving a genuine content merge:

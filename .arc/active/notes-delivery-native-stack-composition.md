@@ -659,3 +659,20 @@ pending publication and retains its operation if occupancy appeared after reserv
 resolution gates are not canonical-ref occupancy. ARC never silently updates a checked-out member ref or resets its
 worktree; the operator explicitly realigns or removes the named checkout, then retries. Task 7.7.R.y owns the bounded
 test-first repair and the existing proven-clean stale Member 7 checkout is the live acceptance residue.
+
+The next live correction exposed the downstream form of the same ownership failure: provider refresh had advanced
+the canonical Member 6 head while ARC's deterministic detached candidate ref and gate still agreed at an older
+machine materialization. Exact-locus correction then correctly refused to treat the old head as an ancestor of the
+new public head, but it had no safe way to prepare its own clean private authoring surface first.
+
+Decided behavior: before returning registered non-terminal review-fix authoring, ARC derives only that member's
+deterministic candidate ref and gate from repository, plan, and member identity. It may rematerialize the pair to the
+current selected public head only after proving the gate is registered at the exact derived path, detached, fully
+clean and operation-free, with `HEAD` equal to the candidate ref, and after revalidating the exact Delivery State
+revision and selected-member coordinates. Pair absence takes the existing fresh-preparation route; an exact current
+pair replays without mutation. Dirty, authored-ahead, split, attached, foreign, malformed, ambiguous, or raced state
+refuses intact. A successful private rematerialization is a machine-owned driver effect disclosed in the invocation
+effect log, then returns the existing `authoring-required` stop. It moves no canonical ref or remote, spends no
+provider review, and does not weaken the strict post-authoring rebind, scoped verification, or publication guards.
+Task 7.7.R.z owns the bounded repair; the clean stale Member 7 gate is the one-time bootstrap locus and the pending
+Member 6 correction is the live acceptance.
