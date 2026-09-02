@@ -24,7 +24,9 @@ import {
 type DeliveryCheckpointBlockedReason =
   | Extract<DeliveryTerminalClaimResult, { readonly status: "refused" }>["reason"]
   | Extract<DeliveryTerminalCheckResult, { readonly status: "refused" }>["reason"]
-  | Extract<DeliveryTerminalTopResult, { readonly status: "refused" }>["reason"];
+  | Extract<DeliveryTerminalTopResult, { readonly status: "refused" }>["reason"]
+  | "drift-classification-unavailable"
+  | "predecessor-overlap";
 
 export type DeliveryCheckpointArmResult =
   | { readonly status: "not-applicable" }

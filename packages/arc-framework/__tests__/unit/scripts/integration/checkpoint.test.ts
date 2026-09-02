@@ -145,7 +145,7 @@ describe("integration checkpoint", () => {
       proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
     });
     if (decision.state !== "decision-required") throw new Error("expected a bounded applicability decision");
-    deps.readCandidate = async () => decision as never;
+    deps.readCandidate = async () => decision;
     const resolutionSelector = {
       schemaVersion: 1 as const,
       expectedRecordVersion: digest("f"),
@@ -514,6 +514,30 @@ describe("integration checkpoint", () => {
     expect(events).toEqual([]);
   });
 
+  it("stops when a delivery terminal result lacks coordinates for its retarget remedy", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.composeDelivery = async () => ({
+      status: "blocked",
+      nextAction: "retarget",
+      reason: "top-target-mismatch",
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "delivery-terminal-blocked",
+        remedy: {
+          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+        },
+        payload: {
+          nextAction: "retarget",
+          reason: "top-target-mismatch",
+        },
+      });
+  });
+
   it("returns the exact existing delivery reconcile input for a stale terminal binding", async () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
@@ -522,7 +546,7 @@ describe("integration checkpoint", () => {
       nextAction: "reconcile-delivery-state",
       planId: PLAN_ID,
       repository: "owner/repo",
-    }) as never;
+    });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
@@ -551,9 +575,30 @@ describe("integration checkpoint", () => {
       });
   });
 
+  it("returns a typed composition refusal when the Candidate publication read fails", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readCandidatePublication = async () => {
+      throw new Error("publication state unavailable");
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "composition-unavailable",
+        payload: { detail: "publication state unavailable" },
+      });
+  });
+
   it("keeps the integration interlock after the delivery terminal checks pass", async () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
+    const settlementBases: string[] = [];
+    deps.composeSettlementPlan = async ({ baseRevision }) => {
+      settlementBases.push(baseRevision);
+      return composeCanonicalSettlementPlan([]);
+    };
     const endpoints = {
       before: {
         predecessor: { head: oid("a"), tree: oid("b") },
@@ -598,7 +643,12 @@ describe("integration checkpoint", () => {
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
-      .resolves.toMatchObject({ state: "ready", nextAction: "request-approval" });
+      .resolves.toMatchObject({
+        state: "ready",
+        nextAction: "request-approval",
+        payload: { mergeMethod: { stackPosition: "top" } },
+      });
+    expect(settlementBases).toEqual([CLEAN_DRIFT.baseOid]);
   });
 
   it("blocks an implementation-changing lineage without its converged full attestation", async () => {

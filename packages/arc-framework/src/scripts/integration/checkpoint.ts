@@ -498,6 +498,7 @@ export interface IntegrationCheckpointDependencies {
   }): Promise<CheckpointReadyComposition>;
   composeSettlementPlan(input: {
     workUnit: string;
+    baseRevision: string;
     composition: CheckpointReadyComposition;
   }): Promise<CanonicalSettlementPlan>;
   createHandle(input: CheckpointReadyComposition & {
@@ -556,25 +557,34 @@ function reconcileSafety(
   });
 }
 
-function deliveryTerminalRemedy(
+function deliveryTerminalDisposition(
   workUnit: string,
   delivery: Extract<DeliveryCheckpointArmResult, { readonly status: "blocked" }>,
-): SpineRemedy {
+): {
+  readonly nextAction: "stop" | "retarget" | "reopen-and-retarget";
+  readonly remedy: SpineRemedy;
+} {
   if ((delivery.nextAction === "retarget" || delivery.nextAction === "reopen-and-retarget")
     && delivery.planId !== undefined && delivery.remedy !== undefined) {
-    return spineRemedy(
-      "The terminal delivery request targets the protected base before integration.",
-      "Apply the exact observed failure-only remedy",
-      ["arc", "delivery", "top-remedy", "-", "--json"],
-      {
-        planId: delivery.planId,
-        action: delivery.nextAction,
-        repository: delivery.remedy.repository,
-        protectedBaseRef: delivery.remedy.protectedBaseRef,
-      },
-    );
+    return {
+      nextAction: delivery.nextAction,
+      remedy: spineRemedy(
+        "The terminal delivery request targets the protected base before integration.",
+        "Apply the exact observed failure-only remedy",
+        ["arc", "delivery", "top-remedy", "-", "--json"],
+        {
+          planId: delivery.planId,
+          action: delivery.nextAction,
+          repository: delivery.remedy.repository,
+          protectedBaseRef: delivery.remedy.protectedBaseRef,
+        },
+      ),
+    };
   }
-  return checkpointRemedy("delivery-terminal-blocked", workUnit);
+  return {
+    nextAction: "stop",
+    remedy: checkpointRemedy("delivery-terminal-blocked", workUnit),
+  };
 }
 
 /**
@@ -746,20 +756,20 @@ export async function checkpointIntegration(
       payload: { candidate },
     });
   }
-  const publication = await dependencies.readCandidatePublication(request.workUnit, drift.baseOid);
-  if (publication.status === "refresh-required") {
-    return IntegrationCheckpointResultSchema.parse({
-      ...base,
-      state: "candidate-publication-required",
-      nextAction: "resume-pre-publication",
-      payload: {
-        attestArgv: [...attestArgv(request.workUnit), "--json"],
-        recommendedActionText:
-          "Refresh the recognized Candidate boundary, settle ordinary pre-publication review, then rerun checkpoint.",
-      },
-    });
-  }
   try {
+    const publication = await dependencies.readCandidatePublication(request.workUnit, drift.baseOid);
+    if (publication.status === "refresh-required") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "candidate-publication-required",
+        nextAction: "resume-pre-publication",
+        payload: {
+          attestArgv: [...attestArgv(request.workUnit), "--json"],
+          recommendedActionText:
+            "Refresh the recognized Candidate boundary, settle ordinary pre-publication review, then rerun checkpoint.",
+        },
+      });
+    }
     const delivery = await dependencies.composeDelivery({
       workUnit: request.workUnit,
       candidate,
@@ -779,12 +789,13 @@ export async function checkpointIntegration(
       });
     }
     if (delivery.status === "blocked") {
+      const terminal = deliveryTerminalDisposition(request.workUnit, delivery);
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "blocked",
-        nextAction: delivery.nextAction,
+        nextAction: terminal.nextAction,
         reason: "delivery-terminal-blocked",
-        remedy: deliveryTerminalRemedy(request.workUnit, delivery),
+        remedy: terminal.remedy,
         payload: delivery,
       });
     }
@@ -832,6 +843,7 @@ export async function checkpointIntegration(
     }
     const settlementPlan = CanonicalSettlementPlanSchema.parse(await dependencies.composeSettlementPlan({
       workUnit: request.workUnit,
+      baseRevision: drift.baseOid,
       composition,
     }));
     const settledDispositions = settlementDispositionIds(settlementPlan);
