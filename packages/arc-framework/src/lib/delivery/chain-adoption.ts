@@ -44,6 +44,26 @@ async function isExactAdoption(input: DeliveryChainAdoptionInput, head: string):
   }
 }
 
+async function classifySameHighestAdoption(
+  input: DeliveryChainAdoptionInput,
+  head: string,
+): Promise<"same-highest" | "different" | "unavailable"> {
+  try {
+    const parents = text((await input.exec(
+      ["rev-list", "--parents", "-n", "1", head],
+      { objectAccess: "local-only" },
+    )).stdout)?.split(" ");
+    if (parents === undefined || parents[0] !== head || !parents.every((parent) => objectId.test(parent))) {
+      return "unavailable";
+    }
+    return parents.length === 3 && parents[2] === input.highestMember.head
+      ? "same-highest"
+      : "different";
+  } catch {
+    return "unavailable";
+  }
+}
+
 /** Exact originating ref and containment coordinates for one adoption attempt. */
 export interface DeliveryChainAdoptionInput extends DeliveryChainContainmentInput {
   readonly exec: RawGitExec;
@@ -75,6 +95,13 @@ export async function adoptGitDeliveryChain(
     return await isExactAdoption(input, current)
       ? { status: "adopted", head: current, tree: input.top.tree }
       : { status: "refused", reason: "top-moved" };
+  }
+  const currentAdoption = await classifySameHighestAdoption(input, current);
+  if (currentAdoption === "unavailable") {
+    return { status: "refused", reason: "adoption-unavailable" };
+  }
+  if (currentAdoption === "same-highest") {
+    return { status: "adopted", head: current, tree: input.top.tree };
   }
   let commit: string | null;
   try {

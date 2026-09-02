@@ -87,7 +87,9 @@ async function terminalProjection(landingBatches: readonly (readonly string[])[]
       predecessor: { head: predecessor.head, tree: predecessor.tree },
       member: { head: candidateHead, tree: candidateTree },
     },
-    readCandidateCoordinate: async () => ({ head: candidateHead, tree: candidateTree }),
+    readCandidateCoordinate: async (head) => head === candidateHead
+      ? { head: candidateHead, tree: candidateTree }
+      : null,
     proveResidual: async () => ({ status: "accepted", proof: "tree-equality" }),
   });
 }

@@ -4,7 +4,6 @@ import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-const absentObjectId = "0".repeat(40);
 
 type DeliveryLocalRefObservation =
   | { readonly status: "absent" }
@@ -47,7 +46,7 @@ async function publishDeliveryLocalRef(input: {
       : { status: "refused", reason: "collision" };
   }
   try {
-    await input.exec("git", ["update-ref", input.ref, input.head, absentObjectId]);
+    await input.exec("git", ["update-ref", input.ref, input.head, ""]);
   } catch {
     const afterFailure = await observeDeliveryLocalRef(input.exec, input.ref);
     if (afterFailure.status === "observed") {

@@ -73,6 +73,8 @@ describe("packaged delivery workflow", () => {
     expect(reviewSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
     const rematerialize = reviewSection.indexOf("arc delivery rematerialize");
     const teardown = reviewSection.indexOf("arc delivery teardown", rematerialize);
+    expect(rematerialize).toBeGreaterThanOrEqual(0);
+    expect(teardown).toBeGreaterThan(rematerialize);
     const mutationTail = reviewSection.slice(rematerialize, teardown);
     expect(mutationTail).toContain("verify-review-fix");
     expect(mutationTail).toContain("validate-criteria");
@@ -80,9 +82,12 @@ describe("packaged delivery workflow", () => {
     expect(mutationTail).toMatch(/tier1Required[\s\S]*Tier 1/iu);
     expect(mutationTail).toMatch(/same finding-disposition approval/iu);
     expect(mutationTail).not.toContain("`integration-interlock`");
-    expect(reviewSection.indexOf("arc delivery teardown")).toBeLessThan(
-      packaged.indexOf("## Terminal handoff") - packaged.indexOf("## Review and land the current member"),
-    );
+    const reviewStart = packaged.indexOf("## Review and land the current member");
+    const terminalStart = packaged.indexOf("## Terminal handoff", reviewStart);
+    const teardownInDocument = packaged.indexOf("arc delivery teardown", reviewStart);
+    expect(reviewStart).toBeGreaterThanOrEqual(0);
+    expect(teardownInDocument).toBeGreaterThan(reviewStart);
+    expect(terminalStart).toBeGreaterThan(teardownInDocument);
     expect(terminalTail).toMatch(/terminal-checkpoint[\s\S]*integrate-work-unit\.md/iu);
     expect(terminalTail).toMatch(/retarget[\s\S]*reopen-and-retarget/iu);
     expect(terminalSection).not.toContain("`integration-interlock`");

@@ -64,28 +64,31 @@ async function observeMember(
     if (!member.ref.startsWith(prefix)) return { exact: false, requestState: null };
     const branch = member.ref.slice(prefix.length);
     const remoteHead = dependencies.remoteHeads[branch];
+    let observedHead: string;
     if (requestState === "merged") {
       if (requestHead !== member.coordinates.head
         || dependencies.localCommits[member.coordinates.head] !== true
         || (remoteHead !== undefined && remoteHead !== member.coordinates.head)) {
         return { exact: false, requestState: null };
       }
+      observedHead = member.coordinates.head;
     } else {
       if (remoteHead === undefined
         || remoteHead !== member.coordinates.head
         || dependencies.localCommits[remoteHead] !== true) {
         return { exact: false, requestState: null };
       }
-      const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
-        ...options,
-        cwd: dependencies.cwd,
-        objectAccess: "local-only",
-      });
-      const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, remoteHead);
-      if (coordinates === null || coordinates.tree !== member.coordinates.tree
-        || (requestHead !== null && requestHead !== member.coordinates.head)) {
-        return { exact: false, requestState: null };
-      }
+      observedHead = remoteHead;
+    }
+    const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+      ...options,
+      cwd: dependencies.cwd,
+      objectAccess: "local-only",
+    });
+    const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, observedHead);
+    if (coordinates === null || coordinates.tree !== member.coordinates.tree
+      || (requestHead !== null && requestHead !== member.coordinates.head)) {
+      return { exact: false, requestState: null };
     }
   } else if (requestState === "merged") {
     return { exact: false, requestState: null };
