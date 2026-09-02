@@ -178,6 +178,7 @@ export function classifyDeliveryReviewFixReviewStatusStop(
     case "resolve-review-applicability":
     case "obtain-ceiling-override":
       return "review-spend";
+    case "review-hosted-await":
     case "rerun-checkpoint":
       return "external-wait";
     case "continue-reconcile":

@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { canonicalize, type KernelRegistry } from "../../../lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   validateReviewRequest,
@@ -19,6 +19,7 @@ import { LocalAttestationBindingSchema } from "./local-carrier.js";
 import { HostedFindingSchema } from "../hosted/await.js";
 import {
   HostedProviderIdSchema,
+  HostedRequestHandleSchema,
   HostedReviewCoverageSchema,
   HostedTargetSchema,
 } from "../hosted/request.js";
@@ -157,6 +158,7 @@ export type LocalReviewState = z.infer<typeof LocalReviewStateSchema>;
  */
 const LaneSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
 const LaneAttemptOutcomeSchema = z.enum([
+  "pending",
   "clean",
   "findings",
   "settled-findings",
@@ -172,6 +174,7 @@ const LaneAttemptOutcomeSchema = z.enum([
   "terminal-failure",
 ]);
 const HostedLaneAttemptBindingSchema = z.strictObject({
+  handle: HostedRequestHandleSchema.optional(),
   target: HostedTargetSchema,
   requestedCoverage: HostedReviewCoverageSchema,
   effectiveCoverage: HostedReviewCoverageSchema.nullable(),
@@ -249,6 +252,13 @@ const LaneAttemptSchema = z.strictObject({
     });
   }
   if (attempt.hosted === undefined) return;
+  if (attempt.outcome === "pending" && attempt.hosted.handle === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "handle"],
+      message: "a pending hosted attempt requires its complete request handle",
+    });
+  }
   try {
     const target = validateReviewTarget(attempt.hosted.reviewTarget);
     validateReviewRequirement(target, attempt.hosted.requirement);
@@ -271,6 +281,21 @@ const LaneAttemptSchema = z.strictObject({
         code: "custom",
         path: ["hosted", "vehicle", "head"],
         message: "hosted delivery vehicle must identify the review target head",
+      });
+    }
+    const handle = attempt.hosted.handle;
+    if (handle !== undefined && (handle.provider !== attempt.sourceId
+      || handle.target.repository.toLowerCase() !== attempt.hosted.target.repository.toLowerCase()
+      || handle.target.pullRequest !== attempt.hosted.target.pullRequest
+      || handle.target.headSha !== attempt.hosted.target.headSha
+      || handle.requestedCoverage !== attempt.hosted.requestedCoverage
+      || handle.effectiveCoverage !== attempt.hosted.effectiveCoverage
+      || canonicalize(handle.vehicle?.kind === "delivery-member" ? handle.vehicle : null)
+        !== canonicalize(attempt.hosted.vehicle ?? null))) {
+      context.addIssue({
+        code: "custom",
+        path: ["hosted", "handle"],
+        message: "hosted request handle does not match its lane-attempt binding",
       });
     }
   } catch (error) {

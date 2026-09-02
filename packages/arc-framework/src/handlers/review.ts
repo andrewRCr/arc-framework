@@ -166,6 +166,7 @@ import {
   hostedLaneAttemptId,
   readLaneProgress,
   recordHostedAwaitAttempt,
+  recordHostedPendingRequest,
   recordHostedRequestUnavailableAttempt,
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
@@ -2268,7 +2269,16 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
               },
             }),
       });
-      if (result.nextAction === "try-next-source") {
+      if (result.nextAction === "await") {
+        await recordHostedPendingRequest(context.store, {
+          repositoryId: context.repositoryId,
+          handle: result.handle,
+          reviewTarget: context.reviewTarget,
+          requirement: context.requirement,
+          actorIdentity: await port.currentActorIdentity(),
+          now: new Date().toISOString(),
+        });
+      } else if (result.nextAction === "try-next-source") {
         await recordHostedRequestUnavailableAttempt(context.store, {
           repositoryId: context.repositoryId,
           request,
@@ -2338,7 +2348,6 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
           sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
         },
       });
-      if (result.state === "pending") return result;
       const progress = await recordHostedAwaitAttempt(context.store, {
         repositoryId: context.repositoryId,
         result,
@@ -2347,7 +2356,7 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
         actorIdentity: await port.currentActorIdentity(),
         now: new Date().toISOString(),
       });
-      return result.state === "findings" && progress !== null
+      return result.state === "findings"
         ? {
             ...result,
             responseSourceRef: bindReviewSourceReference({

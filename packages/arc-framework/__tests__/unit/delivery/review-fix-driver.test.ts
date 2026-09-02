@@ -19,6 +19,7 @@ describe("delivery review-fix driver", () => {
     ["respond-to-findings", "finding-disposition"],
     ["obtain-ceiling-override", "review-spend"],
     ["review-hosted-request", "review-spend"],
+    ["review-hosted-await", "external-wait"],
     ["resolve-review-applicability", "review-spend"],
     ["rerun-checkpoint", "external-wait"],
     ["continue-reconcile", "integration"],
