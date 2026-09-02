@@ -647,10 +647,19 @@ export function createHostedReservationDischargeReader(input: {
         readLaneProgress: () => Promise.resolve({ status: "unrecorded" }),
       });
     }
-    const { stdout } = await input.exec("git", ["rev-list", `${baseRevision}..${approvedHead}`], {
-      cwd: input.cwd,
-      objectAccess: "local-only",
-    });
+    let stdout: string;
+    try {
+      ({ stdout } = await input.exec("git", ["rev-list", `${baseRevision}..${approvedHead}`], {
+        cwd: input.cwd,
+        objectAccess: "local-only",
+      }));
+    } catch {
+      return {
+        discharged: false,
+        detail: "The reserved hosted-review target span is unavailable.",
+        nextSource: null,
+      };
+    }
     const span = [baseRevision, ...stdout.trim().split("\n").filter((line) => line !== "")];
     const currentRepositoryId = await repositoryId();
     const snapshot = candidate === undefined || changeRequest === null
