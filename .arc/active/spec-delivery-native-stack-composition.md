@@ -1575,6 +1575,16 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   outstanding member. This restores existing driver parity and adds no signal-convergence rule, standing grant,
   review verdict, operation outcome, record family, or generalized control flow.
 
+  **Forward clarification (2026-09-02):** Status may also attach the same submit-ready member terminus offer to the
+  ordinary next-pass action before ceiling exhaustion when the exact first-outstanding member has at least one
+  completed standard-review attempt with complete requested or effective coverage. The next-pass action remains
+  executable and selected; only explicit authenticated acceptance appends the terminus. Findings or settlement,
+  applicability, a pending request or await, checks, malformed or unavailable evidence, and other existing
+  interventions retain precedence and suppress the offer. Acceptance freshly rederives the qualifying attempt set
+  and all existing bound coordinates, including completed-pass count; any movement refuses. The offer and record make
+  no clean, evaluator-satisfied, pass-sufficient, severity, or convergence claim and add no
+  `review-signal-convergence` derivation.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh

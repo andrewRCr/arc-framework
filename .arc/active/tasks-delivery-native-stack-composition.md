@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3134,7 +3134,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           state rebind still occurs once so hosted request coordinates remain current, while the resulting record
           commit no longer manufactures another carry. The focused classifier and all 21 production E2E cases pass.
 
-    - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
+    - `[ ]` **7.7.R.v Restore per-member Owner terminus parity**
 
         - _Goal:_ An explicit Work Unit Owner terminus closes only the exact first-outstanding delivery member,
           remains durable across re-entry, and advances status to the next member without claiming a clean or
@@ -3162,6 +3162,31 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           typed stop/accept/re-entry path without calling the member clean or converged. Both typechecks, lint gates,
           ARC contract checks, the production-style ceiling-to-next-member case, and the complete 11,247-test suite
           pass; acceptance and re-entry leave the hosted review-operation store unchanged.
+
+        - _Forward amendment (2026-09-02):_ Live Member 6 review completed one full pass and two incremental passes,
+          the latter clean, while status still exposed only another complete pass because the explicit Owner terminus
+          was transported solely at the configured ceiling. Present the same exact-head authority alongside an
+          ordinary next-pass action after one complete pass, without inferring convergence or weakening any pending
+          obligation.
+
+        - `[ ]` **7.7.R.v.a Offer explicit member terminus after one complete pass**
+
+            - _Goal:_ After at least one exact complete or effective-complete standard-review pass, the Work Unit
+              Owner can explicitly terminate the current member before its ceiling while the ordinary next-pass
+              action, all higher-priority obligations, and every exact-currentness guard remain intact.
+
+            - Build `test-first` (one behavior at a time):
+                - Project an optional terminus offer beside an ordinary next hosted or local standard-review pass only
+                  when the first-outstanding exact member has at least one completed complete or effective-complete
+                  attempt; exclude pending, unavailable, incremental-only, partial, and zero-pass histories.
+                - Preserve findings and settlement, applicability, pending request and await, checks, malformed or
+                  unavailable progress, and existing terminal or blocked states without a pre-ceiling offer.
+                - Keep the ordinary next-pass action executable when the offer is ignored; offering performs no
+                  mutation, consumes no pass, and spends no provider capacity.
+                - Reuse the existing acceptance command and store, revalidating live Owner, Candidate, boundary,
+                  first-outstanding member and head, completed-pass count, and qualifying complete-pass evidence.
+                - Prove exact replay, staleness on member, head, or pass movement, advancement of only the accepted
+                  member, and no clean, sufficient, evaluator-satisfied, pass-complete, severity, or convergence claim.
 
     - `[x]` **7.7.R.w Bind approved member fixes to their exact authoring locus**
 

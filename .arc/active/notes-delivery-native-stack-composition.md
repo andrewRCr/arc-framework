@@ -530,6 +530,17 @@ severity threshold, standing grant, Candidate transition, operation-state outcom
 is added. Future `review-signal-convergence` remains authoritative for deriving convergence from durable result and
 disposition evidence; its minors-only rule would independently reach the same live Member 1 outcome.
 
+Forward clarification (2026-09-02): the same explicit member-bound Owner terminus may be offered before the
+configured ceiling, but only after at least one exact completed standard-review pass whose requested or effective
+coverage is complete. The offer accompanies the otherwise ordinary next-pass action; it neither replaces that action
+nor discharges the member until the authenticated Owner accepts it through the existing mutation command. Pending
+findings or settlement, unresolved applicability, a pending hosted request, checks, unavailable evidence, and every
+existing higher-priority stop suppress the offer. Acceptance revalidates the same Candidate, boundary,
+first-outstanding member/head, qualifying-pass evidence, and completed-pass count, and the stored conclusion keeps
+the same exact-head scope and staleness behavior. This is an earlier presentation of explicit shipped Owner
+authority, not a machine inference that review is clean, sufficient, complete, or converged. It adds no provider
+result, severity/minors rule, threshold, default, standing grant, or review-signal-convergence policy.
+
 ### Amendment 3 — executable pre-reservation conflict resume (2026-09-01)
 
 The live Member 3 correction reached the rescue's intended attended conflict stop while provider preparation was
