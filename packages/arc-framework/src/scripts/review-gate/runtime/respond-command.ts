@@ -1192,6 +1192,32 @@ export async function respondToReviewCommand(
   }
   const alreadySettled = existing !== null;
   const hostedSettlementPlan = projectHostedSettlementPlan(source, dispositions);
+  if (plan.state === "ready-to-fix" && deliveryMember !== null) {
+    if (source.hostedAttempt === undefined || plan.fixAuthorization === null) {
+      throw new RespondCommandError(
+        "corrupt-state",
+        "delivery-member fix response is missing its hosted target or fix authorization",
+      );
+    }
+    return RespondEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-respond",
+      diagnostics: [],
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: {
+        operationId: source.operationId,
+        dispositionRecordRef: appended.dispositionRecordRef,
+        fixAuthorization: plan.fixAuthorization,
+        deliveryMember,
+        correctionAction: {
+          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          input: { repository: source.hostedAttempt.target.repository, remote: "origin" },
+        },
+        ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
+      },
+    });
+  }
   return RespondEnvelopeSchema.parse({
     schemaVersion: 1,
     mode: "review-respond",

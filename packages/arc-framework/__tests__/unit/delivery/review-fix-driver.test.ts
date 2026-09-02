@@ -55,7 +55,7 @@ describe("delivery review-fix driver", () => {
       });
     const execute = vi.fn()
       .mockResolvedValueOnce({ status: "published" })
-      .mockResolvedValueOnce({ status: "ready-to-fix" })
+      .mockResolvedValueOnce({ status: "delivery-correction-required" })
       .mockResolvedValueOnce({ status: "applied" });
 
     await expect(driveDeliveryReviewFixContinuation({ project, execute })).resolves.toEqual({
@@ -64,7 +64,7 @@ describe("delivery review-fix driver", () => {
       selectedDeliverableId: `sha256:${"a".repeat(64)}`,
       effectLog: [
         { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
-        { kind: "dispatch", actionKind: "review-respond", resultStatus: "ready-to-fix" },
+        { kind: "dispatch", actionKind: "review-respond", resultStatus: "delivery-correction-required" },
         { kind: "dispatch", actionKind: "delivery-refresh-execute", resultStatus: "applied" },
       ],
     });

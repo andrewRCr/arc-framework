@@ -236,6 +236,12 @@ arc review respond -
 This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
 plan through the phase-ordered settlement path below, then re-enter through `arc review status`.
 
+`delivery-correction-required / continue-delivery-correction` is the delivery-member fix route. Execute any
+before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
+`authoring-required`, and edit only its exact `authoring.checkoutPath` and `authoring.ref` under the returned
+`authoringAuthorization`; resume only through `resumeAction`. A missing, stale, or different locus stops before
+authoring. `ready-to-fix / apply-fix` remains the ordinary singleton route and never substitutes for this one.
+
 The action already carries the selected source, exact opened target, requested coverage, and any delivery-member
 vehicle. Status uses complete coverage by default; only the explicit supplemental route below returns incremental
 coverage. `resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice,

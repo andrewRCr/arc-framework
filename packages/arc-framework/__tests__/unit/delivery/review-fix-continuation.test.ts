@@ -362,8 +362,10 @@ describe("delivery review-fix continuation projection", () => {
     })).toEqual({
       status: "selected",
       planId: plan.planId,
+      workUnitId: plan.workUnitId,
       selectedDeliverableId,
       reviewedHead: pending.deliveryMember?.head,
+      fixAuthorizationId: pending.fixAuthorization?.fixAuthorizationId,
       dispositionSetId: pending.approvedDisposition.dispositionSet.dispositionSetId,
       authorizedFindingIds: ["finding-1"],
       authorizedFindingLoci: ["src/review.ts:42"],
@@ -563,10 +565,32 @@ describe("delivery review-fix continuation projection", () => {
               tree: "b".repeat(40),
             },
           }
+        : kind === "terminal-authoring"
+          ? {
+              authoring: {
+                status: "authoring-required" as const,
+                kind: "top" as const,
+                ref: "refs/heads/feat/example",
+                checkoutPath: "/repo",
+              },
+            }
         : {}),
     });
     expect(result).toMatchObject({ status });
     if (actionKind !== undefined) expect(result).toMatchObject({ action: { kind: actionKind } });
+  });
+
+  it("refuses terminal authoring until the exact top locus is observed", () => {
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      route: route("terminal-authoring"),
+      state: { revision: 3, value: currentChainState() },
+      activeBranch: "feat/example",
+    })).toEqual({
+      status: "refused",
+      reason: "review-fix-authoring-readiness-unavailable",
+    });
   });
 
   it("returns a submit-ready non-terminal authoring stop with the complete approved finding batch", () => {
@@ -585,6 +609,11 @@ describe("delivery review-fix continuation projection", () => {
         dispositionSetId: `sha256:${"f".repeat(64)}`,
         authorizedFindingIds: ["finding-1", "finding-2"],
       },
+      approvedFix: {
+        fixAuthorizationId: `sha256:${"e".repeat(64)}`,
+        workUnitId: plan.workUnitId,
+        reviewedHead: "c".repeat(40),
+      },
     })).toMatchObject({
       status: "authoring-required",
       route: "provider-refresh",
@@ -597,6 +626,16 @@ describe("delivery review-fix continuation projection", () => {
       approvedDispositionSet: {
         dispositionSetId: `sha256:${"f".repeat(64)}`,
         authorizedFindingIds: ["finding-1", "finding-2"],
+      },
+      authoringAuthorization: {
+        fixAuthorizationId: `sha256:${"e".repeat(64)}`,
+        dispositionSetId: `sha256:${"f".repeat(64)}`,
+        planId: plan.planId,
+        workUnitId: plan.workUnitId,
+        selectedDeliverableId,
+        reviewedHead: "c".repeat(40),
+        ref: "refs/arc/delivery-candidates/plan/member",
+        checkoutPath: "/repo/.git/gate/member",
       },
       resumeAction: {
         input: request,

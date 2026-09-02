@@ -119,7 +119,7 @@ const successfulResultStatuses: Readonly<Record<
   "delivery-refresh-adopt": ["applied"],
   "delivery-reconcile": ["position", "rebound", "applied"],
   "delivery-review-fix-acknowledge": ["acknowledged", "already-acknowledged"],
-  "review-respond": ["ready-to-fix", "delivery-member-current"],
+  "review-respond": ["ready-to-fix", "delivery-correction-required", "delivery-member-current"],
 };
 
 function hostedSettlementRemains(result: Readonly<Record<string, unknown>>): boolean {

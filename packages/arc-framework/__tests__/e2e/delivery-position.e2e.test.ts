@@ -530,7 +530,8 @@ describe("arc delivery position", () => {
       "### `[x]` **1.3 Close member three**",
       "",
     ].join("\n"));
-    await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
+    const metaPath = join(activeDir, `meta-${workUnitId}.md`);
+    await writeFile(metaPath, [
       `# Metadata: ${workUnitId}`,
       "",
       "- **State:** Integrating",
@@ -546,6 +547,65 @@ describe("arc delivery position", () => {
     ].join("\n"));
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
+
+    const candidateTarget = await collectGitCandidateTarget({
+      cwd: fixture.repository,
+      name: workUnitId,
+      baseBranch: "main",
+      exec: createExecaGitExec(),
+    });
+    const candidate: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: createCandidateAttestation({
+        workUnit: workUnitId,
+        subject: candidateTarget.subject,
+        baseRevision: candidateTarget.revision,
+        attestedBy: "test-user",
+        attestedAt: "2026-08-31T12:00:00.000Z",
+        verificationEvidenceRef: "verification://review-fix/baseline",
+      }),
+      subject: candidateTarget.subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    await writeCandidateRecord(fixture.repository, workUnitId, candidate, null);
+    await writeFile(
+      metaPath,
+      (await readFile(metaPath, "utf8")).replace(
+        "- **Candidate:** [none]",
+        `- **Candidate:** \`${candidate.attestation.candidateId}\``,
+      ),
+    );
+    await writeSubmissionBoundary(fixture.repository, projectPublicationBoundary({
+      workUnit: workUnitId,
+      branch,
+      candidateId: candidate.attestation.candidateId,
+      candidateSubjectDigest: candidate.subject.subjectDigest,
+      reservation: {
+        schemaVersion: 1,
+        semanticsVersion: "standard-review-reservation/v1",
+        reservationId: `sha256:${"e".repeat(64)}`,
+        sources: ["codex-pr"],
+        target: {
+          kind: "delivery",
+          repository: "owner/repo",
+          workUnitId,
+          planId: fixture.plan.planId,
+        },
+        obligation: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"f".repeat(64)}`,
+          retrigger: "full-final",
+          count: 1,
+        },
+      },
+      changeRequest: { repository: "owner/repo", pullRequest: 42 },
+    }), null);
+    await git(fixture.repository, ["add", ".arc/active"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "bind integration candidate"]);
 
     const stateRead = await fixture.states.read(fixture.plan.planId);
     expect(stateRead).toMatchObject({ status: "ok" });
@@ -594,6 +654,7 @@ describe("arc delivery position", () => {
       approvedAt: "2026-08-31T12:00:00Z",
     });
     const publisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), fixture.repository);
+    const fixAuthorization = createFixAuthorization({ dispositionState: approvedDisposition, oldTarget });
     await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
       ApprovedDispositionRecordSchema.parse({
         schemaVersion: 1,
@@ -614,11 +675,41 @@ describe("arc delivery position", () => {
           attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
         },
         approvedDisposition,
-        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        fixAuthorization,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
       }),
     );
+
+    const entry = await runArcWithStdin(
+      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ entryMode: "integrating" })}\n`,
+      { env: fixture.env },
+    );
+    expect(entry.exitCode, `${entry.stderr}\n${entry.stdout}`).toBe(0);
+    expect(JSON.parse(entry.stdout), entry.stdout).toMatchObject({
+      status: "correction-routing-required",
+      nextAction: "plan-review-fix",
+      planId: fixture.plan.planId,
+      selectedDeliverableId: selectedMember.deliverableId,
+    });
+
+    const session = await runArc(["status", "--session-init", "--json"], fixture.repository, {
+      env: fixture.env,
+    });
+    expect(session.exitCode, `${session.stderr}\n${session.stdout}`).toBe(0);
+    expect(JSON.parse(session.stdout), session.stdout).toMatchObject({
+      derivedLocusState: {
+        ok: true,
+        value: {
+          entering: {
+            kind: "selected",
+            row: { context: { workUnitStage: "delivery-correction" } },
+          },
+        },
+      },
+    });
 
     const result = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
@@ -640,6 +731,16 @@ describe("arc delivery position", () => {
       approvedDispositionSet: {
         authorizedFindingIds: ["finding-1"],
         authorizedFindingLoci: ["member-one.txt:1"],
+      },
+      authoringAuthorization: {
+        fixAuthorizationId: fixAuthorization.fixAuthorizationId,
+        dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+        planId: fixture.plan.planId,
+        workUnitId,
+        selectedDeliverableId: selectedMember.deliverableId,
+        reviewedHead: selectedMember.coordinates.head,
+        ref: `refs/heads/${branch}`,
+        checkoutPath: fixture.repository,
       },
       resumeAction: {
         argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],

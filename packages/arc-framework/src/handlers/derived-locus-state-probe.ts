@@ -73,6 +73,9 @@ export async function runDerivedLocusStateProbe(
         if (result.status === "review-fix-verification-required") {
           return { status: "scoped-verification-required" };
         }
+        if (result.status === "correction-routing-required") {
+          return { status: "authoring-required" };
+        }
         if (result.status === "candidate-verification-required") {
           return { status: "verification-required" };
         }

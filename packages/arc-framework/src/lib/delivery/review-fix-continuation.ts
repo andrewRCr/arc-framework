@@ -21,8 +21,10 @@ type PendingDeliveryReviewFixAuthority =
   | {
       readonly status: "selected";
       readonly planId: string;
+      readonly workUnitId: string;
       readonly selectedDeliverableId: string;
       readonly reviewedHead: string;
+      readonly fixAuthorizationId: string;
       readonly dispositionSetId: string;
       readonly authorizedFindingIds: readonly string[];
       readonly authorizedFindingLoci: readonly string[];
@@ -179,8 +181,10 @@ export function selectPendingDeliveryReviewFixAuthority(input: {
   return {
     status: "selected",
     planId: selected.deliveryMember.planId,
+    workUnitId: selected.deliveryMember.workUnitId,
     selectedDeliverableId: selected.deliveryMember.deliverableId,
     reviewedHead: selected.deliveryMember.head,
+    fixAuthorizationId: selected.fixAuthorization.fixAuthorizationId,
     dispositionSetId: selected.fixAuthorization.dispositionSetId,
     authorizedFindingIds: selected.fixAuthorization.authorizedFindingIds,
     authorizedFindingLoci: selected.approvedDisposition.dispositionSet.findings
@@ -225,6 +229,7 @@ export function pendingDeliveryReviewFixCanResumeFromIntegrationStatus(
 ): boolean {
   return status === "candidate-renewal-required"
     || status === "candidate-verification-required"
+    || status === "correction-routing-required"
     || status === "continue-hosted-review";
 }
 
@@ -337,6 +342,11 @@ export interface DeliveryReviewFixContinuationProjectionInput {
     readonly dispositionSetId: string;
     readonly authorizedFindingIds: readonly string[];
     readonly authorizedFindingLoci?: readonly string[];
+  };
+  readonly approvedFix?: {
+    readonly fixAuthorizationId: string;
+    readonly workUnitId: string;
+    readonly reviewedHead: string;
   };
 }
 
@@ -489,6 +499,19 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       if (input.authoring?.status !== "authoring-required") {
         return { status: "refused" as const, reason: "review-fix-authoring-readiness-unavailable" };
       }
+      const authoringAuthorization = input.approvedDispositionSet === undefined
+        || input.approvedFix === undefined
+        ? undefined
+        : {
+            fixAuthorizationId: input.approvedFix.fixAuthorizationId,
+            dispositionSetId: input.approvedDispositionSet.dispositionSetId,
+            planId: entry.planId,
+            workUnitId: input.approvedFix.workUnitId,
+            selectedDeliverableId: entry.selectedDeliverableId,
+            reviewedHead: input.approvedFix.reviewedHead,
+            ref: input.authoring.ref,
+            checkoutPath: input.authoring.checkoutPath,
+          };
       return {
         status: "authoring-required" as const,
         route: route.route,
@@ -505,21 +528,13 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
         ...(input.approvedDispositionSet === undefined
           ? {}
           : { approvedDispositionSet: input.approvedDispositionSet }),
+        ...(authoringAuthorization === undefined ? {} : { authoringAuthorization }),
         resumeAction: resumeAction(request),
         recommendedActionText: route.recommendedActionText,
       };
     };
     if (route.route === "terminal-authoring") {
-      return input.authoring === undefined
-        ? {
-            status: "authoring-required" as const,
-            route: "terminal-authoring" as const,
-            selectedDeliverableId: route.selectedDeliverableId,
-            nextAction: "author-terminal" as const,
-            resumeAction: resumeAction(request),
-            recommendedActionText: route.recommendedActionText,
-          }
-        : authoringStop();
+      return authoringStop();
     }
     if (route.route === "terminal-rebind") {
       return dispatch({
