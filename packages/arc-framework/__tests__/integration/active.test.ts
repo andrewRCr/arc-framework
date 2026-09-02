@@ -33,14 +33,14 @@ import {
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import { classifyCandidateApplicability } from
   "../../src/lib/work-unit/candidate-applicability.js";
-import {
-  type CandidateTargetProjector,
-} from "../../src/lib/work-unit/candidate-effective-target.js";
+import type { CandidateTargetProjector } from
+  "../../src/lib/work-unit/candidate-effective-target.js";
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { projectDurableCandidateTarget } from "../helpers/candidate.js";
 
 /** Shared default — non-planning branch keeps existing assertions stable. */
 const defaultExec = stubGitExec("main");
+
 const projectCandidateApplicabilityDecision: CandidateTargetProjector = async ({ record }) => {
   const baseline = reduceCandidateDurableBaseline(record);
   const currentSubject = createCandidateSubjectSnapshot([{
