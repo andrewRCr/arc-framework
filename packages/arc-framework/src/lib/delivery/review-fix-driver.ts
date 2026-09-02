@@ -11,6 +11,7 @@ export interface DeliveryReviewFixDriveProgress {
 
 export interface DeliveryReviewFixDriveDispatchAction {
   readonly kind:
+    | "delivery-review-fix-authoring-rebind"
     | "delivery-review-fix-publish"
     | "delivery-rematerialize"
     | "delivery-refresh-execute"
@@ -109,6 +110,7 @@ const successfulResultStatuses: Readonly<Record<
   DeliveryReviewFixDriveDispatchAction["kind"],
   readonly string[]
 >> = {
+  "delivery-review-fix-authoring-rebind": ["rebound", "already-rebound"],
   "delivery-review-fix-publish": ["published"],
   "delivery-rematerialize": ["rematerialized"],
   "delivery-refresh-execute": ["applied"],
