@@ -104,7 +104,8 @@ describe("packaged delivery workflow", () => {
       "retryable / cleared / delivery-publish` with `operationKind: materialize",
       "retryable / preserved / delivery-publish` with `operationKind: publish",
       "retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix",
-      "retryable / cleared / delivery-native-observe` with `operationKind: rewrite` and",
+      "retryable / cleared / delivery-native-observe` with `operationKind: rewrite` and\n"
+        + "  `mode: provider-adoption`",
       "retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential",
       "retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native",
       "retryable / preserved / delivery-teardown` with `operationKind: teardown",
