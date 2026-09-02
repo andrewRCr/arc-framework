@@ -162,6 +162,8 @@ describe("packaged delivery workflow", () => {
     expect(refreshTail).toMatch(/decline[\s\S]*observedHead[\s\S]*restoreHead[\s\S]*exact Git lease/iu);
     const rematerialize = reviewSection.indexOf("arc delivery rematerialize");
     const teardown = reviewSection.indexOf("arc delivery teardown", rematerialize);
+    expect(rematerialize).toBeGreaterThanOrEqual(0);
+    expect(teardown).toBeGreaterThan(rematerialize);
     const mutationTail = reviewSection.slice(rematerialize, teardown);
     expect(mutationTail).toContain("verify-review-fix");
     expect(mutationTail).toContain("validate-criteria");
@@ -202,9 +204,12 @@ describe("packaged delivery workflow", () => {
     expect(reviewSection).toMatch(
       /partial, incoherent, ambiguous, malformed, unsupported, or unavailable[\s\S]*stops/iu,
     );
-    expect(reviewSection.indexOf("arc delivery teardown")).toBeLessThan(
-      packaged.indexOf("## Terminal handoff") - packaged.indexOf("## Review and land the current member"),
-    );
+    const reviewStart = packaged.indexOf("## Review and land the current member");
+    const terminalStart = packaged.indexOf("## Terminal handoff", reviewStart);
+    const teardownInDocument = packaged.indexOf("arc delivery teardown", reviewStart);
+    expect(reviewStart).toBeGreaterThanOrEqual(0);
+    expect(teardownInDocument).toBeGreaterThan(reviewStart);
+    expect(terminalStart).toBeGreaterThan(teardownInDocument);
     expect(terminalTail).toMatch(/terminal-checkpoint[\s\S]*integrate-work-unit\.md/iu);
     expect(terminalTail).toMatch(/retarget[\s\S]*reopen-and-retarget/iu);
     expect(terminalTail).toMatch(/explicit[\s\S]*arc delivery top-remedy[\s\S]*terminal-checkpoint/iu);
