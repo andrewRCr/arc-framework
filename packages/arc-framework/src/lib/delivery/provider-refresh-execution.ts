@@ -39,6 +39,28 @@ export interface DeliveryProviderRefreshCandidate {
   readonly head: string;
 }
 
+/**
+ * Resolve the deterministic private refresh-candidate coordinate for one nonterminal delivery member.
+ *
+ * @param input - Bound plan, member identity, and prepared head.
+ * @returns The private candidate coordinate, or null when the member is not a nonterminal plan member.
+ */
+export function deliveryProviderRefreshCandidateFor(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly deliverableId: string;
+  readonly head: string;
+}): DeliveryProviderRefreshCandidate | null {
+  const member = input.plan.members.slice(0, -1)
+    .find(({ deliverableId }) => deliverableId === input.deliverableId);
+  return member === undefined
+    ? null
+    : {
+        deliverableId: member.deliverableId,
+        ref: `refs/arc/delivery-refresh-candidates/${input.plan.planId}/${member.chunkKey}`,
+        head: input.head,
+      };
+}
+
 export type DeriveDeliveryProviderRefreshCandidatesResult =
   | { readonly status: "derived"; readonly candidates: readonly DeliveryProviderRefreshCandidate[] }
   | { readonly status: "refused"; readonly reason: "candidate-subject-mismatch" };
@@ -70,11 +92,13 @@ export function deriveDeliveryProviderRefreshCandidates(_input: {
       return { status: "refused", reason: "candidate-subject-mismatch" };
     }
     if (requestedMember.coordinates.head === beforeMember.coordinates.head) continue;
-    candidates.push({
+    const candidate = deliveryProviderRefreshCandidateFor({
+      plan,
       deliverableId: plannedMember.deliverableId,
-      ref: `refs/arc/delivery-refresh-candidates/${plan.planId}/${plannedMember.chunkKey}`,
       head: requestedMember.coordinates.head,
     });
+    if (candidate === null) return { status: "refused", reason: "candidate-subject-mismatch" };
+    candidates.push(candidate);
   }
   return { status: "derived", candidates };
 }

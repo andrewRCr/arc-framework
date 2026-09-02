@@ -1022,6 +1022,17 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   state adoption. No conflict record, caller-reconstructed member selector, autonomous resolution, or unreserved
   provider publication is added.
 
+  A later conflict in that same isolated preparation may name a refreshed predecessor created only by an earlier
+  suffix absorption in the temporary repository. Before deleting that repository, the adapter imports the exact
+  predecessor under its deterministic private refresh-candidate ref and verifies the returned parent is readable
+  from the owning checkout. Only the typed content-conflict stop retains that anchor; every other refusal keeps the
+  ordinary all-candidate cleanup. The anchor grants no publication or resolution authority. On re-entry, the scan
+  may retain or reconstruct it only when one exact named local resolution uses that SHA as its second parent. It
+  walks the anchored commit's ordered second-parent chain backward and reuses each isolated mechanical predecessor
+  only after reproving its old-head first parent and exact merge tree; commit identity is preserved rather than
+  assumed reproducible. An unreferenced, malformed, or mismatched chain is cleaned or refused through the existing
+  contracts.
+
 ### D6 — Native registration and landing
 
 - **D6.1 Routing.** Reobserve native registration before selecting the singleton arm. A linked stack routes through
@@ -1476,10 +1487,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       Conflict stops carry the reserved logical merge base, both parents, an exact isolated preparation or
       `merge-tree` invocation, the exact local-only resolution ref, and a submit-ready resume action. For a
       pre-reservation provider-history collision, the returned guidance keeps that resolved ref local until the
-      driver validates and publishes it through the reserved refresh. Contribution-equivalent dependents bypass
-      redundant member criteria walks through the existing D7 escape, while any changed dependent stays owed. All
-      approved findings for one member pass batch into one publication by default; an earlier publish requires an
-      explicit reason.
+      driver validates and publishes it through the reserved refresh. When a cascading conflict's refreshed
+      predecessor exists only in isolated preparation, returning the stop first anchors that exact parent under the
+      existing private refresh-candidate namespace and verifies it is locally readable; no stop may advertise merge
+      coordinates whose objects are destroyed with the workspace. Resume retains or restores that anchor only from
+      the exact local resolution and recursively reuses its validated ordered predecessor chain, so one failed retry
+      cannot strand the approved merge or substitute newly minted plumbing identities. Contribution-equivalent
+      dependents bypass redundant member criteria walks through the existing D7 escape, while any changed dependent
+      stays owed. All approved findings for one member pass batch into one publication by default; an earlier publish
+      requires an explicit reason.
 
 - **D8.13 Preserve the existing Owner terminus at member scope — amended 2026-09-01 after live Member 1 review
   reached its ceiling.** The standard-review driver already accepts an explicit Work Unit Owner terminus without

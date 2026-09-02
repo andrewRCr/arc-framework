@@ -3049,6 +3049,38 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                 - _Summary:_ 23 met, one superseded, zero unresolved. The Heavy-class adversarial companion remains
                   exhausted at its recorded two-pass cap, so this bounded correction receives no third pass.
 
+        - `[x]` **7.7.R.u.q Preserve executable parents across cascading provider conflicts**
+
+            - _Goal:_ Every pre-reservation provider content-conflict stop names locally readable exact parents even
+              when its refreshed predecessor was created earlier in the same isolated preparation.
+
+            - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue —
+              decision record (2026-08-31), Amendment 4.
+
+            - Build `test-first` through a real-Git cascading conflict:
+                - Accept one exact local two-parent resolution, construct at least one later predecessor only inside
+                  provider preparation, and then reach a second genuine content conflict.
+                - Before isolated-workspace cleanup, import that exact predecessor under its deterministic private
+                  refresh-candidate ref and verify both returned parents remain readable while remotes and Delivery
+                  State remain unchanged.
+                - Resolve the second conflict on its exact named local member ref, rerun selector-free preparation,
+                  retain the referenced anchor only after exact parent/tree proof, and complete ordinary reserved
+                  suffix publication without recreating its identity.
+                - Retain the anchor only for the typed content-conflict stop; malformed, unavailable, cleanup, and
+                  every other refusal keep the existing complete-candidate cleanup behavior.
+
+            - _Outcome:_ Provider preparation now imports a temporary-only conflict predecessor before workspace
+              cleanup and returns the stop only after that exact parent is readable under the deterministic private
+              candidate ref. Resume derives authority only from the named local two-parent resolution, retains or
+              restores its anchor, and recursively reuses each exact mechanical predecessor after ordered-parent
+              and merge-tree proof; it no longer assumes plumbing commit identities reproduce across attempts.
+              Non-conflict refusal still cleans every candidate. The real-Git regression exercises two attended
+              conflicts separated by two isolated absorptions, missing-anchor restoration, exact resume, and
+              unrelated-refusal cleanup. All 26 focused tests, both typechecks, targeted TypeScript and Markdown
+              lint, and all three ARC contract checks pass. The live Member 7 stop returned locally readable parent
+              `b89ccf457`, preserved unchanged remotes, and accepted its exact local merge; the pre-commit retry then
+              reached the correct dirty-top guard rather than losing the conflict coordinates.
+
         - _Final driven-acceptance hardening:_ The production correction E2E exposed three seams that only compose
           after record settlement: Candidate-accepted terminal movement had to preserve the exact public review
           continuation in both entry and hosted-status readers; the driver had to reconcile that terminal record

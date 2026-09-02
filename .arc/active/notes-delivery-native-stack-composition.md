@@ -552,3 +552,24 @@ The live ref was restored by exact lease from the prematurely published merge to
 the approved merge remains on the clean local member ref as the acceptance fixture. Task 7.7.R.u.p owns the bounded
 repair and must drive this same correction through reserved publication and scoped verification before hosted member
 cycling resumes.
+
+### Amendment 4 — cascading conflict coordinates stay executable (2026-09-01)
+
+The next live Member 3 retry accepted the approved Member 4 merge and continued constructing the suffix inside its
+fresh isolated provider repository. It then reached a genuine Member 7 content conflict after mechanically absorbing
+the intervening members. The returned second parent named that newly constructed predecessor, but the adapter deleted
+the only repository containing it and cleaned every private candidate ref before returning. The stop was individually
+legal yet impossible to execute: the advertised merge-tree command and exact two-parent merge both failed because the
+refreshed predecessor object no longer existed locally or remotely.
+
+Decided behavior: a content-conflict stop may return only after both named parents are readable from the owning
+checkout. When the refreshed predecessor exists only in isolated preparation, import it first under the same
+deterministic private refresh-candidate ref ordinary successful preparation would use. Retain that one anchor only
+for the conflict stop; other refusals keep complete cleanup. The anchor is liveness, not authority: it cannot publish,
+settle state, or substitute for the operator's exact local two-parent resolution. On resume, that approved local
+merge is the only reason the stale scan may retain the anchor. Isolated preparation then reuses the exact anchored
+commit and its mechanical second-parent chain only after reproving each old-head first parent and merge tree; commit
+metadata is therefore preserved rather than assumed reproducible. If a non-conflict refusal cleaned the private ref,
+the exact local resolution can reconstruct it from the still-reachable parent before the same validation. Unreferenced,
+malformed, or mismatched anchors retain ordinary cleanup or refusal. Task 7.7.R.u.q owns this bounded extension and
+the current Member 7 conflict is its production acceptance case.
