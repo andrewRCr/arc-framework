@@ -3873,11 +3873,10 @@ async function executeDeliveryCommand(
           candidateTargetRevision = effective.recognizedTarget.revision;
         } else {
           const pendingVerification = currentState.value.pendingReviewFixVerification;
-          const terminalCoveredByPendingVerification = pendingVerification !== null
-            && pendingVerification.selectedDeliverableId === parsed.reviewFixSelectedDeliverableId
-            && pendingVerification.memberDeliverableIds.includes(terminal.deliverableId);
+          const matchingPendingVerification = pendingVerification !== null
+            && pendingVerification.selectedDeliverableId === parsed.reviewFixSelectedDeliverableId;
           if ((parsed.reviewFixSelectedDeliverableId !== terminal.deliverableId
-              && !terminalCoveredByPendingVerification)
+              && !matchingPendingVerification)
             || effective.state === "staged-change" || effective.state === "rerun-checkpoint") {
             return { status: "refused", reason: "candidate-not-current" };
           }
@@ -3889,7 +3888,7 @@ async function executeDeliveryCommand(
           }
           const retainedTerminalTarget = baseline.target.revision === terminal.coordinates.head
             ? { revision: terminal.coordinates.head, baselineRelation: "exact" as const }
-            : terminalCoveredByPendingVerification
+            : matchingPendingVerification
               && await readAncestry(localExec, baseline.target.revision, terminal.coordinates.head) === "ancestor"
               ? { revision: terminal.coordinates.head, baselineRelation: "ancestor" as const }
               : null;
@@ -3924,6 +3923,11 @@ async function executeDeliveryCommand(
             || projectedTarget.subjectDigest !== currentTarget.subject.subjectDigest) {
             return { status: "refused", reason: "candidate-not-current" };
           }
+          const memberDeliverableIds = matchingPendingVerification
+            ? pendingVerification.memberDeliverableIds.includes(terminal.deliverableId)
+              ? pendingVerification.memberDeliverableIds
+              : [...pendingVerification.memberDeliverableIds, terminal.deliverableId]
+            : [parsed.reviewFixSelectedDeliverableId];
           candidate = {
             schemaVersion: 1,
             mode: "candidate-effective-target",
@@ -3932,8 +3936,7 @@ async function executeDeliveryCommand(
             durableBaselineTarget: baseline.target,
             currentTarget,
             selectedDeliverableId: parsed.reviewFixSelectedDeliverableId,
-            memberDeliverableIds: pendingVerification?.memberDeliverableIds
-              ?? [parsed.reviewFixSelectedDeliverableId],
+            memberDeliverableIds,
             retainedTerminalTarget,
             convergenceVerification: "satisfied",
           };

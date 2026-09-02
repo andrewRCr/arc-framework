@@ -232,10 +232,11 @@ describe("delivery terminal integration", () => {
     });
   });
 
-  it("preserves a pending multi-member verification while rebinding its covered terminal", () => {
+  it("extends a pending multi-member verification while rebinding its terminal", () => {
     const f = terminalRebindFixture();
     const selectedDeliverableId = f.state.members[0]!.deliverableId;
     const terminal = f.state.members.at(-1)!;
+    const pendingMemberDeliverableIds = [selectedDeliverableId];
     const memberDeliverableIds = [selectedDeliverableId, terminal.deliverableId];
     const pendingHead = "d".repeat(40);
     const correctedHead = "f".repeat(40);
@@ -263,7 +264,10 @@ describe("delivery terminal integration", () => {
       members: f.state.members.map((member, index, members) => index === members.length - 1
         ? { ...member, coordinates: { ...member.coordinates!, head: pendingHead } }
         : member),
-      pendingReviewFixVerification: { selectedDeliverableId, memberDeliverableIds },
+      pendingReviewFixVerification: {
+        selectedDeliverableId,
+        memberDeliverableIds: pendingMemberDeliverableIds,
+      },
     };
 
     expect(rebindDeliveryTerminalCoordinates({
@@ -279,6 +283,7 @@ describe("delivery terminal integration", () => {
         members: state.members.map((member, index, members) => index === members.length - 1
           ? { ...member, coordinates }
           : member),
+        pendingReviewFixVerification: { selectedDeliverableId, memberDeliverableIds },
       },
       nextAction: "verify-review-fix",
     });

@@ -987,7 +987,7 @@ describe("arc delivery position", () => {
       )),
       pendingReviewFixVerification: {
         selectedDeliverableId,
-        memberDeliverableIds: [selectedDeliverableId, fixture.plan.members.at(-1)!.deliverableId],
+        memberDeliverableIds: [selectedDeliverableId],
       },
     }, topState.value.revision)).toMatchObject({ status: "ok" });
 
@@ -1098,7 +1098,7 @@ describe("arc delivery position", () => {
       nextAction: "verify-review-fix",
       selectedDeliverableId,
       verification: {
-        memberDeliverableIds: [selectedDeliverableId, fixture.plan.members.at(-1)!.deliverableId],
+        memberDeliverableIds: [selectedDeliverableId],
         tier1Required: true,
       },
     });
@@ -1155,7 +1155,10 @@ describe("arc delivery position", () => {
       command: "delivery review-fix continue",
       status: "verification-required",
       selectedDeliverableId,
-      verification: { target: { head: reboundHead } },
+      verification: {
+        memberDeliverableIds: [selectedDeliverableId, fixture.plan.members.at(-1)!.deliverableId],
+        target: { head: reboundHead },
+      },
     });
     expect(reboundContinuation.verification.target).not.toEqual(continuation.verification.target);
 

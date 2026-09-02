@@ -22,7 +22,6 @@ import type {
   DeliveryStateV1,
 } from "./schema.js";
 import { DeliveryMemberCoordinatesV1Schema, DeliveryStateV1Schema } from "./schema.js";
-import { installDeliveryReviewFixVerification } from "./review-fix-verification.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 export interface DeliveryTerminalLanding {
@@ -203,9 +202,14 @@ export function rebindDeliveryTerminalCoordinates(input: {
   }
   const pending = validated.state.pendingReviewFixVerification;
   if (reviewFix) {
+    const expectedMemberDeliverableIds = pending === null
+      ? [input.candidate.selectedDeliverableId]
+      : pending.memberDeliverableIds.includes(terminal.deliverableId)
+        ? pending.memberDeliverableIds
+        : [...pending.memberDeliverableIds, terminal.deliverableId];
     const samePendingScope = pending !== null
       && pending.selectedDeliverableId === input.candidate.selectedDeliverableId
-      && canonicalize(pending.memberDeliverableIds)
+      && canonicalize(expectedMemberDeliverableIds)
         === canonicalize(input.candidate.memberDeliverableIds);
     if (!input.candidate.memberDeliverableIds.includes(terminal.deliverableId)
       || (pending === null && input.candidate.selectedDeliverableId !== terminal.deliverableId)
@@ -254,12 +258,17 @@ export function rebindDeliveryTerminalCoordinates(input: {
   };
   const parsedRebound = DeliveryStateV1Schema.safeParse(rebound);
   if (!parsedRebound.success) return { status: "refused", reason: "state-mismatch" };
-  const state = reviewFix
-    ? installDeliveryReviewFixVerification({
-        state: parsedRebound.data,
-        selectedDeliverableId: input.candidate.selectedDeliverableId,
-        memberDeliverableIds: input.candidate.memberDeliverableIds,
+  const reboundWithVerification = reviewFix
+    ? DeliveryStateV1Schema.safeParse({
+        ...parsedRebound.data,
+        pendingReviewFixVerification: {
+          selectedDeliverableId: input.candidate.selectedDeliverableId,
+          memberDeliverableIds: input.candidate.memberDeliverableIds,
+        },
       })
+    : null;
+  const state = reviewFix
+    ? reboundWithVerification?.success === true ? reboundWithVerification.data : null
     : parsedRebound.data;
   if (state === null) return { status: "refused", reason: "state-mismatch" };
   return {
