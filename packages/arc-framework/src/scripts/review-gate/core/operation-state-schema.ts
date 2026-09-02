@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalize, type KernelRegistry } from "../../../lib/kernel/index.js";
+import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   validateReviewRequest,
@@ -22,6 +22,7 @@ import {
   HostedRequestHandleSchema,
   HostedReviewCoverageSchema,
   HostedTargetSchema,
+  hostedRequestHandleMatchesProgress,
 } from "../hosted/request.js";
 import { DeliveryLocalReviewAdmissionSchema } from "../policy/delivery-local-review-admission.js";
 
@@ -251,14 +252,14 @@ const LaneAttemptSchema = z.strictObject({
       message: "hosted attempt source must be a hosted provider",
     });
   }
-  if (attempt.hosted === undefined) return;
-  if (attempt.outcome === "pending" && attempt.hosted.handle === undefined) {
+  if (attempt.outcome === "pending" && attempt.hosted?.handle === undefined) {
     context.addIssue({
       code: "custom",
       path: ["hosted", "handle"],
       message: "a pending hosted attempt requires its complete request handle",
     });
   }
+  if (attempt.hosted === undefined) return;
   try {
     const target = validateReviewTarget(attempt.hosted.reviewTarget);
     validateReviewRequirement(target, attempt.hosted.requirement);
@@ -284,14 +285,13 @@ const LaneAttemptSchema = z.strictObject({
       });
     }
     const handle = attempt.hosted.handle;
-    if (handle !== undefined && (handle.provider !== attempt.sourceId
-      || handle.target.repository.toLowerCase() !== attempt.hosted.target.repository.toLowerCase()
-      || handle.target.pullRequest !== attempt.hosted.target.pullRequest
-      || handle.target.headSha !== attempt.hosted.target.headSha
-      || handle.requestedCoverage !== attempt.hosted.requestedCoverage
-      || handle.effectiveCoverage !== attempt.hosted.effectiveCoverage
-      || canonicalize(handle.vehicle?.kind === "delivery-member" ? handle.vehicle : null)
-        !== canonicalize(attempt.hosted.vehicle ?? null))) {
+    if (handle !== undefined && !hostedRequestHandleMatchesProgress(handle, {
+      sourceId: attempt.sourceId,
+      target: attempt.hosted.target,
+      requestedCoverage: attempt.hosted.requestedCoverage,
+      effectiveCoverage: attempt.hosted.effectiveCoverage,
+      ...(attempt.hosted.vehicle === undefined ? {} : { vehicle: attempt.hosted.vehicle }),
+    })) {
       context.addIssue({
         code: "custom",
         path: ["hosted", "handle"],

@@ -429,6 +429,10 @@ describe("delivery review-fix continuation projection", () => {
         schemaVersion: 1,
         source: settled.source,
         dispositions: settled.approvedDisposition,
+        verifiedFix: {
+          applicability: response.applicability,
+          verificationEvidenceRefs: response.fixConsumption.verificationRefs,
+        },
       },
     });
 

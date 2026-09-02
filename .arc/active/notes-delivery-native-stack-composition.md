@@ -604,3 +604,10 @@ Forward clarification: “selected-contribution” in the authoring-rebind sente
 Approved finding authoring is expected to change the selected contribution. The rebind proves only exact deterministic
 checkout/ref identity, cleanliness, strict descent, required ancestry, approved-finding path presence, and CAS; scoped
 verification remains responsible for the corrected content.
+
+Forward clarification: exact durable response replay also preserves the existing hosted settlement contract. The
+stored verified-fix applicability and verification references are transported with the approved response, and the
+rediscovered attempt is rebound to that disposition. If its provider threads remain unsettled, the driver returns the
+exact `hosted-settlement-required / finding-settlement / review-hosted-settle` stop and plan rather than re-asking the
+decision or falsely advancing status. This is execution of the already-approved response, not new approval, provider
+spend, convergence policy, or an expansion of the rescue stop model.

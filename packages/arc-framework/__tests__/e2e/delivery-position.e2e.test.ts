@@ -44,12 +44,20 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { bindReviewSourceReference } from
+  "../../src/scripts/review-gate/core/review-source-reference.js";
 import { LocalApprovedDispositionRecordStore } from
   "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { resolveRepositoryIdentity } from
   "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { HostedRequestHandleSchema } from
+  "../../src/scripts/review-gate/hosted/request.js";
+import {
+  recordHostedPendingRequest,
+  settleHostedAttemptFinding,
+} from "../../src/scripts/review-gate/lane-progress.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
@@ -1552,6 +1560,9 @@ describe("arc delivery position", () => {
       "- **State:** Integrating",
       "- **Owner:** test-user",
       "- **Branch:** member-3",
+      "- **Class:** Heavy",
+      "- **Priority:** P1",
+      "- **Origin:** [internal]",
       `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
       `- **Candidate:** \`${candidate.attestation.candidateId}\``,
       "- **Current Workflow:** `integrate-work-unit`",
@@ -1609,7 +1620,7 @@ describe("arc delivery position", () => {
         policyVersion: canonicalDigest({ policy: "review" }),
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
-        proposedBy: "agent-1",
+        proposedBy: "arc-cli/0.1.0",
         findings: [{
           findingId: "finding-published",
           sourceIdentity: "codex-pr",
@@ -1624,7 +1635,7 @@ describe("arc delivery position", () => {
           openQuestions: [],
         }],
       })),
-      approvedBy: "maintainer-1",
+      approvedBy: "test-user",
       approvedAt: "2026-08-31T12:00:00Z",
     });
     const publisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), fixture.repository);
@@ -1833,6 +1844,232 @@ describe("arc delivery position", () => {
     });
 
     const repositoryId = await resolveRepositoryIdentity(publisher);
+    const replayOldTarget = createReviewTarget({
+      schemaVersion: oldTarget.schemaVersion,
+      semanticsVersion: oldTarget.semanticsVersion,
+      kind: oldTarget.kind,
+      repositoryId,
+      baseRef: oldTarget.baseRef,
+      diffBaseSha: oldTarget.diffBaseSha,
+      diffBaseTree: oldTarget.diffBaseTree,
+      headSha: oldTarget.headSha,
+      headTree: oldTarget.headTree,
+    });
+    const replayRubricDigest = canonicalDigest({ rubric: "standard" });
+    const replayRequirement = createReviewRequirement({
+      target: replayOldTarget,
+      projection: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: replayRubricDigest,
+        retrigger: "full-final",
+        count: 1,
+      },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "checkpoint",
+    });
+    if (replayRequirement === null) throw new Error("response replay requirement must derive");
+    const replayApprovedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: replayOldTarget.targetId,
+        policyVersion: replayRequirement.policyVersion,
+        rubricVersion: replayRequirement.rubricVersion,
+        rubricDigest: replayRequirement.rubricDigest,
+        proposedBy: "arc-cli/0.1.0",
+        findings: [{
+          findingId: finding.findingId,
+          sourceIdentity: "codex-pr",
+          locus: finding.locus,
+          sourceVerification: "verified",
+          verificationRefs: ["review:finding-published"],
+          severity: "major",
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The source confirms the issue.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "test-user",
+      approvedAt: "2026-08-31T12:10:00Z",
+    });
+    const replayOperationId = "lane-progress/response-replay";
+    const replayAttemptId = "operation-response-replay";
+    const replaySource = {
+      kind: "hosted" as const,
+      attemptRef: bindReviewSourceReference({
+        kind: "hosted",
+        operationId: replayOperationId,
+        durableRef: replayAttemptId,
+      }),
+    };
+    const responseState = await fixture.states.read(fixture.plan.planId);
+    if (responseState.status !== "ok" || responseState.value === null) {
+      throw new Error("response replay delivery state must be readable");
+    }
+    const responseMember = responseState.value.value.members.find(
+      ({ deliverableId }) => deliverableId === selectedDeliverableId,
+    );
+    if (responseMember?.coordinates === null || responseMember?.coordinates === undefined) {
+      throw new Error("response replay member coordinates must be readable");
+    }
+    const replayPendingRecord = ApprovedDispositionRecordSchema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId,
+      operationId: replayAttemptId,
+      candidate: null,
+      errand: null,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: fixture.plan.planId,
+        deliverableId: selectedDeliverableId,
+        workUnitId: fixture.plan.workUnitId,
+        head: reviewedHead,
+      },
+      source: replaySource,
+      approvedDisposition: replayApprovedDisposition,
+      fixAuthorization: createFixAuthorization({
+        dispositionState: replayApprovedDisposition,
+        oldTarget: replayOldTarget,
+      }),
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+    });
+    const replayResponse = advanceDeliveryReviewFixResponse({
+      record: replayPendingRecord,
+      oldTarget: replayOldTarget,
+      hostedTarget: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+      currentHead: responseMember.coordinates.head,
+      currentTree: responseMember.coordinates.tree,
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://durable-response-replay"],
+      verifiedAt: "2026-08-31T12:11:00Z",
+    });
+    if (replayResponse.status === "refused") throw new Error(replayResponse.reason);
+    await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(replayResponse.record);
+    await new LocalReviewOperationStateStore(publisher).publishOperation({
+      schemaVersion: 1,
+      semanticsVersion: "review-operation/v1",
+      operationId: replayOperationId,
+      updatedAt: "2026-08-31T12:12:00Z",
+      kind: "lane-progress",
+      lane: "standard",
+      repositoryId,
+      changeRequestId: "pull/401",
+      headSha: reviewedHead,
+      completedPasses: 1,
+      attempts: [{
+        attemptId: replayAttemptId,
+        sourceId: "codex-pr",
+        outcome: "findings",
+        hosted: {
+          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          vehicle: {
+            kind: "delivery-member",
+            planId: fixture.plan.planId,
+            deliverableId: selectedDeliverableId,
+            workUnitId: fixture.plan.workUnitId,
+            head: reviewedHead,
+          },
+          reviewTarget: replayOldTarget,
+          requirement: replayRequirement,
+          actorIdentity: "host-actor-1",
+          findings: [finding],
+          dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
+          settledFindingIds: [],
+        },
+      }],
+    }, 0);
+
+    const responseApplicability = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(responseApplicability.exitCode, `${responseApplicability.stderr}\n${responseApplicability.stdout}`).toBe(0);
+    const responseApplicabilityStop = JSON.parse(responseApplicability.stdout) as {
+      reviewStatus: { selectionAction: unknown };
+    };
+    expect(responseApplicabilityStop, responseApplicability.stdout).toMatchObject({
+      status: "review-status-required",
+      nextAction: "resolve-review-applicability",
+    });
+    const retainedResponseSelection = await runArcWithStdin(
+      ["candidate", "applicability", "resolve", fixture.plan.workUnitId, "-"],
+      fixture.repository,
+      `${JSON.stringify({
+        kind: "review-applicability-selection",
+        offer: responseApplicabilityStop.reviewStatus.selectionAction,
+        selection: {
+          selectedBy: "maintainer-1",
+          selectedAt: "2026-08-31T12:13:00Z",
+          choice: "review-required",
+        },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      retainedResponseSelection.exitCode,
+      `${retainedResponseSelection.stderr}\n${retainedResponseSelection.stdout}`,
+    ).toBe(0);
+    const replayedResponse = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(replayedResponse.exitCode, `${replayedResponse.stderr}\n${replayedResponse.stdout}`).toBe(0);
+    expect(JSON.parse(replayedResponse.stdout), replayedResponse.stdout).toMatchObject({
+      status: "hosted-settlement-required",
+      nextAction: "review-hosted-settle",
+      responsePlan: { source: replaySource, findings: [{ findingId: finding.findingId }] },
+      response: {
+        state: "delivery-member-current",
+        payload: {
+          hostedSettlementPlan: {
+            beforeFixFindingIds: [],
+            afterFixFindingIds: [finding.findingId],
+          },
+        },
+      },
+      effectLog: [
+        { kind: "commit", recordClass: "review-applicability-selection" },
+        { kind: "push" },
+        { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
+        { kind: "dispatch", actionKind: "review-respond", resultStatus: "delivery-member-current" },
+      ],
+    });
+    await settleHostedAttemptFinding(new LocalReviewOperationStateStore(publisher), {
+      operationId: replayOperationId,
+      attemptId: replayAttemptId,
+      dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
+      findingId: finding.findingId,
+      now: "2026-08-31T12:14:00Z",
+    });
+    const continuedAfterResponseSettlement = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      continuedAfterResponseSettlement.exitCode,
+      `${continuedAfterResponseSettlement.stderr}\n${continuedAfterResponseSettlement.stdout}`,
+    ).toBe(0);
+    expect(JSON.parse(continuedAfterResponseSettlement.stdout), continuedAfterResponseSettlement.stdout)
+      .toMatchObject({
+        status: "review-status-required",
+        nextAction: "review-hosted-request",
+        effectLog: [],
+      });
+
     const retainedTarget = createReviewTarget({
       schemaVersion: oldTarget.schemaVersion,
       semanticsVersion: oldTarget.semanticsVersion,
@@ -1955,7 +2192,10 @@ describe("arc delivery position", () => {
     expect(selectedCandidate).not.toBeNull();
     expect(candidateReviewApplicabilitySelections(selectedCandidate!).map(
       ({ selector }) => selector.priorAttemptId,
-    )).toEqual(retainedAttemptIds.map((attemptId) => `operation-${attemptId}`));
+    )).toEqual([
+      replayAttemptId,
+      ...retainedAttemptIds.map((attemptId) => `operation-${attemptId}`),
+    ]);
 
     const continuedAfterBatch = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
@@ -1965,13 +2205,121 @@ describe("arc delivery position", () => {
     );
     expect(continuedAfterBatch.exitCode, `${continuedAfterBatch.stderr}\n${continuedAfterBatch.stdout}`).toBe(0);
     const afterBatch = JSON.parse(continuedAfterBatch.stdout) as {
-      effectLog: readonly { kind: string; recordClass?: string }[];
+      status: string;
+      nextAction: string;
+      reviewStatus: {
+        action: {
+          target: { repository: string; pullRequest: number; headSha: string };
+          provider: "coderabbit-pr" | "codex-pr";
+          coverage: "complete" | "incremental";
+          vehicle: {
+            kind: "delivery-member";
+            planId: string;
+            deliverableId: string;
+            workUnitId: string;
+            head: string;
+          };
+        };
+      };
+      effectLog: readonly { kind: string; actionKind?: string; recordClass?: string }[];
     };
+    expect(afterBatch).toMatchObject({
+      status: "review-status-required",
+      nextAction: "review-hosted-request",
+      reviewStatus: {
+        action: {
+          provider: "codex-pr",
+          vehicle: { deliverableId: fixture.plan.members[1]!.deliverableId },
+        },
+      },
+      effectLog: [
+        { kind: "commit", recordClass: "review-applicability-selection" },
+        { kind: "push" },
+        { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
+      ],
+    });
     expect(afterBatch.effectLog.filter(({ kind }) => kind === "commit")).toEqual([
       expect.objectContaining({ kind: "commit", recordClass: "review-applicability-selection" }),
     ]);
     expect(afterBatch.effectLog.filter(({ kind }) => kind === "push")).toHaveLength(1);
-  });
+
+    const requestedAction = afterBatch.reviewStatus.action;
+    const finalState = await fixture.states.read(fixture.plan.planId);
+    if (finalState.status !== "ok" || finalState.value === null) {
+      throw new Error("final correction state must be readable");
+    }
+    const requestedMember = finalState.value.value.members.find(
+      ({ deliverableId }) => deliverableId === requestedAction.vehicle.deliverableId,
+    );
+    if (requestedMember?.coordinates === null || requestedMember?.coordinates === undefined) {
+      throw new Error("pending request member coordinates must be readable");
+    }
+    const requestedReviewTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId,
+      baseRef: "main",
+      diffBaseSha: requestedMember.coordinates.base,
+      diffBaseTree: await git(fixture.repository, ["rev-parse", `${requestedMember.coordinates.base}^{tree}`]),
+      headSha: requestedMember.coordinates.head,
+      headTree: requestedMember.coordinates.tree,
+    });
+    const requestedRequirement = createReviewRequirement({
+      target: requestedReviewTarget,
+      projection: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"f".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: requestedAction.provider }],
+      initialAdmission: "checkpoint",
+    });
+    if (requestedRequirement === null) throw new Error("pending hosted requirement must derive");
+    const pendingHandle = HostedRequestHandleSchema.parse({
+      schemaVersion: 1 as const,
+      provider: requestedAction.provider,
+      requestedCoverage: requestedAction.coverage,
+      effectiveCoverage: requestedAction.coverage,
+      target: requestedAction.target,
+      artifact: {
+        kind: "issue-comment" as const,
+        id: "pending-correction-request",
+        url: "https://example.test/pending-correction-request",
+        createdAt: "2026-08-31T12:45:00.000Z",
+      },
+      vehicle: requestedAction.vehicle,
+    });
+    await recordHostedPendingRequest(new LocalReviewOperationStateStore(publisher), {
+      repositoryId,
+      handle: pendingHandle,
+      reviewTarget: requestedReviewTarget,
+      requirement: requestedRequirement,
+      actorIdentity: "host-actor-1",
+      now: "2026-08-31T12:45:00.000Z",
+    });
+
+    for (let replay = 0; replay < 2; replay += 1) {
+      const awaiting = await runArcWithStdin(
+        ["delivery", "review-fix", "continue", "-", "--json"],
+        fixture.repository,
+        `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+        { env: fixture.env },
+      );
+      expect(awaiting.exitCode, `${awaiting.stderr}\n${awaiting.stdout}`).toBe(0);
+      expect(JSON.parse(awaiting.stdout), awaiting.stdout).toMatchObject({
+        command: "delivery review-fix continue",
+        status: "review-status-required",
+        stopKind: "external-wait",
+        nextAction: "review-hosted-await",
+        reviewStatus: { action: { schemaVersion: 1, handle: pendingHandle } },
+        effectLog: [],
+      });
+    }
+  }, 60_000);
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {
     const fixture = await positionFixture();

@@ -20,6 +20,7 @@ export interface DeliveryReviewFixDriveDispatchAction {
     | "delivery-review-fix-acknowledge"
     | "review-respond";
   readonly input?: unknown;
+  readonly responsePlan?: unknown;
 }
 
 export type DeliveryReviewFixDriveStep<TAction extends DeliveryReviewFixDriveDispatchAction> =
@@ -118,8 +119,17 @@ const successfulResultStatuses: Readonly<Record<
   "delivery-refresh-adopt": ["applied"],
   "delivery-reconcile": ["position", "rebound", "applied"],
   "delivery-review-fix-acknowledge": ["acknowledged", "already-acknowledged"],
-  "review-respond": ["ready-to-fix"],
+  "review-respond": ["ready-to-fix", "delivery-member-current"],
 };
+
+function hostedSettlementRemains(result: Readonly<Record<string, unknown>>): boolean {
+  if (typeof result.payload !== "object" || result.payload === null) return false;
+  const payload = result.payload as Readonly<Record<string, unknown>>;
+  if (typeof payload.hostedSettlementPlan !== "object" || payload.hostedSettlementPlan === null) return false;
+  const plan = payload.hostedSettlementPlan as Readonly<Record<string, unknown>>;
+  return (Array.isArray(plan.beforeFixFindingIds) && plan.beforeFixFindingIds.length > 0)
+    || (Array.isArray(plan.afterFixFindingIds) && plan.afterFixFindingIds.length > 0);
+}
 
 function deliveryReviewFixConflictStop(
   action: DeliveryReviewFixDriveDispatchAction,
@@ -350,6 +360,20 @@ export async function driveDeliveryReviewFixContinuation<
         recommendedActionText:
           "The deterministic correction effect did not reach its expected postcondition. "
           + "Inspect the returned typed result before retrying.",
+      };
+    }
+    if (projected.step.action.kind === "review-respond" && hostedSettlementRemains(result)) {
+      const response = Object.fromEntries(Object.entries(result).filter(([key]) => key !== "status"));
+      return {
+        status: "hosted-settlement-required",
+        stopKind: "finding-settlement",
+        nextAction: "review-hosted-settle",
+        responsePlan: projected.step.action.responsePlan,
+        responseRequest: projected.step.action.input,
+        response,
+        effectLog,
+        recommendedActionText:
+          "Execute the exact remaining hosted finding settlement, then resume the correction.",
       };
     }
   }

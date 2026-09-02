@@ -3081,7 +3081,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               `b89ccf457`, preserved unchanged remotes, and accepted its exact local merge; the pre-commit retry then
               reached the correct dirty-top guard rather than losing the conflict coordinates.
 
-        - `[ ]` **7.7.R.u.r Make final driven re-entry self-binding and lossless**
+        - `[x]` **7.7.R.u.r Make final driven re-entry self-binding and lossless**
 
             - _Goal:_ A restarted selector-free correction consumes exact existing authoring, response, request, and
               temporary-preparation evidence without manual Git repair, lost authority, duplicate review spend, or a
@@ -3106,6 +3106,17 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                 - Drive all four through the production correction fixture to the next established typed stop and
                   assert idempotent replay and effect disclosure; retain the existing complete correction suite and
                   focused refusal coverage.
+
+            - _Outcome:_ Restarted correction entry now compare-and-swap binds valid detached authoring, replays one
+              exact durable approved response with its stored verification evidence, persists and resumes one exact
+              pending hosted request handle, and prepares conflicts in deterministic detached ARC-owned workspaces.
+              Durable response replay rebinds the rediscovered attempt and returns the exact outstanding hosted
+              settlement as `hosted-settlement-required` rather than repeating approval or falsely advancing review.
+              The production correction fixture also proves equivalent-offer batching, individual durable selections,
+              one record-only commit/push, settlement continuation, pending-handle replay, idempotence, and effect
+              disclosure. The complete 21-case production E2E, 93 focused continuation/driver/respond tests, isolated
+              composition coverage, both typechecks, full TypeScript/Markdown/shell lint, all ARC contract checks, the
+              standalone build, and the full 11,284-test matrix pass; one unrelated test remains intentionally skipped.
 
         - _Final driven-acceptance hardening:_ The production correction E2E exposed three seams that only compose
           after record settlement: Candidate-accepted terminal movement had to preserve the exact public review

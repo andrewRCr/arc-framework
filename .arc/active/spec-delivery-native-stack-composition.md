@@ -1503,12 +1503,19 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       contribution is rebound to that ref by compare-and-swap before ordinary readiness classification. Dirty,
       divergent, non-descendant, ambiguous, or raced movement still refuses. When hosted status rediscovers findings
       whose exact delivery-member response is already durably approved, the correction driver validates and consumes
-      that record instead of returning a second disposition stop. When one hosted request is already pending, status
-      projects its complete durable await envelope before any new request admission or provider spend. A provider
-      conflict prepares one deterministic ARC-owned detached resolution workspace; exact clean stale residue at that
-      locator is safely reused or replaced, while dirty, moved, foreign, malformed, or ambiguous residue refuses
-      without cleanup. These are recovery and projection hardenings over existing authority and effects. They add no
-      attended stop, approval, hosted request, record family, workspace authority, or generalized cleanup mechanism.
+      that record instead of returning a second disposition stop. Replay carries the exact stored verified-fix
+      applicability and verification evidence, rebinds the approved disposition to the rediscovered hosted attempt,
+      and preserves any still-unexecuted hosted finding settlement. A non-empty settlement plan returns
+      `hosted-settlement-required / finding-settlement / review-hosted-settle` with the exact durable response
+      request, response envelope, and settlement plan; only completion of that existing host effect permits status to
+      advance. This stop continues an already-approved response and creates no new disposition decision, provider
+      request, review spend, or convergence judgment. When one hosted request is already pending, status projects its
+      complete durable await envelope before any new request admission or provider spend. A provider conflict
+      prepares one deterministic ARC-owned detached resolution workspace; exact clean stale residue at that locator
+      is safely reused or replaced, while dirty, moved, foreign, malformed, or ambiguous residue refuses without
+      cleanup. These are recovery and projection hardenings over existing authority and effects. They add no new
+      approval, hosted request, record family, workspace authority, or generalized cleanup mechanism; the typed
+      settlement stop exposes only an existing unresolved host obligation.
 
       **Forward clarification:** the authoring rebind does not require contribution equivalence with the old member,
       because an approved finding fix intentionally changes that contribution. Its proof is the exact deterministic

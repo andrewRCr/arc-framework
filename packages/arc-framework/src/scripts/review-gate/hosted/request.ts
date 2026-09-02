@@ -87,6 +87,27 @@ export const HostedRequestHandleSchema = z.strictObject({
 );
 export type HostedRequestHandle = z.infer<typeof HostedRequestHandleSchema>;
 
+/** Compare a durable hosted request handle with its lane-progress binding. */
+export function hostedRequestHandleMatchesProgress(
+  handle: HostedRequestHandle,
+  progress: {
+    readonly sourceId: string;
+    readonly target: HostedTarget;
+    readonly requestedCoverage: HostedReviewCoverage;
+    readonly effectiveCoverage: HostedReviewCoverage | null;
+    readonly vehicle?: DeliveryReviewMemberVehicle;
+  },
+): boolean {
+  return handle.provider === progress.sourceId
+    && handle.target.repository.toLowerCase() === progress.target.repository.toLowerCase()
+    && handle.target.pullRequest === progress.target.pullRequest
+    && handle.target.headSha === progress.target.headSha
+    && handle.requestedCoverage === progress.requestedCoverage
+    && handle.effectiveCoverage === progress.effectiveCoverage
+    && canonicalize(handle.vehicle?.kind === "delivery-member" ? handle.vehicle : null)
+      === canonicalize(progress.vehicle ?? null);
+}
+
 export interface HostedRequestEnvelope {
   schemaVersion: 1;
   target: HostedTarget;

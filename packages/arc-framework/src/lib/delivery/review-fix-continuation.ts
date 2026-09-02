@@ -51,6 +51,11 @@ export type DurableDeliveryReviewFixResponseReplay =
         readonly schemaVersion: 1;
         readonly source: Extract<ApprovedDispositionRecord["source"], { readonly kind: "hosted" }>;
         readonly dispositions: ApprovedDispositionRecord["approvedDisposition"];
+        readonly verifiedFix: {
+          readonly applicability:
+            NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["applicability"];
+          readonly verificationEvidenceRefs: readonly string[];
+        };
       };
     }
   | {
@@ -81,8 +86,9 @@ function recordMatchesDurableDeliveryResponseReplay(
 /**
  * Recover one exact durable delivery-member response for a rediscovered hosted findings attempt.
  *
- * The returned request replays only the already-approved disposition. It never recreates the
- * verification judgment or infers a new response from finding similarity.
+ * The returned request replays the already-approved disposition and the exact verification evidence
+ * stored by its completed response. It never recreates either judgment or infers a new response from
+ * finding similarity.
  */
 export function selectDurableDeliveryReviewFixResponseReplay(input: {
   readonly workUnitId: string;
@@ -118,6 +124,10 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
       schemaVersion: 1,
       source: selected.source,
       dispositions: selected.approvedDisposition,
+      verifiedFix: {
+        applicability: selected.deliveryMemberFixResponse.applicability,
+        verificationEvidenceRefs: selected.deliveryMemberFixResponse.fixConsumption.verificationRefs,
+      },
     },
   };
 }
