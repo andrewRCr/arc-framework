@@ -484,7 +484,12 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     )}\\n' "$(remote_head '${secondBranch}')"`,
     "    ;;",
     "  repos/owner/repo/pulls/403)",
-    `    printf '${request(403, "member-3", "%s", secondBranch)}\\n' "$(remote_head 'member-3')"`,
+    "    if [ -n \"${ARC_FAKE_TERMINAL_REF:-}\" ]; then",
+    `      printf '${request(403, "%s", "%s", secondBranch)}\\n' `
+      + `"$ARC_FAKE_TERMINAL_REF" "$(remote_head "$ARC_FAKE_TERMINAL_REF")"`,
+    "    else",
+    `      printf '${request(403, "member-3", "%s", secondBranch)}\\n' "$(remote_head 'member-3')"`,
+    "    fi",
     "    ;;",
     "  repos/owner/repo/stacks)",
     activeOperation === "registered-terminal-authoring"
@@ -971,6 +976,20 @@ describe("arc delivery position", () => {
       reason: "pending-review-fix-verification",
     });
     expect(await readFile(pendingHostLog, "utf8")).toBe("");
+    const topState = await fixture.states.read(fixture.plan.planId);
+    if (topState.status !== "ok" || topState.value === null) {
+      throw new Error("pending review-fix state must remain readable");
+    }
+    expect(await fixture.states.publish(fixture.plan.planId, {
+      ...topState.value.value,
+      members: topState.value.value.members.map((member, index, members) => (
+        index === members.length - 1 ? { ...member, ref: `refs/heads/${workUnitBranch}` } : member
+      )),
+      pendingReviewFixVerification: {
+        selectedDeliverableId,
+        memberDeliverableIds: [selectedDeliverableId, fixture.plan.members.at(-1)!.deliverableId],
+      },
+    }, topState.value.revision)).toMatchObject({ status: "ok" });
 
     const candidateTarget = await collectGitCandidateTarget({
       cwd: fixture.repository,
@@ -1078,7 +1097,10 @@ describe("arc delivery position", () => {
       status: "review-fix-verification-required",
       nextAction: "verify-review-fix",
       selectedDeliverableId,
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: {
+        memberDeliverableIds: [selectedDeliverableId, fixture.plan.members.at(-1)!.deliverableId],
+        tier1Required: true,
+      },
     });
 
     const controlled = await runArcWithStdin(
@@ -1110,7 +1132,32 @@ describe("arc delivery position", () => {
     await writeFile(join(fixture.repository, "rescue-follow-up.txt"), "newer rescue authoring\n");
     await git(fixture.repository, ["add", "rescue-follow-up.txt"]);
     await git(fixture.repository, ["commit", "-m", "newer rescue authoring"]);
-    expect(await git(fixture.repository, ["rev-parse", "HEAD"])).not.toBe(continuation.verification.target.head);
+    const reboundHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+    expect(reboundHead).not.toBe(continuation.verification.target.head);
+    await git(fixture.repository, ["push", "origin", workUnitBranch]);
+    const preRebindState = await fixture.states.read(fixture.plan.planId);
+    if (preRebindState.status !== "ok" || preRebindState.value === null) {
+      throw new Error("pre-rebind delivery state must remain readable");
+    }
+    const preRebindTerminal = preRebindState.value.value.members.at(-1);
+    expect(preRebindTerminal?.ref).toBe(`refs/heads/${workUnitBranch}`);
+    expect(preRebindTerminal?.coordinates?.head).toBe(continuation.verification.target.head);
+
+    const reboundControlled = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
+    );
+    expect(reboundControlled.exitCode, `${reboundControlled.stderr}\n${reboundControlled.stdout}`).toBe(0);
+    const reboundContinuation = JSON.parse(reboundControlled.stdout) as typeof continuation;
+    expect(reboundContinuation, reboundControlled.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "verification-required",
+      selectedDeliverableId,
+      verification: { target: { head: reboundHead } },
+    });
+    expect(reboundContinuation.verification.target).not.toEqual(continuation.verification.target);
 
     await writeFile(taskListPath, taskList.replace("### `[ ]` **1.1", "### `[x]` **1.1"));
     const locus = await runArc(["locus", "--json"], fixture.repository, { env: fixture.env });
@@ -1126,14 +1173,14 @@ describe("arc delivery position", () => {
     });
     await git(fixture.repository, ["add", "-A"]);
     const acknowledgementRequest = {
-      ...continuation.acknowledgementInput,
+      ...reboundContinuation.acknowledgementInput,
       verification: {
         applicability: "focused",
-        target: continuation.verification.target,
+        target: reboundContinuation.verification.target,
         tier1: {
           outcome: "passed",
           provenance: "rerun",
-          targetTree: continuation.verification.target.tree,
+          targetTree: reboundContinuation.verification.target.tree,
         },
         verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
       },
@@ -1177,7 +1224,7 @@ describe("arc delivery position", () => {
     const acknowledgedCandidate = await readCandidateRecord(fixture.repository, fixture.plan.workUnitId);
     expect(acknowledgedCandidate?.transitions.at(-1)).toMatchObject({
       transitionKind: "verification-response",
-      newTarget: { revision: continuation.verification.target.head },
+      newTarget: { revision: reboundContinuation.verification.target.head },
     });
 
     const recoveredEntry = await runArcWithStdin(
@@ -1188,8 +1235,8 @@ describe("arc delivery position", () => {
     );
     expect(recoveredEntry.exitCode, `${recoveredEntry.stderr}\n${recoveredEntry.stdout}`).toBe(0);
     expect(JSON.parse(recoveredEntry.stdout)).toMatchObject({
-      status: "candidate-verification-required",
-      nextAction: "verify-work-unit",
+      status: "continue-hosted-review",
+      nextAction: "continue-hosted-review",
     });
 
     const session = await runArc(["status", "--session-init", "--json"], fixture.repository, {
@@ -1199,7 +1246,7 @@ describe("arc delivery position", () => {
     expect(JSON.parse(session.stdout)).toMatchObject({
       active: {
         ok: true,
-        value: { sessionType: "integration", currentWorkflow: "verify-work-unit" },
+        value: { sessionType: "integration", currentWorkflow: "integrate-work-unit" },
       },
     });
   });

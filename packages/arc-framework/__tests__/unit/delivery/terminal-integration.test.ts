@@ -198,6 +198,7 @@ describe("delivery terminal integration", () => {
       durableBaselineTarget: f.candidate.durableBaselineTarget,
       currentTarget: { revision: correctedHead, subject: correctedSubject },
       selectedDeliverableId: terminal.deliverableId,
+      memberDeliverableIds: [terminal.deliverableId],
       convergenceVerification: "satisfied" as const,
     } as unknown as typeof f.input.candidate;
     const coordinates = { ...f.coordinates, head: correctedHead, tree: "e".repeat(40) };
@@ -225,6 +226,56 @@ describe("delivery terminal integration", () => {
           selectedDeliverableId: terminal.deliverableId,
           memberDeliverableIds: [terminal.deliverableId],
         },
+      },
+      nextAction: "verify-review-fix",
+    });
+  });
+
+  it("preserves a pending multi-member verification while rebinding its covered terminal", () => {
+    const f = terminalRebindFixture();
+    const selectedDeliverableId = f.state.members[0]!.deliverableId;
+    const terminal = f.state.members.at(-1)!;
+    const memberDeliverableIds = [selectedDeliverableId, terminal.deliverableId];
+    const correctedHead = "f".repeat(40);
+    const correctedSubject = createCandidateSubjectSnapshot([{
+      path: "feature.ts",
+      digest: canonicalDigest({ content: "propagated correction" }),
+      mode: "100644",
+      treatment: "reviewable",
+    }]);
+    const candidate = {
+      schemaVersion: 1 as const,
+      mode: "candidate-effective-target" as const,
+      state: "review-fix" as const,
+      candidateId: f.candidate.candidateId,
+      durableBaselineTarget: f.candidate.durableBaselineTarget,
+      currentTarget: { revision: correctedHead, subject: correctedSubject },
+      selectedDeliverableId,
+      memberDeliverableIds,
+      convergenceVerification: "satisfied" as const,
+    } as unknown as typeof f.input.candidate;
+    const coordinates = { ...f.coordinates, head: correctedHead, tree: "e".repeat(40) };
+    const state = {
+      ...f.state,
+      members: f.state.members.map((member, index, members) => index === members.length - 1
+        ? { ...member, coordinates: { ...member.coordinates!, head: CANDIDATE_HEAD } }
+        : member),
+      pendingReviewFixVerification: { selectedDeliverableId, memberDeliverableIds },
+    };
+
+    expect(rebindDeliveryTerminalCoordinates({
+      ...f.input,
+      state,
+      candidate,
+      request: { ...f.input.request, headSha: correctedHead },
+      coordinates,
+    })).toEqual({
+      status: "rebound",
+      state: {
+        ...state,
+        members: state.members.map((member, index, members) => index === members.length - 1
+          ? { ...member, coordinates }
+          : member),
       },
       nextAction: "verify-review-fix",
     });
@@ -267,6 +318,7 @@ describe("delivery terminal integration", () => {
       durableBaselineTarget: f.candidate.durableBaselineTarget,
       currentTarget: { revision: correctedHead, subject: f.record.subject },
       selectedDeliverableId: terminal.deliverableId,
+      memberDeliverableIds: [terminal.deliverableId],
       convergenceVerification: "satisfied" as const,
     } as unknown as typeof f.input.candidate;
 

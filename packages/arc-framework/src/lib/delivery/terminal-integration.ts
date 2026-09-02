@@ -1,5 +1,6 @@
 /** Terminal delivery claim composition for the integration checkpoint. */
 
+import { canonicalize } from "../kernel/index.js";
 import type {
   CandidateCurrentnessProjection,
   CandidateLineageTarget,
@@ -116,6 +117,7 @@ export interface DeliveryTerminalReviewFixCandidate {
   readonly durableBaselineTarget: CandidateLineageTarget;
   readonly currentTarget: CandidateLineageTarget;
   readonly selectedDeliverableId: string;
+  readonly memberDeliverableIds: readonly string[];
   readonly convergenceVerification: "satisfied";
 }
 
@@ -185,7 +187,7 @@ export function rebindDeliveryTerminalCoordinates(input: {
   if (validated.state.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
   }
-  if (validated.state.pendingReviewFixVerification !== null) {
+  if (!reviewFix && validated.state.pendingReviewFixVerification !== null) {
     return { status: "refused", reason: "pending-review-fix-verification" };
   }
   const terminalIndex = validated.state.members.length - 1;
@@ -195,8 +197,17 @@ export function rebindDeliveryTerminalCoordinates(input: {
     || terminal.coordinates === null || target === null) {
     return { status: "refused", reason: "terminal-binding-missing" };
   }
-  if (reviewFix && input.candidate.selectedDeliverableId !== terminal.deliverableId) {
-    return { status: "refused", reason: "candidate-coordinate-mismatch" };
+  if (reviewFix) {
+    const pending = validated.state.pendingReviewFixVerification;
+    const samePendingScope = pending !== null
+      && pending.selectedDeliverableId === input.candidate.selectedDeliverableId
+      && canonicalize(pending.memberDeliverableIds)
+        === canonicalize(input.candidate.memberDeliverableIds);
+    if (!input.candidate.memberDeliverableIds.includes(terminal.deliverableId)
+      || (pending === null && input.candidate.selectedDeliverableId !== terminal.deliverableId)
+      || (pending !== null && !samePendingScope)) {
+      return { status: "refused", reason: "candidate-coordinate-mismatch" };
+    }
   }
   if (reviewFix && durableBaseline.data.revision !== terminal.coordinates.head) {
     return { status: "refused", reason: "candidate-not-current" };
@@ -237,7 +248,7 @@ export function rebindDeliveryTerminalCoordinates(input: {
     ? installDeliveryReviewFixVerification({
         state: parsedRebound.data,
         selectedDeliverableId: input.candidate.selectedDeliverableId,
-        memberDeliverableIds: [input.candidate.selectedDeliverableId],
+        memberDeliverableIds: input.candidate.memberDeliverableIds,
       })
     : parsedRebound.data;
   if (state === null) return { status: "refused", reason: "state-mismatch" };

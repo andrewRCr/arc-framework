@@ -1587,7 +1587,10 @@ async function executeDeliveryCommand(
         readonly projectionDigest: string;
         readonly residualDigest: string;
       } | undefined;
-      const projectTerminalRecordRebind = async (planId: string) => {
+      const projectTerminalRecordRebind = async (
+        planId: string,
+        reviewFixSelectedDeliverableId?: string,
+      ) => {
         const [currentPlan, currentState, active] = await Promise.all([
           planStore.readCurrent(planId),
           stateStore.read(planId),
@@ -1619,6 +1622,9 @@ async function executeDeliveryCommand(
               repository: parsed.repository,
               remote: parsed.remote,
               continuation: "read-position" as const,
+              ...(reviewFixSelectedDeliverableId === undefined
+                ? {}
+                : { reviewFixSelectedDeliverableId }),
             },
           },
           recommendedActionText:
@@ -1922,6 +1928,12 @@ async function executeDeliveryCommand(
         if (prepared.status === "prepared" && prepared.authoring?.status === "ready") {
           entry = correctionEntry;
           preparedCorrection = prepared;
+        } else {
+          const terminalRebind = await projectTerminalRecordRebind(
+            entry.planId,
+            entry.selectedDeliverableId,
+          );
+          if (terminalRebind.status !== "not-required") return terminalRebind;
         }
       }
 
@@ -3860,7 +3872,12 @@ async function executeDeliveryCommand(
           candidate = effective;
           candidateTargetRevision = effective.recognizedTarget.revision;
         } else {
-          if (parsed.reviewFixSelectedDeliverableId !== terminal.deliverableId
+          const pendingVerification = currentState.value.pendingReviewFixVerification;
+          const terminalCoveredByPendingVerification = pendingVerification !== null
+            && pendingVerification.selectedDeliverableId === parsed.reviewFixSelectedDeliverableId
+            && pendingVerification.memberDeliverableIds.includes(terminal.deliverableId);
+          if ((parsed.reviewFixSelectedDeliverableId !== terminal.deliverableId
+              && !terminalCoveredByPendingVerification)
             || effective.state === "staged-change" || effective.state === "rerun-checkpoint") {
             return { status: "refused", reason: "candidate-not-current" };
           }
@@ -3906,6 +3923,8 @@ async function executeDeliveryCommand(
             durableBaselineTarget: baseline.target,
             currentTarget,
             selectedDeliverableId: parsed.reviewFixSelectedDeliverableId,
+            memberDeliverableIds: pendingVerification?.memberDeliverableIds
+              ?? [parsed.reviewFixSelectedDeliverableId],
             convergenceVerification: "satisfied",
           };
           candidateTargetRevision = currentTarget.revision;
