@@ -21,6 +21,13 @@ import {
   type DeliveryTerminalTopResult,
 } from "../../lib/delivery/terminal-integration.js";
 
+type DeliveryCheckpointBlockedReason =
+  | Extract<DeliveryTerminalClaimResult, { readonly status: "refused" }>["reason"]
+  | Extract<DeliveryTerminalCheckResult, { readonly status: "refused" }>["reason"]
+  | Extract<DeliveryTerminalTopResult, { readonly status: "refused" }>["reason"]
+  | "drift-classification-unavailable"
+  | "residual-overlap";
+
 export type DeliveryCheckpointArmResult =
   | { readonly status: "not-applicable" }
   | {
@@ -32,7 +39,7 @@ export type DeliveryCheckpointArmResult =
   | {
       readonly status: "blocked";
       readonly nextAction: "stop" | "retarget" | "reopen-and-retarget" | "verify-terminal-member";
-      readonly reason: string;
+      readonly reason: DeliveryCheckpointBlockedReason;
       readonly detail?: string;
       readonly deliverableId?: string;
       readonly paths?: readonly string[];
@@ -85,7 +92,14 @@ export async function composeDeliveryCheckpointArm(input: {
           reason: top.reason,
           remedy: top.remedy,
         }
-      : { status: "blocked", nextAction: "stop", reason: "top-request-mismatch" };
+      : {
+          status: "blocked",
+          nextAction: "stop",
+          reason: "top-request-mismatch",
+          detail: top.status === "refused"
+            ? `The delivery top refused as ${top.reason}.`
+            : `The delivery top resolved as ${top.status}.`,
+        };
   }
   if (input.state === null) return { status: "blocked", nextAction: "stop", reason: "state-mismatch" };
   const checks = assessDeliveryTerminalChecks({

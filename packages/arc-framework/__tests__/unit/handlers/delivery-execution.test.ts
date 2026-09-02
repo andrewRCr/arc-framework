@@ -70,6 +70,7 @@ describe("delivery execution handler", () => {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         plan,
         protectedBaseRef: "refs/heads/main",
+        topRef: "refs/heads/feat/example",
         controlRef: "refs/heads/feat/example",
         candidates: plan.members.map((member, index) => ({
           deliverableId: member.deliverableId,

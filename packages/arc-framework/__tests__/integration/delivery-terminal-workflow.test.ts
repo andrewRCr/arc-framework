@@ -26,6 +26,7 @@ describe("delivery terminal integration handoff", () => {
     }
     expect(checkpoint).toBeLessThan(interlock);
     expect(interlock).toBeLessThan(merge);
+    expect(merge).toBeLessThan(resume);
     expect(merge).toBeLessThan(close);
     expect(resume).toBeLessThan(close);
     expect(close).toBeLessThan(teardown);

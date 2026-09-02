@@ -3,6 +3,7 @@
 import { resolve } from "node:path";
 
 import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
+import type { RawGitExec } from "../../lib/change-facts.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
 import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
@@ -137,11 +138,11 @@ async function readCoordinate(exec: GitExec, cwd: string, head: string): Promise
 }
 
 async function readDiffPaths(
-  cwd: string,
+  rawExec: RawGitExec,
   fromRevision: string,
   throughRevision: string,
 ): Promise<string[]> {
-  const result = await createRawGitExec(cwd)([
+  const result = await rawExec([
     "diff", "--name-only", "-z", "--no-renames", fromRevision, throughRevision, "--",
   ], { objectAccess: "local-only" });
   const output = new TextDecoder("utf-8", { fatal: true }).decode(result.stdout);
@@ -266,6 +267,7 @@ export async function readLifecycleSummary(
 export function createIntegrationCheckpointDependencies(input: {
   cwd: string;
   exec: GitExec;
+  rawExec?: RawGitExec;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
 }): IntegrationCheckpointDependencies {
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
@@ -274,6 +276,7 @@ export function createIntegrationCheckpointDependencies(input: {
     return settingsPromise;
   };
   const candidates = new Map<string, Promise<CachedCandidate | null>>();
+  const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
   let identityPromise: ReturnType<typeof resolveIdentity> | null = null;
   const identity = () => {
     identityPromise ??= resolveIdentity({ exec: input.exec });
@@ -363,14 +366,14 @@ export function createIntegrationCheckpointDependencies(input: {
           return { status: "unavailable", detail: "The delivery predecessor coordinate is unavailable." };
         }
         const residualPaths = await readDiffPaths(
-          input.cwd,
+          rawExec,
           highestCoordinate.head,
           currentness.recognizedRevision,
         );
         const firstCoordinate = nonTerminal[0]?.coordinates;
         const predecessorPaths = firstCoordinate == null
           ? []
-          : await readDiffPaths(input.cwd, firstCoordinate.base, highestCoordinate.head);
+          : await readDiffPaths(rawExec, firstCoordinate.base, highestCoordinate.head);
         return classifyDeliveryTerminalDrift({
           terminalDeliverableId: terminal.deliverableId,
           driftPaths: [...new Set([
@@ -538,7 +541,7 @@ export function createIntegrationCheckpointDependencies(input: {
         },
         readCandidateCoordinate: (head) => readCoordinate(input.exec, input.cwd, head),
         proveResidual: (endpoints) => proveGitDeliveryContribution({
-          exec: createRawGitExec(input.cwd),
+          exec: rawExec,
           ...endpoints,
         }),
       });
