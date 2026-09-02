@@ -44,6 +44,7 @@ const nativeDeliveryCommandPaths: ReadonlySet<string> = new Set([
 
 const hostedGitHubCommandPaths: ReadonlySet<string> = new Set([
   ...nativeDeliveryCommandPaths,
+  "delivery top-remedy",
   "integrate checkpoint",
   "integrate merge",
   "review pre-publication",

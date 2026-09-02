@@ -114,6 +114,7 @@ describe("PR-open lifecycle extensions", () => {
       const correctionPublish = integrate.indexOf("arc publish {name} --json", reconcileStep);
       expect(reconcileStep).toBeGreaterThan(-1);
       expect(correctionPublish).toBeGreaterThan(reconcileStep);
+      expect(integrate.slice(0, reconcileStep)).not.toContain("arc publish {name}");
       expect(integrate).toContain("Step 1, from the idempotent **push** action");
     }
   });

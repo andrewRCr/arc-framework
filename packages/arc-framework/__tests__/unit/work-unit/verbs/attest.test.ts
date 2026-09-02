@@ -6,17 +6,15 @@ import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js
 import {
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
-  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../../../src/lib/work-unit/candidate-attestation.js";
-import { projectEffectiveCandidateTarget } from
-  "../../../../src/lib/work-unit/candidate-effective-target.js";
 import {
   runAttest,
   type AttestContext,
 } from "../../../../src/lib/work-unit/verbs/attest.js";
 import { projectCandidateReviewBoundary } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectDurableCandidateTarget } from "../../../helpers/candidate.js";
 
 const REVISION = "a".repeat(40);
 const CHANGED_REVISION = "b".repeat(40);
@@ -46,17 +44,7 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
     verificationEvidenceRef: (name) => `tasks-${name}.md#verification`,
     readRecord: async () => ({ record: storedRecord, version: recordVersion }),
     currentTarget: async () => currentTarget,
-    effectiveTarget: async (_name, candidateRecord) => {
-      const baseline = reduceCandidateDurableBaseline(candidateRecord);
-      return projectEffectiveCandidateTarget({
-        record: candidateRecord,
-        current: baseline.target,
-        currentBase: candidateRecord.attestation.baseRevision,
-        projectApplicability: async () => {
-          throw new Error("A durable target must not request applicability.");
-        },
-      });
-    },
+    effectiveTarget: (name, record) => projectDurableCandidateTarget({ cwd: "/repo", name, record }),
     publish: async (input) => {
       publicationCount += 1;
       storedRecord = input.record;

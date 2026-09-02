@@ -773,8 +773,8 @@ export function createIntegrationCheckpointDependencies(input: {
         },
       });
     },
-    composeSettlementPlan: async ({ workUnit, composition }) => composeCanonicalSettlementPlan(
-      (await composeLineageReview(workUnit, composition.approvedHead)).actions,
+    composeSettlementPlan: async ({ workUnit, baseRevision, composition }) => composeCanonicalSettlementPlan(
+      (await composeLineageReview(workUnit, composition.approvedHead, baseRevision)).actions,
     ),
     createHandle: async ({ workUnit, approvedHead, statusSummary, settlementPlan, mergeMethod }) => {
       const resolvedIdentity = await identity();

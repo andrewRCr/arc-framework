@@ -309,12 +309,13 @@ async function observeOperation(
   } else if (operation.kind === "top-remedy") {
     const trigger = state.members.at(-2);
     const prefix = "refs/heads/";
-    if (!matchesDeliveryTopRemedyTrigger(operation.effect, trigger)
+    if (operation.effect.repository !== dependencies.repository
+      || !matchesDeliveryTopRemedyTrigger(operation.effect, trigger)
       || !operation.effect.triggerRef.startsWith(prefix)
       || dependencies.remoteHeads[operation.effect.triggerRef.slice(prefix.length)] !== undefined
       || trigger?.coordinates === null || trigger?.coordinates === undefined
       || !await retainedCommitIsAvailable(operation.effect.triggerRef, trigger.coordinates, dependencies)) return null;
-    const request = await dependencies.host.readRequest(operation.effect.repository, {
+    const request = await dependencies.host.readRequest(dependencies.repository, {
       providerId: operation.effect.providerId,
       changeRequestId: operation.effect.changeRequestId,
     });

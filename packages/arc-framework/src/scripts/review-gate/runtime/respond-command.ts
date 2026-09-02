@@ -616,7 +616,8 @@ async function persistCandidateResponse(
   }
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
   const currentness = projectEffectiveCandidateCurrentness(lineage.effective);
-  const matchingResponses = candidateReviewResponses(lineage.record).filter((response) =>
+  const recordedResponses = candidateReviewResponses(lineage.record);
+  const matchingResponses = recordedResponses.filter((response) =>
     response.dispositionId === dispositions.dispositionSet.dispositionSetId);
   if (matchingResponses.length > 0) {
     if (matchingResponses.length !== 1) {
@@ -629,6 +630,7 @@ async function persistCandidateResponse(
     if (matching === undefined
       || matching.candidateId !== lineage.record.attestation.candidateId
       || matching.oldTarget.revision !== source.target.headSha
+      || matching.newTarget.revision !== recordedResponses.at(-1)?.newTarget.revision
       || matching.approvedBy !== dispositions.approval.approvedBy
       || matching.appliedBy !== dispositions.dispositionSet.proposedBy
       || matching.applicability !== verifiedFix.applicability

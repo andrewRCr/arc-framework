@@ -1237,6 +1237,35 @@ describe("verified-fix Candidate settlement", () => {
     await expect(respondToReviewCommand(request, deps)).rejects.toThrow("replay conflicts");
   });
 
+  it("rejects an earlier response replay after a later response advances the Candidate again", async () => {
+    const records = fixture();
+    const firstCurrent = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, firstCurrent);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(request, deps);
+    const first = appends[0]?.record;
+    const firstResponse = first === undefined ? undefined : candidateReviewResponses(first)[0];
+    if (first === undefined || firstResponse === undefined) {
+      throw new Error("expected the first Candidate response");
+    }
+    const laterCurrent = { revision: objectId("f"), subject: candidateSubject("later-fix") };
+    const laterResponse = createCandidateReviewResponseEvidence({
+      candidateId: firstResponse.candidateId,
+      oldTarget: firstResponse.newTarget,
+      newTarget: laterCurrent,
+      dispositionId: digest("later-disposition"),
+      approvedBy: firstResponse.approvedBy,
+      appliedBy: firstResponse.appliedBy,
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://later-fix"],
+      implementationChanged: true,
+    });
+    const advancedAgain = { ...first, transitions: [...first.transitions, laterResponse] };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advancedAgain, laterCurrent);
+
+    await expect(respondToReviewCommand(request, deps)).rejects.toThrow("replay conflicts");
+  });
+
   it("repairs staging when the Candidate record write succeeded before git add failed", async () => {
     const records = fixture();
     const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
