@@ -251,7 +251,7 @@ describe("session-init delivery position facts", () => {
     });
   });
 
-  it("projects local authoring from the advanced remote lease rather than stale stored coordinates", async () => {
+  it("retains persisted coordinates while leasing an advanced remote head for local authoring", async () => {
     const plan = deliveryStackPlanFixture();
     const initial = deliveryStateFixture(plan);
     const terminalIndex = initial.members.length - 1;
@@ -294,7 +294,7 @@ describe("session-init delivery position facts", () => {
       facts: {
         terminalAuthoringMovement: {
           deliverableId: terminal.deliverableId,
-          before: { ...remote, base: terminal.coordinates!.base },
+          before: terminal.coordinates,
           after: { ...local, base: terminal.coordinates!.base },
           publicationLeaseHead: remote.head,
         },
