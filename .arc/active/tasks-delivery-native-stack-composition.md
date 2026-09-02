@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3194,6 +3194,16 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           and terminal top authoring retain their existing topology. The built-CLI production case, 167 focused
           tests, both typechecks, TypeScript/shell/Markdown lint, all ARC contract checks, package build, and the full
           861-file / 11,291-test suite pass with one intentional skip each; no hosted provider request ran.
+
+    - `[ ]` **7.7.R.x Project the bootstrap guard through its Member 7 authoring locus**
+
+        - _Goal:_ The already-proven guard reaches the planned `review-fan-out` member through ARC's exact
+          route-owned authoring gate, and the dependent suffix plus terminal top settle without duplicate authoring,
+          re-derived topology, or hosted-provider spend.
+
+        - **Additional Context:** This is the one-time bootstrap acceptance for Task 7.7.R.w: its implementation had
+          to exist on the originating checkout before that implementation could return and enforce the member-owned
+          locus. No contract expansion or new implementation is authorized here.
 
 ## **Phase 8:** Record retirement and doctrine
 
