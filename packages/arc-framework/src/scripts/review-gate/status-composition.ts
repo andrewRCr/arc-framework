@@ -63,6 +63,37 @@ async function readBasePosition(input: {
 }
 
 /**
+ * Materialize an exact Candidate head only when the local object database does not already contain it.
+ *
+ * @param input - Repository, Git boundary, and exact Candidate head required by local projection.
+ * @returns After the exact commit is available locally.
+ */
+export async function ensureCandidateHeadAvailable(input: {
+  cwd: string;
+  exec: GitExec;
+  headSha: string;
+}): Promise<void> {
+  const resolveExactHead = async (): Promise<string> => (
+    await input.exec("git", ["rev-parse", "--verify", `${input.headSha}^{commit}`], {
+      cwd: input.cwd,
+      objectAccess: "local-only",
+    })
+  ).stdout.trim();
+
+  try {
+    const resolved = await resolveExactHead();
+    if (resolved !== input.headSha) throw new Error("the local Candidate head resolved to a different commit");
+    return;
+  } catch (error) {
+    if (!isGitProcessError(error) || error.kind !== "nonzero-exit") throw error;
+  }
+
+  await input.exec("git", ["fetch", "origin", input.headSha], { cwd: input.cwd });
+  const fetched = await resolveExactHead();
+  if (fetched !== input.headSha) throw new Error("the fetched Candidate head resolved to a different commit");
+}
+
+/**
  * Reduce the routed review obligation for one exact target from the repository's own evidence.
  *
  * @param cwd - The repository root holding the boundary, Candidate record, and lane progress.
@@ -104,6 +135,7 @@ export async function readRoutedObligation(
     }
     const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"];
     const candidateHead = subject.member?.candidateHead ?? target.headSha;
+    await ensureCandidateHeadAvailable({ cwd, exec, headSha: candidateHead });
     const targetBase = await resolveGitCandidateTargetBase({
       cwd,
       revision: candidateHead,

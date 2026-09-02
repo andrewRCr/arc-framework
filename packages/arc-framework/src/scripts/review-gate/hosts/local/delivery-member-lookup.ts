@@ -79,8 +79,8 @@ DeliveryTerminalRecordLookup {
     // them; the fallback keeps the port total rather than guarding a real case.
     const memberIndex = current.members.findIndex((candidate) => candidate.deliverableId === deliverableId);
     const coordinates = current.members[memberIndex]?.coordinates ?? null;
-    const candidateHead = current.members.at(-1)?.coordinates?.head;
-    if (memberIndex < 0 || coordinates === null || candidateHead === undefined) {
+    const candidateHead = current.members.at(-1)?.coordinates?.head ?? null;
+    if (memberIndex < 0 || coordinates === null) {
       return { status: "unavailable" };
     }
     const baseRef = branchName(memberIndex === 0

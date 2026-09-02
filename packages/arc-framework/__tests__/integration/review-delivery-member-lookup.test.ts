@@ -204,6 +204,28 @@ describe("repository delivery member lookup", () => {
     });
   });
 
+  it("keeps a bound member resolvable while terminal Candidate coordinates are absent", async () => {
+    const { cwd, lookup } = await repository();
+    const initial = state({ heads: [FIRST_HEAD, SECOND_HEAD] });
+    const current = {
+      ...initial,
+      members: initial.members.map((member, index) => index === 1
+        ? { ...member, coordinates: null }
+        : member),
+    };
+    await publish(cwd, current);
+
+    await expect(lookup.resolveMemberByHead(FIRST_HEAD)).resolves.toMatchObject({
+      status: "resolved",
+      member: {
+        head: FIRST_HEAD,
+        candidateHead: null,
+        isFinalMember: false,
+      },
+    });
+  });
+
+
   it("selects the retained member branch while running from the originating checkout", async () => {
     const { cwd, lookup } = await repository();
     await publish(cwd, state({ heads: [FIRST_HEAD, SECOND_HEAD] }));
