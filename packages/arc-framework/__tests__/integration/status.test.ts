@@ -1249,7 +1249,15 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: fixture.root });
     await execFileAsync("git", ["config", "user.name", "Test"], { cwd: fixture.root });
     await execFileAsync("git", ["add", "."], { cwd: fixture.root });
-    await execFileAsync("git", ["commit", "-m", "fixture"], { cwd: fixture.root });
+    await execFileAsync("git", [
+      "-c",
+      "core.hooksPath=/dev/null",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "-m",
+      "fixture",
+    ], { cwd: fixture.root });
     const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: fixture.root });
     const candidateId = await writeCandidate(fixture.root, "foo", stdout.trim());
     await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {

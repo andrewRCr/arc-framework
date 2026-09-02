@@ -309,6 +309,26 @@ describe("handleCandidateApplicabilityResolve", () => {
     expect(exitCodes).toEqual([1]);
   });
 
+  it("returns the closed unavailable result outside an ARC project", async () => {
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, {
+      resolveRoot: () => null,
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
+    expect(JSON.parse(output.join(""))).toEqual({
+      schemaVersion: 1,
+      mode: "candidate-applicability-resolve",
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: "project-root-unavailable",
+    });
+    expect(exitCodes).toEqual([1]);
+  });
+
   it("returns the closed invalid-input result for malformed JSON", async () => {
     const output: string[] = [];
     const exitCodes: number[] = [];
