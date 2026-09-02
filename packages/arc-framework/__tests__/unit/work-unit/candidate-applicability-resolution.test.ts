@@ -148,6 +148,15 @@ describe("resolveCandidateApplicability", () => {
       choice: "changed",
     });
     expect(fixture.writeCount()).toBe(1);
+    expect(fixture.record().transitions).toEqual([
+      expect.objectContaining({
+        transitionKind: "applicability-selection",
+        priorTarget: fixture.request.baselineTarget,
+        currentTarget: fixture.request.currentTarget,
+        selectedBy: "andrew",
+        choice: "changed",
+      }),
+    ]);
   });
 
   it("requires completed targeted evidence in the same selection input", () => {
