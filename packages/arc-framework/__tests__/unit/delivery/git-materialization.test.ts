@@ -10,6 +10,7 @@ import {
   publishDeliveryMemberRef,
   publishDeliveryRemoteRef,
   publishDeliveryTopRef,
+  rebindDeliveryCandidateRef,
   rewriteDeliveryLocalRef,
   rewriteDeliveryMemberRef,
   rewriteDeliveryRemoteRef,
@@ -213,6 +214,35 @@ describe("delivery remote-ref leases", () => {
     await expect(rewriteDeliveryLocalRef({
       exec, ref, beforeHead: head, requestedHead: next,
     })).resolves.toEqual({ status: "adopted" });
+  });
+
+  it("rebinds only an exact private authoring candidate by compare-and-swap", async () => {
+    const candidateRef = "refs/arc/delivery-candidates/123e4567-e89b-42d3-a456-426614174000/member-one";
+    const next = "b".repeat(40);
+    let localHead = head;
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${localHead}\n` };
+      if (args[0] === "update-ref") {
+        if (localHead !== args[3]) throw new Error("stale local lease");
+        localHead = args[2] ?? "";
+        return { stdout: "" };
+      }
+      throw new Error("unexpected git operation");
+    };
+
+    await expect(rebindDeliveryCandidateRef({
+      exec, ref: candidateRef, beforeHead: head, requestedHead: next,
+    })).resolves.toEqual({ status: "rewritten" });
+    expect(localHead).toBe(next);
+    await expect(rebindDeliveryCandidateRef({
+      exec, ref: candidateRef, beforeHead: head, requestedHead: next,
+    })).resolves.toEqual({ status: "adopted" });
+    await expect(rebindDeliveryCandidateRef({
+      exec,
+      ref: "refs/heads/delivery/example/member-one",
+      beforeHead: next,
+      requestedHead: head,
+    })).resolves.toEqual({ status: "refused", reason: "malformed" });
   });
 
   it("deletes a local member ref only at its exact head and adopts the absent retry", async () => {

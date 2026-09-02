@@ -1403,7 +1403,6 @@ describe("arc delivery position", () => {
     await git(locator.gatePath, ["add", "member-one.txt"]);
     await git(locator.gatePath, ["commit", "--no-verify", "-m", "apply selected review fix"]);
     correctionHead = await git(locator.gatePath, ["rev-parse", "HEAD"]);
-    await git(fixture.repository, ["update-ref", locator.candidateRef, correctionHead]);
     await mkdir(join(fixture.repository, ".arc", "active"), { recursive: true });
     await writeFile(join(
       fixture.repository,
@@ -1629,6 +1628,7 @@ describe("arc delivery position", () => {
       selectedDeliverableId,
       verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
       effectLog: [
+        { kind: "dispatch", actionKind: "delivery-review-fix-authoring-rebind", resultStatus: "rebound" },
         { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
         { kind: "dispatch", actionKind: "delivery-refresh-execute", resultStatus: "applied" },
       ],

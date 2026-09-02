@@ -44,8 +44,32 @@ export async function rewriteDeliveryLocalRef(input: {
   | { readonly status: "rewritten" | "adopted" }
   | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
 > {
-  if (!objectId.test(input.beforeHead) || !objectId.test(input.requestedHead)
-    || !input.ref.startsWith("refs/heads/delivery/")) {
+  return rewriteExactLocalRef(input, input.ref.startsWith("refs/heads/delivery/"));
+}
+
+/** Rebind one exact private authoring candidate from its currently observed head. */
+export async function rebindDeliveryCandidateRef(input: {
+  readonly exec: GitExec;
+  readonly ref: string;
+  readonly beforeHead: string;
+  readonly requestedHead: string;
+}): Promise<
+  | { readonly status: "rewritten" | "adopted" }
+  | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+> {
+  return rewriteExactLocalRef(input, candidateRef.test(input.ref));
+}
+
+async function rewriteExactLocalRef(input: {
+  readonly exec: GitExec;
+  readonly ref: string;
+  readonly beforeHead: string;
+  readonly requestedHead: string;
+}, validRef: boolean): Promise<
+  | { readonly status: "rewritten" | "adopted" }
+  | { readonly status: "refused"; readonly reason: "collision" | "malformed" | "unavailable" }
+> {
+  if (!objectId.test(input.beforeHead) || !objectId.test(input.requestedHead) || !validRef) {
     return { status: "refused", reason: "malformed" };
   }
   const before = await observeDeliveryLocalRef(input.exec, input.ref);

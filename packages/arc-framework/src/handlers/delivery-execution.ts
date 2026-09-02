@@ -39,6 +39,7 @@ import {
   observeDeliveryRemoteRef,
   publishDeliveryMemberRef,
   publishDeliveryTopRef,
+  rebindDeliveryCandidateRef,
   rewriteDeliveryLocalRef,
   rewriteDeliveryMemberRef,
   rewriteDeliveryRemoteRef,
@@ -251,6 +252,18 @@ const ReviewFixVerificationSchema = z.strictObject({
     requiredResult: z.literal("passed"),
     coveredInputs: z.literal("unchanged"),
   }),
+});
+const ReviewFixAuthoringRebindSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  ref: RefSchema,
+  checkoutPath: z.string().min(1),
+  beforeHead: GitObjectIdSchema,
+  beforeTree: GitObjectIdSchema,
+  requestedHead: GitObjectIdSchema,
+  requestedTree: GitObjectIdSchema,
+  publishedHead: GitObjectIdSchema,
+  requiredAncestorHeads: z.array(GitObjectIdSchema),
+  requiredFindingPaths: z.array(z.string().min(1)).optional(),
 });
 type DeliveryCorrectionRoutingEntry = Extract<
   DeliveryEntryInspectionResult,
@@ -731,6 +744,7 @@ const ReviewFixContinuationAuthorityActionSchema = z.discriminatedUnion("kind", 
   }),
 ]);
 const ReviewFixDriveActionKindSchema = z.enum([
+  "delivery-review-fix-authoring-rebind",
   "delivery-review-fix-publish",
   "delivery-rematerialize",
   "delivery-refresh-execute",
@@ -1644,6 +1658,34 @@ async function executeDeliveryCommand(
                     ancestor,
                     status: await readAncestry(exec, ancestor, observed.head),
                   })));
+              if (candidateRoute && observed !== null && observedRef !== null
+                && observed.head !== observedRef.head) {
+                return {
+                  status: "prepared" as const,
+                  authoring: undefined,
+                  result: {
+                    status: "dispatch" as const,
+                    nextAction: "dispatch" as const,
+                    action: {
+                      kind: "delivery-review-fix-authoring-rebind" as const,
+                      input: {
+                        planId: correctionEntry.planId,
+                        ref,
+                        checkoutPath,
+                        beforeHead: observedRef.head,
+                        beforeTree: observedRef.tree,
+                        requestedHead: observed.head,
+                        requestedTree: observed.tree,
+                        publishedHead: selected.coordinates.head,
+                        requiredAncestorHeads,
+                        ...(requiredFindingPaths === undefined ? {} : { requiredFindingPaths }),
+                      },
+                    },
+                    recommendedActionText:
+                      "Bind the exact clean detached authoring head to its candidate ref, then continue correction.",
+                  },
+                };
+              }
               authoring = classifyDeliveryReviewFixAuthoringReadiness({
                 locus: { kind: candidateRoute ? "candidate" : "top", ref, checkoutPath },
                 publishedHead: candidateRoute ? selected.coordinates.head : terminalHead,
@@ -1954,8 +1996,62 @@ async function executeDeliveryCommand(
             ],
       };
     };
-    const commands: Readonly<Record<
+    const executeAuthoringRebind = async (input: unknown) => {
+      const reboundInput = ReviewFixAuthoringRebindSchema.safeParse(input);
+      if (!reboundInput.success) return { status: "refused" as const, reason: "authoring-rebind-invalid" };
+      const expected = reboundInput.data;
+      const [checkout, observedRef] = await Promise.all([
+        inspectDeliveryCandidateCheckout(exec, expected.checkoutPath),
+        observeDeliveryEligibilityRef(exec, expected.ref),
+      ]);
+      if (checkout === null || observedRef === null) {
+        return { status: "refused" as const, reason: "authoring-rebind-unavailable" };
+      }
+      if (checkout.trackedDirty) {
+        return { status: "refused" as const, reason: "authoring-locus-dirty" };
+      }
+      if (checkout.head !== expected.requestedHead || checkout.tree !== expected.requestedTree
+        || observedRef.head !== expected.beforeHead || observedRef.tree !== expected.beforeTree) {
+        return { status: "refused" as const, reason: "authoring-rebind-moved" };
+      }
+      if (expected.beforeHead === expected.requestedHead
+        || await readAncestry(exec, expected.beforeHead, expected.requestedHead) !== "ancestor") {
+        return { status: "refused" as const, reason: "authoring-rebind-not-descendant" };
+      }
+      for (const ancestor of expected.requiredAncestorHeads) {
+        if (await readAncestry(exec, ancestor, expected.requestedHead) !== "ancestor") {
+          return { status: "refused" as const, reason: "authoring-rebind-ancestor-mismatch" };
+        }
+      }
+      if (expected.requiredFindingPaths !== undefined && expected.requiredFindingPaths.length > 0) {
+        const authoredPaths = (await exec(
+          "git",
+          ["diff", "--name-only", "-z", expected.publishedHead, expected.requestedHead, "--"],
+          { cwd: expected.checkoutPath, objectAccess: "local-only" },
+        )).stdout.split("\0").filter((path) => path !== "");
+        if (!expected.requiredFindingPaths.some((path) => authoredPaths.includes(path))) {
+          return { status: "refused" as const, reason: "authoring-rebind-finding-path-missing" };
+        }
+      }
+      const rebound = await rebindDeliveryCandidateRef({
+        exec,
+        ref: expected.ref,
+        beforeHead: expected.beforeHead,
+        requestedHead: expected.requestedHead,
+      });
+      if (rebound.status === "refused") {
+        return { status: "refused" as const, reason: `authoring-rebind-${rebound.reason}` };
+      }
+      return rebound.status === "adopted"
+        ? { status: "already-rebound" as const, replayed: true }
+        : { status: "rebound" as const };
+    };
+    type DeliveryReviewFixServiceActionKind = Exclude<
       DeliveryReviewFixDriveDispatchAction["kind"],
+      "delivery-review-fix-authoring-rebind"
+    >;
+    const commands: Readonly<Record<
+      DeliveryReviewFixServiceActionKind,
       Exclude<DeliveryExecutionCommand, "review-fix-continue">
     >> = {
       "delivery-review-fix-publish": "review-fix-publish",
@@ -1971,7 +2067,9 @@ async function executeDeliveryCommand(
         return { step, progress: await observeProgress(step) };
       },
       execute: async (action) => {
-        const result = await executeDeliveryCommand(commands[action.kind], action.input, interaction);
+        const result = action.kind === "delivery-review-fix-authoring-rebind"
+          ? await executeAuthoringRebind(action.input)
+          : await executeDeliveryCommand(commands[action.kind], action.input, interaction);
         if (typeof result !== "object" || result === null || !("status" in result)
           || typeof result.status !== "string") {
           return { status: "invalid-service-result" };
