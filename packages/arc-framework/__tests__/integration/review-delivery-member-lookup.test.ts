@@ -209,9 +209,11 @@ describe("repository delivery member lookup", () => {
   });
 
   it("reports a work unit without a terminal delivery record as unbound", async () => {
-    const { lookup } = await repository();
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
 
-    await expect(lookup.resolveTerminalRecords("ordinary-work-unit"))
+    await expect(lookup.resolveTerminalRecords(plan.workUnitId))
       .resolves.toEqual({ status: "unbound" });
   });
 

@@ -540,6 +540,31 @@ describe("session-init delivery position facts", () => {
           members: mergedState.members,
         },
       });
+
+    const mismatchedMergedState = {
+      ...mergedState,
+      members: mergedState.members.map((member, index) => index === 0
+        ? { ...member, coordinates: { ...member.coordinates!, tree: "c".repeat(40) } }
+        : member),
+    };
+    const mismatchedMergedDeps = exactDependencies(mismatchedMergedState);
+    mismatchedMergedDeps.remoteHeads[effect.headRef] = effect.headSha;
+    mismatchedMergedDeps.localCommits[effect.headSha] = true;
+    mismatchedMergedDeps.host.readRequest.mockResolvedValue({
+      status: "observed",
+      request: {
+        binding,
+        repository: "owner/repository",
+        headRepository: "owner/repository",
+        headRef: effect.headRef,
+        headSha: effect.headSha,
+        baseRef: "main",
+        state: "merged",
+        draft: true,
+      },
+    });
+    await expect(observeRepositoryDeliveryPosition(plan, land.state, 6, mismatchedMergedDeps))
+      .resolves.toEqual({ status: "refused" });
   });
 
   it("classifies a reserved top remedy as applied, retryable, or ambiguous from exact request facts", async () => {

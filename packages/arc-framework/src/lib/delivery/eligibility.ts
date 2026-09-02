@@ -157,6 +157,7 @@ async function revalidateDeliveryEligibilityForMutation(input: {
   readonly plan: DeliveryPlanV1;
   readonly protectedBaseRef: string;
   readonly topRef: string;
+  readonly memberOffset?: number;
   readonly candidates: readonly {
     readonly deliverableId: string;
     readonly ref: string;

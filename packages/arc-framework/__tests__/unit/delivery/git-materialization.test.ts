@@ -20,6 +20,37 @@ const ref = "refs/heads/delivery/example/first";
 const head = "a".repeat(40);
 
 describe("delivery remote-ref leases", () => {
+  it("creates an absent local member ref with an object-format-neutral lease", async () => {
+    let localHead: string | null = null;
+    let remoteHead: string | null = null;
+    const localMutations: string[][] = [];
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "rev-parse") {
+        if (localHead === null) {
+          throw Object.assign(new Error("missing"), { exitCode: 1, stdout: "", stderr: "" });
+        }
+        return { stdout: `${localHead}\n` };
+      }
+      if (args[0] === "update-ref") {
+        localMutations.push([...args]);
+        localHead = head;
+        return { stdout: "" };
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: remoteHead === null ? "" : `${remoteHead}\t${ref}\n` };
+      }
+      if (args[0] === "push") {
+        remoteHead = head;
+        return { stdout: "" };
+      }
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    };
+
+    await expect(publishDeliveryMemberRef({ exec, remote: "origin", ref, head }))
+      .resolves.toEqual({ status: "published" });
+    expect(localMutations).toEqual([["update-ref", ref, head, ""]]);
+  });
+
   it("creates an absent ref from the exact validated object and adopts an exact retry", async () => {
     let remoteHead: string | null = null;
     const exec: GitExec = async (_command, args) => {
@@ -52,7 +83,7 @@ describe("delivery remote-ref leases", () => {
     expect(remoteMutation).toBe(false);
   });
 
-  it("advances the ordinary top ref from the exact prior head without force semantics", async () => {
+  it("adopts an ordinary top push that applied before reporting failure", async () => {
     const topRef = "refs/heads/feat/example";
     const beforeHead = "b".repeat(40);
     const requestedHead = "c".repeat(40);
@@ -62,12 +93,12 @@ describe("delivery remote-ref leases", () => {
       if (args[0] === "ls-remote") return { stdout: `${remoteHead}\t${topRef}\n` };
       mutations.push(args);
       remoteHead = requestedHead;
-      return { stdout: "" };
+      throw new Error("connection dropped after push");
     };
 
     await expect(publishDeliveryTopRef({
       exec, remote: "origin", ref: topRef, beforeHead, requestedHead,
-    })).resolves.toEqual({ status: "published" });
+    })).resolves.toEqual({ status: "adopted" });
     expect(mutations).toEqual([["push", "origin", `${requestedHead}:${topRef}`]]);
     await expect(publishDeliveryTopRef({
       exec, remote: "origin", ref: topRef, beforeHead, requestedHead,

@@ -60,9 +60,12 @@ async function retainedCommitIsAvailable(
   dependencies: DeliveryPositionFactsDependencies,
 ): Promise<boolean> {
   const recorded = dependencies.localCommits[coordinates.head];
-  if (recorded !== undefined) return recorded;
+  if (recorded === false) return false;
   const prefix = "refs/heads/";
-  if (!ref.startsWith(prefix) || dependencies.remoteHeads[ref.slice(prefix.length)] !== undefined) return false;
+  if (recorded === undefined
+    && (!ref.startsWith(prefix) || dependencies.remoteHeads[ref.slice(prefix.length)] !== undefined)) {
+    return false;
+  }
   const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
     ...options,
     cwd: dependencies.cwd,
