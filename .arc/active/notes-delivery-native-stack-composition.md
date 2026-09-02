@@ -642,3 +642,20 @@ This is a sequencing and projection guard over existing authority. It adds no st
 state, convergence judgment, generalized workflow loop, or new authoring topology. The still-separate question of
 which already-authorized conflict compositions can run machine-owned is routed to the review/approval architecture
 backlog; semantic ambiguity remains an attended stop.
+
+### Amendment 7 — provider refresh cannot move checked-out member refs (2026-09-02)
+
+The live Member 5 correction refreshed its dependent suffix while the canonical Member 7 branch was still checked
+out in a temporary resolution worktree. Git's shared branch ref advanced correctly, but that worktree's index and
+files remained at the old commit, making 81 unchanged paths appear staged. Exact tree comparison proved there were no
+user edits; the checkout was stale only because ARC had moved its checked-out ref behind its files. This is a
+supported stacked-delivery correctness failure, not ordinary cleanup residue.
+
+Decided behavior: after isolated provider preparation identifies the canonical non-terminal member refs that would
+actually move, refresh checks those refs against Git's registered-worktree topology before reservation or
+publication. Any occupied ref returns every exact checkout path, removes prepared private candidates, and leaves
+Delivery State plus local and remote canonical refs unchanged. A resumed reservation repeats the same check before
+pending publication and retains its operation if occupancy appeared after reservation. Detached candidate and
+resolution gates are not canonical-ref occupancy. ARC never silently updates a checked-out member ref or resets its
+worktree; the operator explicitly realigns or removes the named checkout, then retries. Task 7.7.R.y owns the bounded
+test-first repair and the existing proven-clean stale Member 7 checkout is the live acceptance residue.

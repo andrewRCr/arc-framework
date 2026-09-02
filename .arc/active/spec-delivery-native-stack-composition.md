@@ -907,6 +907,14 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   and canonical refs untouched. Any later block identifies the retained provider-refresh operation and directs the
   operator through typed reconciliation instead of presenting a context-free refusal.
 
+  **Forward clarification (2026-09-02):** provider refresh also checks every canonical non-terminal member ref whose
+  head the prepared result would move against Git's registered-worktree topology before reserving or publishing. If
+  any such ref is checked out, ARC returns every exact checkout path, reaps prepared private candidates, and leaves
+  Delivery State plus local and remote canonical refs unchanged. A retained operation repeats the check before its
+  first pending publication and preserves that operation on refusal. Detached authoring and resolution gates do not
+  hold canonical member refs. ARC never updates a checked-out member ref behind its worktree or rewrites that
+  worktree's index/files; the operator realigns or removes the named checkout and retries.
+
   Repeated settlement treats the prior highest-member coordinate in the reservation's `before` snapshot as the
   logical three-way base for absorbing the refreshed highest member into the terminal top. This prevents a
   contribution-equivalent provider rewrite from replaying the old suffix while preserving a genuine content merge:

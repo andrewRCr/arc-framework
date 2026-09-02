@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3235,6 +3235,23 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
             - _Adversarial companion:_ the Heavy-class Member 7 companion remains exhausted at its recorded two-pass
               cap; this bootstrap projection adds no third pass.
             - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+
+    - `[ ]` **7.7.R.y Refuse provider refresh over checked-out member refs**
+
+        - _Goal:_ Provider refresh never moves a canonical member ref behind a registered worktree's index and files,
+          and its typed refusal identifies the exact checkout that must be realigned or removed before retry.
+
+        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue — decision
+          record (2026-08-31), Amendment 7.
+
+        - Build `test-first` (one behavior at a time):
+            - Check the exact canonical non-terminal refs that a prepared provider result would move before
+              reservation, return every registered checkout path, reap private candidates, and leave Delivery State
+              plus local and remote canonical refs unchanged.
+            - Recheck a retained refresh operation before pending publication, preserve the operation on refusal, and
+              distinguish detached authoring or resolution gates from canonical-ref occupancy.
+            - Exercise the guard with real Git worktrees and prove an unoccupied refresh retains its existing
+              publication path.
 
 ## **Phase 8:** Record retirement and doctrine
 
