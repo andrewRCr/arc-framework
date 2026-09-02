@@ -6,16 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/index.js";
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
-import { reduceCandidateDurableBaseline } from
-  "../../../src/lib/work-unit/candidate-attestation.js";
-import { projectEffectiveCandidateTarget } from
-  "../../../src/lib/work-unit/candidate-effective-target.js";
 import { deriveRecoveryLocusContext } from "../../../src/lib/recover/locus-context.js";
 import {
   readDerivedLocusFrame,
   readDerivedLocusRoster,
   type DormantCheckoutReadEvidence,
 } from "../../../src/lib/locus/derived-reader.js";
+import { projectDurableCandidateTarget } from "../../helpers/candidate.js";
 
 const projectorInputs = vi.hoisted(() => [] as Array<{ activeExtensions?: readonly string[] }>);
 
@@ -59,17 +56,7 @@ function subjectIO(files: ReadonlyMap<string, string>): SubjectMetaIO {
     pathExists: async (path) => files.has(path),
     realpath: async (path) => posix.normalize(path),
     lstat: async () => ({ isSymbolicLink: () => false }),
-    projectCandidateTarget: async ({ record }) => {
-      const baseline = reduceCandidateDurableBaseline(record);
-      return projectEffectiveCandidateTarget({
-        record,
-        current: baseline.target,
-        currentBase: record.attestation.baseRevision,
-        projectApplicability: async () => {
-          throw new Error("A durable target must not request applicability.");
-        },
-      });
-    },
+    projectCandidateTarget: projectDurableCandidateTarget,
   };
 }
 

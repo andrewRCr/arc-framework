@@ -27,27 +27,12 @@ import { stubGitExec } from "../helpers/integration.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
-  reduceCandidateDurableBaseline,
   serializeCandidateManagedRecord,
 } from "../../src/lib/work-unit/candidate-attestation.js";
-import {
-  projectEffectiveCandidateTarget,
-  type CandidateTargetProjector,
-} from "../../src/lib/work-unit/candidate-effective-target.js";
+import { projectDurableCandidateTarget } from "../helpers/candidate.js";
 
 /** Shared default — non-planning branch keeps existing assertions stable. */
 const defaultExec = stubGitExec("main");
-const projectDurableCandidateTarget: CandidateTargetProjector = async ({ record }) => {
-  const baseline = reduceCandidateDurableBaseline(record);
-  return projectEffectiveCandidateTarget({
-    record,
-    current: baseline.target,
-    currentBase: record.attestation.baseRevision,
-    projectApplicability: async () => {
-      throw new Error("A durable target must not request applicability.");
-    },
-  });
-};
 
 interface Fixture {
   root: string;

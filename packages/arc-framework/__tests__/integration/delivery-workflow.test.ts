@@ -50,9 +50,13 @@ describe("packaged delivery workflow", () => {
     const reviewSection = section(packaged, "Review and land the current member");
     const terminalSection = section(packaged, "Terminal handoff");
     const terminalTail = packaged.slice(packaged.indexOf("arc delivery teardown"));
+    const recoveryStart = materializeSection.indexOf("After interruption");
+    const recoveryEnd = materializeSection.indexOf("Only after every request ID exists");
+    expect(recoveryStart).toBeGreaterThan(-1);
+    expect(recoveryEnd).toBeGreaterThan(recoveryStart);
     const recoverySection = materializeSection.slice(
-      materializeSection.indexOf("After interruption"),
-      materializeSection.indexOf("Only after every request ID exists"),
+      recoveryStart,
+      recoveryEnd,
     );
     expect(materializeSection).toMatch(/opt-out[\s\S]*zero native host calls/iu);
     expect(materializeSection).toContain("terminalPresentation");
