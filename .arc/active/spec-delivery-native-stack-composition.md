@@ -1510,6 +1510,11 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       without cleanup. These are recovery and projection hardenings over existing authority and effects. They add no
       attended stop, approval, hosted request, record family, workspace authority, or generalized cleanup mechanism.
 
+      **Forward clarification:** the authoring rebind does not require contribution equivalence with the old member,
+      because an approved finding fix intentionally changes that contribution. Its proof is the exact deterministic
+      checkout/ref pairing, clean state, strict candidate-ref descent, every required ancestor, approved-finding path
+      presence, and compare-and-swap. The existing scoped-verification continuation remains the semantic gate.
+
 - **D8.13 Preserve the existing Owner terminus at member scope — amended 2026-09-01 after live Member 1 review
   reached its ceiling.** The standard-review driver already accepts an explicit Work Unit Owner terminus without
   claiming a clean or converged pass. A Delivery Plan transports that same authority through the work-unit status

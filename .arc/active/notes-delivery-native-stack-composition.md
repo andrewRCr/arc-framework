@@ -599,3 +599,8 @@ These are bounded recovery/projection repairs to the existing rescue, not new po
 worktree sweeper, standing grant, disposition inference, provider request record family, workflow engine, or review
 convergence rule is added. Task 7.7.R.u.r owns the test-first implementation and extends the established production
 correction fixture; Member 5 remains unspent until that proof is green.
+
+Forward clarification: “selected-contribution” in the authoring-rebind sentence is not an equivalence requirement.
+Approved finding authoring is expected to change the selected contribution. The rebind proves only exact deterministic
+checkout/ref identity, cleanliness, strict descent, required ancestry, approved-finding path presence, and CAS; scoped
+verification remains responsible for the corrected content.
