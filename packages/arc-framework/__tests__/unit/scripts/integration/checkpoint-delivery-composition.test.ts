@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deliveryThreeMemberStackPlanFixture } from "../../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../../fixtures/delivery-state.js";
@@ -78,6 +78,76 @@ import { createIntegrationCheckpointDependencies } from
 const oid = (character: string): string => character.repeat(40);
 
 describe("delivery checkpoint composition", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uses the injected raw executor for byte-preserving delivery drift reads", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const subjectDigest = `sha256:${"b".repeat(64)}`;
+    const candidateHead = oid("c");
+    const currentness = {
+      status: "current" as const,
+      candidateId,
+      recognizedRevision: candidateHead,
+      implementationChanged: false,
+      convergenceVerification: "satisfied" as const,
+    };
+    const effective = {
+      state: "current" as const,
+      candidateId,
+      recognizedTarget: { revision: candidateHead, subject: { subjectDigest } },
+    };
+    const rawExec = vi.fn(async (args: string[]) => {
+      void args;
+      return { stdout: new Uint8Array() };
+    });
+
+    mocks.readCandidateRecordVersioned.mockResolvedValue({
+      record: { candidateId },
+      version: oid("e"),
+    });
+    mocks.collectGitCandidateTarget.mockResolvedValue({ subject: { subjectDigest } });
+    mocks.projectCandidateCurrentness.mockReturnValue(currentness);
+    mocks.projectEffectiveCandidateCurrentness.mockReturnValue(currentness);
+    mocks.projectGitCandidateEffectiveTarget.mockResolvedValue(effective);
+    mocks.readConfigSettings.mockResolvedValue({ settings: { "branch.base": "main" } });
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec: vi.fn(),
+      rawExec,
+    });
+    const result = await dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: oid("d"),
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
+    });
+
+    expect(result.status).not.toBe("unavailable");
+    expect(rawExec).toHaveBeenCalledTimes(2);
+    for (const [args] of rawExec.mock.calls) {
+      expect(args.slice(0, 4)).toEqual(["diff", "--name-only", "-z", "--no-renames"]);
+    }
+  });
+
   it("reads one aggregate review discharge for a multi-member delivery", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
@@ -96,6 +166,11 @@ describe("delivery checkpoint composition", () => {
       implementationChanged: false,
       convergenceVerification: "satisfied" as const,
     };
+    const effective = {
+      state: "current" as const,
+      candidateId,
+      recognizedTarget: { revision: candidateHead, subject: { subjectDigest } },
+    };
     const targets = state.members.map((member, index) => ({
       deliverableId: member.deliverableId,
       repository: "owner/repository",
@@ -110,14 +185,6 @@ describe("delivery checkpoint composition", () => {
     });
     mocks.collectGitCandidateTarget.mockResolvedValue({ subject: { subjectDigest } });
     mocks.projectCandidateCurrentness.mockReturnValue(currentness);
-    const effective = {
-      state: "current",
-      candidateId,
-      recognizedTarget: {
-        revision: candidateHead,
-        subject: { subjectDigest },
-      },
-    };
     mocks.projectGitCandidateEffectiveTarget.mockResolvedValue(effective);
     mocks.projectEffectiveCandidateCurrentness.mockReturnValue(currentness);
     mocks.resolveGitCandidateTargetBase.mockResolvedValue(baseHead);
