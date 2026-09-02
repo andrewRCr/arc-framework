@@ -448,9 +448,21 @@ describe("hosted reservation discharge", () => {
     const reader = createHostedReservationDischargeReader({
       cwd: "/tmp/repository",
       exec,
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [{
+            planId: PLAN_ID, deliverableId: MEMBER_ONE, workUnitId: "delivery", ref: null,
+            providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("a"),
+            position: 1, memberCount: 1, chunkKey: "member-1", title: "Member 1",
+          }],
+        }),
+      },
+      host: deliveryHost({ "41": { headSha: oid("a") } }),
     });
 
     await expect(reader({
+      workUnitId: "delivery",
       reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
         kind: "delivery",
         repository: "arc-framework/example",
@@ -462,7 +474,7 @@ describe("hosted reservation discharge", () => {
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
     })).resolves.toEqual({
       discharged: false,
-      detail: "The reserved hosted-review target span is unavailable.",
+      detail: "Delivery member 1: The reserved hosted-review target span is unavailable.",
       nextSource: null,
     });
   });

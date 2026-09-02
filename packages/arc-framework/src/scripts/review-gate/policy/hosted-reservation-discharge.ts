@@ -603,7 +603,10 @@ export async function projectHostedReservationDischarge(input: {
 export function createHostedReservationDischargeReader(input: {
   cwd: string;
   exec: GitExec;
+  delivery?: DeliveryDischargeTargetLookup;
+  host?: Pick<DeliveryHostPort, "readRequest">;
 }): (args: {
+  workUnitId?: string;
   reservation: StandardReviewReservationV1 | null;
   baseRevision: string;
   approvedHead: string;
@@ -621,7 +624,21 @@ export function createHostedReservationDischargeReader(input: {
   };
   const rawExec = createRawGitExec(input.cwd);
 
-  return async ({ reservation, baseRevision, approvedHead, changeRequest, vehicle, candidate }) => {
+  const readTarget = async ({
+    reservation,
+    baseRevision,
+    approvedHead,
+    changeRequest,
+    vehicle,
+    candidate,
+  }: {
+    reservation: StandardReviewReservationV1 | null;
+    baseRevision: string;
+    approvedHead: string;
+    changeRequest: { repository: string; pullRequest: number } | null;
+    vehicle?: DeliveryReviewMemberVehicle;
+    candidate?: CandidateManagedRecordV1;
+  }): Promise<HostedReservationDischarge> => {
     if (reservation === null) {
       return projectHostedReservationDischarge({
         reservation,
@@ -702,5 +719,74 @@ export function createHostedReservationDischargeReader(input: {
             ),
           }),
     });
+  };
+
+  return async ({ workUnitId, ...target }) => {
+    if (workUnitId === undefined) return readTarget(target);
+    if (input.delivery === undefined || input.host === undefined) {
+      return {
+        discharged: false,
+        detail: "The retained delivery-member review targets are unavailable.",
+        nextSource: null,
+      };
+    }
+    if (target.reservation === null || target.changeRequest === null) return readTarget(target);
+    const resolution = await resolveHostedReservationTargets({
+      workUnitId,
+      reservation: target.reservation,
+      singleton: {
+        ...target.changeRequest,
+        headSha: target.approvedHead,
+        baseRevision: target.baseRevision,
+      },
+      delivery: input.delivery,
+      host: input.host,
+    });
+    if (resolution.status === "unavailable") {
+      return {
+        discharged: false,
+        detail: "The reserved hosted-review targets are unavailable.",
+        nextSource: null,
+      };
+    }
+    const discharges = await Promise.all(resolution.targets.map((resolvedTarget) => readTarget({
+      reservation: target.reservation,
+      baseRevision: resolvedTarget.baseRevision,
+      approvedHead: resolvedTarget.headSha,
+      changeRequest: {
+        repository: resolvedTarget.repository,
+        pullRequest: resolvedTarget.pullRequest,
+      },
+      ...(resolvedTarget.vehicle === undefined ? {} : { vehicle: resolvedTarget.vehicle }),
+      ...(target.candidate === undefined ? {} : { candidate: target.candidate }),
+    })));
+    if (!allHostedReservationTargetsDischarged(discharges)) {
+      const index = discharges.findIndex(({ discharged }) => !discharged);
+      const discharge = discharges[index];
+      if (discharge === undefined) {
+        return {
+          discharged: false,
+          detail: "The reserved hosted-review target is unavailable.",
+          nextSource: null,
+        };
+      }
+      return resolution.kind === "delivery"
+        ? { ...discharge, detail: `Delivery member ${index + 1}: ${discharge.detail}` }
+        : discharge;
+    }
+    const details = discharges.map(({ detail }) => detail);
+    return resolution.kind === "delivery"
+      ? {
+          discharged: true,
+          detail: `All ${resolution.targets.length} delivery members are discharged (${details.join(" ")})`,
+          nextSource: null,
+        }
+      : details.length === 1
+        ? { discharged: true, detail: details[0] ?? "Hosted review discharged.", nextSource: null }
+        : {
+            discharged: false,
+            detail: "The reserved hosted-review target is unavailable.",
+            nextSource: null,
+          };
   };
 }
