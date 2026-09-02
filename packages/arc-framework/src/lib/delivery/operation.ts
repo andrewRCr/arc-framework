@@ -196,13 +196,13 @@ function terminalAuthoringMovementMatchesState(
   movement: z.infer<typeof DeliveryTerminalAuthoringMovementV1Schema>,
 ): boolean {
   const terminal = state.members.at(-1);
+  // Position observation proves an intermediate publication lease is append-only; settlement
+  // revalidates that exact lease through the host CAS. State binding owns only the H0 -> H2 span.
   return terminal !== undefined && terminal.deliverableId === movement.deliverableId
     && terminal.coordinates !== null
     && canonicalize(terminal.coordinates) === canonicalize(movement.before)
     && movement.after.base === movement.before.base
-    && movement.after.head !== movement.before.head
-    && (movement.publicationLeaseHead === movement.before.head
-      || movement.publicationLeaseHead === movement.after.head);
+    && movement.after.head !== movement.before.head;
 }
 
 function reviewFixSelectionMatchesState(

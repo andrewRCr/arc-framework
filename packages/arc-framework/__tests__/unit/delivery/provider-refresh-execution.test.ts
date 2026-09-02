@@ -659,6 +659,7 @@ describe("provider refresh publication classification", () => {
       })),
     };
     const terminal = state.members.at(-1)!;
+    const remoteLeaseHead = oid("9");
     const liveTop = {
       base: terminal.coordinates!.base,
       head: oid("c"),
@@ -670,7 +671,7 @@ describe("provider refresh publication classification", () => {
         deliverableId: terminal.deliverableId,
         before: terminal.coordinates!,
         after: liveTop,
-        publicationLeaseHead: terminal.coordinates!.head,
+        publicationLeaseHead: remoteLeaseHead,
       },
     };
     const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts });
@@ -703,7 +704,7 @@ describe("provider refresh publication classification", () => {
       readTargetAncestry: exactTargetAncestry,
       proveContribution: async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }),
       publishTop: async ({ beforeHead }: { readonly beforeHead: string }) => {
-        expect(beforeHead).toBe(terminal.coordinates!.head);
+        expect(beforeHead).toBe(remoteLeaseHead);
         return { status: "published" as const };
       },
       rewriteLocalRef: async () => ({ status: "adopted" as const }),
