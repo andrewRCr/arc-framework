@@ -611,3 +611,34 @@ rediscovered attempt is rebound to that disposition. If its provider threads rem
 exact `hosted-settlement-required / finding-settlement / review-hosted-settle` stop and plan rather than re-asking the
 decision or falsely advancing status. This is execution of the already-approved response, not new approval, provider
 spend, convergence policy, or an expansion of the rescue stop model.
+
+### Amendment 6 — approved member fixes acquire their authoring locus first (2026-09-02)
+
+Live Member 4 correction exposed an ordering defect outside the original rescue fixture: `arc review respond`
+durably recorded an approved delivery-member fix but returned the generic `ready-to-fix / apply-fix` envelope. That
+surface invited authoring in the session's work-unit checkout before the selector-free correction driver had selected
+the member's current presentation and exact authoring checkout. The later driver could refuse or recover the mismatch,
+but only after the agent had spent a correction cycle in the wrong place. The recovery projection had the same gap:
+the pending durable response was visible to the driver, but not to delivery entry or compaction recovery, so re-entry
+could appear to resume ordinary hosted review instead of the already-approved correction.
+
+Decided behavior: an approved fix on a hosted delivery-member vehicle returns a distinct
+`delivery-correction-required` envelope with a submit-ready selector-free correction action. It never returns the
+generic singleton `apply-fix` instruction. The action enters `arc delivery review-fix continue`, which first returns
+the exact authoring locus and an invocation-scoped binding over the existing fix authorization, disposition set,
+delivery plan, work unit, selected member, reviewed head, and checkout/ref pair. The agent edits only that returned
+locus and resumes through the returned action; a different checkout or stale binding refuses before correction
+publication or response persistence.
+
+The locus rule follows the already-designed route rather than imposing a new topology. A registered non-terminal
+member authors in its deterministic detached candidate gate. An unregistered suffix retains D5.8's complete-suffix
+rematerialization from the top authoring locus. The terminal member retains direct authoring on the work-unit branch,
+because that branch is the selected terminal member. Delivery entry, session status, and compaction recovery recognize
+the same pending durable response as `delivery-correction` and route to the selector-free driver without re-asking the
+finding disposition or reconstructing a member. The originating work-unit checkout remains the sole session and
+recovery locus throughout; member and gate checkouts are operation inputs only.
+
+This is a sequencing and projection guard over existing authority. It adds no stored grant, review policy, delivery
+state, convergence judgment, generalized workflow loop, or new authoring topology. The still-separate question of
+which already-authorized conflict compositions can run machine-owned is routed to the review/approval architecture
+backlog; semantic ambiguity remains an attended stop.
