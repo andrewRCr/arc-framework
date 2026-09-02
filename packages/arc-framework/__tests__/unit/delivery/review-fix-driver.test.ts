@@ -71,6 +71,77 @@ describe("delivery review-fix driver", () => {
     expect(execute).toHaveBeenCalledTimes(3);
   });
 
+  it("continues after an exact durable delivery-member response replay", async () => {
+    const response: DeliveryReviewFixDriveDispatchAction = { kind: "review-respond" };
+    const project = vi.fn()
+      .mockResolvedValueOnce({
+        step: { status: "dispatch", action: response, recommendedActionText: "Replay response." },
+        progress,
+      })
+      .mockResolvedValueOnce({
+        step: { status: "review-status-required", nextAction: "review-hosted-request" },
+        progress,
+      });
+
+    await expect(driveDeliveryReviewFixContinuation({
+      project,
+      execute: async () => ({ status: "delivery-member-current" }),
+    })).resolves.toMatchObject({
+      status: "review-status-required",
+      effectLog: [{
+        kind: "dispatch",
+        actionKind: "review-respond",
+        resultStatus: "delivery-member-current",
+      }],
+    });
+    expect(project).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns the exact remaining hosted settlement instead of replaying a disposition", async () => {
+    const responsePlan = { source: { kind: "hosted", attemptRef: "attempt-1" } };
+    const responseRequest = { schemaVersion: 1, source: responsePlan.source, dispositions: {} };
+    const response: DeliveryReviewFixDriveDispatchAction = {
+      kind: "review-respond",
+      input: responseRequest,
+      responsePlan,
+    };
+
+    await expect(driveDeliveryReviewFixContinuation({
+      project: async () => ({
+        step: { status: "dispatch", action: response, recommendedActionText: "Replay response." },
+        progress,
+      }),
+      execute: async () => ({
+        status: "delivery-member-current",
+        schemaVersion: 1,
+        mode: "review-respond",
+        state: "delivery-member-current",
+        nextAction: "reduce",
+        diagnostics: [],
+        payload: {
+          operationId: "attempt-1",
+          dispositionRecordRef: "record-1",
+          hostedSettlementPlan: {
+            beforeFixFindingIds: [],
+            afterFixFindingIds: ["finding-1"],
+          },
+        },
+      }),
+    })).resolves.toMatchObject({
+      status: "hosted-settlement-required",
+      stopKind: "finding-settlement",
+      nextAction: "review-hosted-settle",
+      responsePlan,
+      responseRequest,
+      response: { state: "delivery-member-current" },
+      effectLog: [{
+        kind: "dispatch",
+        actionKind: "review-respond",
+        resultStatus: "delivery-member-current",
+      }],
+    });
+  });
+
   it("refuses a repeated action at an unchanged progress fingerprint", async () => {
     const action: DeliveryReviewFixDriveDispatchAction = { kind: "delivery-reconcile" };
     const project = vi.fn().mockResolvedValue({

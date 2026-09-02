@@ -838,11 +838,16 @@ async function persistDeliveryMemberResponse(
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
-  const vehicle = source.hostedAttempt?.vehicle;
-  const hostedTarget = source.hostedAttempt?.target;
+  const hostedAttempt = source.hostedAttempt;
+  if (hostedAttempt?.vehicle === undefined) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified delivery-member fix requires its exact approved hosted response record",
+    );
+  }
+  const vehicle = hostedAttempt.vehicle;
+  const hostedTarget = hostedAttempt.target;
   if (existing === null
-    || vehicle === undefined
-    || hostedTarget === undefined
     || existing.candidate !== null
     || existing.errand !== null
     || existing.deliveryMember === null
@@ -871,6 +876,13 @@ async function persistDeliveryMemberResponse(
       );
     }
     const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(existing);
+    if (!hostedAttempt.settled) {
+      await dependencies.bindHostedDisposition({
+        ...hostedAttempt,
+        dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+        findingIds: dispositions.dispositionSet.findings.map(({ findingId }) => findingId),
+      });
+    }
     return RespondEnvelopeSchema.parse({
       ...header,
       state: "delivery-member-current",
@@ -1014,9 +1026,7 @@ export async function respondToReviewCommand(
   // treats as a dead end. An unchanged head means no fix landed and there is nothing to attest.
   let changedTarget = confirmation.state === "stale-target" ? confirmation.currentTarget : null;
   let deliveryMemberFixTarget: { currentTarget: ReviewTarget; hostedFixTarget: HostedTarget } | null = null;
-  if (verifiedFix !== undefined
-    && changedTarget === null
-    && source.hostedAttempt?.vehicle !== undefined) {
+  if (verifiedFix !== undefined && source.hostedAttempt?.vehicle !== undefined) {
     deliveryMemberFixTarget = await dependencies.resolveDeliveryMemberFixTarget({
       vehicle: source.hostedAttempt.vehicle,
       originatingTarget: source.target,
@@ -1028,9 +1038,9 @@ export async function respondToReviewCommand(
         "the authoritative current delivery-member target is unavailable or no longer matches the hosted request",
       );
     }
-    if (deliveryMemberFixTarget.currentTarget.targetId !== source.target.targetId) {
-      changedTarget = deliveryMemberFixTarget.currentTarget;
-    }
+    changedTarget = deliveryMemberFixTarget.currentTarget.targetId === source.target.targetId
+      ? null
+      : deliveryMemberFixTarget.currentTarget;
   }
   if (verifiedFix !== undefined && changedTarget === null) {
     throw new RespondCommandError(

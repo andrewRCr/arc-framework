@@ -46,6 +46,7 @@ describe("GitHub provider refresh adapter", () => {
     const port = new GhDeliveryProviderRefreshPort({
       git: async (_command, args) => {
         if (args[0] === "for-each-ref") return { stdout: "" };
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") return { stdout: "/repo/.git\n" };
         throw new Error(`unexpected git invocation: ${args.join(" ")}`);
       },
       gh: { run: async () => { throw new Error("extension unavailable"); } },

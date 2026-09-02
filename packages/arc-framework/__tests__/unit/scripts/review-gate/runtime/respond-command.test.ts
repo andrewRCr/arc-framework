@@ -712,6 +712,27 @@ describe("review response command", () => {
         },
       },
     });
+    const reboundDisposition = vi.fn(async () => undefined);
+    withCurrentMember.bindHostedDisposition = reboundDisposition;
+    await expect(respondToReviewCommand(verifiedRequest, withCurrentMember)).resolves.toMatchObject({
+      state: "delivery-member-current",
+      nextAction: "continue-review",
+      payload: {
+        currentTarget,
+        hostedFixTarget,
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
+    });
+    expect(reboundDisposition).toHaveBeenCalledWith(expect.objectContaining({
+      operationId: hosted.operation.operationId,
+      attemptId: attempt.attemptId,
+      dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      findingIds: [hosted.records.finding.findingId],
+      noHostSettlementFindingIds: [],
+    }));
   });
 
   it("orders unchanged-head hosted settlements before fixes in a mixed approved set", async () => {

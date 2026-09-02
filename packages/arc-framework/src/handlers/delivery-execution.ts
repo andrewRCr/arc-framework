@@ -224,11 +224,15 @@ import { LocalReviewOperationStateStore } from
   "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { parseReviewSourceReference } from
   "../scripts/review-gate/core/review-source-reference.js";
+import { RespondEnvelopeSchema } from
+  "../scripts/review-gate/core/review-command-envelope.js";
+import { HostedFindingsResponsePlanSchema } from
+  "../scripts/review-gate/core/response-plan-schema.js";
 import { projectGitReviewContributionApplicability } from
   "../scripts/review-gate/policy/git-review-contribution-applicability.js";
 import { createRespondDependencies } from
   "../scripts/review-gate/runtime/respond-composition.js";
-import { respondToReviewCommand } from
+import { RespondCommandError, RespondRequestSchema, respondToReviewCommand } from
   "../scripts/review-gate/runtime/respond-command.js";
 import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
 import {
@@ -760,6 +764,7 @@ const ReviewFixDriveActionKindSchema = z.enum([
   "delivery-refresh-adopt",
   "delivery-reconcile",
   "delivery-review-fix-acknowledge",
+  "review-respond",
 ]);
 const ReviewFixDriveProgressActionKindSchema = z.union([
   ReviewFixDriveActionKindSchema,
@@ -928,6 +933,16 @@ const ReviewFixContinuationResultSchema = z.union([
     reason: z.literal("delivery-review-fix-effect-stopped"),
     actionKind: ReviewFixDriveProgressActionKindSchema,
     result: z.unknown(),
+    effectLog: z.array(ReviewFixDriveEffectSchema),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("hosted-settlement-required"),
+    stopKind: z.literal("finding-settlement"),
+    nextAction: z.literal("review-hosted-settle"),
+    responsePlan: HostedFindingsResponsePlanSchema,
+    responseRequest: RespondRequestSchema,
+    response: RespondEnvelopeSchema,
     effectLog: z.array(ReviewFixDriveEffectSchema),
     recommendedActionText: z.string().min(1),
   }),
@@ -2057,6 +2072,7 @@ async function executeDeliveryCommand(
                 kind: "review-respond" as const,
                 argv: ["arc", "review", "respond", "-"] as const,
                 input: replay.request,
+                responsePlan: reviewStatus.responsePlan,
               },
               recommendedActionText:
                 "Rebind the exact durable approved response to its rediscovered hosted attempt, then continue.",
@@ -2196,8 +2212,14 @@ async function executeDeliveryCommand(
               createRespondDependencies({ exec, cwd }),
             );
             result = { ...response, status: response.state };
-          } catch {
-            result = { status: "refused", reason: "review-fix-response-replay-failed" };
+          } catch (error) {
+            result = {
+              status: "refused",
+              reason: "review-fix-response-replay-failed",
+              ...(error instanceof RespondCommandError
+                ? { detail: error.message, responseError: error.code }
+                : {}),
+            };
           }
         } else {
           result = await executeDeliveryCommand(commands[action.kind], action.input, interaction);
