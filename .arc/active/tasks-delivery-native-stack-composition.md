@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3266,30 +3266,38 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               claim or spend a third pass.
             - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
-    - `[ ]` **7.7.R.z Rematerialize exact stale candidate gates before correction authoring**
+    - `[x]` **7.7.R.z Rematerialize exact stale candidate gates before correction authoring**
 
         - _Goal:_ A registered non-terminal correction reaches the current public member through its exact clean
           machine-owned candidate gate without discarding authored work, re-deriving topology, or requiring manual
           gate repair after provider movement.
 
-        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Amendment 7 — provider refresh
-          cannot move checked-out member refs (2026-09-02).
-
-        - Derive and revalidate the exact repository, plan, member, state-revision, public-head, candidate-ref, and
-          gate-path coordinates before every preparation effect. Preserve the existing strict post-authoring rebind,
-          scoped verification, and publication contracts.
-
-        - Build `test-first` (one behavior at a time):
-            - Fresh absence prepares the deterministic private pair, an exact current pair replays, and an exact
-              clean detached stale pair whose `HEAD` equals its candidate ref compare-and-swap rematerializes to the
-              current selected public head before returning the existing `authoring-required` stop.
-            - Dirty, authored-ahead, split, attached, foreign-path, malformed, ambiguous, operation-in-progress, and
-              state/head/ref race evidence refuses without moving the gate, candidate ref, Delivery State,
-              canonical refs, or remotes.
-            - The correction driver records private preparation or no-op replay in its ordered effect log, spends no
-              hosted-provider capacity, and preserves its closed typed stop set and no-progress protection.
-            - Bootstrap the implementation through the exact clean stale Member 7 gate, prove the production-style
-              composed loop, and use the pending Member 6 correction as the attended live acceptance.
+        - _Outcome:_ Member 7 criteria report.
+            - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+            - _Span:_ bounded diff `4683d9080..3f26eb8e2`; cumulative reachability `967980960` at tree
+              `b3e6e9e88`; boundary-order deviation: exact two-parent terminal absorption `967980960` preserves the
+              newer WU-top integration machinery while supplying the repaired Member 7 driver.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the new
+              private preparation action composes before the existing authoring stop and does not alter retained
+              review reservations, member targets, provider requests, or conjunction discharge.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ stale-gate
+              preparation decides no applicability or convergence question, spends no hosted review, and leaves the
+              shared contribution arbiter plus incremental-review posture unchanged.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ the action
+              reads no lane-progress authority and writes no Candidate or review record; it binds only the exact
+              plan/member/state coordinates and the deterministic private ref/gate pair.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ fresh,
+              replay, stale, dirty, attached, operation, foreign, split, authored-ahead, and rollback coverage proves
+              that private preparation precedes the unchanged strict rebind, publication, and scoped-verification
+              continuation without moving Delivery State, canonical refs, or remotes.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ the
+              production-style composed loop rematerialized a non-ancestral clean stale gate, disclosed the exact
+              dispatch, returned ordinary authoring, then retained the existing rebind/publish/refresh/verification
+              tail. The live bootstrap published only Member 7 and reached its exact Tier 1 continuation after one
+              attended semantic top merge.
+            - _Adversarial companion:_ the Heavy Member 7 two-pass cap remains exhausted; this bounded lifecycle
+              guard adds no hosted pass or new review authority.
+            - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 8:** Record retirement and doctrine
 
