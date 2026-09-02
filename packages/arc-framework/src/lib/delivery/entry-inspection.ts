@@ -194,7 +194,11 @@ export type DeliveryEntryInspectionResult =
         | "task-cursor-unavailable"
         | "task-member-ambiguous"
         | "state-incoherent"
-        | "public-continuation-mismatch";
+        | "public-continuation-mismatch"
+        | "review-fix-response-unavailable"
+        | "review-fix-response-ambiguous"
+        | "review-fix-response-invalid"
+        | "review-fix-response-stale";
       readonly recommendedActionText: string;
     };
 
@@ -299,6 +303,8 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
       "evidence-unavailable", "evidence-conflict", "provisional-unconfirmed",
       "canonical-plan-missing", "canonical-projection-mismatch", "task-cursor-unavailable",
       "task-member-ambiguous", "state-incoherent", "public-continuation-mismatch",
+      "review-fix-response-unavailable", "review-fix-response-ambiguous",
+      "review-fix-response-invalid", "review-fix-response-stale",
     ]),
     recommendedActionText: z.string().min(1),
   }),
@@ -476,7 +482,13 @@ const LATER_ENTRY_COST = "Delivery later entry requires attended inventory and m
 
 function refused(reason: Extract<DeliveryEntryInspectionResult, { status: "refused" }>["reason"])
   : Extract<DeliveryEntryInspectionResult, { status: "refused" }> {
-  const remedy = reason === "public-continuation-mismatch"
+  const remedy = reason === "review-fix-response-unavailable"
+    ? "Restore readable approved review-response records before resuming the delivery correction."
+    : reason === "review-fix-response-ambiguous"
+      ? "Retain exactly one pending approved delivery-member response before resuming the correction."
+      : reason === "review-fix-response-invalid" || reason === "review-fix-response-stale"
+        ? "Restore the exact approved response, delivery plan, member, and current state binding before resuming."
+        : reason === "public-continuation-mismatch"
     ? "Restore the exact Candidate, plan, state, member, and public continuation binding before resuming review."
     : reason === "provisional-unconfirmed"
     ? "Confirm the prior attended delivery disposition before canonicalizing provisional intent."

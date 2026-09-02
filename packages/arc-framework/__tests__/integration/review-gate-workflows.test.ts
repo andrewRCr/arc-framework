@@ -421,6 +421,23 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("routes approved delivery-member fixes through the exact driver-owned authoring locus", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      ),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    ]);
+    expect(project).toBe(packaged);
+    expect(packaged).toMatch(
+      /delivery-correction-required \/ continue-delivery-correction[\s\S]*payload\.correctionAction[\s\S]*authoring-required/iu,
+    );
+    expect(packaged).toMatch(
+      /authoring\.checkoutPath[\s\S]*authoring\.ref[\s\S]*authoringAuthorization[\s\S]*resumeAction/iu,
+    );
+    expect(packaged).toMatch(/ready-to-fix \/ apply-fix[\s\S]*ordinary singleton route/iu);
+  });
+
   it("carries an explicit standard-review provider through both review lifecycles", async () => {
     const [prepare, errand, integrate] = await Promise.all([
       readRepositoryFile(

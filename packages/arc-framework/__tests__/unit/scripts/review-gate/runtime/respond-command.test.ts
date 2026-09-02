@@ -686,7 +686,15 @@ describe("review response command", () => {
     };
 
     await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
-      state: "ready-to-fix",
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: {
+        deliveryMember: attempt.hosted.vehicle,
+        correctionAction: {
+          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          input: { repository: "owner/repo", remote: "origin" },
+        },
+      },
     });
     const verifiedRequest = {
       ...request,

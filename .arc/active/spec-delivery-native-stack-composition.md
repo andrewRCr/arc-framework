@@ -1522,6 +1522,23 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       checkout/ref pairing, clean state, strict candidate-ref descent, every required ancestor, approved-finding path
       presence, and compare-and-swap. The existing scoped-verification continuation remains the semantic gate.
 
+    - **Approved member fixes acquire their authoring locus first — amended 2026-09-02 after live correction
+      authoring began from the session checkout before route selection.** An approved hosted delivery-member fix
+      returns `delivery-correction-required`, never the singleton `ready-to-fix / apply-fix` instruction. Its
+      submit-ready action enters the selector-free correction driver, which returns the exact selected-member
+      authoring checkout before any edit. The authoring stop binds the existing fix-authorization ID, disposition-set
+      ID, plan, work unit, selected member, reviewed head, ref, and checkout for this invocation. Re-entry rederives
+      those coordinates from canonical records; a stale binding or correction authored outside the returned locus
+      refuses before publication or response persistence.
+
+      The selected locus preserves the existing route contract: a registered non-terminal member uses its
+      deterministic detached candidate gate; an unregistered suffix uses the top authoring locus before complete
+      rematerialization; and the terminal member uses the work-unit branch because it is the selected member. The
+      work-unit checkout remains the sole session and recovery locus, while member/gate checkouts remain operation
+      inputs. Delivery entry and compaction recovery recognize the pending durable approved response as the same
+      `delivery-correction` continuation and route to the driver without replaying disposition or ordinary hosted
+      review. No new record, stored authority, topology, convergence rule, or generalized control loop is added.
+
 - **D8.13 Preserve the existing Owner terminus at member scope — amended 2026-09-01 after live Member 1 review
   reached its ceiling.** The standard-review driver already accepts an explicit Work Unit Owner terminus without
   claiming a clean or converged pass. A Delivery Plan transports that same authority through the work-unit status

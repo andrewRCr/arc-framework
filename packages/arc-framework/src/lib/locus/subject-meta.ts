@@ -54,6 +54,7 @@ export interface SubjectMetaIO {
 /** Closed delivery-owned signal that can select integration verification. */
 export type DeliveryCorrectionProjection =
   | { readonly status: "none" }
+  | { readonly status: "authoring-required" }
   | { readonly status: "scoped-verification-required" }
   | { readonly status: "verification-required" }
   | { readonly status: "candidate-renewal-required" }
@@ -324,7 +325,8 @@ function projectWorkUnitStage(input: {
   if (input.sessionType !== "integration") return null;
   if (input.taskCursor?.status === "found") return "task-work";
   if (input.taskCursor?.status === "no-open-task"
-    && input.deliveryCorrection.status === "scoped-verification-required") {
+    && (input.deliveryCorrection.status === "authoring-required"
+      || input.deliveryCorrection.status === "scoped-verification-required")) {
     return "delivery-correction";
   }
   if (input.taskCursor?.status === "no-open-task"

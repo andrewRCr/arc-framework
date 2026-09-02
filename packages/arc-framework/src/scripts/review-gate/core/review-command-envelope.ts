@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   attestNewRootArgv,
   SpineRemedySchema,
@@ -543,6 +544,16 @@ const DeliveryMemberResponsePayloadSchema = z.strictObject({
   currentTarget: ReviewTargetSchema,
   hostedFixTarget: HostedTargetSchema,
 });
+const DeliveryCorrectionActionSchema = z.strictObject({
+  argv: z.tuple([
+    z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("continue"),
+    z.literal("-"), z.literal("--json"),
+  ]),
+  input: z.strictObject({
+    repository: z.string().trim().min(1),
+    remote: z.string().trim().min(1),
+  }),
+});
 export const RespondEnvelopeSchema = z.union([
   envelopeVariant(
     "review-respond",
@@ -561,6 +572,17 @@ export const RespondEnvelopeSchema = z.union([
       ...DispositionPayloadSchema.shape,
       fixAuthorization: FixAuthorizationSchema,
       reentryCommand: z.enum(["local-prepare", "frontline-resolve", "hosted-settle"]),
+    }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "delivery-correction-required",
+    "continue-delivery-correction",
+    z.strictObject({
+      ...DispositionPayloadSchema.shape,
+      fixAuthorization: FixAuthorizationSchema,
+      deliveryMember: DeliveryReviewMemberVehicleSchema,
+      correctionAction: DeliveryCorrectionActionSchema,
     }),
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),

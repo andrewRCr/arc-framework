@@ -14,6 +14,7 @@ import { resolveExistingDeliveryAuthoringMap } from "./authoring-resolution.js";
 import {
   inspectDeliveryCandidateRenewal,
   inspectDeliveryEntry,
+  inspectDeliveryPlanLocus,
   inspectDeliveryReopen,
   type DeliveryEntryInspectionDependencies,
   type DeliveryEntryInspectionRequest,
@@ -28,12 +29,16 @@ import {
   RepositoryDeliveryStateStore,
 } from "./local-stores.js";
 import { DeliveryPlanV1Codec } from "./plan.js";
+import { selectPendingDeliveryReviewFixAuthority } from "./review-fix-continuation.js";
+import { validateDeliveryStateAgainstPlan } from "./state.js";
 import { projectGitDeliveryTerminalCoordinateAdvance } from
   "./public-review-continuation-git.js";
 import {
   GitDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
 } from "./plan-resolution.js";
+import { LocalApprovedDispositionRecordStore } from
+  "../../scripts/review-gate/hosts/local/disposition-record-store.js";
 
 export interface RepositoryDeliveryInspectionInput {
   readonly cwd: string;
@@ -146,10 +151,81 @@ export async function inspectRepositoryDeliveryEntry(input: {
   readonly baseBranch: string;
   readonly exec: GitExec;
 }): Promise<DeliveryEntryInspectionResult> {
-  return inspectDeliveryEntry(input.request, createRepositoryDeliveryInspectionDependencies({
+  const inspected = await inspectDeliveryEntry(input.request, createRepositoryDeliveryInspectionDependencies({
     ...input,
     workUnitId: input.request.workUnitId,
   }));
+  if (!("entryMode" in input.request) || input.request.entryMode !== "integrating"
+    || inspected.status === "review-fix-verification-required") {
+    return inspected;
+  }
+  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  let records;
+  try {
+    records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+  } catch {
+    return {
+      status: "refused",
+      nextAction: "stop",
+      reason: "review-fix-response-unavailable",
+      recommendedActionText:
+        "Restore readable approved review-response records before resuming the delivery correction.",
+    };
+  }
+  const selection = selectPendingDeliveryReviewFixAuthority({
+    workUnitId: input.request.workUnitId,
+    records,
+  });
+  if (selection.status === "none") return inspected;
+  if (selection.status === "refused") {
+    return {
+      status: "refused",
+      nextAction: "stop",
+      reason: selection.reason,
+      recommendedActionText: selection.reason === "review-fix-response-ambiguous"
+        ? "Retain exactly one pending approved delivery-member response before resuming the correction."
+        : "Restore the exact approved response and delivery-member binding before resuming the correction.",
+    };
+  }
+  const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  const stateStore = new RepositoryDeliveryStateStore(publisher);
+  const [taskList, planRead, stateRead] = await Promise.all([
+    readFile(join(input.cwd, input.taskListPath), "utf8").catch(() => null),
+    planStore.readCurrent(selection.planId),
+    stateStore.read(selection.planId),
+  ]);
+  const plan = planRead.status === "ok" ? planRead.value : null;
+  const state = stateRead.status === "ok" ? stateRead.value : null;
+  if (taskList === null || plan === null || state === null
+    || plan.workUnitId !== input.request.workUnitId
+    || state.value.workUnitId !== input.request.workUnitId
+    || inspectDeliveryPlanLocus(taskList, plan).status !== "canonical"
+    || validateDeliveryStateAgainstPlan(state.value, plan).status !== "valid"
+    || plan.members.filter(
+      ({ deliverableId }) => deliverableId === selection.selectedDeliverableId,
+    ).length !== 1
+    || state.value.members.filter(
+      ({ deliverableId }) => deliverableId === selection.selectedDeliverableId,
+    ).length !== 1) {
+    return {
+      status: "refused",
+      nextAction: "stop",
+      reason: "review-fix-response-stale",
+      recommendedActionText:
+        "Restore the exact approved response, delivery plan, member, and current state binding before resuming.",
+    };
+  }
+  if (state.value.activeOperation !== null) return inspected;
+  return {
+    status: "correction-routing-required",
+    nextAction: "plan-review-fix",
+    planId: selection.planId,
+    stateRevision: state.revision,
+    selectedDeliverableId: selection.selectedDeliverableId,
+    entryMode: "execution",
+    recommendedActionText:
+      "Continue the exact approved delivery-member correction through its selector-free driver.",
+  };
 }
 
 /** Classify ordinary reopen from exact repository-backed delivery composition. */

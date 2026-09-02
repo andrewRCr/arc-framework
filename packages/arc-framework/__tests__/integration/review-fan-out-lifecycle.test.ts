@@ -1915,8 +1915,14 @@ describe("hosted review fan-out lifecycle", () => {
       dispositions,
     };
     await expect(respondThroughHandler(harness, request)).resolves.toMatchObject({
-      state: "ready-to-fix",
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
       payload: {
+        deliveryMember: first,
+        correctionAction: {
+          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          input: { repository, remote: "origin" },
+        },
         hostedSettlementPlan: {
           beforeFixFindingIds: [],
           afterFixFindingIds: [finding.findingId],

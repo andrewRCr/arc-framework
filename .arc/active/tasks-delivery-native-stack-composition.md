@@ -3163,6 +3163,38 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           ARC contract checks, the production-style ceiling-to-next-member case, and the complete 11,247-test suite
           pass; acceptance and re-entry leave the hosted review-operation store unchanged.
 
+    - `[x]` **7.7.R.w Bind approved member fixes to their exact authoring locus**
+
+        - _Goal:_ An approved delivery-member finding enters the selector-free correction driver before authoring,
+          returns the exact route-owned checkout, and recovers the same continuation without inviting edits from the
+          session checkout when that checkout is not the selected member's authoring locus.
+
+        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue — decision
+          record (2026-08-31), Amendment 6.
+
+        - Build `test-first` (one behavior at a time):
+            - Return a distinct submit-ready delivery-correction action from an approved hosted member fix while
+              preserving the generic `ready-to-fix / apply-fix` contract for singleton Candidate and Errand review.
+            - Bind the driver's authoring stop to the existing fix authorization, disposition set, plan, work unit,
+              selected member, reviewed head, and exact route-owned ref/checkout; reject stale or mismatched loci
+              before publication or response persistence.
+            - Preserve registered non-terminal candidate-gate authoring, unregistered top rematerialization, and
+              terminal work-unit-branch authoring without creating another session or recovery locus.
+            - Make delivery entry, status, and compaction recovery recognize the pending durable response as the same
+              delivery-correction continuation, then update both Framework workflow copies.
+            - Prove the production-shaped response-to-authoring path and affected recovery/status contracts without
+              requesting a hosted pass or spending provider capacity.
+
+        - _Outcome:_ Approved hosted delivery-member fixes now return a distinct selector-free correction action;
+          singleton Candidate and Errand fixes retain `ready-to-fix / apply-fix`. Integration entry and session
+          recovery recognize the durable pending response as `delivery-correction`, while an active operation or
+          pending scoped verification retains priority. The driver returns the exact route-owned checkout/ref with
+          the existing fix authorization, disposition, plan, work unit, member, and reviewed-head binding; terminal
+          authoring no longer emits an unlocated stop. Registered candidates, unregistered top rematerialization,
+          and terminal top authoring retain their existing topology. The built-CLI production case, 167 focused
+          tests, both typechecks, TypeScript/shell/Markdown lint, all ARC contract checks, package build, and the full
+          861-file / 11,291-test suite pass with one intentional skip each; no hosted provider request ran.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`

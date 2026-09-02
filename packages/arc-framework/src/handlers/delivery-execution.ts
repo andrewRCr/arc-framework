@@ -906,6 +906,16 @@ const ReviewFixContinuationResultSchema = z.union([
       authorizedFindingIds: z.array(z.string().min(1)).min(1),
       authorizedFindingLoci: z.array(z.string().min(1)).min(1).optional(),
     }).optional(),
+    authoringAuthorization: z.strictObject({
+      fixAuthorizationId: DeliveryCanonicalDigestSchema,
+      dispositionSetId: DeliveryCanonicalDigestSchema,
+      planId: DeliveryPlanIdSchema,
+      workUnitId: SlugSchema,
+      selectedDeliverableId: DeliveryCanonicalDigestSchema,
+      reviewedHead: GitObjectIdSchema,
+      ref: z.string().min(1),
+      checkoutPath: z.string().min(1),
+    }).optional(),
     resumeAction: ReviewFixContinuationResumeActionSchema,
     recommendedActionText: z.string().min(1),
     ...ReviewFixDriveEffectLogField,
@@ -1618,6 +1628,11 @@ async function executeDeliveryCommand(
         readonly authorizedFindingIds: readonly string[];
         readonly authorizedFindingLoci: readonly string[];
       } | undefined;
+      let approvedFix: {
+        readonly fixAuthorizationId: string;
+        readonly workUnitId: string;
+        readonly reviewedHead: string;
+      } | undefined;
       let authorityPreservation: {
         readonly reviewedHead: string;
         readonly currentHead: string;
@@ -1799,6 +1814,7 @@ async function executeDeliveryCommand(
             ...(active.status === "resolved" && active.branch !== null ? { activeBranch: active.branch } : {}),
             ...(authoring === undefined ? {} : { authoring }),
             ...(approvedDispositionSet === undefined ? {} : { approvedDispositionSet }),
+            ...(approvedFix === undefined ? {} : { approvedFix }),
           }),
         };
       };
@@ -1836,6 +1852,11 @@ async function executeDeliveryCommand(
       });
       if (selection.status === "refused") return selection;
       if (selection.status === "selected") {
+        approvedFix = {
+          fixAuthorizationId: selection.fixAuthorizationId,
+          workUnitId: selection.workUnitId,
+          reviewedHead: selection.reviewedHead,
+        };
         approvedDispositionSet = {
           dispositionSetId: selection.dispositionSetId,
           authorizedFindingIds: selection.authorizedFindingIds,
