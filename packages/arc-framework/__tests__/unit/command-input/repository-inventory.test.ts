@@ -278,6 +278,7 @@ describe("repository command-input inventory", () => {
       "delivery native link",
       "delivery native observe",
       "delivery native unlink",
+      "delivery refresh execute",
       "delivery top-remedy",
       "integrate checkpoint",
       "integrate merge",

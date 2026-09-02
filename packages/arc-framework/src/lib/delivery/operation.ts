@@ -207,7 +207,12 @@ function terminalAuthoringMovementMatchesState(
 
 function reviewFixSelectionMatchesState(
   state: DeliveryStateV1,
-  operation: Extract<DeliveryActiveOperationV1, { kind: "rewrite" }>,
+  operation: {
+    readonly mode: "selected-change" | "review-fix" | "provider-refresh" | "provider-adoption";
+    readonly affectedDeliverableIds: readonly string[];
+    readonly reviewFixSelectedDeliverableId?: string;
+    readonly reviewFixVerificationDeliverableIds?: readonly string[];
+  },
 ): boolean {
   if (operation.reviewFixSelectedDeliverableId === undefined) {
     return operation.reviewFixVerificationDeliverableIds === undefined;
@@ -385,24 +390,7 @@ export function reserveDeliveryOperation(
     return { status: "refused", reason: "operation-invalid" };
   }
   if (parsedRequest.data.kind === "rewrite") {
-    const selectedDeliverableId = parsedRequest.data.reviewFixSelectedDeliverableId;
-    const verificationIds = parsedRequest.data.reviewFixVerificationDeliverableIds;
-    const verificationOrder = parsedState.data.members
-      .filter(({ deliverableId }) => verificationIds?.includes(deliverableId) ?? false)
-      .map(({ deliverableId }) => deliverableId);
-    if ((selectedDeliverableId === undefined) !== (verificationIds === undefined)
-      || (selectedDeliverableId !== undefined && verificationIds !== undefined
-        && ((parsedRequest.data.mode !== "provider-refresh" && parsedRequest.data.mode !== "provider-adoption")
-          || !parsedRequest.data.affectedDeliverableIds.includes(selectedDeliverableId)
-          || parsedState.data.members.findIndex(
-            ({ deliverableId }) => deliverableId === selectedDeliverableId,
-          ) >= parsedState.data.members.length - 1
-          || !verificationIds.includes(selectedDeliverableId)
-          || new Set(verificationIds).size !== verificationIds.length
-          || canonicalize(verificationOrder) !== canonicalize(verificationIds)
-          || verificationIds.some(
-            (deliverableId) => !parsedRequest.data.affectedDeliverableIds.includes(deliverableId),
-          )))) {
+    if (!reviewFixSelectionMatchesState(parsedState.data, parsedRequest.data)) {
       return { status: "refused", reason: "operation-invalid" };
     }
   }

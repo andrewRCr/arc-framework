@@ -6,7 +6,10 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
-import { deleteDeliveryRefreshCandidateRef } from "../../../lib/delivery/git-materialization.js";
+import {
+  deleteDeliveryRefreshCandidateRef,
+  observeDeliveryRefreshCandidateRefs,
+} from "../../../lib/delivery/git-materialization.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import {
   deriveDeliveryProviderRefreshCandidates,
@@ -178,20 +181,22 @@ async function seedSelectedPredecessorTransition(
   if (selectedRef === null || selectedRef === undefined || selectedHead === undefined
     || previousHead === undefined || previousHead === selectedHead) return;
   const message = "provider refresh predecessor transition";
+  // `gh stack rebase --upstack --no-trunk` may use merge-base --fork-point for the first dependent.
+  // Seed the selected ref's reflog with its prior base, then restore the exact selected head.
   await git("git", ["update-ref", "-m", message, selectedRef, previousHead, selectedHead], { cwd });
   await git("git", ["update-ref", "-m", message, selectedRef, selectedHead, previousHead], { cwd });
 }
 
-async function listCandidateRefs(git: GitExec, cwd: string, planId: string): Promise<DeliveryProviderRefreshCandidate[]> {
-  const prefix = `refs/arc/delivery-refresh-candidates/${planId}/`;
-  const { stdout } = await git("git", ["for-each-ref", "--format=%(refname) %(objectname)", prefix], { cwd });
-  return stdout.split("\n").flatMap((line) => {
-    if (line === "") return [];
-    const [ref, head, ...extra] = line.split(" ");
-    if (ref === undefined || head === undefined || extra.length > 0 || !ref.startsWith(prefix)
-      || !objectId.test(head)) throw new Error("malformed refresh-candidate ref");
-    return [{ deliverableId: "", ref, head }];
-  });
+async function observeCandidateRefs(
+  git: GitExec,
+  cwd: string,
+  planId: string,
+): Promise<readonly DeliveryProviderRefreshCandidate[] | null> {
+  const exec: GitExec = (command, args, options) => git(command, args, { ...options, cwd });
+  const observed = await observeDeliveryRefreshCandidateRefs(exec, planId);
+  return observed.status === "observed"
+    ? observed.candidates.map((candidate) => ({ ...candidate, deliverableId: "" }))
+    : null;
 }
 
 /** GitHub adapter for isolated native refresh preparation; publication remains in ARC's Git boundary. */
@@ -236,11 +241,15 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
     if (registration === null) return { status: "refused", reason: "invalid-input" };
     let stale: readonly DeliveryProviderRefreshCandidate[];
     try {
-      stale = await listCandidateRefs(
+      const observedCandidates = await observeCandidateRefs(
         this.options.git,
         this.options.checkoutPath,
         input.plan.planId,
       );
+      if (observedCandidates === null) {
+        return { status: "refused", reason: "candidate-observation-unavailable" };
+      }
+      stale = observedCandidates;
     } catch {
       return { status: "refused", reason: "candidate-observation-unavailable" };
     }
@@ -414,7 +423,13 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
     if (result.status === "refused") {
       let residue: readonly DeliveryProviderRefreshCandidate[];
       try {
-        residue = await listCandidateRefs(this.options.git, this.options.checkoutPath, input.plan.planId);
+        const observedResidue = await observeCandidateRefs(
+          this.options.git,
+          this.options.checkoutPath,
+          input.plan.planId,
+        );
+        if (observedResidue === null) return { status: "refused", reason: "candidate-cleanup-required" };
+        residue = observedResidue;
       } catch {
         return { status: "refused", reason: "candidate-cleanup-required" };
       }
