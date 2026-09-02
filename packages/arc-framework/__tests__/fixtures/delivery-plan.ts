@@ -38,11 +38,22 @@ export function deliveryFourMemberStackPlanFixture(planId = defaultPlanId): Deli
   return buildDeliveryPlanFixture(planId, "stack-to-main", 4);
 }
 
+/** Construct a valid independently-landable five-member stack plan. */
+export function deliveryFiveMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 5);
+}
+
 function buildDeliveryPlanFixture(
   planId: string,
   projection: "wu-integration-target" | "stack-to-main",
   memberCount = 2,
-  memberTitles: readonly string[] = ["First member", "Second member", "Third member", "Fourth member"],
+  memberTitles: readonly string[] = [
+    "First member",
+    "Second member",
+    "Third member",
+    "Fourth member",
+    "Fifth member",
+  ],
 ): DeliveryPlanV1 {
   const ordinalNames = ["First", "Second", "Third", "Fourth", "Fifth"];
   const chunkKeys = ["first", "second", "third", "fourth", "fifth"];
