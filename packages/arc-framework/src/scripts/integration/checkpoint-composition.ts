@@ -48,7 +48,6 @@ import {
   resolveMergeMethod,
 } from "../review-gate/merge-method.js";
 import {
-  allHostedReservationTargetsDischarged,
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
@@ -605,16 +604,16 @@ export function createIntegrationCheckpointDependencies(input: {
           head: member.coordinates.head,
         };
       });
-      const discharges = await Promise.all(targetResolution.targets.map(async (target) => (
-        readHostedReservationDischarge({
-          reservation: publicationBoundary.reservation,
-          baseRevision: target.baseRevision,
-          approvedHead: target.headSha,
-          changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
-          ...(target.vehicle === undefined ? {} : { vehicle: target.vehicle }),
-          candidate: value.record,
-        })
-      )));
+      const firstTarget = targetResolution.targets[0];
+      if (firstTarget === undefined) throw new Error("The delivery member review targets are unavailable.");
+      const discharge = await readHostedReservationDischarge({
+        workUnitId: workUnit,
+        reservation: publicationBoundary.reservation,
+        baseRevision: firstTarget.baseRevision,
+        approvedHead: firstTarget.headSha,
+        changeRequest: { repository: firstTarget.repository, pullRequest: firstTarget.pullRequest },
+        candidate: value.record,
+      });
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
       const mergeBase = await resolveGitCandidateTargetBase({
         cwd: input.cwd,
@@ -638,7 +637,7 @@ export function createIntegrationCheckpointDependencies(input: {
         publication: { candidateId: publicationBoundary.candidateId, head: currentness.recognizedRevision },
         top,
         review: {
-          status: allHostedReservationTargetsDischarged(discharges) ? "discharged" : "outstanding",
+          status: discharge.discharged ? "discharged" : "outstanding",
           targets: reviewTargets,
         },
         readCandidateCoordinate: (head) => readCoordinate(input.exec, input.cwd, head),

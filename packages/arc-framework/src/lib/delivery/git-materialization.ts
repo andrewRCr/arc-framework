@@ -6,7 +6,6 @@ import { readAncestry } from "../work-unit/git-decomposition-object-readers.js";
 import { DeliveryPlanIdSchema } from "./schema.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-const absentObjectId = "0".repeat(40);
 const candidateRef = /^refs\/arc\/delivery-candidates\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const refreshCandidateRef = /^refs\/arc\/delivery-refresh-candidates\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
@@ -200,7 +199,7 @@ async function publishDeliveryLocalRef(input: {
       : { status: "refused", reason: "collision" };
   }
   try {
-    await input.exec("git", ["update-ref", input.ref, input.head, absentObjectId]);
+    await input.exec("git", ["update-ref", input.ref, input.head, ""]);
   } catch {
     const afterFailure = await observeDeliveryLocalRef(input.exec, input.ref);
     if (afterFailure.status === "observed") {

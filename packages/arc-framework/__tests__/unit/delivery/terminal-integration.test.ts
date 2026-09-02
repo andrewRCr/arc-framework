@@ -473,7 +473,7 @@ describe("delivery terminal integration", () => {
     const state = {
       ...f.state,
       members: f.state.members.map((member, index) => index === 0
-        ? { ...member, ref: "refs/heads/reaped-member" }
+        ? { ...member, ref: null }
         : member),
     };
     const result = await composeDeliveryTerminalClaim({

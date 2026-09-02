@@ -187,9 +187,12 @@ describe("packaged delivery workflow", () => {
     expect(correctionTail).toMatch(/acknowledgementInput[\s\S]*verificationResult[\s\S]*resumeAction/iu);
     expect(correctionTail).toMatch(/same finding-disposition approval/iu);
     expect(correctionTail).not.toContain("`integration-interlock`");
-    expect(reviewSection.indexOf("arc delivery teardown")).toBeLessThan(
-      packaged.indexOf("## Terminal handoff") - packaged.indexOf("## Review and land the current member"),
-    );
+    const reviewStart = packaged.indexOf("## Review and land the current member");
+    const terminalStart = packaged.indexOf("## Terminal handoff", reviewStart);
+    const teardownInDocument = packaged.indexOf("arc delivery teardown", reviewStart);
+    expect(reviewStart).toBeGreaterThanOrEqual(0);
+    expect(teardownInDocument).toBeGreaterThan(reviewStart);
+    expect(terminalStart).toBeGreaterThan(teardownInDocument);
     expect(terminalTail).toMatch(/terminal-checkpoint[\s\S]*integrate-work-unit\.md/iu);
     expect(terminalTail).toMatch(/retarget[\s\S]*reopen-and-retarget/iu);
     expect(terminalTail).toMatch(/explicit[\s\S]*arc delivery top-remedy[\s\S]*terminal-checkpoint/iu);

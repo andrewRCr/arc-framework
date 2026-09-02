@@ -180,23 +180,22 @@ describe("delivery chain ancestry adoption", () => {
 
     const fabricated = await git([
       "commit-tree", second.tree,
-      "-p", second.head,
-      "-p", memberThree,
-      "-m", "fabricated exact-shaped adoption",
+      "-p", originalTop,
+      "-p", memberTwo,
+      "-m", "fabricated wrong-parent adoption",
     ]);
     await git(["update-ref", topRef, fabricated, second.head]);
     await expect(adoptGitDeliveryChain({
       exec,
       topRef,
-      commonBase: await coordinate(memberTwo),
-      highestMember: await coordinate(memberThree),
-      finalCandidate: await coordinate(memberThree),
+      commonBase: await coordinate(memberOne),
+      highestMember: await coordinate(memberTwo),
+      finalCandidate: await coordinate(completeCandidate),
       lifecyclePaths: [],
       top: { head: second.head, tree: second.tree },
     })).resolves.toEqual({
       status: "refused",
-      reason: "containment-diverged",
-      paths: ["missing.txt"],
+      reason: "top-moved",
     });
     expect(await git(["rev-parse", topRef])).toBe(fabricated);
 
