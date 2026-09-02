@@ -8,9 +8,11 @@ import {
   findExactPendingSelectedRefresh,
   hasExactPendingSelectedRefresh,
 } from "./suffix-reconciliation.js";
-import { sortByCanonicalBytes } from "../kernel/index.js";
+import { canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
 import type { ApprovedDispositionRecord } from
   "../../scripts/review-gate/core/advisory-records.js";
+import type { HostedFindingsResponsePlan } from
+  "../../scripts/review-gate/core/response-plan-schema.js";
 import { validateFixAuthorization } from
   "../../scripts/review-gate/core/fix-authorization.js";
 
@@ -32,6 +34,93 @@ type PendingDeliveryReviewFixAuthority =
       readonly status: "refused";
       readonly reason: "review-fix-response-ambiguous" | "review-fix-response-invalid";
     };
+
+export type DurableDeliveryReviewFixResponseReplay =
+  | { readonly status: "none" }
+  | {
+      readonly status: "selected";
+      readonly planId: string;
+      readonly selectedDeliverableId: string;
+      readonly workUnitId: string;
+      readonly operationId: string;
+      readonly repositoryId: string;
+      readonly currentTarget: NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["newTarget"];
+      readonly hostedFixTarget:
+        NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["hostedFixTarget"];
+      readonly request: {
+        readonly schemaVersion: 1;
+        readonly source: Extract<ApprovedDispositionRecord["source"], { readonly kind: "hosted" }>;
+        readonly dispositions: ApprovedDispositionRecord["approvedDisposition"];
+      };
+    }
+  | {
+      readonly status: "refused";
+      readonly reason: "review-fix-response-replay-ambiguous" | "review-fix-response-replay-invalid";
+    };
+
+function recordMatchesDurableDeliveryResponseReplay(
+  record: ApprovedDispositionRecord,
+  responsePlan: HostedFindingsResponsePlan,
+): boolean {
+  const member = record.deliveryMember;
+  const response = record.deliveryMemberFixResponse;
+  if (member === null || response === null || record.source.kind !== "hosted") return false;
+  const responseFindingIds = sortByCanonicalBytes(responsePlan.findings.map(({ findingId }) => findingId));
+  const dispositionFindingIds = sortByCanonicalBytes(
+    record.approvedDisposition.dispositionSet.findings.map(({ findingId }) => findingId),
+  );
+  return record.repositoryId === responsePlan.target.repositoryId
+    && record.source.attemptRef === responsePlan.source.attemptRef
+    && record.approvedDisposition.dispositionSet.targetId === responsePlan.target.targetId
+    && member.head === responsePlan.target.headSha
+    && canonicalize(response.oldTarget) === canonicalize(responsePlan.target)
+    && response.hostedTarget.headSha === responsePlan.target.headSha
+    && canonicalize(responseFindingIds) === canonicalize(dispositionFindingIds);
+}
+
+/**
+ * Recover one exact durable delivery-member response for a rediscovered hosted findings attempt.
+ *
+ * The returned request replays only the already-approved disposition. It never recreates the
+ * verification judgment or infers a new response from finding similarity.
+ */
+export function selectDurableDeliveryReviewFixResponseReplay(input: {
+  readonly workUnitId: string;
+  readonly responsePlan: HostedFindingsResponsePlan;
+  readonly records: readonly ApprovedDispositionRecord[];
+}): DurableDeliveryReviewFixResponseReplay {
+  const candidates = input.records.filter((record) => (
+    record.deliveryMember?.workUnitId === input.workUnitId
+    && record.deliveryMemberFixResponse !== null
+    && record.source.kind === "hosted"
+    && record.source.attemptRef === input.responsePlan.source.attemptRef
+  ));
+  if (candidates.length > 1) {
+    return { status: "refused", reason: "review-fix-response-replay-ambiguous" };
+  }
+  const selected = candidates[0];
+  if (selected === undefined) return { status: "none" };
+  if (!recordMatchesDurableDeliveryResponseReplay(selected, input.responsePlan)
+    || selected.deliveryMember === null || selected.deliveryMemberFixResponse === null
+    || selected.source.kind !== "hosted") {
+    return { status: "refused", reason: "review-fix-response-replay-invalid" };
+  }
+  return {
+    status: "selected",
+    planId: selected.deliveryMember.planId,
+    selectedDeliverableId: selected.deliveryMember.deliverableId,
+    workUnitId: selected.deliveryMember.workUnitId,
+    operationId: selected.operationId,
+    repositoryId: selected.repositoryId,
+    currentTarget: selected.deliveryMemberFixResponse.newTarget,
+    hostedFixTarget: selected.deliveryMemberFixResponse.hostedFixTarget,
+    request: {
+      schemaVersion: 1,
+      source: selected.source,
+      dispositions: selected.approvedDisposition,
+    },
+  };
+}
 
 function recordHasExactPendingDeliveryFixAuthority(record: ApprovedDispositionRecord): boolean {
   const member = record.deliveryMember;

@@ -9,6 +9,7 @@ import {
   pendingDeliveryReviewFixAuthorityIsCurrent,
   pendingDeliveryReviewFixCanResumeFromIntegrationStatus,
   projectDeliveryReviewFixContinuation,
+  selectDurableDeliveryReviewFixResponseReplay,
   selectPendingDeliveryReviewFixAuthority,
 } from
   "../../../src/lib/delivery/review-fix-continuation.js";
@@ -389,6 +390,53 @@ describe("delivery review-fix continuation projection", () => {
           : { ...first.fixAuthorization, oldHeadSha: "9".repeat(40) },
       }],
     })).toEqual({ status: "refused", reason: "review-fix-response-invalid" });
+  });
+
+  it("projects one exact durable member response back into its rediscovered hosted attempt", () => {
+    const settled = deliveryDispositionRecord({ operationId: "operation-settled", settled: true });
+    const response = settled.deliveryMemberFixResponse;
+    if (response === null || settled.source.kind !== "hosted") {
+      throw new Error("settled response fixture must retain hosted evidence");
+    }
+    const responsePlan = {
+      schemaVersion: 1 as const,
+      target: response.oldTarget,
+      source: settled.source,
+      findings: [{
+        findingId: "finding-1",
+        severity: "major" as const,
+        locus: "src/review.ts:42",
+        evidenceUrlOrId: "review:finding-1",
+      }],
+    };
+    expect(selectDurableDeliveryReviewFixResponseReplay({
+      workUnitId: plan.workUnitId,
+      responsePlan,
+      records: [
+        deliveryDispositionRecord({ operationId: "operation-historical", settled: true }),
+        settled,
+      ],
+    })).toEqual({
+      status: "selected",
+      planId: plan.planId,
+      selectedDeliverableId,
+      workUnitId: plan.workUnitId,
+      operationId: settled.operationId,
+      repositoryId: settled.repositoryId,
+      currentTarget: response.newTarget,
+      hostedFixTarget: response.hostedFixTarget,
+      request: {
+        schemaVersion: 1,
+        source: settled.source,
+        dispositions: settled.approvedDisposition,
+      },
+    });
+
+    expect(selectDurableDeliveryReviewFixResponseReplay({
+      workUnitId: plan.workUnitId,
+      responsePlan: { ...responsePlan, target: response.newTarget },
+      records: [settled],
+    })).toEqual({ status: "refused", reason: "review-fix-response-replay-invalid" });
   });
 
   it("retains response authority only through the exact selected-publication chain break", () => {

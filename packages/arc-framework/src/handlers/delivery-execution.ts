@@ -116,6 +116,7 @@ import {
   pendingDeliveryReviewFixAuthorityIsCurrent,
   pendingDeliveryReviewFixCanResumeFromIntegrationStatus,
   projectDeliveryReviewFixContinuation,
+  selectDurableDeliveryReviewFixResponseReplay,
   selectPendingDeliveryReviewFixAuthority,
 } from
   "../lib/delivery/review-fix-continuation.js";
@@ -225,6 +226,10 @@ import { parseReviewSourceReference } from
   "../scripts/review-gate/core/review-source-reference.js";
 import { projectGitReviewContributionApplicability } from
   "../scripts/review-gate/policy/git-review-contribution-applicability.js";
+import { createRespondDependencies } from
+  "../scripts/review-gate/runtime/respond-composition.js";
+import { respondToReviewCommand } from
+  "../scripts/review-gate/runtime/respond-command.js";
 import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
 import {
   createReviewStatusPort,
@@ -1948,6 +1953,62 @@ async function executeDeliveryCommand(
           exec,
           workUnitId: continuation.action.action.workUnitId,
         });
+        if (reviewStatus.nextAction === "respond-to-findings") {
+          let records;
+          try {
+            records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+          } catch {
+            return { status: "refused" as const, reason: "review-fix-response-replay-unavailable" };
+          }
+          const replay = selectDurableDeliveryReviewFixResponseReplay({
+            workUnitId: continuation.action.action.workUnitId,
+            responsePlan: reviewStatus.responsePlan,
+            records,
+          });
+          if (replay.status === "refused") return replay;
+          if (replay.status === "selected") {
+            const [replayPlan, replayState] = await Promise.all([
+              planStore.readCurrent(replay.planId),
+              stateStore.read(replay.planId),
+            ]);
+            const memberIndex = replayState.status === "ok" && replayState.value !== null
+              ? replayState.value.value.members.findIndex(
+                  ({ deliverableId }) => deliverableId === replay.selectedDeliverableId,
+                )
+              : -1;
+            const member = memberIndex < 0 || replayState.status !== "ok" || replayState.value === null
+              ? undefined
+              : replayState.value.value.members[memberIndex];
+            const pullRequest = Number(member?.changeRequest?.changeRequestId);
+            if (replayPlan.status !== "ok" || replayPlan.value === null
+              || replayState.status !== "ok" || replayState.value === null
+              || replayPlan.value.workUnitId !== replay.workUnitId
+              || replayState.value.value.workUnitId !== replay.workUnitId
+              || member?.coordinates === null || member?.coordinates === undefined
+              || replay.currentTarget.kind !== "delivery-member"
+              || replay.currentTarget.repositoryId !== replay.repositoryId
+              || replay.currentTarget.headSha !== member.coordinates.head
+              || replay.currentTarget.headTree !== member.coordinates.tree
+              || replay.currentTarget.diffBaseSha !== member.coordinates.base
+              || !Number.isSafeInteger(pullRequest) || pullRequest <= 0
+              || replay.hostedFixTarget.pullRequest !== pullRequest
+              || replay.hostedFixTarget.repository.toLowerCase() !== parsed.repository.toLowerCase()
+              || replay.hostedFixTarget.headSha !== member.coordinates.head) {
+              return { status: "refused" as const, reason: "review-fix-response-replay-stale" };
+            }
+            return {
+              status: "dispatch" as const,
+              nextAction: "dispatch" as const,
+              action: {
+                kind: "review-respond" as const,
+                argv: ["arc", "review", "respond", "-"] as const,
+                input: replay.request,
+              },
+              recommendedActionText:
+                "Rebind the exact durable approved response to its rediscovered hosted attempt, then continue.",
+            };
+          }
+        }
         return {
           status: "review-status-required" as const,
           stopKind: classifyDeliveryReviewFixReviewStatusStop(reviewStatus.nextAction),
@@ -2052,7 +2113,7 @@ async function executeDeliveryCommand(
     };
     type DeliveryReviewFixServiceActionKind = Exclude<
       DeliveryReviewFixDriveDispatchAction["kind"],
-      "delivery-review-fix-authoring-rebind"
+      "delivery-review-fix-authoring-rebind" | "review-respond"
     >;
     const commands: Readonly<Record<
       DeliveryReviewFixServiceActionKind,
@@ -2071,9 +2132,22 @@ async function executeDeliveryCommand(
         return { step, progress: await observeProgress(step) };
       },
       execute: async (action) => {
-        const result = action.kind === "delivery-review-fix-authoring-rebind"
-          ? await executeAuthoringRebind(action.input)
-          : await executeDeliveryCommand(commands[action.kind], action.input, interaction);
+        let result;
+        if (action.kind === "delivery-review-fix-authoring-rebind") {
+          result = await executeAuthoringRebind(action.input);
+        } else if (action.kind === "review-respond") {
+          try {
+            const response = await respondToReviewCommand(
+              action.input,
+              createRespondDependencies({ exec, cwd }),
+            );
+            result = { ...response, status: response.state };
+          } catch {
+            result = { status: "refused", reason: "review-fix-response-replay-failed" };
+          }
+        } else {
+          result = await executeDeliveryCommand(commands[action.kind], action.input, interaction);
+        }
         if (typeof result !== "object" || result === null || !("status" in result)
           || typeof result.status !== "string") {
           return { status: "invalid-service-result" };

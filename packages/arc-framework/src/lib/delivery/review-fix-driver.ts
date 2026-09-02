@@ -17,7 +17,8 @@ export interface DeliveryReviewFixDriveDispatchAction {
     | "delivery-refresh-execute"
     | "delivery-refresh-adopt"
     | "delivery-reconcile"
-    | "delivery-review-fix-acknowledge";
+    | "delivery-review-fix-acknowledge"
+    | "review-respond";
   readonly input?: unknown;
 }
 
@@ -117,6 +118,7 @@ const successfulResultStatuses: Readonly<Record<
   "delivery-refresh-adopt": ["applied"],
   "delivery-reconcile": ["position", "rebound", "applied"],
   "delivery-review-fix-acknowledge": ["acknowledged", "already-acknowledged"],
+  "review-respond": ["ready-to-fix"],
 };
 
 function deliveryReviewFixConflictStop(

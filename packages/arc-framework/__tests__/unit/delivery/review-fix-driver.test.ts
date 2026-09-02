@@ -29,6 +29,7 @@ describe("delivery review-fix driver", () => {
 
   it("executes deterministic actions in-process until the first attended stop", async () => {
     const publish: DeliveryReviewFixDriveDispatchAction = { kind: "delivery-review-fix-publish" };
+    const response: DeliveryReviewFixDriveDispatchAction = { kind: "review-respond" };
     const refresh: DeliveryReviewFixDriveDispatchAction = { kind: "delivery-refresh-execute" };
     const project = vi.fn()
       .mockResolvedValueOnce({
@@ -36,8 +37,12 @@ describe("delivery review-fix driver", () => {
         progress,
       })
       .mockResolvedValueOnce({
+        step: { status: "dispatch", action: response, recommendedActionText: "Replay response." },
+        progress: { ...progress, stateRevision: 8 },
+      })
+      .mockResolvedValueOnce({
         step: { status: "dispatch", action: refresh, recommendedActionText: "Refresh." },
-        progress: { ...progress, stateRevision: 8, operationId: "refresh-1" },
+        progress: { ...progress, stateRevision: 9, operationId: "refresh-1" },
       })
       .mockResolvedValueOnce({
         step: {
@@ -45,10 +50,11 @@ describe("delivery review-fix driver", () => {
           nextAction: "verify-review-fix",
           selectedDeliverableId: `sha256:${"a".repeat(64)}`,
         },
-        progress: { ...progress, stateRevision: 9, operationId: null },
+        progress: { ...progress, stateRevision: 10, operationId: null },
       });
     const execute = vi.fn()
       .mockResolvedValueOnce({ status: "published" })
+      .mockResolvedValueOnce({ status: "ready-to-fix" })
       .mockResolvedValueOnce({ status: "applied" });
 
     await expect(driveDeliveryReviewFixContinuation({ project, execute })).resolves.toEqual({
@@ -57,10 +63,11 @@ describe("delivery review-fix driver", () => {
       selectedDeliverableId: `sha256:${"a".repeat(64)}`,
       effectLog: [
         { kind: "dispatch", actionKind: "delivery-review-fix-publish", resultStatus: "published" },
+        { kind: "dispatch", actionKind: "review-respond", resultStatus: "ready-to-fix" },
         { kind: "dispatch", actionKind: "delivery-refresh-execute", resultStatus: "applied" },
       ],
     });
-    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(3);
   });
 
   it("refuses a repeated action at an unchanged progress fingerprint", async () => {
