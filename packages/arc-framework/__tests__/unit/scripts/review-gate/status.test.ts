@@ -36,6 +36,23 @@ const hostedAction = {
   coverage: "complete" as const,
   vehicle: memberVehicle,
 };
+const hostedAwaitAction = {
+  schemaVersion: 1 as const,
+  handle: {
+    schemaVersion: 1 as const,
+    provider: hostedAction.provider,
+    requestedCoverage: hostedAction.coverage,
+    effectiveCoverage: hostedAction.coverage,
+    target: hostedAction.target,
+    artifact: {
+      kind: "issue-comment" as const,
+      id: "request-41",
+      url: "https://example.test/request-41",
+      createdAt: "2026-09-01T12:00:00.000Z",
+    },
+    vehicle: memberVehicle,
+  },
+};
 type DeliveryTargetInput = Parameters<typeof composeDeliveryReviewObligation>[0]["targets"][number];
 type DeliveryDischargeInput = Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number];
 
@@ -406,6 +423,29 @@ describe("review status", () => {
           title: "Member 1",
           progress: conjunctionMemberProgress,
         },
+      },
+    });
+  });
+
+  it("returns the exact durable hosted await for the first outstanding delivery member", async () => {
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The hosted request is pending.",
+        nextSource: null,
+        awaitAction: hostedAwaitAction,
+      })],
+    });
+
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-await",
+      action: hostedAwaitAction,
+      deliveryCursor: {
+        status: "outstanding",
+        completedMemberCount: 0,
+        currentMember: { position: 1 },
       },
     });
   });

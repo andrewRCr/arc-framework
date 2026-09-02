@@ -103,7 +103,7 @@ function deliveryHost(
 function attempt(
   headSha: string,
   sourceId: "coderabbit-pr" | "codex-pr",
-  outcome: "clean" | "findings" | "settled-findings" | "rate-limited",
+  outcome: "pending" | "clean" | "findings" | "settled-findings" | "rate-limited",
   vehicle?: ReturnType<typeof DeliveryReviewMemberVehicleSchema.parse>,
   coverage: { requested: "complete" | "incremental"; effective: "complete" | "incremental" } = {
     requested: "complete",
@@ -150,6 +150,24 @@ function attempt(
     sourceId,
     outcome,
     hosted: {
+      ...(outcome === "pending"
+        ? {
+            handle: {
+              schemaVersion: 1 as const,
+              provider: sourceId,
+              requestedCoverage: coverage.requested,
+              effectiveCoverage: coverage.effective,
+              target: target(headSha),
+              artifact: {
+                kind: "issue-comment" as const,
+                id: `request-${sourceId}`,
+                url: `https://example.test/request-${sourceId}`,
+                createdAt: "2026-08-31T12:00:00.000Z",
+              },
+              ...(vehicle === undefined ? {} : { vehicle }),
+            },
+          }
+        : {}),
       target: target(headSha),
       requestedCoverage: coverage.requested,
       effectiveCoverage: coverage.effective,
@@ -656,6 +674,44 @@ describe("hosted reservation discharge", () => {
       discharged: false,
       nextSource: "coderabbit-pr",
       detail: expect.stringContaining("has not produced a settled review"),
+    });
+  });
+
+  it("projects one exact durable await instead of requesting a pending hosted source again", async () => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("b"),
+    });
+    const pending = attempt(oid("b"), "coderabbit-pr", "pending", vehicle);
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [oid("b")],
+      target: { ...target(oid("b")), vehicle },
+      readLaneProgress: progress({
+        [oid("b")]: {
+          status: "recorded",
+          completedPasses: 0,
+          attempts: [pending],
+        },
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: false,
+      detail: "Hosted source `coderabbit-pr` has one pending request awaiting a verdict.",
+      nextSource: null,
+      awaitAction: {
+        schemaVersion: 1,
+        handle: pending.hosted.handle,
+      },
     });
   });
 

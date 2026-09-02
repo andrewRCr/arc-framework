@@ -130,6 +130,7 @@ export function projectHostedReservationPolicyProgress(input: {
         completedPasses += 1;
       }
       if (state.headSha === input.target.headSha
+        && attempt.outcome !== "pending"
         && (localMatches || (hostedCompleteMatches
           && sameDeliveryReviewMemberVehicle(input.vehicle, hosted.vehicle)))) {
         currentTimeline.push({

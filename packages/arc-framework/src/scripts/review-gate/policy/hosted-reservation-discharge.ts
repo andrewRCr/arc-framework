@@ -26,6 +26,7 @@ import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-app
 import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
+import type { HostedAwaitEnvelope } from "../hosted/await.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   candidateExpectsEarlierReviewAttempt,
@@ -139,6 +140,7 @@ export interface HostedReservationDischarge {
   equivalentApplicabilities?: readonly ReviewContributionApplicabilityResult[];
   applicabilityAuthority?: "decision-required" | "blocked";
   responsePlan?: HostedFindingsResponsePlan;
+  awaitAction?: HostedAwaitEnvelope;
   localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
 }
@@ -379,6 +381,25 @@ export async function projectHostedReservationDischarge(input: {
   ));
   const currentFindings = projectPendingFindings(currentFindingRoutes, "current");
   if (currentFindings !== null) return currentFindings;
+  const pendingAttempts = currentAttempts.filter((attempt) => (
+    attempt.outcome === "pending" && reservation.sources.includes(attempt.sourceId)
+  ));
+  if (pendingAttempts.length > 0) {
+    const pending = pendingAttempts.length === 1 ? pendingAttempts[0] : undefined;
+    if (pending?.hosted?.handle === undefined) {
+      return {
+        discharged: false,
+        detail: "The reserved hosted sources have pending request progress without one exact durable handle.",
+        nextSource: null,
+      };
+    }
+    return {
+      discharged: false,
+      detail: `Hosted source \`${pending.sourceId}\` has one pending request awaiting a verdict.`,
+      nextSource: null,
+      awaitAction: { schemaVersion: 1, handle: pending.hosted.handle },
+    };
+  }
 
   const earlierBySource = new Map<string, EarlierHostedAttemptApplicabilityRead>();
   const readEarlier = async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> => {
@@ -466,6 +487,7 @@ export async function projectHostedReservationDischarge(input: {
     return projectPendingFindings(routes, "retained");
   };
   for (const sourceId of reservation.sources) {
+    const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
     const settledCurrentHead = currentAttempts.some((attempt) => attempt.sourceId === sourceId
       && isCompleteStandardVerdict(attempt)
       && attempt.outcome === "clean");
@@ -480,7 +502,6 @@ export async function projectHostedReservationDischarge(input: {
         nextSource: null,
       };
     }
-    const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
     const safelyUnavailable = retainedSafeUnavailableAttempt(
       sourceId,
       sourceAttempts.filter(isCompleteStandardRequest),

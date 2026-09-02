@@ -1,6 +1,6 @@
 /** Executable hosted-review progression across delivery-member targets. */
 
-import { access, chmod, mkdir, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -1041,6 +1041,7 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
   const fakeBin = join(harness.root, "fake-bin");
   const fakeGh = join(fakeBin, "gh");
   const providerCalled = join(harness.root, "provider-called");
+  const providerVerdict = join(harness.root, "provider-verdict");
   const firstRequest = JSON.stringify([{
     number: 41,
     url: "https://example.test/pull/41",
@@ -1079,15 +1080,33 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     created_at: "2026-08-30T12:00:00.000Z",
     updated_at: "2026-08-30T12:00:00.000Z",
   });
+  const cleanReview = JSON.stringify([[{
+    node_id: "PRR_clean",
+    html_url: "https://example.test/review/clean",
+    user: { id: 136622811 },
+    state: "APPROVED",
+    commit_id: harness.oldFirst,
+    body: "",
+    submitted_at: "2026-08-30T12:01:00.000Z",
+  }]]);
+  const emptyThreads = JSON.stringify({
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
+        },
+      },
+    },
+  });
 
   await mkdir(fakeBin, { recursive: true });
   await writeFile(fakeGh, [
     "#!/bin/sh",
     "case \"$1:$2\" in",
     "  pr:list)",
-    "    case \"$*\" in",
-    `      *"--head delivery/delivery-plan-record/first"*) printf '%s\\n' '${firstRequest}' ;;`,
-    `      *"--head prior-top"*) printf '%s\\n' '${laterRequest}' ;;`,
+    "    case \"$8\" in",
+    `      delivery/delivery-plan-record/first) printf '%s\\n' '${firstRequest}' ;;`,
+    `      prior-top) printf '%s\\n' '${laterRequest}' ;;`,
     "      *) printf '%s\\n' '[]' ;;",
     "    esac",
     "    ;;",
@@ -1102,12 +1121,26 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     "  api:repos/owner/repository/pulls/42)",
     `    printf '%s\\n' '${apiRequest(42, "prior-top", harness.priorSecond, "delivery/delivery-plan-record/first")}'`,
     "    ;;",
+    `  api:repos/owner/repository/commits/${harness.oldFirst}/check-runs?filter=all\\&per_page=100)`,
+    "    printf '%s\\n' '[{\"check_runs\":[]}]'",
+    "    ;;",
+    `  api:repos/owner/repository/commits/${harness.oldFirst}/statuses?per_page=100)`,
+    "    printf '%s\\n' '[[]]'",
+    "    ;;",
+    "  api:repos/owner/repository/pulls/41/reviews?per_page=100)",
+    `    if [ -f '${providerVerdict}' ]; then printf '%s\\n' '${cleanReview}'; else printf '%s\\n' '[[]]'; fi`,
+    "    ;;",
+    "  api:repos/owner/repository/issues/41/comments?per_page=100)",
+    "    printf '%s\\n' '[[]]'",
+    "    ;;",
+    "  api:graphql)",
+    `    printf '%s\\n' '${emptyThreads}'`,
+    "    ;;",
     "  api:user)",
-    `    : > '${providerCalled}'`,
     "    printf '%s\\n' '{\"id\":1}'",
     "    ;;",
     "  api:repos/owner/repository/issues/41/comments)",
-    `    : > '${providerCalled}'`,
+    `    printf 'request\\n' >> '${providerCalled}'`,
     "    case \"$*\" in",
     `      *"body=@codex review"*) printf '%s\\n' '${comment(41, "@codex review")}' ;;`,
     `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(41, "@coderabbitai review")}' ;;`,
@@ -1115,7 +1148,7 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     "    esac",
     "    ;;",
     "  api:repos/owner/repository/issues/42/comments)",
-    `    : > '${providerCalled}'`,
+    `    printf 'request\\n' >> '${providerCalled}'`,
     "    case \"$*\" in",
     `      *"body=@codex review"*) printf '%s\\n' '${comment(42, "@codex review")}' ;;`,
     `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(42, "@coderabbitai review")}' ;;`,
@@ -1134,7 +1167,7 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     "https://github.com/owner/repository.git",
   ]);
   await git(harness.root, ["checkout", "prior-top"]);
-  return { fakeBin, providerCalled };
+  return { fakeBin, providerCalled, providerVerdict };
 }
 
 async function requestThroughProductionHandler(
@@ -1150,6 +1183,31 @@ async function requestThroughProductionHandler(
   process.env.PATH = `${fakeBin}:${previousPath ?? ""}`;
   try {
     await handleReviewHostedRequest("-", {
+      readText: async () => JSON.stringify(request),
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+  } finally {
+    process.chdir(previousCwd);
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+  }
+  return { output: JSON.parse(output.join("")) as unknown, exitCodes };
+}
+
+async function awaitThroughProductionHandler(
+  harness: FanOutHarness,
+  fakeBin: string,
+  request: unknown,
+) {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
+  const previousCwd = process.cwd();
+  const previousPath = process.env.PATH;
+  process.chdir(harness.root);
+  process.env.PATH = `${fakeBin}:${previousPath ?? ""}`;
+  try {
+    await handleReviewHostedAwait("-", {
       readText: async () => JSON.stringify(request),
       write: (text) => output.push(text),
       setExitCode: (code) => exitCodes.push(code),
@@ -1364,24 +1422,64 @@ describe("hosted review fan-out lifecycle", () => {
     await expect(access(providerCalled)).rejects.toThrow();
   });
 
-  it("admits the exact first-outstanding status action at the production request boundary", async () => {
+  it("preserves one production hosted request through restart, pending await, and terminal await", async () => {
     const harness = await createHarness();
-    const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
-    const status = await statusThroughHandler(harness, {
+    const { fakeBin, providerCalled, providerVerdict } = await installHostedRequestTestHost(harness);
+    const statusTarget = {
       repository,
       headRef: "delivery/delivery-plan-record/first",
       headSha: harness.oldFirst,
-    });
+    };
+    const status = await statusThroughHandler(harness, statusTarget);
     if (status.nextAction !== "review-hosted-request") throw new Error("expected hosted request");
 
     const result = await requestThroughProductionHandler(harness, fakeBin, status.action);
-
-    expect(result.exitCodes).toEqual([]);
-    expect(result.output).toMatchObject({
+    expect(result.exitCodes, JSON.stringify(result.output)).toEqual([]);
+    const requested = HostedRequestResultSchema.parse(result.output);
+    expect(requested).toMatchObject({
       state: "requested",
       handle: { target: status.action.target, vehicle: status.action.vehicle },
     });
+    if (requested.nextAction !== "await") throw new Error("expected hosted await handle");
+
+    const resumed = await statusThroughHandler(harness, statusTarget);
+    expect(resumed).toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-await",
+      action: { schemaVersion: 1, handle: requested.handle },
+    });
+    if (resumed.nextAction !== "review-hosted-await") throw new Error("expected durable hosted await");
+
+    const pending = await awaitThroughProductionHandler(harness, fakeBin, {
+      ...resumed.action,
+      timeoutSeconds: 1,
+      initialPollIntervalSeconds: 1,
+    });
+    expect(pending.exitCodes).toEqual([]);
+    expect(pending.output).toMatchObject({
+      state: "pending",
+      handle: requested.handle,
+    });
+    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-await",
+      action: { handle: requested.handle },
+    });
+
+    await writeFile(providerVerdict, "clean\n", "utf8");
+    const terminal = await awaitThroughProductionHandler(harness, fakeBin, resumed.action);
+    expect(terminal.exitCodes).toEqual([]);
+    expect(terminal.output).toMatchObject({
+      state: "clean",
+      handle: requested.handle,
+    });
+    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      deliveryCursor: { completedMemberCount: 1 },
+    });
     await expect(access(providerCalled)).resolves.toBeUndefined();
+    await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
   });
 
   it("admits an explicitly incremental first-outstanding action at the production request boundary", async () => {
@@ -1404,7 +1502,7 @@ describe("hosted review fan-out lifecycle", () => {
 
     const result = await requestThroughProductionHandler(harness, fakeBin, status.action);
 
-    expect(result.exitCodes).toEqual([]);
+    expect(result.exitCodes, JSON.stringify(result.output)).toEqual([]);
     expect(result.output).toMatchObject({
       state: "requested",
       requestedCoverage: "incremental",
@@ -1479,7 +1577,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("admits one invocation-selected hosted source and then returns to configured ordering", async () => {
+  it("keeps one invocation-selected hosted source pending before returning to configured ordering", async () => {
     const harness = await createHarness();
     const target = {
       repository,
@@ -1508,7 +1606,7 @@ describe("hosted review fan-out lifecycle", () => {
 
     const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
     const requested = await requestThroughProductionHandler(harness, fakeBin, selected.action);
-    expect(requested.exitCodes).toEqual([]);
+    expect(requested.exitCodes, JSON.stringify(requested.output)).toEqual([]);
     expect(requested.output).toMatchObject({
       state: "requested",
       handle: { provider: "codex-pr", target: selected.action.target },
@@ -1526,7 +1624,7 @@ describe("hosted review fan-out lifecycle", () => {
       deliveryHostFromState(harness),
     )).resolves.toMatchObject({
       state: "review-required",
-      action: { provider: "coderabbit-pr" },
+      awaitAction: { handle: { provider: "codex-pr" } },
     });
   });
 

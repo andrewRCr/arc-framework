@@ -18,6 +18,7 @@ import {
   laneProgressOperationId,
   recordFrontlineAttempt,
   recordHostedAwaitAttempt,
+  recordHostedPendingRequest,
   recordHostedRequestUnavailableAttempt,
   readLaneProgress,
   readLaneProgressAcrossLineage,
@@ -403,19 +404,65 @@ describe("hosted await lane recording", () => {
     expect(state?.completedPasses).toBe(1);
   });
 
-  it("records nothing when the bounded call only yielded at its deadline", async () => {
+  it("persists the request handle and advances that same attempt monotonically through await", async () => {
     const store = createStore();
-    const state = await recordHostedAwaitAttempt(store, {
+    const requested = await recordHostedPendingRequest(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      handle,
+      now: "2026-08-15T12:00:00Z",
+    });
+    const pending = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...hostedContext,
       result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "pending", nextAction: "await", elapsedMs: 10 },
-      now: "2026-08-15T12:00:00Z",
+      now: "2026-08-15T12:01:00Z",
     });
-    expect(state).toBeNull();
-    expect(store.state).toBeNull();
+    expect(requested.completedPasses).toBe(0);
+    expect(pending).toEqual(requested);
+    expect(pending?.attempts).toEqual([expect.objectContaining({
+      attemptId: hostedLaneAttemptId(handle),
+      outcome: "pending",
+      hosted: expect.objectContaining({ handle }),
+    })]);
+
+    const concluded = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.invalid/review",
+      },
+      now: "2026-08-15T12:02:00Z",
+    });
+    expect(concluded?.completedPasses).toBe(1);
+    expect(concluded?.attempts).toEqual([expect.objectContaining({
+      attemptId: hostedLaneAttemptId(handle),
+      outcome: "clean",
+      hosted: expect.objectContaining({ handle }),
+    })]);
+
+    const replay = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.invalid/review",
+      },
+      now: "2026-08-15T12:03:00Z",
+    });
+    expect(replay).toEqual(concluded);
   });
 
-  it("records nothing when unattended waiting requests inspection or extension", async () => {
+  it("retains the exact pending handle when unattended waiting requests inspection or extension", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
@@ -432,8 +479,12 @@ describe("hosted await lane recording", () => {
       now: "2026-08-15T12:00:00Z",
     });
 
-    expect(state).toBeNull();
-    expect(store.state).toBeNull();
+    expect(state?.completedPasses).toBe(0);
+    expect(state?.attempts).toEqual([expect.objectContaining({
+      attemptId: hostedLaneAttemptId(handle),
+      outcome: "pending",
+      hosted: expect.objectContaining({ handle }),
+    })]);
   });
 
   it("settles only the approved hosted finding set and is idempotent per finding", async () => {

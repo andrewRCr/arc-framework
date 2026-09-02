@@ -21,6 +21,7 @@ import {
   HostedTargetSchema,
   type HostedReviewCoverage,
 } from "./hosted/request.js";
+import { HostedAwaitEnvelopeSchema } from "./hosted/await.js";
 import { ReviewContributionApplicabilityResultSchema } from
   "./policy/review-contribution-applicability.js";
 import {
@@ -201,6 +202,21 @@ export const RoutedReviewObligationSchema = z.union([
     state: z.literal("review-required"),
     detail: z.string().min(1),
     scope: z.literal("singleton"),
+    awaitAction: HostedAwaitEnvelopeSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    conjunction: DeliveryReviewConjunctionSchema.refine(
+      (conjunction) => conjunction.status === "outstanding",
+      "delivery hosted review await requires an outstanding conjunction",
+    ),
+    awaitAction: HostedAwaitEnvelopeSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    scope: z.literal("singleton"),
     selectionAction: ReviewApplicabilitySelectionActionSchema,
   }),
   z.strictObject({
@@ -299,6 +315,7 @@ interface ReviewDischargeIntervention {
   readonly equivalentApplicabilities?: readonly z.infer<typeof ReviewContributionApplicabilityResultSchema>[];
   readonly applicabilityAuthority?: "decision-required" | "blocked";
   readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
+  readonly awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
 }
 
 function composeReviewDischargeIntervention(
@@ -368,6 +385,14 @@ function composeReviewDischargeIntervention(
       responsePlan: discharge.responsePlan,
     });
   }
+  if (discharge.awaitAction !== undefined) {
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      ...subject,
+      awaitAction: discharge.awaitAction,
+    });
+  }
   return null;
 }
 
@@ -414,6 +439,7 @@ export function composeDeliveryReviewObligation(input: {
     equivalentApplicabilities?: readonly z.infer<typeof ReviewContributionApplicabilityResultSchema>[];
     applicabilityAuthority?: "decision-required" | "blocked";
     responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
+    awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
     localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
     requestAdmission?: ReviewResolveEnvelope;
     requestCeilingOverride?: ReviewCeilingOverride;
@@ -610,6 +636,12 @@ const ReviewStatusHostedRequestSchema = z.strictObject({
   nextAction: z.literal("review-hosted-request"),
   action: HostedRequestEnvelopeSchema,
 });
+const ReviewStatusHostedAwaitSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("review-hosted-await"),
+  action: HostedAwaitEnvelopeSchema,
+});
 const ReviewStatusLocalPrepareSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("review-required"),
@@ -692,6 +724,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
   | z.infer<typeof ReviewStatusRunReviewSchema>
   | z.infer<typeof ReviewStatusHostedRequestSchema>
+  | z.infer<typeof ReviewStatusHostedAwaitSchema>
   | z.infer<typeof ReviewStatusLocalPrepareSchema>
   | z.infer<typeof ReviewStatusLocalResumeSchema>
   | z.infer<typeof ReviewStatusApplicabilitySelectionSchema>
@@ -708,6 +741,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusSettledSchema,
   ReviewStatusRunReviewSchema,
   ReviewStatusHostedRequestSchema,
+  ReviewStatusHostedAwaitSchema,
   ReviewStatusLocalPrepareSchema,
   ReviewStatusLocalResumeSchema,
   ReviewStatusApplicabilitySelectionSchema,
@@ -879,6 +913,14 @@ export async function resolveReviewStatus(
         state: "review-required",
         nextAction: "resolve-review-applicability",
         selectionAction: base.routedObligation.selectionAction,
+      };
+    }
+    if ("awaitAction" in base.routedObligation) {
+      return {
+        ...base,
+        state: "review-required",
+        nextAction: "review-hosted-await",
+        action: base.routedObligation.awaitAction,
       };
     }
     if ("action" in base.routedObligation) {
