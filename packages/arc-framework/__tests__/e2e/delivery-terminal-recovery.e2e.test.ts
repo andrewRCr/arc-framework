@@ -54,6 +54,7 @@ describe("delivery terminal recovery", () => {
     readonly nativeMergeHead: string;
     readonly externalTargetHead: string;
     readonly statePath: string;
+    readonly mutationMarker: string;
     readonly env: Record<string, string>;
   }> {
     const plan = deliveryStackPlanFixture();
@@ -193,6 +194,7 @@ describe("delivery terminal recovery", () => {
       nativeMergeHead,
       externalTargetHead,
       statePath,
+      mutationMarker,
       env: {
         PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
         ARC_FAKE_GH_MARKER: mutationMarker,
@@ -362,7 +364,7 @@ describe("delivery terminal recovery", () => {
       }))}\n`),
       ...(input.requestBase === "predecessor"
         ? []
-        : [writeFile(join(repository, "top-remedy-mutated"), "")]),
+        : [writeFile(fixture.mutationMarker, "")]),
     ]);
     if (input.reviewFix === true) {
       await writeFile(join(repository, "terminal-correction.ts"), "export const correction = true;\n");

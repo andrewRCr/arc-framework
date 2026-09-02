@@ -9,8 +9,15 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../src/lib/change-facts.js";
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
-import { createCandidateSubjectSnapshot } from "../../src/lib/work-unit/candidate-attestation.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+} from "../../src/lib/work-unit/candidate-attestation.js";
 import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
+import { projectGitCandidateEffectiveTarget } from
+  "../../src/lib/work-unit/git-candidate-effective-target.js";
+import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
@@ -30,6 +37,78 @@ function subject(source: string) {
 }
 
 describe("Candidate applicability against Git", () => {
+  it("returns typed movement when the base advances during a staged-current projection", async () => {
+    const repository = await createTempRepoCore({ prefix: "arc-candidate-effective-target-" });
+    roots.push(repository);
+    const run = async (args: string[]): Promise<string> => (
+      await execFileAsync("git", args, { cwd: repository })
+    ).stdout.trim();
+    const exec: GitExec = async (command, args, options) => {
+      const output = await execFileAsync(command, args, { cwd: options?.cwd ?? repository });
+      return { stdout: output.stdout, stderr: output.stderr };
+    };
+
+    await writeFile(join(repository, "root.txt"), "root\n", "utf8");
+    await run(["add", "root.txt"]);
+    await run(["commit", "-m", "root"]);
+    const baseHead = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "candidate"]);
+    await writeFile(join(repository, "feature.txt"), "feature\n", "utf8");
+    await run(["add", "feature.txt"]);
+    await run(["commit", "-m", "feature"]);
+    const candidateHead = await run(["rev-parse", "HEAD"]);
+    const target = await collectGitCandidateTarget({
+      cwd: repository,
+      name: "example",
+      baseBranch: "main",
+      baseRevision: baseHead,
+      revision: candidateHead,
+      exec,
+    });
+    const attestation = createCandidateAttestation({
+      workUnit: "example",
+      subject: target.subject,
+      baseRevision: baseHead,
+      attestedBy: "andrew",
+      attestedAt: "2026-09-02T12:00:00.000Z",
+      verificationEvidenceRef: "verification://staged-current-race",
+    });
+    const movedBase = "f".repeat(40);
+    const racingExec: GitExec = async (command, args, options) => {
+      if (args.join(" ") === "for-each-ref --format=%(objectname) refs/remotes/origin/main") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args.join(" ") === "rev-parse --verify main^{commit}") {
+        return { stdout: `${movedBase}\n`, stderr: "" };
+      }
+      return exec(command, args, options);
+    };
+
+    await expect(projectGitCandidateEffectiveTarget({
+      cwd: repository,
+      name: "example",
+      baseBranch: "main",
+      baseRevision: baseHead,
+      record: {
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation,
+        subject: target.subject,
+        transitions: [],
+        lineageAttestations: [],
+      },
+      exec: racingExec,
+      rawExec: async (args) => {
+        throw new Error(`Applicability must not run after endpoint movement: ${args.join(" ")}`);
+      },
+    })).resolves.toMatchObject({
+      state: "rerun-checkpoint",
+      nextAction: "rerun-checkpoint",
+      reason: "base-moved",
+      observed: { candidateHead, baseHead: movedBase },
+    });
+  });
+
   it("rederives one durable baseline through first and successive base carries", async () => {
     const repository = await createTempRepoCore({ prefix: "arc-candidate-applicability-" });
     roots.push(repository);
