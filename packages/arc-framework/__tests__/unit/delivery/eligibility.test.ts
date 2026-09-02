@@ -256,6 +256,45 @@ describe("eligibility observation bracket", () => {
     expect(mutated).toBe(false);
   });
 
+  it("preserves a suffix member offset through preparation and mutation", async () => {
+    const plan = deliveryStackPlanFixture();
+    const suffix = candidates().slice(1).map((candidate) => ({
+      ...candidate,
+      checkoutPath: "/tmp/second",
+    }));
+    const deps = dependencies();
+    const prepareMutation = vi.fn(async () => ({ status: "prepared" as const, value: "prepared-suffix" }));
+    const mutate = vi.fn(async () => ({ status: "mutated" as const }));
+
+    await expect(executeWithFreshDeliveryEligibility({
+      planId: plan.planId,
+      protectedBaseRef: "main",
+      topRef: "control",
+      memberOffset: 1,
+      candidates: suffix,
+    }, {
+      ...deps,
+      resolveOriginatingTopRef: async () => "control",
+      resolveLifecyclePaths: async () => [],
+      prepareMutation,
+      mutate,
+    })).resolves.toEqual({ status: "mutated" });
+
+    const expectedMember = expect.objectContaining({
+      deliverableId: plan.members[1]!.deliverableId,
+      ref: "candidate/second",
+    });
+    expect(prepareMutation).toHaveBeenCalledWith({
+      plan,
+      snapshot: expect.objectContaining({ members: [expectedMember] }),
+    });
+    expect(mutate).toHaveBeenCalledWith({
+      plan,
+      snapshot: expect.objectContaining({ members: [expectedMember] }),
+      prepared: "prepared-suffix",
+    });
+  });
+
   it("refuses mutation when a post-gate candidate checkout moved", async () => {
     const deps = dependencies();
     let mutated = false;

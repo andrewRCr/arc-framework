@@ -3,6 +3,7 @@
 import { resolve } from "node:path";
 
 import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
+import type { RawGitExec } from "../../lib/change-facts.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
 import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
@@ -29,6 +30,7 @@ import { proveGitDeliveryContribution } from "../../lib/delivery/git-contributio
 import { classifyDeliveryTerminalDrift } from "../../lib/delivery/terminal-integration.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import { resolveChangeRequest } from "../review-gate/change-request.js";
 import { lifecycleArtifactFacts, type ReviewReadinessFact } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
@@ -71,6 +73,21 @@ interface CachedCandidate {
   recordVersion: string;
   effective: CandidateEffectiveTargetProjection;
   currentness: CandidateEffectiveCurrentnessProjection;
+}
+
+/**
+ * Decide whether the open request targets the configured base or its validated delivery predecessor.
+ *
+ * @param input - Observed request base plus the two authoritative admitted-base sources.
+ * @returns True only when one authority admits the observed base.
+ */
+export function checkpointBaseIsAccepted(input: {
+  candidateBaseRef: string;
+  configuredBaseRef: string;
+  acceptableDeliveryBaseRefs: readonly string[];
+}): boolean {
+  return input.candidateBaseRef === input.configuredBaseRef
+    || input.acceptableDeliveryBaseRefs.includes(input.candidateBaseRef);
 }
 
 export type IntegrationLifecycleReadFs = NonNullable<
@@ -132,11 +149,11 @@ async function readCoordinate(exec: GitExec, cwd: string, head: string): Promise
 }
 
 async function readDiffPaths(
-  cwd: string,
+  rawExec: RawGitExec,
   fromRevision: string,
   throughRevision: string,
 ): Promise<string[]> {
-  const result = await createRawGitExec(cwd)([
+  const result = await rawExec([
     "diff", "--name-only", "-z", "--no-renames", fromRevision, throughRevision, "--",
   ], { objectAccess: "local-only" });
   const output = new TextDecoder("utf-8", { fatal: true }).decode(result.stdout);
@@ -149,24 +166,25 @@ async function resolveOpenChangeRequest(exec: GitExec, cwd: string) {
   const target = await currentHead(exec, cwd);
   const baseRef = (await readConfigSettings(cwd)).settings["branch.base"];
   const memberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd });
+  const acceptableBaseRefs = await resolveAcceptableDeliveryBaseRefs(memberLookup, target.head);
   const result = await resolveChangeRequest(
     {
       headRef: target.branch,
       headSha: target.head,
       baseRef,
-      acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(memberLookup, target.head),
+      acceptableBaseRefs,
     },
     createGhChangeRequestResolutionPort(exec, cwd),
   );
   if (result.state !== "open") {
     throw new Error(`The exact integration head has no reusable open change request (${result.state}).`);
   }
-  return result;
+  return { changeRequest: result, acceptableBaseRefs };
 }
 
 async function readHostFact(exec: GitExec, cwd: string): Promise<ReconcileHostFact> {
   try {
-    const changeRequest = await resolveOpenChangeRequest(exec, cwd);
+    const { changeRequest } = await resolveOpenChangeRequest(exec, cwd);
     const repository = changeRequest.targetRef.repository;
     const pullRequest = changeRequest.candidate.number;
     const live = parseRecord(
@@ -260,6 +278,7 @@ export async function readLifecycleSummary(
 export function createIntegrationCheckpointDependencies(input: {
   cwd: string;
   exec: GitExec;
+  rawExec?: RawGitExec;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
 }): IntegrationCheckpointDependencies {
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
@@ -269,15 +288,20 @@ export function createIntegrationCheckpointDependencies(input: {
   };
   const candidates = new Map<string, Promise<CachedCandidate | null>>();
   const candidateBaseRevisions = new Map<string, string>();
-  const rawGit = createRawGitExec(input.cwd);
+  const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
   let identityPromise: ReturnType<typeof resolveIdentity> | null = null;
   const identity = () => {
     identityPromise ??= resolveIdentity({ exec: input.exec });
     return identityPromise;
   };
   const composeLineageReview = createLineageReviewComposer(input);
-  const readHostedReservationDischarge = createHostedReservationDischargeReader(input);
   const deliveryLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
+  const deliveryHost = new GhDeliveryHostPort(hostedGhRunner);
+  const readHostedReservationDischarge = createHostedReservationDischargeReader({
+    ...input,
+    delivery: deliveryLookup,
+    host: deliveryHost,
+  });
   const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
   const lifecycleStorage = input.lifecycleStorage ?? {
     readSnapshot: async () => {
@@ -312,7 +336,7 @@ export function createIntegrationCheckpointDependencies(input: {
           baseRevision: effectiveBase,
           record,
           exec: input.exec,
-          rawExec: rawGit,
+          rawExec,
         });
         return {
           record,
@@ -372,14 +396,14 @@ export function createIntegrationCheckpointDependencies(input: {
           return { status: "unavailable", detail: "The delivery predecessor coordinate is unavailable." };
         }
         const residualPaths = await readDiffPaths(
-          input.cwd,
+          rawExec,
           highestCoordinate.head,
           currentness.recognizedRevision,
         );
         const firstCoordinate = nonTerminal[0]?.coordinates;
         const predecessorPaths = firstCoordinate == null
           ? []
-          : await readDiffPaths(input.cwd, firstCoordinate.base, highestCoordinate.head);
+          : await readDiffPaths(rawExec, firstCoordinate.base, highestCoordinate.head);
         const classified = classifyDeliveryTerminalDrift({
           substantivePaths: drift.overlap.substantivePaths,
           regenerablePaths: drift.overlap.regenerablePaths,
@@ -566,6 +590,7 @@ export function createIntegrationCheckpointDependencies(input: {
           baseRevision: terminal.coordinates.base,
         },
         delivery: deliveryLookup,
+        host: deliveryHost,
       });
       if (targetResolution.status !== "resolved" || targetResolution.kind !== "delivery"
         || targetResolution.targets.length !== members.length) {
@@ -585,14 +610,15 @@ export function createIntegrationCheckpointDependencies(input: {
           head: member.coordinates.head,
         };
       });
-      const discharges = await Promise.all(targetResolution.targets.map(async (target) => (
-        readHostedReservationDischarge({
-          reservation: publicationBoundary.reservation,
-          baseRevision: target.baseRevision,
-          approvedHead: target.headSha,
-          changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
-        })
-      )));
+      const firstTarget = targetResolution.targets[0];
+      if (firstTarget === undefined) throw new Error("The delivery member review targets are unavailable.");
+      const discharge = await readHostedReservationDischarge({
+        workUnitId: workUnit,
+        reservation: publicationBoundary.reservation,
+        baseRevision: firstTarget.baseRevision,
+        approvedHead: firstTarget.headSha,
+        changeRequest: { repository: firstTarget.repository, pullRequest: firstTarget.pullRequest },
+      });
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
       const mergeBase = await resolveGitCandidateTargetBase({
         cwd: input.cwd,
@@ -616,12 +642,12 @@ export function createIntegrationCheckpointDependencies(input: {
         publication: { candidateId: publicationBoundary.candidateId, head: currentness.recognizedRevision },
         top,
         review: {
-          status: discharges.every((discharge) => discharge.discharged) ? "discharged" : "outstanding",
+          status: discharge.discharged ? "discharged" : "outstanding",
           targets: reviewTargets,
         },
         readCandidateCoordinate: (head) => readCoordinate(input.exec, input.cwd, head),
         proveResidual: (endpoints) => proveGitDeliveryContribution({
-          exec: createRawGitExec(input.cwd),
+          exec: rawExec,
           ...endpoints,
         }),
       });
@@ -635,7 +661,7 @@ export function createIntegrationCheckpointDependencies(input: {
       );
     },
     composeReady: async ({ workUnit, lifecycle, candidate: currentness, delivery }) => {
-      const [value, changeRequest, publicationBoundary] = await Promise.all([
+      const [value, resolvedChangeRequest, publicationBoundary] = await Promise.all([
         candidate(workUnit),
         resolveOpenChangeRequest(input.exec, input.cwd),
         boundary(workUnit),
@@ -646,6 +672,7 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The effective Candidate target changed during checkpoint composition.");
       }
       if (publicationBoundary === null) throw new Error("The durable publication boundary is unavailable.");
+      const { changeRequest, acceptableBaseRefs } = resolvedChangeRequest;
       if (publicationBoundary.candidateId !== value.record.attestation.candidateId
         || publicationBoundary.candidateSubjectDigest
           !== value.effective.recognizedTarget.subject.subjectDigest) {
@@ -656,7 +683,11 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The durable publication boundary has not entered public integration.");
       }
       const configuredBase = (await settings()).settings["branch.base"];
-      if (changeRequest.candidate.baseRefName !== configuredBase) {
+      if (!checkpointBaseIsAccepted({
+        candidateBaseRef: changeRequest.candidate.baseRefName,
+        configuredBaseRef: configuredBase,
+        acceptableDeliveryBaseRefs: acceptableBaseRefs,
+      })) {
         throw new Error("The open change request targets a different branch than the configured base.");
       }
       // The boundary's own derivation decides whether a hosted review is due at this exact head;
@@ -680,6 +711,7 @@ export function createIntegrationCheckpointDependencies(input: {
             detail: `Every derived delivery-member review is discharged (${delivery.checks.targets.length} checked).`,
           }
         : await readHostedReservationDischarge({
+            workUnitId: workUnit,
             reservation: publicationBoundary.reservation,
             baseRevision: value.record.attestation.baseRevision,
             approvedHead: currentness.recognizedRevision,

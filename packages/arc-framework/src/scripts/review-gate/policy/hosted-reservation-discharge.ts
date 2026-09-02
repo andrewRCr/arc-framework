@@ -2,6 +2,7 @@
 
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
+import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
@@ -14,6 +15,13 @@ type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded"
 export interface HostedReservationDischarge {
   discharged: boolean;
   detail: string;
+}
+
+/** Decide the work-unit obligation from its ordered member discharges. */
+export function allHostedReservationTargetsDischarged(
+  discharges: readonly Pick<HostedReservationDischarge, "discharged">[],
+): boolean {
+  return discharges.every(({ discharged }) => discharged);
 }
 
 /** One exact hosted target and its contribution span base. */
@@ -38,6 +46,7 @@ export async function resolveHostedReservationTargets(input: {
   readonly workUnitId: string;
   readonly singleton: HostedReservationTarget;
   readonly delivery: DeliveryDischargeTargetLookup;
+  readonly host: Pick<DeliveryHostPort, "readRequest">;
 }): Promise<HostedReservationTargetResolution> {
   try {
     const resolved = await input.delivery.resolveDischargeTargets(input.workUnitId);
@@ -45,19 +54,42 @@ export async function resolveHostedReservationTargets(input: {
       return { status: "resolved", kind: "singleton", targets: [input.singleton] };
     }
     if (resolved.status === "unavailable") return { status: "unavailable", targets: [] };
+    if (resolved.targets.length === 0) return { status: "unavailable", targets: [] };
     const targets: HostedReservationTarget[] = [];
+    const requestIds = new Set<string>();
+    let baseRevision = input.singleton.baseRevision;
     for (const binding of resolved.targets) {
       if (!/^[1-9][0-9]*$/u.test(binding.changeRequestId)) {
         return { status: "unavailable", targets: [] };
       }
       const pullRequest = Number(binding.changeRequestId);
       if (!Number.isSafeInteger(pullRequest)) return { status: "unavailable", targets: [] };
+      const requestKey = `${binding.providerId}:${binding.changeRequestId}`;
+      if (requestIds.has(requestKey)) return { status: "unavailable", targets: [] };
+      requestIds.add(requestKey);
+      const observed = await input.host.readRequest(input.singleton.repository, {
+        providerId: binding.providerId,
+        changeRequestId: binding.changeRequestId,
+      });
+      if (observed.status !== "observed") return { status: "unavailable", targets: [] };
+      const request = observed.request;
+      const expectedHeadRef = binding.ref?.replace(/^refs\/heads\//u, "") ?? null;
+      if (request.binding.providerId !== binding.providerId
+        || request.binding.changeRequestId !== binding.changeRequestId
+        || request.repository.toLowerCase() !== input.singleton.repository.toLowerCase()
+        || request.headRepository.toLowerCase() !== input.singleton.repository.toLowerCase()
+        || request.state === "closed"
+        || (expectedHeadRef !== null && request.headRef !== expectedHeadRef)
+        || (request.state === "open" && request.headSha !== binding.head)) {
+        return { status: "unavailable", targets: [] };
+      }
       targets.push({
         repository: input.singleton.repository,
         pullRequest,
-        headSha: binding.head,
-        baseRevision: binding.base,
+        headSha: request.headSha,
+        baseRevision,
       });
+      baseRevision = request.headSha;
     }
     return { status: "resolved", kind: "delivery", targets };
   } catch {
@@ -133,7 +165,10 @@ export async function projectHostedReservationDischarge(input: {
 export function createHostedReservationDischargeReader(input: {
   cwd: string;
   exec: GitExec;
+  delivery: DeliveryDischargeTargetLookup;
+  host: Pick<DeliveryHostPort, "readRequest">;
 }): (args: {
+  workUnitId: string;
   reservation: StandardReviewReservationV1 | null;
   baseRevision: string;
   approvedHead: string;
@@ -147,7 +182,40 @@ export function createHostedReservationDischargeReader(input: {
     return repositoryIdPromise;
   };
 
-  return async ({ reservation, baseRevision, approvedHead, changeRequest }) => {
+  const readTarget = async (
+    reservation: StandardReviewReservationV1,
+    target: HostedReservationTarget,
+  ): Promise<HostedReservationDischarge> => {
+    let stdout: string;
+    try {
+      ({ stdout } = await input.exec("git", ["rev-list", `${target.baseRevision}..${target.headSha}`], {
+        cwd: input.cwd,
+        objectAccess: "local-only",
+      }));
+    } catch {
+      return {
+        discharged: false,
+        detail: "The reserved hosted-review target span is unavailable.",
+      };
+    }
+    const span = [target.baseRevision, ...stdout.trim().split("\n").filter((line) => line !== "")];
+    return projectHostedReservationDischarge({
+      reservation,
+      span,
+      target: {
+        repository: target.repository,
+        pullRequest: target.pullRequest,
+        headSha: target.headSha,
+      },
+      readLaneProgress: async (headSha) => readLaneProgress(store, {
+        lane: "standard",
+        repositoryId: await repositoryId(),
+        headSha,
+      }),
+    });
+  };
+
+  return async ({ workUnitId, reservation, baseRevision, approvedHead, changeRequest }) => {
     if (reservation === null) {
       return projectHostedReservationDischarge({
         reservation,
@@ -156,20 +224,48 @@ export function createHostedReservationDischargeReader(input: {
         readLaneProgress: () => Promise.resolve({ status: "unrecorded" }),
       });
     }
-    const { stdout } = await input.exec("git", ["rev-list", `${baseRevision}..${approvedHead}`], {
-      cwd: input.cwd,
-      objectAccess: "local-only",
+    const singleton = changeRequest === null ? null : {
+      ...changeRequest,
+      headSha: approvedHead,
+      baseRevision,
+    };
+    if (singleton === null) {
+      return {
+        discharged: false,
+        detail: "The reserved hosted review has no exact open change-request target.",
+      };
+    }
+    const resolution = await resolveHostedReservationTargets({
+      workUnitId,
+      singleton,
+      delivery: input.delivery,
+      host: input.host,
     });
-    const span = [baseRevision, ...stdout.trim().split("\n").filter((line) => line !== "")];
-    return projectHostedReservationDischarge({
-      reservation,
-      span,
-      target: changeRequest === null ? null : { ...changeRequest, headSha: approvedHead },
-      readLaneProgress: async (headSha) => readLaneProgress(store, {
-        lane: "standard",
-        repositoryId: await repositoryId(),
-        headSha,
-      }),
-    });
+    if (resolution.status === "unavailable") {
+      return { discharged: false, detail: "The reserved hosted-review targets are unavailable." };
+    }
+    const discharges: HostedReservationDischarge[] = [];
+    for (const target of resolution.targets) {
+      discharges.push(await readTarget(reservation, target));
+    }
+    if (!allHostedReservationTargetsDischarged(discharges)) {
+      const index = discharges.findIndex(({ discharged }) => !discharged);
+      const discharge = discharges[index];
+      if (discharge === undefined) {
+        return { discharged: false, detail: "The reserved hosted-review target is unavailable." };
+      }
+      return resolution.kind === "delivery"
+        ? { ...discharge, detail: `Delivery member ${index + 1}: ${discharge.detail}` }
+        : discharge;
+    }
+    const details = discharges.map(({ detail }) => detail);
+    return resolution.kind === "delivery"
+      ? {
+          discharged: true,
+          detail: `All ${resolution.targets.length} delivery members are discharged (${details.join(" ")})`,
+        }
+      : details.length === 1
+        ? { discharged: true, detail: details[0] ?? "Hosted review discharged." }
+        : { discharged: false, detail: "The reserved hosted-review target is unavailable." };
   };
 }
