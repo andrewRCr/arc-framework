@@ -18,6 +18,26 @@ export interface MergeMethodPolicyPort {
   readPolicy(repository: string): Promise<Record<MergeMethod, boolean>>;
 }
 
+/**
+ * Compose the canonical command that re-runs merge-method resolution for one stack position.
+ *
+ * @param stackPosition - Delivery position retained by the retry.
+ * @returns Argument vector for the public merge-method resolver.
+ */
+export function mergeMethodResolveArgv(stackPosition: MergeMethodStackPosition): string[] {
+  return stackPosition === "non-delivery"
+    ? ["arc", "review", "merge-method", "resolve", "--json"]
+    : [
+        "arc",
+        "review",
+        "merge-method",
+        "resolve",
+        "--stack-position",
+        stackPosition,
+        "--json",
+      ];
+}
+
 const MergeMethodResultBaseShape = {
   schemaVersion: z.literal(1),
   mode: z.literal("review-merge-method-resolve"),
@@ -118,20 +138,9 @@ export async function resolveMergeMethod(
 }
 
 function mergeMethodRemedy(stackPosition: MergeMethodStackPosition): SpineRemedy {
-  const argv = stackPosition === "non-delivery"
-    ? ["arc", "review", "merge-method", "resolve", "--json"]
-    : [
-        "arc",
-        "review",
-        "merge-method",
-        "resolve",
-        "--stack-position",
-        stackPosition,
-        "--json",
-      ];
   return spineRemedy(
     "The configured merge method must match readable repository policy.",
     "Align merge.strategy with repository policy, then re-run",
-    argv,
+    mergeMethodResolveArgv(stackPosition),
   );
 }

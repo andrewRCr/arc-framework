@@ -197,7 +197,13 @@ async function observeMember(
           requestState,
           terminalAuthoringMovement: {
             deliverableId: member.deliverableId,
-            before: member.coordinates,
+            before: remoteAuthoringMovement
+              ? {
+                base: member.coordinates.base,
+                head: coordinates.head,
+                tree: coordinates.tree,
+              }
+              : member.coordinates,
             after: {
               base: member.coordinates.base,
               head: localCoordinates.head,
