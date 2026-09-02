@@ -118,6 +118,10 @@ export interface DeliveryTerminalReviewFixCandidate {
   readonly currentTarget: CandidateLineageTarget;
   readonly selectedDeliverableId: string;
   readonly memberDeliverableIds: readonly string[];
+  readonly retainedTerminalTarget: {
+    readonly revision: string;
+    readonly baselineRelation: "exact" | "ancestor";
+  };
   readonly convergenceVerification: "satisfied";
 }
 
@@ -197,8 +201,8 @@ export function rebindDeliveryTerminalCoordinates(input: {
     || terminal.coordinates === null || target === null) {
     return { status: "refused", reason: "terminal-binding-missing" };
   }
+  const pending = validated.state.pendingReviewFixVerification;
   if (reviewFix) {
-    const pending = validated.state.pendingReviewFixVerification;
     const samePendingScope = pending !== null
       && pending.selectedDeliverableId === input.candidate.selectedDeliverableId
       && canonicalize(pending.memberDeliverableIds)
@@ -209,8 +213,14 @@ export function rebindDeliveryTerminalCoordinates(input: {
       return { status: "refused", reason: "candidate-coordinate-mismatch" };
     }
   }
-  if (reviewFix && durableBaseline.data.revision !== terminal.coordinates.head) {
-    return { status: "refused", reason: "candidate-not-current" };
+  if (reviewFix) {
+    const retained = input.candidate.retainedTerminalTarget;
+    if (retained.revision !== terminal.coordinates.head
+      || (retained.baselineRelation === "exact"
+        && durableBaseline.data.revision !== retained.revision)
+      || (retained.baselineRelation === "ancestor" && pending === null)) {
+      return { status: "refused", reason: "candidate-not-current" };
+    }
   }
   const coordinates = DeliveryMemberCoordinatesV1Schema.safeParse(input.coordinates);
   if (!coordinates.success

@@ -3887,6 +3887,15 @@ async function executeDeliveryCommand(
             || baselineCurrentness.convergenceVerification !== "satisfied") {
             return { status: "refused", reason: "candidate-baseline-unverified" };
           }
+          const retainedTerminalTarget = baseline.target.revision === terminal.coordinates.head
+            ? { revision: terminal.coordinates.head, baselineRelation: "exact" as const }
+            : terminalCoveredByPendingVerification
+              && await readAncestry(localExec, baseline.target.revision, terminal.coordinates.head) === "ancestor"
+              ? { revision: terminal.coordinates.head, baselineRelation: "ancestor" as const }
+              : null;
+          if (retainedTerminalTarget === null) {
+            return { status: "refused", reason: "candidate-not-current" };
+          }
           const head = await observeDeliveryEligibilityRef(localExec, "HEAD");
           if (head === null || head.head === terminal.coordinates.head
             || await readAncestry(localExec, terminal.coordinates.head, head.head) !== "ancestor") {
@@ -3925,6 +3934,7 @@ async function executeDeliveryCommand(
             selectedDeliverableId: parsed.reviewFixSelectedDeliverableId,
             memberDeliverableIds: pendingVerification?.memberDeliverableIds
               ?? [parsed.reviewFixSelectedDeliverableId],
+            retainedTerminalTarget,
             convergenceVerification: "satisfied",
           };
           candidateTargetRevision = currentTarget.revision;
