@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3236,22 +3236,35 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               cap; this bootstrap projection adds no third pass.
             - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
-    - `[ ]` **7.7.R.y Refuse provider refresh over checked-out member refs**
+    - `[x]` **7.7.R.y Refuse provider refresh over checked-out member refs**
 
         - _Goal:_ Provider refresh never moves a canonical member ref behind a registered worktree's index and files,
           and its typed refusal identifies the exact checkout that must be realigned or removed before retry.
 
-        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue — decision
-          record (2026-08-31), Amendment 7.
-
-        - Build `test-first` (one behavior at a time):
-            - Check the exact canonical non-terminal refs that a prepared provider result would move before
-              reservation, return every registered checkout path, reap private candidates, and leave Delivery State
-              plus local and remote canonical refs unchanged.
-            - Recheck a retained refresh operation before pending publication, preserve the operation on refusal, and
-              distinguish detached authoring or resolution gates from canonical-ref occupancy.
-            - Exercise the guard with real Git worktrees and prove an unoccupied refresh retains its existing
-              publication path.
+        - _Outcome:_ Member 7 criteria report.
+            - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+            - _Span:_ bounded diff `f4b0716bf..58eef1f4a`; cumulative reachability `58eef1f4a`. Boundary-order
+              deviation: exact top absorption `3cef71b98` retained the newer integration machinery and supplied one
+              top-only dependency-fixture update required by the guard's production composition.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the guard
+              composes only into provider refresh execution and leaves carried review reservations, per-member
+              targets, and conjunction discharge unchanged.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ occupied
+              canonical refs refuse before reservation and publication, while unoccupied execution retains the
+              existing contribution arbiter and publishes only the already-proved changed vector.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ no review
+              record, applicability selection, attempt lookup, or exact member selector changes; the observation is
+              a Git mutation precondition only.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ fresh
+              refusal reaps private candidates without state movement, while retained-operation refusal preserves
+              the exact operation for typed reconciliation and recovery.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ the existing
+              correction driver returns the typed conflict and verification stops unchanged; real-Git worktree
+              coverage proves exact paths, unchanged state and refs, detached-gate exclusion, and ordinary
+              unoccupied publication without a new orchestration record or control loop.
+            - _Adversarial companion:_ the Heavy Member 7 two-pass cap remains exhausted; this bounded guard does not
+              claim or spend a third pass.
+            - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 8:** Record retirement and doctrine
 
