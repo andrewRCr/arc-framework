@@ -4,6 +4,7 @@ import { posix } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { projectDurableCandidateTarget } from "../../helpers/candidate.js";
 import type { LoadSetProjectionInput } from "../../../src/lib/load-set/projection.js";
 import {
   projectCheckoutSubjectMeta,
@@ -17,11 +18,8 @@ import {
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
-  reduceCandidateDurableBaseline,
   serializeCandidateManagedRecord,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
-import { projectEffectiveCandidateTarget } from
-  "../../../src/lib/work-unit/candidate-effective-target.js";
 
 const resolverInputs = vi.hoisted(() => [] as LoadSetProjectionInput[]);
 
@@ -46,17 +44,7 @@ function subjectIO(files: ReadonlyMap<string, string>): SubjectMetaIO {
     pathExists: async (path) => files.has(path),
     realpath: async (path) => posix.normalize(path),
     lstat: async () => ({ isSymbolicLink: () => false }),
-    projectCandidateTarget: async ({ record }) => {
-      const baseline = reduceCandidateDurableBaseline(record);
-      return projectEffectiveCandidateTarget({
-        record,
-        current: baseline.target,
-        currentBase: record.attestation.baseRevision,
-        projectApplicability: async () => {
-          throw new Error("A durable target must not request applicability.");
-        },
-      });
-    },
+    projectCandidateTarget: projectDurableCandidateTarget,
   };
 }
 
