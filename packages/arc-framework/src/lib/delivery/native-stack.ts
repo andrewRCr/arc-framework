@@ -35,7 +35,8 @@ export type DeriveDeliveryNativeRegistrationInputResult =
   | { readonly status: "derived"; readonly input: DeliveryNativeStackInput }
   | {
       readonly status: "refused";
-      readonly reason: "invalid-input" | "state-mismatch" | "protected-target-mismatch" | "member-unbound";
+      readonly reason: "invalid-input" | "state-mismatch" | "protected-target-mismatch" | "member-unbound"
+        | "no-registrable-members";
     };
 
 /**
@@ -63,6 +64,9 @@ export function deriveDeliveryNativeRegistrationInput(input: {
   }
 
   const registeredStateMembers = coherence.state.members.slice(0, -1);
+  if (registeredStateMembers.length === 0) {
+    return { status: "refused", reason: "no-registrable-members" };
+  }
   const members: DeliveryNativeStackMember[] = [];
   for (const [index, member] of registeredStateMembers.entries()) {
     if (member.ref === null || !member.ref.startsWith("refs/heads/")
@@ -225,6 +229,12 @@ export async function linkPlannedDeliveryNativeStack(input: {
   }
   const derived = deriveDeliveryNativeRegistrationInput(input);
   if (derived.status !== "derived") {
+    if (derived.reason === "no-registrable-members") {
+      return {
+        status: "unlinked",
+        recommendedActionText: "No non-terminal member needs native registration; continue ordinary terminal integration.",
+      };
+    }
     return {
       status: "refused",
       reason: derived.reason,
@@ -326,6 +336,12 @@ export async function degradePlannedDeliveryNativeStack(input: {
       baseRef: target.targetRef,
     })
     : null;
+  if (derived?.status === "refused" && derived.reason === "no-registrable-members") {
+    return {
+      status: "unlinked",
+      recommendedActionText: "No non-terminal member has native linkage to remove; continue ordinary terminal integration.",
+    };
+  }
   if (derived === null || derived.status !== "derived"
     || !matchesRegistrationSubject(
       { repository: input.repository, members: input.members },
@@ -337,7 +353,7 @@ export async function degradePlannedDeliveryNativeStack(input: {
       recommendedActionText: "Use only the exact currently bound non-terminal native members.",
     };
   }
-  return degradeNativeDeliveryStack({ repository: input.repository, members: input.members }, port);
+  return degradeNativeDeliveryStack(derived.input, port);
 }
 
 /** Remove presentation linkage and admit sequential execution only after a fresh unregistered read. */

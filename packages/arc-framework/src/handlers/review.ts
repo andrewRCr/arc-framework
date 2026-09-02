@@ -246,6 +246,7 @@ import {
   MergeMethodSchema,
   MergeMethodStackPositionSchema,
   MergeMethodResolveResultSchema,
+  mergeMethodResolveArgv,
   resolveMergeMethod,
   type MergeMethodResolveResult,
   type MergeMethodStackPosition,
@@ -633,17 +634,7 @@ export async function handleReviewMergeMethodResolve(
       remedy: spineRemedy(
         "The configured merge method must come from readable project and repository policy.",
         "Run from the target ARC project after repairing its configuration, then re-run",
-        stackPosition === "non-delivery"
-          ? ["arc", "review", "merge-method", "resolve", "--json"]
-          : [
-              "arc",
-              "review",
-              "merge-method",
-              "resolve",
-              "--stack-position",
-              stackPosition,
-              "--json",
-            ],
+        mergeMethodResolveArgv(stackPosition),
       ),
     }))}\n`);
     dependencies.setExitCode(1);

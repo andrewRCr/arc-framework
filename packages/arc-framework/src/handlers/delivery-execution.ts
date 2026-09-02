@@ -449,11 +449,14 @@ const NativeObserveSchema = z.strictObject({
   repository: z.string().min(1),
   members: z.array(NativeMemberSchema).min(1),
 });
-const NativeUnlinkSchema = NativeObserveSchema.extend({ planId: DeliveryPlanIdSchema });
+const NativeUnlinkSchema = NativeObserveSchema.extend({
+  planId: DeliveryPlanIdSchema,
+  members: z.array(NativeMemberSchema),
+});
 const NativeLinkSchema = NativeObserveSchema.extend({
   planId: DeliveryPlanIdSchema,
   protectedBaseRef: RefSchema,
-  members: z.array(NativeMemberSchema).min(1),
+  members: z.array(NativeMemberSchema),
   optIn: z.boolean().optional(),
 });
 const NativeLandingMemberSchema = z.strictObject({
@@ -480,7 +483,9 @@ const NativePrepareSchema = z.strictObject({
   selection: NativeSelectionSchema,
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
-  baseRef: z.string().min(1),
+  baseRef: z.string().min(1).refine((value) => !value.startsWith("refs/"), {
+    message: "baseRef must be a short branch name",
+  }),
   targetRef: RefSchema,
   treeRoot: z.string().min(1),
 });
@@ -3661,8 +3666,14 @@ async function executeDeliveryCommand(
     }
     const target = deriveDeliveryNativeTarget(stateRead.value.value);
     const firstRemaining = planRead.value.members[position.position.landedPrefix.length];
-    if (target.status !== "resolved" || firstRemaining === undefined
-      || position.position.landedPrefix.length >= planRead.value.members.length - 1) {
+    if (position.position.landedPrefix.length >= planRead.value.members.length - 1) {
+      return {
+        status: "blocked",
+        reason: "no-nonterminal-remainder",
+        recommendedActionText: "Continue ordinary terminal integration; no non-terminal native member remains.",
+      };
+    }
+    if (target.status !== "resolved" || firstRemaining === undefined) {
       return {
         status: "blocked",
         reason: "protected-target-mismatch",

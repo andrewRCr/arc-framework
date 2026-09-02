@@ -4,7 +4,10 @@ import { posix } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { projectDurableCandidateTarget } from "../../helpers/candidate.js";
+import {
+  projectCandidateApplicabilityDecision,
+  projectDurableCandidateTarget,
+} from "../../helpers/candidate.js";
 import type { LoadSetProjectionInput } from "../../../src/lib/load-set/projection.js";
 import {
   projectCheckoutSubjectMeta,
@@ -19,14 +22,8 @@ import {
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
-  reduceCandidateDurableBaseline,
   serializeCandidateManagedRecord,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
-import { classifyCandidateApplicability } from
-  "../../../src/lib/work-unit/candidate-applicability.js";
-import type { CandidateTargetProjector } from
-  "../../../src/lib/work-unit/candidate-effective-target.js";
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 
 const resolverInputs = vi.hoisted(() => [] as LoadSetProjectionInput[]);
 
@@ -79,40 +76,6 @@ function candidateRecord(slug: string): { candidateId: string; subjectDigest: st
     }),
   };
 }
-
-const projectCandidateApplicabilityDecision: CandidateTargetProjector = async ({ record }) => {
-  const baseline = reduceCandidateDurableBaseline(record);
-  const currentSubject = createCandidateSubjectSnapshot([{
-    path: "packages/arc-framework/src/example.ts",
-    mode: "100644",
-    digest: canonicalDigest({ source: "changed" }),
-    treatment: "reviewable",
-  }]);
-  const decision = classifyCandidateApplicability({
-    candidateId: baseline.candidateId,
-    baselineTarget: baseline.target,
-    currentTarget: { revision: "b".repeat(40), subject: currentSubject },
-    currentBase: "c".repeat(40),
-  }, {
-    endpoints: {
-      before: {
-        predecessor: { head: "1".repeat(40), tree: "2".repeat(40) },
-        member: { head: baseline.target.revision, tree: "3".repeat(40) },
-      },
-      after: {
-        predecessor: { head: "4".repeat(40), tree: "5".repeat(40) },
-        member: { head: "b".repeat(40), tree: "6".repeat(40) },
-      },
-    },
-    proof: {
-      status: "refused",
-      reason: "contribution-diverged",
-      paths: ["packages/arc-framework/src/example.ts"],
-    },
-  });
-  if (decision.state !== "decision-required") throw new Error("expected an applicability decision");
-  return decision;
-};
 
 function ownerAcceptedPublishBoundary(input: {
   slug: string;

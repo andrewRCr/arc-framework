@@ -54,6 +54,11 @@ export function deliveryFourMemberStackPlanFixture(planId = defaultPlanId): Deli
   return buildDeliveryPlanFixture(planId, "stack-to-main", 4);
 }
 
+/** Construct a valid independently-landable five-member stack plan. */
+export function deliveryFiveMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 5);
+}
+
 /** Construct a valid independently-landable eight-member stack plan. */
 export function deliveryEightMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
   return buildDeliveryPlanFixture(planId, "stack-to-main", 8);
@@ -67,7 +72,16 @@ function buildDeliveryPlanFixture(
   workUnitId = "delivery-plan-record",
 ): DeliveryPlanV1 {
   const resolvedMemberTitles = memberTitles
-    ?? ["First member", "Second member", "Third member", "Fourth member"];
+    ?? [
+      "First member",
+      "Second member",
+      "Third member",
+      "Fourth member",
+      "Fifth member",
+      "Sixth member",
+      "Seventh member",
+      "Eighth member",
+    ];
   const ordinalNames = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"];
   const chunkKeys = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
   const assignableParents = Array.from({ length: memberCount }, (_, index) => ({

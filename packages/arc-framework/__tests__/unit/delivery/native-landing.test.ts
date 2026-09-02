@@ -109,6 +109,18 @@ describe("native delivery landing", () => {
     })).toMatchObject({ status: "selected", arm: "linked-single", members: [heads[1]] });
   });
 
+  it("reports an exhausted nonterminal remainder before provider-target failures", () => {
+    expect(selectNativeDeliveryLandingArm({
+      plan,
+      landedPrefix: heads.map((member) => member.deliverableId),
+      observation: { status: "unavailable" },
+      mergeStrategy: "merge",
+      mergeAction: "direct",
+      explicitAtomic: false,
+      members: [],
+    })).toMatchObject({ status: "blocked", reason: "no-nonterminal-remainder" });
+  });
+
   it("reobserves a linked-single landing against the complete registered remainder", () => {
     const chainPlan = deliveryFourMemberStackPlanFixture();
     const state = deliveryStateFixture(chainPlan);

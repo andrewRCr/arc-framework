@@ -4,6 +4,7 @@ import { handleDeliveryExecution } from "../../../src/handlers/delivery-executio
 import { GitCommonStateAccessError } from "../../../src/lib/git-common-state.js";
 import {
   deliveryFourMemberStackPlanFixture,
+  deliverySingleMemberStackPlanFixture,
   deliveryStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
@@ -944,6 +945,36 @@ describe("delivery execution handler", () => {
     expect(JSON.parse(output)).toMatchObject({ status: "unlinked" });
   });
 
+  it("admits an empty planned native subject for a terminal-only delivery", async () => {
+    const plan = deliverySingleMemberStackPlanFixture();
+    for (const command of ["native-link", "native-unlink"] as const) {
+      const execute = vi.fn().mockResolvedValue({
+        status: "unlinked",
+        recommendedActionText: "Continue ordinary terminal integration.",
+      });
+      const write = vi.fn();
+      const request = command === "native-link"
+        ? {
+            planId: plan.planId,
+            protectedBaseRef: "refs/heads/main",
+            repository: "owner/repo",
+            members: [],
+            optIn: true,
+          }
+        : { planId: plan.planId, repository: "owner/repo", members: [] };
+
+      await handleDeliveryExecution(command, { input: "-", json: true }, undefined, {
+        readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+        execute,
+        write,
+        setExitCode: vi.fn(),
+      });
+      expect(execute).toHaveBeenCalledOnce();
+      expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({ status: "unlinked" });
+    }
+  });
+
+
   it("accepts locator-only native selection and rejects caller-authored position data", async () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);
@@ -1008,6 +1039,55 @@ describe("delivery execution handler", () => {
       reason: "invalid-command-input",
     });
   });
+
+  it("accepts only a short protected base at the native landing preparation boundary", async () => {
+    const plan = deliveryStackPlanFixture();
+    const member = deliveryStateFixture(plan).members[0]!;
+    const request = {
+      planId: plan.planId,
+      operationId: "native-operation",
+      selection: {
+        status: "selected",
+        arm: "linked-single",
+        members: [{
+          deliverableId: member.deliverableId,
+          changeRequestId: "41",
+          headSha: member.coordinates!.head,
+        }],
+        recommendedActionText: "Prepare the selected native effect.",
+      },
+      repository: "owner/repo",
+      remote: "origin",
+      baseRef: "main",
+      targetRef: "refs/heads/main",
+      treeRoot: ".",
+    } as const;
+    const execute = vi.fn().mockResolvedValue({ status: "blocked", reason: "fixture" });
+    const acceptedWrite = vi.fn();
+
+    await handleDeliveryExecution("native-land-prepare", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute,
+      write: acceptedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).toHaveBeenCalledOnce();
+
+    const rejectedExecute = vi.fn();
+    const rejectedWrite = vi.fn();
+    await handleDeliveryExecution("native-land-prepare", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({ ...request, baseRef: "refs/heads/main" })),
+      execute: rejectedExecute,
+      write: rejectedWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(rejectedExecute).not.toHaveBeenCalled();
+    expect(JSON.parse(rejectedWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
+
 
   it("exposes the explicit terminal remedy as a strict typed command", async () => {
     const state = deliveryStateFixture();

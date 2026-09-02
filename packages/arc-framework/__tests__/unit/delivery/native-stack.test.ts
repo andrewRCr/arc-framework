@@ -1,13 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  degradePlannedDeliveryNativeStack,
   degradeNativeDeliveryStack,
   deriveDeliveryNativeRegistrationInput,
   linkDeliveryNativeStack,
   linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
 } from "../../../src/lib/delivery/native-stack.js";
-import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryFiveMemberStackPlanFixture,
+  deliveryFourMemberStackPlanFixture,
+  deliverySingleMemberStackPlanFixture,
+} from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const members = [
@@ -16,6 +21,50 @@ const members = [
 ] as const;
 
 describe("native delivery stack", () => {
+  it("constructs the full five-member default fixture without an undefined title", () => {
+    expect(deliveryFiveMemberStackPlanFixture().members.map(({ title }) => title)).toEqual([
+      "First member",
+      "Second member",
+      "Third member",
+      "Fourth member",
+      "Fifth member",
+    ]);
+  });
+
+  it("treats a one-member delivery as explicitly unlinked without provider access", async () => {
+    const plan = deliverySingleMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const port = {
+      observe: vi.fn(async () => { throw new Error("terminal-only delivery reached provider observation"); }),
+      link: vi.fn(async () => { throw new Error("terminal-only delivery reached provider mutation"); }),
+      unlink: vi.fn(async () => { throw new Error("terminal-only delivery reached provider mutation"); }),
+    };
+
+    expect(deriveDeliveryNativeRegistrationInput({
+      plan,
+      state,
+      repository: "o/r",
+      baseRef: state.target!.ref,
+    })).toEqual({ status: "refused", reason: "no-registrable-members" });
+    await expect(linkPlannedDeliveryNativeStack({
+      plan,
+      state,
+      repository: "o/r",
+      baseRef: state.target!.ref,
+      members: [],
+      optIn: true,
+    }, port)).resolves.toMatchObject({ status: "unlinked" });
+    await expect(degradePlannedDeliveryNativeStack({
+      plan,
+      state,
+      repository: "o/r",
+      members: [],
+    }, port)).resolves.toMatchObject({ status: "unlinked" });
+    expect(port.observe).not.toHaveBeenCalled();
+    expect(port.link).not.toHaveBeenCalled();
+    expect(port.unlink).not.toHaveBeenCalled();
+  });
+
   it("derives registration from exactly the planned non-terminal members and excludes the top", () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);

@@ -251,6 +251,58 @@ describe("session-init delivery position facts", () => {
     });
   });
 
+  it("projects local authoring from the advanced remote lease rather than stale stored coordinates", async () => {
+    const plan = deliveryStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const terminalIndex = initial.members.length - 1;
+    const terminal = initial.members[terminalIndex]!;
+    const binding = { providerId: "github", changeRequestId: "402" };
+    const state = {
+      ...initial,
+      members: initial.members.map((member, index) => index === terminalIndex
+        ? { ...member, changeRequest: binding }
+        : member),
+    };
+    const dependencies = exactDependencies(state);
+    const remote = { head: "f".repeat(40), tree: "e".repeat(40) };
+    const local = { head: "d".repeat(40), tree: "c".repeat(40) };
+    await dependencies.materializeTarget(remote);
+    await dependencies.materializeTarget(local);
+    const terminalBranch = terminal.ref!.replace(/^refs\/heads\//u, "");
+    dependencies.remoteHeads[terminalBranch] = remote.head;
+    dependencies.localHeads[terminalBranch] = local.head;
+    dependencies.localCommits[remote.head] = true;
+    dependencies.localCommits[local.head] = true;
+    dependencies.host.readRequest.mockResolvedValue({
+      status: "observed",
+      request: {
+        binding,
+        repository: "owner/repository",
+        headRepository: "owner/repository",
+        headRef: terminalBranch,
+        headSha: remote.head,
+        baseRef: state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
+        state: "open",
+        draft: true,
+      },
+    });
+
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies, {
+      terminalAuthoringMovement: "allow-append-only",
+    })).resolves.toMatchObject({
+      status: "observed",
+      facts: {
+        terminalAuthoringMovement: {
+          deliverableId: terminal.deliverableId,
+          before: { ...remote, base: terminal.coordinates!.base },
+          after: { ...local, base: terminal.coordinates!.base },
+          publicationLeaseHead: remote.head,
+        },
+      },
+    });
+  });
+
+
   it("fails closed when a remote member head is unavailable", async () => {
     const plan = deliveryStackPlanFixture();
     const state = deliveryStateFixture(plan);

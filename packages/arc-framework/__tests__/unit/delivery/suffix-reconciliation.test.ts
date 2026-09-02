@@ -597,6 +597,47 @@ describe("delivery suffix reconciliation", () => {
     }
   });
 
+  it("refuses schema-valid reservations with the wrong operation kind or rewrite mode before effects", async () => {
+    const { plan, reserved } = reservedProviderRefreshFixture();
+    const operation = reserved.value.activeOperation!;
+    if (operation.kind !== "rewrite") throw new Error("fixture must carry a rewrite reservation");
+    const effect = vi.fn(async () => { throw new Error("invalid reservation reached an effect"); });
+    const dependencies = {
+      observeResult: effect,
+      readTargetAncestry: effect,
+      proveContribution: effect,
+      absorbTop: effect,
+      publishTop: effect,
+      rewriteLocalRef: effect,
+      cleanupPreparedCandidates: effect,
+      stateStore: { publish: effect },
+    };
+    const cases: DeliveryStateV1["activeOperation"][] = [{
+      operationId: operation.operationId,
+      kind: "teardown",
+      affectedDeliverableIds: operation.affectedDeliverableIds,
+      stateRevision: operation.stateRevision,
+      boundPlanDigest: operation.boundPlanDigest,
+      before: operation.before,
+      requested: operation.requested,
+      mode: "member",
+      candidateHeads: [],
+    }, {
+      ...operation,
+      mode: "selected-change",
+    }];
+
+    for (const activeOperation of cases) {
+      await expect(settleReservedDeliverySuffixRefresh({
+        plan,
+        current: { ...reserved, value: { ...reserved.value, activeOperation } },
+        ...dependencies,
+      })).resolves.toEqual({ status: "blocked", reason: "ambiguous" });
+    }
+    expect(effect).not.toHaveBeenCalled();
+  });
+
+
   it("keeps a reserved settlement on changed observation or contribution refusal", async () => {
     const { plan, reserved, before, observed } = reservedProviderRefreshFixture();
     const finalStates: DeliveryStateV1[] = [];
