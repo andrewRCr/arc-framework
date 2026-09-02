@@ -434,15 +434,26 @@ async function projectCandidateIntegrationBoundary(
 function createRepositoryCandidateTargetProjector(
   exec: NonNullable<ActiveStatusOptions["exec"]>,
 ): CandidateTargetProjector {
+  const baseBranches = new Map<string, Promise<string>>();
+  const rawExecs = new Map<string, ReturnType<typeof createRawGitExec>>();
   return async ({ cwd, name, record }) => {
-    const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"];
+    let baseBranch = baseBranches.get(cwd);
+    if (baseBranch === undefined) {
+      baseBranch = readConfigSettings(cwd).then(({ settings }) => settings["branch.base"]);
+      baseBranches.set(cwd, baseBranch);
+    }
+    let rawExec = rawExecs.get(cwd);
+    if (rawExec === undefined) {
+      rawExec = createRawGitExec(cwd);
+      rawExecs.set(cwd, rawExec);
+    }
     return projectGitCandidateEffectiveTarget({
       cwd,
       name,
-      baseBranch,
+      baseBranch: await baseBranch,
       record,
       exec,
-      rawExec: createRawGitExec(cwd),
+      rawExec,
     });
   };
 }

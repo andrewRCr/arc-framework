@@ -209,9 +209,12 @@ describe("packaged delivery workflow", () => {
       "retryable / cleared / delivery-publish` with `operationKind: materialize",
       "retryable / preserved / delivery-publish` with `operationKind: publish",
       "retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix",
-      "retryable / cleared / delivery-review-fix-publish` with `operationKind: rewrite` and",
-      "retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and",
-      "retryable / preserved / delivery-refresh-execute` with `operationKind: rewrite` and",
+      "retryable / cleared / delivery-review-fix-publish` with `operationKind: rewrite` and\n"
+        + "  `mode: selected-change`",
+      "retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and\n"
+        + "  `mode: provider-adoption`",
+      "retryable / preserved / delivery-refresh-execute` with `operationKind: rewrite` and\n"
+        + "  `mode: provider-refresh`",
       "retryable / cleared / delivery-land-prepare` with `operationKind: land` and `mode: sequential",
       "retryable / cleared / delivery-native-land-select` with `operationKind: land` and `mode: native",
       "retryable / preserved / delivery-teardown` with `operationKind: teardown",

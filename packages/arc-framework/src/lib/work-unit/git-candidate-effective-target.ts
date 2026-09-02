@@ -4,6 +4,10 @@ import type { RawGitExec } from "../change-facts.js";
 import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";
 import {
+  CandidateApplicabilityResultSchema,
+  candidateApplicabilityResultBase,
+} from "./candidate-applicability.js";
+import {
   projectCandidateCurrentness,
   reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
@@ -108,6 +112,39 @@ export async function projectGitCandidateEffectiveTarget(
     });
     const stagedCurrentness = projectCandidateCurrentness({ record: input.record, current: staged });
     if (stagedCurrentness.status === "current") {
+      const reobserved = {
+        candidateHead: await readCommit({
+          cwd: input.cwd,
+          exec: input.exec,
+          expression: "HEAD^{commit}",
+        }),
+        baseHead: await resolveGitCandidateBaseRevision(input),
+      };
+      const candidateMoved = staged.revision !== observed.candidateHead
+        || reobserved.candidateHead !== observed.candidateHead;
+      const baseMoved = reobserved.baseHead !== observed.baseHead;
+      if (candidateMoved || baseMoved) {
+        const baseline = reduceCandidateDurableBaseline(input.record);
+        const request = {
+          candidateId: baseline.candidateId,
+          baselineTarget: baseline.target,
+          currentTarget: staged,
+          currentBase: observed.baseHead,
+        };
+        const movement = CandidateApplicabilityResultSchema.parse({
+          ...candidateApplicabilityResultBase(request),
+          state: "rerun-checkpoint",
+          nextAction: "rerun-checkpoint",
+          reason: candidateMoved && baseMoved
+            ? "candidate-and-base-moved"
+            : candidateMoved ? "candidate-moved" : "base-moved",
+          observed: reobserved,
+        });
+        if (movement.state !== "rerun-checkpoint") {
+          throw new Error("Candidate endpoint movement did not produce a checkpoint rerun.");
+        }
+        return movement;
+      }
       return projectEffectiveCandidateTarget({
         record: input.record,
         current: staged,

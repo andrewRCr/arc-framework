@@ -4,6 +4,7 @@ import { posix } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { projectDurableCandidateTarget } from "../../helpers/candidate.js";
 import type { LoadSetProjectionInput } from "../../../src/lib/load-set/projection.js";
 import {
   projectCheckoutSubjectMeta,
@@ -23,8 +24,6 @@ import {
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { classifyCandidateApplicability } from
   "../../../src/lib/work-unit/candidate-applicability.js";
-import { projectEffectiveCandidateTarget } from
-  "../../../src/lib/work-unit/candidate-effective-target.js";
 import type { CandidateTargetProjector } from
   "../../../src/lib/work-unit/candidate-effective-target.js";
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
@@ -53,17 +52,7 @@ function subjectIO(files: ReadonlyMap<string, string>): SubjectMetaIO {
     realpath: async (path) => posix.normalize(path),
     lstat: async () => ({ isSymbolicLink: () => false }),
     projectDeliveryCorrection: async () => ({ status: "none" }),
-    projectCandidateTarget: async ({ record }) => {
-      const baseline = reduceCandidateDurableBaseline(record);
-      return projectEffectiveCandidateTarget({
-        record,
-        current: baseline.target,
-        currentBase: record.attestation.baseRevision,
-        projectApplicability: async () => {
-          throw new Error("A durable target must not request applicability.");
-        },
-      });
-    },
+    projectCandidateTarget: projectDurableCandidateTarget,
   };
 }
 
