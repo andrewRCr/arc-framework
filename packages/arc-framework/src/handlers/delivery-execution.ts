@@ -43,6 +43,7 @@ import {
   deleteDeliveryCandidateRef,
   deleteDeliveryRefreshCandidateRef,
   observeDeliveryLocalRef,
+  observeDeliveryMemberRefCheckouts,
   observeDeliveryRefreshCandidateRefs,
   observeDeliveryRemoteRef,
   publishDeliveryMemberRef,
@@ -3264,6 +3265,7 @@ async function executeDeliveryCommand(
           exec: createRawGitExec(cwd),
           ...input,
         }),
+        observeMemberRefCheckouts: (refs) => observeDeliveryMemberRefCheckouts(exec, refs),
         observePublishedHeads: async (snapshot) => {
           const observed: DeliveryProviderRefreshPublishedHead[] = [];
           for (const member of snapshot.members) {

@@ -2,12 +2,50 @@
 
 import type { GitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
+import { resolveWorktreePathsByBranchResult } from "../git/worktree-roster.js";
 import { readAncestry } from "../work-unit/git-decomposition-object-readers.js";
 import { DeliveryPlanIdSchema } from "./schema.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const candidateRef = /^refs\/arc\/delivery-candidates\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const refreshCandidateRef = /^refs\/arc\/delivery-refresh-candidates\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+export type DeliveryMemberRefCheckoutObservation =
+  | {
+      readonly status: "observed";
+      readonly checkouts: readonly { readonly ref: string; readonly path: string }[];
+    }
+  | { readonly status: "refused"; readonly reason: "malformed" | "unavailable" };
+
+/**
+ * Observe registered worktrees holding any exact canonical delivery-member ref.
+ *
+ * @param exec - Injectable local Git executor.
+ * @param refs - Canonical delivery-member refs whose occupancy matters.
+ * @returns Exact registered checkout paths, or an explicit malformed/unavailable refusal.
+ */
+export async function observeDeliveryMemberRefCheckouts(
+  exec: GitExec,
+  refs: readonly string[],
+): Promise<DeliveryMemberRefCheckoutObservation> {
+  const branches: Array<{ readonly ref: string; readonly branch: string }> = [];
+  for (const ref of [...new Set(refs)]) {
+    if (!ref.startsWith("refs/heads/delivery/")) {
+      return { status: "refused", reason: "malformed" };
+    }
+    branches.push({ ref, branch: ref.slice("refs/heads/".length) });
+  }
+  if (branches.length === 0) return { status: "observed", checkouts: [] };
+  const worktrees = await resolveWorktreePathsByBranchResult(exec);
+  if (!worktrees.ok) return { status: "refused", reason: "unavailable" };
+  return {
+    status: "observed",
+    checkouts: branches.flatMap(({ ref, branch }) => {
+      const path = worktrees.paths.get(branch);
+      return path === undefined ? [] : [{ ref, path }];
+    }),
+  };
+}
 
 type DeliveryLocalRefObservation =
   | { readonly status: "absent" }

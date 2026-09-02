@@ -5,6 +5,7 @@ import {
   deleteDeliveryRefreshCandidateRef,
   deleteDeliveryLocalRef,
   deleteDeliveryRemoteRef,
+  observeDeliveryMemberRefCheckouts,
   observeDeliveryRemoteRef,
   observeDeliveryRefreshCandidateRefs,
   publishDeliveryMemberRef,
@@ -21,6 +22,23 @@ const ref = "refs/heads/delivery/example/first";
 const head = "a".repeat(40);
 
 describe("delivery remote-ref leases", () => {
+  it("reports canonical member checkouts and ignores detached gates", async () => {
+    const worktreeOutput = [
+      `worktree /repo\0HEAD ${head}\0branch refs/heads/main`,
+      `worktree /tmp/member-seven\0HEAD ${"b".repeat(40)}\0branch ${ref}`,
+      `worktree /tmp/member-gate\0HEAD ${"c".repeat(40)}\0detached`,
+    ].join("\0\0") + "\0\0";
+    const exec: GitExec = async (_command, args) => {
+      expect(args).toEqual(["worktree", "list", "--porcelain", "-z"]);
+      return { stdout: worktreeOutput };
+    };
+
+    await expect(observeDeliveryMemberRefCheckouts(exec, [ref])).resolves.toEqual({
+      status: "observed",
+      checkouts: [{ ref, path: "/tmp/member-seven" }],
+    });
+  });
+
   it("creates an absent local member ref with an object-format-neutral lease", async () => {
     let localHead: string | null = null;
     let remoteHead: string | null = null;
