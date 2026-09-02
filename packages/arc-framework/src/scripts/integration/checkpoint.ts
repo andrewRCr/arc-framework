@@ -513,21 +513,28 @@ async function candidateApplicabilityResult(
   candidate: Exclude<CandidateApplicabilityResult, { state: "applicable" }>,
   dependencies: IntegrationCheckpointDependencies,
 ): Promise<IntegrationCheckpointResult> {
-  const payload = candidate.state === "decision-required"
-    ? {
-        ...candidate,
-        resolutionSelector: await dependencies.composeCandidateApplicabilityResolutionSelector(
-          base.workUnit,
-          candidate,
-        ),
-      }
-    : candidate;
-  return IntegrationCheckpointResultSchema.parse({
-    ...base,
-    state: "candidate-applicability",
-    nextAction: candidate.nextAction,
-    payload,
-  });
+  try {
+    const payload = candidate.state === "decision-required"
+      ? {
+          ...candidate,
+          resolutionSelector: await dependencies.composeCandidateApplicabilityResolutionSelector(
+            base.workUnit,
+            candidate,
+          ),
+        }
+      : candidate;
+    return IntegrationCheckpointResultSchema.parse({
+      ...base,
+      state: "candidate-applicability",
+      nextAction: candidate.nextAction,
+      payload,
+    });
+  } catch (error) {
+    return checkpointOperationRefusal(
+      base.workUnit,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 }
 
 function reconcileSafety(

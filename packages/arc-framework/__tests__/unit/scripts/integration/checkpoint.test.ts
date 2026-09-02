@@ -174,6 +174,52 @@ describe("integration checkpoint", () => {
       });
   });
 
+  it("returns a typed refusal when applicability selector composition fails", async () => {
+    const subject = (source: string) => createCandidateSubjectSnapshot([{
+      path: "src/example.ts",
+      mode: "100644",
+      digest: canonicalDigest({ source }),
+      treatment: "reviewable",
+    }]);
+    const request = {
+      candidateId: digest("c"),
+      baselineTarget: { revision: oid("a"), subject: subject("prior") },
+      currentTarget: { revision: oid("c"), subject: subject("current") },
+      currentBase: oid("b"),
+    };
+    const decision = classifyCandidateApplicability(request, {
+      endpoints: {
+        before: {
+          predecessor: { head: oid("1"), tree: oid("2") },
+          member: { head: oid("a"), tree: oid("3") },
+        },
+        after: {
+          predecessor: { head: oid("b"), tree: oid("4") },
+          member: { head: oid("c"), tree: oid("5") },
+        },
+      },
+      proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
+    });
+    if (decision.state !== "decision-required") throw new Error("expected a bounded applicability decision");
+
+    for (const drift of ["reconcile", "clean"] as const) {
+      const deps = dependencies();
+      if (drift === "clean") deps.readDrift = async () => CLEAN_DRIFT;
+      deps.readCandidate = async () => decision;
+      deps.composeCandidateApplicabilityResolutionSelector = async () => {
+        throw new Error("The Candidate applicability decision is no longer current.");
+      };
+
+      await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+        .resolves.toMatchObject({
+          state: "blocked",
+          nextAction: "stop",
+          reason: "composition-unavailable",
+          payload: { detail: "The Candidate applicability decision is no longer current." },
+        });
+    }
+  });
+
   it("returns a safe behind-base verdict with the validated facts", async () => {
     const deps = dependencies();
     const readCandidate = deps.readCandidate;
