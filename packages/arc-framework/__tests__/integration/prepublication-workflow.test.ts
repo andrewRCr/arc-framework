@@ -136,6 +136,10 @@ describe("prepublication workflow boundary", () => {
       expect(validateCriteria).toContain("flat Success Criteria section against actual outcomes");
       expect(validateCriteria).toContain("When a Delivery Plan is present");
       expect(validateCriteria).toContain("offer one fresh-context pass over the same selected scope");
+      const unresolvedStop = verification.indexOf("If the combined report contains any `[ ]` criterion, stop.");
+      const attestationStep = verification.indexOf("## Step 3 — Attest the Candidate");
+      expect(unresolvedStop).toBeGreaterThan(-1);
+      expect(attestationStep).toBeGreaterThan(unresolvedStop);
       const coherentUnit = taskLoop.indexOf("2. **Coherent unit completion:**");
       const memberBoundary = taskLoop.indexOf("3. **Delivery-member boundary (conditional):**");
       const reportAndStop = taskLoop.indexOf("4. **Report and stop:**");

@@ -34,11 +34,30 @@ describe("review subject resolution", () => {
     expect(resolveReviewHeadRef("feat/example", null)).toBe("feat/example");
   });
 
+  it("refuses a bound member without a retained branch ref", () => {
+    expect(() => resolveReviewHeadRef("feat/example", { ...member, headRef: null }))
+      .toThrow(/no retained branch ref/u);
+  });
+
   it("derives the exact base branch from a bound delivery head", async () => {
     await expect(resolveAcceptableDeliveryBaseRefs(
       lookup({ status: "resolved", member }),
       HEAD,
     )).resolves.toEqual(["main"]);
+  });
+
+  it("admits no additional base for a bound member with a null base ref", async () => {
+    await expect(resolveAcceptableDeliveryBaseRefs(
+      lookup({ status: "resolved", member: { ...member, baseRef: null } }),
+      HEAD,
+    )).resolves.toEqual([]);
+  });
+
+  it("admits no additional base for an unbound member", async () => {
+    await expect(resolveAcceptableDeliveryBaseRefs(
+      lookup({ status: "unbound" }),
+      HEAD,
+    )).resolves.toEqual([]);
   });
 
   it("resolves a bound delivery head to its owning work unit", async () => {
