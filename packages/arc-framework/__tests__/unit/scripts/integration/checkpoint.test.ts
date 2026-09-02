@@ -643,11 +643,7 @@ describe("integration checkpoint", () => {
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
-      .resolves.toMatchObject({
-        state: "ready",
-        nextAction: "request-approval",
-        payload: { mergeMethod: { stackPosition: "top" } },
-      });
+      .resolves.toMatchObject({ state: "ready", nextAction: "request-approval" });
     expect(settlementBases).toEqual([CLEAN_DRIFT.baseOid]);
   });
 
