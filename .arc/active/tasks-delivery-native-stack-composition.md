@@ -3081,6 +3081,32 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               `b89ccf457`, preserved unchanged remotes, and accepted its exact local merge; the pre-commit retry then
               reached the correct dirty-top guard rather than losing the conflict coordinates.
 
+        - `[ ]` **7.7.R.u.r Make final driven re-entry self-binding and lossless**
+
+            - _Goal:_ A restarted selector-free correction consumes exact existing authoring, response, request, and
+              temporary-preparation evidence without manual Git repair, lost authority, duplicate review spend, or a
+              new attended stop.
+
+            - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue —
+              decision record (2026-08-31), Amendment 5.
+
+            - Build `test-first` (one behavior at a time):
+                - Author in the existing detached gate without updating its candidate ref, then prove continuation
+                  exact-validates and compare-and-swap binds that head before ordinary publication. Dirty, divergent,
+                  non-descendant, raced, or ambiguous authoring refuses unchanged.
+                - Remove the transient lane-operation projection after an approved delivery-member fix response is
+                  durable, then prove entry/status/continuation recover that one exact response without recreating
+                  approval; historical, completed, mismatched, and ambiguous records remain excluded.
+                - Persist one pending hosted request handle, restart before await, and prove status/continuation
+                  return the complete await envelope for that handle with no second request, pass increment, or
+                  provider spend.
+                - Seed the deterministic provider-resolution locator with exact clean stale residue and prove the
+                  driver safely reuses or replaces it before returning a prepared detached workspace. Dirty, moved,
+                  foreign, malformed, or ambiguous residue refuses without cleanup or remote/Delivery-State mutation.
+                - Drive all four through the production correction fixture to the next established typed stop and
+                  assert idempotent replay and effect disclosure; retain the existing complete correction suite and
+                  focused refusal coverage.
+
         - _Final driven-acceptance hardening:_ The production correction E2E exposed three seams that only compose
           after record settlement: Candidate-accepted terminal movement had to preserve the exact public review
           continuation in both entry and hosted-status readers; the driver had to reconcile that terminal record

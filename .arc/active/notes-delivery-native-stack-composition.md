@@ -573,3 +573,29 @@ metadata is therefore preserved rather than assumed reproducible. If a non-confl
 the exact local resolution can reconstruct it from the still-reachable parent before the same validation. Unreferenced,
 malformed, or mismatched anchors retain ordinary cleanup or refusal. Task 7.7.R.u.q owns this bounded extension and
 the current Member 7 conflict is its production acceptance case.
+
+### Amendment 5 — restarted corrections consume exact existing evidence (2026-09-01)
+
+Final live acceptance exposed four places where the driven correction still depended on agent reconstruction. An
+ordinary commit in the detached authoring gate moved `HEAD` but not its deterministic candidate ref, so readiness
+returned `authoring-locus-moved` and required a manual compare-and-swap. A durable approved disposition remained
+present after transient lane projection moved, yet hosted status returned the original `respond-to-findings` stop and
+required manual evidence-file replay. A successful hosted request had no durable pending handle, so restart could
+offer a duplicate request rather than the exact await. Conflict resolution still depended on acquiring a named
+branch in the owning checkout, where stale temporary resolution worktrees and indexes could block the otherwise
+valid correction.
+
+Decided behavior: correction re-entry consumes exact existing evidence before asking or spending again. A clean
+detached authoring head is rebound to its deterministic candidate ref only after strict descent, required-ancestor,
+selected-contribution, and compare-and-swap checks. An exact durable approved response is validated against its
+delivery vehicle, source, target, and current continuation, then driven without a second disposition decision. A
+successful hosted request persists its full submit-ready handle immediately; status returns that exact await while
+it remains pending and never admits another request for the same pass. Provider conflict returns a deterministic
+ARC-owned detached resolution workspace backed by the owning repository, so no named branch checkout is required;
+only exact clean residue at that locator may be reused or replaced, and all dirty, moved, foreign, malformed, or
+ambiguous residue refuses without cleanup.
+
+These are bounded recovery/projection repairs to the existing rescue, not new policy or authority. No generalized
+worktree sweeper, standing grant, disposition inference, provider request record family, workflow engine, or review
+convergence rule is added. Task 7.7.R.u.r owns the test-first implementation and extends the established production
+correction fixture; Member 5 remains unspent until that proof is green.

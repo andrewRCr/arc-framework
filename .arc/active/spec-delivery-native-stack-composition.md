@@ -1497,6 +1497,19 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       stays owed. All approved findings for one member pass batch into one publication by default; an earlier publish
       requires an explicit reason.
 
+    - **Restarted corrections consume exact existing evidence — amended 2026-09-01 after final live acceptance
+      exposed four re-entry seams.** A clean detached authoring checkout that strictly descends from its current
+      deterministic candidate ref, satisfies the existing required-ancestor predicates, and preserves the selected
+      contribution is rebound to that ref by compare-and-swap before ordinary readiness classification. Dirty,
+      divergent, non-descendant, ambiguous, or raced movement still refuses. When hosted status rediscovers findings
+      whose exact delivery-member response is already durably approved, the correction driver validates and consumes
+      that record instead of returning a second disposition stop. When one hosted request is already pending, status
+      projects its complete durable await envelope before any new request admission or provider spend. A provider
+      conflict prepares one deterministic ARC-owned detached resolution workspace; exact clean stale residue at that
+      locator is safely reused or replaced, while dirty, moved, foreign, malformed, or ambiguous residue refuses
+      without cleanup. These are recovery and projection hardenings over existing authority and effects. They add no
+      attended stop, approval, hosted request, record family, workspace authority, or generalized cleanup mechanism.
+
 - **D8.13 Preserve the existing Owner terminus at member scope — amended 2026-09-01 after live Member 1 review
   reached its ceiling.** The standard-review driver already accepts an explicit Work Unit Owner terminus without
   claiming a clean or converged pass. A Delivery Plan transports that same authority through the work-unit status
