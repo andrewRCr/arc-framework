@@ -52,6 +52,7 @@ describe("delivery terminal recovery", () => {
     readonly planId: string;
     readonly triggerHead: string;
     readonly statePath: string;
+    readonly mutationMarker: string;
     readonly env: Record<string, string>;
   }> {
     const plan = deliveryStackPlanFixture();
@@ -169,6 +170,7 @@ describe("delivery terminal recovery", () => {
       planId: plan.planId,
       triggerHead,
       statePath,
+      mutationMarker,
       env: {
         PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
         ARC_FAKE_GH_MARKER: mutationMarker,
@@ -509,7 +511,7 @@ describe("delivery terminal recovery", () => {
         reservation: null,
         terminus: null,
       }))}\n`),
-      writeFile(join(repository, "top-remedy-mutated"), ""),
+      writeFile(fixture.mutationMarker, ""),
     ]);
     const stale = DeliveryStateV1Schema.parse({
       ...envelope.value,
