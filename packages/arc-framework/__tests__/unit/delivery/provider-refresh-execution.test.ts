@@ -18,6 +18,7 @@ const exactTargetAncestry = async (
   descendant: string,
 ): Promise<"ancestor" | "not-ancestor"> => ancestor === descendant ? "ancestor" : "not-ancestor";
 const readyTop = async () => ({ status: "ready" as const });
+const clearMemberRefCheckouts = async () => ({ status: "observed" as const, checkouts: [] });
 
 function positionFacts(state: ReturnType<typeof deliveryStateFixture>, landedDeliverableIds: string[] = []) {
   return { target: state.target, members: state.members, landedDeliverableIds };
@@ -221,6 +222,7 @@ describe("provider refresh publication classification", () => {
         candidates: candidateResult.candidates,
       }) },
       preflightTop: async () => ({ status: "refused" as const, reason: "worktree-dirty" as const }),
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async () => before.members.map((member) => ({
         deliverableId: member.deliverableId,
         head: member.coordinates!.head,
@@ -258,6 +260,99 @@ describe("provider refresh publication classification", () => {
     expect(current).toEqual({ revision: 7, value: state });
     expect(memberPublished).toBe(false);
     expect(candidateRefs.size).toBe(0);
+  });
+
+  it("refuses checked-out changed member refs before reserving or publishing", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const targetHead = fixture.target?.coordinates?.head;
+    if (targetHead === undefined) throw new Error("fixture target must be bound");
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(185 + index) },
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0 ? targetHead : members[index - 1]!.coordinates!.head,
+        },
+      })),
+    };
+    const facts = positionFacts(state);
+    const derived = deriveDeliveryProviderRefreshSubject({ plan, state, facts });
+    if (derived.status !== "derived") throw new Error("refresh subject must derive");
+    const before = derived.subject.before;
+    const requested: DeliveryOperationSnapshotV1 = {
+      target: before.target,
+      members: before.members.map((member, index) => ({
+        ...member,
+        coordinates: member.coordinates === null ? null : {
+          base: index === 0 ? targetHead : oid(String(index + 6)),
+          head: oid(String(index + 7)),
+          tree: oid(String(index + 3)),
+        },
+      })),
+    };
+    const candidateResult = deriveDeliveryProviderRefreshCandidates({ plan, before, requested });
+    if (candidateResult.status !== "derived") throw new Error("candidates must derive");
+    const checkedOutMember = requested.members[1]!;
+    let statePublished = false;
+    let memberPublished = false;
+    let candidatesCleaned = false;
+    const dependencies = {
+      preparation: { prepare: async () => ({
+        status: "prepared" as const,
+        observation: { snapshot: requested, targetMovement: "exact" as const },
+        candidates: candidateResult.candidates,
+      }) },
+      preflightTop: readyTop,
+      observeMemberRefCheckouts: async (refs: readonly string[]) => ({
+        status: "observed" as const,
+        checkouts: [{ ref: refs.find((ref) => ref === checkedOutMember.ref)!, path: "/tmp/member-seven" }],
+      }),
+      observePublishedHeads: async () => before.members.map((member) => ({
+        deliverableId: member.deliverableId,
+        head: member.coordinates!.head,
+      })),
+      rewriteMemberRef: async () => {
+        memberPublished = true;
+        return { status: "rewritten" as const };
+      },
+      observeResult: async () => ({
+        status: "observed" as const,
+        observation: { snapshot: requested, targetMovement: "exact" as const },
+      }),
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }),
+      absorbTop: async () => ({ status: "absorbed" as const, head: oid("a"), tree: oid("b") }),
+      publishTop: async () => ({ status: "published" as const }),
+      rewriteLocalRef: async () => ({ status: "adopted" as const }),
+      cleanupPreparedCandidates: async () => {
+        candidatesCleaned = true;
+        return { status: "cleaned" as const };
+      },
+      stateStore: { publish: async () => {
+        statePublished = true;
+        return { status: "refused" as const, reason: "version-conflict" as const };
+      } },
+    };
+
+    await expect(executeDeliveryProviderRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      repository: "owner/repo",
+      scope: { kind: "complete-remainder" },
+      facts,
+    }, dependencies)).resolves.toEqual({
+      status: "refused",
+      reason: "member-ref-checked-out",
+      paths: ["/tmp/member-seven"],
+    });
+    expect({ statePublished, memberPublished, candidatesCleaned }).toEqual({
+      statePublished: false,
+      memberPublished: false,
+      candidatesCleaned: true,
+    });
   });
 
   it("promotes a prepared natural-merge conflict to the attended conflict contract", async () => {
@@ -303,6 +398,7 @@ describe("provider refresh publication classification", () => {
         conflictPreparation,
       }) },
       preflightTop: async () => { throw new Error("must not preflight"); },
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async () => { throw new Error("must not observe"); },
       rewriteMemberRef: async () => { throw new Error("must not publish"); },
       observeResult: async () => { throw new Error("must not settle"); },
@@ -342,6 +438,7 @@ describe("provider refresh publication classification", () => {
     }, {
       preparation: { prepare: async () => { throw new Error("must not prepare"); } },
       preflightTop: async () => ({ status: "ready" as const }),
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async () => { throw new Error("observation failed"); },
       rewriteMemberRef: async () => { throw new Error("must not publish"); },
       observeResult: async () => { throw new Error("must not settle"); },
@@ -361,6 +458,64 @@ describe("provider refresh publication classification", () => {
       nextAction: "reconcile",
       recommendedActionText:
         "The provider-refresh reservation remains active. Run `arc delivery reconcile` and retry its exact selector.",
+    });
+  });
+
+  it("preserves a retained reservation when a changed member ref becomes checked out", async () => {
+    const { plan, operationId, reserved } = reservedRefreshTargetMovementFixture();
+    const active = reserved.state.activeOperation;
+    if (active === null) throw new Error("refresh must remain reserved");
+    const candidateResult = deriveDeliveryProviderRefreshCandidates({
+      plan,
+      before: active.before,
+      requested: active.requested,
+    });
+    if (candidateResult.status !== "derived") throw new Error("candidates must derive");
+    let publicationObserved = false;
+    let candidatesCleaned = false;
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current: { revision: 8, value: reserved.state },
+      repository: "owner/repo",
+      operationId,
+    }, {
+      preparation: { prepare: async () => { throw new Error("must not prepare"); } },
+      preflightTop: readyTop,
+      observeMemberRefCheckouts: async (refs) => ({
+        status: "observed",
+        checkouts: [{ ref: refs[0]!, path: "/tmp/new-member-checkout" }],
+      }),
+      observePublishedHeads: async () => {
+        publicationObserved = true;
+        return [];
+      },
+      rewriteMemberRef: async () => { throw new Error("must not publish"); },
+      observeResult: async () => { throw new Error("must not settle"); },
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish top"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite locally"); },
+      cleanupPreparedCandidates: async () => {
+        candidatesCleaned = true;
+        return { status: "cleaned" };
+      },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({
+      status: "blocked",
+      reason: "member-ref-checked-out",
+      paths: ["/tmp/new-member-checkout"],
+      operationId,
+      nextAction: "reconcile",
+      recommendedActionText:
+        "The provider-refresh reservation remains active. Run `arc delivery reconcile` and retry its exact selector.",
+    });
+    expect({ publicationObserved, candidatesCleaned }).toEqual({
+      publicationObserved: false,
+      candidatesCleaned: false,
     });
   });
 
@@ -415,6 +570,7 @@ describe("provider refresh publication classification", () => {
         };
       } },
       preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async (snapshot) => snapshot.members.map((member) => ({
         deliverableId: member.deliverableId,
         head: remoteHeads.get(member.deliverableId) ?? null,
@@ -562,6 +718,7 @@ describe("provider refresh publication classification", () => {
         candidates: candidateResult.candidates,
       }) },
       preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async (snapshot) => snapshot.members.map((member) => ({
         deliverableId: member.deliverableId,
         head: remoteHeads.get(member.deliverableId) ?? null,
@@ -646,6 +803,7 @@ describe("provider refresh publication classification", () => {
     }, {
       preparation: { prepare: async () => { throw new Error("must not prepare"); } },
       preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async () => { throw new Error("must not observe publication"); },
       rewriteMemberRef: async () => { throw new Error("must not rewrite"); },
       observeResult: async () => { throw new Error("must not observe result"); },
@@ -689,6 +847,7 @@ describe("provider refresh publication classification", () => {
     }, {
       preparation: { prepare: async () => { throw new Error("must not prepare"); } },
       preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async () => { throw new Error("must not observe publication"); },
       rewriteMemberRef: async () => { throw new Error("must not rewrite"); },
       observeResult: async () => { throw new Error("must not observe result"); },
@@ -754,6 +913,7 @@ describe("provider refresh publication classification", () => {
         throw new Error("must not prepare an empty dependent suffix");
       } },
       preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async (snapshot: DeliveryOperationSnapshotV1) => snapshot.members.map((member) => ({
         deliverableId: member.deliverableId,
         head: member.coordinates!.head,
@@ -865,6 +1025,7 @@ describe("provider refresh publication classification", () => {
         candidates: candidateResult.candidates,
       }) },
       preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async () => [],
       rewriteMemberRef: rewrite,
       observeResult: async () => ({ status: "refused", reason: "observation-unavailable" }),
@@ -948,6 +1109,7 @@ describe("provider refresh publication classification", () => {
     }, {
       preparation: { prepare: preparation },
       preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async (candidate) => candidate.members.map((member) => ({
         deliverableId: member.deliverableId,
         head: remoteHeads.get(member.deliverableId) ?? null,
@@ -997,6 +1159,7 @@ describe("provider refresh publication classification", () => {
     }, {
       preparation: { prepare: async () => { throw new Error("must not prepare during recovery"); } },
       preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async (candidate) => candidate.members.map((member) => ({
         deliverableId: member.deliverableId,
         head: member.coordinates!.head,
@@ -1039,6 +1202,7 @@ describe("provider refresh publication classification", () => {
     }, {
       preparation: { prepare: async () => { throw new Error("must not prepare during recovery"); } },
       preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
       observePublishedHeads: async (candidate) => candidate.members.map((member) => ({
         deliverableId: member.deliverableId,
         head: member.coordinates!.head,
@@ -1109,6 +1273,7 @@ describe("provider refresh publication classification", () => {
       }, {
         preparation: { prepare: async () => { throw new Error("must not prepare during recovery"); } },
         preflightTop: readyTop,
+        observeMemberRefCheckouts: clearMemberRefCheckouts,
         observePublishedHeads: async (candidate) => candidate.members.map((member) => ({
           deliverableId: member.deliverableId,
           head: member.coordinates!.head,

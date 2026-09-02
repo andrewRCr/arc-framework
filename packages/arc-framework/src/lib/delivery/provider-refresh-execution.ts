@@ -15,6 +15,7 @@ import type {
   DeliveryChainAbsorptionPreflightResult,
   DeliveryChainAbsorptionResult,
 } from "./chain-absorption.js";
+import type { DeliveryMemberRefCheckoutObservation } from "./git-materialization.js";
 import {
   changedDeliveryProviderRefreshMovements,
   deliveryTerminalAbsorptionOwed,
@@ -154,6 +155,9 @@ export interface DeliveryProviderRefreshExecutionDependencies {
   readonly observePublishedHeads: (
     snapshot: DeliveryOperationSnapshotV1,
   ) => Promise<readonly DeliveryProviderRefreshPublishedHead[]>;
+  readonly observeMemberRefCheckouts: (
+    refs: readonly string[],
+  ) => Promise<DeliveryMemberRefCheckoutObservation>;
   readonly rewriteMemberRef: (input: {
     readonly ref: string;
     readonly beforeHead: string;
@@ -250,6 +254,31 @@ function retainedOperationBlock(
   };
 }
 
+function preparedMemberRefs(
+  snapshot: DeliveryOperationSnapshotV1,
+  candidates: readonly DeliveryProviderRefreshCandidate[],
+): readonly string[] | null {
+  const refs: string[] = [];
+  for (const candidate of candidates) {
+    const member = snapshot.members.find(({ deliverableId }) => deliverableId === candidate.deliverableId);
+    if (member?.ref === null || member?.ref === undefined || !member.ref.startsWith("refs/heads/")) {
+      return null;
+    }
+    refs.push(member.ref);
+  }
+  return [...new Set(refs)];
+}
+
+function checkoutRefusal(
+  observation: DeliveryMemberRefCheckoutObservation,
+): { readonly reason: string; readonly paths?: readonly string[] } | null {
+  if (observation.status === "refused") {
+    return { reason: "member-ref-checkout-observation-unavailable" };
+  }
+  const paths = [...new Set(observation.checkouts.map(({ path }) => path))].sort();
+  return paths.length === 0 ? null : { reason: "member-ref-checked-out", paths };
+}
+
 /** Prepare or resume one exact provider-native suffix refresh under ARC publication authority. */
 export async function executeDeliveryProviderRefresh(_input: {
   readonly plan: DeliveryPlanV1;
@@ -263,6 +292,7 @@ export async function executeDeliveryProviderRefresh(_input: {
   const deps = _deps;
   let reservation = input.current;
   let candidates: readonly DeliveryProviderRefreshCandidate[];
+  let memberRefsCheckedBeforeReservation = false;
 
   if (input.current.value.activeOperation === null) {
     if (input.operationId !== undefined || input.scope === undefined || input.facts === undefined
@@ -392,6 +422,21 @@ export async function executeDeliveryProviderRefresh(_input: {
           : { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
       }
     }
+    const memberRefs = preparedMemberRefs(requested.data, prepared.candidates);
+    if (memberRefs === null) {
+      const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
+      return cleaned.status === "cleaned"
+        ? { status: "refused", reason: "prepared-result-mismatch" }
+        : { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
+    }
+    const occupied = checkoutRefusal(await deps.observeMemberRefCheckouts(memberRefs));
+    if (occupied !== null) {
+      const cleaned = await deps.cleanupPreparedCandidates(prepared.candidates);
+      return cleaned.status === "cleaned"
+        ? { status: "refused", ...occupied }
+        : { status: "blocked", reason: `candidate-cleanup-${cleaned.reason}` };
+    }
+    memberRefsCheckedBeforeReservation = true;
     const reserved = reserveDeliveryOperation(input.current, input.plan, {
       operationId: crypto.randomUUID(),
       kind: "rewrite",
@@ -449,6 +494,22 @@ export async function executeDeliveryProviderRefresh(_input: {
   if (active.status !== "valid" || active.operation.kind !== "rewrite"
     || active.operation.mode !== "provider-refresh") {
     return { status: "blocked", reason: "operation-mismatch" };
+  }
+  const memberRefs = preparedMemberRefs(active.operation.requested, candidates);
+  if (memberRefs === null) {
+    return retainedOperationBlock(
+      { status: "blocked", reason: "publication-subject-mismatch" },
+      active.operation.operationId,
+    );
+  }
+  if (!memberRefsCheckedBeforeReservation) {
+    const occupied = checkoutRefusal(await deps.observeMemberRefCheckouts(memberRefs));
+    if (occupied !== null) {
+      return retainedOperationBlock(
+        { status: "blocked", ...occupied },
+        active.operation.operationId,
+      );
+    }
   }
   let observed: readonly DeliveryProviderRefreshPublishedHead[];
   try {

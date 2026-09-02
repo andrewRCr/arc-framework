@@ -14,6 +14,7 @@ import {
 } from "../../src/lib/delivery/chain-absorption.js";
 import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contribution-proof.js";
 import {
+  observeDeliveryMemberRefCheckouts,
   publishDeliveryTopRef,
   rewriteDeliveryLocalRef,
   rewriteDeliveryMemberRef,
@@ -275,6 +276,9 @@ function revisionStore(initial: { readonly revision: number; readonly value: Del
 
 function refreshDependencies(fixture: RefreshFixture, stateStore: ReturnType<typeof revisionStore>["store"]) {
   return {
+    observeMemberRefCheckouts: (refs: readonly string[]) => (
+      observeDeliveryMemberRefCheckouts(fixture.gitExec, refs)
+    ),
     observeResult: fixture.observeRefresh,
     readTargetAncestry: async (ancestor: string, descendant: string) => {
       const result = await readAncestry(fixture.gitExec, ancestor, descendant);
@@ -306,6 +310,90 @@ function refreshDependencies(fixture: RefreshFixture, stateStore: ReturnType<typ
 }
 
 describe("member-six refresh adoption lifecycle", () => {
+  it("refuses a prepared refresh while a changed member ref is checked out", async () => {
+    const fixture = await createRefreshFixture();
+    const memberRef = fixture.subject.before.members[0]!.ref!;
+    const originalMember = fixture.subject.before.members[0]!.coordinates!.head;
+    const observed = await fixture.observeRefresh();
+    if (observed.status !== "observed") throw new Error("prepared refresh observation must resolve");
+    await fixture.git([
+      "push",
+      `--force-with-lease=${memberRef}:${fixture.refreshedMember}`,
+      "origin",
+      `${originalMember}:${memberRef}`,
+    ]);
+    const candidates = deriveDeliveryProviderRefreshCandidates({
+      plan: fixture.plan,
+      before: fixture.subject.before,
+      requested: observed.observation.snapshot,
+    });
+    if (candidates.status !== "derived") throw new Error("refresh candidates must derive");
+    for (const candidate of candidates.candidates) {
+      await fixture.git(["update-ref", candidate.ref, candidate.head]);
+    }
+    const worktreeParent = await mkdtemp(join(tmpdir(), "arc-delivery-member-worktree-"));
+    roots.push(worktreeParent);
+    const memberCheckout = join(worktreeParent, "member");
+    await fixture.git(["worktree", "add", memberCheckout, memberRef.replace(/^refs\/heads\//u, "")]);
+    const records = revisionStore(fixture.initial);
+    let memberPublished = false;
+
+    const result = await executeDeliveryProviderRefresh({
+      plan: fixture.plan,
+      current: fixture.initial,
+      repository: "owner/repo",
+      scope: { kind: "complete-remainder" },
+      facts: fixture.facts,
+    }, {
+      preparation: { prepare: async () => ({
+        status: "prepared",
+        observation: observed.observation,
+        candidates: candidates.candidates,
+      }) },
+      preflightTop: (input) => preflightGitDeliveryChainAbsorption({ exec: fixture.rawExec, ...input }),
+      observeMemberRefCheckouts: (refs) => observeDeliveryMemberRefCheckouts(fixture.gitExec, refs),
+      observePublishedHeads: async () => { throw new Error("must not observe publication"); },
+      rewriteMemberRef: async () => {
+        memberPublished = true;
+        return { status: "rewritten" };
+      },
+      observeResult: fixture.observeRefresh,
+      readTargetAncestry: async (ancestor, descendant) => {
+        const relation = await readAncestry(fixture.gitExec, ancestor, descendant);
+        return relation === "ancestor" || relation === "not-ancestor" ? relation : null;
+      },
+      proveContribution: fixture.proveMovement,
+      absorbTop: (input) => absorbGitDeliveryChain({ exec: fixture.rawExec, ...input }),
+      publishTop: (input) => publishDeliveryTopRef({ exec: fixture.gitExec, remote: "origin", ...input }),
+      rewriteLocalRef: (input) => rewriteDeliveryLocalRef({ exec: fixture.gitExec, ...input }),
+      cleanupPreparedCandidates: async (prepared) => {
+        for (const candidate of prepared) {
+          await fixture.git(["update-ref", "-d", candidate.ref, candidate.head]);
+        }
+        return { status: "cleaned" };
+      },
+      stateStore: records.store,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "member-ref-checked-out",
+      paths: [memberCheckout],
+    });
+    expect(records.current()).toEqual(fixture.initial);
+    expect(memberPublished).toBe(false);
+    expect(await fixture.git(["rev-parse", memberRef])).toBe(originalMember);
+    expect(await fixture.git(["ls-remote", "--refs", "origin", memberRef])).toContain(originalMember);
+    expect((await execFileAsync("git", ["status", "--porcelain=v1"], { cwd: memberCheckout })).stdout.trim())
+      .toBe("");
+    expect(await fixture.git([
+      "for-each-ref",
+      "--format=%(refname)",
+      `refs/arc/delivery-refresh-candidates/${fixture.plan.planId}/`,
+    ])).toBe("");
+    await fixture.git(["worktree", "remove", "--force", memberCheckout]);
+  });
+
   it("reserves and lease-publishes a prepared provider-native refresh before settling the top", async () => {
     const fixture = await createRefreshFixture();
     const memberRef = fixture.subject.before.members[0]!.ref!;
@@ -342,6 +430,7 @@ describe("member-six refresh adoption lifecycle", () => {
         candidates: candidates.candidates,
       }) },
       preflightTop: (input) => preflightGitDeliveryChainAbsorption({ exec: fixture.rawExec, ...input }),
+      observeMemberRefCheckouts: (refs) => observeDeliveryMemberRefCheckouts(fixture.gitExec, refs),
       observePublishedHeads: async (snapshot) => Promise.all(snapshot.members.map(async (member) => {
         const output = await fixture.git(["ls-remote", "--refs", "origin", member.ref!]);
         return { deliverableId: member.deliverableId, head: output.split(/\s+/u)[0] ?? null };
