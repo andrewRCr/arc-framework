@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3195,7 +3195,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           tests, both typechecks, TypeScript/shell/Markdown lint, all ARC contract checks, package build, and the full
           861-file / 11,291-test suite pass with one intentional skip each; no hosted provider request ran.
 
-    - `[ ]` **7.7.R.x Project the bootstrap guard through its Member 7 authoring locus**
+    - `[x]` **7.7.R.x Project the bootstrap guard through its Member 7 authoring locus**
 
         - _Goal:_ The already-proven guard reaches the planned `review-fan-out` member through ARC's exact
           route-owned authoring gate, and the dependent suffix plus terminal top settle without duplicate authoring,
@@ -3204,6 +3204,37 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
         - **Additional Context:** This is the one-time bootstrap acceptance for Task 7.7.R.w: its implementation had
           to exist on the originating checkout before that implementation could return and enforce the member-owned
           locus. No contract expansion or new implementation is authorized here.
+
+        - _Outcome:_ Member 7 criteria report.
+            - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+            - _Span:_ bounded diff `da1ef4994..d83d908a5`; cumulative reachability `d83d908a5` at tree
+              `59f5033d1`. Boundary-order deviation: the bootstrap projection followed terminal source head
+              `485fb461a`; exact two-parent absorption `94b84c13d` retained its tree `e5f18fb26` while adding the
+              repaired Member 7 as predecessor.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the
+              projected status, response, request-handle, and workflow contracts preserve the existing ordered
+              retained-member conjunction. The live driver rebound and published only Member 7 before returning
+              through the same delivery continuation.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ every
+              replayed source change is already reachable from the terminal top, and the Member 7-only conflict
+              workspace extraction changes no contribution arbiter, applicability authority, or review record.
+              The dependent refresh required scoped verification rather than treating head movement as clearance.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ durable
+              approved responses and hosted request handles now replay their exact member, source, pass, and await
+              envelopes. The authoring guard binds that progression to the existing fix authorization, disposition,
+              plan, member, reviewed head, ref, and checkout before mutation.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ refresh
+              settlement installed the shared pending scoped-verification continuation at state revision 269 and
+              returned exact target `94b84c13d` at tree `e5f18fb26`; its typed Tier 1 reuse is limited to that already
+              green unchanged tree.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ one
+              selector-free live drive compare-and-swap rebound detached authoring, published Member 7, and stopped
+              with complete coordinates at the semantic top conflict. Exact local two-parent resolution then resumed
+              unchanged, completed the refresh, and returned the consolidated verification stop without hosted spend,
+              duplicate authoring, selector reconstruction, or new orchestration authority.
+            - _Adversarial companion:_ the Heavy-class Member 7 companion remains exhausted at its recorded two-pass
+              cap; this bootstrap projection adds no third pass.
+            - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 8:** Record retirement and doctrine
 
