@@ -42,6 +42,7 @@ export type DeliveryCheckpointArmResult =
       readonly planId?: string;
       readonly detail?: string;
       readonly deliverableId?: string;
+      readonly paths?: readonly string[];
       readonly proof?: Extract<DeliveryContributionProofResult, { readonly status: "refused" }>;
       readonly remedy?: Extract<DeliveryTerminalTopResult, {
         readonly reason: "top-target-mismatch";

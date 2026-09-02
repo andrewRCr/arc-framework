@@ -51,6 +51,10 @@ describe("delivery suffix rematerialization", () => {
     const highest = state.members.at(-2)!;
     const terminal = state.members.at(-1)!;
     const adoptedHead = "9".repeat(40);
+    const adoptTop = vi.fn(async () => (
+      { status: "adopted" as const, head: adoptedHead, tree: terminal.coordinates!.tree }
+    ));
+    const publishTop = vi.fn(async () => ({ status: "published" as const }));
     const result = await completeDeliverySuffixMutationTail({
       rematerialized: {
         status: "rematerialized",
@@ -62,8 +66,8 @@ describe("delivery suffix rematerialization", () => {
       commonBase: state.target!.coordinates!,
       topRef: terminal.ref!,
     }, {
-      adoptTop: async () => ({ status: "adopted", head: adoptedHead, tree: terminal.coordinates!.tree }),
-      publishTop: async () => ({ status: "published" }),
+      adoptTop,
+      publishTop,
       publishState: async (_planId, value, expectedRevision) => expectedRevision === 7
         ? { status: "ok", value: { revision: 8, value } }
         : { status: "refused" },
@@ -84,6 +88,17 @@ describe("delivery suffix rematerialization", () => {
         },
       },
       nextAction: "verify-review-fix",
+    });
+    expect(adoptTop).toHaveBeenCalledWith({
+      topRef: terminal.ref,
+      commonBase: state.target!.coordinates,
+      highestMember: highest.coordinates,
+      top: terminal.coordinates,
+    });
+    expect(publishTop).toHaveBeenCalledWith({
+      ref: terminal.ref,
+      beforeHead: terminal.coordinates!.head,
+      requestedHead: adoptedHead,
     });
   });
 
