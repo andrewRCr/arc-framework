@@ -74,6 +74,9 @@ describe("packaged delivery workflow", () => {
     const disclosureRead = materializeSection.indexOf("arc delivery native link");
     const disclosure = materializeSection.indexOf("`decision-required`", disclosureRead);
     const optedRequest = materializeSection.indexOf("arc delivery native link", disclosureRead + 1);
+    expect(disclosureRead).toBeGreaterThan(-1);
+    expect(disclosure).toBeGreaterThan(-1);
+    expect(optedRequest).toBeGreaterThan(-1);
     expect(disclosureRead).toBeLessThan(disclosure);
     expect(disclosure).toBeLessThan(optedRequest);
     expect(materializeSection).toContain("`recommendedOptInText`");

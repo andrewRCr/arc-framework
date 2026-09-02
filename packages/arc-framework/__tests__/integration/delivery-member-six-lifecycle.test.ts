@@ -651,9 +651,11 @@ describe("member-six semantic native fallback lifecycle", () => {
       mergeAction: "direct",
       explicitAtomic: true,
     } as const;
+    let executedRequest: unknown;
     await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
       readText: async () => JSON.stringify(selectRequest),
       execute: async (_command, request) => {
+        executedRequest = request;
         const parsed = request as typeof selectRequest;
         const position = deriveDeliveryPosition(
           plan,
@@ -688,8 +690,9 @@ describe("member-six semantic native fallback lifecycle", () => {
       write: (text) => { selectionOutput = text; },
       setExitCode: () => { throw new Error("canonical registered remainder must select a native arm"); },
     });
-    expect(Object.hasOwn(selectRequest, "members")).toBe(false);
-    expect(Object.hasOwn(selectRequest, "facts")).toBe(false);
+    expect(executedRequest).toEqual(selectRequest);
+    expect(Object.hasOwn(executedRequest as object, "members")).toBe(false);
+    expect(Object.hasOwn(executedRequest as object, "facts")).toBe(false);
     expect(JSON.parse(selectionOutput)).toMatchObject({
       status: "selected",
       arm: "linked-atomic",
