@@ -132,6 +132,13 @@ function deliveryReviewFixConflictStop(
   }
   const actionInput = action.input as Readonly<Record<string, unknown>>;
   if (typeof actionInput.repository !== "string" || typeof actionInput.remote !== "string") return null;
+  const preparation = result.conflictPreparation as Readonly<Record<string, unknown>>;
+  const workspace = typeof preparation.workspace === "object" && preparation.workspace !== null
+    ? preparation.workspace as Readonly<Record<string, unknown>>
+    : null;
+  const resolutionLocus = typeof workspace?.path === "string"
+    ? "conflictPreparation.workspace"
+    : "conflictPreparation.topRef";
   return {
     status: "conflict-required",
     stopKind: "conflict",
@@ -143,8 +150,8 @@ function deliveryReviewFixConflictStop(
     },
     effectLog,
     recommendedActionText:
-      "Record the exact prepared two-parent merge on conflictPreparation.topRef locally without pushing it, "
-      + "then submit the returned correction resume unchanged.",
+      `Resolve the reported paths in ${resolutionLocus}, record the exact prepared two-parent `
+      + "merge there without pushing it, then submit the returned correction resume unchanged.",
   };
 }
 

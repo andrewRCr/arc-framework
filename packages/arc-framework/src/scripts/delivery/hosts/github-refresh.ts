@@ -1,15 +1,24 @@
 /** GitHub native-stack refresh preparation behind the provider-neutral delivery port. */
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { z } from "zod";
 
-import { deleteDeliveryRefreshCandidateRef } from "../../../lib/delivery/git-materialization.js";
+import {
+  deriveDeliveryResolutionWorkspacePath,
+  observeDeliveryResolutionWorkspace,
+  removeDeliveryResolutionWorkspace,
+} from "../../../lib/delivery/conflict-resolution-workspace.js";
+import {
+  deleteDeliveryRefreshCandidateRef,
+  rewriteDeliveryLocalRef,
+} from "../../../lib/delivery/git-materialization.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import { normalizeGitRejection } from "../../../lib/git/process-error.js";
 import {
+  deliveryProviderRefreshCandidateFor,
   deriveDeliveryProviderRefreshCandidates,
   type DeliveryProviderRefreshCandidate,
   type DeliveryProviderRefreshExecutionScope,
@@ -22,6 +31,7 @@ import {
   type DeliveryNativeStackPort,
 } from "../../../lib/delivery/native-stack.js";
 import type { DeliveryOperationSnapshotV1, DeliveryPlanV1 } from "../../../lib/delivery/schema.js";
+import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
 import type { DeliveryTerminalConflictPreparation } from
   "../../../lib/delivery/suffix-reconciliation.js";
 import {
@@ -176,7 +186,7 @@ type ProviderHistoryCollisionRecovery =
       readonly status: "blocked";
       readonly reason: "content-conflict";
       readonly paths: readonly string[];
-      readonly conflictPreparation: DeliveryTerminalConflictPreparation;
+      readonly conflictPreparation: Omit<DeliveryTerminalConflictPreparation, "workspace">;
     }
   | { readonly status: "refused"; readonly reason: string; readonly detail?: string };
 
@@ -222,10 +232,227 @@ async function readProviderHistoryConflictResolution(input: {
   }
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function deriveResolutionWorkspace(input: {
+  readonly git: GitExec;
+  readonly checkoutCwd: string;
+  readonly plan: DeliveryPlanV1;
+  readonly deliverableId: string;
+}): Promise<{ readonly status: "derived"; readonly path: string } | { readonly status: "refused" }> {
+  const gitCommonDir = await resolveGitCommonDir(input.git, input.checkoutCwd);
+  const derived = deriveDeliveryResolutionWorkspacePath({
+    plan: input.plan,
+    deliverableId: input.deliverableId,
+    gitCommonDir,
+  });
+  return derived.status === "derived" ? derived : { status: "refused" };
+}
+
+async function resolutionWorkspaceProtectedCandidateRefs(input: {
+  readonly git: GitExec;
+  readonly checkoutCwd: string;
+  readonly plan: DeliveryPlanV1;
+  readonly before: DeliveryOperationSnapshotV1;
+}): Promise<ReadonlySet<string> | null> {
+  const protectedRefs = new Set<string>();
+  try {
+    for (let index = 1; index < input.before.members.length; index += 1) {
+      const member = input.before.members[index];
+      const predecessor = input.before.members[index - 1];
+      if (member === undefined || predecessor === undefined || predecessor.coordinates === null) continue;
+      const locator = await deriveResolutionWorkspace({
+        git: input.git,
+        checkoutCwd: input.checkoutCwd,
+        plan: input.plan,
+        deliverableId: member.deliverableId,
+      });
+      if (locator.status === "refused" || !await pathExists(locator.path)) continue;
+      const candidate = deliveryProviderRefreshCandidateFor({
+        plan: input.plan,
+        deliverableId: predecessor.deliverableId,
+        head: predecessor.coordinates.head,
+      });
+      if (candidate !== null) protectedRefs.add(candidate.ref);
+    }
+    return protectedRefs;
+  } catch {
+    return null;
+  }
+}
+
+async function prepareResolutionWorkspace(input: {
+  readonly git: GitExec;
+  readonly checkoutCwd: string;
+  readonly plan: DeliveryPlanV1;
+  readonly deliverableId: string;
+  readonly head: string;
+}): Promise<
+  | { readonly status: "prepared"; readonly path: string; readonly head: string }
+  | { readonly status: "refused"; readonly reason: string }
+> {
+  const locator = await deriveResolutionWorkspace(input);
+  if (locator.status === "refused") return { status: "refused", reason: "locator-unavailable" };
+  const before = await observeDeliveryResolutionWorkspace({
+    exec: input.git,
+    path: locator.path,
+    pathExists,
+  });
+  if (before.status === "refused") return { status: "refused", reason: before.reason };
+  if (before.status === "observed") {
+    return before.head === input.head
+      ? { status: "prepared", path: locator.path, head: before.head }
+      : { status: "refused", reason: "head-mismatch" };
+  }
+  try {
+    await mkdir(dirname(locator.path), { recursive: true });
+    await input.git("git", ["worktree", "add", "--detach", "--", locator.path, input.head], {
+      cwd: input.checkoutCwd,
+    });
+  } catch {
+    return { status: "refused", reason: "create-failed" };
+  }
+  const after = await observeDeliveryResolutionWorkspace({
+    exec: input.git,
+    path: locator.path,
+    pathExists,
+  });
+  return after.status === "observed" && after.head === input.head
+    ? { status: "prepared", path: locator.path, head: after.head }
+    : { status: "refused", reason: "create-failed" };
+}
+
+async function adoptResolutionWorkspace(input: {
+  readonly git: GitExec;
+  readonly checkoutCwd: string;
+  readonly plan: DeliveryPlanV1;
+  readonly deliverableId: string;
+  readonly ref: string;
+  readonly oldHead: string;
+  readonly refreshedPredecessorHead: string;
+}): Promise<ProviderHistoryConflictResolution> {
+  const locator = await deriveResolutionWorkspace(input);
+  if (locator.status === "refused") return { status: "refused" };
+  const workspace = await observeDeliveryResolutionWorkspace({
+    exec: input.git,
+    path: locator.path,
+    pathExists,
+  });
+  if (workspace.status === "absent") return { status: "pending" };
+  if (workspace.status === "refused") return { status: "refused" };
+  if (workspace.head === input.oldHead) return { status: "pending" };
+  const coordinates = await readCoordinates(input.git, locator.path, "HEAD");
+  let parentLine: string;
+  try {
+    parentLine = (await input.git(
+      "git",
+      ["rev-list", "--parents", "-n", "1", workspace.head],
+      { cwd: locator.path },
+    )).stdout.trim();
+  } catch {
+    return { status: "refused" };
+  }
+  if (coordinates?.head !== workspace.head
+    || parentLine !== `${workspace.head} ${input.oldHead} ${input.refreshedPredecessorHead}`) {
+    return { status: "refused" };
+  }
+  const rebound = await rewriteDeliveryLocalRef({
+    exec: input.git,
+    ref: input.ref,
+    beforeHead: input.oldHead,
+    requestedHead: workspace.head,
+  });
+  if (rebound.status === "refused") return { status: "refused" };
+  const removed = await removeDeliveryResolutionWorkspace({
+    exec: input.git,
+    path: locator.path,
+    expectedHead: workspace.head,
+    pathExists,
+  });
+  return removed.status === "refused"
+    ? { status: "refused" }
+    : { status: "accepted", ...coordinates };
+}
+
+async function cleanupPendingResolutionWorkspace(input: {
+  readonly git: GitExec;
+  readonly checkoutCwd: string;
+  readonly plan: DeliveryPlanV1;
+  readonly deliverableId: string;
+  readonly expectedHead: string;
+}): Promise<boolean> {
+  const locator = await deriveResolutionWorkspace(input);
+  if (locator.status === "refused") return false;
+  const observed = await observeDeliveryResolutionWorkspace({
+    exec: input.git,
+    path: locator.path,
+    pathExists,
+  });
+  if (observed.status === "absent") return true;
+  if (observed.status !== "observed" || observed.head !== input.expectedHead) return false;
+  return (await removeDeliveryResolutionWorkspace({
+    exec: input.git,
+    path: locator.path,
+    expectedHead: input.expectedHead,
+    pathExists,
+  })).status !== "refused";
+}
+
+async function anchorConflictPredecessor(input: {
+  readonly git: GitExec;
+  readonly isolatedCwd: string;
+  readonly checkoutCwd: string;
+  readonly plan: DeliveryPlanV1;
+  readonly before: DeliveryOperationSnapshotV1;
+  readonly conflict: Omit<DeliveryTerminalConflictPreparation, "workspace">;
+}): Promise<DeliveryProviderRefreshCandidate | null> {
+  const conflictIndex = input.before.members.findIndex(({ ref }) => ref === input.conflict.topRef);
+  if (conflictIndex < 0) throw new Error("conflict member unavailable");
+  const predecessorHead = input.conflict.parents.refreshedPredecessor;
+  const readable = await readCoordinates(input.git, input.checkoutCwd, predecessorHead);
+  if (conflictIndex === 0) {
+    if (readable?.head !== predecessorHead) throw new Error("conflict predecessor unavailable");
+    return null;
+  }
+  const predecessor = input.before.members[conflictIndex - 1];
+  if (predecessor?.ref === null || predecessor?.ref === undefined) {
+    throw new Error("conflict predecessor unavailable");
+  }
+  const localPredecessor = await readCoordinates(input.git, input.checkoutCwd, predecessor.ref);
+  if (localPredecessor?.head === predecessorHead) return null;
+  const candidate = deliveryProviderRefreshCandidateFor({
+    plan: input.plan,
+    deliverableId: predecessor.deliverableId,
+    head: predecessorHead,
+  });
+  if (candidate === null) throw new Error("conflict predecessor unavailable");
+  const isolatedPredecessor = await readCoordinates(input.git, input.isolatedCwd, predecessor.ref);
+  if (isolatedPredecessor?.head !== predecessorHead) throw new Error("conflict predecessor unavailable");
+  await input.git("git", [
+    "fetch", "--no-tags", input.isolatedCwd, `${predecessor.ref}:${candidate.ref}`,
+  ], { cwd: input.checkoutCwd });
+  const imported = await readCoordinates(input.git, input.checkoutCwd, candidate.ref);
+  if (imported?.head !== predecessorHead || imported.tree !== isolatedPredecessor.tree) {
+    throw new Error("conflict predecessor import mismatch");
+  }
+  return candidate;
+}
+
 async function absorbProviderHistoryCollision(input: {
   readonly git: GitExec;
   readonly cwd: string;
   readonly resolutionCwd: string;
+  readonly plan: DeliveryPlanV1;
   readonly before: DeliveryOperationSnapshotV1;
   readonly selectedIndex: number;
   readonly targetHead: string;
@@ -275,14 +502,27 @@ async function absorbProviderHistoryCollision(input: {
           ? mergeTreeOutput(failure.stdout)
           : null;
         if (conflicted !== null && conflicted.paths.length > 0) {
-          const resolution = await readProviderHistoryConflictResolution({
+          const workspaceResolution = await adoptResolutionWorkspace({
             git: input.git,
-            cwd: input.resolutionCwd,
+            checkoutCwd: input.resolutionCwd,
+            plan: input.plan,
+            deliverableId: beforeMember.deliverableId,
             ref: beforeMember.ref,
             oldHead: beforeMember.coordinates.head,
-            oldTree: beforeMember.coordinates.tree,
             refreshedPredecessorHead: predecessorHead,
           });
+          const resolution = workspaceResolution.status === "accepted"
+            ? workspaceResolution
+            : workspaceResolution.status === "refused"
+              ? { status: "refused" as const }
+              : await readProviderHistoryConflictResolution({
+                  git: input.git,
+                  cwd: input.resolutionCwd,
+                  ref: beforeMember.ref,
+                  oldHead: beforeMember.coordinates.head,
+                  oldTree: beforeMember.coordinates.tree,
+                  refreshedPredecessorHead: predecessorHead,
+                });
           if (resolution.status === "refused") {
             return {
               status: "refused",
@@ -291,6 +531,15 @@ async function absorbProviderHistoryCollision(input: {
             };
           }
           if (resolution.status === "accepted") {
+            if (workspaceResolution.status === "pending" && !await cleanupPendingResolutionWorkspace({
+              git: input.git,
+              checkoutCwd: input.resolutionCwd,
+              plan: input.plan,
+              deliverableId: beforeMember.deliverableId,
+              expectedHead: beforeMember.coordinates.head,
+            })) {
+              return { status: "refused", reason: "workspace-unavailable" };
+            }
             const imported = await readCoordinates(input.git, input.cwd, resolution.head);
             if (imported?.head !== resolution.head || imported.tree !== resolution.tree) {
               return { status: "refused", reason: "workspace-unavailable" };
@@ -502,7 +751,17 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
     } catch {
       return { status: "refused", reason: "candidate-observation-unavailable" };
     }
-    if ((await this.cleanup(stale)).status === "refused") {
+    const workspaceProtectedCandidateRefs = await resolutionWorkspaceProtectedCandidateRefs({
+      git: this.options.git,
+      checkoutCwd: this.options.checkoutPath,
+      plan: input.plan,
+      before: input.before,
+    });
+    if (workspaceProtectedCandidateRefs === null) {
+      return { status: "refused", reason: "resolution-workspace-observation-unavailable" };
+    }
+    if ((await this.cleanup(stale.filter(({ ref }) => !workspaceProtectedCandidateRefs.has(ref)))).status
+      === "refused") {
       return { status: "refused", reason: "candidate-cleanup-required" };
     }
     try {
@@ -522,6 +781,7 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
       return { status: "refused", reason: "workspace-unavailable" };
     }
     let result: DeliveryProviderRefreshPreparationResult;
+    let retainedConflictCandidate: DeliveryProviderRefreshCandidate | null = null;
     try {
       const { stdout: remoteUrlOut } = await this.options.git(
         "git",
@@ -581,20 +841,52 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
               git: this.options.git,
               cwd: temporaryPath,
               resolutionCwd: this.options.checkoutPath,
+              plan: input.plan,
               before: input.before,
               selectedIndex: input.scope.kind === "dependent-suffix" ? selectedIndex : -1,
               targetHead: localTarget.head,
             });
           }
           if (collisionRecovery !== null && collisionRecovery.status !== "recovered") {
-            result = collisionRecovery.status === "blocked"
-              ? {
-                  status: "refused",
-                  reason: collisionRecovery.reason,
-                  paths: collisionRecovery.paths,
-                  conflictPreparation: collisionRecovery.conflictPreparation,
-                }
-              : collisionRecovery;
+            if (collisionRecovery.status === "blocked") {
+              retainedConflictCandidate = await anchorConflictPredecessor({
+                git: this.options.git,
+                isolatedCwd: temporaryPath,
+                checkoutCwd: this.options.checkoutPath,
+                plan: input.plan,
+                before: input.before,
+                conflict: collisionRecovery.conflictPreparation,
+              });
+              const conflictMember = input.before.members.find(
+                ({ ref }) => ref === collisionRecovery.conflictPreparation.topRef,
+              );
+              const workspace = conflictMember === undefined
+                ? { status: "refused" as const, reason: "member-unavailable" }
+                : await prepareResolutionWorkspace({
+                    git: this.options.git,
+                    checkoutCwd: this.options.checkoutPath,
+                    plan: input.plan,
+                    deliverableId: conflictMember.deliverableId,
+                    head: collisionRecovery.conflictPreparation.parents.top,
+                  });
+              result = workspace.status === "refused"
+                ? {
+                    status: "refused",
+                    reason: "resolution-workspace-unavailable",
+                    detail: `ARC preserved the exact conflict state but could not prepare its detached workspace: ${workspace.reason}.`,
+                  }
+                : {
+                    status: "refused",
+                    reason: collisionRecovery.reason,
+                    paths: collisionRecovery.paths,
+                    conflictPreparation: {
+                      ...collisionRecovery.conflictPreparation,
+                      workspace: { path: workspace.path, head: workspace.head },
+                    },
+                  };
+            } else {
+              result = collisionRecovery;
+            }
           } else {
             const refreshedTarget = await readCoordinates(
               this.options.git,
@@ -705,7 +997,10 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
       } catch {
         return { status: "refused", reason: "candidate-cleanup-required" };
       }
-      const cleaned = await this.cleanup(residue);
+      const cleaned = await this.cleanup(residue.filter(({ ref, head }) => (
+        (ref !== retainedConflictCandidate?.ref || head !== retainedConflictCandidate.head)
+        && !workspaceProtectedCandidateRefs.has(ref)
+      )));
       if (cleaned.status === "refused") return { status: "refused", reason: "candidate-cleanup-required" };
     }
     return result;

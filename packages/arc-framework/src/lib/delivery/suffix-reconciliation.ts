@@ -319,6 +319,10 @@ export interface DeliveryTerminalConflictPreparation {
   readonly mergeTree: {
     readonly argv: readonly string[];
   };
+  readonly workspace?: {
+    readonly path: string;
+    readonly head: string;
+  };
 }
 
 export interface ProviderAdoptionSettlementDependencies {
