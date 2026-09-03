@@ -3309,8 +3309,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                 - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ an
                   exact current member vehicle, head, and completed-pass terminus now survives a fresh Candidate
                   root's replayed applicability projection and advances the ordered conjunction to its next
-                  outstanding member. Live post-acknowledgment status discharged the retained Member 5 and 6
-                  termini and selected Member 7 at exact head `5f74a8bed` without another applicability decision.
+                  outstanding member.
                 - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the
                   correction reorders no contribution proof and writes no applicability selection. Changed heads or
                   completed-pass counts remain outstanding, and conflicting applicability authority still stops.
