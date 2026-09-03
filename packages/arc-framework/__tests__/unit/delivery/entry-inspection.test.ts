@@ -5,6 +5,7 @@ import {
   inspectDeliveryEntry,
   inspectDeliveryPlanLocus,
   inspectDeliveryReopen,
+  selectOutstandingNonTerminalDeliveryMember,
 } from "../../../src/lib/delivery/entry-inspection.js";
 import {
   DELIVERY_PLAN_START_SENTINEL,
@@ -20,7 +21,9 @@ import {
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import {
   deliveryFourMemberStackPlanFixture,
+  deliverySingleMemberStackPlanFixture,
   deliveryStackPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -899,5 +902,74 @@ describe("delivery entry inspection", () => {
       status: "not-applicable",
       nextAction: "continue-work-unit",
     });
+  });
+});
+
+describe("selectOutstandingNonTerminalDeliveryMember", () => {
+  function bind(
+    boundPlan: ReturnType<typeof deliveryThreeMemberStackPlanFixture>,
+    boundIndexes: readonly number[],
+  ) {
+    const state = deliveryStateFixture(boundPlan);
+    return {
+      ...state,
+      members: state.members.map((member, index) => ({
+        ...member,
+        changeRequest: boundIndexes.includes(index)
+          ? { providerId: "github", changeRequestId: String(index + 101) }
+          : null,
+      })),
+    };
+  }
+
+  it("selects the first plan-ordered non-terminal member carrying a bound request", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: bind(threeMemberPlan, [0, 1, 2]),
+    })).toEqual({
+      deliverableId: threeMemberPlan.members[0]?.deliverableId,
+      changeRequest: { providerId: "github", changeRequestId: "101" },
+    });
+  });
+
+  it("skips an unbound non-terminal member and selects the next bound one", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: bind(threeMemberPlan, [1, 2]),
+    })).toEqual({
+      deliverableId: threeMemberPlan.members[1]?.deliverableId,
+      changeRequest: { providerId: "github", changeRequestId: "102" },
+    });
+  });
+
+  it("selects nothing when only the terminal member carries a bound request", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: bind(threeMemberPlan, [2]),
+    })).toBeNull();
+  });
+
+  it("selects nothing from a terminal-only plan whose single member is bound", () => {
+    const singleMemberPlan = deliverySingleMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: singleMemberPlan,
+      state: bind(singleMemberPlan, [0]),
+    })).toBeNull();
+  });
+
+  it("selects nothing when no member carries a bound request", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: bind(threeMemberPlan, []),
+    })).toBeNull();
   });
 });

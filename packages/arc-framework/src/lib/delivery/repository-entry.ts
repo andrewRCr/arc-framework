@@ -1,9 +1,11 @@
 /** Repository-backed adapter for read-only delivery-entry inspection. */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 
 import { RepositoryGitCommonStatePublisher } from "../git-common-state.js";
+import { validateManagedPath } from "../kernel/index.js";
+import { resolveActiveWu } from "../release/wu-resolution.js";
 import type { GitExec } from "../git/exec.js";
 import { createRawGitExec } from "../io-context.js";
 import { projectGitCandidateEffectiveTarget } from "../work-unit/git-candidate-effective-target.js";
@@ -31,6 +33,11 @@ import {
 import { DeliveryPlanV1Codec } from "./plan.js";
 import { selectPendingDeliveryReviewFixAuthority } from "./review-fix-continuation.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
+import {
+  classifyGitDeliveryTerminalDelta,
+  readGitDeliveryLifecycleArtifactsAtRef,
+} from "./git-lifecycle-contribution.js";
+import type { DeliveryTerminalDeltaClassification } from "./lifecycle-contribution.js";
 import { projectGitDeliveryTerminalCoordinateAdvance } from
   "./public-review-continuation-git.js";
 import {
@@ -114,7 +121,14 @@ function createRepositoryDeliveryInspectionDependencies(
           exec: input.exec,
           rawExec: createRawGitExec(input.cwd),
         });
-        if (projected.state !== "current") return { status: "non-current" };
+        if (projected.state !== "current") {
+          const terminalDelta = terminalCoordinates === undefined
+            ? null
+            : await classifyTerminalDelta(input, terminalCoordinates.head);
+          return terminalDelta === null
+            ? { status: "non-current" }
+            : { status: "non-current", terminalDelta };
+        }
         const tail = record.transitions.at(-1);
         const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
           cwd: input.cwd,
@@ -141,6 +155,30 @@ function createRepositoryDeliveryInspectionDependencies(
       }
     },
   };
+}
+
+async function classifyTerminalDelta(
+  input: RepositoryDeliveryInspectionInput,
+  terminalHead: string,
+): Promise<DeliveryTerminalDeltaClassification | null> {
+  const active = await resolveActiveWu({ cwd: input.cwd });
+  const base = input.baseBranch.trim();
+  if (active.status !== "resolved" || active.name !== input.workUnitId
+    || active.branch === null || base === "") {
+    return null;
+  }
+  return classifyGitDeliveryTerminalDelta({
+    exec: input.exec,
+    workUnitId: input.workUnitId,
+    activeMetaPath: validateManagedPath(active.path),
+    protectedBaseRef: `refs/heads/${base}`,
+    topRef: `refs/heads/${active.branch}`,
+    fromRevision: terminalHead,
+    toRevision: "HEAD",
+    readDirectory: (path) => readdir(resolve(input.cwd, path)),
+    readArtifactsAtRef: (ref, workUnitId) =>
+      readGitDeliveryLifecycleArtifactsAtRef(input.exec, ref, workUnitId),
+  });
 }
 
 /** Inspect one exact work unit through repository-backed read-only delivery stores. */

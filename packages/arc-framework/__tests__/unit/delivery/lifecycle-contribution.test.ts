@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { validateManagedPath } from "../../../src/lib/kernel/index.js";
 import {
+  classifyDeliveryTerminalDelta,
   compareDeliveryLifecycleContribution,
   compareNormalizedDeliveryTree,
   CurrentDeliveryLifecycleContributionPathSource,
@@ -182,6 +183,69 @@ describe("compareDeliveryLifecycleContribution", () => {
     })).toEqual({
       status: "mismatch",
       mismatchedPaths: ["added.md", "changed.md", "deleted.md", "mode.md", "type.md"],
+    });
+  });
+});
+
+describe("classifyDeliveryTerminalDelta", () => {
+  it("classifies a delta reaching only lifecycle paths as lifecycle-only", () => {
+    expect(classifyDeliveryTerminalDelta({
+      changedPaths: [".arc/active/tasks-example.md", ".arc/active/meta-example.md"],
+      lifecyclePaths: [
+        ".arc/active/meta-example.md",
+        ".arc/active/spec-example.md",
+        ".arc/active/tasks-example.md",
+      ],
+    })).toEqual({
+      kind: "lifecycle-only",
+      lifecyclePaths: [".arc/active/meta-example.md", ".arc/active/tasks-example.md"],
+    });
+  });
+
+  it("partitions a delta that also reaches content outside the lifecycle group", () => {
+    expect(classifyDeliveryTerminalDelta({
+      changedPaths: [
+        "packages/arc-framework/src/lib/delivery/review-fix.ts",
+        ".arc/active/tasks-example.md",
+        "packages/arc-framework/__tests__/unit/delivery/review-fix.test.ts",
+      ],
+      lifecyclePaths: [".arc/active/meta-example.md", ".arc/active/tasks-example.md"],
+    })).toEqual({
+      kind: "carries-non-lifecycle",
+      lifecyclePaths: [".arc/active/tasks-example.md"],
+      nonLifecyclePaths: [
+        "packages/arc-framework/__tests__/unit/delivery/review-fix.test.ts",
+        "packages/arc-framework/src/lib/delivery/review-fix.ts",
+      ],
+    });
+  });
+
+  it("treats an empty delta as lifecycle-only without inventing paths", () => {
+    expect(classifyDeliveryTerminalDelta({
+      changedPaths: [],
+      lifecyclePaths: [".arc/active/meta-example.md"],
+    })).toEqual({ kind: "lifecycle-only", lifecyclePaths: [] });
+  });
+
+  it("deduplicates changed paths and reports them in stable byte order", () => {
+    expect(classifyDeliveryTerminalDelta({
+      changedPaths: ["b.ts", "a.md", "b.ts", "a.md"],
+      lifecyclePaths: ["a.md", "a.md"],
+    })).toEqual({
+      kind: "carries-non-lifecycle",
+      lifecyclePaths: ["a.md"],
+      nonLifecyclePaths: ["b.ts"],
+    });
+  });
+
+  it("classifies a delta with no lifecycle paths supplied as fully non-lifecycle", () => {
+    expect(classifyDeliveryTerminalDelta({
+      changedPaths: [".arc/active/meta-example.md"],
+      lifecyclePaths: [],
+    })).toEqual({
+      kind: "carries-non-lifecycle",
+      lifecyclePaths: [],
+      nonLifecyclePaths: [".arc/active/meta-example.md"],
     });
   });
 });

@@ -21,6 +21,7 @@ import {
   DeliveryGitObjectIdSchema,
   DeliveryPlanIdSchema,
 } from "./schema.js";
+import type { DeliveryTerminalDeltaClassification } from "./lifecycle-contribution.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 import {
   DELIVERY_PLAN_END_SENTINEL,
@@ -28,6 +29,7 @@ import {
   renderDeliveryPlanSection,
 } from "./task-list-render.js";
 import type {
+  DeliveryChangeRequestV1,
   DeliveryMemberCoordinatesV1,
   DeliveryPlanV1,
   DeliveryStateV1,
@@ -351,7 +353,10 @@ type ReadCandidate =
         readonly terminalCoordinateAdvance?: DeliveryTerminalCoordinateAdvanceProof;
       } | null;
     }
-  | { readonly status: "non-current" }
+  | {
+      readonly status: "non-current";
+      readonly terminalDelta?: DeliveryTerminalDeltaClassification;
+    }
   | { readonly status: "refused" };
 
 /** Read-only dependencies; the port intentionally exposes no publish or mutation methods. */
@@ -538,6 +543,38 @@ export function inspectDeliveryPlanLocus(
   return actual === expected
     ? { status: "canonical" }
     : { status: "refused", reason: "canonical-projection-mismatch" };
+}
+
+/** One non-terminal delivery member still bound to a change request at the entry seam. */
+export interface OutstandingNonTerminalDeliveryMember {
+  readonly deliverableId: string;
+  readonly changeRequest: DeliveryChangeRequestV1;
+}
+
+/**
+ * Select the first non-terminal member whose review the seam can still see as outstanding.
+ *
+ * The seam reads no per-member review progress, so a member bound to a change request is the
+ * strongest outstanding-review evidence available here. The terminal member is never selected:
+ * its branch is the work-unit branch, so content carried there is already its own.
+ *
+ * @param input - The canonical plan and its coherent delivery state.
+ * @returns The first plan-ordered bound non-terminal member, or `null` when none is bound.
+ */
+export function selectOutstandingNonTerminalDeliveryMember(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryStateV1;
+}): OutstandingNonTerminalDeliveryMember | null {
+  const terminalIndex = input.plan.members.length - 1;
+  for (const [index, planMember] of input.plan.members.entries()) {
+    if (index >= terminalIndex) break;
+    const bound = input.state.members.find(
+      (member) => member.deliverableId === planMember.deliverableId,
+    )?.changeRequest;
+    if (bound == null) continue;
+    return { deliverableId: planMember.deliverableId, changeRequest: bound };
+  }
+  return null;
 }
 
 /** Derive the exact delivery entry route from its entry context and authoritative read-only facts. */

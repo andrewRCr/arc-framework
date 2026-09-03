@@ -7,8 +7,11 @@ import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
 import { readTreeEntry } from "../work-unit/git-decomposition-object-readers.js";
 import { artifactMatcher } from "../work-unit/mutators/relocate-artifacts.js";
 import {
+  classifyDeliveryTerminalDelta,
   compareDeliveryLifecycleContribution,
+  CurrentDeliveryLifecycleContributionPathSource,
   type DeliveryLifecycleTreeState,
+  type DeliveryTerminalDeltaClassification,
 } from "./lifecycle-contribution.js";
 
 /** Closed result of one fresh lifecycle-contribution revalidation. */
@@ -42,6 +45,54 @@ export async function readGitDeliveryLifecycleArtifactsAtRef(
     .filter((path) => path !== "" && posix.basename(path) !== `cohort-${workUnitId}.md`
       && matcher.test(posix.basename(path)))
     .map(validateManagedPath);
+}
+
+/**
+ * Classify one revision range against a work unit's lifecycle-contribution paths.
+ *
+ * @param input - Git boundary, work-unit lifecycle locators, and the exact revision range to read.
+ * @returns The delta classification, or `null` when the range or artifact group cannot be read.
+ */
+export async function classifyGitDeliveryTerminalDelta(input: {
+  readonly exec: GitExec;
+  readonly workUnitId: string;
+  readonly activeMetaPath: ManagedPath;
+  readonly protectedBaseRef: string;
+  readonly topRef: string;
+  readonly fromRevision: string;
+  readonly toRevision: string;
+  readonly readDirectory: (path: string) => Promise<readonly string[]>;
+  readonly readArtifactsAtRef?: (
+    ref: string,
+    workUnitId: string,
+  ) => Promise<readonly ManagedPath[]>;
+  readonly projectReadinessPath?: ManagedPath | null;
+}): Promise<DeliveryTerminalDeltaClassification | null> {
+  try {
+    const resolved = await new CurrentDeliveryLifecycleContributionPathSource({
+      readDirectory: input.readDirectory,
+      ...(input.readArtifactsAtRef === undefined
+        ? {}
+        : { readArtifactsAtRef: input.readArtifactsAtRef }),
+      ...(input.projectReadinessPath === undefined
+        ? {}
+        : { projectReadinessPath: input.projectReadinessPath }),
+    }).resolve({
+      workUnitId: input.workUnitId,
+      activeMetaPath: input.activeMetaPath,
+      protectedBaseRef: input.protectedBaseRef,
+      topRef: input.topRef,
+    });
+    const { stdout } = await input.exec("git", [
+      "diff", "--name-only", "-z", input.fromRevision, input.toRevision, "--",
+    ]);
+    return classifyDeliveryTerminalDelta({
+      changedPaths: stdout.split("\0").filter((path) => path !== ""),
+      lifecyclePaths: [...resolved.workUnitArtifacts, ...resolved.sharedProjections],
+    });
+  } catch {
+    return null;
+  }
 }
 
 /** Freshly compare protected-base and candidate tree entries at every supplied path. */
