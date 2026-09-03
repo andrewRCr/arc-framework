@@ -552,6 +552,15 @@ ordinary Candidate currentness at the recognized head. It adds no standing grant
 provider action, or generic ancestry
 escape.
 
+Fresh-root authority clarification (2026-09-03): the next live status run proved that fresh Candidate roots reset
+canonical applicability-selection transitions even when an earlier delivery member's exact head, base, progress,
+and authenticated Owner terminus remain unchanged. Member 5 therefore re-offered the exact residual already recorded
+as `covered` before the root, despite its boundary carrying the later exact-head terminus. That stop has no new
+decision. An exact current vehicle/head terminus whose completed-pass count still matches now remains conclusive over
+this applicability replay. Findings, hosted settlement, request or await state, local continuation, changed member
+coordinates, and changed pass counts still precede it. The correction preserves existing Owner authority; it does not
+copy a superseded Candidate transition, infer convergence, or add a standing grant.
+
 ### Amendment 3 — executable pre-reservation conflict resume (2026-09-01)
 
 The live Member 3 correction reached the rescue's intended attended conflict stop while provider preparation was
