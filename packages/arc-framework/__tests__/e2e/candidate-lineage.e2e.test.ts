@@ -1813,12 +1813,28 @@ describe("routed review obligation", () => {
     if (versionedCandidate.record === null || versionedCandidate.version === null) {
       throw new Error("missing current Candidate fixture");
     }
+    const candidateBaseRevision = versionedCandidate.record.attestation.baseRevision;
 
-    await expect(readRoutedObligation(root, gitExec, {
+    const routed = await readRoutedObligation(root, gitExec, {
       repository: "owner/repo",
       headRef: "feat/example",
       headSha: currentHead,
-    }, 42)).resolves.toMatchObject({
+    }, 42, undefined, undefined, undefined, {
+      readRequest: async (repository, binding) => ({
+        status: "observed",
+        request: {
+          binding,
+          repository,
+          headRepository: repository,
+          headRef: "feat/example",
+          headSha: currentHead,
+          baseRef: candidateBaseRevision,
+          state: "open",
+          draft: false,
+        },
+      }),
+    });
+    expect(routed, JSON.stringify(routed)).toMatchObject({
       state: "review-required",
       scope: "singleton",
       selectionAction: {
