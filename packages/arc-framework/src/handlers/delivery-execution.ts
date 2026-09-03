@@ -2110,6 +2110,11 @@ async function executeDeliveryCommand(
         if (prepared.status === "prepared" && prepared.authoring?.status === "ready") {
           entry = correctionEntry;
           preparedCorrection = prepared;
+        } else if (prepared.status === "prepared"
+          && prepared.result.status === "dispatch"
+          && "kind" in prepared.result.action
+          && prepared.result.action.kind === "delivery-review-fix-authoring-rebind") {
+          return prepared.result;
         } else {
           const terminalRebind = await projectTerminalRecordRebind(
             entry.planId,

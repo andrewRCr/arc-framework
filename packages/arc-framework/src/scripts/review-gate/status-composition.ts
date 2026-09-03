@@ -321,7 +321,7 @@ export async function readRoutedObligation(
       cwd,
       exec,
       delivery: memberLookup,
-      host: deliveryHost,
+      host,
     });
     if (reservation.target.kind === "delivery") {
       const resolution = await resolveHostedReservationTargets({
