@@ -44,11 +44,13 @@ import {
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import {
   readCandidateRecordVersioned,
+  resolveCandidateRecordRelativePath,
   writeCandidateRecord,
 } from "../../src/lib/work-unit/candidate-record-store.js";
 import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
+  resolveSubmissionBoundaryPath,
   writeSubmissionBoundary,
 } from "../../src/lib/work-unit/submission-boundary-store.js";
 import {
@@ -1588,6 +1590,132 @@ describe("hosted review fan-out lifecycle", () => {
       routedObligation: {
         state: "blocked",
         detail: "The public delivery continuation is not current.",
+      },
+    });
+  });
+
+  it("composes member status across a state-bound terminal below the current Candidate head", async () => {
+    const harness = await createHarness();
+    const current = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
+    if (current.record === null || current.version === null) throw new Error("source Candidate must exist");
+
+    const baselineState: DeliveryStateV1 = {
+      ...harness.state,
+      members: [
+        {
+          ...harness.state.members[0]!,
+          ref: "refs/heads/delivery/delivery-plan-record/moved-first",
+          coordinates: {
+            base: harness.baseHead,
+            head: harness.movedFirst,
+            tree: harness.movedFirstTree,
+          },
+        },
+        {
+          ...harness.state.members[1]!,
+          ref: "refs/heads/feat/delivery-plan-record",
+          coordinates: {
+            base: harness.movedFirst,
+            head: harness.currentSecond,
+            tree: harness.currentSecondTree,
+          },
+        },
+      ],
+    };
+    const publishedBaseline = await harness.states.publish(
+      harness.plan.planId,
+      baselineState,
+      harness.stateRevision,
+    );
+    if (publishedBaseline.status !== "ok") throw new Error("expected baseline delivery state");
+    harness.state = baselineState;
+    harness.stateRevision = publishedBaseline.value.revision;
+
+    const taskPath = ".arc/active/tasks-delivery-plan-record.md";
+    await mkdir(join(harness.root, ".arc", "active"), { recursive: true });
+    await writeFile(join(harness.root, taskPath), "# Closed task\n", "utf8");
+    await git(harness.root, ["add", taskPath]);
+    const staged = await collectGitCandidateTarget({
+      cwd: harness.root,
+      name: harness.plan.workUnitId,
+      baseBranch: "main",
+      baseRevision: harness.baseHead,
+      exec: harness.exec,
+    });
+    const renewed: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: createCandidateAttestation({
+        workUnit: harness.plan.workUnitId,
+        subject: staged.subject,
+        baseRevision: harness.currentSecond,
+        attestedBy: "andrew",
+        attestedAt: "2026-09-02T20:00:00.000Z",
+        verificationEvidenceRef: "verification://terminal-suffix",
+        supersedes: current.record.attestation.candidateId,
+      }),
+      subject: staged.subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    await writeCandidateRecord(harness.root, harness.plan.workUnitId, renewed, current.version);
+    const continuation = projectDeliveryPublicReviewContinuation({
+      plan: harness.plan,
+      state: baselineState,
+      stateRevision: harness.stateRevision,
+    });
+    if (continuation.status !== "projected") throw new Error("delivery continuation must project");
+    const sourceBoundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
+    if (sourceBoundary.boundary === null) throw new Error("source boundary must exist");
+    await writeSubmissionBoundary(harness.root, projectCorrectiveDeliveryReviewBoundary({
+      workUnit: harness.plan.workUnitId,
+      candidateId: renewed.attestation.candidateId,
+      candidateSubjectDigest: renewed.subject.subjectDigest,
+      supersedesCandidateId: renewed.attestation.supersedes ?? null,
+      sourceBoundary: sourceBoundary.boundary,
+      deliveryContinuation: continuation.continuation,
+    }), sourceBoundary.version);
+
+    const candidatePath = resolveCandidateRecordRelativePath(harness.plan.workUnitId);
+    const boundaryPath = resolveSubmissionBoundaryPath(harness.plan.workUnitId);
+    await git(harness.root, ["add", candidatePath, boundaryPath]);
+    await git(harness.root, ["commit", "--only", candidatePath, boundaryPath, "-m", "record terminal boundary"]);
+    const stateHead = await git(harness.root, ["rev-parse", "HEAD"]);
+    const stateTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
+    const stateAtRecord: DeliveryStateV1 = {
+      ...baselineState,
+      members: baselineState.members.map((deliveryMember, index) => index === 1
+        ? {
+            ...deliveryMember,
+            coordinates: { ...deliveryMember.coordinates!, head: stateHead, tree: stateTree },
+          }
+        : deliveryMember),
+    };
+    const publishedRecord = await harness.states.publish(
+      harness.plan.planId,
+      stateAtRecord,
+      harness.stateRevision,
+    );
+    if (publishedRecord.status !== "ok") throw new Error("expected state-bound terminal record");
+    harness.state = stateAtRecord;
+    harness.stateRevision = publishedRecord.value.revision;
+
+    await git(harness.root, ["commit", "-m", "close task"]);
+    const currentHead = await git(harness.root, ["rev-parse", "HEAD"]);
+    const status = await statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/moved-first",
+      headSha: harness.movedFirst,
+    });
+    expect(status).toMatchObject({
+      state: "review-required",
+      routedObligation: {
+        conjunction: {
+          members: [
+            { target: { headSha: harness.movedFirst } },
+            { target: { headSha: currentHead } },
+          ],
+        },
       },
     });
   });

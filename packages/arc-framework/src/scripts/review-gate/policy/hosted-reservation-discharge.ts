@@ -212,6 +212,11 @@ export async function resolveHostedReservationTargets(input: {
   readonly singleton: HostedReservationTarget;
   readonly delivery: DeliveryDischargeTargetLookup;
   readonly host: Pick<DeliveryHostPort, "readRequest">;
+  /** Proven current request head for the state-bound terminal member only. */
+  readonly terminalAdvance?: {
+    readonly stateHead: string;
+    readonly currentHead: string;
+  };
 }): Promise<HostedReservationTargetResolution> {
   try {
     const marker = input.reservation?.target;
@@ -235,7 +240,7 @@ export async function resolveHostedReservationTargets(input: {
     const targets: HostedReservationTarget[] = [];
     const requestIds = new Set<string>();
     let landedBaseRevision = input.singleton.baseRevision;
-    for (const binding of resolved.targets) {
+    for (const [index, binding] of resolved.targets.entries()) {
       if (marker?.kind === "delivery"
         && (binding.planId !== marker.planId || binding.workUnitId !== marker.workUnitId)) {
         return { status: "unavailable", targets: [] };
@@ -255,13 +260,18 @@ export async function resolveHostedReservationTargets(input: {
       if (observed.status !== "observed") return { status: "unavailable", targets: [] };
       const request = observed.request;
       const expectedHeadRef = binding.ref?.replace(/^refs\/heads\//u, "") ?? null;
+      const representedTerminalAdvance = input.terminalAdvance !== undefined
+        && binding.position === binding.memberCount
+        && index === resolved.targets.length - 1
+        && binding.head === input.terminalAdvance.stateHead
+        && request.headSha === input.terminalAdvance.currentHead;
       if (request.binding.providerId !== binding.providerId
         || request.binding.changeRequestId !== binding.changeRequestId
         || request.repository.toLowerCase() !== input.singleton.repository.toLowerCase()
         || request.headRepository.toLowerCase() !== input.singleton.repository.toLowerCase()
         || request.state === "closed"
         || (expectedHeadRef !== null && request.headRef !== expectedHeadRef)
-        || (request.state === "open" && request.headSha !== binding.head)) {
+        || (request.state === "open" && request.headSha !== binding.head && !representedTerminalAdvance)) {
         return { status: "unavailable", targets: [] };
       }
       targets.push({

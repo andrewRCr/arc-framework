@@ -179,6 +179,7 @@ export async function readRoutedObligation(
       ? boundary.deliveryContinuation
       : undefined;
     let effective: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>>;
+    let terminalAdvance: { readonly stateHead: string; readonly currentHead: string } | undefined;
     if (correctiveContinuation !== undefined) {
       effective = await projectGitCandidateEffectiveTarget({
         cwd,
@@ -193,12 +194,16 @@ export async function readRoutedObligation(
         return { state: "blocked", detail: "The owning work-unit Candidate is not current." };
       }
       const delivery = await memberLookup.resolveTerminalRecords(workUnit);
+      const terminalCoordinates = delivery.status === "resolved"
+        ? delivery.state.members.at(-1)?.coordinates ?? undefined
+        : undefined;
       const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
         cwd,
         exec,
         candidate: effective,
         workUnitId: workUnit,
         baseBranch,
+        ...(terminalCoordinates === undefined ? {} : { terminalCoordinates }),
       });
       if (delivery.status !== "resolved"
         || validateDeliveryPublicReviewContinuation({
@@ -209,6 +214,14 @@ export async function readRoutedObligation(
           ...(terminalCoordinateAdvance === undefined ? {} : { terminalCoordinateAdvance }),
         }).status !== "current") {
         return { state: "blocked", detail: "The public delivery continuation is not current." };
+      }
+      if (terminalCoordinates !== undefined
+        && terminalCoordinateAdvance !== undefined
+        && terminalCoordinates.head !== effective.recognizedTarget.revision) {
+        terminalAdvance = {
+          stateHead: terminalCoordinates.head,
+          currentHead: effective.recognizedTarget.revision,
+        };
       }
     } else {
       await ensureCandidateHeadAvailable({ cwd, exec, headSha: candidateHead });
@@ -258,6 +271,7 @@ export async function readRoutedObligation(
         },
         delivery: memberLookup,
         host,
+        ...(terminalAdvance === undefined ? {} : { terminalAdvance }),
       });
       if (resolution.status !== "resolved" || resolution.kind !== "delivery") {
         return { state: "blocked", detail: "The retained delivery-member review targets are unavailable." };

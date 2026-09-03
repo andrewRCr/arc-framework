@@ -393,6 +393,74 @@ describe("hosted reservation discharge", () => {
     })).resolves.toEqual({ status: "unavailable", targets: [] });
   });
 
+  it("accepts only the proven current head of an advanced terminal request", async () => {
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      singleton: { ...target(oid("c")), baseRevision: oid("0") },
+      terminalAdvance: { stateHead: oid("a"), currentHead: oid("c") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_ONE,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("9"),
+              position: 1, memberCount: 2, chunkKey: "member-1", title: "Member 1",
+            },
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_TWO,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "42", base: oid("9"), head: oid("a"),
+              position: 2, memberCount: 2, chunkKey: "member-2", title: "Member 2",
+            },
+          ],
+        }),
+      },
+      host: deliveryHost({
+        "41": { headSha: oid("9") },
+        "42": { headSha: oid("c") },
+      }),
+    })).resolves.toMatchObject({
+      status: "resolved",
+      kind: "delivery",
+      targets: [
+        { headSha: oid("9"), vehicle: { head: oid("9") } },
+        { headSha: oid("c"), vehicle: { head: oid("c") } },
+      ],
+    });
+
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      singleton: { ...target(oid("d")), baseRevision: oid("0") },
+      terminalAdvance: { stateHead: oid("a"), currentHead: oid("c") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [{
+            planId: PLAN_ID, deliverableId: MEMBER_TWO,
+            workUnitId: "delivery", ref: null,
+            providerId: "github", changeRequestId: "42", base: oid("9"), head: oid("a"),
+            position: 1, memberCount: 1, chunkKey: "member-2", title: "Member 2",
+          }],
+        }),
+      },
+      host: deliveryHost({ "42": { headSha: oid("d") } }),
+    })).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
   it("fails closed when the retained ref does not match the observed head ref", async () => {
     await expect(resolveHostedReservationTargets({
       workUnitId: "delivery",

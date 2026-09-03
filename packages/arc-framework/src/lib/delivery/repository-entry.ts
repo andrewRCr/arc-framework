@@ -102,7 +102,7 @@ function createRepositoryDeliveryInspectionDependencies(
       status: "ok",
       value: await readSubmissionBoundary(input.cwd, workUnitId),
     }),
-    readCandidate: async () => {
+    readCandidate: async (terminalCoordinates) => {
       const record = await readCandidateRecord(input.cwd, workUnitId);
       if (record === null) return { status: "ok", value: null };
       try {
@@ -122,6 +122,7 @@ function createRepositoryDeliveryInspectionDependencies(
           candidate: projected,
           workUnitId,
           baseBranch: input.baseBranch,
+          ...(terminalCoordinates === undefined ? {} : { terminalCoordinates }),
         });
         return {
           status: "ok",

@@ -27,7 +27,11 @@ import {
   DELIVERY_PLAN_START_SENTINEL,
   renderDeliveryPlanSection,
 } from "./task-list-render.js";
-import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
+import type {
+  DeliveryMemberCoordinatesV1,
+  DeliveryPlanV1,
+  DeliveryStateV1,
+} from "./schema.js";
 import {
   projectDeliveryReviewFixVerificationContinuation,
   type DeliveryReviewFixVerificationContinuation,
@@ -357,7 +361,7 @@ export interface DeliveryEntryInspectionDependencies {
   readonly resolveAuthoring: () => Promise<ResolvedAuthoring>;
   readonly readState: (planId: string) => Promise<ReadState>;
   readonly readIntegrationBoundary: () => Promise<ReadIntegrationBoundary>;
-  readonly readCandidate: () => Promise<ReadCandidate>;
+  readonly readCandidate: (terminalCoordinates?: DeliveryMemberCoordinatesV1) => Promise<ReadCandidate>;
 }
 
 /** Closed attestation preflight for a possible public delivery Candidate renewal. */
@@ -737,7 +741,7 @@ export async function inspectDeliveryEntry(
       && boundary.value.deliveryContinuation === undefined) {
       let candidate: ReadCandidate;
       try {
-        candidate = await dependencies.readCandidate();
+        candidate = await dependencies.readCandidate(state.value.members.at(-1)?.coordinates ?? undefined);
       } catch {
         candidate = { status: "refused" };
       }
@@ -763,7 +767,7 @@ export async function inspectDeliveryEntry(
       && boundary.value.deliveryContinuation !== undefined) {
       let candidate: ReadCandidate;
       try {
-        candidate = await dependencies.readCandidate();
+        candidate = await dependencies.readCandidate(state.value.members.at(-1)?.coordinates ?? undefined);
       } catch {
         return refused("evidence-unavailable");
       }

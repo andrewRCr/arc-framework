@@ -11,6 +11,7 @@ import {
 } from "../work-unit/git-candidate-subject.js";
 import type { DeliveryTerminalCoordinateAdvanceProof } from
   "./public-review-continuation.js";
+import type { DeliveryMemberCoordinatesV1 } from "./schema.js";
 
 /** Classify strict-ancestor terminal movement with an unchanged Candidate subject. */
 export function deliveryTerminalRecordAdvanceIsRepresented(input: {
@@ -88,15 +89,32 @@ export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
   readonly candidate: CandidateEffectiveCurrentProjection;
   readonly workUnitId: string;
   readonly baseBranch: string;
+  /** Exact terminal coordinates currently bound in Delivery State, when already observed by the caller. */
+  readonly terminalCoordinates?: DeliveryMemberCoordinatesV1;
 }): Promise<DeliveryTerminalCoordinateAdvanceProof | undefined> {
   const priorHead = input.candidate.durableBaselineTarget.revision;
-  const currentHead = input.candidate.recognizedTarget.revision;
+  const recognizedHead = input.candidate.recognizedTarget.revision;
+  const currentHead = input.terminalCoordinates?.head ?? recognizedHead;
   if (priorHead === currentHead) return undefined;
   const localExec: GitExec = (command, args, options) => input.exec(command, args, {
     ...options,
     cwd: input.cwd,
     objectAccess: "local-only",
   });
+  if (currentHead !== recognizedHead) {
+    if (await readAncestry(localExec, currentHead, recognizedHead) !== "ancestor") return undefined;
+    const stateAdvance = await projectGitDeliveryTerminalRecordAdvance({
+      cwd: input.cwd,
+      exec: input.exec,
+      workUnitId: input.workUnitId,
+      baseBranch: input.baseBranch,
+      priorHead,
+      currentHead,
+    });
+    if (stateAdvance === undefined
+      || input.terminalCoordinates?.tree !== stateAdvance.currentTree) return undefined;
+    return stateAdvance;
+  }
   if (await readAncestry(localExec, priorHead, currentHead) !== "ancestor") return undefined;
   const [priorTree, currentTree, currentCommit] = await Promise.all([
     localExec("git", ["rev-parse", `${priorHead}^{tree}`]),
