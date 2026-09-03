@@ -709,6 +709,50 @@ export function createHostedReservationDischargeReader(input: {
     const snapshot = candidate === undefined || changeRequest === null
       ? null
       : store.readOperationSnapshot();
+    const observeEndpoints = async (): Promise<{ readonly head: string; readonly base: string }> => {
+      if (changeRequest === null || input.host === undefined) {
+        throw new Error("Fresh hosted-review endpoints are unavailable.");
+      }
+      if (vehicle !== undefined) {
+        if (input.delivery === undefined) {
+          throw new Error("Fresh delivery-member endpoints are unavailable.");
+        }
+        const resolved = await input.delivery.resolveDischargeTargets(vehicle.workUnitId);
+        const matching = resolved.status !== "resolved"
+          ? []
+          : resolved.targets.filter((target) => (
+              target.planId === vehicle.planId
+              && target.deliverableId === vehicle.deliverableId
+              && target.workUnitId === vehicle.workUnitId
+              && target.changeRequestId === String(changeRequest.pullRequest)
+            ));
+        const current = matching.length === 1 ? matching[0] : undefined;
+        if (current === undefined) throw new Error("Fresh delivery-member endpoints are ambiguous.");
+        const observed = await input.host.readRequest(changeRequest.repository, {
+          providerId: current.providerId,
+          changeRequestId: current.changeRequestId,
+        });
+        if (observed.status !== "observed"
+          || observed.request.repository.toLowerCase() !== changeRequest.repository.toLowerCase()) {
+          throw new Error("Fresh delivery-member request coordinates are unavailable.");
+        }
+        return { head: observed.request.headSha, base: current.base };
+      }
+      const observed = await input.host.readRequest(changeRequest.repository, {
+        providerId: "github",
+        changeRequestId: String(changeRequest.pullRequest),
+      });
+      if (observed.status !== "observed"
+        || observed.request.repository.toLowerCase() !== changeRequest.repository.toLowerCase()) {
+        throw new Error("Fresh hosted-review request coordinates are unavailable.");
+      }
+      const { stdout: observedBase } = await input.exec(
+        "git",
+        ["merge-base", observed.request.headSha, observed.request.baseRef],
+        { cwd: input.cwd, objectAccess: "local-only" },
+      );
+      return { head: observed.request.headSha, base: observedBase.trim() };
+    };
     return projectHostedReservationDischarge({
       reservation,
       span,
@@ -747,6 +791,7 @@ export function createHostedReservationDischargeReader(input: {
               snapshot: await snapshot,
               candidate,
               exec: rawExec,
+              observeEndpoints,
               readDispositionRecord: (attemptId) => dispositions.readDispositionRecord(attemptId),
             }),
             requireEarlierApplicabilityEvidence: (sourceId: string) => (

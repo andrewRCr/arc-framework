@@ -135,6 +135,7 @@ import {
   type MergeLockTransitionRequest,
 } from "../scripts/review-gate/merge-lock.js";
 import { GhMergeLockPort } from "../scripts/review-gate/hosts/github/merge-lock.js";
+import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { resolveAcceptableDeliveryBaseRefs } from
   "../scripts/review-gate/core/delivery-member-lookup.js";
@@ -1714,6 +1715,28 @@ async function resolveHostedProgressContext(input: {
       snapshot: await store.readOperationSnapshot(),
       candidate: candidateRecord,
       exec: createRawGitExec(input.root),
+      observeEndpoints: async () => {
+        const currentMemberResolution = await memberLookup.resolveMemberByHead(reviewTarget.headSha);
+        const currentMember = currentMemberResolution.status === "resolved"
+          && !currentMemberResolution.member.isFinalMember
+          ? currentMemberResolution.member
+          : null;
+        const currentTarget = currentMember === null
+          ? await deriveLocalReviewTarget({
+              exec: gitExec,
+              cwd: input.root,
+              baseRef,
+              repositoryId,
+            })
+          : await composeDeliveryMemberTarget({
+              exec: gitExec,
+              cwd: input.root,
+              baseRef,
+              repositoryId,
+              member: currentMember,
+            });
+        return { head: currentTarget.headSha, base: currentTarget.diffBaseSha };
+      },
     });
     if (earlier.status === "unavailable"
       || (earlier.status === "not-found"
@@ -2200,6 +2223,8 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
                 const discharge = await createHostedReservationDischargeReader({
                   cwd: root,
                   exec: gitExec,
+                  delivery: deliveryMemberLookup,
+                  host: new GhDeliveryHostPort(hostedGhRunner),
                 })({
                   reservation: context.reservation,
                   baseRevision: context.reviewTarget.diffBaseSha,

@@ -317,7 +317,12 @@ export async function readRoutedObligation(
     if (reservation === null) {
       return { state: "settled", detail: "No hosted review was reserved across publication." };
     }
-    const readDischarge = createHostedReservationDischargeReader({ cwd, exec });
+    const readDischarge = createHostedReservationDischargeReader({
+      cwd,
+      exec,
+      delivery: memberLookup,
+      host: deliveryHost,
+    });
     if (reservation.target.kind === "delivery") {
       const resolution = await resolveHostedReservationTargets({
         workUnitId: workUnit,
