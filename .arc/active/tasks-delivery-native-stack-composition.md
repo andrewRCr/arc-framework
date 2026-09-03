@@ -3565,11 +3565,18 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           root with member-owned content absorbed into the terminal member.
 
         - Build `test-first` (one behavior at a time):
-            - `[ ]` **7.7.R.ac.a Classify the terminal delta at integration entry**
+            - `[x]` **7.7.R.ac.a Classify the terminal delta at integration entry**
                 - _Goal:_ Entry inspection separates a delta composed only of the work unit's lifecycle artifacts
                   from one carrying non-lifecycle content, from facts it already reads. A lifecycle-only delta, and
                   any delta carried while no non-terminal member review is outstanding, retain the existing
                   verification-closeout route unchanged.
+                - _Outcome:_ The separation composes from three exported units: a pure partition of a change set
+                  against the work unit's lifecycle-contribution group, a pure selector for the first plan-ordered
+                  non-terminal member still bound to a change request, and a Git adapter that reads the range
+                  between the state-bound terminal coordinate and the current head. The read-only candidate port
+                  carries the classification on its non-current result; an unreadable range, an unresolved active
+                  work unit, and an absent terminal coordinate all report the classification as unavailable rather
+                  than guessing a partition. Route selection is unchanged and remains Task 7.7.R.ac.b's.
             - `[ ]` **7.7.R.ac.b Return a typed ambiguous stop instead of a confident route**
                 - _Goal:_ When non-lifecycle content is carried while a non-terminal member review is outstanding,
                   entry returns a typed stop naming both candidate routes, the classified delta, the outstanding
