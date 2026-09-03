@@ -25,6 +25,7 @@ export const DeliveryReviewTerminusOfferSchema = z.strictObject({
   schemaVersion: z.literal(1),
   kind: z.literal("delivery-member-owner-terminus"),
   workUnitId: SlugSchema,
+  remote: z.string().trim().min(1),
   expectedBoundaryVersion: DigestSchema,
   candidateId: DigestSchema,
   candidateSubjectDigest: DigestSchema,

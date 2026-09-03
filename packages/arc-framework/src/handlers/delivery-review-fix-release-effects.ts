@@ -259,6 +259,17 @@ export function createDeliveryReviewFixReleaseEffectPorts(input: {
         return null;
       }
     },
+    readCommittedRecordDigest: async (head, path) => {
+      try {
+        const content = (await input.exec("git", ["show", `${head}:${path}`], {
+          cwd: input.cwd,
+          objectAccess: "local-only",
+        })).stdout;
+        return deliveryReviewFixRecordDigest(content);
+      } catch {
+        return null;
+      }
+    },
     readRecoverableCommit: async ({ candidates }) => {
       const branch = await currentBranch(input.exec, input.cwd);
       if (branch === null) {
@@ -293,17 +304,19 @@ export function createDeliveryReviewFixReleaseEffectPorts(input: {
       if (remote.status === "absent") {
         return { status: "refused" as const, reason: "record-effect-recovery-unprovable" };
       }
-      if (remote.head === head) return { status: "none" as const };
-      let parent: string;
-      try {
-        parent = (await input.exec("git", ["rev-parse", "HEAD^"], { cwd: input.cwd })).stdout.trim();
-      } catch {
-        return { status: "none" as const };
+      if (remote.head !== head) {
+        let parent: string;
+        try {
+          parent = (await input.exec("git", ["rev-parse", "HEAD^"], { cwd: input.cwd })).stdout.trim();
+        } catch {
+          return { status: "none" as const };
+        }
+        if (parent !== remote.head) return { status: "none" as const };
       }
-      if (parent !== remote.head) return { status: "none" as const };
       return {
         status: "recoverable" as const,
         recordClass: matched.recordClass,
+        paths: matched.paths,
         branch,
         head,
         beforeHead: remote.head,

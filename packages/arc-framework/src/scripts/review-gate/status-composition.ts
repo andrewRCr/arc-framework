@@ -597,22 +597,10 @@ export function createReviewStatusPort(
               { remote },
             );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
-        const repository = await checksPort.resolveRepository();
-        if (repository.toLowerCase() !== target.repository.toLowerCase()) {
-          return {
-            actualHeadSha,
-            requiredChecks: "unavailable",
-            routedObligation: {
-              state: "blocked",
-              detail: "The required-check repository does not match the target.",
-            },
-            ...base,
-          };
-        }
         const signal = new AbortController().signal;
-        const checkedHead = await checksPort.readHead(repository, resolution.candidate.number, signal);
+        const checkedHead = await checksPort.readHead(target.repository, resolution.candidate.number, signal);
         const requiredChecks = aggregateChecks(
-          await checksPort.readRequiredChecks(repository, resolution.candidate.number, signal),
+          await checksPort.readRequiredChecks(target.repository, resolution.candidate.number, signal),
         );
         return { actualHeadSha: checkedHead, requiredChecks, routedObligation, ...base };
       } catch (error) {
@@ -778,6 +766,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
   }));
   return bindDeliveryReviewTerminusOffer(result, {
     workUnitId,
+    remote: input.remote ?? "origin",
     expectedBoundaryVersion: versionedBoundary.version,
     candidateId: boundary.candidateId,
     candidateSubjectDigest: boundary.candidateSubjectDigest,

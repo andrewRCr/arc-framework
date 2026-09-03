@@ -844,6 +844,7 @@ export function bindDeliveryReviewTerminusOffer(
   result: ReviewStatusResult,
   binding: {
     readonly workUnitId: string;
+    readonly remote?: string;
     readonly expectedBoundaryVersion: string;
     readonly candidateId: string;
     readonly candidateSubjectDigest: string;
@@ -867,6 +868,7 @@ export function bindDeliveryReviewTerminusOffer(
       schemaVersion: 1,
       kind: "delivery-member-owner-terminus",
       workUnitId: binding.workUnitId,
+      remote: binding.remote ?? "origin",
       expectedBoundaryVersion: binding.expectedBoundaryVersion,
       candidateId: binding.candidateId,
       candidateSubjectDigest: binding.candidateSubjectDigest,

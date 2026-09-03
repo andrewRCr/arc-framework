@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -25,9 +29,10 @@ import {
   handleReviewTerminusAccept,
   stageDeliveryReviewTerminusBoundary,
 } from "../../../src/handlers/review.js";
-import { GitProcessError } from "../../../src/lib/git/process-error.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
+import { IntegrationBoundaryLocusSchema } from
+  "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   createReviewRequirement,
   createReviewTarget,
@@ -877,6 +882,7 @@ describe("handleReviewTerminusAccept", () => {
         schemaVersion: 1 as const,
         kind: "delivery-member-owner-terminus" as const,
         workUnitId: "example",
+        remote: "origin",
         expectedBoundaryVersion: `sha256:${"b".repeat(64)}`,
         candidateId: `sha256:${"c".repeat(64)}`,
         candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
@@ -919,19 +925,44 @@ describe("handleReviewTerminusAccept", () => {
     });
   });
 
-  it("stages an exact-replay boundary that was written before a prior process crashed", async () => {
+  it("stages only the exact terminus transition left by a prior process", async () => {
     const boundaryPath = ".arc/system/.internal/candidates/example.boundary.json";
-    const exec = vi.fn(async (_command: string, args: string[]) => {
-      if (args[0] === "diff") {
-        throw new GitProcessError({
-          kind: "nonzero-exit",
-          command: "git",
-          args,
-          exitCode: 1,
-        });
-      }
-      if (args[0] === "add") return { stdout: "", stderr: "" };
-      throw new Error(`unexpected command: ${args.join(" ")}`);
+    const root = await mkdtemp(join(tmpdir(), "arc-terminus-replay-"));
+    const boundary = IntegrationBoundaryLocusSchema.parse({
+      schemaVersion: 1,
+      mode: "integration-boundary",
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+      terminus: null,
+      locus: "hosted-review-pending",
+      nextAction: {
+        kind: "continue-hosted-review",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
+        interactionText: "Resume review.",
+      },
+      policy: null,
+      reservation: {
+        schemaVersion: 1,
+        semanticsVersion: "standard-review-reservation/v1",
+        reservationId: `sha256:${"a".repeat(64)}`,
+        sources: ["coderabbit-pr"],
+        target: {
+          kind: "delivery",
+          repository: "owner/repo",
+          workUnitId: "example",
+          planId: "123e4567-e89b-42d3-a456-426614174000",
+        },
+        obligation: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"f".repeat(64)}`,
+          retrigger: "full-final",
+          count: 1,
+        },
+      },
     });
     const record = {
       vehicle: {
@@ -950,26 +981,69 @@ describe("handleReviewTerminusAccept", () => {
         completedPasses: 2,
       },
     };
-
-    await expect(stageDeliveryReviewTerminusBoundary({
-      root: "/repo",
-      workUnitId: "example",
-      exec,
-      result: {
-        schemaVersion: 1,
-        mode: "review-terminus-accept",
-        state: "exact-replay",
-        nextAction: "continue",
-        record,
-        recommendedActionText: "The terminus is already durable.",
-      },
-    })).resolves.toMatchObject({
-      state: "recorded",
-      nextAction: "commit-boundary",
-      boundaryPath,
-      record,
+    await mkdir(dirname(join(root, boundaryPath)), { recursive: true });
+    await writeFile(join(root, boundaryPath), JSON.stringify({
+      ...boundary,
+      deliveryReviewTermini: [record],
+    }));
+    let staged = false;
+    const exec = vi.fn(async (_command: string, args: string[]) => {
+      if (args[0] === "show") return { stdout: JSON.stringify(boundary), stderr: "" };
+      if (args[0] === "add") {
+        staged = true;
+        return { stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command: ${args.join(" ")}`);
     });
-    expect(exec).toHaveBeenLastCalledWith("git", ["add", "--", boundaryPath], { cwd: "/repo" });
+
+    try {
+      await expect(stageDeliveryReviewTerminusBoundary({
+        root,
+        workUnitId: "example",
+        exec,
+        result: {
+          schemaVersion: 1,
+          mode: "review-terminus-accept",
+          state: "exact-replay",
+          nextAction: "continue",
+          record,
+          recommendedActionText: "The terminus is already durable.",
+        },
+      })).resolves.toMatchObject({
+        state: "recorded",
+        nextAction: "commit-boundary",
+        boundaryPath,
+        record,
+      });
+      expect(staged).toBe(true);
+
+      staged = false;
+      await writeFile(join(root, boundaryPath), JSON.stringify({
+        ...boundary,
+        candidateSubjectDigest: `sha256:${"9".repeat(64)}`,
+        deliveryReviewTermini: [record],
+      }));
+      await expect(stageDeliveryReviewTerminusBoundary({
+        root,
+        workUnitId: "example",
+        exec,
+        result: {
+          schemaVersion: 1,
+          mode: "review-terminus-accept",
+          state: "exact-replay",
+          nextAction: "continue",
+          record,
+          recommendedActionText: "The terminus is already durable.",
+        },
+      })).resolves.toMatchObject({
+        state: "refused",
+        nextAction: "rerun-status",
+        reason: "record-conflict",
+      });
+      expect(staged).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 
