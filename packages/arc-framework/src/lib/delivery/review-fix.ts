@@ -454,6 +454,7 @@ export function recordDeliveryReviewFixCandidateVerification(input: {
   readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly acknowledgement: Omit<DeliveryReviewFixVerificationAcknowledgementInput, "planId">;
   readonly record: CandidateManagedRecordV1;
+  readonly committedPredecessorRecord?: CandidateManagedRecordV1;
   readonly currentTarget: unknown;
   readonly verifiedBy: string;
   readonly verifiedAt: string;
@@ -490,6 +491,23 @@ export function recordDeliveryReviewFixCandidateVerification(input: {
   if (!pendingMatches && !acknowledgedReplay) {
     return { status: "refused", reason: "candidate-verification-continuation-mismatch" };
   }
+  const committedPredecessor = CandidateManagedRecordV1Schema.safeParse(input.committedPredecessorRecord);
+  if (!committedPredecessor.success) {
+    return { status: "refused", reason: "candidate-verification-predecessor-unavailable" };
+  }
+  const recordMatchesPredecessor = canonicalize(record.data) === canonicalize(committedPredecessor.data);
+  const retainedTransition = record.data.transitions.at(-1);
+  const recordIsAuthorizedAppend = record.data.transitions.length
+      === committedPredecessor.data.transitions.length + 1
+    && retainedTransition?.transitionKind === "verification-response"
+    && retainedTransition.authorityRef === input.acknowledgement.continuationDigest
+    && canonicalize(committedPredecessor.data) === canonicalize({
+      ...record.data,
+      transitions: record.data.transitions.slice(0, -1),
+    });
+  if ((!pendingMatches || !recordMatchesPredecessor) && !recordIsAuthorizedAppend) {
+    return { status: "refused", reason: "candidate-verification-replay-unproven" };
+  }
   const terminalHead = state.data.members.at(-1)?.coordinates?.head;
   if (terminalHead === undefined || terminalHead !== currentTarget.data.revision) {
     return { status: "refused", reason: "candidate-verification-target-mismatch" };
@@ -501,6 +519,9 @@ export function recordDeliveryReviewFixCandidateVerification(input: {
       : []);
   if (existing.length > 1) {
     return { status: "refused", reason: "candidate-verification-duplicated" };
+  }
+  if (recordMatchesPredecessor && existing.length > 0) {
+    return { status: "refused", reason: "candidate-verification-replay-unproven" };
   }
   const retained = existing[0];
   if (retained !== undefined) {

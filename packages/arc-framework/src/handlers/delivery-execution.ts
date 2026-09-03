@@ -630,14 +630,15 @@ const ReviewFixAcknowledgeSchema = ReviewFixAcknowledgementInputSchema.extend({
     verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
   }),
 });
+const ReviewFixRecordEffectSchema = z.strictObject({
+  path: z.string().trim().min(1),
+  digest: DeliveryCanonicalDigestSchema,
+});
 const ReviewFixContinueSchema = z.strictObject({
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
   verification: ReviewFixAcknowledgeSchema.shape.verification.optional(),
-  recordEffects: z.array(z.strictObject({
-    path: z.string().trim().min(1),
-    digest: DeliveryCanonicalDigestSchema,
-  })).max(2).optional(),
+  recordEffects: z.array(ReviewFixRecordEffectSchema).max(2).optional(),
 });
 
 const RequestSchemas = {
@@ -1098,6 +1099,7 @@ const ResultSchema = z.union([
       candidateId: DeliveryCanonicalDigestSchema,
       stateRevision: z.number().int().positive(),
     }),
+    recordEffects: z.array(ReviewFixRecordEffectSchema).length(2),
   }),
   z.strictObject({
     status: z.literal("published"),
@@ -1679,16 +1681,21 @@ async function executeDeliveryCommand(
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
+  const readExpectedRecordEffects = async (
+    paths: readonly string[],
+  ): Promise<readonly DeliveryReviewFixExpectedRecord[]> => Promise.all(
+    sortByCanonicalBytes([...new Set(paths)]).map(async (path) => ({
+      path,
+      digest: deliveryReviewFixRecordDigest(await readFile(resolve(cwd, path), "utf8")),
+    })),
+  );
   if (command === "review-fix-continue") {
     const parsed = ReviewFixContinueSchema.parse(request);
     let projectionRequest: z.infer<typeof ReviewFixContinueSchema> = parsed;
     let expectedRecordEffects: readonly DeliveryReviewFixExpectedRecord[] = parsed.recordEffects ?? [];
     let settledRecordEffectHead: string | null = null;
     const captureExpectedRecordEffects = async (paths: readonly string[]): Promise<void> => {
-      expectedRecordEffects = await Promise.all([...new Set(paths)].map(async (path) => ({
-        path,
-        digest: deliveryReviewFixRecordDigest(await readFile(resolve(cwd, path), "utf8")),
-      })));
+      expectedRecordEffects = await readExpectedRecordEffects(paths);
     };
     const reconstructExpectedRecordEffects = async (workUnitId: string): Promise<
       | { readonly status: "none" }
@@ -1853,51 +1860,19 @@ async function executeDeliveryCommand(
         || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
         return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
       }
-      let currentBoundaryContent = worktreeBoundaryContent;
-      if (acknowledgementCandidatePrefix) {
-        if (!isDeliveryReviewFixVerificationResponseAppend(beforeCandidate, currentCandidate)) {
-          return { status: "none" };
+      if (recordClass === "candidate-boundary-projection" && currentRevision === "") {
+        const pending = stateRead.value.value.pendingReviewFixVerification;
+        if (!acknowledgementCandidatePrefix
+          || pending === null
+          || canonicalize(beforeBoundary) !== canonicalize(currentBoundary)
+          || !isDeliveryReviewFixVerificationResponseAppend(
+            beforeCandidate,
+            currentCandidate,
+            canonicalDigest(stateRead.value.value),
+          )) {
+          return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
         }
-        if (canonicalize(beforeBoundary) === canonicalize(currentBoundary)) {
-          if (stateRead.value.value.pendingReviewFixVerification !== null) {
-            if (!isDeliveryReviewFixVerificationResponseAppend(
-              beforeCandidate,
-              currentCandidate,
-              canonicalDigest(stateRead.value.value),
-            )) {
-              return {
-                status: "refused",
-                reason: "record-effect-recovery-unprovable",
-                paths: effectPaths,
-              };
-            }
-            return { status: "defer-acknowledgement" };
-          }
-          const baseline = reduceCandidateDurableBaseline(currentCandidate);
-          const carried = carryDeliveryReviewFixPublicBoundary({
-            plan: planRead.value,
-            state: stateRead.value,
-            boundary: beforeBoundary,
-            candidateId: currentCandidate.attestation.candidateId,
-            sourceCandidateSubjectDigest: beforeBoundary.candidateSubjectDigest ?? "",
-            candidateSubjectDigest: baseline.target.subject.subjectDigest,
-          });
-          if (carried.status === "refused") {
-            return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
-          }
-          const boundarySnapshot = await readSubmissionBoundaryVersioned(cwd, workUnitId);
-          if (boundarySnapshot.boundary === null
-            || canonicalize(boundarySnapshot.boundary) !== canonicalize(beforeBoundary)) {
-            return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
-          }
-          try {
-            await writeSubmissionBoundary(cwd, carried.boundary, boundarySnapshot.version);
-            currentBoundaryContent = await readFile(resolve(cwd, boundaryPath), "utf8");
-            currentBoundary = parseIntegrationBoundaryLocus(JSON.parse(currentBoundaryContent) as unknown);
-          } catch {
-            return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
-          }
-        }
+        return { status: "defer-acknowledgement" };
       }
       const records = reconstructDeliveryReviewFixExpectedRecords({
         recordClass,
@@ -1908,7 +1883,7 @@ async function executeDeliveryCommand(
         beforeBoundary,
         currentBoundary,
         candidateRecord: { path: candidatePath, content: currentCandidateContent },
-        boundaryRecord: { path: boundaryPath, content: currentBoundaryContent },
+        boundaryRecord: { path: boundaryPath, content: worktreeBoundaryContent },
       });
       if (records === null) {
         return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
@@ -3036,7 +3011,9 @@ async function executeDeliveryCommand(
         return { status: "refused", reason: "candidate-verification-unavailable" };
       }
       const verifiedRevision = checkoutCoordinates.head === terminal.head ? undefined : terminal.head;
-      const [candidate, currentTarget, unstagedReviewablePaths, actor, boundarySnapshot] = await Promise.all([
+      const committedCandidatePath = resolveCandidateRecordRelativePath(planRead.value.workUnitId);
+      const [candidate, currentTarget, unstagedReviewablePaths, actor, boundarySnapshot, committedPredecessorRecord] =
+        await Promise.all([
         readCandidateRecordVersioned(cwd, planRead.value.workUnitId),
         collectGitCandidateTarget({
           cwd,
@@ -3052,6 +3029,9 @@ async function executeDeliveryCommand(
         }),
         resolveUserIdentity(exec),
         readSubmissionBoundaryVersioned(cwd, planRead.value.workUnitId),
+        exec("git", ["show", `HEAD:${committedCandidatePath}`], { cwd, objectAccess: "local-only" })
+          .then(({ stdout }) => parseCandidateManagedRecord(stdout))
+          .catch(() => null),
       ]);
       if (candidate.record === null || candidate.version === null) {
         return { status: "refused", reason: "candidate-record-unavailable" };
@@ -3072,6 +3052,9 @@ async function executeDeliveryCommand(
           continuationDigest: parsed.continuationDigest,
         },
         record: candidate.record,
+        ...(committedPredecessorRecord === null
+          ? {}
+          : { committedPredecessorRecord }),
         currentTarget,
         verifiedBy: actor,
         verifiedAt,
@@ -3135,6 +3118,7 @@ async function executeDeliveryCommand(
         boundarySnapshot.version,
       );
       await exec("git", ["add", "--", boundaryPath], { cwd });
+      const recordEffects = await readExpectedRecordEffects([recordPath, boundaryPath]);
       return {
         ...acknowledged,
         candidate: {
@@ -3148,6 +3132,7 @@ async function executeDeliveryCommand(
           candidateId: carried.candidateId,
           stateRevision: carried.stateRevision,
         },
+        recordEffects,
       };
     } catch {
       return { status: "refused", reason: "candidate-verification-unavailable" };

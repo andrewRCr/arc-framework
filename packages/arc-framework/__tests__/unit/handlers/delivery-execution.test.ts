@@ -488,6 +488,16 @@ describe("delivery execution handler", () => {
         candidateId: `sha256:${"a".repeat(64)}`,
         stateRevision: 10,
       },
+      recordEffects: [
+        {
+          path: ".arc/system/.internal/candidates/example.json",
+          digest: `sha256:${"c".repeat(64)}`,
+        },
+        {
+          path: `.arc/system/.internal/candidates/${plan.workUnitId}.boundary.json`,
+          digest: `sha256:${"d".repeat(64)}`,
+        },
+      ],
     };
     const execute = vi.fn().mockResolvedValue(acknowledged);
     const write = vi.fn();

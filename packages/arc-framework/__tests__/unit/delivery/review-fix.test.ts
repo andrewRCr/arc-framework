@@ -18,6 +18,7 @@ import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
+  createCandidateVerificationResponseEvidence,
   projectCandidateCurrentness,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { projectDeliveryPublicReviewContinuation } from
@@ -440,6 +441,7 @@ describe("delivery review-fix routing", () => {
         continuationDigest: canonicalDigest(before),
       },
       record,
+      committedPredecessorRecord: record,
       currentTarget,
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T13:00:00.000Z",
@@ -471,6 +473,7 @@ describe("delivery review-fix routing", () => {
         continuationDigest: canonicalDigest(before),
       },
       record: result.record,
+      committedPredecessorRecord: record,
       currentTarget,
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T13:30:00.000Z",
@@ -491,6 +494,7 @@ describe("delivery review-fix routing", () => {
         continuationDigest: canonicalDigest(before),
       },
       record: result.record,
+      committedPredecessorRecord: record,
       currentTarget,
       verifiedBy: "andrew",
       verifiedAt: "2026-08-31T14:00:00.000Z",
@@ -499,6 +503,119 @@ describe("delivery review-fix routing", () => {
     })).toMatchObject({
       status: "already-recorded",
       nextAction: "renew-public-continuation",
+    });
+
+    const wrongAuthorityRecord = {
+      ...result.record,
+      transitions: [createCandidateVerificationResponseEvidence({
+        candidateId: result.transition.candidateId,
+        oldTarget: result.transition.oldTarget,
+        newTarget: result.transition.newTarget,
+        authorityRef: `sha256:${"0".repeat(64)}`,
+        verifiedBy: result.transition.verifiedBy,
+        verifiedAt: result.transition.verifiedAt,
+        applicability: result.transition.applicability,
+        verificationEvidenceRefs: result.transition.verificationEvidenceRefs,
+        implementationChanged: result.transition.implementationChanged,
+      })],
+    };
+    expect(recordDeliveryReviewFixCandidateVerification({
+      plan,
+      state: { revision: 9, value: before },
+      acknowledgement: {
+        selectedDeliverableId,
+        memberDeliverableIds,
+        expectedStateRevision: 9,
+        continuationDigest: canonicalDigest(before),
+      },
+      record: wrongAuthorityRecord,
+      committedPredecessorRecord: record,
+      currentTarget,
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-31T14:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-verification-replay-unproven",
+    });
+    expect(recordDeliveryReviewFixCandidateVerification({
+      plan,
+      state: { revision: 10, value: after },
+      acknowledgement: {
+        selectedDeliverableId,
+        memberDeliverableIds,
+        expectedStateRevision: 9,
+        continuationDigest: canonicalDigest(before),
+      },
+      record: wrongAuthorityRecord,
+      committedPredecessorRecord: record,
+      currentTarget,
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-31T14:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-verification-replay-unproven",
+    });
+
+    const trailingWrongAuthorityRecord = {
+      ...result.record,
+      transitions: [
+        ...result.record.transitions,
+        createCandidateVerificationResponseEvidence({
+          candidateId: result.transition.candidateId,
+          oldTarget: result.transition.newTarget,
+          newTarget: result.transition.newTarget,
+          authorityRef: `sha256:${"0".repeat(64)}`,
+          verifiedBy: result.transition.verifiedBy,
+          verifiedAt: "2026-08-31T14:05:00.000Z",
+          applicability: result.transition.applicability,
+          verificationEvidenceRefs: result.transition.verificationEvidenceRefs,
+          implementationChanged: false,
+        }),
+      ],
+    };
+    expect(recordDeliveryReviewFixCandidateVerification({
+      plan,
+      state: { revision: 9, value: before },
+      acknowledgement: {
+        selectedDeliverableId,
+        memberDeliverableIds,
+        expectedStateRevision: 9,
+        continuationDigest: canonicalDigest(before),
+      },
+      record: trailingWrongAuthorityRecord,
+      committedPredecessorRecord: record,
+      currentTarget,
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-31T14:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-verification-replay-unproven",
+    });
+    expect(recordDeliveryReviewFixCandidateVerification({
+      plan,
+      state: { revision: 10, value: after },
+      acknowledgement: {
+        selectedDeliverableId,
+        memberDeliverableIds,
+        expectedStateRevision: 9,
+        continuationDigest: canonicalDigest(before),
+      },
+      record: trailingWrongAuthorityRecord,
+      committedPredecessorRecord: record,
+      currentTarget,
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-31T14:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-verification-replay-unproven",
     });
   });
 

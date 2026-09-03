@@ -226,14 +226,18 @@ export async function driveDeliveryReviewFixContinuation<
     if (ports.settleRecordEffects !== undefined) {
       const settlement = await ports.settleRecordEffects();
       if (settlement.status === "refused") {
+        const recommendedActionText = settlement.reason === "record-effect-recovery-unprovable"
+          ? "Replay the exact verification acknowledgement request, then resume the correction with the returned "
+            + "recordEffects unchanged."
+          : "The machine-owned correction record effects did not settle. Inspect the captured diagnostics before "
+            + "retrying.";
         return {
           status: "effect-stopped",
           reason: "delivery-review-fix-effect-stopped",
           actionKind: "record-settlement",
           result: settlement,
           effectLog,
-          recommendedActionText:
-            "The machine-owned correction record effects did not settle. Inspect the captured diagnostics before retrying.",
+          recommendedActionText,
         };
       }
       effectLog.push(...settlement.effects);
