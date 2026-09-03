@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3134,7 +3134,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           state rebind still occurs once so hosted request coordinates remain current, while the resulting record
           commit no longer manufactures another carry. The focused classifier and all 21 production E2E cases pass.
 
-    - `[ ]` **7.7.R.v Restore per-member Owner terminus parity**
+    - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
 
         - _Goal:_ An explicit Work Unit Owner terminus closes only the exact first-outstanding delivery member,
           remains durable across re-entry, and advances status to the next member without claiming a clean or
@@ -3249,7 +3249,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           durable Candidate baseline, so it attempted reverse ancestry and again exposed the invalid singleton
           stale-target remedy instead of Member 7.
 
-        - `[ ]` **7.7.R.v.c Preserve terminus re-entry after a post-state Candidate root**
+        - `[x]` **7.7.R.v.c Preserve terminus re-entry after a post-state Candidate root**
 
             - _Goal:_ Work-unit review status advances to the exact first-outstanding member when a freshly verified
               Candidate baseline equals or descends from the exact state-bound terminal coordinate, without allowing
@@ -3261,6 +3261,35 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                 - Cover a state head equal to the Candidate baseline, a mismatched stored tree, and non-ancestral
                   state movement.
                 - Retain the baseline-before-state subject-equality path and every existing refusal unchanged.
+
+            - _Outcome:_ Member 7 criteria report.
+                - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+                - _Span:_ bounded diff `8a45168e6..b806cd1e8`; cumulative reachability `b806cd1e8` at tree
+                  `abb672573`. Boundary-order deviation: exact terminal absorption `e22da2bc9` retains the newer
+                  WU-top Candidate and task machinery at tree `0740094f5` while adding the corrected Member 7 as
+                  predecessor.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the
+                  production status lifecycle now composes an exact state terminal below a later verified Candidate
+                  root and its machine record, resolves the current terminal request, and advances the same ordered
+                  retained-member conjunction.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the
+                  new direction admits only a stored state head at or below the durable Candidate baseline, requires
+                  strict ancestry through the recognized target, and reproduces the stored tree. Equal-baseline,
+                  mismatched-tree, non-ancestral, and existing baseline-before-state cases are executable coverage.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ the
+                  proof consumes the already-current managed Candidate and exact public continuation; it does not
+                  infer that the superseded Candidate covered task closure or add review-applicability authority.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ the
+                  selector-free live driver rebound and published only Member 7, completed the terminal refresh, and
+                  returned the existing scoped-verification continuation at state revision 328 for exact target
+                  `e22da2bc9` and tree `0740094f5`.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ the
+                  correction extends the existing Git proof and production status composition without a new record,
+                  stop, workflow, convergence rule, or hosted pass. Four affected suites pass 23 tests; targeted
+                  TypeScript and Markdown lint, ARC contract checks, and both typechecks pass.
+                - _Adversarial companion:_ the Heavy Member 7 companion remains exhausted at its recorded two-pass
+                  cap; this bounded proof correction adds no third pass.
+                - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
     - `[x]` **7.7.R.w Bind approved member fixes to their exact authoring locus**
 
