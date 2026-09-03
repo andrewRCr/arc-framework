@@ -575,6 +575,7 @@ describe("review status", () => {
 
     expect(bindDeliveryReviewTerminusOffer(status, {
       workUnitId: "example",
+      remote: "upstream",
       expectedBoundaryVersion: `sha256:${"b".repeat(64)}`,
       candidateId: `sha256:${"c".repeat(64)}`,
       candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
@@ -583,6 +584,7 @@ describe("review status", () => {
       terminusAction: {
         kind: "delivery-member-owner-terminus",
         workUnitId: "example",
+        remote: "upstream",
         target: hostedAction.target,
         vehicle: memberVehicle,
         completedPasses: 2,

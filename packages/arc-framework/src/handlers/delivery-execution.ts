@@ -151,7 +151,10 @@ import {
   type DeliveryReviewFixDriveStep,
 } from "../lib/delivery/review-fix-driver.js";
 import {
+  classifyDeliveryReviewFixStagedRecords,
+  deliveryReviewFixRecordCommitMessage,
   deliveryReviewFixRecordDigest,
+  reconstructDeliveryReviewFixExpectedRecords,
   settleDeliveryReviewFixRecordEffects,
   type DeliveryReviewFixExpectedRecord,
 } from
@@ -202,7 +205,7 @@ import {
   GitCommonStateAccessError,
   RepositoryGitCommonStatePublisher,
 } from "../lib/git-common-state.js";
-import { canonicalize, SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
+import { canonicalize, SlugSchema, sortByCanonicalBytes, validateManagedPath } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
 import { resolveTaskListPath } from "../commands/active/status.js";
@@ -223,14 +226,18 @@ import {
   resolveGitCandidateBaseRevision,
 } from "../lib/work-unit/git-candidate-subject.js";
 import {
+  parseCandidateManagedRecord,
   projectCandidateCurrentness,
   reduceCandidateDurableBaseline,
 } from "../lib/work-unit/candidate-attestation.js";
 import {
   readSubmissionBoundary,
   readSubmissionBoundaryVersioned,
+  resolveSubmissionBoundaryPath,
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
+import { parseIntegrationBoundaryLocus } from
+  "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveGitCommonDir } from "../lib/user-sync/repo-shared-paths.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -849,6 +856,7 @@ const ReviewFixDriveEffectSchema = z.discriminatedUnion("kind", [
     kind: z.literal("commit"),
     recordClass: z.string().min(1),
     head: GitObjectIdSchema,
+    replayed: z.literal(true).optional(),
   }),
   z.strictObject({
     kind: z.literal("push"),
@@ -1668,11 +1676,156 @@ async function executeDeliveryCommand(
     const parsed = ReviewFixContinueSchema.parse(request);
     let projectionRequest: z.infer<typeof ReviewFixContinueSchema> = parsed;
     let expectedRecordEffects: readonly DeliveryReviewFixExpectedRecord[] = parsed.recordEffects ?? [];
+    let settledRecordEffectHead: string | null = null;
     const captureExpectedRecordEffects = async (paths: readonly string[]): Promise<void> => {
       expectedRecordEffects = await Promise.all([...new Set(paths)].map(async (path) => ({
         path,
         digest: deliveryReviewFixRecordDigest(await readFile(resolve(cwd, path), "utf8")),
       })));
+    };
+    const reconstructExpectedRecordEffects = async (workUnitId: string): Promise<
+      | { readonly status: "none" }
+      | { readonly status: "ready"; readonly records: readonly DeliveryReviewFixExpectedRecord[] }
+      | { readonly status: "refused"; readonly reason: string; readonly paths: readonly string[] }
+    > => {
+      const candidatePath = resolveCandidateRecordRelativePath(workUnitId);
+      const boundaryPath = resolveSubmissionBoundaryPath(workUnitId);
+      const readGitRecord = async (revision: string, path: string): Promise<string | null> => {
+        try {
+          return (await exec("git", ["show", revision === "" ? `:${path}` : `${revision}:${path}`], {
+            cwd,
+            objectAccess: "local-only",
+          })).stdout;
+        } catch {
+          return null;
+        }
+      };
+      let stagedPaths: readonly string[];
+      try {
+        stagedPaths = sortByCanonicalBytes((await exec(
+          "git",
+          ["diff", "--cached", "--name-only", "-z", "--"],
+          { cwd, objectAccess: "local-only" },
+        )).stdout.split("\0").filter((path) => path !== ""));
+      } catch {
+        return { status: "none" };
+      }
+      let recordClass: "candidate-boundary-projection" | "boundary-projection";
+      let beforeRevision: string;
+      let currentRevision: string;
+      let effectPaths: readonly string[];
+      const staged = classifyDeliveryReviewFixStagedRecords({ workUnitId, paths: stagedPaths });
+      if (staged.status === "ready") {
+        if (staged.recordClass === "review-applicability-selection") {
+          return { status: "none" };
+        }
+        recordClass = staged.recordClass;
+        beforeRevision = "HEAD";
+        currentRevision = "";
+        effectPaths = staged.paths;
+      } else {
+        let head: string;
+        let branch: string;
+        try {
+          [head, branch] = await Promise.all([
+            exec("git", ["rev-parse", "HEAD"], { cwd, objectAccess: "local-only" })
+              .then(({ stdout }) => stdout.trim()),
+            exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], {
+              cwd,
+              objectAccess: "local-only",
+            }).then(({ stdout }) => stdout.trim()),
+          ]);
+        } catch {
+          return { status: "none" };
+        }
+        if (head === settledRecordEffectHead) return { status: "none" };
+        let committedPaths: readonly string[];
+        let parent: string;
+        let message: string;
+        try {
+          [committedPaths, parent, message] = await Promise.all([
+            exec("git", ["diff-tree", "--no-commit-id", "--name-only", "-z", "-r", "HEAD", "--"], {
+              cwd,
+              objectAccess: "local-only",
+            }).then(({ stdout }) => sortByCanonicalBytes(stdout.split("\0").filter((path) => path !== ""))),
+            exec("git", ["rev-parse", "HEAD^"], { cwd, objectAccess: "local-only" })
+              .then(({ stdout }) => stdout.trim()),
+            exec("git", ["log", "-1", "--format=%B"], { cwd, objectAccess: "local-only" })
+              .then(({ stdout }) => stdout.trimEnd()),
+          ]);
+        } catch {
+          return { status: "none" };
+        }
+        const classified = classifyDeliveryReviewFixStagedRecords({ workUnitId, paths: committedPaths });
+        if (classified.status !== "ready"
+          || classified.recordClass === "review-applicability-selection"
+          || canonicalize(committedPaths) !== canonicalize(classified.paths)
+          || message !== deliveryReviewFixRecordCommitMessage(
+            classified.recordClass,
+            `meta-${workUnitId}.md (integration)`,
+          )) {
+          return { status: "none" };
+        }
+        recordClass = classified.recordClass;
+        beforeRevision = parent;
+        currentRevision = head;
+        effectPaths = classified.paths;
+        const remote = await observeDeliveryRemoteRef(exec, parsed.remote, `refs/heads/${branch}`);
+        if (remote.status === "observed" && remote.head === head) return { status: "none" };
+      }
+      const [beforeCandidateContent, currentCandidateContent, beforeBoundaryContent, currentBoundaryContent] =
+        await Promise.all([
+          readGitRecord(beforeRevision, candidatePath),
+          readGitRecord(currentRevision, candidatePath),
+          readGitRecord(beforeRevision, boundaryPath),
+          readGitRecord(currentRevision, boundaryPath),
+        ]);
+      if (beforeCandidateContent === null || currentCandidateContent === null
+        || beforeBoundaryContent === null || currentBoundaryContent === null) {
+        return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+      }
+      const beforeCandidate = parseCandidateManagedRecord(beforeCandidateContent);
+      const currentCandidate = parseCandidateManagedRecord(currentCandidateContent);
+      let beforeBoundary;
+      let currentBoundary;
+      try {
+        beforeBoundary = parseIntegrationBoundaryLocus(JSON.parse(beforeBoundaryContent) as unknown);
+        currentBoundary = parseIntegrationBoundaryLocus(JSON.parse(currentBoundaryContent) as unknown);
+      } catch {
+        return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+      }
+      if (beforeCandidate === null || currentCandidate === null
+        || beforeBoundary.workUnit !== workUnitId || currentBoundary.workUnit !== workUnitId
+        || currentBoundary.locus !== "hosted-review-pending"
+        || currentBoundary.reservation.target.kind !== "delivery") {
+        return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+      }
+      const planId = currentBoundary.reservation.target.planId;
+      const [planRead, stateRead] = await Promise.all([
+        planStore.readCurrent(planId),
+        stateStore.read(planId),
+      ]);
+      if (planRead.status !== "ok" || planRead.value === null
+        || stateRead.status !== "ok" || stateRead.value === null
+        || planRead.value.workUnitId !== workUnitId
+        || stateRead.value.value.workUnitId !== workUnitId
+        || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
+        return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+      }
+      const records = reconstructDeliveryReviewFixExpectedRecords({
+        recordClass,
+        plan: planRead.value,
+        state: stateRead.value,
+        beforeCandidate,
+        currentCandidate,
+        beforeBoundary,
+        currentBoundary,
+        candidateRecord: { path: candidatePath, content: currentCandidateContent },
+        boundaryRecord: { path: boundaryPath, content: currentBoundaryContent },
+      });
+      return records === null
+        ? { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths }
+        : { status: "ready", records };
     };
     const project = async () => {
       let approvedDispositionSet: {
@@ -1927,7 +2080,45 @@ async function executeDeliveryCommand(
           }),
         };
       };
+      const applyDurableLocalAcknowledgementReplay = (
+        workUnitId: string,
+        pending: Extract<DeliveryEntryInspectionResult, { readonly status: "review-fix-verification-required" }>,
+        records: Parameters<typeof selectDurableLocalDeliveryReviewFixAcknowledgementReplay>[0]["records"],
+      ) => {
+        const replay = selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
+          workUnitId,
+          planId: pending.planId,
+          selectedDeliverableId: pending.selectedDeliverableId,
+          target: pending.verification.target,
+          records,
+        });
+        if (replay.status === "selected") {
+          projectionRequest = {
+            repository: parsed.repository,
+            remote: parsed.remote,
+            verification: {
+              ...replay.verification,
+              verificationEvidenceRefs: [...replay.verification.verificationEvidenceRefs],
+            },
+          };
+        }
+        return replay.status === "refused" ? replay : null;
+      };
       let entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction);
+      if (entry.status === "review-fix-verification-required") {
+        const active = await resolveActiveWu({ cwd });
+        if (active.status !== "resolved") {
+          return { status: "refused", reason: "active-work-unit-unavailable" };
+        }
+        let dispositionRecords;
+        try {
+          dispositionRecords = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+        } catch {
+          return { status: "refused", reason: "review-fix-response-unavailable" };
+        }
+        const refused = applyDurableLocalAcknowledgementReplay(active.name, entry, dispositionRecords);
+        if (refused !== null) return refused;
+      }
     if (entry.status === "not-applicable") {
       const active = await resolveActiveWu({ cwd });
       if (active.status !== "resolved") {
@@ -2108,24 +2299,8 @@ async function executeDeliveryCommand(
       } else {
         entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "integrating" }, interaction);
         if (entry.status === "review-fix-verification-required") {
-          const replay = selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
-            workUnitId: active.name,
-            planId: entry.planId,
-            selectedDeliverableId: entry.selectedDeliverableId,
-            target: entry.verification.target,
-            records: dispositionRecords,
-          });
-          if (replay.status === "refused") return replay;
-          if (replay.status === "selected") {
-            projectionRequest = {
-              repository: parsed.repository,
-              remote: parsed.remote,
-              verification: {
-                ...replay.verification,
-                verificationEvidenceRefs: [...replay.verification.verificationEvidenceRefs],
-              },
-            };
-          }
+          const refused = applyDurableLocalAcknowledgementReplay(active.name, entry, dispositionRecords);
+          if (refused !== null) return refused;
         }
       }
     }
@@ -2581,6 +2756,11 @@ async function executeDeliveryCommand(
         if (active.status !== "resolved") {
           return { status: "refused" as const, reason: "record-effect-work-unit-unavailable" };
         }
+        if (expectedRecordEffects.length === 0) {
+          const reconstructed = await reconstructExpectedRecordEffects(active.name);
+          if (reconstructed.status === "refused") return reconstructed;
+          if (reconstructed.status === "ready") expectedRecordEffects = reconstructed.records;
+        }
         const identity = await resolveUserIdentity(exec);
         const settlement = await settleDeliveryReviewFixRecordEffects({
           workUnitId: active.name,
@@ -2594,7 +2774,13 @@ async function executeDeliveryCommand(
             ...(interaction === undefined ? {} : { interaction }),
           }),
         });
-        if (settlement.status !== "refused") expectedRecordEffects = [];
+        if (settlement.status !== "refused") {
+          expectedRecordEffects = [];
+          settledRecordEffectHead = null;
+          for (const effect of settlement.effects) {
+            if (effect.kind === "commit") settledRecordEffectHead = effect.head;
+          }
+        }
         return settlement;
       },
     });

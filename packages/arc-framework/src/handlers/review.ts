@@ -1,6 +1,7 @@
 /** Machine-readable review workflow handlers. */
 
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { z, ZodError, type ZodType } from "zod";
 
 import {
@@ -24,10 +25,10 @@ import {
 } from "../lib/change-facts.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
+import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
-import { isGitProcessError } from "../lib/git/process-error.js";
 import { canonicalize } from "../lib/kernel/index.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
@@ -828,15 +829,54 @@ export async function stageDeliveryReviewTerminusBoundary(input: {
     return input.result;
   }
   if (input.result.state !== "exact-replay") return input.result;
+  const replay = input.result;
+  const refuseReplay = (detail: string): DeliveryReviewTerminusAcceptanceResult => (
+    DeliveryReviewTerminusAcceptanceResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-terminus-accept",
+      state: "refused",
+      nextAction: "rerun-status",
+      reason: "record-conflict",
+      detail,
+      recommendedActionText: "Re-run work-unit review status and act only on its current exact offer.",
+    })
+  );
+  let headBoundary: IntegrationBoundaryLocus;
+  let workingBoundary: IntegrationBoundaryLocus;
   try {
-    await input.exec("git", ["diff", "--quiet", "HEAD", "--", boundaryPath], { cwd: input.root });
-    return input.result;
-  } catch (error) {
-    if (!isGitProcessError(error) || error.kind !== "nonzero-exit" || error.exitCode !== 1) throw error;
+    const headBytes = (await input.exec("git", ["show", `HEAD:${boundaryPath}`], {
+      cwd: input.root,
+      objectAccess: "local-only",
+    })).stdout;
+    headBoundary = parseIntegrationBoundaryLocus(JSON.parse(headBytes) as unknown);
+    workingBoundary = parseIntegrationBoundaryLocus(
+      JSON.parse(await readFile(resolve(input.root, boundaryPath), "utf8")) as unknown,
+    );
+  } catch {
+    return refuseReplay("The exact boundary transition could not be reconstructed from HEAD and the worktree.");
   }
+  if (headBoundary.workUnit !== input.workUnitId || workingBoundary.workUnit !== input.workUnitId) {
+    return refuseReplay("The recovered boundary does not belong to the offered work unit.");
+  }
+  const existing = headBoundary.deliveryReviewTermini.find(({ vehicle }) => (
+    sameDeliveryReviewMemberVehicle(vehicle, replay.record.vehicle)
+  ));
+  if (existing !== undefined && canonicalize(existing) !== canonicalize(replay.record)) {
+    return refuseReplay("HEAD already carries a conflicting terminus for the offered member.");
+  }
+  const expectedBoundary = existing === undefined
+    ? {
+        ...headBoundary,
+        deliveryReviewTermini: [...headBoundary.deliveryReviewTermini, replay.record],
+      }
+    : headBoundary;
+  if (canonicalize(workingBoundary) !== canonicalize(expectedBoundary)) {
+    return refuseReplay("The worktree boundary contains changes beyond the offered terminus transition.");
+  }
+  if (existing !== undefined) return replay;
   await input.exec("git", ["add", "--", boundaryPath], { cwd: input.root });
   return DeliveryReviewTerminusAcceptanceResultSchema.parse({
-    ...input.result,
+    ...replay,
     state: "recorded",
     nextAction: "commit-boundary",
     boundaryPath,
@@ -856,7 +896,12 @@ async function acceptDeliveryReviewTerminus(
     readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(root, workUnitId),
     readOwnerAuthority: (workUnitId) => ownerDependencies.readOwnerTerminusAuthority(workUnitId),
     readCurrentOffer: async (workUnitId) => {
-      const status = await resolveReviewStatusForWorkUnit({ cwd: root, exec, workUnitId });
+      const status = await resolveReviewStatusForWorkUnit({
+        cwd: root,
+        exec,
+        workUnitId,
+        remote: request.offer.remote,
+      });
       return "terminusAction" in status ? status.terminusAction ?? null : null;
     },
     writeBoundary: async (boundary, expectedVersion) => {

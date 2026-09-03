@@ -57,6 +57,7 @@ const offer = DeliveryReviewTerminusOfferSchema.parse({
   schemaVersion: 1,
   kind: "delivery-member-owner-terminus",
   workUnitId: "example",
+  remote: "upstream",
   expectedBoundaryVersion: digest("b"),
   candidateId: boundary.candidateId,
   candidateSubjectDigest: boundary.candidateSubjectDigest,
