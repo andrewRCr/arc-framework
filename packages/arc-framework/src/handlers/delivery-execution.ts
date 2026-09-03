@@ -141,8 +141,8 @@ import {
 } from "../lib/delivery/review-fix-driver.js";
 import {
   classifyDeliveryReviewFixStagedRecords,
-  deliveryReviewFixRecordCommitMessage,
   deliveryReviewFixRecordDigest,
+  isDeliveryReviewFixRecordCommitMessage,
   isDeliveryReviewFixVerificationResponseAppend,
   reconstructDeliveryReviewFixExpectedRecords,
   settleDeliveryReviewFixRecordEffects,
@@ -195,7 +195,13 @@ import {
   GitCommonStateAccessError,
   RepositoryGitCommonStatePublisher,
 } from "../lib/git-common-state.js";
-import { canonicalize, SlugSchema, sortByCanonicalBytes, validateManagedPath } from "../lib/kernel/index.js";
+import {
+  canonicalDigest,
+  canonicalize,
+  SlugSchema,
+  sortByCanonicalBytes,
+  validateManagedPath,
+} from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
 import { resolveTaskListPath } from "../commands/active/status.js";
@@ -1778,10 +1784,11 @@ async function executeDeliveryCommand(
           if (classified.status !== "ready"
             || classified.recordClass === "review-applicability-selection"
             || canonicalize(committedPaths) !== canonicalize(classified.paths)
-            || message !== deliveryReviewFixRecordCommitMessage(
-              classified.recordClass,
-              `meta-${workUnitId}.md (integration)`,
-            )) {
+            || !isDeliveryReviewFixRecordCommitMessage({
+              message,
+              recordClass: classified.recordClass,
+              context: `meta-${workUnitId}.md (integration)`,
+            })) {
             return { status: "none" };
           }
           recordClass = classified.recordClass;
@@ -1840,6 +1847,17 @@ async function executeDeliveryCommand(
         }
         if (canonicalize(beforeBoundary) === canonicalize(currentBoundary)) {
           if (stateRead.value.value.pendingReviewFixVerification !== null) {
+            if (!isDeliveryReviewFixVerificationResponseAppend(
+              beforeCandidate,
+              currentCandidate,
+              canonicalDigest(stateRead.value.value),
+            )) {
+              return {
+                status: "refused",
+                reason: "record-effect-recovery-unprovable",
+                paths: effectPaths,
+              };
+            }
             return { status: "defer-acknowledgement" };
           }
           const baseline = reduceCandidateDurableBaseline(currentCandidate);
