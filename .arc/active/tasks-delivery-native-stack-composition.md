@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3134,7 +3134,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           state rebind still occurs once so hosted request coordinates remain current, while the resulting record
           commit no longer manufactures another carry. The focused classifier and all 21 production E2E cases pass.
 
-    - `[ ]` **7.7.R.v Restore per-member Owner terminus parity**
+    - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
 
         - _Goal:_ An explicit Work Unit Owner terminus closes only the exact first-outstanding delivery member,
           remains durable across re-entry, and advances status to the next member without claiming a clean or
@@ -3295,18 +3295,39 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           but reset their Candidate-scoped applicability selections. Status therefore asked Member 5 to repeat an
           exact `covered` decision that was already durable before the fresh Candidate root.
 
-        - `[ ]` **7.7.R.v.d Preserve an exact Owner terminus across a fresh-root applicability replay**
+        - `[x]` **7.7.R.v.d Preserve an exact Owner terminus across a fresh-root applicability replay**
 
             - _Goal:_ Work-unit review status advances past an unchanged exact-head, exact-pass Owner terminus when a
               fresh Candidate root merely re-exposes an applicability projection settled on the superseded Candidate,
               without masking pending findings or allowing changed member or pass coordinates to inherit authority.
 
-            - Build `test-first`:
-                - Reproduce a fresh-root applicability replay beside an exact current member terminus and advance to
-                  the next retained member without another Owner selection.
-                - Preserve pending findings, settlement and active request continuations ahead of the terminus.
-                - Retain exact vehicle, head and completed-pass matching; changed coordinates or pass count remain
-                  outstanding.
+            - _Outcome:_ Member 7 criteria report.
+                - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+                - _Span:_ bounded diff `8a45168e6..5f74a8bed`; cumulative reachability `5f74a8bed` at tree
+                  `e821a9d5b`. Boundary-order deviation: exact terminal absorption `2a810b450` retains the newer
+                  WU-top records at tree `a773f4003` while adding the corrected Member 7 as predecessor.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ an
+                  exact current member vehicle, head, and completed-pass terminus now survives a fresh Candidate
+                  root's replayed applicability projection and advances the ordered conjunction to its next
+                  outstanding member. Live post-acknowledgment status discharged the retained Member 5 and 6
+                  termini and selected Member 7 at exact head `5f74a8bed` without another applicability decision.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the
+                  correction reorders no contribution proof and writes no applicability selection. Changed heads or
+                  completed-pass counts remain outstanding, and conflicting applicability authority still stops.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ the
+                  existing exact boundary terminus is the sole durable authority; no superseded Candidate transition
+                  is copied. Pending findings and active hosted-request state retain precedence over that terminus.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ the
+                  existing correction continuation published Member 7 and installed one exact scoped-verification
+                  target at state revision 334 without replaying verification or spending a hosted pass.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ one
+                  selector-free drive rebound the exact authored candidate, published it, refreshed the terminal
+                  top, and stopped only for the consolidated project-gate judgment. Focused status and production
+                  lifecycle coverage prove the corrected priority without a new record, workflow, or convergence
+                  policy.
+                - _Adversarial companion:_ the Heavy Member 7 two-pass cap remains exhausted; this bounded
+                  durability correction adds no hosted pass.
+                - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
     - `[x]` **7.7.R.w Bind approved member fixes to their exact authoring locus**
 
