@@ -1611,6 +1611,29 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   counts retain precedence. This is durability of the existing exact authority across a Candidate-record reset, not a
   carried applicability selection, convergence inference, or new standing grant.
 
+- **D8.14 Oversized delivery members compose with chunked local standard review — amended 2026-09-03 after the
+  Member 7 hosted request exceeded both configured attention signals and the provider's file limit.** Before
+  admitting hosted spend, work-unit status measures the exact first-outstanding member change set and invokes the
+  existing chunking resolver. A `chunked` selection makes hosted and whole-target-only carriers ineligible and
+  returns one submit-ready `review-local-prepare` action through the existing delegated-agent source, bound to the
+  exact delivery-member vehicle, base, head, reservation, pass, rubric, and scope selection. Ordinary source ordering
+  and pass accounting remain authoritative; this is carrier capability selection, not a lower-ranked source
+  leapfrog. A target change invalidates the selection and re-runs size and scope resolution before another request.
+
+  The explicit scope selection survives reservation admission, local prepare, durable local-operation resume, and
+  attestation without caller reconstruction. Chunk orchestration retains the exact target, partition, complete-union
+  coverage, closure annotations, seam scope, and evaluator separation outside evaluator contexts; a fresh aggregate
+  evaluator returns the only result eligible to count as the member's one standard-review pass. Partial chunk or seam
+  reports carry no settlement authority. This reuses the existing `review-chunking` and `standard-review` contracts
+  and adds no delivery record, stored standing grant, convergence policy, source-order rule, configuration axis,
+  generalized control loop, or dynamic delivery-plan resegmentation.
+
+  The production-shaped acceptance path begins from an oversized delivery member and reaches exact-head local
+  prepare/resume/attestation with the chunked selection intact, while singleton and bounded delivery members retain
+  their existing routes. The live Member 7 review then proves contract-closed chunks, complete union, a dedicated
+  seam, and one fresh aggregate result without another whole-target hosted request. A repository-local CLI binding in
+  the delivery-position E2E fixture is part of this proof so CI does not depend on a machine-global executable.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
@@ -2454,6 +2477,14 @@ added.
     driver emits one Candidate commit and one push. A stale member makes the batch write nothing, and a changed
     source, member, current head, or residual remains independently attended; no persisted batch grant, attempt
     supersession, convergence policy, or generalized control-loop substrate is introduced (D8.12).
+47. An oversized first-outstanding delivery member is measured at its exact head before hosted spend and enters the
+    existing chunked local standard-review carrier through one submit-ready status action. The explicit chunked scope
+    selection remains exact across reservation admission, local prepare/resume, and attestation; head movement makes
+    it stale. Contract-closed chunks cover the complete member diff with changed tests beside behavior, a dedicated
+    seam covers cross-chunk interaction, and only a fresh aggregate evaluator can emit the one member pass result.
+    Bounded delivery members and singleton work units retain their prior routes, while no whole-target hosted pass,
+    delivery-plan recut, source-policy change, convergence rule, generalized workflow engine, storage family, or new
+    configuration axis is introduced (D8.14).
 
 ## Open Questions
 

@@ -707,3 +707,35 @@ effect log, then returns the existing `authoring-required` stop. It moves no can
 provider review, and does not weaken the strict post-authoring rebind, scoped verification, or publication guards.
 Task 7.7.R.z owns the bounded repair; the clean stale Member 7 gate is the one-time bootstrap locus and the pending
 Member 6 correction is the live acceptance.
+
+### Amendment 8 — oversized members enter chunked local standard review (2026-09-03)
+
+Live Member 7 made D8.3's whole-work-unit exclusion and D8.4's chunked-local seam posture collide at an executable
+gap. Its exact member target contains 200 files and 34,609 changed lines, exceeding both configured attention
+signals (150 files and 5,000 lines); CodeRabbit then refused the admitted request at its 150-file limit. Hosted
+Codex would still receive the same unreviewable whole target. Work-unit status can select only hosted source IDs,
+and the delivery-local admission path does not carry a chunked scope selection, so the existing
+`review-chunking`/`standard-review` carrier cannot currently be reached for a delivery member.
+
+Decided behavior: before admitting hosted spend, work-unit review status measures the exact first-outstanding
+member target and resolves the existing change-set-size attention signal. When that signal selects chunking, status
+returns one submit-ready `review-local-prepare` action for the exact delivery-member head with an explicit
+`chunked` scope selection. Hosted and whole-target-only carriers are ineligible for that selection, so ordinary
+source ordering chooses the existing curated-scope-capable delegated-agent carrier rather than requesting another
+whole-target provider pass. The selection crosses delivery reservation admission, local prepare/resume, and
+attestation without caller reconstruction. Any target movement invalidates it and requires a fresh size and scope
+resolution.
+
+Execution uses the existing chunking contract: contract-closed chunks with changed tests kept beside behavior,
+complete diff union, a dedicated cross-chunk seam, and a fresh non-author aggregate evaluator. The aggregate result
+is one exact-target standard-review pass; no partial chunk report can settle the member. The partition and coverage
+facts remain orchestration inputs rather than a new delivery record, standing grant, source policy, or convergence
+decision. Delivery topology and published pull requests remain unchanged; dynamic member resegmentation stays
+deferred to `review-orchestration-right-sizing`.
+
+The acceptance proof is one production-style delivery-status/local-review round trip with an oversized exact member
+and one live Member 7 run using roughly five contract closures plus seam and fresh aggregate. The current CI fixture
+is repaired in the same corrective group: production delivery-position E2E repositories must bind their commit hook
+to the repository-local ARC CLI rather than accidentally depending on a globally installed executable. Explicit
+provider-refusal parsing remains routed to `review-activity-contracts`; the new-head pre-request size gate removes it
+from this WU's live path without claiming the old refused attempt completed.

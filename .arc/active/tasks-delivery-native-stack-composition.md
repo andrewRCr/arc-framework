@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3463,6 +3463,35 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
             - _Adversarial companion:_ the Heavy Member 7 two-pass cap remains exhausted; this bounded lifecycle
               guard adds no hosted pass or new review authority.
             - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+
+    - `[ ]` **7.7.R.aa Compose chunked local standard review for oversized delivery members**
+
+        - _Goal:_ An oversized first-outstanding member reaches the existing exact-target chunked local
+          standard-review carrier before hosted spend, while bounded members, singleton review, delivery topology,
+          source ordering, pass accounting, and convergence authority remain unchanged.
+
+        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue — decision
+          record (2026-08-31), Amendment 8.
+
+        - Build `test-first` (one behavior at a time):
+            - `[ ]` **7.7.R.aa.a Select chunked local review from the exact member size**
+                - _Goal:_ Work-unit status measures the first-outstanding member before requesting a hosted carrier
+                  and returns one submit-ready exact-head local action when the existing attention signal selects
+                  chunking; bounded delivery members and singleton status preserve their current routes.
+            - `[ ]` **7.7.R.aa.b Carry the explicit chunk scope through local review**
+                - _Goal:_ Delivery reservation admission, local prepare/resume, durable operation state, and
+                  attestation preserve the exact `chunked` selection without caller reconstruction, while changed
+                  target coordinates refuse stale scope.
+            - `[ ]` **7.7.R.aa.c Prove the production route without a global CLI dependency**
+                - _Goal:_ A production-shaped delivery-position E2E repository resolves its commit hook through the
+                  repository-local ARC CLI and drives an oversized member through status, chunked local admission,
+                  resume, and exact-target attestation without hosted spend.
+            - `[ ]` **7.7.R.aa.d Run the live Member 7 chunked review acceptance**
+                - _Goal:_ Contract-closed Member 7 chunks plus a dedicated seam cover the complete exact diff, and a
+                  fresh aggregate evaluator emits the only result eligible as one standard-review pass.
+
+        - _Scope boundary:_ No dynamic delivery-plan resegmentation, provider-refusal parser, convergence policy,
+          generalized orchestration or step vocabulary, storage redesign, standing grant, or new configuration axis.
 
 ## **Phase 8:** Record retirement and doctrine
 
