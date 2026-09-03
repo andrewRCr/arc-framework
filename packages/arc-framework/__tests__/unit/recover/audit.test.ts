@@ -748,6 +748,67 @@ describe("auditRecoveryState", () => {
     }));
   });
 
+  it.each([
+    [
+      "deletes an unrelated task",
+      ADVANCED_INTEGRATION_TASKS.replace("### `[x]` **2.1 Resume integration**\n", ""),
+    ],
+    [
+      "renames an unrelated task",
+      ADVANCED_INTEGRATION_TASKS.replace("2.1 Resume integration", "2.1 Replace integration"),
+    ],
+    [
+      "reparents an unrelated task",
+      ADVANCED_INTEGRATION_TASKS.replace(
+        "## **Phase 2:** Finish\n\n### `[x]` **2.1 Resume integration**",
+        "    - `[x]` **2.1 Resume integration**\n\n## **Phase 2:** Finish",
+      ),
+    ],
+    [
+      "reorders a pre-existing task",
+      ADVANCED_INTEGRATION_TASKS
+        .replace("    - `[x]` **1.1.a Preserve the reviewed target**\n\n", "")
+        .replace(
+          "    - `[x]` **1.1.b Correct the public member**",
+          "    - `[x]` **1.1.b Correct the public member**\n\n"
+            + "    - `[x]` **1.1.a Preserve the reviewed target**",
+        ),
+    ],
+    [
+      "changes an unrelated task marker",
+      ADVANCED_INTEGRATION_TASKS.replace(
+        "### `[x]` **2.1 Resume integration**",
+        "### `[~]` **2.1 Resume integration**",
+      ),
+    ],
+  ])("refuses corrective progression that %s", async (_name, freshContent) => {
+    const result = await run(integrationTaskProgressionOptions({
+      freshContent,
+      workflow: "process-task-loop",
+      loadSet: INTEGRATION_TASK_LOAD_SET,
+    }));
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({
+      kind: "integration-correction-unresolved",
+      message: expect.stringContaining("task-list structure"),
+    }));
+  });
+
+  it("ignores prose changes while proving corrective task progression", async () => {
+    const result = await run(integrationTaskProgressionOptions({
+      freshContent: ADVANCED_INTEGRATION_TASKS.replace(
+        "    - `[x]` **1.1.b Correct the public member**",
+        "    - `[x]` **1.1.b Correct the public member**\n\n"
+          + "        - _Outcome:_ The exact public member was corrected.",
+      ),
+      workflow: "process-task-loop",
+      loadSet: INTEGRATION_TASK_LOAD_SET,
+    }));
+
+    expect(result.status).toBe("ready");
+  });
+
   it("refuses a public-to-task transition that rewrites existing task structure", async () => {
     const result = await run(publicIntegrationToTaskOptions({
       freshContent: APPENDED_INTEGRATION_TASKS.replace(

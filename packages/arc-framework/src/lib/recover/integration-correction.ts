@@ -134,6 +134,15 @@ export async function projectIntegrationCorrectionRecovery(
         });
   }
 
+  if (evidence.seed === null) {
+    return { status: "refused", message: "seed task-list structure evidence is unavailable" };
+  }
+  if (!provesConservedTaskStructure(input.seed.taskCursor, evidence.seed, evidence.fresh)) {
+    return {
+      status: "refused",
+      message: "seed task-list structure was not conserved outside the active correction closure",
+    };
+  }
   if (!provesClosedSeedCursor(input.seed.taskCursor, evidence.fresh, exact.actualCursor, candidate)) {
     return { status: "refused", message: "seed task was deleted, substituted, reopened, or did not advance" };
   }
@@ -354,6 +363,52 @@ function provesClosedSeedCursor(
   if (actual.status !== "found") return false;
   const next = byId.get(actual.cursor.leaf.id);
   return next !== undefined && next.line > leaf.line;
+}
+
+function provesConservedTaskStructure(
+  expected: TaskListCursor | null,
+  seedContent: string,
+  freshContent: string,
+): boolean {
+  if (expected === null) return false;
+  const seedTasks = structuralTasks(seedContent);
+  const freshTasks = structuralTasks(freshContent);
+  if (seedTasks === null || freshTasks === null) return false;
+  const seedById = uniqueTasks(seedTasks);
+  const freshById = uniqueTasks(freshTasks);
+  if (seedById === null || freshById === null) return false;
+  const seedSection = seedById.get(expected.section.id);
+  const seedLeaf = seedById.get(expected.leaf.id);
+  const freshSection = freshById.get(expected.section.id);
+  const freshLeaf = freshById.get(expected.leaf.id);
+  if (seedSection?.kind !== "parent" || seedSection.title !== expected.section.title
+    || seedLeaf === undefined || seedLeaf.title !== expected.leaf.title || seedLeaf.marker !== " "
+    || freshSection?.kind !== "parent" || freshLeaf === undefined || freshLeaf.marker !== "x") return false;
+
+  const conserved = seedTasks.map((task) => freshById.get(task.id));
+  if (conserved.some((task) => task === undefined)) return false;
+  const conservedTasks = conserved.filter((task): task is StructuralTask => task !== undefined);
+  if (!strictlyIncreasing(conservedTasks.map((task) => task.line))) return false;
+
+  const parentCascadeAllowed = expected.section.id !== expected.leaf.id
+    && seedSection.marker === " "
+    && freshSection.marker === "x"
+    && freshTasks.every((task) => task.kind !== "subtask"
+      || task.parentId !== expected.section.id
+      || task.marker !== " ");
+  for (const seedTask of seedTasks) {
+    const freshTask = freshById.get(seedTask.id);
+    if (freshTask === undefined || freshTask.kind !== seedTask.kind
+      || freshTask.title !== seedTask.title || freshTask.parentId !== seedTask.parentId) return false;
+    if (freshTask.marker === seedTask.marker) continue;
+    const activeLeafClosed = seedTask.id === expected.leaf.id
+      && seedTask.marker === " "
+      && freshTask.marker === "x";
+    const parentCascadeClosed = seedTask.id === expected.section.id && parentCascadeAllowed;
+    if (!activeLeafClosed && !parentCascadeClosed) return false;
+  }
+
+  return freshTasks.every((task) => seedById.has(task.id) || task.line > freshLeaf.line);
 }
 
 function structuralTasks(content: string): StructuralTask[] | null {
