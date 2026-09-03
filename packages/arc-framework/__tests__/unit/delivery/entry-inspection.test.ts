@@ -48,6 +48,11 @@ function dependencies(input: {
       proof: "subject-equality" | "tree-equality" | "mechanical-reapply";
     };
   } | null | "non-current" | "refused";
+  candidateTerminalCoordinates?: {
+    readonly base: string;
+    readonly head: string;
+    readonly tree: string;
+  };
 } = {}) {
   return {
     readTaskList: vi.fn().mockResolvedValue(input.taskList ?? `${prefix}${suffix}`),
@@ -75,11 +80,18 @@ function dependencies(input: {
     readIntegrationBoundary: vi.fn().mockResolvedValue(input.integrationBoundary === "refused"
       ? { status: "refused" }
       : { status: "ok", value: input.integrationBoundary ?? null }),
-    readCandidate: vi.fn().mockResolvedValue(input.candidate === "refused"
-      ? { status: "refused" }
-      : input.candidate === "non-current"
-        ? { status: "non-current" }
-        : { status: "ok", value: input.candidate ?? null }),
+    readCandidate: vi.fn(async (terminalCoordinates?: {
+      readonly base: string;
+      readonly head: string;
+      readonly tree: string;
+    }) => input.candidateTerminalCoordinates !== undefined
+      && JSON.stringify(terminalCoordinates) !== JSON.stringify(input.candidateTerminalCoordinates)
+      ? { status: "non-current" as const }
+      : input.candidate === "refused"
+        ? { status: "refused" as const }
+        : input.candidate === "non-current"
+          ? { status: "non-current" as const }
+          : { status: "ok" as const, value: input.candidate ?? null }),
   };
 }
 
@@ -502,11 +514,7 @@ describe("delivery entry inspection", () => {
       head: currentHead,
       tree: "e".repeat(40),
     };
-
-    await expect(inspectDeliveryEntry({
-      workUnitId: plan.workUnitId,
-      entryMode: "integrating",
-    }, dependencies({
+    const inspectionDependencies = dependencies({
       taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
       resolvedPlan: plan,
       state: advanced,
@@ -523,7 +531,13 @@ describe("delivery entry inspection", () => {
           proof: "subject-equality",
         },
       },
-    }))).resolves.toMatchObject({
+      candidateTerminalCoordinates: advanced.members.at(-1)!.coordinates!,
+    });
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, inspectionDependencies)).resolves.toMatchObject({
       status: "continue-hosted-review",
       nextAction: "continue-hosted-review",
       planId: plan.planId,
