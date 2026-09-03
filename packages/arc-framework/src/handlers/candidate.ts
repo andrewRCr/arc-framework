@@ -1,6 +1,7 @@
 /** Strict CLI composition for Candidate applicability selection. */
 
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -16,6 +17,7 @@ import {
   DeliveryReviewMemberVehicleSchema,
   sameDeliveryReviewMemberVehicle,
 } from "../lib/delivery/review-vehicle.js";
+import { deliveryReviewFixRecordDigest } from "../lib/delivery/review-fix-record-effects.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
@@ -34,6 +36,7 @@ import {
   collectGitCandidateTarget,
   resolveGitCandidateBaseRevision,
 } from "../lib/work-unit/git-candidate-subject.js";
+import type { CandidateMutationOwner } from "../lib/work-unit/candidate-mutation-owner.js";
 import { RepositoryDeliveryMemberLookup } from
   "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { projectGitReviewContributionApplicability } from
@@ -46,7 +49,6 @@ import {
   resolveReviewApplicabilityBatch,
   reviewApplicabilityResolutionInputsFromCommand,
 } from "../scripts/review-gate/policy/review-applicability-resolution.js";
-import type { CandidateMutationOwner } from "../lib/work-unit/candidate-mutation-owner.js";
 import {
   resolveCandidateMutationOwner,
   resolveCompletedCandidateWorkUnits,
@@ -242,7 +244,18 @@ async function executeCandidateApplicabilityResolution(
     cwd: root,
     objectAccess: "local-only",
   })).stdout.trim();
-  return staged === "" ? resolution : { ...resolution, nextAction: "commit-selection" };
+  if (staged === "") return resolution;
+  if (resolution.mode === "candidate-applicability-resolve") {
+    return { ...resolution, nextAction: "commit-selection" };
+  }
+  return {
+    ...resolution,
+    nextAction: "commit-selection",
+    recordEffect: {
+      path: recordPath,
+      digest: deliveryReviewFixRecordDigest(await readFile(resolve(root, recordPath), "utf8")),
+    },
+  };
 }
 
 export interface CandidateApplicabilityResolveHandlerDependencies {

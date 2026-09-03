@@ -131,13 +131,15 @@ async function readBasePosition(input: {
   cwd: string;
   exec: GitExec;
   headSha: string;
+  remote?: string;
 }): Promise<Pick<ReviewStatusObservation, "currentBaseOid" | "baseContained">> {
   const { settings } = await readConfigSettings(input.cwd);
   const base = settings["branch.base"];
-  await input.exec("git", ["fetch", "origin", base], { cwd: input.cwd });
+  const remote = input.remote ?? "origin";
+  await input.exec("git", ["fetch", remote, base], { cwd: input.cwd });
   const currentBaseOid = (await input.exec(
     "git",
-    ["rev-parse", "--verify", `refs/remotes/origin/${base}`],
+    ["rev-parse", "--verify", `refs/remotes/${remote}/${base}`],
     { cwd: input.cwd, objectAccess: "local-only" },
   )).stdout.trim();
   if (!isGitObjectId(currentBaseOid)) throw new Error("invalid base object ID");
@@ -165,6 +167,7 @@ export async function ensureCandidateHeadAvailable(input: {
   cwd: string;
   exec: GitExec;
   headSha: string;
+  remote?: string;
 }): Promise<void> {
   const resolveExactHead = async (): Promise<string> => (
     await input.exec("git", ["rev-parse", "--verify", `${input.headSha}^{commit}`], {
@@ -181,7 +184,7 @@ export async function ensureCandidateHeadAvailable(input: {
     if (!isGitProcessError(error) || error.kind !== "nonzero-exit") throw error;
   }
 
-  await input.exec("git", ["fetch", "origin", input.headSha], { cwd: input.cwd });
+  await input.exec("git", ["fetch", input.remote ?? "origin", input.headSha], { cwd: input.cwd });
   const fetched = await resolveExactHead();
   if (fetched !== input.headSha) throw new Error("the fetched Candidate head resolved to a different commit");
 }
@@ -208,6 +211,12 @@ export async function readRoutedObligation(
     readonly sourceId?: string;
   },
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
+  options: {
+    readonly remote?: string;
+    readonly captureTerminalAdvance?: (
+      advance: { readonly stateHead: string; readonly currentHead: string },
+    ) => void;
+  } = {},
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
     headRef: target.headRef,
@@ -281,9 +290,15 @@ export async function readRoutedObligation(
           stateHead: terminalCoordinates.head,
           currentHead: effective.recognizedTarget.revision,
         };
+        options.captureTerminalAdvance?.(terminalAdvance);
       }
     } else {
-      await ensureCandidateHeadAvailable({ cwd, exec, headSha: candidateHead });
+      await ensureCandidateHeadAvailable({
+        cwd,
+        exec,
+        headSha: candidateHead,
+        ...(options.remote === undefined ? {} : { remote: options.remote }),
+      });
       const targetBase = await resolveGitCandidateTargetBase({
         cwd,
         revision: candidateHead,
@@ -509,7 +524,7 @@ export async function readRoutedObligation(
 
 /** Bind GitHub, publication-boundary, and Git base reads to the status reducer. */
 export function createReviewStatusPort(
-  input: { cwd: string; exec: GitExec },
+  input: { cwd: string; exec: GitExec; remote?: string },
   precomputed?: {
     readonly target: ChangeRequestTargetRef;
     readonly pullRequest: number;
@@ -519,7 +534,8 @@ export function createReviewStatusPort(
   return {
     observe: async (target, ceilingOverride, coverage) => {
       try {
-        const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
+        const remote = input.remote ?? "origin";
+        const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd, remote);
         const memberLookup = new RepositoryDeliveryMemberLookup(input);
         const baseRef = (await readConfigSettings(input.cwd)).settings["branch.base"];
         const refs = await changeRequestPort.readHeadRef(target.headRef);
@@ -533,7 +549,12 @@ export function createReviewStatusPort(
           },
           changeRequestPort,
         );
-        const base = await readBasePosition({ cwd: input.cwd, exec: input.exec, headSha: target.headSha });
+        const base = await readBasePosition({
+          cwd: input.cwd,
+          exec: input.exec,
+          headSha: target.headSha,
+          remote,
+        });
         if (
           resolution.state !== "open"
           || resolution.targetRef.repository.toLowerCase() !== target.repository.toLowerCase()
@@ -572,6 +593,8 @@ export function createReviewStatusPort(
                     ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
                     ...(coverage === undefined ? {} : { coverage }),
                   },
+              undefined,
+              { remote },
             );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
         const repository = await checksPort.resolveRepository();
@@ -608,6 +631,56 @@ export function createReviewStatusPort(
   };
 }
 
+/**
+ * Select the exact current member target, carrying only a previously validated terminal advance.
+ *
+ * @param input - Durable state, routed conjunction, and optional validated terminal movement.
+ * @returns The exact selected status target, or null when durable coordinates cannot justify it.
+ */
+export function selectDeliveryReviewStatusTarget(input: {
+  readonly anchor: ChangeRequestTargetRef;
+  readonly terminalPullRequest: number;
+  readonly terminalDeliverableId: string;
+  readonly stateMembers: readonly {
+    readonly deliverableId: string;
+    readonly ref: string | null;
+    readonly coordinates: { readonly head: string } | null;
+  }[];
+  readonly outstanding: boolean;
+  readonly firstOutstanding?: {
+    readonly vehicle: { readonly deliverableId: string };
+    readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
+  };
+  readonly terminalAdvance?: { readonly stateHead: string; readonly currentHead: string };
+}): { readonly target: ChangeRequestTargetRef; readonly pullRequest: number } | null {
+  if (!input.outstanding) {
+    const headSha = input.terminalAdvance?.stateHead === input.anchor.headSha
+      ? input.terminalAdvance.currentHead
+      : input.anchor.headSha;
+    return { target: { ...input.anchor, headSha }, pullRequest: input.terminalPullRequest };
+  }
+  const selected = input.firstOutstanding;
+  const selectedState = selected === undefined
+    ? undefined
+    : input.stateMembers.find(({ deliverableId }) => deliverableId === selected.vehicle.deliverableId);
+  const selectedHeadRef = deliveryHeadRef(selectedState?.ref ?? null);
+  if (selected === undefined || selectedState?.coordinates === null
+    || selectedState?.coordinates === undefined || selectedHeadRef === null) return null;
+  const exactStateHead = selectedState.coordinates.head === selected.target.headSha;
+  const exactTerminalAdvance = selected.vehicle.deliverableId === input.terminalDeliverableId
+    && input.terminalAdvance?.stateHead === selectedState.coordinates.head
+    && input.terminalAdvance.currentHead === selected.target.headSha;
+  if (!exactStateHead && !exactTerminalAdvance) return null;
+  return {
+    target: {
+      repository: selected.target.repository,
+      headRef: selectedHeadRef,
+      headSha: selected.target.headSha,
+    },
+    pullRequest: selected.target.pullRequest,
+  };
+}
+
 /** Resolve the live stacked-delivery review action without reconstructing a member target. */
 export async function resolveReviewStatusForWorkUnit(input: {
   readonly cwd: string;
@@ -616,6 +689,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
   readonly ceilingOverride?: ReviewStatusTargetInput["ceilingOverride"];
   readonly coverage?: HostedReviewCoverage;
   readonly sourceId?: string;
+  readonly remote?: string;
 }): Promise<ReviewStatusResult> {
   const workUnitId = SlugSchema.parse(input.workUnitId);
   const versionedBoundary = await readSubmissionBoundaryVersioned(input.cwd, workUnitId);
@@ -654,6 +728,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     headRef: terminalHeadRef,
     headSha: terminalStateMember.coordinates.head,
   };
+  let terminalAdvance: { readonly stateHead: string; readonly currentHead: string } | undefined;
   const routed = await readRoutedObligation(
     input.cwd,
     input.exec,
@@ -668,28 +743,30 @@ export async function resolveReviewStatusForWorkUnit(input: {
           ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
           ...(input.sourceId === undefined ? {} : { sourceId: input.sourceId }),
         },
+    undefined,
+    {
+      ...(input.remote === undefined ? {} : { remote: input.remote }),
+      captureTerminalAdvance: (advance) => {
+        terminalAdvance = advance;
+      },
+    },
   );
-  let selectedTarget = anchor;
-  let selectedPullRequest = terminalPullRequest;
-  if ("conjunction" in routed && routed.conjunction.status === "outstanding") {
-    const selected = routed.conjunction.members.find((member) => member.state === "outstanding");
-    const selectedState = selected === undefined
-      ? undefined
-      : delivery.state.members.find((member) => member.deliverableId === selected.vehicle.deliverableId);
-    const selectedHeadRef = deliveryHeadRef(selectedState?.ref ?? null);
-    if (selected === undefined
-      || selectedState?.coordinates === null
-      || selectedState?.coordinates.head !== selected.target.headSha
-      || selectedHeadRef === null) {
-      throw new Error("The selected delivery-member review target is unavailable.");
-    }
-    selectedTarget = {
-      repository: selected.target.repository,
-      headRef: selectedHeadRef,
-      headSha: selected.target.headSha,
-    };
-    selectedPullRequest = selected.target.pullRequest;
-  }
+  const outstanding = "conjunction" in routed && routed.conjunction.status === "outstanding";
+  const firstOutstanding = outstanding
+    ? routed.conjunction.members.find((member) => member.state === "outstanding")
+    : undefined;
+  const selection = selectDeliveryReviewStatusTarget({
+    anchor,
+    terminalPullRequest,
+    terminalDeliverableId: terminalPlanMember.deliverableId,
+    stateMembers: delivery.state.members,
+    outstanding,
+    ...(firstOutstanding === undefined ? {} : { firstOutstanding }),
+    ...(terminalAdvance === undefined ? {} : { terminalAdvance }),
+  });
+  if (selection === null) throw new Error("The selected delivery-member review target is unavailable.");
+  const selectedTarget = selection.target;
+  const selectedPullRequest = selection.pullRequest;
   const result = await resolveReviewStatus({
     target: selectedTarget,
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),

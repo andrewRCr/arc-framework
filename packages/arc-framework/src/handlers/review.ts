@@ -26,6 +26,8 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import type { GitExec } from "../lib/git/exec.js";
+import { isGitProcessError } from "../lib/git/process-error.js";
 import { canonicalize } from "../lib/kernel/index.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
@@ -805,6 +807,44 @@ export interface ReviewTerminusAcceptHandlerDependencies extends ReviewHandlerBo
   ): Promise<DeliveryReviewTerminusAcceptanceResult>;
 }
 
+/**
+ * Stage a newly written or crash-recovered exact Owner-terminus boundary.
+ *
+ * @param input - Repository, Git boundary, work unit, and terminus acceptance result.
+ * @returns The original result, or a commit-required result when exact replay recovers unstaged bytes.
+ */
+export async function stageDeliveryReviewTerminusBoundary(input: {
+  readonly root: string;
+  readonly workUnitId: string;
+  readonly exec: GitExec;
+  readonly result: DeliveryReviewTerminusAcceptanceResult;
+}): Promise<DeliveryReviewTerminusAcceptanceResult> {
+  const boundaryPath = resolveSubmissionBoundaryPath(input.workUnitId);
+  if (input.result.state === "recorded") {
+    if (input.result.boundaryPath !== boundaryPath) {
+      throw new Error("The recorded Owner terminus returned an unexpected boundary path.");
+    }
+    await input.exec("git", ["add", "--", boundaryPath], { cwd: input.root });
+    return input.result;
+  }
+  if (input.result.state !== "exact-replay") return input.result;
+  try {
+    await input.exec("git", ["diff", "--quiet", "HEAD", "--", boundaryPath], { cwd: input.root });
+    return input.result;
+  } catch (error) {
+    if (!isGitProcessError(error) || error.kind !== "nonzero-exit" || error.exitCode !== 1) throw error;
+  }
+  await input.exec("git", ["add", "--", boundaryPath], { cwd: input.root });
+  return DeliveryReviewTerminusAcceptanceResultSchema.parse({
+    ...input.result,
+    state: "recorded",
+    nextAction: "commit-boundary",
+    boundaryPath,
+    recommendedActionText:
+      "Commit and push the recovered Owner terminus boundary, then re-enter work-unit review status.",
+  });
+}
+
 async function acceptDeliveryReviewTerminus(
   request: DeliveryReviewTerminusAcceptanceInput,
   root: string,
@@ -831,13 +871,12 @@ async function acceptDeliveryReviewTerminus(
       }
     },
   });
-  if (result.state !== "recorded") return result;
-  const boundaryPath = resolveSubmissionBoundaryPath(request.offer.workUnitId);
-  if (result.boundaryPath !== boundaryPath) {
-    throw new Error("The recorded Owner terminus returned an unexpected boundary path.");
-  }
-  await exec("git", ["add", "--", boundaryPath], { cwd: root });
-  return result;
+  return stageDeliveryReviewTerminusBoundary({
+    root,
+    workUnitId: request.offer.workUnitId,
+    exec,
+    result,
+  });
 }
 
 /** Accept one exact delivery-member Owner terminus and emit one typed JSON result. */

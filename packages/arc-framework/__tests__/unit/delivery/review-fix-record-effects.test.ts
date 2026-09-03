@@ -45,8 +45,14 @@ describe("delivery review-fix record effects", () => {
     await expect(settleDeliveryReviewFixRecordEffects({
       workUnitId,
       context: ".arc/active/meta-example-work-unit.md (review correction)",
+      expectedRecords: [
+        { path: boundaryPath, digest: "sha256:boundary" },
+        { path: candidatePath, digest: "sha256:candidate" },
+      ],
       ports: {
         listStagedPaths: vi.fn().mockResolvedValue([boundaryPath, candidatePath]),
+        readStagedRecordDigest: vi.fn(async (path) =>
+          path === boundaryPath ? "sha256:boundary" : "sha256:candidate"),
         readRecoverableCommit: vi.fn().mockResolvedValue({ status: "none" }),
         readCurrentBranch: vi.fn().mockResolvedValue("feat/example"),
         readRemoteHead,
@@ -81,8 +87,10 @@ describe("delivery review-fix record effects", () => {
     await expect(settleDeliveryReviewFixRecordEffects({
       workUnitId,
       context: "meta-example-work-unit.md (integration)",
+      expectedRecords: [],
       ports: {
         listStagedPaths: vi.fn().mockResolvedValue([]),
+        readStagedRecordDigest: vi.fn(),
         readRecoverableCommit: vi.fn().mockResolvedValue({
           status: "recoverable",
           recordClass: "candidate-boundary-projection",
@@ -114,5 +122,50 @@ describe("delivery review-fix record effects", () => {
     });
     expect(commit).not.toHaveBeenCalled();
     expect(push).toHaveBeenCalledWith({ branch: "feat/example" });
+  });
+
+  it("refuses authoritative staged residue that the correction invocation did not produce", async () => {
+    const commit = vi.fn();
+
+    await expect(settleDeliveryReviewFixRecordEffects({
+      workUnitId,
+      context: "meta-example-work-unit.md (integration)",
+      expectedRecords: [],
+      ports: {
+        listStagedPaths: vi.fn().mockResolvedValue([candidatePath]),
+        readStagedRecordDigest: vi.fn().mockResolvedValue("sha256:unrelated"),
+        readRecoverableCommit: vi.fn(),
+        readCurrentBranch: vi.fn(),
+        readRemoteHead: vi.fn(),
+        commit,
+        push: vi.fn(),
+      },
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "record-effect-unexpected-staged-records",
+      paths: [candidatePath],
+    });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it("refuses an expected record path whose staged bytes no longer match the invocation", async () => {
+    await expect(settleDeliveryReviewFixRecordEffects({
+      workUnitId,
+      context: "meta-example-work-unit.md (integration)",
+      expectedRecords: [{ path: candidatePath, digest: "sha256:expected" }],
+      ports: {
+        listStagedPaths: vi.fn().mockResolvedValue([candidatePath]),
+        readStagedRecordDigest: vi.fn().mockResolvedValue("sha256:other"),
+        readRecoverableCommit: vi.fn(),
+        readCurrentBranch: vi.fn(),
+        readRemoteHead: vi.fn(),
+        commit: vi.fn(),
+        push: vi.fn(),
+      },
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "record-effect-content-mismatch",
+      paths: [candidatePath],
+    });
   });
 });

@@ -47,19 +47,43 @@ export async function inspectDeliveryCandidateCheckout(
   exec: GitExec,
   checkoutPath: string,
 ): Promise<(DeliveryEligibilityCoordinates & { readonly trackedDirty: boolean }) | null> {
+  return inspectDeliveryCheckoutDirt(exec, checkoutPath, "no");
+}
+
+async function inspectDeliveryCheckoutDirt(
+  exec: GitExec,
+  checkoutPath: string,
+  untrackedFiles: "no" | "all",
+): Promise<(DeliveryEligibilityCoordinates & { readonly trackedDirty: boolean }) | null> {
   const coordinates = await observeDeliveryEligibilityRef(
     (command, args, options) => exec(command, args, { ...options, cwd: checkoutPath }),
     "HEAD",
   );
   if (coordinates === null) return null;
   try {
-    const { stdout } = await exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=no"], {
-      cwd: checkoutPath,
-    });
+    const { stdout } = await exec(
+      "git",
+      ["status", "--porcelain=v1", "-z", `--untracked-files=${untrackedFiles}`],
+      { cwd: checkoutPath },
+    );
     return { ...coordinates, trackedDirty: stdout !== "" };
   } catch {
     return null;
   }
+}
+
+/**
+ * Inspect mutable correction authoring coordinates and all tracked, index, and untracked residue.
+ *
+ * @param exec - Git execution boundary.
+ * @param checkoutPath - Exact correction-authoring checkout path.
+ * @returns Current coordinates and dirt state, or null when either cannot be observed.
+ */
+export async function inspectDeliveryAuthoringCheckout(
+  exec: GitExec,
+  checkoutPath: string,
+): Promise<(DeliveryEligibilityCoordinates & { readonly trackedDirty: boolean }) | null> {
+  return inspectDeliveryCheckoutDirt(exec, checkoutPath, "all");
 }
 
 /** Read and compare the normalized top and final-candidate trees. */
