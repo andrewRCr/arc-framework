@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   classifyDeliveryReviewFixStagedRecords,
+  deliveryReviewFixRecordCommitMessage,
   deliveryReviewFixRecordDigest,
+  isDeliveryReviewFixRecordCommitMessage,
+  isDeliveryReviewFixVerificationResponseAppend,
   reconstructDeliveryReviewFixExpectedRecords,
   settleDeliveryReviewFixRecordEffects,
+  type DeliveryReviewFixRecordEffectPorts,
 } from "../../../src/lib/delivery/review-fix-record-effects.js";
 import { carryDeliveryReviewFixPublicBoundary } from "../../../src/lib/delivery/review-fix.js";
 import { projectDeliveryPublicReviewContinuation } from
@@ -12,7 +16,9 @@ import { projectDeliveryPublicReviewContinuation } from
 import { canonicalDigest, canonicalize } from "../../../src/lib/kernel/index.js";
 import {
   createCandidateAttestation,
+  createCandidateVerificationResponseEvidence,
   createCandidateSubjectSnapshot,
+  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 import {
@@ -132,6 +138,75 @@ describe("delivery review-fix record effects", () => {
       ...carried.boundary,
       candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
     })).toBeNull();
+  });
+
+  it("binds a recovered verification-response append to the current continuation authority", () => {
+    const subject = createCandidateSubjectSnapshot([{
+      path: "feature.ts",
+      digest: canonicalDigest({ content: "candidate" }),
+      mode: "100644",
+      treatment: "reviewable",
+    }]);
+    const candidate: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: createCandidateAttestation({
+        workUnit: workUnitId,
+        subject,
+        baseRevision: "a".repeat(40),
+        attestedBy: "reviewer",
+        attestedAt: "2026-09-03T12:00:00.000Z",
+        verificationEvidenceRef: "verification://candidate",
+      }),
+      subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    const target = reduceCandidateDurableBaseline(candidate).target;
+    const staleAuthority = `sha256:${"b".repeat(64)}`;
+    const currentAuthority = `sha256:${"c".repeat(64)}`;
+    const current: CandidateManagedRecordV1 = {
+      ...candidate,
+      transitions: [createCandidateVerificationResponseEvidence({
+        candidateId: candidate.attestation.candidateId,
+        oldTarget: target,
+        newTarget: target,
+        authorityRef: staleAuthority,
+        verifiedBy: "reviewer",
+        verifiedAt: "2026-09-03T12:05:00.000Z",
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://review-fix"],
+        implementationChanged: false,
+      })],
+    };
+
+    expect(isDeliveryReviewFixVerificationResponseAppend(candidate, current)).toBe(true);
+    expect(isDeliveryReviewFixVerificationResponseAppend(candidate, current, staleAuthority)).toBe(true);
+    expect(isDeliveryReviewFixVerificationResponseAppend(candidate, current, currentAuthority)).toBe(false);
+  });
+
+  it("recognizes only the content-bound machine-owned commit shape", () => {
+    const records = [{ path: candidatePath, digest: `sha256:${"d".repeat(64)}` }];
+    const message = deliveryReviewFixRecordCommitMessage(
+      "review-applicability-selection",
+      "meta-example-work-unit.md (integration)",
+      records,
+    );
+    expect(isDeliveryReviewFixRecordCommitMessage({
+      message,
+      recordClass: "review-applicability-selection",
+      context: "meta-example-work-unit.md (integration)",
+    })).toBe(true);
+    expect(isDeliveryReviewFixRecordCommitMessage({
+      message: message.replace(/sha256:[0-9a-f]{64}/u, `sha256:${"e".repeat(64)}`),
+      recordClass: "review-applicability-selection",
+      context: "meta-example-work-unit.md (integration)",
+    })).toBe(true);
+    expect(isDeliveryReviewFixRecordCommitMessage({
+      message: message.replace(/sha256:[0-9a-f]{64}/u, "sha256:invalid"),
+      recordClass: "review-applicability-selection",
+      context: "meta-example-work-unit.md (integration)",
+    })).toBe(false);
   });
 
   it("isolates exact machine-owned record paths from staged content", () => {
@@ -432,6 +507,67 @@ describe("delivery review-fix record effects", () => {
     })).resolves.toEqual({
       status: "refused",
       reason: "record-effect-committed-content-mismatch",
+      paths: [candidatePath],
+    });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not bless a hook-mutated record commit on the next invocation", async () => {
+    const head = "3".repeat(40);
+    const beforeHead = "2".repeat(40);
+    let committedMessage = "";
+    const push = vi.fn().mockResolvedValue({ status: "pushed" });
+    const listStagedPaths = vi.fn()
+      .mockResolvedValueOnce([candidatePath])
+      .mockResolvedValueOnce([]);
+    const readRecoverableCommit: DeliveryReviewFixRecordEffectPorts["readRecoverableCommit"] =
+      async ({ candidates }) => {
+        const matched = candidates.find(({ message }) => message === committedMessage);
+        return matched === undefined
+          ? { status: "none" }
+          : {
+              status: "recoverable",
+              recordClass: matched.recordClass,
+              paths: matched.paths,
+              branch: "feat/example",
+              head,
+              beforeHead,
+            };
+      };
+    const ports: DeliveryReviewFixRecordEffectPorts = {
+      ...matchingWorkingRecords,
+      listStagedPaths,
+      readStagedRecordDigest: vi.fn().mockResolvedValue("sha256:expected"),
+      readRecoverableCommit,
+      readCommittedRecordDigest: vi.fn().mockResolvedValue("sha256:hook-mutated"),
+      readCurrentBranch: vi.fn(),
+      readRemoteHead: vi.fn().mockResolvedValue(head),
+      commit: vi.fn(async ({ message }) => {
+        committedMessage = message;
+        return { status: "committed" as const, head };
+      }),
+      push,
+    };
+
+    await expect(settleDeliveryReviewFixRecordEffects({
+      workUnitId,
+      context: "meta-example-work-unit.md (integration)",
+      expectedRecords: [{ path: candidatePath, digest: "sha256:expected" }],
+      ports,
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "record-effect-committed-content-mismatch",
+      paths: [candidatePath],
+    });
+
+    await expect(settleDeliveryReviewFixRecordEffects({
+      workUnitId,
+      context: "meta-example-work-unit.md (integration)",
+      expectedRecords: [{ path: candidatePath, digest: "sha256:hook-mutated" }],
+      ports,
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "record-effect-expected-records-missing",
       paths: [candidatePath],
     });
     expect(push).not.toHaveBeenCalled();

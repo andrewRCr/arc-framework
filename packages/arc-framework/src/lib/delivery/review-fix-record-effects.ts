@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 
-import { canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import { carryDeliveryReviewFixPublicBoundary } from "./review-fix.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
@@ -35,10 +35,12 @@ type RecoverableDeliveryReviewFixRecordClass = Exclude<
 export function isDeliveryReviewFixVerificationResponseAppend(
   before: CandidateManagedRecordV1,
   current: CandidateManagedRecordV1,
+  authorityRef?: string,
 ): boolean {
   if (current.transitions.length !== before.transitions.length + 1) return false;
   const appended = current.transitions.at(-1);
   if (appended?.transitionKind !== "verification-response") return false;
+  if (authorityRef !== undefined && appended.authorityRef !== authorityRef) return false;
   return canonicalize(before) === canonicalize({
     ...current,
     transitions: current.transitions.slice(0, -1),
@@ -194,11 +196,35 @@ export type DeliveryReviewFixRecordEffectSettlement =
 export function deliveryReviewFixRecordCommitMessage(
   recordClass: DeliveryReviewFixRecordClass,
   context: string,
+  expectedRecords: readonly DeliveryReviewFixExpectedRecord[],
 ): string {
   const subject = recordClass === "review-applicability-selection"
     ? "chore(review): record applicability selection"
     : "chore(delivery): carry correction review boundary";
-  return `${subject}\n\nRecord the machine-owned ${recordClass} effect for the active correction.\n\nContext: ${context}`;
+  const expectationDigest = canonicalDigest({
+    domain: "arc.delivery.review-fix-record-expectations/v1",
+    records: [...expectedRecords]
+      .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0),
+  });
+  return `${subject}\n\nRecord the machine-owned ${recordClass} effect for the active correction `
+    + `with exact expectation ${expectationDigest}.\n\nContext: ${context}`;
+}
+
+/** Recognize one content-bound correction-record commit without trusting its record bytes. */
+export function isDeliveryReviewFixRecordCommitMessage(input: {
+  readonly message: string;
+  readonly recordClass: DeliveryReviewFixRecordClass;
+  readonly context: string;
+}): boolean {
+  const subject = input.recordClass === "review-applicability-selection"
+    ? "chore(review): record applicability selection"
+    : "chore(delivery): carry correction review boundary";
+  const prefix = `${subject}\n\nRecord the machine-owned ${input.recordClass} effect for the active correction `
+    + "with exact expectation ";
+  const suffix = `.\n\nContext: ${input.context}`;
+  if (!input.message.startsWith(prefix) || !input.message.endsWith(suffix)) return false;
+  const digest = input.message.slice(prefix.length, -suffix.length);
+  return /^sha256:[0-9a-f]{64}$/u.test(digest);
 }
 
 /** Commit and publish one exact staged correction-record batch. */
@@ -228,17 +254,29 @@ export async function settleDeliveryReviewFixRecordEffects(input: {
         {
           recordClass: "review-applicability-selection",
           paths: [candidatePath],
-          message: deliveryReviewFixRecordCommitMessage("review-applicability-selection", input.context),
+          message: deliveryReviewFixRecordCommitMessage(
+            "review-applicability-selection",
+            input.context,
+            expectedRecords,
+          ),
         },
         {
           recordClass: "boundary-projection",
           paths: [boundaryPath],
-          message: deliveryReviewFixRecordCommitMessage("boundary-projection", input.context),
+          message: deliveryReviewFixRecordCommitMessage(
+            "boundary-projection",
+            input.context,
+            expectedRecords,
+          ),
         },
         {
           recordClass: "candidate-boundary-projection",
           paths: sortByCanonicalBytes([candidatePath, boundaryPath]),
-          message: deliveryReviewFixRecordCommitMessage("candidate-boundary-projection", input.context),
+          message: deliveryReviewFixRecordCommitMessage(
+            "candidate-boundary-projection",
+            input.context,
+            expectedRecords,
+          ),
         },
       ],
     });
@@ -314,7 +352,7 @@ export async function settleDeliveryReviewFixRecordEffects(input: {
     recordClass = classified.recordClass;
     const committed = await input.ports.commit({
       paths: classified.paths,
-      message: deliveryReviewFixRecordCommitMessage(recordClass, input.context),
+      message: deliveryReviewFixRecordCommitMessage(recordClass, input.context, expectedRecords),
     });
     if (committed.status === "refused") return committed;
     head = committed.head;
