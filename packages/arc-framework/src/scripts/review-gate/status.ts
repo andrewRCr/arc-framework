@@ -335,7 +335,9 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
     readonly discharged: boolean;
     readonly nextSource: string | null;
     readonly applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
+    readonly applicabilityAuthority?: "decision-required" | "blocked";
     readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
+    readonly awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
     readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
     readonly completedPasses: number;
   };
@@ -344,10 +346,13 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
   const terminus = input.ownerTermini?.find((record) => (
     sameDeliveryReviewMemberVehicle(record.vehicle, input.target.vehicle)
   ));
+  const replayedApplicability = input.discharge.applicability?.state === "decision-required"
+    && input.discharge.applicabilityAuthority !== "blocked";
   const hasPendingIntervention = input.discharge.responsePlan !== undefined
+    || input.discharge.awaitAction !== undefined
     || input.discharge.localResumeAction !== undefined
-    || input.discharge.nextSource === null
-    || (input.discharge.applicability !== undefined && input.discharge.applicability.state !== "applicable");
+    || (!replayedApplicability && (input.discharge.nextSource === null
+      || (input.discharge.applicability !== undefined && input.discharge.applicability.state !== "applicable")));
   return terminus !== undefined
     && !input.discharge.discharged
     && !hasPendingIntervention

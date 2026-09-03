@@ -874,7 +874,59 @@ describe("review status", () => {
     });
   });
 
-  it("keeps pending applicability ahead of an exact member terminus", () => {
+  it("keeps an exact member terminus across a replayed applicability projection", () => {
+    const projection = reviewApplicabilityDecision();
+    const secondVehicle = DeliveryReviewMemberVehicleSchema.parse({
+      ...memberVehicle,
+      deliverableId: `sha256:${"f".repeat(64)}`,
+      head: oid("d"),
+    });
+    const secondTarget = { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 2),
+        deliveryTarget(secondTarget, secondVehicle, 2, 2),
+      ],
+      discharges: [
+        deliveryDischarge({
+          discharged: false,
+          detail: "The prior member review has an uncovered residual.",
+          nextSource: null,
+          applicability: projection,
+        }),
+        deliveryDischarge({
+          discharged: false,
+          detail: "The next member requires review.",
+          nextSource: "coderabbit-pr",
+          requestAdmission: readyAdmission("coderabbit-pr", secondTarget),
+        }),
+      ],
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 4 }),
+        candidateId: canonicalDigest({ candidate: 4 }),
+      },
+      ownerTermini: [{
+        vehicle: memberVehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 0,
+        },
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      action: { target: secondTarget, vehicle: secondVehicle },
+      conjunction: { members: [{ state: "discharged" }, { state: "outstanding" }] },
+    });
+  });
+
+  it("keeps replayed applicability ahead of a terminus with a stale pass count", () => {
     const projection = reviewApplicabilityDecision();
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
@@ -886,8 +938,80 @@ describe("review status", () => {
       })],
       applicabilityContext: {
         workUnitId: "example",
-        expectedRecordVersion: canonicalDigest({ version: 4 }),
-        candidateId: canonicalDigest({ candidate: 4 }),
+        expectedRecordVersion: canonicalDigest({ version: 5 }),
+        candidateId: canonicalDigest({ candidate: 5 }),
+      },
+      ownerTermini: [{
+        vehicle: memberVehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 1,
+        },
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      selectionAction: { projection },
+      conjunction: { members: [{ state: "outstanding" }] },
+    });
+  });
+
+  it("keeps conflicting applicability authority ahead of an exact member terminus", () => {
+    const projection = reviewApplicabilityDecision();
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "Candidate applicability authority conflicts.",
+        nextSource: null,
+        applicability: projection,
+        applicabilityAuthority: "blocked",
+      })],
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 6 }),
+        candidateId: canonicalDigest({ candidate: 6 }),
+      },
+      ownerTermini: [{
+        vehicle: memberVehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 0,
+        },
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "applicability-conflict",
+      applicability: projection,
+      conjunction: { members: [{ state: "outstanding" }] },
+    });
+  });
+
+  it("keeps an active hosted request ahead of a terminus during an applicability replay", () => {
+    const projection = reviewApplicabilityDecision();
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The hosted request remains pending while applicability replays.",
+        nextSource: null,
+        applicability: projection,
+        awaitAction: hostedAwaitAction,
+      })],
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 7 }),
+        candidateId: canonicalDigest({ candidate: 7 }),
       },
       ownerTermini: [{
         vehicle: memberVehicle,
