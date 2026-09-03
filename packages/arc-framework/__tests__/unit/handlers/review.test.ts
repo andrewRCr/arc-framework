@@ -23,8 +23,11 @@ import {
   handleReviewRespond,
   handleReviewStatus,
   handleReviewTerminusAccept,
+  stageDeliveryReviewTerminusBoundary,
 } from "../../../src/handlers/review.js";
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 import {
   createReviewRequirement,
   createReviewTarget,
@@ -914,6 +917,59 @@ describe("handleReviewTerminusAccept", () => {
       state: "refused",
       reason: "stale-offer",
     });
+  });
+
+  it("stages an exact-replay boundary that was written before a prior process crashed", async () => {
+    const boundaryPath = ".arc/system/.internal/candidates/example.boundary.json";
+    const exec = vi.fn(async (_command: string, args: string[]) => {
+      if (args[0] === "diff") {
+        throw new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args,
+          exitCode: 1,
+        });
+      }
+      if (args[0] === "add") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected command: ${args.join(" ")}`);
+    });
+    const record = {
+      vehicle: {
+        kind: "delivery-member" as const,
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"e".repeat(64)}`,
+        workUnitId: SlugSchema.parse("example"),
+        head: "a".repeat(40),
+      },
+      terminus: {
+        schemaVersion: 1 as const,
+        semanticsVersion: "review-terminus/v1" as const,
+        kind: "owner-accepted" as const,
+        lane: "standard" as const,
+        acceptedBy: "andrew",
+        completedPasses: 2,
+      },
+    };
+
+    await expect(stageDeliveryReviewTerminusBoundary({
+      root: "/repo",
+      workUnitId: "example",
+      exec,
+      result: {
+        schemaVersion: 1,
+        mode: "review-terminus-accept",
+        state: "exact-replay",
+        nextAction: "continue",
+        record,
+        recommendedActionText: "The terminus is already durable.",
+      },
+    })).resolves.toMatchObject({
+      state: "recorded",
+      nextAction: "commit-boundary",
+      boundaryPath,
+      record,
+    });
+    expect(exec).toHaveBeenLastCalledWith("git", ["add", "--", boundaryPath], { cwd: "/repo" });
   });
 });
 

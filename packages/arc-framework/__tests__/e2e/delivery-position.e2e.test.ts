@@ -2197,10 +2197,17 @@ describe("arc delivery position", () => {
       retainedResponseSelection.exitCode,
       `${retainedResponseSelection.stderr}\n${retainedResponseSelection.stdout}`,
     ).toBe(0);
+    const retainedResponseEffect = JSON.parse(retainedResponseSelection.stdout) as {
+      recordEffect: { path: string; digest: string };
+    };
     const replayedResponse = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
-      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      `${JSON.stringify({
+        repository: "owner/repo",
+        remote: "origin",
+        recordEffects: [retainedResponseEffect.recordEffect],
+      })}\n`,
       { env: fixture.env },
     );
     expect(replayedResponse.exitCode, `${replayedResponse.stderr}\n${replayedResponse.stdout}`).toBe(0);
@@ -2366,6 +2373,9 @@ describe("arc delivery position", () => {
       nextAction: "commit-selection",
       choice: "covered",
     });
+    const resolvedBatchEffect = JSON.parse(resolvedBatch.stdout) as {
+      recordEffect: { path: string; digest: string };
+    };
     const selectedCandidate = await readCandidateRecord(fixture.repository, fixture.plan.workUnitId);
     expect(selectedCandidate).not.toBeNull();
     expect(candidateReviewApplicabilitySelections(selectedCandidate!).map(
@@ -2387,7 +2397,11 @@ describe("arc delivery position", () => {
     const continuedAfterBatch = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
-      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      `${JSON.stringify({
+        repository: "owner/repo",
+        remote: "origin",
+        recordEffects: [resolvedBatchEffect.recordEffect],
+      })}\n`,
       { env: fixture.env },
     );
     expect(continuedAfterBatch.exitCode, `${continuedAfterBatch.stderr}\n${continuedAfterBatch.stdout}`).toBe(0);

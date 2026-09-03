@@ -65,6 +65,16 @@ export type DurableDeliveryReviewFixResponseReplay =
       readonly reason: "review-fix-response-replay-ambiguous" | "review-fix-response-replay-invalid";
     };
 
+export type DurableLocalDeliveryReviewFixAcknowledgementReplay =
+  | { readonly status: "none" }
+  | { readonly status: "selected"; readonly verification: VerificationResult }
+  | {
+      readonly status: "refused";
+      readonly reason:
+        | "review-fix-acknowledgement-replay-ambiguous"
+        | "review-fix-acknowledgement-replay-invalid";
+    };
+
 function recordMatchesDurableDeliveryResponseReplay(
   record: ApprovedDispositionRecord,
   responsePlan: HostedFindingsResponsePlan,
@@ -132,6 +142,57 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
         applicability: selected.deliveryMemberFixResponse.applicability,
         verificationEvidenceRefs: selected.deliveryMemberFixResponse.fixConsumption.verificationRefs,
       },
+    },
+  };
+}
+
+/**
+ * Recover exact verification from a durable local response written before acknowledgement finished.
+ *
+ * @param input - Pending member target and durable disposition records.
+ * @returns Exact reusable verification, no match, or a typed ambiguity/refusal.
+ */
+export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: {
+  readonly workUnitId: string;
+  readonly planId: string;
+  readonly selectedDeliverableId: string;
+  readonly target: { readonly head: string; readonly tree: string };
+  readonly records: readonly ApprovedDispositionRecord[];
+}): DurableLocalDeliveryReviewFixAcknowledgementReplay {
+  const candidates = input.records.filter((record) => {
+    const response = record.deliveryMemberFixResponse;
+    return record.deliveryMember?.workUnitId === input.workUnitId
+      && record.deliveryMember.planId === input.planId
+      && record.deliveryMember.deliverableId === input.selectedDeliverableId
+      && record.source.kind === "attested-local"
+      && response !== null
+      && response.newTarget.kind === "delivery-member"
+      && response.newTarget.headSha === input.target.head
+      && response.newTarget.headTree === input.target.tree;
+  });
+  if (candidates.length > 1) {
+    return { status: "refused", reason: "review-fix-acknowledgement-replay-ambiguous" };
+  }
+  const selected = candidates[0];
+  if (selected === undefined) return { status: "none" };
+  const response = selected.deliveryMemberFixResponse;
+  if (response === null || selected.source.kind !== "attested-local"
+    || response.hostedTarget !== null || response.hostedFixTarget !== null
+    || response.fixConsumption.verificationRefs.length === 0) {
+    return { status: "refused", reason: "review-fix-acknowledgement-replay-invalid" };
+  }
+  return {
+    status: "selected",
+    verification: {
+      applicability: response.applicability,
+      target: input.target,
+      tier1: {
+        outcome: "passed",
+        provenance: "exact-tree-reuse",
+        targetTree: input.target.tree,
+        coveredInputs: "unchanged",
+      },
+      verificationEvidenceRefs: response.fixConsumption.verificationRefs,
     },
   };
 }

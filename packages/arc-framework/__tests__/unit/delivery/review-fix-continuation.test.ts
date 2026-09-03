@@ -10,6 +10,7 @@ import {
   pendingDeliveryReviewFixCanResumeFromIntegrationStatus,
   projectDeliveryReviewFixContinuation,
   selectDurableDeliveryReviewFixResponseReplay,
+  selectDurableLocalDeliveryReviewFixAcknowledgementReplay,
   selectPendingDeliveryReviewFixAuthority,
 } from
   "../../../src/lib/delivery/review-fix-continuation.js";
@@ -135,8 +136,12 @@ function deliveryDispositionRecord(input: {
             verificationRefs: ["verification://focused-fix"],
             priorConsumptions: [],
           }),
-          hostedTarget: { repository: "owner/repo", pullRequest: 42, headSha: oldTarget.headSha },
-          hostedFixTarget: { repository: "owner/repo", pullRequest: 42, headSha: newTarget.headSha },
+          hostedTarget: input.source === "attested-local"
+            ? null
+            : { repository: "owner/repo", pullRequest: 42, headSha: oldTarget.headSha },
+          hostedFixTarget: input.source === "attested-local"
+            ? null
+            : { repository: "owner/repo", pullRequest: 42, headSha: newTarget.headSha },
         },
   });
 }
@@ -469,6 +474,52 @@ describe("delivery review-fix continuation projection", () => {
       responsePlan: { ...responsePlan, target: response.newTarget },
       records: [settled],
     })).toEqual({ status: "refused", reason: "review-fix-response-replay-invalid" });
+  });
+
+  it("recovers an acknowledged local response as the exact pending verification replay", () => {
+    const settled = deliveryDispositionRecord({
+      operationId: "local-operation-settled",
+      source: "attested-local",
+      settled: true,
+    });
+    const response = settled.deliveryMemberFixResponse;
+    if (response === null) throw new Error("settled local response fixture must retain verification evidence");
+
+    expect(selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
+      workUnitId: plan.workUnitId,
+      planId: plan.planId,
+      selectedDeliverableId,
+      target: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      records: [settled],
+    })).toEqual({
+      status: "selected",
+      verification: {
+        applicability: "focused",
+        target: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+        tier1: {
+          outcome: "passed",
+          provenance: "exact-tree-reuse",
+          targetTree: response.newTarget.headTree,
+          coveredInputs: "unchanged",
+        },
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    });
+
+    const prior = {
+      ...settled,
+      deliveryMemberFixResponse: {
+        ...response,
+        newTarget: { ...response.newTarget, headSha: "c".repeat(40) },
+      },
+    };
+    expect(selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
+      workUnitId: plan.workUnitId,
+      planId: plan.planId,
+      selectedDeliverableId,
+      target: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      records: [prior, settled],
+    })).toMatchObject({ status: "selected" });
   });
 
   it("retains response authority only through the exact selected-publication chain break", () => {

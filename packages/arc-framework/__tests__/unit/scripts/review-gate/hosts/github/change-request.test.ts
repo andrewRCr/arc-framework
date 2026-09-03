@@ -45,6 +45,26 @@ describe("GitHub change-request port", () => {
     ]);
   });
 
+  it("resolves repository and remote heads through the selected non-origin remote", async () => {
+    const exec = vi.fn<GitExec>(async (_command, args) => {
+      if (args[0] === "config") return { stdout: "git@github.com:owner/repo.git\n" };
+      if (args[0] === "check-ref-format") return { stdout: "" };
+      if (args[0] === "rev-parse") throw new Error("missing local branch");
+      if (args[0] === "ls-remote") return { stdout: `${head}\trefs/heads/feat/example\n` };
+      throw new Error(`unexpected invocation: ${args.join(" ")}`);
+    });
+    const port = createGhChangeRequestResolutionPort(exec, "/repo", "upstream");
+
+    await expect(port.resolveRepository()).resolves.toBe("owner/repo");
+    await expect(port.readHeadRef("feat/example")).resolves.toEqual({ local: null, remote: head });
+    expect(exec).toHaveBeenCalledWith("git", ["config", "--get", "remote.upstream.url"], { cwd: "/repo" });
+    expect(exec).toHaveBeenCalledWith(
+      "git",
+      ["ls-remote", "--heads", "upstream", "refs/heads/feat/example"],
+      { cwd: "/repo" },
+    );
+  });
+
   it("represents an absent local and remote branch without inventing an identity", async () => {
     const exec: GitExec = async (_command, args) => {
       if (args[0] === "check-ref-format") return { stdout: "" };

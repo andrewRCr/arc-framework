@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
+  inspectDeliveryAuthoringCheckout,
   inspectDeliveryCandidateCheckout,
   readDeliveryEligibilityTree,
 } from "../../../src/lib/delivery/git-eligibility.js";
@@ -76,5 +77,24 @@ describe("delivery eligibility Git facts", () => {
     await expect(inspectDeliveryCandidateCheckout(exec, "/tmp/candidate")).resolves.toEqual({
       head, tree, trackedDirty: true,
     });
+  });
+
+  it("includes untracked residue when inspecting a mutable authoring checkout", async () => {
+    const head = "a".repeat(40);
+    const tree = "b".repeat(40);
+    const calls: string[][] = [];
+    const exec: GitExec = async (_command, args) => {
+      calls.push(args);
+      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") return { stdout: `${head}\n` };
+      if (args[0] === "rev-list") return { stdout: `${head}\n` };
+      if (args[0] === "rev-parse" && args[1] === `${head}^{tree}`) return { stdout: `${tree}\n` };
+      if (args[0] === "status") return { stdout: "?? residue.txt\0" };
+      throw new Error(`unexpected ${args.join(" ")}`);
+    };
+
+    await expect(inspectDeliveryAuthoringCheckout(exec, "/tmp/authoring")).resolves.toEqual({
+      head, tree, trackedDirty: true,
+    });
+    expect(calls).toContainEqual(["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
   });
 });

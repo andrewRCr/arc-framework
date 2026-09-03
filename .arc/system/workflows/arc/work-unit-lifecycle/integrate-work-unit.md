@@ -272,9 +272,12 @@ and submits the returned `selectionAction` unchanged as `offer` beside that `sel
 arc candidate applicability resolve {workUnitId} -
 ```
 
-Commit a returned `commit-selection`, then re-enter through `arc review status`. `continue` retains the earlier
-attempt; `request-review` re-enters status and receives the ordinary hosted request action. Applicability reruns,
-base movement, and pending checks return to their typed checkpoint; `upgrade` and every `stop` remain stops.
+Outside a driven delivery correction, commit a returned `commit-selection`, then re-enter through
+`arc review status`. When the correction driver supplied the applicability stop, pass the returned `recordEffect`
+unchanged as the sole `recordEffects` entry beside its repository and remote resume input; the driver binds those
+exact bytes before its machine-owned commit and push. `continue` retains the earlier attempt; `request-review`
+re-enters status and receives the ordinary hosted request action. Applicability reruns, base movement, and pending
+checks return to their typed checkpoint; `upgrade` and every `stop` remain stops.
 
 - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing uses
   the project's configured bounded-call defaults.

@@ -10,7 +10,7 @@ function repositoryFromRemote(url: string): string {
   const https = /^(?:https?|ssh):\/\/(?:[^@/]+@)?[^/]+\/([^/]+\/[^/]+?)(?:\.git)?$/u.exec(url);
   const scp = /^(?:[^@]+@)?[^:]+:([^/]+\/[^/]+?)(?:\.git)?$/u.exec(url);
   const repository = https?.[1] ?? scp?.[1];
-  if (repository === undefined) throw new Error("Origin repository coordinates are unsupported.");
+  if (repository === undefined) throw new Error("Git remote repository coordinates are unsupported.");
   return repository;
 }
 
@@ -20,10 +20,14 @@ function parseCandidates(stdout: string) {
 }
 
 /** Build the production GitHub boundary for exact-head change-request resolution. */
-export function createGhChangeRequestResolutionPort(exec: GitExec, cwd: string): ChangeRequestResolutionPort {
+export function createGhChangeRequestResolutionPort(
+  exec: GitExec,
+  cwd: string,
+  remote = "origin",
+): ChangeRequestResolutionPort {
   return {
     resolveRepository: async () => repositoryFromRemote(
-      (await exec("git", ["config", "--get", "remote.origin.url"], { cwd })).stdout.trim(),
+      (await exec("git", ["config", "--get", `remote.${remote}.url`], { cwd })).stdout.trim(),
     ),
     readHeadRef: async (headRef) => {
       await exec("git", ["check-ref-format", "--branch", headRef], { cwd });
@@ -34,10 +38,10 @@ export function createGhChangeRequestResolutionPort(exec: GitExec, cwd: string):
       } catch {
         // A deleted local branch is expected on a stale invoking checkout.
       }
-      const remoteOutput = (await exec("git", ["ls-remote", "--heads", "origin", `refs/heads/${headRef}`], { cwd }))
+      const remoteOutput = (await exec("git", ["ls-remote", "--heads", remote, `refs/heads/${headRef}`], { cwd }))
         .stdout.trim();
-      const remote = remoteOutput === "" ? null : remoteOutput.split(/\s/u, 1)[0] ?? null;
-      return { local, remote };
+      const remoteHead = remoteOutput === "" ? null : remoteOutput.split(/\s/u, 1)[0] ?? null;
+      return { local, remote: remoteHead };
     },
     listByHead: async (repository, headRef) => parseCandidates((await exec("gh", [
       "pr", "list", "--repo", repository, "--state", "all", "--head", headRef,

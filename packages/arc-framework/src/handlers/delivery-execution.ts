@@ -23,6 +23,7 @@ import {
 } from "../lib/delivery/eligibility.js";
 import {
   compareGitNormalizedDeliveryTrees,
+  inspectDeliveryAuthoringCheckout,
   inspectDeliveryCandidateCheckout,
   observeDeliveryEligibilityRef,
 } from "../lib/delivery/git-eligibility.js";
@@ -131,6 +132,7 @@ import {
   pendingDeliveryReviewFixCanResumeFromIntegrationStatus,
   projectDeliveryReviewFixContinuation,
   selectDurableDeliveryReviewFixResponseReplay,
+  selectDurableLocalDeliveryReviewFixAcknowledgementReplay,
   selectPendingDeliveryReviewFixAuthority,
 } from
   "../lib/delivery/review-fix-continuation.js";
@@ -148,7 +150,11 @@ import {
   type DeliveryReviewFixDriveProgress,
   type DeliveryReviewFixDriveStep,
 } from "../lib/delivery/review-fix-driver.js";
-import { settleDeliveryReviewFixRecordEffects } from
+import {
+  deliveryReviewFixRecordDigest,
+  settleDeliveryReviewFixRecordEffects,
+  type DeliveryReviewFixExpectedRecord,
+} from
   "../lib/delivery/review-fix-record-effects.js";
 import { createDeliveryReviewFixReleaseEffectPorts } from
   "./delivery-review-fix-release-effects.js";
@@ -614,6 +620,10 @@ const ReviewFixContinueSchema = z.strictObject({
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
   verification: ReviewFixAcknowledgeSchema.shape.verification.optional(),
+  recordEffects: z.array(z.strictObject({
+    path: z.string().trim().min(1),
+    digest: DeliveryCanonicalDigestSchema,
+  })).max(2).optional(),
 });
 
 const RequestSchemas = {
@@ -1657,6 +1667,13 @@ async function executeDeliveryCommand(
   if (command === "review-fix-continue") {
     const parsed = ReviewFixContinueSchema.parse(request);
     let projectionRequest: z.infer<typeof ReviewFixContinueSchema> = parsed;
+    let expectedRecordEffects: readonly DeliveryReviewFixExpectedRecord[] = parsed.recordEffects ?? [];
+    const captureExpectedRecordEffects = async (paths: readonly string[]): Promise<void> => {
+      expectedRecordEffects = await Promise.all([...new Set(paths)].map(async (path) => ({
+        path,
+        digest: deliveryReviewFixRecordDigest(await readFile(resolve(cwd, path), "utf8")),
+      })));
+    };
     const project = async () => {
       let approvedDispositionSet: {
         readonly dispositionSetId: string;
@@ -1774,7 +1791,7 @@ async function executeDeliveryCommand(
               const [checkout, observedRef, candidateGate] = await Promise.all([
                 candidateRoute
                   ? Promise.resolve(null)
-                  : inspectDeliveryCandidateCheckout(exec, checkoutPath),
+                  : inspectDeliveryAuthoringCheckout(exec, checkoutPath),
                 observeDeliveryEligibilityRef(exec, ref),
                 candidateRoute
                   ? observeDeliveryReviewFixCandidateGate({ exec, path: checkoutPath, pathExists })
@@ -2090,6 +2107,26 @@ async function executeDeliveryCommand(
         }
       } else {
         entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "integrating" }, interaction);
+        if (entry.status === "review-fix-verification-required") {
+          const replay = selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
+            workUnitId: active.name,
+            planId: entry.planId,
+            selectedDeliverableId: entry.selectedDeliverableId,
+            target: entry.verification.target,
+            records: dispositionRecords,
+          });
+          if (replay.status === "refused") return replay;
+          if (replay.status === "selected") {
+            projectionRequest = {
+              repository: parsed.repository,
+              remote: parsed.remote,
+              verification: {
+                ...replay.verification,
+                verificationEvidenceRefs: [...replay.verification.verificationEvidenceRefs],
+              },
+            };
+          }
+        }
       }
     }
 
@@ -2179,6 +2216,7 @@ async function executeDeliveryCommand(
           cwd,
           exec,
           workUnitId: continuation.action.action.workUnitId,
+          remote: parsed.remote,
         });
         if (reviewStatus.nextAction === "respond-to-findings") {
           let records;
@@ -2294,7 +2332,7 @@ async function executeDeliveryCommand(
       if (!reboundInput.success) return { status: "refused" as const, reason: "authoring-rebind-invalid" };
       const expected = reboundInput.data;
       const [checkout, observedRef] = await Promise.all([
-        inspectDeliveryCandidateCheckout(exec, expected.checkoutPath),
+        inspectDeliveryAuthoringCheckout(exec, expected.checkoutPath),
         observeDeliveryEligibilityRef(exec, expected.ref),
       ]);
       if (checkout === null || observedRef === null) {
@@ -2480,6 +2518,16 @@ async function executeDeliveryCommand(
           || typeof result.status !== "string") {
           return { status: "invalid-service-result" };
         }
+        const resultRecord = result as Readonly<Record<string, unknown>>;
+        const candidate = typeof resultRecord.candidate === "object" && resultRecord.candidate !== null
+          ? resultRecord.candidate as Readonly<Record<string, unknown>>
+          : null;
+        const boundaryCarry = typeof resultRecord.boundaryCarry === "object" && resultRecord.boundaryCarry !== null
+          ? resultRecord.boundaryCarry as Readonly<Record<string, unknown>>
+          : null;
+        const recordPaths = [candidate?.recordPath, boundaryCarry?.path]
+          .filter((path): path is string => typeof path === "string");
+        if (recordPaths.length > 0) await captureExpectedRecordEffects(recordPaths);
         const resultStatus = result.status;
         if (action.kind === "delivery-review-fix-acknowledge"
           && (resultStatus === "acknowledged" || resultStatus === "already-acknowledged")) {
@@ -2520,6 +2568,7 @@ async function executeDeliveryCommand(
         if (carried.status === "refused") return carried;
         const path = await writeSubmissionBoundary(cwd, carried.boundary, boundary.version);
         await exec("git", ["add", "--", path], { cwd });
+        await captureExpectedRecordEffects([path]);
         return {
           status: "carried" as const,
           path,
@@ -2533,9 +2582,10 @@ async function executeDeliveryCommand(
           return { status: "refused" as const, reason: "record-effect-work-unit-unavailable" };
         }
         const identity = await resolveUserIdentity(exec);
-        return settleDeliveryReviewFixRecordEffects({
+        const settlement = await settleDeliveryReviewFixRecordEffects({
           workUnitId: active.name,
           context: `meta-${active.name}.md (integration)`,
+          expectedRecords: expectedRecordEffects,
           ports: createDeliveryReviewFixReleaseEffectPorts({
             cwd,
             remote: parsed.remote,
@@ -2544,6 +2594,8 @@ async function executeDeliveryCommand(
             ...(interaction === undefined ? {} : { interaction }),
           }),
         });
+        if (settlement.status !== "refused") expectedRecordEffects = [];
+        return settlement;
       },
     });
   }

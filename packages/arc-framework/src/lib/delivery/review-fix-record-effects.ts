@@ -1,5 +1,7 @@
 /** Machine-owned record settlement for one driven delivery correction. */
 
+import { createHash } from "node:crypto";
+
 import { sortByCanonicalBytes } from "../kernel/index.js";
 import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
 import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
@@ -9,6 +11,21 @@ export type DeliveryReviewFixRecordClass =
   | "candidate-boundary-projection"
   | "review-applicability-selection"
   | "boundary-projection";
+
+export interface DeliveryReviewFixExpectedRecord {
+  readonly path: string;
+  readonly digest: string;
+}
+
+/**
+ * Bind one record expectation to its exact UTF-8 bytes.
+ *
+ * @param content - Record content as read or staged.
+ * @returns Canonical SHA-256 digest of its UTF-8 bytes.
+ */
+export function deliveryReviewFixRecordDigest(content: string): string {
+  return `sha256:${createHash("sha256").update(content, "utf8").digest("hex")}`;
+}
 
 export type DeliveryReviewFixStagedRecordClassification =
   | { readonly status: "idle" }
@@ -41,6 +58,7 @@ export function classifyDeliveryReviewFixStagedRecords(input: {
 
 export interface DeliveryReviewFixRecordEffectPorts {
   listStagedPaths(): Promise<readonly string[]>;
+  readStagedRecordDigest(path: string): Promise<string | null>;
   readRecoverableCommit(input: {
     readonly candidates: readonly {
       readonly recordClass: DeliveryReviewFixRecordClass;
@@ -93,6 +111,7 @@ function commitMessage(recordClass: DeliveryReviewFixRecordClass, context: strin
 export async function settleDeliveryReviewFixRecordEffects(input: {
   readonly workUnitId: string;
   readonly context: string;
+  readonly expectedRecords: readonly DeliveryReviewFixExpectedRecord[];
   readonly ports: DeliveryReviewFixRecordEffectPorts;
 }): Promise<DeliveryReviewFixRecordEffectSettlement> {
   const classified = classifyDeliveryReviewFixStagedRecords({
@@ -104,6 +123,8 @@ export async function settleDeliveryReviewFixRecordEffects(input: {
   let branch: string;
   let beforeHead: string | null;
   let replayed = false;
+  const expectedRecords = [...input.expectedRecords]
+    .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   if (classified.status === "idle") {
     const candidatePath = resolveCandidateRecordRelativePath(input.workUnitId);
     const boundaryPath = resolveSubmissionBoundaryPath(input.workUnitId);
@@ -131,6 +152,33 @@ export async function settleDeliveryReviewFixRecordEffects(input: {
     ({ recordClass, head, branch, beforeHead } = recoverable);
     replayed = true;
   } else {
+    const expectedPaths = sortByCanonicalBytes(expectedRecords.map(({ path }) => path));
+    if (expectedPaths.length === 0) {
+      return {
+        status: "refused",
+        reason: "record-effect-unexpected-staged-records",
+        paths: classified.paths,
+      };
+    }
+    if (expectedPaths.length !== classified.paths.length
+      || expectedPaths.some((path, index) => path !== classified.paths[index])) {
+      return {
+        status: "refused",
+        reason: "record-effect-path-mismatch",
+        paths: classified.paths,
+      };
+    }
+    const observedDigests = await Promise.all(classified.paths.map(
+      (path) => input.ports.readStagedRecordDigest(path),
+    ));
+    if (observedDigests.some((digest, index) => digest === null
+      || digest !== expectedRecords.find(({ path }) => path === classified.paths[index])?.digest)) {
+      return {
+        status: "refused",
+        reason: "record-effect-content-mismatch",
+        paths: classified.paths,
+      };
+    }
     recordClass = classified.recordClass;
     const committed = await input.ports.commit({
       paths: classified.paths,

@@ -98,6 +98,10 @@ const ResultCommon = {
   schemaVersion: z.literal(1),
   mode: z.literal("review-applicability-resolve"),
 };
+const ReviewApplicabilityRecordEffectSchema = z.strictObject({
+  path: z.string().trim().min(1),
+  digest: DigestSchema,
+});
 export const ReviewApplicabilityResolutionResultSchema = z.union([
   z.strictObject({
     ...ResultCommon,
@@ -105,6 +109,7 @@ export const ReviewApplicabilityResolutionResultSchema = z.union([
     nextAction: z.enum(["commit-selection", "continue", "request-review"]),
     candidateId: DigestSchema,
     choice: z.enum(["covered", "review-required"]),
+    recordEffect: ReviewApplicabilityRecordEffectSchema.optional(),
   }).superRefine((value, context) => {
     const expected = value.choice === "covered"
       ? ["commit-selection", "continue"]

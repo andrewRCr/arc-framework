@@ -8,6 +8,8 @@ import { resolveAllSettings } from "../lib/config/resolved-settings.js";
 import type { ResolvedSettingsResult } from "../lib/config/resolved-settings.js";
 import type { DeliveryReviewFixRecordEffectPorts } from
   "../lib/delivery/review-fix-record-effects.js";
+import { deliveryReviewFixRecordDigest } from
+  "../lib/delivery/review-fix-record-effects.js";
 import { canonicalize, sortByCanonicalBytes } from "../lib/kernel/index.js";
 import { observeDeliveryRemoteRef } from "../lib/delivery/git-materialization.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -245,6 +247,17 @@ export function createDeliveryReviewFixReleaseEffectPorts(input: {
         { cwd: input.cwd },
       )).stdout;
       return output.split("\0").filter((path) => path !== "");
+    },
+    readStagedRecordDigest: async (path) => {
+      try {
+        const content = (await input.exec("git", ["show", `:${path}`], {
+          cwd: input.cwd,
+          objectAccess: "local-only",
+        })).stdout;
+        return deliveryReviewFixRecordDigest(content);
+      } catch {
+        return null;
+      }
     },
     readRecoverableCommit: async ({ candidates }) => {
       const branch = await currentBranch(input.exec, input.cwd);
