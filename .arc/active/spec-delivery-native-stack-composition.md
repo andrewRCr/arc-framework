@@ -1585,6 +1585,16 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   no clean, evaluator-satisfied, pass-sufficient, severity, or convergence claim and add no
   `review-signal-convergence` derivation.
 
+  **Re-entry clarification (2026-09-02):** Committing the accepted boundary record and later Candidate-represented
+  operational records may leave the work-unit head above the terminal coordinate currently bound in Delivery State.
+  Work-unit status preserves the public continuation when the bound terminal coordinate lies on the strict ancestry
+  path from the durable Candidate baseline to the recognized current target, the baseline-to-state movement
+  reproduces the same committed Candidate subject, and the recognized head remains current against the managed
+  Candidate. Continuation validation uses that exact state-bound coordinate rather than requiring it to be the
+  current work-unit head or its immediate parent. Non-ancestral movement, a baseline-to-state subject change, or a
+  mismatched stored tree still refuses. This makes the existing commit, push, and status re-entry contract executable
+  without mutating Delivery State for review-authority bookkeeping or manufacturing another Candidate-renewal cycle.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
