@@ -13,6 +13,7 @@ import {
   type CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
+  ApprovedDispositionRecordSchema,
   createFrontlineOutcomeRecord,
   ErrandReviewBindingSchema,
   type ApprovedDispositionRecord,
@@ -171,6 +172,34 @@ function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
     durableRef: "git-common:review-gate/evidence/receipts-v2.json#1",
   });
   return { target, authority, operation, source, receipt, receiptRef, finding };
+}
+
+function deliveryLocalFixture() {
+  const records = fixture(memberVehicle);
+  const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+    kind: "delivery-member",
+    planId: "123e4567-e89b-42d3-a456-426614174000",
+    deliverableId: memberVehicle.identity,
+    workUnitId: "example",
+    head: records.target.headSha,
+  });
+  records.operation.deliveryAdmission = {
+    schemaVersion: 1,
+    sourceId: "delegated-agent",
+    target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
+    vehicle,
+    pass: 1,
+    scopeSelection: {
+      mode: "chunked",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
+    },
+    statusTarget: {
+      repository: "owner/repo",
+      headRef: "delivery/example/member-7",
+      headSha: records.target.headSha,
+    },
+  };
+  return { ...records, vehicle };
 }
 
 function approved(input: {
@@ -523,6 +552,47 @@ function foreignApproval(records: ReturnType<typeof fixture>) {
 }
 
 describe("review response command", () => {
+  it("routes an approved local delivery-member fix through selector-free correction", async () => {
+    const records = deliveryLocalFixture();
+
+    await expect(respondToReviewCommand(localRequest(records), dependencies(records))).resolves.toMatchObject({
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: {
+        deliveryMember: records.vehicle,
+        correctionAction: {
+          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          input: { repository: "owner/repo", remote: "origin" },
+        },
+      },
+    });
+  });
+
+  it("binds an exact unowned local disposition to its admitted delivery member", async () => {
+    const records = deliveryLocalFixture();
+    const seedDeps = dependencies(records);
+    const appended: ApprovedDispositionRecord[] = [];
+    seedDeps.dispositionStore.appendDispositionRecord = async (record) => {
+      appended.push(record);
+      return { dispositionRecordRef: "git-common:review-gate/evidence/disposition.json" };
+    };
+    await respondToReviewCommand(localRequest(records), seedDeps);
+    const bound = appended[0];
+    if (bound === undefined) throw new Error("expected a bound disposition record");
+    const unowned = ApprovedDispositionRecordSchema.parse({ ...bound, deliveryMember: null });
+    const deps = dependencies(records);
+    deps.dispositionStore.readDispositionRecord = async () => unowned;
+    deps.dispositionStore.appendDispositionRecord = async () => ({
+      dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
+    });
+
+    await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: { deliveryMember: records.vehicle },
+    });
+  });
+
   it("constructs a source-bound proposal from author-owned finding decisions", async () => {
     const records = fixture();
     const earlierFinding = {

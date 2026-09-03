@@ -54,7 +54,7 @@ export type DeliveryReviewFixResponseAdvanceResult =
       readonly status: "recorded" | "already-recorded";
       readonly record: ApprovedDispositionRecord;
       readonly newTarget: ReviewTarget;
-      readonly hostedFixTarget: HostedTarget;
+      readonly hostedFixTarget: HostedTarget | null;
     }
   | { readonly status: "refused"; readonly reason: string };
 
@@ -62,7 +62,7 @@ export type DeliveryReviewFixResponseAdvanceResult =
 export function advanceDeliveryReviewFixResponse(input: {
   readonly record: ApprovedDispositionRecord;
   readonly oldTarget: ReviewTarget;
-  readonly hostedTarget: HostedTarget;
+  readonly hostedTarget: HostedTarget | null;
   readonly currentHead: string;
   readonly currentTree: string;
   readonly applicability: CandidateVerificationApplicability;
@@ -71,10 +71,11 @@ export function advanceDeliveryReviewFixResponse(input: {
 }): DeliveryReviewFixResponseAdvanceResult {
   const record = ApprovedDispositionRecordSchema.safeParse(input.record);
   if (!record.success || record.data.deliveryMember === null || record.data.fixAuthorization === null
-    || record.data.source.kind !== "hosted" || input.oldTarget.kind !== "delivery-member"
+    || record.data.source.kind === "frontline" || input.oldTarget.kind !== "delivery-member"
     || input.oldTarget.targetId !== record.data.approvedDisposition.dispositionSet.targetId
     || input.oldTarget.headSha !== record.data.deliveryMember.head
-    || input.hostedTarget.headSha !== input.oldTarget.headSha
+    || (record.data.source.kind === "hosted") !== (input.hostedTarget !== null)
+    || (input.hostedTarget !== null && input.hostedTarget.headSha !== input.oldTarget.headSha)
     || input.verificationEvidenceRefs.length === 0) {
     return { status: "refused", reason: "review-fix-response-invalid" };
   }
@@ -94,7 +95,9 @@ export function advanceDeliveryReviewFixResponse(input: {
   } catch {
     return { status: "refused", reason: "review-fix-response-invalid" };
   }
-  const hostedFixTarget = { ...input.hostedTarget, headSha: input.currentHead };
+  const hostedFixTarget = input.hostedTarget === null
+    ? null
+    : { ...input.hostedTarget, headSha: input.currentHead };
   const existing = record.data.deliveryMemberFixResponse;
   if (existing !== null) {
     return canonicalize({
@@ -423,6 +426,19 @@ export type DeliveryReviewFixVerificationAcknowledgementResult =
     }
   | { readonly status: "refused"; readonly reason: string };
 
+export type DeliveryReviewFixVerificationAcknowledgementProjection =
+  | {
+      readonly status: "acknowledgement-required";
+      readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+      readonly nextAction: "continue-work-unit";
+    }
+  | {
+      readonly status: "already-acknowledged";
+      readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+      readonly nextAction: "continue-work-unit";
+    }
+  | { readonly status: "refused"; readonly reason: string };
+
 export type DeliveryReviewFixCandidateVerificationResult =
   | {
       readonly status: "recorded" | "already-recorded";
@@ -561,16 +577,15 @@ function sameCandidateTargetIdentity(
     && left.subject.subjectDigest === right.subject.subjectDigest;
 }
 
-/** Clear one exact pending review-fix verification continuation after its workflow consumes it. */
-export async function acknowledgeDeliveryReviewFixVerification(input: {
+/** Project the exact state that acknowledgement would publish, without mutating its store. */
+export function projectDeliveryReviewFixVerificationAcknowledgement(input: {
   readonly plan: DeliveryPlanV1;
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly selectedDeliverableId: string;
   readonly memberDeliverableIds: readonly string[];
   readonly expectedStateRevision: number;
   readonly continuationDigest: string;
-  readonly stateStore: StateWriter;
-}): Promise<DeliveryReviewFixVerificationAcknowledgementResult> {
+}): DeliveryReviewFixVerificationAcknowledgementProjection {
   const state = DeliveryStateV1Schema.safeParse(input.current.value);
   const selected = DeliveryCanonicalDigestSchema.safeParse(input.selectedDeliverableId);
   const members = DeliveryCanonicalDigestSchema.array().min(1).safeParse(input.memberDeliverableIds);
@@ -601,14 +616,11 @@ export async function acknowledgeDeliveryReviewFixVerification(input: {
       pendingReviewFixVerification: null,
     });
     if (!cleared.success) return { status: "refused", reason: "acknowledgement-invalid" };
-    const persisted = await input.stateStore.publish(
-      input.plan.planId,
-      cleared.data,
-      input.current.revision,
-    );
-    return persisted.status === "ok"
-      ? { status: "acknowledged", state: persisted.value, nextAction: "continue-work-unit" }
-      : { status: "refused", reason: "state-conflict" };
+    return {
+      status: "acknowledgement-required",
+      state: { revision: input.current.revision + 1, value: cleared.data },
+      nextAction: "continue-work-unit",
+    };
   }
 
   if (input.expectedStateRevision < Number.MAX_SAFE_INTEGER
@@ -630,6 +642,29 @@ export async function acknowledgeDeliveryReviewFixVerification(input: {
     }
   }
   return { status: "refused", reason: "stale-state" };
+}
+
+/** Clear one exact pending review-fix verification continuation after its workflow consumes it. */
+export async function acknowledgeDeliveryReviewFixVerification(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly selectedDeliverableId: string;
+  readonly memberDeliverableIds: readonly string[];
+  readonly expectedStateRevision: number;
+  readonly continuationDigest: string;
+  readonly stateStore: StateWriter;
+}): Promise<DeliveryReviewFixVerificationAcknowledgementResult> {
+  const projected = projectDeliveryReviewFixVerificationAcknowledgement(input);
+  if (projected.status === "refused") return projected;
+  if (projected.status === "already-acknowledged") return projected;
+  const persisted = await input.stateStore.publish(
+    input.plan.planId,
+    projected.state.value,
+    input.current.revision,
+  );
+  return persisted.status === "ok"
+    ? { status: "acknowledged", state: persisted.value, nextAction: "continue-work-unit" }
+    : { status: "refused", reason: "state-conflict" };
 }
 
 export type DeliveryReviewFixPublicationResult =

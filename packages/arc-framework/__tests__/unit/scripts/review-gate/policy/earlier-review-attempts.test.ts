@@ -27,14 +27,25 @@ import { DeliveryLocalReviewAdmissionSchema } from
   "../../../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { classifyReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
+import { ApprovedDispositionRecordSchema } from
+  "../../../../../src/scripts/review-gate/core/advisory-records.js";
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import {
+  consumeFixAuthorization,
+  createFixAuthorization,
+} from "../../../../../src/scripts/review-gate/core/fix-authorization.js";
 
 const oid = (character: string): string => character.repeat(40);
 
-const deliveryVehicle = (head: string) => DeliveryReviewMemberVehicleSchema.parse({
+const deliveryVehicle = (head: string, workUnitId = "member-a") => DeliveryReviewMemberVehicleSchema.parse({
   kind: "delivery-member",
   planId: "123e4567-e89b-12d3-a456-426614174000",
   deliverableId: `sha256:${"9".repeat(64)}`,
-  workUnitId: "member-a",
+  workUnitId,
   head,
 });
 
@@ -116,6 +127,11 @@ function selector() {
   };
 }
 
+const stableEndpoints = async (value: { readonly currentHead: string; readonly currentBase: string }) => ({
+  head: value.currentHead,
+  base: value.currentBase,
+});
+
 function candidateRecord(transitions: readonly CandidateLineageTransitionV1[] = []) {
   const subject = createCandidateSubjectSnapshot([{
     path: "src/example.ts",
@@ -139,6 +155,42 @@ function candidateRecord(transitions: readonly CandidateLineageTransitionV1[] = 
     transitions: [...transitions],
     lineageAttestations: [],
   };
+}
+
+function applicabilityDecision(
+  applicabilitySelector: Parameters<typeof classifyReviewContributionApplicability>[0],
+) {
+  return classifyReviewContributionApplicability(applicabilitySelector, {
+    endpoints: {
+      before: {
+        predecessor: { head: applicabilitySelector.priorBase, tree: oid("3") },
+        member: { head: applicabilitySelector.priorHead, tree: oid("4") },
+      },
+      after: {
+        predecessor: { head: applicabilitySelector.currentBase, tree: oid("5") },
+        member: { head: applicabilitySelector.currentHead, tree: oid("6") },
+      },
+    },
+    proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
+  });
+}
+
+function mechanicalApplicability(
+  applicabilitySelector: Parameters<typeof classifyReviewContributionApplicability>[0],
+) {
+  return classifyReviewContributionApplicability(applicabilitySelector, {
+    endpoints: {
+      before: {
+        predecessor: { head: applicabilitySelector.priorBase, tree: oid("3") },
+        member: { head: applicabilitySelector.priorHead, tree: oid("4") },
+      },
+      after: {
+        predecessor: { head: applicabilitySelector.currentBase, tree: oid("5") },
+        member: { head: applicabilitySelector.currentHead, tree: oid("6") },
+      },
+    },
+    proof: { status: "accepted", proof: "mechanical-reapply" },
+  });
 }
 
 describe("earlier review attempt query", () => {
@@ -313,6 +365,7 @@ describe("earlier review attempt query", () => {
       snapshot: { status: "complete", records: [{ version: 1, state: local }] },
       candidate: candidateRecord(),
       exec: async () => { throw new Error("injected projection must own Git"); },
+      observeEndpoints: stableEndpoints,
       projectApplicability: async (applicabilitySelector) => classifyReviewContributionApplicability(
         applicabilitySelector,
         null,
@@ -323,6 +376,118 @@ describe("earlier review attempt query", () => {
         sourceId: "delegated-agent",
         outcome: "findings",
         localResumeAction: { schemaVersion: 1, operationId: "local-review-prior" },
+      }],
+    });
+  });
+
+  it("retains a settled local findings pass at its verified corrected member head", async () => {
+    const prior = laneState({ delivery: true });
+    const oldTarget = prior.attempts[0]!.hosted!.reviewTarget;
+    const local = LaneProgressStateSchema.parse({
+      ...prior,
+      changeRequestId: null,
+      attempts: [{
+        attemptId: "local-review-prior",
+        sourceId: "delegated-agent",
+        outcome: "settled-findings",
+        local: {
+          vehicle: { kind: "delivery-member", identity: deliveryVehicle(oid("a")).deliverableId },
+          target: oldTarget,
+          deliveryAdmission: localAdmission(oid("a")),
+        },
+      }],
+    });
+    const approvedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: oldTarget.targetId,
+        policyVersion: canonicalDigest({ policy: "review" }),
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        proposedBy: "agent-1",
+        findings: [{
+          findingId: "finding-local",
+          sourceIdentity: "delegated-agent",
+          locus: "src/example.ts:1",
+          sourceVerification: "verified",
+          verificationRefs: ["review:finding-local"],
+          severity: "major",
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The source confirms the issue.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "andrew",
+      approvedAt: "2026-09-03T12:00:00Z",
+    });
+    const fixAuthorization = createFixAuthorization({ dispositionState: approvedDisposition, oldTarget });
+    const newTarget = createReviewTarget({
+      schemaVersion: oldTarget.schemaVersion,
+      semanticsVersion: oldTarget.semanticsVersion,
+      kind: oldTarget.kind,
+      repositoryId: oldTarget.repositoryId,
+      baseRef: oldTarget.baseRef,
+      diffBaseSha: oldTarget.diffBaseSha,
+      diffBaseTree: oldTarget.diffBaseTree,
+      headSha: oid("c"),
+      headTree: oid("d"),
+    });
+    const disposition = ApprovedDispositionRecordSchema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: oldTarget.repositoryId,
+      operationId: "local-review-prior",
+      candidate: null,
+      errand: null,
+      deliveryMember: deliveryVehicle(oid("a")),
+      source: {
+        kind: "attested-local",
+        receiptRef: "arc-review-source:v1:attested-local:local-review-prior:receipt%2F1",
+        localSourceRef: "git-common:review-gate/local/source.json",
+      },
+      approvedDisposition,
+      fixAuthorization,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: {
+        oldTarget,
+        newTarget,
+        applicability: "focused",
+        fixConsumption: consumeFixAuthorization({
+          authorization: fixAuthorization,
+          oldTarget,
+          newTarget,
+          appliedBy: "agent-1",
+          consumedAt: "2026-09-03T13:00:00Z",
+          verificationRefs: ["verification://focused-fix"],
+          priorConsumptions: [],
+        }),
+        hostedTarget: null,
+        hostedFixTarget: null,
+      },
+    });
+
+    await expect(projectEarlierReviewApplicability({
+      query: {
+        ...selector(),
+        sourceId: "delegated-agent",
+        currentVehicle: deliveryVehicle(oid("c")),
+      },
+      currentBase: newTarget.diffBaseSha,
+      snapshot: { status: "complete", records: [{ version: 1, state: local }] },
+      candidate: candidateRecord(),
+      exec: async () => { throw new Error("verified response should retain without Git projection"); },
+      observeEndpoints: stableEndpoints,
+      readDispositionRecord: async () => disposition,
+    })).resolves.toMatchObject({
+      status: "complete",
+      attempts: [{
+        attemptId: "local-review-prior",
+        outcome: "settled-findings",
+        applicability: "retain-prior-attempt",
+        retentionBasis: "verified-fix-response",
       }],
     });
   });
@@ -385,6 +550,7 @@ describe("earlier review attempt query", () => {
       snapshot: { status: "complete", records: [{ version: 1, state: findings }] },
       candidate: candidateRecord(),
       exec: async () => { throw new Error("injected projection must own Git"); },
+      observeEndpoints: stableEndpoints,
       projectApplicability: async (applicabilitySelector) => classifyReviewContributionApplicability(
         applicabilitySelector,
         null,
@@ -408,6 +574,124 @@ describe("earlier review attempt query", () => {
           }],
         },
       }],
+    });
+  });
+
+  it("reobserves current endpoints before deriving contribution applicability", async () => {
+    await expect(projectEarlierReviewApplicability({
+      query: selector(),
+      currentBase: oid("2"),
+      snapshot: { status: "complete", records: [{ version: 1, state: laneState() }] },
+      candidate: candidateRecord(),
+      exec: async () => { throw new Error("Git must not run after endpoint movement"); },
+      observeEndpoints: async () => ({ head: oid("d"), base: oid("2") }),
+    })).resolves.toMatchObject({
+      status: "complete",
+      attempts: [{
+        applicability: "stop",
+        projection: { state: "rerun-checkpoint", reason: "head-moved" },
+      }],
+    });
+  });
+
+  it.each([
+    {
+      name: "unbound selection into a bound member",
+      selectionVehicles: null,
+      laneVehicle: deliveryVehicle(oid("a")),
+      currentVehicle: deliveryVehicle(oid("c")),
+      expected: "stop",
+    },
+    {
+      name: "bound selection into an unbound target",
+      selectionVehicles: {
+        priorVehicle: deliveryVehicle(oid("a")),
+        currentVehicle: deliveryVehicle(oid("b")),
+      },
+      laneVehicle: null,
+      currentVehicle: null,
+      expected: "stop",
+    },
+    {
+      name: "a different delivery member identity",
+      selectionVehicles: {
+        priorVehicle: deliveryVehicle(oid("a")),
+        currentVehicle: deliveryVehicle(oid("b")),
+      },
+      laneVehicle: deliveryVehicle(oid("a"), "member-b"),
+      currentVehicle: deliveryVehicle(oid("c"), "member-b"),
+      expected: "stop",
+    },
+    {
+      name: "the same delivery member identity",
+      selectionVehicles: {
+        priorVehicle: deliveryVehicle(oid("a")),
+        currentVehicle: deliveryVehicle(oid("b")),
+      },
+      laneVehicle: deliveryVehicle(oid("a")),
+      currentVehicle: deliveryVehicle(oid("c")),
+      expected: "retain-prior-attempt",
+    },
+  ])("preserves vehicle scope while mechanically carrying $name", async ({
+    selectionVehicles,
+    laneVehicle,
+    currentVehicle,
+    expected,
+  }) => {
+    const selectedProjection = applicabilityDecision({
+      schemaVersion: 1,
+      repositoryId: "repository-1",
+      repository: "owner/repository",
+      pullRequest: 42,
+      lane: "standard",
+      sourceId: "codex-pr",
+      priorAttemptId: "attempt-prior",
+      priorHead: oid("a"),
+      currentHead: oid("b"),
+      priorBase: oid("1"),
+      currentBase: oid("2"),
+      ...(selectionVehicles ?? {}),
+    });
+    if (selectedProjection.state !== "decision-required") throw new Error("expected selection decision");
+    const selection: CandidateLineageTransitionV1 = {
+      transitionKind: "review-applicability-selection",
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      candidateId: candidateRecord().attestation.candidateId,
+      selector: selectedProjection.selector,
+      projectionDigest: selectedProjection.projectionDigest,
+      residualDigest: selectedProjection.residualDigest,
+      selectedBy: "andrew",
+      selectedAt: "2026-08-23T12:00:00.000Z",
+      choice: "covered",
+    };
+    const prior = laneState({ delivery: laneVehicle !== null });
+    const state = laneVehicle === null
+      ? prior
+      : LaneProgressStateSchema.parse({
+          ...prior,
+          attempts: prior.attempts.map((attempt) => ({
+            ...attempt,
+            hosted: { ...attempt.hosted!, vehicle: laneVehicle },
+          })),
+        });
+    const result = await projectEarlierReviewApplicability({
+      query: {
+        ...selector(),
+        ...(currentVehicle === null ? {} : { currentVehicle }),
+      },
+      currentBase: oid("7"),
+      snapshot: { status: "complete", records: [{ version: 1, state }] },
+      candidate: candidateRecord([selection]),
+      exec: async () => { throw new Error("injected projection must own Git"); },
+      observeEndpoints: stableEndpoints,
+      projectApplicability: async (projectedSelector) => projectedSelector.priorHead === oid("b")
+        ? mechanicalApplicability(projectedSelector)
+        : applicabilityDecision(projectedSelector),
+    });
+    expect(result).toMatchObject({
+      status: "complete",
+      attempts: [{ applicability: expected }],
     });
   });
 
@@ -452,6 +736,7 @@ describe("earlier review attempt query", () => {
       currentBase: oid("2"),
       snapshot,
       exec: async () => { throw new Error("injected projection must own Git"); },
+      observeEndpoints: stableEndpoints,
       projectApplicability: projectDecision,
     };
     await expect(projectEarlierReviewApplicability({

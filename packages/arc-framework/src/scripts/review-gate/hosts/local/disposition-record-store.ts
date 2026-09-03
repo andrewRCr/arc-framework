@@ -3,6 +3,7 @@
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import {
   ApprovedDispositionRecordSchema,
+  isExactDeliveryMemberBindingAdvance,
   type ApprovedDispositionRecord,
 } from "../../core/advisory-records.js";
 import { validateDispositionState } from "../../core/dispositions.js";
@@ -93,10 +94,12 @@ implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
       if (raw !== null) {
         const existing = parseRecord(raw);
         const fixResponseAdvance = isFixResponseAdvance(existing, record);
-        if (canonicalize(existing) !== canonicalize(record) && !fixResponseAdvance) {
+        const deliveryMemberBindingAdvance = isExactDeliveryMemberBindingAdvance(existing, record);
+        if (canonicalize(existing) !== canonicalize(record)
+          && !fixResponseAdvance && !deliveryMemberBindingAdvance) {
           throw new LocalReviewRecordStoreError("local-disposition-conflict");
         }
-        if (fixResponseAdvance) {
+        if (fixResponseAdvance || deliveryMemberBindingAdvance) {
           return {
             kind: "write",
             content: `${JSON.stringify(record)}\n`,

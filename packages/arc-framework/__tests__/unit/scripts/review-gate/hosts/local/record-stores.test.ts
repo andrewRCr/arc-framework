@@ -292,4 +292,31 @@ describe("local review record stores", () => {
         : { ...advanced.deliveryMemberFixResponse, applicability: "full" },
     })).rejects.toMatchObject({ code: "corrupt-state", reason: "local-disposition-conflict" });
   });
+
+  it("binds an unowned attested-local disposition to one exact delivery member", async () => {
+    const { initial } = deliveryDispositionRecords();
+    const bound = ApprovedDispositionRecordSchema.parse({
+      ...initial,
+      source: {
+        kind: "attested-local",
+        receiptRef: "receipt:1",
+        localSourceRef: "source:1",
+      },
+    });
+    const unowned = ApprovedDispositionRecordSchema.parse({ ...bound, deliveryMember: null });
+    const store = new LocalApprovedDispositionRecordStore(
+      mutablePublisher(`${JSON.stringify(unowned)}\n`),
+    );
+
+    await expect(store.appendDispositionRecord(bound)).resolves.toMatchObject({
+      dispositionRecordRef: expect.stringContaining("disposition-"),
+    });
+    await expect(store.readDispositionRecord(bound.operationId)).resolves.toEqual(bound);
+    await expect(store.appendDispositionRecord({
+      ...bound,
+      deliveryMember: bound.deliveryMember === null
+        ? null
+        : { ...bound.deliveryMember, deliverableId: canonicalDigest({ deliverable: "other" }) },
+    })).rejects.toMatchObject({ code: "corrupt-state", reason: "local-disposition-conflict" });
+  });
 });

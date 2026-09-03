@@ -8,6 +8,25 @@ import type { GitExec } from "../../../src/lib/git/index.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
 
 describe("pushWorktreeBranch — capture mode (default)", () => {
+  it("pushes to an explicitly selected remote", async () => {
+    const exec: GitExec = vi.fn(async (_command, args) => {
+      if (args[1] !== "upstream") throw new Error("wrong remote");
+      return { stdout: "pushed upstream\n", stderr: "" };
+    });
+
+    const result = await pushWorktreeBranch({
+      exec,
+      branch: "feature/x",
+      remote: "upstream",
+    });
+
+    expect(result).toEqual({
+      status: "success",
+      stdout: "pushed upstream\n",
+      stderr: "",
+    });
+  });
+
   it("invokes `git push origin <branch>` and reports success with captured streams", async () => {
     const exec: GitExec = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
 
@@ -127,12 +146,30 @@ describe("pushWorktreeBranch — args passthrough", () => {
 
     expect(spawnPush).toHaveBeenCalledWith({
       branch: "feature/x",
+      remote: "origin",
       args: ["--force-with-lease"],
     });
   });
 });
 
 describe("pushWorktreeBranch — inheritStdio: true (spawn mode)", () => {
+  it("forwards an explicitly selected remote to the spawn boundary", async () => {
+    const spawnPush: PushWorktreeSpawn = vi.fn(async ({ remote }) => ({
+      exitCode: remote === "upstream" ? 0 : 1,
+      stderr: "",
+    }));
+
+    const result = await pushWorktreeBranch({
+      exec: vi.fn(),
+      branch: "feature/x",
+      remote: "upstream",
+      inheritStdio: true,
+      spawnPush,
+    });
+
+    expect(result.status).toBe("success");
+  });
+
   it("delegates to spawnPush and never calls exec", async () => {
     const exec: GitExec = vi.fn();
     const spawnPush: PushWorktreeSpawn = vi.fn().mockResolvedValue({

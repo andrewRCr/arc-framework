@@ -17,9 +17,10 @@ import {
 } from "../../../lib/work-unit/candidate-effective-target.js";
 import {
   ApprovedDispositionRecordSchema,
-  ErrandReviewFixResponseSchema,
   DeliveryMemberReviewFixResponseSchema,
+  ErrandReviewFixResponseSchema,
   FrontlineOutcomeRecordSchema,
+  isExactDeliveryMemberBindingAdvance,
   type ApprovedDispositionRecord,
   type ErrandReviewBinding,
 } from "../core/advisory-records.js";
@@ -73,6 +74,8 @@ import {
   projectFrontlineFollowUpAdvice,
 } from "../policy/frontline-follow-up.js";
 import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
+import type { DeliveryLocalReviewAdmission } from
+  "../policy/delivery-local-review-admission.js";
 
 const AuthorDispositionSchema = z.strictObject({
   findingId: z.string().trim().min(1).max(512),
@@ -219,6 +222,7 @@ interface ResolvedResponseSource {
   source: ApprovedDispositionRecord["source"];
   dispositionContext: DispositionSourceContext;
   actors: ResponseActors;
+  deliveryAdmission?: DeliveryLocalReviewAdmission;
   frontlineOutcome?: FrontlineExecutionOutcome;
   hostedAttempt?: {
     operationId: string;
@@ -420,6 +424,7 @@ async function resolveLocalSource(
       rubricDigest: state.requirement.rubricDigest,
     },
     actors,
+    ...(state.deliveryAdmission === undefined ? {} : { deliveryAdmission: state.deliveryAdmission }),
   };
 }
 
@@ -1145,7 +1150,7 @@ export async function respondToReviewCommand(
         outcome: source.frontlineOutcome,
         dispositionState: dispositions,
       });
-  const deliveryMember = source.hostedAttempt?.vehicle ?? null;
+  const deliveryMember = source.hostedAttempt?.vehicle ?? source.deliveryAdmission?.vehicle ?? null;
   const lineage = deliveryMember === null
     ? unchangedCandidateLineage ?? await dependencies.readCandidateLineage(source.target)
     : null;
@@ -1172,7 +1177,8 @@ export async function respondToReviewCommand(
     errandFixResponse: existing?.errandFixResponse ?? null,
     deliveryMemberFixResponse: existing?.deliveryMemberFixResponse ?? null,
   });
-  if (existing !== null && canonicalize(existing) !== canonicalize(record)) {
+  if (existing !== null && canonicalize(existing) !== canonicalize(record)
+    && !isExactDeliveryMemberBindingAdvance(existing, record)) {
     throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
   }
   const appended = await dependencies.dispositionStore.appendDispositionRecord(record);
@@ -1193,10 +1199,11 @@ export async function respondToReviewCommand(
   const alreadySettled = existing !== null;
   const hostedSettlementPlan = projectHostedSettlementPlan(source, dispositions);
   if (plan.state === "ready-to-fix" && deliveryMember !== null) {
-    if (source.hostedAttempt === undefined || plan.fixAuthorization === null) {
+    const repository = source.hostedAttempt?.target.repository ?? source.deliveryAdmission?.target.repository;
+    if (repository === undefined || plan.fixAuthorization === null) {
       throw new RespondCommandError(
         "corrupt-state",
-        "delivery-member fix response is missing its hosted target or fix authorization",
+        "delivery-member fix response is missing its repository target or fix authorization",
       );
     }
     return RespondEnvelopeSchema.parse({
@@ -1212,7 +1219,7 @@ export async function respondToReviewCommand(
         deliveryMember,
         correctionAction: {
           argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
-          input: { repository: source.hostedAttempt.target.repository, remote: "origin" },
+          input: { repository, remote: "origin" },
         },
         ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
       },

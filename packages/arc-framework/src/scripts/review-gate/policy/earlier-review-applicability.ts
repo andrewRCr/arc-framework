@@ -65,6 +65,9 @@ export interface EarlierReviewApplicabilityInput {
   readonly snapshot: ReviewOperationStateSnapshot;
   readonly candidate: CandidateManagedRecordV1;
   readonly exec: RawGitExec;
+  readonly observeEndpoints: (
+    selector: Parameters<typeof projectGitReviewContributionApplicability>[0]["selector"],
+  ) => Promise<{ readonly head: string; readonly base: string }>;
   readonly readDispositionRecord?: (attemptId: string) => Promise<ApprovedDispositionRecord | null>;
   readonly projectApplicability?: (
     selector: Parameters<typeof projectGitReviewContributionApplicability>[0]["selector"],
@@ -80,10 +83,9 @@ function verifiedDeliveryMemberFixResponse(input: {
   const priorVehicle = candidate.priorVehicle;
   const currentVehicle = query.currentVehicle;
   const response = record?.deliveryMemberFixResponse;
-  if (candidate.sourceKind !== "hosted"
-    || candidate.outcome !== "settled-findings"
+  if (candidate.outcome !== "settled-findings"
     || record?.operationId !== candidate.attemptId
-    || record.source.kind !== "hosted"
+    || record.source.kind === "frontline"
     || record.deliveryMember === null
     || priorVehicle === undefined
     || currentVehicle === undefined
@@ -91,24 +93,35 @@ function verifiedDeliveryMemberFixResponse(input: {
     || response === undefined) return null;
   let sourceReference;
   try {
-    sourceReference = parseReviewSourceReference(record.source.attemptRef, "hosted");
+    sourceReference = record.source.kind === "hosted"
+      ? parseReviewSourceReference(record.source.attemptRef, "hosted")
+      : parseReviewSourceReference(record.source.receiptRef, "attested-local");
   } catch {
     return null;
   }
-  return sourceReference.operationId === candidate.operationId
-    && sourceReference.durableRef === candidate.attemptId
+  const sourceMatches = candidate.sourceKind === "hosted"
+    ? record.source.kind === "hosted"
+      && response.hostedTarget !== null
+      && response.hostedFixTarget !== null
+      && sourceReference.operationId === candidate.operationId
+      && sourceReference.durableRef === candidate.attemptId
+      && response.hostedTarget.repository.toLowerCase() === candidate.target.repository.toLowerCase()
+      && response.hostedTarget.pullRequest === candidate.target.pullRequest
+      && response.hostedTarget.headSha === candidate.priorHead
+      && response.hostedFixTarget.repository.toLowerCase() === query.repository
+      && response.hostedFixTarget.pullRequest === query.pullRequest
+    : record.source.kind === "attested-local"
+      && response.hostedTarget === null
+      && response.hostedFixTarget === null
+      && sourceReference.operationId === candidate.attemptId;
+  return sourceMatches
     && sameDeliveryReviewMemberVehicle(record.deliveryMember, priorVehicle)
     && currentVehicle.planId === priorVehicle.planId
     && currentVehicle.deliverableId === priorVehicle.deliverableId
     && currentVehicle.workUnitId === priorVehicle.workUnitId
     && response.oldTarget.targetId === candidate.reviewTarget.targetId
-    && response.hostedTarget.repository.toLowerCase() === candidate.target.repository.toLowerCase()
-    && response.hostedTarget.pullRequest === candidate.target.pullRequest
-    && response.hostedTarget.headSha === candidate.priorHead
     && response.newTarget.kind === "delivery-member"
     && response.newTarget.repositoryId === query.repositoryId
-    && response.hostedFixTarget.repository.toLowerCase() === query.repository
-    && response.hostedFixTarget.pullRequest === query.pullRequest
       ? response
       : null;
 }
@@ -153,7 +166,8 @@ export async function projectEarlierReviewApplicability(
     const retainedByFixResponse = fixResponse !== null
       && fixResponse.newTarget.diffBaseSha === input.currentBase
       && fixResponse.newTarget.headSha === query.currentHead
-      && fixResponse.hostedFixTarget.headSha === query.currentHead;
+      && (fixResponse.hostedFixTarget === null
+        || fixResponse.hostedFixTarget.headSha === query.currentHead);
     const priorHead = fixResponse?.newTarget.headSha ?? candidate.priorHead;
     const priorBase = fixResponse?.newTarget.diffBaseSha ?? candidate.reviewTarget.diffBaseSha;
     const priorVehicle = fixResponse === null || candidate.priorVehicle === undefined
@@ -181,14 +195,14 @@ export async function projectEarlierReviewApplicability(
       ? await projectGitReviewContributionApplicability({
           selector,
           exec: input.exec,
-          observeEndpoints: () => Promise.resolve({ head: query.currentHead, base: input.currentBase }),
+          observeEndpoints: () => input.observeEndpoints(selector),
         })
       : await input.projectApplicability(selector);
     const projectSelector = (value: typeof selector) => input.projectApplicability === undefined
       ? projectGitReviewContributionApplicability({
           selector: value,
           exec: input.exec,
-          observeEndpoints: () => Promise.resolve({ head: value.currentHead, base: value.currentBase }),
+          observeEndpoints: () => input.observeEndpoints(value),
         })
       : input.projectApplicability(value);
     const carried = projection?.state !== "decision-required"
@@ -204,17 +218,21 @@ export async function projectEarlierReviewApplicability(
             || selected.priorHead !== selector.priorHead
             || selected.priorBase !== selector.priorBase
             || selected.currentHead === selector.currentHead) return null;
+          const selectedVehicle = selected.currentVehicle;
+          const currentVehicle = selector.currentVehicle;
+          if ((selectedVehicle === undefined) !== (currentVehicle === undefined)
+            || (selectedVehicle !== undefined && currentVehicle !== undefined
+              && (selectedVehicle.planId !== currentVehicle.planId
+                || selectedVehicle.deliverableId !== currentVehicle.deliverableId
+                || selectedVehicle.workUnitId !== currentVehicle.workUnitId))) return null;
           const selectedProjection = await projectSelector(selected);
           const mechanicalProjection = await projectSelector({
             ...selector,
             priorHead: selected.currentHead,
             priorBase: selected.currentBase,
-            ...(selected.currentVehicle === undefined || selector.currentVehicle === undefined
-              ? { priorVehicle: undefined, currentVehicle: undefined }
-              : {
-                  priorVehicle: selected.currentVehicle,
-                  currentVehicle: selector.currentVehicle,
-                }),
+            ...(selectedVehicle === undefined || currentVehicle === undefined
+              ? {}
+              : { priorVehicle: selectedVehicle, currentVehicle }),
           });
           return selectedProjection.state === "decision-required"
             && mechanicalProjection.state === "applicable"

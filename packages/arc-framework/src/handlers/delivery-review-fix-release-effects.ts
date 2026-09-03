@@ -168,6 +168,7 @@ async function runRecordCommit(input: {
 
 async function runRecordPush(input: {
   readonly cwd: string;
+  readonly remote: string;
   readonly identity: string;
   readonly exec: GitExec;
   readonly interaction?: InteractionContext;
@@ -187,6 +188,7 @@ async function runRecordPush(input: {
     const pushed = await pushWorktreeBranch({
       exec: input.exec,
       branch,
+      remote: input.remote,
       args,
       cwd,
       inheritStdio: false,
@@ -200,7 +202,7 @@ async function runRecordPush(input: {
       status: "failed",
       exitCode: normalizeGitRejection(pushed.error, {
         command: "git",
-        args: ["push", "origin", branch, ...args],
+        args: ["push", input.remote, branch, ...args],
       }).exitCode ?? 1,
       stdout: pushed.stdout,
       stderr: pushed.stderr,

@@ -41,6 +41,7 @@ function deliveryDispositionRecord(input: {
   readonly operationId: string;
   readonly workUnitId?: string;
   readonly settled?: boolean;
+  readonly source?: "hosted" | "attested-local";
 }) {
   const oldTarget = createReviewTarget({
     schemaVersion: 2,
@@ -106,10 +107,16 @@ function deliveryDispositionRecord(input: {
     candidate: null,
     errand: null,
     deliveryMember,
-    source: {
-      kind: "hosted",
-      attemptRef: `arc-review-source:v1:hosted:lane-progress%2F${input.operationId}:hosted%2F1`,
-    },
+    source: input.source === "attested-local"
+      ? {
+          kind: "attested-local",
+          receiptRef: `arc-review-source:v1:attested-local:${input.operationId}:receipt%2F1`,
+          localSourceRef: "git-common:review-gate/local/source.json",
+        }
+      : {
+          kind: "hosted",
+          attemptRef: `arc-review-source:v1:hosted:lane-progress%2F${input.operationId}:hosted%2F1`,
+        },
     approvedDisposition,
     fixAuthorization,
     errandFixResponse: null,
@@ -371,7 +378,26 @@ describe("delivery review-fix continuation projection", () => {
       authorizedFindingLoci: ["src/review.ts:42"],
       operationId: pending.operationId,
       repositoryId: pending.repositoryId,
-      attemptRef: pending.source.kind === "hosted" ? pending.source.attemptRef : "",
+      source: pending.source,
+    });
+  });
+
+  it("selects an exact pending local delivery-member response", () => {
+    const pending = deliveryDispositionRecord({
+      operationId: "local-operation-pending",
+      source: "attested-local",
+    });
+
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [pending],
+    })).toMatchObject({
+      status: "selected",
+      planId: plan.planId,
+      selectedDeliverableId,
+      reviewedHead: pending.deliveryMember?.head,
+      operationId: pending.operationId,
+      source: pending.source,
     });
   });
 

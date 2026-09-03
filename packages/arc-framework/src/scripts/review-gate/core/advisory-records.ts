@@ -76,8 +76,8 @@ export const DeliveryMemberReviewFixResponseSchema = z.strictObject({
   newTarget: ReviewTargetSchema,
   applicability: CandidateVerificationApplicabilitySchema,
   fixConsumption: FixAuthorizationConsumptionSchema,
-  hostedTarget: HostedTargetSchema,
-  hostedFixTarget: HostedTargetSchema,
+  hostedTarget: HostedTargetSchema.nullable(),
+  hostedFixTarget: HostedTargetSchema.nullable(),
 });
 export type DeliveryMemberReviewFixResponse = z.infer<typeof DeliveryMemberReviewFixResponseSchema>;
 
@@ -152,11 +152,21 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
   const deliveryResponse = record.deliveryMemberFixResponse;
   if (deliveryResponse === null) return;
   if (record.deliveryMember === null || record.candidate !== null || record.errand !== null
-    || record.fixAuthorization === null || record.source.kind !== "hosted") {
+    || record.fixAuthorization === null || record.source.kind === "frontline") {
     context.addIssue({
       code: "custom",
-      message: "a delivery-member fix response requires its hosted member binding and fix authorization",
+      message: "a delivery-member fix response requires its exact member binding and fix authorization",
       path: ["deliveryMemberFixResponse"],
+    });
+    return;
+  }
+  const hosted = record.source.kind === "hosted";
+  if (hosted !== (deliveryResponse.hostedTarget !== null)
+    || hosted !== (deliveryResponse.hostedFixTarget !== null)) {
+    context.addIssue({
+      code: "custom",
+      message: "delivery-member fix response host coordinates must match its source kind",
+      path: ["deliveryMemberFixResponse", "hostedTarget"],
     });
     return;
   }
@@ -172,12 +182,14 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
     || deliveryResponse.fixConsumption.newTargetId !== deliveryResponse.newTarget.targetId
     || deliveryResponse.fixConsumption.oldHeadSha !== deliveryResponse.oldTarget.headSha
     || deliveryResponse.fixConsumption.newHeadSha !== deliveryResponse.newTarget.headSha
-    || deliveryResponse.hostedTarget.headSha !== deliveryResponse.oldTarget.headSha
-    || deliveryResponse.hostedFixTarget.headSha !== deliveryResponse.newTarget.headSha
-    || !isDeepStrictEqual({
-      ...deliveryResponse.hostedFixTarget,
-      headSha: deliveryResponse.hostedTarget.headSha,
-    }, deliveryResponse.hostedTarget)) {
+    || (deliveryResponse.hostedTarget !== null
+      && deliveryResponse.hostedFixTarget !== null
+      && (deliveryResponse.hostedTarget.headSha !== deliveryResponse.oldTarget.headSha
+        || deliveryResponse.hostedFixTarget.headSha !== deliveryResponse.newTarget.headSha
+        || !isDeepStrictEqual({
+          ...deliveryResponse.hostedFixTarget,
+          headSha: deliveryResponse.hostedTarget.headSha,
+        }, deliveryResponse.hostedTarget)))) {
     context.addIssue({
       code: "custom",
       message: "delivery-member fix response must bind the exact authorization, member, and hosted transition",
@@ -186,6 +198,23 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
   }
 });
 export type ApprovedDispositionRecord = z.infer<typeof ApprovedDispositionRecordSchema>;
+
+/** Recognize the sole monotonic transition from an unowned local disposition to its exact delivery member. */
+export function isExactDeliveryMemberBindingAdvance(
+  existing: ApprovedDispositionRecord,
+  next: ApprovedDispositionRecord,
+): boolean {
+  if (existing.source.kind !== "attested-local" || next.source.kind !== "attested-local"
+    || existing.candidate !== null || existing.errand !== null || existing.deliveryMember !== null
+    || next.candidate !== null || next.errand !== null || next.deliveryMember === null
+    || existing.deliveryMemberFixResponse !== null || next.deliveryMemberFixResponse !== null) {
+    return false;
+  }
+  return isDeepStrictEqual(
+    { ...existing, deliveryMember: null },
+    { ...next, deliveryMember: null },
+  );
+}
 
 export const FrontlineExecutableIdentitySchema = z.strictObject({
   digest: ReviewCanonicalDigestSchema,
