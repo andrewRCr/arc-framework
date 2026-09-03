@@ -1699,8 +1699,66 @@ describe("hosted review fan-out lifecycle", () => {
     if (publishedRecord.status !== "ok") throw new Error("expected state-bound terminal record");
     harness.state = stateAtRecord;
     harness.stateRevision = publishedRecord.value.revision;
+    const rerootContinuation = projectDeliveryPublicReviewContinuation({
+      plan: harness.plan,
+      state: stateAtRecord,
+      stateRevision: harness.stateRevision,
+    });
+    if (rerootContinuation.status !== "projected") {
+      throw new Error("fresh Candidate continuation must project");
+    }
 
     await git(harness.root, ["commit", "-m", "close task"]);
+    const verifiedHead = await git(harness.root, ["rev-parse", "HEAD"]);
+    const beforeReroot = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
+    if (beforeReroot.record === null || beforeReroot.version === null) {
+      throw new Error("Candidate must exist before re-rooting");
+    }
+    const verifiedTarget = await collectGitCandidateTarget({
+      cwd: harness.root,
+      name: harness.plan.workUnitId,
+      baseBranch: "main",
+      baseRevision: harness.baseHead,
+      revision: verifiedHead,
+      exec: harness.exec,
+    });
+    const rerooted: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: createCandidateAttestation({
+        workUnit: harness.plan.workUnitId,
+        subject: verifiedTarget.subject,
+        baseRevision: verifiedHead,
+        attestedBy: "andrew",
+        attestedAt: "2026-09-02T21:00:00.000Z",
+        verificationEvidenceRef: "verification://post-state-root",
+        supersedes: beforeReroot.record.attestation.candidateId,
+      }),
+      subject: verifiedTarget.subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    await writeCandidateRecord(
+      harness.root,
+      harness.plan.workUnitId,
+      rerooted,
+      beforeReroot.version,
+    );
+    const beforeBoundaryReroot = await readSubmissionBoundaryVersioned(
+      harness.root,
+      harness.plan.workUnitId,
+    );
+    if (beforeBoundaryReroot.boundary === null) throw new Error("boundary must exist before re-rooting");
+    await writeSubmissionBoundary(harness.root, projectCorrectiveDeliveryReviewBoundary({
+      workUnit: harness.plan.workUnitId,
+      candidateId: rerooted.attestation.candidateId,
+      candidateSubjectDigest: rerooted.subject.subjectDigest,
+      supersedesCandidateId: rerooted.attestation.supersedes ?? null,
+      sourceBoundary: beforeBoundaryReroot.boundary,
+      deliveryContinuation: rerootContinuation.continuation,
+    }), beforeBoundaryReroot.version);
+    await git(harness.root, ["add", candidatePath, boundaryPath]);
+    await git(harness.root, ["commit", "-m", "record fresh Candidate root"]);
     const currentHead = await git(harness.root, ["rev-parse", "HEAD"]);
     const currentTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
     harness.state = {
