@@ -143,6 +143,7 @@ import {
   classifyDeliveryReviewFixStagedRecords,
   deliveryReviewFixRecordCommitMessage,
   deliveryReviewFixRecordDigest,
+  isDeliveryReviewFixVerificationResponseAppend,
   reconstructDeliveryReviewFixExpectedRecords,
   settleDeliveryReviewFixRecordEffects,
   type DeliveryReviewFixExpectedRecord,
@@ -1672,6 +1673,7 @@ async function executeDeliveryCommand(
     };
     const reconstructExpectedRecordEffects = async (workUnitId: string): Promise<
       | { readonly status: "none" }
+      | { readonly status: "defer-acknowledgement" }
       | { readonly status: "ready"; readonly records: readonly DeliveryReviewFixExpectedRecord[] }
       | { readonly status: "refused"; readonly reason: string; readonly paths: readonly string[] }
     > => {
@@ -1701,74 +1703,106 @@ async function executeDeliveryCommand(
       let beforeRevision: string;
       let currentRevision: string;
       let effectPaths: readonly string[];
+      let currentBoundaryFromWorktree = false;
+      let acknowledgementCandidatePrefix = false;
+      let pathsToStage: readonly string[] = [];
       const staged = classifyDeliveryReviewFixStagedRecords({ workUnitId, paths: stagedPaths });
       if (staged.status === "ready") {
         if (staged.recordClass === "review-applicability-selection") {
-          return { status: "none" };
+          acknowledgementCandidatePrefix = true;
+          recordClass = "candidate-boundary-projection";
+          beforeRevision = "HEAD";
+          currentRevision = "";
+          effectPaths = sortByCanonicalBytes([candidatePath, boundaryPath]);
+          currentBoundaryFromWorktree = true;
+          pathsToStage = [boundaryPath];
+        } else {
+          recordClass = staged.recordClass;
+          beforeRevision = "HEAD";
+          currentRevision = "";
+          effectPaths = staged.paths;
         }
-        recordClass = staged.recordClass;
-        beforeRevision = "HEAD";
-        currentRevision = "";
-        effectPaths = staged.paths;
       } else {
-        let head: string;
-        let branch: string;
+        let unstagedPaths: readonly string[];
         try {
-          [head, branch] = await Promise.all([
-            exec("git", ["rev-parse", "HEAD"], { cwd, objectAccess: "local-only" })
-              .then(({ stdout }) => stdout.trim()),
-            exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], {
-              cwd,
-              objectAccess: "local-only",
-            }).then(({ stdout }) => stdout.trim()),
-          ]);
+          unstagedPaths = sortByCanonicalBytes((await exec(
+            "git",
+            ["diff", "--name-only", "-z", "--", candidatePath, boundaryPath],
+            { cwd, objectAccess: "local-only" },
+          )).stdout.split("\0").filter((path) => path !== ""));
         } catch {
-          return { status: "none" };
+          unstagedPaths = [];
         }
-        if (head === settledRecordEffectHead) return { status: "none" };
-        let committedPaths: readonly string[];
-        let parent: string;
-        let message: string;
-        try {
-          [committedPaths, parent, message] = await Promise.all([
-            exec("git", ["diff-tree", "--no-commit-id", "--name-only", "-z", "-r", "HEAD", "--"], {
-              cwd,
-              objectAccess: "local-only",
-            }).then(({ stdout }) => sortByCanonicalBytes(stdout.split("\0").filter((path) => path !== ""))),
-            exec("git", ["rev-parse", "HEAD^"], { cwd, objectAccess: "local-only" })
-              .then(({ stdout }) => stdout.trim()),
-            exec("git", ["log", "-1", "--format=%B"], { cwd, objectAccess: "local-only" })
-              .then(({ stdout }) => stdout.trimEnd()),
-          ]);
-        } catch {
-          return { status: "none" };
+        const unstaged = classifyDeliveryReviewFixStagedRecords({ workUnitId, paths: unstagedPaths });
+        if (unstaged.status === "ready" && unstaged.recordClass === "boundary-projection") {
+          recordClass = "boundary-projection";
+          beforeRevision = "HEAD";
+          currentRevision = "HEAD";
+          effectPaths = unstaged.paths;
+          currentBoundaryFromWorktree = true;
+          pathsToStage = unstaged.paths;
+        } else {
+          let head: string;
+          let branch: string;
+          try {
+            [head, branch] = await Promise.all([
+              exec("git", ["rev-parse", "HEAD"], { cwd, objectAccess: "local-only" })
+                .then(({ stdout }) => stdout.trim()),
+              exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], {
+                cwd,
+                objectAccess: "local-only",
+              }).then(({ stdout }) => stdout.trim()),
+            ]);
+          } catch {
+            return { status: "none" };
+          }
+          if (head === settledRecordEffectHead) return { status: "none" };
+          let committedPaths: readonly string[];
+          let parent: string;
+          let message: string;
+          try {
+            [committedPaths, parent, message] = await Promise.all([
+              exec("git", ["diff-tree", "--no-commit-id", "--name-only", "-z", "-r", "HEAD", "--"], {
+                cwd,
+                objectAccess: "local-only",
+              }).then(({ stdout }) => sortByCanonicalBytes(stdout.split("\0").filter((path) => path !== ""))),
+              exec("git", ["rev-parse", "HEAD^"], { cwd, objectAccess: "local-only" })
+                .then(({ stdout }) => stdout.trim()),
+              exec("git", ["log", "-1", "--format=%B"], { cwd, objectAccess: "local-only" })
+                .then(({ stdout }) => stdout.trimEnd()),
+            ]);
+          } catch {
+            return { status: "none" };
+          }
+          const classified = classifyDeliveryReviewFixStagedRecords({ workUnitId, paths: committedPaths });
+          if (classified.status !== "ready"
+            || classified.recordClass === "review-applicability-selection"
+            || canonicalize(committedPaths) !== canonicalize(classified.paths)
+            || message !== deliveryReviewFixRecordCommitMessage(
+              classified.recordClass,
+              `meta-${workUnitId}.md (integration)`,
+            )) {
+            return { status: "none" };
+          }
+          recordClass = classified.recordClass;
+          beforeRevision = parent;
+          currentRevision = head;
+          effectPaths = classified.paths;
+          const remote = await observeDeliveryRemoteRef(exec, parsed.remote, `refs/heads/${branch}`);
+          if (remote.status === "observed" && remote.head === head) return { status: "none" };
         }
-        const classified = classifyDeliveryReviewFixStagedRecords({ workUnitId, paths: committedPaths });
-        if (classified.status !== "ready"
-          || classified.recordClass === "review-applicability-selection"
-          || canonicalize(committedPaths) !== canonicalize(classified.paths)
-          || message !== deliveryReviewFixRecordCommitMessage(
-            classified.recordClass,
-            `meta-${workUnitId}.md (integration)`,
-          )) {
-          return { status: "none" };
-        }
-        recordClass = classified.recordClass;
-        beforeRevision = parent;
-        currentRevision = head;
-        effectPaths = classified.paths;
-        const remote = await observeDeliveryRemoteRef(exec, parsed.remote, `refs/heads/${branch}`);
-        if (remote.status === "observed" && remote.head === head) return { status: "none" };
       }
-      const [beforeCandidateContent, currentCandidateContent, beforeBoundaryContent, currentBoundaryContent] =
+      const [beforeCandidateContent, currentCandidateContent, beforeBoundaryContent, worktreeBoundaryContent] =
         await Promise.all([
           readGitRecord(beforeRevision, candidatePath),
           readGitRecord(currentRevision, candidatePath),
           readGitRecord(beforeRevision, boundaryPath),
-          readGitRecord(currentRevision, boundaryPath),
+          currentBoundaryFromWorktree
+            ? readFile(resolve(cwd, boundaryPath), "utf8").catch(() => null)
+            : readGitRecord(currentRevision, boundaryPath),
         ]);
       if (beforeCandidateContent === null || currentCandidateContent === null
-        || beforeBoundaryContent === null || currentBoundaryContent === null) {
+        || beforeBoundaryContent === null || worktreeBoundaryContent === null) {
         return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
       }
       const beforeCandidate = parseCandidateManagedRecord(beforeCandidateContent);
@@ -1777,7 +1811,7 @@ async function executeDeliveryCommand(
       let currentBoundary;
       try {
         beforeBoundary = parseIntegrationBoundaryLocus(JSON.parse(beforeBoundaryContent) as unknown);
-        currentBoundary = parseIntegrationBoundaryLocus(JSON.parse(currentBoundaryContent) as unknown);
+        currentBoundary = parseIntegrationBoundaryLocus(JSON.parse(worktreeBoundaryContent) as unknown);
       } catch {
         return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
       }
@@ -1799,6 +1833,41 @@ async function executeDeliveryCommand(
         || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
         return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
       }
+      let currentBoundaryContent = worktreeBoundaryContent;
+      if (acknowledgementCandidatePrefix) {
+        if (!isDeliveryReviewFixVerificationResponseAppend(beforeCandidate, currentCandidate)) {
+          return { status: "none" };
+        }
+        if (canonicalize(beforeBoundary) === canonicalize(currentBoundary)) {
+          if (stateRead.value.value.pendingReviewFixVerification !== null) {
+            return { status: "defer-acknowledgement" };
+          }
+          const baseline = reduceCandidateDurableBaseline(currentCandidate);
+          const carried = carryDeliveryReviewFixPublicBoundary({
+            plan: planRead.value,
+            state: stateRead.value,
+            boundary: beforeBoundary,
+            candidateId: currentCandidate.attestation.candidateId,
+            sourceCandidateSubjectDigest: beforeBoundary.candidateSubjectDigest ?? "",
+            candidateSubjectDigest: baseline.target.subject.subjectDigest,
+          });
+          if (carried.status === "refused") {
+            return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+          }
+          const boundarySnapshot = await readSubmissionBoundaryVersioned(cwd, workUnitId);
+          if (boundarySnapshot.boundary === null
+            || canonicalize(boundarySnapshot.boundary) !== canonicalize(beforeBoundary)) {
+            return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+          }
+          try {
+            await writeSubmissionBoundary(cwd, carried.boundary, boundarySnapshot.version);
+            currentBoundaryContent = await readFile(resolve(cwd, boundaryPath), "utf8");
+            currentBoundary = parseIntegrationBoundaryLocus(JSON.parse(currentBoundaryContent) as unknown);
+          } catch {
+            return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+          }
+        }
+      }
       const records = reconstructDeliveryReviewFixExpectedRecords({
         recordClass,
         plan: planRead.value,
@@ -1810,9 +1879,17 @@ async function executeDeliveryCommand(
         candidateRecord: { path: candidatePath, content: currentCandidateContent },
         boundaryRecord: { path: boundaryPath, content: currentBoundaryContent },
       });
-      return records === null
-        ? { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths }
-        : { status: "ready", records };
+      if (records === null) {
+        return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+      }
+      if (pathsToStage.length > 0) {
+        try {
+          await exec("git", ["add", "--", ...pathsToStage], { cwd });
+        } catch {
+          return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+        }
+      }
+      return { status: "ready", records };
     };
     const project = async () => {
       let approvedDispositionSet: {
@@ -2723,6 +2800,9 @@ async function executeDeliveryCommand(
         if (expectedRecordEffects.length === 0) {
           const reconstructed = await reconstructExpectedRecordEffects(active.name);
           if (reconstructed.status === "refused") return reconstructed;
+          if (reconstructed.status === "defer-acknowledgement") {
+            return { status: "idle" as const, effects: [] };
+          }
           if (reconstructed.status === "ready") expectedRecordEffects = reconstructed.records;
         }
         const identity = await resolveUserIdentity(exec);

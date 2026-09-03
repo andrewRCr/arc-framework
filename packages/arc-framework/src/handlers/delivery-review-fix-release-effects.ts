@@ -259,6 +259,17 @@ export function createDeliveryReviewFixReleaseEffectPorts(input: {
         return null;
       }
     },
+    workingRecordMatchesStaged: async (path) => {
+      try {
+        await input.exec("git", ["diff", "--quiet", "--", path], {
+          cwd: input.cwd,
+          objectAccess: "local-only",
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
     readCommittedRecordDigest: async (head, path) => {
       try {
         const content = (await input.exec("git", ["show", `${head}:${path}`], {

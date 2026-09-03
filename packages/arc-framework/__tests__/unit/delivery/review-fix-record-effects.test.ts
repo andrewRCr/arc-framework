@@ -25,6 +25,9 @@ import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 const workUnitId = "example-work-unit";
 const candidatePath = `.arc/system/.internal/candidates/${workUnitId}.json`;
 const boundaryPath = `.arc/system/.internal/candidates/${workUnitId}.boundary.json`;
+const matchingWorkingRecords = {
+  workingRecordMatchesStaged: vi.fn().mockResolvedValue(true),
+};
 
 describe("delivery review-fix record effects", () => {
   it("reconstructs only the exact semantic boundary carry", () => {
@@ -171,11 +174,13 @@ describe("delivery review-fix record effects", () => {
         { path: candidatePath, digest: "sha256:candidate" },
       ],
       ports: {
+        ...matchingWorkingRecords,
         listStagedPaths: vi.fn().mockResolvedValue([boundaryPath, candidatePath]),
         readStagedRecordDigest: vi.fn(async (path) =>
           path === boundaryPath ? "sha256:boundary" : "sha256:candidate"),
         readRecoverableCommit: vi.fn().mockResolvedValue({ status: "none" }),
-        readCommittedRecordDigest: vi.fn(),
+        readCommittedRecordDigest: vi.fn(async (_head, path) =>
+          path === boundaryPath ? "sha256:boundary" : "sha256:candidate"),
         readCurrentBranch: vi.fn().mockResolvedValue("feat/example"),
         readRemoteHead,
         commit,
@@ -214,6 +219,7 @@ describe("delivery review-fix record effects", () => {
         { path: candidatePath, digest: "sha256:candidate" },
       ],
       ports: {
+        ...matchingWorkingRecords,
         listStagedPaths: vi.fn().mockResolvedValue([]),
         readStagedRecordDigest: vi.fn(),
         readRecoverableCommit: vi.fn().mockResolvedValue({
@@ -267,6 +273,7 @@ describe("delivery review-fix record effects", () => {
       context: "meta-example-work-unit.md (integration)",
       expectedRecords: [],
       ports: {
+        ...matchingWorkingRecords,
         listStagedPaths: vi.fn().mockResolvedValue([]),
         readStagedRecordDigest: vi.fn(),
         readRecoverableCommit,
@@ -282,6 +289,7 @@ describe("delivery review-fix record effects", () => {
 
   it("refuses a missing or byte-mismatched expected committed record", async () => {
     const commonPorts = {
+      ...matchingWorkingRecords,
       listStagedPaths: vi.fn().mockResolvedValue([]),
       readStagedRecordDigest: vi.fn(),
       readCurrentBranch: vi.fn(),
@@ -336,6 +344,7 @@ describe("delivery review-fix record effects", () => {
       context: "meta-example-work-unit.md (integration)",
       expectedRecords: [],
       ports: {
+        ...matchingWorkingRecords,
         listStagedPaths: vi.fn().mockResolvedValue([candidatePath]),
         readStagedRecordDigest: vi.fn().mockResolvedValue("sha256:unrelated"),
         readRecoverableCommit: vi.fn(),
@@ -359,6 +368,7 @@ describe("delivery review-fix record effects", () => {
       context: "meta-example-work-unit.md (integration)",
       expectedRecords: [{ path: candidatePath, digest: "sha256:expected" }],
       ports: {
+        ...matchingWorkingRecords,
         listStagedPaths: vi.fn().mockResolvedValue([candidatePath]),
         readStagedRecordDigest: vi.fn().mockResolvedValue("sha256:other"),
         readRecoverableCommit: vi.fn(),
@@ -373,5 +383,57 @@ describe("delivery review-fix record effects", () => {
       reason: "record-effect-content-mismatch",
       paths: [candidatePath],
     });
+  });
+
+  it("refuses a managed record whose worktree bytes differ from the validated index", async () => {
+    const commit = vi.fn();
+
+    await expect(settleDeliveryReviewFixRecordEffects({
+      workUnitId,
+      context: "meta-example-work-unit.md (integration)",
+      expectedRecords: [{ path: candidatePath, digest: "sha256:expected" }],
+      ports: {
+        listStagedPaths: vi.fn().mockResolvedValue([candidatePath]),
+        readStagedRecordDigest: vi.fn().mockResolvedValue("sha256:expected"),
+        workingRecordMatchesStaged: vi.fn().mockResolvedValue(false),
+        readRecoverableCommit: vi.fn(),
+        readCommittedRecordDigest: vi.fn(),
+        readCurrentBranch: vi.fn(),
+        readRemoteHead: vi.fn(),
+        commit,
+        push: vi.fn(),
+      },
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "record-effect-worktree-mismatch",
+      paths: [candidatePath],
+    });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it("refuses a newly committed record whose bytes do not match before pushing", async () => {
+    const push = vi.fn();
+
+    await expect(settleDeliveryReviewFixRecordEffects({
+      workUnitId,
+      context: "meta-example-work-unit.md (integration)",
+      expectedRecords: [{ path: candidatePath, digest: "sha256:expected" }],
+      ports: {
+        ...matchingWorkingRecords,
+        listStagedPaths: vi.fn().mockResolvedValue([candidatePath]),
+        readStagedRecordDigest: vi.fn().mockResolvedValue("sha256:expected"),
+        readRecoverableCommit: vi.fn(),
+        readCommittedRecordDigest: vi.fn().mockResolvedValue("sha256:other"),
+        readCurrentBranch: vi.fn(),
+        readRemoteHead: vi.fn(),
+        commit: vi.fn().mockResolvedValue({ status: "committed", head: "3".repeat(40) }),
+        push,
+      },
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "record-effect-committed-content-mismatch",
+      paths: [candidatePath],
+    });
+    expect(push).not.toHaveBeenCalled();
   });
 });
