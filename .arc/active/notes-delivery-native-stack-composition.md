@@ -541,6 +541,17 @@ the same exact-head scope and staleness behavior. This is an earlier presentatio
 authority, not a machine inference that review is clean, sufficient, complete, or converged. It adds no provider
 result, severity/minors rule, threshold, default, standing grant, or review-signal-convergence policy.
 
+Live re-entry clarification (2026-09-02): Member 6 acceptance exposed one remaining proof-width defect. The exact
+terminus record committed above the state-bound terminal head, then the task-closure record added a second
+Candidate-represented operational commit. Status recognized only the current head or its immediate parent, so it
+lost the valid state anchor and returned the singleton stale-target remedy instead of Member 7. The accepted
+correction generalizes the existing record-advance proof only across that bounded suffix: locate the exact Delivery
+State terminal coordinate between the durable Candidate baseline and recognized current head, prove the
+baseline-to-state movement preserves the committed Candidate subject, verify the stored tree, and separately retain
+ordinary Candidate currentness at the recognized head. It adds no standing grant, convergence rule, state mutation,
+provider action, or generic ancestry
+escape.
+
 ### Amendment 3 — executable pre-reservation conflict resume (2026-09-01)
 
 The live Member 3 correction reached the rescue's intended attended conflict stop while provider preparation was
