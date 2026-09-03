@@ -165,4 +165,24 @@ describe("delivery review Owner terminus", () => {
       reason: "stale-offer",
     });
   });
+
+  it("refuses when another completed pass changes the current offer", async () => {
+    const writeBoundary = vi.fn();
+    const changedOffer = DeliveryReviewTerminusOfferSchema.parse({
+      ...offer,
+      completedPasses: offer.completedPasses + 1,
+    });
+
+    await expect(resolveDeliveryReviewTerminusAcceptance(request, {
+      readBoundary: async () => ({ boundary, version: offer.expectedBoundaryVersion }),
+      readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
+      readCurrentOffer: async () => changedOffer,
+      writeBoundary,
+    })).resolves.toMatchObject({
+      state: "refused",
+      nextAction: "rerun-status",
+      reason: "stale-offer",
+    });
+    expect(writeBoundary).not.toHaveBeenCalled();
+  });
 });

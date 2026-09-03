@@ -111,6 +111,9 @@ describe("hosted review fan-out workflow", () => {
     expect(section).toMatch(
       /terminusAction[\s\S]*arc review terminus accept -[\s\S]*recorded \/ commit-boundary[\s\S]*exact-replay \/ continue[\s\S]*refused \/ rerun-status/iu,
     );
+    expect(section).toMatch(
+      /review-hosted-request[\s\S]*review-local-prepare[\s\S]*terminusAction[\s\S]*optional Owner alternative[\s\S]*absent explicit acceptance[\s\S]*review action unchanged/iu,
+    );
     expect(section).toMatch(/terminus[\s\S]*never[\s\S]*(?:clean|converged)/iu);
     const deliveryResume = section.indexOf("`continue-hosted-review`");
     const singletonResume = section.indexOf("`continue-pre-publication-review`", deliveryResume);

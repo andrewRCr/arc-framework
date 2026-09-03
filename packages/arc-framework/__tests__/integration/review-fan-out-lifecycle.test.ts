@@ -1275,7 +1275,7 @@ describe("hosted review fan-out lifecycle", () => {
     const harness = await createHarness();
     await writeFile(
       join(harness.root, ".arc", "system", "arc-config.yml"),
-      "branch:\n  base: main\nreview.standard_max_passes: 1\n",
+      "branch:\n  base: main\nreview.standard_max_passes: 2\n",
       "utf8",
     );
     const firstVehicle = member(harness.plan, 0, harness.oldFirst);
@@ -1340,20 +1340,20 @@ describe("hosted review fan-out lifecycle", () => {
       noHostSettlementFindingIds: [finding.findingId],
       now: "2026-09-01T10:02:00.000Z",
     });
-    const ceiling = await workUnitStatusThroughHandler(harness, statusTarget);
-    expect(ceiling).toMatchObject({
-      state: "approval-required",
-      nextAction: "obtain-ceiling-override",
+    const continuation = await workUnitStatusThroughHandler(harness, statusTarget);
+    expect(continuation).toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
       terminusAction: {
         target: firstStatus.action.target,
         vehicle: firstVehicle,
         completedPasses: 1,
       },
     });
-    if (ceiling.nextAction !== "obtain-ceiling-override" || ceiling.terminusAction === undefined) {
-      throw new Error("expected exact Owner terminus offer at the member ceiling");
+    if (continuation.nextAction !== "review-hosted-request" || continuation.terminusAction === undefined) {
+      throw new Error("expected exact Owner terminus offer beside the next member pass");
     }
-    const offer = DeliveryReviewTerminusOfferSchema.parse(ceiling.terminusAction);
+    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction);
     const reviewOperationsBeforeAcceptance = await harness.store.readOperationSnapshot();
     const output: string[] = [];
     const exitCodes: number[] = [];
@@ -1371,9 +1371,7 @@ describe("hosted review fan-out lifecycle", () => {
           readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
           readCurrentOffer: async () => {
             const current = await workUnitStatusThroughHandler(harness, statusTarget);
-            return current.nextAction === "obtain-ceiling-override"
-              ? current.terminusAction ?? null
-              : null;
+            return "terminusAction" in current ? current.terminusAction ?? null : null;
           },
           writeBoundary: async (boundary, expectedVersion) => ({
             status: "written",

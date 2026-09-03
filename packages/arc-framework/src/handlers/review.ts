@@ -816,9 +816,7 @@ async function acceptDeliveryReviewTerminus(
     readOwnerAuthority: (workUnitId) => ownerDependencies.readOwnerTerminusAuthority(workUnitId),
     readCurrentOffer: async (workUnitId) => {
       const status = await resolveReviewStatusForWorkUnit({ cwd: root, exec, workUnitId });
-      return status.nextAction === "obtain-ceiling-override"
-        ? status.terminusAction ?? null
-        : null;
+      return "terminusAction" in status ? status.terminusAction ?? null : null;
     },
     writeBoundary: async (boundary, expectedVersion) => {
       try {

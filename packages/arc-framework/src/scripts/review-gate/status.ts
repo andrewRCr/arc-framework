@@ -695,6 +695,7 @@ const ReviewStatusHostedRequestSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("review-hosted-request"),
   action: HostedRequestEnvelopeSchema,
+  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
 });
 const ReviewStatusHostedAwaitSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -707,6 +708,7 @@ const ReviewStatusLocalPrepareSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("review-local-prepare"),
   action: DeliveryLocalReviewAdmissionSchema,
+  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
 });
 const ReviewStatusLocalResumeSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -818,7 +820,18 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
 ]);
 export const ReviewStatusResultSchema: z.ZodType<ReviewStatusResult> = ReviewStatusResultSchemaInternal;
 
-/** Bind a delivery-member ceiling stop to the exact Owner-terminus mutation offer. */
+function hasCompletedCompleteReviewPass(
+  member: z.infer<typeof DeliveryReviewConjunctionMemberSchema>,
+): boolean {
+  return member.progress.completedPasses > 0 && member.progress.attempts.some((attempt) => (
+    (attempt.outcome === "clean"
+      || attempt.outcome === "findings"
+      || attempt.outcome === "settled-findings")
+    && (attempt.requestedCoverage === "complete" || attempt.effectiveCoverage === "complete")
+  ));
+}
+
+/** Bind an eligible delivery-member continuation to the exact Owner-terminus mutation offer. */
 export function bindDeliveryReviewTerminusOffer(
   result: ReviewStatusResult,
   binding: {
@@ -828,11 +841,18 @@ export function bindDeliveryReviewTerminusOffer(
     readonly candidateSubjectDigest: string;
   },
 ): ReviewStatusResult {
-  if (result.nextAction !== "obtain-ceiling-override") return result;
+  const isCeiling = result.nextAction === "obtain-ceiling-override";
+  const isEligibleRequest = result.nextAction === "review-hosted-request"
+    || result.nextAction === "review-local-prepare";
+  if (!isCeiling && !isEligibleRequest) return result;
   const member = result.deliveryCursor?.currentMember;
   if (member === undefined || member === null) {
-    throw new Error("A delivery-member ceiling stop requires one exact first-outstanding member.");
+    if (isCeiling) {
+      throw new Error("A delivery-member ceiling stop requires one exact first-outstanding member.");
+    }
+    return result;
   }
+  if (!isCeiling && !hasCompletedCompleteReviewPass(member)) return result;
   return ReviewStatusResultSchema.parse({
     ...result,
     terminusAction: {

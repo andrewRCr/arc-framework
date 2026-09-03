@@ -202,8 +202,12 @@ For an ordinary singleton, use:
 arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
 ```
 
-When the Owner instead accepts the returned delivery-member terminus, pass `terminusAction` unchanged as `offer`
-beside the explicit `judgment.mode: owner-accepted` to:
+A `review-hosted-request` or `review-local-prepare` result may also carry `terminusAction` after an earlier complete
+pass. Surface it as an optional Owner alternative without turning it into a stop; absent explicit acceptance,
+execute the returned review action unchanged.
+
+When the Owner accepts any returned delivery-member terminus, pass `terminusAction` unchanged as `offer` beside the
+explicit `judgment.mode: owner-accepted` to:
 
 ```bash
 arc review terminus accept -
