@@ -30,7 +30,7 @@ type PendingDeliveryReviewFixAuthority =
       readonly authorizedFindingLoci: readonly string[];
       readonly operationId: string;
       readonly repositoryId: string;
-      readonly attemptRef: string;
+      readonly source: ApprovedDispositionRecord["source"];
     }
   | {
       readonly status: "refused";
@@ -48,7 +48,7 @@ export type DurableDeliveryReviewFixResponseReplay =
       readonly repositoryId: string;
       readonly currentTarget: NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["newTarget"];
       readonly hostedFixTarget:
-        NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["hostedFixTarget"];
+        NonNullable<NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["hostedFixTarget"]>;
       readonly request: {
         readonly schemaVersion: 1;
         readonly source: Extract<ApprovedDispositionRecord["source"], { readonly kind: "hosted" }>;
@@ -71,7 +71,8 @@ function recordMatchesDurableDeliveryResponseReplay(
 ): boolean {
   const member = record.deliveryMember;
   const response = record.deliveryMemberFixResponse;
-  if (member === null || response === null || record.source.kind !== "hosted") return false;
+  if (member === null || response === null || record.source.kind !== "hosted"
+    || response.hostedTarget === null || response.hostedFixTarget === null) return false;
   const responseFindingIds = sortByCanonicalBytes(responsePlan.findings.map(({ findingId }) => findingId));
   const dispositionFindingIds = sortByCanonicalBytes(
     record.approvedDisposition.dispositionSet.findings.map(({ findingId }) => findingId),
@@ -110,6 +111,7 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
   if (selected === undefined) return { status: "none" };
   if (!recordMatchesDurableDeliveryResponseReplay(selected, input.responsePlan)
     || selected.deliveryMember === null || selected.deliveryMemberFixResponse === null
+    || selected.deliveryMemberFixResponse.hostedFixTarget === null
     || selected.source.kind !== "hosted") {
     return { status: "refused", reason: "review-fix-response-replay-invalid" };
   }
@@ -137,7 +139,7 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
 function recordHasExactPendingDeliveryFixAuthority(record: ApprovedDispositionRecord): boolean {
   const member = record.deliveryMember;
   const authorization = record.fixAuthorization;
-  if (member === null || authorization === null || record.source.kind !== "hosted") return false;
+  if (member === null || authorization === null || record.source.kind === "frontline") return false;
   try {
     validateFixAuthorization(authorization);
   } catch {
@@ -157,7 +159,7 @@ function recordHasExactPendingDeliveryFixAuthority(record: ApprovedDispositionRe
 }
 
 /**
- * Select pending hosted delivery-member response authority for one active work unit.
+ * Select pending delivery-member response authority for one active work unit.
  *
  * @param input - Active work-unit identity and the readable approved-disposition snapshot.
  * @returns The exact member selection, a typed refusal, or absence of pending response authority.
@@ -192,7 +194,7 @@ export function selectPendingDeliveryReviewFixAuthority(input: {
       .map(({ locus }) => locus),
     operationId: selected.operationId,
     repositoryId: selected.repositoryId,
-    attemptRef: selected.source.kind === "hosted" ? selected.source.attemptRef : "",
+    source: selected.source,
   };
 }
 

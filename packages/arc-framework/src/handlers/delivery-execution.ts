@@ -108,6 +108,7 @@ import {
   acknowledgeDeliveryReviewFixVerification,
   carryDeliveryReviewFixPublicBoundary,
   planDeliveryReviewFixRoute,
+  projectDeliveryReviewFixVerificationAcknowledgement,
   publishSelectedDeliveryReviewFix,
   recordDeliveryReviewFixCandidateVerification,
 } from "../lib/delivery/review-fix.js";
@@ -236,6 +237,7 @@ import { RespondEnvelopeSchema } from
   "../scripts/review-gate/core/review-command-envelope.js";
 import { HostedFindingsResponsePlanSchema } from
   "../scripts/review-gate/core/response-plan-schema.js";
+import { settleLaneAttempt } from "../scripts/review-gate/lane-progress.js";
 import { projectGitReviewContributionApplicability } from
   "../scripts/review-gate/policy/git-review-contribution-applicability.js";
 import { createRespondDependencies } from
@@ -1970,9 +1972,12 @@ async function executeDeliveryCommand(
             || !Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
+          if (selection.source.kind !== "hosted") {
+            return { status: "refused", reason: "review-fix-response-stale" };
+          }
           let operationReference;
           try {
-            operationReference = parseReviewSourceReference(selection.attemptRef, "hosted");
+            operationReference = parseReviewSourceReference(selection.source.attemptRef, "hosted");
           } catch {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
@@ -2527,6 +2532,15 @@ async function executeDeliveryCommand(
       const verifiedAt = new Date().toISOString();
       const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
       const dispositionRecords = await dispositionStore.listDispositionRecords();
+      let responseAdvance: Exclude<
+        ReturnType<typeof advanceDeliveryReviewFixResponse>,
+        { readonly status: "refused" }
+      > | null = null;
+      let localResponseSettlement: {
+        readonly repositoryId: string;
+        readonly headSha: string;
+        readonly attemptId: string;
+      } | null = null;
       const matchingResponseRecords = dispositionRecords.filter((record) => (
         record.deliveryMember?.planId === parsed.planId
         && record.deliveryMember.deliverableId === parsed.selectedDeliverableId
@@ -2538,7 +2552,8 @@ async function executeDeliveryCommand(
       }
       const responseRecord = matchingResponseRecords[0];
       if (responseRecord !== undefined) {
-        if (responseRecord.source.kind !== "hosted") {
+        const responseMember = responseRecord.deliveryMember;
+        if (responseRecord.source.kind === "frontline" || responseMember === null) {
           return { status: "refused", reason: "review-fix-response-invalid" };
         }
         const selectedIndex = stateRead.value.value.members.findIndex(
@@ -2556,43 +2571,78 @@ async function executeDeliveryCommand(
           || expectedBaseName === null) {
           return { status: "refused", reason: "review-fix-response-invalid" };
         }
-        let sourceReference;
-        try {
-          sourceReference = parseReviewSourceReference(responseRecord.source.attemptRef, "hosted");
-        } catch {
-          return { status: "refused", reason: "review-fix-response-invalid" };
-        }
-        const operation = await new LocalReviewOperationStateStore(publisher)
-          .readOperation(sourceReference.operationId);
-        const attempts = operation.state?.kind === "lane-progress"
-          ? operation.state.attempts.filter(({ attemptId }) => attemptId === responseRecord.operationId)
-          : [];
-        const attempt = attempts.length === 1 ? attempts[0] : undefined;
-        const pullRequest = Number(selectedMember.changeRequest.changeRequestId);
-        const observed = Number.isSafeInteger(pullRequest) && pullRequest > 0
-          ? await new GhDeliveryHostPort(hostedGhRunner).readRequest(
-              attempt?.hosted?.target.repository ?? "",
-              selectedMember.changeRequest,
-            )
-          : { status: "refused" as const, reason: "malformed" as const };
-        if (attempt?.hosted === undefined || attempt.hosted.vehicle === undefined
-          || canonicalize(attempt.hosted.vehicle) !== canonicalize(responseRecord.deliveryMember)
-          || attempt.hosted.target.pullRequest !== pullRequest
-          || observed.status !== "observed"
-          || observed.request.repository.toLowerCase() !== attempt.hosted.target.repository.toLowerCase()
-          || observed.request.headRepository.toLowerCase() !== attempt.hosted.target.repository.toLowerCase()
-          || observed.request.binding.providerId !== selectedMember.changeRequest.providerId
-          || observed.request.binding.changeRequestId !== selectedMember.changeRequest.changeRequestId
-          || observed.request.headRef !== selectedMember.ref.slice("refs/heads/".length)
-          || observed.request.headSha !== selectedMember.coordinates.head
-          || observed.request.baseRef !== expectedBaseName
-          || observed.request.state !== "open") {
-          return { status: "refused", reason: "review-fix-response-invalid" };
+        let oldTarget;
+        let hostedTarget = null;
+        if (responseRecord.source.kind === "hosted") {
+          let sourceReference;
+          try {
+            sourceReference = parseReviewSourceReference(responseRecord.source.attemptRef, "hosted");
+          } catch {
+            return { status: "refused", reason: "review-fix-response-invalid" };
+          }
+          const operation = await new LocalReviewOperationStateStore(publisher)
+            .readOperation(sourceReference.operationId);
+          const attempts = operation.state?.kind === "lane-progress"
+            ? operation.state.attempts.filter(({ attemptId }) => attemptId === responseRecord.operationId)
+            : [];
+          const attempt = attempts.length === 1 ? attempts[0] : undefined;
+          const pullRequest = Number(selectedMember.changeRequest.changeRequestId);
+          const observed = Number.isSafeInteger(pullRequest) && pullRequest > 0
+            ? await new GhDeliveryHostPort(hostedGhRunner).readRequest(
+                attempt?.hosted?.target.repository ?? "",
+                selectedMember.changeRequest,
+              )
+            : { status: "refused" as const, reason: "malformed" as const };
+          if (attempt?.hosted === undefined || attempt.hosted.vehicle === undefined
+            || canonicalize(attempt.hosted.vehicle) !== canonicalize(responseMember)
+            || attempt.hosted.target.pullRequest !== pullRequest
+            || observed.status !== "observed"
+            || observed.request.repository.toLowerCase() !== attempt.hosted.target.repository.toLowerCase()
+            || observed.request.headRepository.toLowerCase() !== attempt.hosted.target.repository.toLowerCase()
+            || observed.request.binding.providerId !== selectedMember.changeRequest.providerId
+            || observed.request.binding.changeRequestId !== selectedMember.changeRequest.changeRequestId
+            || observed.request.headRef !== selectedMember.ref.slice("refs/heads/".length)
+            || observed.request.headSha !== selectedMember.coordinates.head
+            || observed.request.baseRef !== expectedBaseName
+            || observed.request.state !== "open") {
+            return { status: "refused", reason: "review-fix-response-invalid" };
+          }
+          oldTarget = attempt.hosted.reviewTarget;
+          hostedTarget = attempt.hosted.target;
+        } else {
+          let sourceReference;
+          try {
+            sourceReference = parseReviewSourceReference(responseRecord.source.receiptRef, "attested-local");
+          } catch {
+            return { status: "refused", reason: "review-fix-response-invalid" };
+          }
+          const operation = await new LocalReviewOperationStateStore(publisher)
+            .readOperation(sourceReference.operationId);
+          const admission = operation.state?.kind === "local-review"
+            ? operation.state.deliveryAdmission
+            : undefined;
+          if (operation.state?.kind !== "local-review"
+            || operation.state.operationId !== responseRecord.operationId
+            || sourceReference.operationId !== responseRecord.operationId
+            || admission === undefined
+            || canonicalize(admission.vehicle) !== canonicalize(responseMember)
+            || operation.state.target.kind !== "delivery-member"
+            || operation.state.target.targetId
+              !== responseRecord.approvedDisposition.dispositionSet.targetId
+            || operation.state.target.headSha !== responseMember.head) {
+            return { status: "refused", reason: "review-fix-response-invalid" };
+          }
+          oldTarget = operation.state.target;
+          localResponseSettlement = {
+            repositoryId: operation.state.repositoryId,
+            headSha: operation.state.target.headSha,
+            attemptId: operation.state.operationId,
+          };
         }
         const advanced = advanceDeliveryReviewFixResponse({
           record: responseRecord,
-          oldTarget: attempt.hosted.reviewTarget,
-          hostedTarget: attempt.hosted.target,
+          oldTarget,
+          hostedTarget,
           currentHead: selectedMember.coordinates.head,
           currentTree: selectedMember.coordinates.tree,
           applicability: parsed.verification.applicability,
@@ -2600,7 +2650,7 @@ async function executeDeliveryCommand(
           verifiedAt,
         });
         if (advanced.status === "refused") return advanced;
-        await dispositionStore.appendDispositionRecord(advanced.record);
+        responseAdvance = advanced;
       }
       const settings = (await readConfigSettings(cwd)).settings;
       const [candidate, currentTarget, unstagedReviewablePaths, actor, boundarySnapshot] = await Promise.all([
@@ -2622,6 +2672,9 @@ async function executeDeliveryCommand(
       if (candidate.record === null || candidate.version === null) {
         return { status: "refused", reason: "candidate-record-unavailable" };
       }
+      if (boundarySnapshot.boundary === null) {
+        return { status: "refused", reason: "public-boundary-unavailable" };
+      }
       if (unstagedReviewablePaths.length > 0) {
         return { status: "refused", reason: "candidate-reviewable-content-unstaged" };
       }
@@ -2642,6 +2695,37 @@ async function executeDeliveryCommand(
         verificationEvidenceRefs: parsed.verification.verificationEvidenceRefs,
       });
       if (recorded.status === "refused") return recorded;
+      const acknowledgementProjection = projectDeliveryReviewFixVerificationAcknowledgement({
+        plan: planRead.value,
+        current: stateRead.value,
+        selectedDeliverableId: parsed.selectedDeliverableId,
+        memberDeliverableIds: parsed.memberDeliverableIds,
+        expectedStateRevision: parsed.expectedStateRevision,
+        continuationDigest: parsed.continuationDigest,
+      });
+      if (acknowledgementProjection.status === "refused") return acknowledgementProjection;
+      const carried = carryDeliveryReviewFixPublicBoundary({
+        plan: planRead.value,
+        state: acknowledgementProjection.state,
+        boundary: boundarySnapshot.boundary,
+        candidateId: recorded.record.attestation.candidateId,
+        sourceCandidateSubjectDigest: recorded.status === "already-recorded"
+          ? recorded.transition.newTarget.subject.subjectDigest
+          : recorded.transition.oldTarget.subject.subjectDigest,
+        candidateSubjectDigest: recorded.transition.newTarget.subject.subjectDigest,
+      });
+      if (carried.status === "refused") return carried;
+
+      if (responseAdvance !== null) {
+        await dispositionStore.appendDispositionRecord(responseAdvance.record);
+      }
+      if (localResponseSettlement !== null) {
+        await settleLaneAttempt(new LocalReviewOperationStateStore(publisher), {
+          lane: "standard",
+          ...localResponseSettlement,
+          now: verifiedAt,
+        });
+      }
       const recordPath = recorded.status === "recorded"
         ? await writeCandidateRecord(
             cwd,
@@ -2661,20 +2745,6 @@ async function executeDeliveryCommand(
         stateStore,
       });
       if (acknowledged.status === "refused") return acknowledged;
-      if (boundarySnapshot.boundary === null) {
-        return { status: "refused", reason: "public-boundary-unavailable" };
-      }
-      const carried = carryDeliveryReviewFixPublicBoundary({
-        plan: planRead.value,
-        state: acknowledged.state,
-        boundary: boundarySnapshot.boundary,
-        candidateId: recorded.record.attestation.candidateId,
-        sourceCandidateSubjectDigest: recorded.status === "already-recorded"
-          ? recorded.transition.newTarget.subject.subjectDigest
-          : recorded.transition.oldTarget.subject.subjectDigest,
-        candidateSubjectDigest: recorded.transition.newTarget.subject.subjectDigest,
-      });
-      if (carried.status === "refused") return carried;
       const boundaryPath = await writeSubmissionBoundary(
         cwd,
         carried.boundary,

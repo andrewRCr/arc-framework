@@ -154,6 +154,99 @@ describe("delivery review-fix routing", () => {
     })).toEqual({ status: "refused", reason: "review-fix-response-replay-mismatch" });
   });
 
+  it("records and exactly replays one verified local delivery-member fix response", () => {
+    const { plan } = fixture();
+    const selectedDeliverableId = plan.members[0]!.deliverableId;
+    const oldTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "1".repeat(40),
+      diffBaseTree: "2".repeat(40),
+      headSha: "3".repeat(40),
+      headTree: "4".repeat(40),
+    });
+    const approvedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: oldTarget.targetId,
+        policyVersion: canonicalDigest({ policy: "review" }),
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        proposedBy: "agent-1",
+        findings: [{
+          findingId: "finding-1",
+          sourceIdentity: "delegated-agent",
+          locus: "src/example.ts:1",
+          sourceVerification: "verified",
+          verificationRefs: ["review:finding-1"],
+          severity: "major",
+          disposition: "fix",
+          gating: "blocking",
+          rationale: "The source confirms the issue.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-08-31T12:00:00Z",
+    });
+    const record = ApprovedDispositionRecordSchema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: "repo-1",
+      operationId: "local-operation-member-fix",
+      candidate: null,
+      errand: null,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: plan.planId,
+        deliverableId: selectedDeliverableId,
+        workUnitId: plan.workUnitId,
+        head: oldTarget.headSha,
+      },
+      source: {
+        kind: "attested-local",
+        receiptRef: "arc-review-source:v1:attested-local:local-operation-member-fix:receipt%2F1",
+        localSourceRef: "git-common:review-gate/local/source.json",
+      },
+      approvedDisposition,
+      fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+    });
+    const input = {
+      record,
+      oldTarget,
+      hostedTarget: null,
+      currentHead: "5".repeat(40),
+      currentTree: "6".repeat(40),
+      applicability: "focused" as const,
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      verifiedAt: "2026-08-31T13:00:00Z",
+    };
+
+    const recorded = advanceDeliveryReviewFixResponse(input);
+    expect(recorded).toMatchObject({
+      status: "recorded",
+      newTarget: { headSha: input.currentHead, headTree: input.currentTree },
+      hostedFixTarget: null,
+      record: {
+        deliveryMemberFixResponse: {
+          applicability: "focused",
+          hostedTarget: null,
+          hostedFixTarget: null,
+        },
+      },
+    });
+    if (recorded.status !== "recorded") throw new Error("fix response must record");
+    expect(advanceDeliveryReviewFixResponse({ ...input, record: recorded.record }))
+      .toMatchObject({ status: "already-recorded", hostedFixTarget: null });
+  });
+
   it("carries the same Candidate boundary across the acknowledged state revision", () => {
     const { plan, state } = fixture();
     const before = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision: 9 });

@@ -1,7 +1,7 @@
 /** Built-CLI coverage for fresh public delivery-position observation. */
 
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -29,7 +29,10 @@ import {
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord, writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
 import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
-import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
+import {
+  resolveSubmissionBoundaryPath,
+  writeSubmissionBoundary,
+} from "../../src/lib/work-unit/submission-boundary-store.js";
 import { projectPublicationBoundary } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import type { DeliveryLocalReviewAdmission } from
@@ -1228,6 +1231,38 @@ describe("arc delivery position", () => {
         verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
       },
     };
+    const boundaryPath = join(
+      fixture.repository,
+      resolveSubmissionBoundaryPath(fixture.plan.workUnitId),
+    );
+    const boundaryBytes = await readFile(boundaryPath, "utf8");
+    const stateBeforeBoundaryRefusal = await fixture.states.read(fixture.plan.planId);
+    const candidateBeforeBoundaryRefusal = await readCandidateRecord(
+      fixture.repository,
+      fixture.plan.workUnitId,
+    );
+    const stagedBeforeBoundaryRefusal = await git(fixture.repository, [
+      "diff", "--cached", "--name-only",
+    ]);
+    await unlink(boundaryPath);
+    const missingBoundary = await runArcWithStdin(
+      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify(acknowledgementRequest)}\n`,
+      { env: fixture.env },
+    );
+    expect(missingBoundary.exitCode, `${missingBoundary.stderr}\n${missingBoundary.stdout}`).toBe(1);
+    expect(JSON.parse(missingBoundary.stdout), missingBoundary.stdout).toMatchObject({
+      command: "delivery review-fix acknowledge",
+      status: "refused",
+      reason: "public-boundary-unavailable",
+    });
+    expect(await fixture.states.read(fixture.plan.planId)).toEqual(stateBeforeBoundaryRefusal);
+    expect(await readCandidateRecord(fixture.repository, fixture.plan.workUnitId))
+      .toEqual(candidateBeforeBoundaryRefusal);
+    expect(await git(fixture.repository, ["diff", "--cached", "--name-only"]))
+      .toBe(stagedBeforeBoundaryRefusal);
+    await writeFile(boundaryPath, boundaryBytes);
     const resumed = await runArcWithStdin(
       ["delivery", "review-fix", "acknowledge", "-", "--json"],
       fixture.repository,
