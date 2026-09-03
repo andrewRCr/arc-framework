@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3552,6 +3552,33 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
         - _Scope boundary:_ No local incremental carrier, new coverage record, prior-head selector, source-policy
           change, convergence decision, or generalized review orchestration.
 
+    - `[ ]` **7.7.R.ac Separate the correction entry seam's two non-current-Candidate states** — validate criteria
+      at member scope
+
+        - _Goal:_ A non-current Candidate whose work-unit branch carries non-lifecycle content while a non-terminal
+          member review is outstanding never receives a confident verification-closeout route; the entry seam
+          classifies the terminal delta and returns a typed ambiguous stop naming both candidate routes.
+
+        - **Additional Context:** `spec-delivery-native-stack-composition.md` D5.14. The prompt is the resumed
+          Member 7 correction that reached `candidate-verification-required` with its fix committed on the
+          work-unit branch and not yet replayed into the member ref; following that route would have attested a new
+          root with member-owned content absorbed into the terminal member.
+
+        - Build `test-first` (one behavior at a time):
+            - `[ ]` **7.7.R.ac.a Classify the terminal delta at integration entry**
+                - _Goal:_ Entry inspection separates a delta composed only of the work unit's lifecycle artifacts
+                  from one carrying non-lifecycle content, from facts it already reads. A lifecycle-only delta, and
+                  any delta carried while no non-terminal member review is outstanding, retain the existing
+                  verification-closeout route unchanged.
+            - `[ ]` **7.7.R.ac.b Return a typed ambiguous stop instead of a confident route**
+                - _Goal:_ When non-lifecycle content is carried while a non-terminal member review is outstanding,
+                  entry returns a typed stop naming both candidate routes, the classified delta, the outstanding
+                  member, and each route's exact next action. It attributes no content and selects no member, and an
+                  unavailable classification retains the closeout answer rather than inventing a route.
+
+        - _Scope boundary:_ No content attribution, member selection, heuristic route choice, new record, or review
+          authority. Route execution remains D5.13's resumable procedure; this task governs only what entry answers.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`
@@ -3614,7 +3641,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   a worked fail-closed instance and names separate field-evidence triggers for reopening landing timing and terminal
   authorization composition.
 
-### `[x]` **8.5 Close delivery member 8** — validate criteria at member scope
+### `[ ]` **8.5 Close delivery member 8** — validate criteria at member scope
 
 - _Goal:_ Member 8's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3753,6 +3780,32 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           checkout-local Candidate boundary now prevents the foreign rewrites that motivated it. Repeated delivery
           re-entry remains stationary without weakening completed-lineage maintenance or hiding foreign dirt.
 
+    - `[ ]` **8.5.R.g Give the authoring executors a typed surface** — validate criteria at member scope
+
+        - _Goal:_ A correction interrupted between authoring on the work-unit branch and replaying into its member
+          gate completes through typed verbs rather than a hand-written candidate ref inside the namespace D9.4
+          reserves to ARC.
+
+        - **Additional Context:** `spec-delivery-native-stack-composition.md` D9.9. `authoring-locate` already
+          publishes the read half of the locus; the rematerialize and rebind executors implement the write half and
+          are reachable only through the in-process correction dispatch, so an interrupted replay has no completion
+          path — publication refuses `candidate-unchanged` until the gate advances.
+
+        - `[ ]` **8.5.R.g.1 Expose rematerialize and rebind as typed verbs**
+
+            - Both executors gain public request schemas and handler routes over the inputs and guards they already
+              enforce: locus path and ref expectations, clean tracked tree, exact before and requested head and
+              tree, expected state revision, and no active operation.
+
+        - `[ ]` **8.5.R.g.2 Preserve refusal identity and adjacent routes**
+
+            - Each verb returns the executor's existing typed refusal reason unchanged on a dirty locus, a moved
+              head or tree, a stale state revision, or an active operation. The in-process dispatch,
+              `authoring-locate`, gate provisioning, and closeout reaping retain their existing behavior.
+
+        - _Scope boundary:_ No record, authoring-locus lifecycle, ownership registry, gate provisioning change, or
+          authority beyond what the in-process dispatch already holds.
+
 - _Outcome:_ Member 8 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
@@ -3813,7 +3866,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Final re-attestation passed Markdown and ARC contract lint, TypeScript and shell lint, both
   typechecks, package build, aggregate self-review, and diff hygiene; 852 test files passed with one skipped and
@@ -4035,6 +4088,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           production path reaches that canonical re-root without weakening D8.2's complete retained-member
           conjunction.
 
+- _Forward amendment (2026-09-03):_ The D5.14 and D9.9 corrections added Success Criteria 49 and 50 after this
+  terminal report. Consume the amended Member 7 and Member 8 boundary reports and revalidate the correction entry
+  seam and the authoring surface without re-deriving unchanged member criteria or repeating an unchanged full-suite
+  gate.
+
+    - `[ ]` **9.1.R.h Revalidate the correction entry and authoring amendments at work-unit scope**
+
+        - _Goal:_ The terminal report accounts for Success Criteria 49 and 50, and the amended entry seam and
+          authoring verbs compose with delivery entry, the resumable correction procedure, Candidate transitions,
+          and closeout without reopening execution verification or repeating an unaffected member walk.
+
 ---
 
 ## Success Criteria
@@ -4235,6 +4299,13 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   reuse is admitted only for an exact already-green rebound tree. No orchestration record, quality ledger, generic
   workflow engine, or convergence policy is added.
 
+- `[ ]` A non-current Candidate whose work-unit branch carries non-lifecycle content while a non-terminal member
+  review is outstanding does not receive a confident verification-closeout route. The integration entry seam
+  classifies the terminal delta and returns a typed ambiguous stop naming both candidate routes, the classified
+  delta, the outstanding member, and each route's exact next action. Lifecycle-artifact-only deltas, deltas carried
+  with no outstanding member review, and an unavailable classification retain the existing closeout route, and no
+  content attribution, member selection, or new record is introduced.
+
 ### Member 8 — `retirement-and-doctrine`
 
 - `[x]` After terminal adoption and closeout, the delivery store holds no plan or state record for the completed
@@ -4276,6 +4347,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   without foreign Candidate rewrites. An active checkout permits review-response and Candidate mutation only for its
   owning work unit; completed lineages remain available when no active work unit owns the checkout, foreign dirt
   stays blocking, and cross-work-unit refusal makes no file or index mutation.
+
+- `[ ]` An authoring replay interrupted between the work-unit-branch commit and its member-ref publication completes
+  through typed verbs rather than a hand-written candidate ref. The rematerialize and rebind executors are publicly
+  reachable under the guards they already enforce, refuse with their existing typed reasons on a dirty locus, a
+  moved head or tree, a stale state revision, or an active operation, and introduce no record, locus lifecycle,
+  ownership registry, or authority beyond the in-process dispatch.
 
 ### Cross-member seams
 
