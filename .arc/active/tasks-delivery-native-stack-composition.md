@@ -3474,18 +3474,27 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           record (2026-08-31), Amendment 8.
 
         - Build `test-first` (one behavior at a time):
-            - `[ ]` **7.7.R.aa.a Select chunked local review from the exact member size**
+            - `[x]` **7.7.R.aa.a Select chunked local review from the exact member size**
                 - _Goal:_ Work-unit status measures the first-outstanding member before requesting a hosted carrier
                   and returns one submit-ready exact-head local action when the existing attention signal selects
                   chunking; bounded delivery members and singleton status preserve their current routes.
-            - `[ ]` **7.7.R.aa.b Carry the explicit chunk scope through local review**
+                - _Outcome:_ Exact member metrics now enter the existing chunking policy before source admission;
+                  work-unit targets retain delivery-bound suppression, while a prior non-completing whole-target
+                  refusal remains factual but cannot block the selected delegated chunk carrier or consume a pass.
+            - `[x]` **7.7.R.aa.b Carry the explicit chunk scope through local review**
                 - _Goal:_ Delivery reservation admission, local prepare/resume, durable operation state, and
                   attestation preserve the exact `chunked` selection without caller reconstruction, while changed
                   target coordinates refuse stale scope.
-            - `[ ]` **7.7.R.aa.c Prove the production route without a global CLI dependency**
+                - _Outcome:_ One exact chunked selection now crosses admission, status, local operation persistence,
+                  resume, and attestation. Target drift fails schema validation, and only a clean aggregate marked as
+                  a complete chunk series can discharge the member.
+            - `[x]` **7.7.R.aa.c Prove the production route without a global CLI dependency**
                 - _Goal:_ A production-shaped delivery-position E2E repository resolves its commit hook through the
                   repository-local ARC CLI and drives an oversized member through status, chunked local admission,
                   resume, and exact-target attestation without hosted spend.
+                - _Outcome:_ The production fixture installs its own repository-local ARC launcher and removes
+                  inherited package-bin paths, then drives an oversized member through exact status, local prepare,
+                  durable resume, aggregate attestation, and ordered next-member progression without a hosted request.
             - `[ ]` **7.7.R.aa.d Run the live Member 7 chunked review acceptance**
                 - _Goal:_ Contract-closed Member 7 chunks plus a dedicated seam cover the complete exact diff, and a
                   fresh aggregate evaluator emits the only result eligible as one standard-review pass.

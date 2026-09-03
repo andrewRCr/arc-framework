@@ -739,3 +739,8 @@ is repaired in the same corrective group: production delivery-position E2E repos
 to the repository-local ARC CLI rather than accidentally depending on a globally installed executable. Explicit
 provider-refusal parsing remains routed to `review-activity-contracts`; the new-head pre-request size gate removes it
 from this WU's live path without claiming the old refused attempt completed.
+
+Implementation clarification: if existing lane history already contains a non-completing attempt from a carrier that
+is ineligible for the newly selected chunk scope, retain that attempt as factual history but exclude it from
+current-scope terminal and fallback control. It consumes no pass. A clean or findings-bearing terminal result from an
+ineligible carrier is still invalid and fails closed.

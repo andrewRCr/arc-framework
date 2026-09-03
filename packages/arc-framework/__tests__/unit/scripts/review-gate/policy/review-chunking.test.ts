@@ -81,7 +81,7 @@ describe("resolveReviewChunkingPolicy", () => {
     const result = resolveReviewChunkingPolicy({
       thresholds: { lines: 10, files: 0 },
       metrics: { lines: 10, files: 1 },
-      deliveryBinding: { status: "bound", planId: "plan-1" },
+      deliveryBinding: { status: "bound", planId: "plan-1", targetKind: "work-unit" },
     });
     expect(result).toMatchObject({
       disposition: "delivery-bound",
@@ -89,6 +89,18 @@ describe("resolveReviewChunkingPolicy", () => {
       planId: "plan-1",
     });
     expect(result).not.toHaveProperty("advisory");
+  });
+
+  it("considers chunks within an oversized bound delivery member", () => {
+    expect(resolveReviewChunkingPolicy({
+      thresholds: { lines: 10, files: 0 },
+      metrics: { lines: 10, files: 1 },
+      deliveryBinding: { status: "bound", planId: "plan-1", targetKind: "delivery-member" },
+    })).toMatchObject({
+      disposition: "consider-chunks",
+      tripped: ["lines"],
+      remedy: "review-chunks",
+    });
   });
 
   it("keeps unavailable delivery evidence silent with its diagnostic reason", () => {

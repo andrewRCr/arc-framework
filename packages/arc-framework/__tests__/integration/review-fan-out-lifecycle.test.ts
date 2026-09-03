@@ -967,6 +967,11 @@ async function completeLocalReviewThroughHandlers(
   const prepared = LocalPrepareEnvelopeSchema.parse(JSON.parse(prepareOutput.join("")));
   expect(prepared).toMatchObject({ state: "ready", nextAction: "launch-review" });
   if (prepared.state !== "ready") throw new Error("expected prepared local review");
+  const persisted = await harness.store.readOperation(prepared.payload.operationId);
+  expect(persisted.state).toMatchObject({
+    kind: "local-review",
+    deliveryAdmission,
+  });
 
   const baseAttest = createLocalAttestDependencies({ exec: harness.exec, cwd: harness.root });
   const attestDependencies = {
@@ -2538,6 +2543,63 @@ describe("hosted review fan-out lifecycle", () => {
         conjunction: {
           status: "discharged",
           members: [{ state: "discharged" }, { state: "discharged" }],
+        },
+      },
+    });
+  });
+
+  it("routes an oversized first-outstanding member through chunked local review before hosted spend", async () => {
+    const harness = await createHarness(["coderabbit-pr", "codex-pr", "delegated-agent"]);
+    await writeFile(
+      join(harness.root, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nchangeset.advisory_threshold_lines: 1\n"
+        + "changeset.advisory_threshold_files: 0\n",
+      "utf8",
+    );
+    const first = member(harness.plan, 0, harness.oldFirst);
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+
+    const localStatus = await statusThroughHandler(harness, statusTarget);
+    expect(localStatus).toMatchObject({
+      state: "review-required",
+      nextAction: "review-local-prepare",
+      action: {
+        sourceId: "delegated-agent",
+        statusTarget,
+        target: {
+          repository,
+          pullRequest: 41,
+          headSha: harness.oldFirst,
+        },
+        vehicle: first,
+        pass: 1,
+        scopeSelection: {
+          mode: "chunked",
+          target: {
+            repository,
+            pullRequest: 41,
+            headSha: harness.oldFirst,
+          },
+        },
+      },
+    });
+    if (localStatus.nextAction !== "review-local-prepare") {
+      throw new Error("expected chunked local member review");
+    }
+
+    await completeLocalReviewThroughHandlers(harness, localStatus.action);
+    await expect(statusThroughHandler(harness, {
+      repository,
+      headRef: "prior-top",
+      headSha: harness.priorSecond,
+    })).resolves.toMatchObject({
+      routedObligation: {
+        conjunction: {
+          members: [{ state: "discharged" }, { state: "outstanding" }],
         },
       },
     });

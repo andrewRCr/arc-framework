@@ -6,6 +6,7 @@ import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { createRawGitExec } from "../../lib/io-context.js";
+import { resolveChangeStats } from "../../lib/change-stats.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
 import {
@@ -50,6 +51,12 @@ import {
   resolveHostedReservationPolicy,
 } from "./policy/hosted-reservation-admission.js";
 import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
+import type { DeliveryLocalReviewScopeSelection } from
+  "./policy/delivery-local-review-admission.js";
+import {
+  parseReviewChunkingThresholds,
+  resolveReviewChunkingPolicy,
+} from "./policy/review-chunking.js";
 import {
   bindDeliveryReviewTerminusOffer,
   composeDeliveryReviewObligation,
@@ -66,6 +73,58 @@ import {
 function deliveryHeadRef(ref: string | null): string | null {
   if (ref === null) return null;
   return ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : ref;
+}
+
+async function resolveDeliveryMemberScopeSelection(input: {
+  readonly cwd: string;
+  readonly settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
+  readonly planId: string;
+  readonly target: {
+    readonly repository: string;
+    readonly pullRequest: number;
+    readonly baseRevision: string;
+    readonly headSha: string;
+  };
+}): Promise<DeliveryLocalReviewScopeSelection | undefined> {
+  const parsed = parseReviewChunkingThresholds({
+    "changeset.advisory_threshold_lines": input.settings["changeset.advisory_threshold_lines"],
+    "changeset.advisory_threshold_files": input.settings["changeset.advisory_threshold_files"],
+  });
+  if (parsed.kind === "invalid") {
+    throw new Error(`Invalid review chunking threshold ${parsed.key}: ${parsed.value}`);
+  }
+  if (parsed.thresholds.lines === 0 && parsed.thresholds.files === 0) return undefined;
+  const stats = await resolveChangeStats(
+    createRawGitExec(input.cwd),
+    input.target.baseRevision,
+    input.target.headSha,
+  );
+  if (stats.kind === "unknown") {
+    throw new Error(`Unable to measure exact delivery-member review target: ${stats.reason}`);
+  }
+  const resolution = resolveReviewChunkingPolicy({
+    thresholds: parsed.thresholds,
+    metrics: stats.metrics,
+    deliveryBinding: {
+      status: "bound",
+      planId: input.planId,
+      targetKind: "delivery-member",
+    },
+  });
+  if (resolution.disposition === "consider-chunks") {
+    return {
+      mode: "chunked",
+      target: {
+        repository: input.target.repository,
+        pullRequest: input.target.pullRequest,
+        headSha: input.target.headSha,
+      },
+    };
+  }
+  if (resolution.disposition === "below-threshold" || resolution.disposition === "disabled") {
+    return undefined;
+  }
+  throw new Error(`Delivery-member review chunking returned ${resolution.disposition}.`);
 }
 
 async function readBasePosition(input: {
@@ -360,6 +419,12 @@ export async function readRoutedObligation(
       if (firstOutstanding?.nextSource !== null
         && firstOutstanding?.nextSource !== undefined
         && firstTarget !== undefined) {
+        const scopeSelection = await resolveDeliveryMemberScopeSelection({
+          cwd,
+          settings,
+          planId: reservation.target.planId,
+          target: firstTarget,
+        });
         const admission = resolveHostedReservationPolicy({
           reservation,
           snapshot,
@@ -380,6 +445,7 @@ export async function readRoutedObligation(
           ...(judgment?.sourceId === undefined
             ? {}
             : { invocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
+          ...(scopeSelection === undefined ? {} : { scopeSelection }),
         });
         if (admission.status === "unavailable") {
           return { state: "blocked", detail: admission.detail };
@@ -395,6 +461,7 @@ export async function readRoutedObligation(
               ...(judgment?.ceilingOverride === undefined
                 ? {}
                 : { requestCeilingOverride: judgment.ceilingOverride }),
+              ...(scopeSelection === undefined ? {} : { requestScopeSelection: scopeSelection }),
             });
       }
       return composeDeliveryReviewObligation({

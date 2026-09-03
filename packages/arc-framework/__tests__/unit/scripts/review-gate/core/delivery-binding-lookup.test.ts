@@ -50,7 +50,11 @@ describe("DeliveryBindingLookup", () => {
     await expect(lookup.resolve({
       target: changeSetTarget(),
       workUnitId: plan.workUnitId,
-    })).resolves.toEqual({ status: "bound", planId: plan.planId });
+    })).resolves.toEqual({
+      status: "bound",
+      planId: plan.planId,
+      targetKind: "work-unit",
+    });
   });
 
   it("distinguishes authoritative absence from ambiguous or missing evidence", async () => {
@@ -130,7 +134,11 @@ describe("DeliveryBindingLookup", () => {
     await expect(lookup.resolve({
       target: memberTarget(member.coordinates.head),
       workUnitId: plan.workUnitId,
-    })).resolves.toEqual({ status: "bound", planId: plan.planId });
+    })).resolves.toEqual({
+      status: "bound",
+      planId: plan.planId,
+      targetKind: "delivery-member",
+    });
 
     const missingPlan = new DeliveryBindingLookup({
       enumeratePlans: async () => ok([]),

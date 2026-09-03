@@ -3,7 +3,7 @@
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -32,6 +32,8 @@ import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { projectPublicationBoundary } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import type { DeliveryLocalReviewAdmission } from
+  "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { ApprovedDispositionRecordSchema } from
   "../../src/scripts/review-gate/core/advisory-records.js";
 import {
@@ -59,10 +61,15 @@ import {
   settleHostedAttemptFinding,
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
+
+function quoteShellArgument(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => cleanupTempDir(root)));
@@ -100,6 +107,15 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
   roots.push(repository, remote);
   const initialized = await runArc(["init", "--yes", "--name", "delivery-position"], repository);
   expect(initialized.exitCode, initialized.stderr).toBe(0);
+  const localArcBin = join(repository, "node_modules", ".bin");
+  const localArc = join(localArcBin, "arc");
+  await mkdir(localArcBin, { recursive: true });
+  await writeFile(localArc, [
+    "#!/bin/sh",
+    `exec ${quoteShellArgument(process.execPath)} ${quoteShellArgument(CLI_PATH)} "$@"`,
+    "",
+  ].join("\n"));
+  await chmod(localArc, 0o755);
   await git(repository, ["add", "-A"]);
   await git(repository, ["commit", "-m", "init"]);
   await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
@@ -514,12 +530,16 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     "",
   ].join("\n"));
   await chmod(fakeGh, 0o755);
+  const fixturePath = (process.env.PATH ?? "")
+    .split(delimiter)
+    .filter((entry) => !entry.replaceAll("\\", "/").endsWith("/node_modules/.bin"))
+    .join(delimiter);
   return {
     repository,
     plan,
     states,
     selectedFirstHead,
-    env: { PATH: `${fakeBin}:${process.env.PATH ?? ""}` },
+    env: { PATH: `${fakeBin}${delimiter}${fixturePath}` },
     request: JSON.stringify({ planId: plan.planId, repository: "owner/repo", remote: "origin" }),
   };
 }
@@ -1678,7 +1698,7 @@ describe("arc delivery position", () => {
         schemaVersion: 1,
         semanticsVersion: "standard-review-reservation/v1",
         reservationId: `sha256:${"e".repeat(64)}`,
-        sources: ["codex-pr"],
+        sources: ["codex-pr", "delegated-agent"],
         target: {
           kind: "delivery",
           repository: "owner/repo",
@@ -2320,6 +2340,15 @@ describe("arc delivery position", () => {
       ...retainedAttemptIds.map((attemptId) => `operation-${attemptId}`),
     ]);
 
+    const configPath = join(fixture.repository, ".arc", "system", "arc-config.yml");
+    const initialConfig = await readFile(configPath, "utf8");
+    const oversizedConfig = initialConfig.replace(
+      /^changeset\.advisory_threshold_lines:.*$/mu,
+      "changeset.advisory_threshold_lines: 1",
+    );
+    expect(oversizedConfig).not.toBe(initialConfig);
+    await writeFile(configPath, oversizedConfig, "utf8");
+
     const continuedAfterBatch = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
@@ -2328,6 +2357,124 @@ describe("arc delivery position", () => {
     );
     expect(continuedAfterBatch.exitCode, `${continuedAfterBatch.stderr}\n${continuedAfterBatch.stdout}`).toBe(0);
     const afterBatch = JSON.parse(continuedAfterBatch.stdout) as {
+      status: string;
+      nextAction: string;
+      reviewStatus: {
+        action: DeliveryLocalReviewAdmission;
+      };
+      effectLog: readonly { kind: string; actionKind?: string; recordClass?: string }[];
+    };
+    expect(afterBatch).toMatchObject({
+      status: "review-status-required",
+      nextAction: "review-local-prepare",
+      reviewStatus: {
+        action: {
+          sourceId: "delegated-agent",
+          vehicle: { deliverableId: fixture.plan.members[1]!.deliverableId },
+          scopeSelection: { mode: "chunked" },
+        },
+      },
+      effectLog: [
+        { kind: "commit", recordClass: "review-applicability-selection" },
+        { kind: "push" },
+        { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
+      ],
+    });
+    expect(afterBatch.effectLog.filter(({ kind }) => kind === "commit")).toEqual([
+      expect.objectContaining({ kind: "commit", recordClass: "review-applicability-selection" }),
+    ]);
+    expect(afterBatch.effectLog.filter(({ kind }) => kind === "push")).toHaveLength(1);
+
+    const localAdmission = afterBatch.reviewStatus.action;
+    expect(localAdmission.scopeSelection?.target).toEqual(localAdmission.target);
+    const preparedLocal = await runArcWithStdin(
+      ["review", "local", "prepare", "-"],
+      fixture.repository,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        evaluatorIdentity: "fresh-chunk-aggregate-reviewer",
+        routingFacts: {
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+        },
+        deliveryAdmission: localAdmission,
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(preparedLocal.exitCode, `${preparedLocal.stderr}\n${preparedLocal.stdout}`).toBe(0);
+    const localPreparation = JSON.parse(preparedLocal.stdout) as {
+      state: string;
+      nextAction: string;
+      payload: {
+        operationId: string;
+        target: { targetId: string; headSha: string; headTree: string };
+        request: { evaluatorIdentity: string };
+        reviewerPayload: {
+          sourceDigest: string;
+          guidanceDigest: string;
+          guidance: { rubricVersion: string; rubricDigest: string };
+        };
+      };
+    };
+    expect(localPreparation).toMatchObject({ state: "ready", nextAction: "launch-review" });
+    const persistedLocal = await new LocalReviewOperationStateStore(publisher)
+      .readOperation(localPreparation.payload.operationId);
+    expect(persistedLocal.state).toMatchObject({ deliveryAdmission: localAdmission });
+
+    const resumedLocal = await runArcWithStdin(
+      ["review", "local", "resume", "-"],
+      fixture.repository,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        operationId: localPreparation.payload.operationId,
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(resumedLocal.exitCode, `${resumedLocal.stderr}\n${resumedLocal.stdout}`).toBe(0);
+    expect(JSON.parse(resumedLocal.stdout)).toMatchObject({ state: "suspended", nextAction: "wait" });
+
+    const localAttestation = await runArcWithStdin(
+      ["review", "local", "attest", "-"],
+      fixture.repository,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        operationId: localPreparation.payload.operationId,
+        result: {
+          status: "complete",
+          result: "clean",
+          targetId: localPreparation.payload.target.targetId,
+          headSha: localPreparation.payload.target.headSha,
+          headTree: localPreparation.payload.target.headTree,
+          rubricVersion: localPreparation.payload.reviewerPayload.guidance.rubricVersion,
+          rubricDigest: localPreparation.payload.reviewerPayload.guidance.rubricDigest,
+          sourceDigest: localPreparation.payload.reviewerPayload.sourceDigest,
+          guidanceDigest: localPreparation.payload.reviewerPayload.guidanceDigest,
+          evaluatorIdentity: localPreparation.payload.request.evaluatorIdentity,
+          reviewRunId: "run-chunked-member-aggregate",
+          applicabilityId: null,
+          findings: [],
+        },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(localAttestation.exitCode, `${localAttestation.stderr}\n${localAttestation.stdout}`).toBe(0);
+    expect(JSON.parse(localAttestation.stdout)).toMatchObject({
+      state: "attested-current",
+      nextAction: "reduce",
+    });
+
+    await writeFile(configPath, initialConfig, "utf8");
+    const continuedAfterLocal = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(continuedAfterLocal.exitCode, `${continuedAfterLocal.stderr}\n${continuedAfterLocal.stdout}`).toBe(0);
+    const afterLocal = JSON.parse(continuedAfterLocal.stdout) as {
       status: string;
       nextAction: string;
       reviewStatus: {
@@ -2344,29 +2491,21 @@ describe("arc delivery position", () => {
           };
         };
       };
-      effectLog: readonly { kind: string; actionKind?: string; recordClass?: string }[];
+      effectLog: readonly unknown[];
     };
-    expect(afterBatch).toMatchObject({
+    expect(afterLocal).toMatchObject({
       status: "review-status-required",
       nextAction: "review-hosted-request",
       reviewStatus: {
         action: {
           provider: "codex-pr",
-          vehicle: { deliverableId: fixture.plan.members[1]!.deliverableId },
+          vehicle: { deliverableId: fixture.plan.members[2]!.deliverableId },
         },
       },
-      effectLog: [
-        { kind: "commit", recordClass: "review-applicability-selection" },
-        { kind: "push" },
-        { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
-      ],
+      effectLog: [],
     });
-    expect(afterBatch.effectLog.filter(({ kind }) => kind === "commit")).toEqual([
-      expect.objectContaining({ kind: "commit", recordClass: "review-applicability-selection" }),
-    ]);
-    expect(afterBatch.effectLog.filter(({ kind }) => kind === "push")).toHaveLength(1);
 
-    const requestedAction = afterBatch.reviewStatus.action;
+    const requestedAction = afterLocal.reviewStatus.action;
     const finalState = await fixture.states.read(fixture.plan.planId);
     if (finalState.status !== "ok" || finalState.value === null) {
       throw new Error("final correction state must be readable");
@@ -2442,7 +2581,7 @@ describe("arc delivery position", () => {
         effectLog: [],
       });
     }
-  }, 60_000);
+  }, 90_000);
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {
     const fixture = await positionFixture();

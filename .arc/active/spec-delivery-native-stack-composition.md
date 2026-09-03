@@ -1634,6 +1634,10 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   seam, and one fresh aggregate result without another whole-target hosted request. A repository-local CLI binding in
   the delivery-position E2E fixture is part of this proof so CI does not depend on a machine-global executable.
 
+  **Prior-attempt clarification (2026-09-03):** A retained non-completing attempt from a whole-target carrier that
+  cannot serve the selected chunk scope remains factual history but does not control the new scope or consume its
+  pass. A terminal pass outcome attributed to an ineligible carrier remains invalid rather than becoming historical.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
