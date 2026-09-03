@@ -165,6 +165,18 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   still requires structural equivalence. The existing pending continuation then retains the selected member plus
   every admitted changed dependent in plan order. No autonomous conflict resolution, proof override, provider fact,
   second operation kind, or generalized approval record enters scope.
+- **Amended 2026-09-03 — the correction entry seam must separate its two non-current-Candidate states, and the
+  implemented authoring executors gain a typed surface — after resumed self-delivery routed a member-owned
+  correction to whole-work-unit verification.** The preceding exclusions no longer forbid one classifying read at
+  the integration entry seam and one public verb pair over the existing authoring executors. Neither adds
+  mechanism. The seam classifies the terminal delta it already reads and, where it cannot separate a terminal-owned
+  advance from an unpublished member-owned correction, returns a typed ambiguous stop instead of one confident
+  action; it performs no content attribution and selects no member. The verbs expose the already-implemented
+  rematerialize and rebind executors under the guards those executors already enforce. No orchestration record,
+  authoring-locus lifecycle, ownership registry, step vocabulary, workflow engine, state family, or review
+  authority enters scope. Operation-scoped checkout lifecycle and gate provisioning remain routed out. The bound is
+  two design decisions across two members — D5.14 in Member 7, D9.9 in Member 8; work that cannot land inside it is
+  a further amendment, not a widening of this one.
 
 ## Proposed Design
 
@@ -1052,6 +1064,29 @@ match. The byte-identical aggregate-patch fallback is replaced by that one arbit
   assumed reproducible. An unreferenced, malformed, or mismatched chain is cleaned or refused through the existing
   contracts.
 
+- **D5.14 The correction entry seam separates its two non-current-Candidate states — amended 2026-09-03 after
+  resumed self-delivery routed a member-owned correction to whole-work-unit verification.** This amendment
+  supersedes the integration entry inspection's single treatment of a non-current Candidate. Two distinct states
+  produce it and their correct actions are opposite: a work-unit branch advanced by terminal-owned content
+  completes verification closeout, while one carrying an authored member correction not yet replayed into its
+  member ref must publish that member first. Returning the closeout route for the second state is not merely
+  unhelpful — following it attests a new root with member-owned content absorbed into the terminal member, lands
+  the outstanding member's request without its own fix, and breaks the member-boundary coherence D7 establishes.
+
+  The seam therefore classifies the terminal delta before answering. A delta composed only of the work unit's
+  lifecycle artifacts, or one carried while no non-terminal member review is outstanding, retains today's
+  verification-closeout route unchanged. A delta carrying non-lifecycle content while a non-terminal member review
+  is outstanding is ambiguous at this seam: the entry inspection holds no fact that attributes content to a member,
+  and acquiring one would require content attribution this design excludes. That case returns a typed ambiguous
+  stop naming both candidate routes and the separating facts it does hold — the classified delta, the outstanding
+  member, and the exact next action each route would take — so the selection is made where the knowledge is,
+  rather than guessed where it is not.
+
+  The seam adds no record and no authority. It consults facts it already reads, never attributes content, never
+  selects a member, and an unavailable classification retains the existing verification-closeout answer rather than
+  inventing a route. Route execution remains D5.13's resumable procedure; this decision governs only what the entry
+  answers.
+
 ### D6 — Native registration and landing
 
 - **D6.1 Routing.** Reobserve native registration before selecting the singleton arm. A linked stack routes through
@@ -1849,6 +1884,21 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   dispatches only the returned route. The GitHub implementation remains one adapter at the handler composition
   boundary; no provider field enters plan/state or the core position service.
 
+- **D9.9 Authoring executors reach a typed surface — amended 2026-09-03 after an interrupted correction could not
+  reach implemented authoring machinery.** `authoring-locate` publishes the read half of the authoring locus: the
+  ARC-owned candidate ref and detached gate path per member. The write half is implemented as the rematerialize
+  and rebind executors the D5.13 procedure dispatches in-process, and carries no public surface. A correction
+  interrupted between authoring on the work-unit branch and replaying into the gate therefore has no reachable
+  completion path: publication refuses `candidate-unchanged` until the gate advances, and advancing it means
+  hand-writing a ref inside a namespace D9.4 reserves to ARC.
+
+  Both executors gain typed verbs over the inputs and guards they already enforce — locus path and ref
+  expectations, clean tracked tree, exact before and requested head and tree, expected state revision, and no
+  active operation. They are entry points, not new mechanism: no record, no locus lifecycle, no ownership
+  registry, and no authority the in-process dispatch does not already hold; a refusal returns the executor's
+  existing typed reason unchanged. Gate provisioning and reaping remain D9.4's, and the operation-scoped checkout
+  lifecycle stays routed out.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:
@@ -2504,6 +2554,17 @@ added.
     selected oversized-member carrier cannot represent incremental coverage, status returns a typed unsupported stop
     before preparation and consumes no pass; complete chunked-local and hosted incremental routes remain unchanged
     (D8.15).
+49. A non-current Candidate whose work-unit branch carries non-lifecycle content while a non-terminal member review
+    is outstanding does not receive a confident verification-closeout route. The integration entry seam classifies
+    the terminal delta and returns a typed ambiguous stop naming both candidate routes, the classified delta, the
+    outstanding member, and each route's exact next action. Lifecycle-artifact-only deltas and deltas carried with
+    no outstanding member review retain the existing closeout route, an unavailable classification retains it too,
+    and no content attribution, member selection, or new record is introduced (D5.14).
+50. An authoring replay interrupted between the work-unit-branch commit and its member-ref publication completes
+    through typed verbs rather than a hand-written candidate ref. The rematerialize and rebind executors are
+    publicly reachable under the guards they already enforce, refuse with their existing typed reasons on a dirty
+    locus, moved head or tree, stale state revision, or active operation, and introduce no record, locus lifecycle,
+    ownership registry, or authority beyond the in-process dispatch (D9.9).
 
 ## Open Questions
 
