@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3134,7 +3134,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           state rebind still occurs once so hosted request coordinates remain current, while the resulting record
           commit no longer manufactures another carry. The focused classifier and all 21 production E2E cases pass.
 
-    - `[ ]` **7.7.R.v Restore per-member Owner terminus parity**
+    - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
 
         - _Goal:_ An explicit Work Unit Owner terminus closes only the exact first-outstanding delivery member,
           remains durable across re-entry, and advances status to the next member without claiming a clean or
@@ -3210,22 +3210,39 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           or its immediate parent and therefore lost the still-valid state anchor, returning a singleton stale-target
           remedy instead of selecting Member 7.
 
-        - `[ ]` **7.7.R.v.b Preserve terminus re-entry across a record-only suffix**
+        - `[x]` **7.7.R.v.b Preserve terminus re-entry across a record-only suffix**
 
             - _Goal:_ After an exact member terminus is committed, pushed, and followed by additional
               operational records already represented by the current Candidate, work-unit status uses the exact
               state-bound terminal coordinate on the bounded ancestry path and advances to the next member without
               Candidate renewal.
 
-            - Build `test-first` (one behavior at a time):
-                - Reproduce a durable Candidate baseline, a later state-bound terminal record, and at least one
-                  further Candidate-represented work-unit commit; require the state anchor rather than
-                  immediate-parent proximity to preserve the public continuation.
-                - Thread the current terminal coordinates through repository entry and work-unit status composition,
-                  while retaining refusal for a mismatched stored tree, non-ancestral movement, and Candidate-subject
-                  change.
-                - Re-run the exact live work-unit status command and require Member 7 as the first outstanding
-                  action with no Candidate attestation or provider spend.
+            - _Outcome:_ Member 7 criteria report.
+                - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+                - _Span:_ bounded diff `8a45168e6..b469b7727`; cumulative reachability `b469b7727` at tree
+                  `6c2c0f602`. Boundary-order deviation: exact terminal absorption `a22272342` retains the newer
+                  WU-top machinery at tree `0de9dd8b5` while adding the corrected Member 7 as predecessor.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_
+                  work-unit status validates the retained public continuation from the exact state-bound terminal
+                  anchor, then composes the same ordered member conjunction. The live command selected Member 7
+                  after six discharged members without Candidate renewal or hosted-provider execution.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the
+                  proof reuses canonical Candidate-subject collection and strict ancestry, while exact stored-tree,
+                  non-ancestral, and subject-change cases refuse. No applicability or contribution arbiter changed.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_
+                  repository entry and production status carry exact Delivery State terminal coordinates into the
+                  existing continuation proof; only the final open request may substitute the separately proved
+                  current head, and every other member or mismatch remains fail-closed.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ the
+                  correction changes no scoped-verification, acknowledgment, Candidate-renewal, or recovery record.
+                  The existing continuation installed one exact Member 7 verification target after refresh.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ the
+                  selector-free driver rebound and published the exact Member 7 candidate, accepted one exact
+                  two-parent terminal resolution, completed refresh, and returned at the typed verification stop.
+                  The exact target tree passed 83 focused tests and both typechecks; no hosted pass was spent.
+                - _Adversarial companion:_ the Heavy Member 7 companion remains exhausted at its recorded two-pass
+                  cap; this bounded re-entry amendment adds no third pass.
+                - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
     - `[x]` **7.7.R.w Bind approved member fixes to their exact authoring locus**
 
