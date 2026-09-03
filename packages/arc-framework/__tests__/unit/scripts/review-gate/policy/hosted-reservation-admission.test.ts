@@ -550,6 +550,66 @@ describe("hosted reservation admission", () => {
     });
   });
 
+  it("selects the delegated carrier for an exact chunked member scope", () => {
+    const target = { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head };
+    const result = resolveHostedReservationPolicy({
+      reservation: {
+        ...deliveryReservation,
+        sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+      },
+      snapshot: { status: "complete", records: [] },
+      repositoryId: "repo-1",
+      target,
+      vehicle: deliveryVehicle,
+      maxPasses: 2,
+      scopeSelection: { mode: "chunked", target },
+    });
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      policy: {
+        state: "ready",
+        nextAction: "local-prepare",
+        payload: {
+          scope: "chunked",
+          sourceId: "delegated-agent",
+          ineligibleSources: ["coderabbit-pr", "codex-pr"],
+        },
+      },
+    });
+  });
+
+  it("retains a whole-target refusal while starting the selected chunked carrier", () => {
+    const target = { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head };
+    const result = resolveHostedReservationPolicy({
+      reservation: {
+        ...deliveryReservation,
+        sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+      },
+      snapshot: memberProgressSnapshot(),
+      repositoryId: "repo-1",
+      target,
+      vehicle: deliveryVehicle,
+      maxPasses: 2,
+      scopeSelection: { mode: "chunked", target },
+    });
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      policy: {
+        state: "ready",
+        nextAction: "local-prepare",
+        payload: {
+          scope: "chunked",
+          sourceId: "delegated-agent",
+          pass: 2,
+          attemptedSources: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+          ineligibleSources: ["coderabbit-pr", "codex-pr"],
+        },
+      },
+    });
+  });
+
   it("applies an explicit source only to the current member-policy invocation", () => {
     const input = {
       reservation: deliveryReservation,

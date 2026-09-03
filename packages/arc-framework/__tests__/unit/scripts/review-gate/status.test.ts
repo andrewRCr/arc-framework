@@ -9,6 +9,8 @@ import { createReviewTarget } from
   "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { classifyReviewContributionApplicability } from
   "../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
+import { DeliveryLocalReviewSelectionSchema } from
+  "../../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { resolveReviewPolicy } from
   "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
@@ -1111,6 +1113,71 @@ describe("review status", () => {
         vehicle: memberVehicle,
       },
     });
+  });
+
+  it("carries an exact chunked selection into delivery-local admission", async () => {
+    const scopeSelection = {
+      mode: "chunked" as const,
+      target: hostedAction.target,
+    };
+    const policy = resolveReviewPolicy({
+      schemaVersion: 1,
+      target: hostedAction.target,
+      lane: "standard",
+      standardReview: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+      maxPasses: 2,
+      completedPasses: 0,
+      attempts: [],
+      scopeSelection,
+    });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The oversized member requires chunked local review.",
+        nextSource: "delegated-agent",
+        requestAdmission: policy,
+        requestScopeSelection: scopeSelection,
+      })],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "review-required",
+      localAction: { scopeSelection },
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-local-prepare",
+      action: { scopeSelection },
+    });
+  });
+
+  it("refuses a chunked selection whose exact member target has moved", () => {
+    const movedVehicle = DeliveryReviewMemberVehicleSchema.parse({
+      ...memberVehicle,
+      head: oid("d"),
+    });
+    const result = DeliveryLocalReviewSelectionSchema.safeParse({
+      schemaVersion: 1,
+      sourceId: "delegated-agent",
+      target: { ...hostedAction.target, headSha: movedVehicle.head },
+      vehicle: movedVehicle,
+      pass: 1,
+      scopeSelection: {
+        mode: "chunked",
+        target: hostedAction.target,
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it("returns the exact delegated findings operation for local review resumption", async () => {

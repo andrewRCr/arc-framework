@@ -38,6 +38,7 @@ import {
 } from "./policy/review-policy-driver.js";
 import {
   DeliveryLocalReviewAdmissionSchema,
+  DeliveryLocalReviewScopeSelectionSchema,
   DeliveryLocalReviewSelectionSchema,
 } from "./policy/delivery-local-review-admission.js";
 import {
@@ -484,6 +485,7 @@ export function composeDeliveryReviewObligation(input: {
     localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
     requestAdmission?: ReviewResolveEnvelope;
     requestCeilingOverride?: ReviewCeilingOverride;
+    requestScopeSelection?: z.infer<typeof DeliveryLocalReviewScopeSelectionSchema>;
     completedPasses: number;
     passCeiling: number;
     attemptHistory: readonly z.infer<typeof DeliveryReviewAttemptProgressSchema>[];
@@ -607,6 +609,13 @@ export function composeDeliveryReviewObligation(input: {
       detail: "The standard-review driver and member review action disagree about ceiling-override admission.",
     };
   }
+  if ((discharge.requestAdmission.payload.scope === "chunked")
+    !== (discharge.requestScopeSelection !== undefined)) {
+    return {
+      state: "blocked",
+      detail: "The standard-review driver and member review action disagree about chunked-scope admission.",
+    };
+  }
   if (discharge.requestAdmission.nextAction === "local-prepare") {
     if (discharge.nextSource !== "delegated-agent") {
       return {
@@ -631,6 +640,9 @@ export function composeDeliveryReviewObligation(input: {
         ...(discharge.requestCeilingOverride === undefined
           ? {}
           : { ceilingOverride: discharge.requestCeilingOverride }),
+        ...(discharge.requestScopeSelection === undefined
+          ? {}
+          : { scopeSelection: discharge.requestScopeSelection }),
       },
     });
   }

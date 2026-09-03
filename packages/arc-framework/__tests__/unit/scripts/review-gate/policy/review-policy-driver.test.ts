@@ -213,6 +213,31 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
+  it("retains an earlier whole-target refusal while selecting the chunked carrier", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [{ sourceId: "coderabbit-pr", outcome: "capability-unsupported" }],
+      scopeSelection: { mode: "chunked", target },
+    })).toMatchObject({
+      state: "ready",
+      nextAction: "local-prepare",
+      payload: {
+        scope: "chunked",
+        sourceId: "delegated-agent",
+        pass: 1,
+        consumedPass: false,
+        attemptedSources: [{ sourceId: "coderabbit-pr", outcome: "capability-unsupported" }],
+        ineligibleSources: ["coderabbit-pr", "codex-pr"],
+      },
+    });
+  });
+
   it("rejects a scope selection after its exact target moves", () => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,

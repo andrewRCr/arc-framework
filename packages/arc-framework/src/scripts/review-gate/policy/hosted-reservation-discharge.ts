@@ -410,6 +410,19 @@ export async function projectHostedReservationDischarge(input: {
       awaitAction: { schemaVersion: 1, handle: pending.hosted.handle },
     };
   }
+  const completedChunkedLocal = currentAttempts.some((attempt) => (
+    attempt.sourceId === "delegated-agent"
+    && attempt.outcome === "clean"
+    && attempt.chunkSeriesComplete === true
+    && attempt.local?.deliveryAdmission?.scopeSelection?.mode === "chunked"
+  ));
+  if (completedChunkedLocal) {
+    return {
+      discharged: true,
+      detail: "Standard source `delegated-agent` completed the selected chunk series.",
+      nextSource: null,
+    };
+  }
 
   const earlierBySource = new Map<string, EarlierHostedAttemptApplicabilityRead>();
   const readEarlier = async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> => {

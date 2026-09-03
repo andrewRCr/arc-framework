@@ -179,6 +179,7 @@ export function resolveHostedReservationPolicy(input: {
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
+  readonly scopeSelection?: ReviewPolicyCommandRequest["scopeSelection"];
 }): HostedReservationPolicyResolution {
   const progress = projectHostedReservationPolicyProgress(input);
   if (progress.status === "unavailable") return progress;
@@ -206,6 +207,7 @@ export function resolveHostedReservationPolicy(input: {
       attempts,
       ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
       ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+      ...(input.scopeSelection === undefined ? {} : { scopeSelection: input.scopeSelection }),
     }),
   };
 }

@@ -52,16 +52,30 @@ const ReviewAttemptSchema = z.strictObject({
 type ReviewAttempt = z.infer<typeof ReviewAttemptSchema>;
 
 interface ReviewPassProgressInput {
+  target: { pullRequest: number | null };
+  lane: "frontline" | "standard";
   completedPasses: number;
   attempts: readonly ReviewAttempt[];
   scopeSelection?: { mode: z.infer<typeof ReviewScopeModeSchema> };
+}
+
+function lastEligibleAttempt(request: ReviewPassProgressInput): ReviewAttempt | undefined {
+  const scope = request.scopeSelection?.mode ?? "whole-target";
+  for (let index = request.attempts.length - 1; index >= 0; index -= 1) {
+    const attempt = request.attempts[index];
+    if (attempt !== undefined
+      && sourceDiagnostic(attempt.sourceId, request.lane, scope, request.target.pullRequest) === null) {
+      return attempt;
+    }
+  }
+  return undefined;
 }
 
 function validateTerminalPassProgress(
   request: ReviewPassProgressInput,
   context: z.RefinementCtx,
 ): void {
-  const lastAttempt = request.attempts.at(-1);
+  const lastAttempt = lastEligibleAttempt(request);
   if (lastAttempt === undefined) return;
   const terminalOutcome = lastAttempt.outcome === "clean"
     || lastAttempt.outcome === "findings"
@@ -188,6 +202,9 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   const scope = request.scopeSelection?.mode ?? "whole-target";
   for (const [attemptIndex, attempt] of request.attempts.entries()) {
     const sourceIndex = request.sources.indexOf(attempt.sourceId);
+    const diagnostic = sourceDiagnostic(attempt.sourceId, request.lane, scope, request.target.pullRequest);
+    const historicalScopeAttempt = diagnostic?.code === "source-scope-ineligible"
+      && !["clean", "findings", "settled-findings"].includes(attempt.outcome);
     if (sourceIndex <= previousSourceIndex) {
       context.addIssue({
         code: "custom",
@@ -195,14 +212,16 @@ export const ReviewPolicyRequestSchema = z.strictObject({
         path: ["attempts", attemptIndex, "sourceId"],
       });
     }
-    if (!isSafeUnavailable(attempt.outcome) && attemptIndex !== request.attempts.length - 1) {
+    if (!historicalScopeAttempt
+      && !isSafeUnavailable(attempt.outcome)
+      && attemptIndex !== request.attempts.length - 1) {
       context.addIssue({
         code: "custom",
         message: "no source may be attempted after a non-fall-through outcome",
         path: ["attempts", attemptIndex, "outcome"],
       });
     }
-    if (sourceDiagnostic(attempt.sourceId, request.lane, scope, request.target.pullRequest) !== null) {
+    if (diagnostic !== null && !historicalScopeAttempt) {
       context.addIssue({
         code: "custom",
         message: "attempt source is ineligible for the selected lane, scope, or target",
@@ -571,7 +590,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     }]);
   }
   const ceilingOverrideApplied = request.ceilingOverride !== undefined;
-  const lastAttempt = request.attempts.at(-1);
+  const lastAttempt = lastEligibleAttempt(request);
   if (lastAttempt !== undefined
     && !isSafeUnavailable(lastAttempt.outcome)
     && lastAttempt.outcome !== "clean"
@@ -805,7 +824,7 @@ function resolveInvalidOverrideReason(
   if (override === undefined) return null;
   if (!sameTarget(override.target, request.target)) return "target-mismatch";
   if (override.lane !== request.lane) return "lane-mismatch";
-  const lastAttempt = request.attempts.at(-1);
+  const lastAttempt = lastEligibleAttempt(request);
   const scope = request.scopeSelection?.mode ?? "whole-target";
   const terminalPassRecorded = lastAttempt !== undefined
     && ["clean", "findings", "settled-findings"].includes(lastAttempt.outcome)

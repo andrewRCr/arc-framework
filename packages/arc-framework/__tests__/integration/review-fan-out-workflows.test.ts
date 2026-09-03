@@ -109,6 +109,9 @@ describe("hosted review fan-out workflow", () => {
     );
     expectTypedProgression(section);
     expect(section).toMatch(
+      /scopeSelection\.mode` is `chunked`[\s\S]*review-chunking[\s\S]*fresh aggregate evaluator[\s\S]*Attest only the aggregate result[\s\S]*partial chunk or seam reports never consume/iu,
+    );
+    expect(section).toMatch(
       /terminusAction[\s\S]*arc review terminus accept -[\s\S]*recorded \/ commit-boundary[\s\S]*exact-replay \/ continue[\s\S]*refused \/ rerun-status/iu,
     );
     expect(section).toMatch(

@@ -235,6 +235,10 @@ Follow the typed local launch, attest, reduce, and findings-response sequence. D
 substitute the current checkout head for the returned member head. After the local attempt concludes, re-enter
 through `arc review status`; durable lane progress consumes the admitted pass.
 
+When `action.scopeSelection.mode` is `chunked`, apply [`review-chunking`][review-chunking] to the prepared exact
+target: run contract-closed chunks, the dedicated seam, and a fresh aggregate evaluator against the returned review
+root and rubric. Attest only the aggregate result; partial chunk or seam reports never consume the admitted pass.
+
 `review-local-resume` means pass the returned action unchanged to:
 
 ```bash
