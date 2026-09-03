@@ -1602,6 +1602,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   reverse baseline-to-state ancestry or reuse the earlier Candidate across a task closure. A non-ancestral state head,
   mismatched stored tree, or non-current Candidate still refuses before terminal-request substitution.
 
+  **Fresh-root authority clarification (2026-09-03):** A fresh Candidate root intentionally starts with no prior
+  Candidate transitions, so status may rediscover an applicability projection whose exact `covered` selection lived
+  on the superseded Candidate. When the boundary already carries an authenticated Owner terminus for the exact current
+  member vehicle and head at the unchanged completed-pass count, that later applicability replay does not supersede
+  the terminus or ask the Owner to repeat the decision. The exact terminus discharges the member. Pending findings,
+  hosted settlement, request or await state, local continuation, changed member coordinates, and changed completed-pass
+  counts retain precedence. This is durability of the existing exact authority across a Candidate-record reset, not a
+  carried applicability selection, convergence inference, or new standing grant.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh

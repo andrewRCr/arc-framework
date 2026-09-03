@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3134,7 +3134,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           state rebind still occurs once so hosted request coordinates remain current, while the resulting record
           commit no longer manufactures another carry. The focused classifier and all 21 production E2E cases pass.
 
-    - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
+    - `[ ]` **7.7.R.v Restore per-member Owner terminus parity**
 
         - _Goal:_ An explicit Work Unit Owner terminus closes only the exact first-outstanding delivery member,
           remains durable across re-entry, and advances status to the next member without claiming a clean or
@@ -3290,6 +3290,23 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                 - _Adversarial companion:_ the Heavy Member 7 companion remains exhausted at its recorded two-pass
                   cap; this bounded proof correction adds no third pass.
                 - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+
+        - _Forward amendment (2026-09-03):_ The live post-verification re-entry preserved exact-head Owner termini
+          but reset their Candidate-scoped applicability selections. Status therefore asked Member 5 to repeat an
+          exact `covered` decision that was already durable before the fresh Candidate root.
+
+        - `[ ]` **7.7.R.v.d Preserve an exact Owner terminus across a fresh-root applicability replay**
+
+            - _Goal:_ Work-unit review status advances past an unchanged exact-head, exact-pass Owner terminus when a
+              fresh Candidate root merely re-exposes an applicability projection settled on the superseded Candidate,
+              without masking pending findings or allowing changed member or pass coordinates to inherit authority.
+
+            - Build `test-first`:
+                - Reproduce a fresh-root applicability replay beside an exact current member terminus and advance to
+                  the next retained member without another Owner selection.
+                - Preserve pending findings, settlement and active request continuations ahead of the terminus.
+                - Retain exact vehicle, head and completed-pass matching; changed coordinates or pass count remain
+                  outstanding.
 
     - `[x]` **7.7.R.w Bind approved member fixes to their exact authoring locus**
 
