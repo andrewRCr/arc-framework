@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3134,7 +3134,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           state rebind still occurs once so hosted request coordinates remain current, while the resulting record
           commit no longer manufactures another carry. The focused classifier and all 21 production E2E cases pass.
 
-    - `[ ]` **7.7.R.v Restore per-member Owner terminus parity**
+    - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
 
         - _Goal:_ An explicit Work Unit Owner terminus closes only the exact first-outstanding delivery member,
           remains durable across re-entry, and advances status to the next member without claiming a clean or
@@ -3169,24 +3169,41 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           ordinary next-pass action after one complete pass, without inferring convergence or weakening any pending
           obligation.
 
-        - `[ ]` **7.7.R.v.a Offer explicit member terminus after one complete pass**
+        - `[x]` **7.7.R.v.a Offer explicit member terminus after one complete pass**
 
             - _Goal:_ After at least one exact complete or effective-complete standard-review pass, the Work Unit
               Owner can explicitly terminate the current member before its ceiling while the ordinary next-pass
               action, all higher-priority obligations, and every exact-currentness guard remain intact.
 
-            - Build `test-first` (one behavior at a time):
-                - Project an optional terminus offer beside an ordinary next hosted or local standard-review pass only
-                  when the first-outstanding exact member has at least one completed complete or effective-complete
-                  attempt; exclude pending, unavailable, incremental-only, partial, and zero-pass histories.
-                - Preserve findings and settlement, applicability, pending request and await, checks, malformed or
-                  unavailable progress, and existing terminal or blocked states without a pre-ceiling offer.
-                - Keep the ordinary next-pass action executable when the offer is ignored; offering performs no
-                  mutation, consumes no pass, and spends no provider capacity.
-                - Reuse the existing acceptance command and store, revalidating live Owner, Candidate, boundary,
-                  first-outstanding member and head, completed-pass count, and qualifying complete-pass evidence.
-                - Prove exact replay, staleness on member, head, or pass movement, advancement of only the accepted
-                  member, and no clean, sufficient, evaluator-satisfied, pass-complete, severity, or convergence claim.
+            - _Outcome:_ Member 7 criteria report.
+                - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+                - _Span:_ bounded diff `8a45168e6..9c0dc2b7a`; cumulative reachability `9c0dc2b7a` at tree
+                  `5e11cb196`. Boundary-order deviation: the approved Owner-terminus correction is projected into
+                  Member 7 after its original boundary, and exact terminal absorption `f3b8e0d95` carries the
+                  amended member at tree `3f064906f` without adding terminal content to the bounded diff.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the
+                  ordered retained-member conjunction remains the only work-unit discharge. The production lifecycle
+                  records one exact Owner terminus, advances only that member, and selects the next member while the
+                  ordinary hosted action remains selected until explicit acceptance.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the
+                  optional offer reads already-derived complete-pass progress and performs no mutation or provider
+                  request. Contribution applicability, residual handling, and the single structural arbiter are
+                  unchanged; incremental-only and zero-pass histories cannot produce the offer.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ the
+                  existing status and acceptance verbs carry Candidate, boundary, member, head, pass, and qualifying
+                  complete-attempt coordinates through the canonical boundary store. Pending findings, applicability,
+                  request, await, and malformed-progress arms retain precedence.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ the
+                  correction changes no scoped-verification continuation or recovery state. The live selector-free
+                  drive published only Member 7, refreshed the terminal top, and returned the existing exact-tree
+                  verification continuation without hosted spend.
+                - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ the
+                  offer is metadata on the ordinary hosted or local action rather than a new stop. Acceptance reuses
+                  the existing typed command and currentness checks; the correction adds no workflow engine,
+                  convergence policy, review verdict, or delivery-owned quality authority.
+                - _Adversarial companion:_ the Heavy-class Member 7 companion remains exhausted at its recorded
+                  two-pass cap; this bounded amendment adds no third pass.
+                - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
     - `[x]` **7.7.R.w Bind approved member fixes to their exact authoring locus**
 
