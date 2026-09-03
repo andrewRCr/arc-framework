@@ -75,6 +75,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "review planning-lane", args: ["review", "planning-lane", "invalid", "invalid"], expected: { exitCode: 64 } },
   { commandPath: "review pre-publication", args: ["review", "pre-publication", "invalid", "--json"], expected: { exitCode: 1 } },
   { commandPath: "review status", args: ["review", "status", "--target", "{}", "--json"], fixture: "arc-project", expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
+  { commandPath: "review terminus accept", args: ["review", "terminus", "accept", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "set-stage", args: ["set-stage", "invalid"], expected: { exitCode: 1 } },
   { commandPath: "start", args: ["start", "matrix", "--here"], setup: "planned-stub", preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "cannot start `matrix`" } },
   { commandPath: "status", args: ["status", "--json"], expected: { exitCode: 0, outputIncludes: "\"mode\":\"full\"" } },

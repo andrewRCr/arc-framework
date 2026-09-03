@@ -50,6 +50,7 @@ const hostedGitHubCommandPaths: ReadonlySet<string> = new Set([
   "integrate merge",
   "review pre-publication",
   "review status",
+  "review terminus accept",
 ]);
 
 const rawGitCommandPaths = [
@@ -102,6 +103,7 @@ const rawGitCommandPaths = [
   "review planning-lane",
   "review pre-publication",
   "review status",
+  "review terminus accept",
   "set-stage",
   "start",
   "status",

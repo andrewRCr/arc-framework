@@ -5,6 +5,7 @@ import { z } from "zod";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import {
   DeliveryReviewMemberVehicleSchema,
+  sameDeliveryReviewMemberVehicle,
   type DeliveryReviewMemberVehicle,
 } from "../../lib/delivery/review-vehicle.js";
 import { ChangeRequestTargetRefSchema } from "./change-request.js";
@@ -39,6 +40,10 @@ import {
   DeliveryLocalReviewAdmissionSchema,
   DeliveryLocalReviewSelectionSchema,
 } from "./policy/delivery-local-review-admission.js";
+import {
+  DeliveryReviewTerminusOfferSchema,
+} from "./policy/delivery-review-terminus.js";
+import type { DeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
 
 const ObjectIdSchema = GitObjectIdSchema;
 export const ReviewStatusSourceIdSchema = HostedProviderIdSchema;
@@ -318,6 +323,37 @@ interface ReviewDischargeIntervention {
   readonly awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
 }
 
+/**
+ * Decide whether one exact stored Owner terminus discharges a delivery-member projection.
+ *
+ * @param input - Exact member target, current discharge state, and retained Owner termini.
+ * @returns Whether the member is discharged by an exact, still-current Owner terminus.
+ */
+export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
+  readonly target: { readonly vehicle: DeliveryReviewMemberVehicle };
+  readonly discharge: {
+    readonly discharged: boolean;
+    readonly nextSource: string | null;
+    readonly applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
+    readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
+    readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+    readonly completedPasses: number;
+  };
+  readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+}): boolean {
+  const terminus = input.ownerTermini?.find((record) => (
+    sameDeliveryReviewMemberVehicle(record.vehicle, input.target.vehicle)
+  ));
+  const hasPendingIntervention = input.discharge.responsePlan !== undefined
+    || input.discharge.localResumeAction !== undefined
+    || input.discharge.nextSource === null
+    || (input.discharge.applicability !== undefined && input.discharge.applicability.state !== "applicable");
+  return terminus !== undefined
+    && !input.discharge.discharged
+    && !hasPendingIntervention
+    && terminus.terminus.completedPasses === input.discharge.completedPasses;
+}
+
 function composeReviewDischargeIntervention(
   discharge: ReviewDischargeIntervention,
   applicabilityContext: ReviewApplicabilityContext | undefined,
@@ -454,6 +490,7 @@ export function composeDeliveryReviewObligation(input: {
   };
   requestCoverage?: HostedReviewCoverage;
   requestInvocation?: { readonly mode: "force"; readonly sourceId: string };
+  ownerTermini?: readonly DeliveryReviewMemberTerminus[];
 }): RoutedReviewObligation {
   if (input.targets.length === 0 || input.targets.length !== input.discharges.length) {
     return {
@@ -461,8 +498,22 @@ export function composeDeliveryReviewObligation(input: {
       detail: "The delivery review conjunction could not be composed from a complete retained target set.",
     };
   }
+  const effectiveDischarges = input.discharges.map((discharge, index) => {
+    const target = input.targets[index];
+    if (target === undefined || !isDeliveryReviewMemberDischargedByOwnerTerminus({
+      target,
+      discharge,
+      ownerTermini: input.ownerTermini,
+    })) return discharge;
+    return {
+      ...discharge,
+      discharged: true,
+      detail: "The Work Unit Owner accepted the standard-review terminus for this exact delivery-member head.",
+      nextSource: null,
+    };
+  });
   const members = input.targets.map((target, index) => {
-    const discharge = input.discharges[index];
+    const discharge = effectiveDischarges[index];
     if (discharge === undefined) throw new Error("delivery review discharge is unavailable");
     return {
       position: target.position,
@@ -484,7 +535,7 @@ export function composeDeliveryReviewObligation(input: {
       },
     };
   });
-  const firstOutstandingIndex = input.discharges.findIndex((discharge) => !discharge.discharged);
+  const firstOutstandingIndex = effectiveDischarges.findIndex((discharge) => !discharge.discharged);
   if (firstOutstandingIndex < 0) {
     return RoutedReviewObligationSchema.parse({
       state: "settled",
@@ -493,7 +544,7 @@ export function composeDeliveryReviewObligation(input: {
     });
   }
   const target = input.targets[firstOutstandingIndex];
-  const discharge = input.discharges[firstOutstandingIndex];
+  const discharge = effectiveDischarges[firstOutstandingIndex];
   if (discharge !== undefined) {
     const intervention = composeReviewDischargeIntervention(
       discharge,
@@ -635,6 +686,7 @@ const ReviewStatusHostedRequestSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("review-hosted-request"),
   action: HostedRequestEnvelopeSchema,
+  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
 });
 const ReviewStatusHostedAwaitSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -647,6 +699,7 @@ const ReviewStatusLocalPrepareSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("review-local-prepare"),
   action: DeliveryLocalReviewAdmissionSchema,
+  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
 });
 const ReviewStatusLocalResumeSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -671,6 +724,7 @@ const ReviewStatusCeilingApprovalSchema = z.strictObject({
   state: z.literal("approval-required"),
   nextAction: z.literal("obtain-ceiling-override"),
   consequence: ReviewCeilingOverrideSchema,
+  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
 });
 const ReviewStatusApplicabilityRerunSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -756,6 +810,57 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusBlockedSchema,
 ]);
 export const ReviewStatusResultSchema: z.ZodType<ReviewStatusResult> = ReviewStatusResultSchemaInternal;
+
+function hasCompletedCompleteReviewPass(
+  member: z.infer<typeof DeliveryReviewConjunctionMemberSchema>,
+): boolean {
+  return member.progress.completedPasses > 0 && member.progress.attempts.some((attempt) => (
+    (attempt.outcome === "clean"
+      || attempt.outcome === "findings"
+      || attempt.outcome === "settled-findings")
+    && (attempt.requestedCoverage === "complete" || attempt.effectiveCoverage === "complete")
+  ));
+}
+
+/** Bind an eligible delivery-member continuation to the exact Owner-terminus mutation offer. */
+export function bindDeliveryReviewTerminusOffer(
+  result: ReviewStatusResult,
+  binding: {
+    readonly workUnitId: string;
+    readonly expectedBoundaryVersion: string;
+    readonly candidateId: string;
+    readonly candidateSubjectDigest: string;
+  },
+): ReviewStatusResult {
+  const isCeiling = result.nextAction === "obtain-ceiling-override";
+  const isEligibleRequest = result.nextAction === "review-hosted-request"
+    || result.nextAction === "review-local-prepare";
+  if (!isCeiling && !isEligibleRequest) return result;
+  const member = result.deliveryCursor?.currentMember;
+  if (member === undefined || member === null) {
+    if (isCeiling) {
+      throw new Error("A delivery-member ceiling stop requires one exact first-outstanding member.");
+    }
+    return result;
+  }
+  if (!isCeiling && !hasCompletedCompleteReviewPass(member)) return result;
+  return ReviewStatusResultSchema.parse({
+    ...result,
+    terminusAction: {
+      schemaVersion: 1,
+      kind: "delivery-member-owner-terminus",
+      workUnitId: binding.workUnitId,
+      expectedBoundaryVersion: binding.expectedBoundaryVersion,
+      candidateId: binding.candidateId,
+      candidateSubjectDigest: binding.candidateSubjectDigest,
+      target: member.target,
+      vehicle: member.vehicle,
+      completedPasses: member.progress.completedPasses,
+      interactionText: "Accept the standard-review terminus for this exact delivery member without claiming a "
+        + "clean or converged pass.",
+    },
+  });
+}
 
 const ReviewStatusCommandResultSchemaInternal = z.union([
   ReviewStatusResultSchema,

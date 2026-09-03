@@ -22,6 +22,7 @@ import {
   handleReviewReduce,
   handleReviewRespond,
   handleReviewStatus,
+  handleReviewTerminusAccept,
 } from "../../../src/handlers/review.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import {
@@ -860,6 +861,58 @@ describe("handleReviewStatus", () => {
 
     expect(JSON.parse(output.join(""))).toMatchObject({
       routedObligation: { detail: "Ceiling override admits pass 3 with incremental coverage." },
+    });
+  });
+});
+
+describe("handleReviewTerminusAccept", () => {
+  it("passes one exact Owner judgment through the typed mutation boundary", async () => {
+    const output: string[] = [];
+    const request = {
+      schemaVersion: 1 as const,
+      offer: {
+        schemaVersion: 1 as const,
+        kind: "delivery-member-owner-terminus" as const,
+        workUnitId: "example",
+        expectedBoundaryVersion: `sha256:${"b".repeat(64)}`,
+        candidateId: `sha256:${"c".repeat(64)}`,
+        candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+        target: { repository: "owner/repo", pullRequest: 41, headSha: "a".repeat(40) },
+        vehicle: {
+          kind: "delivery-member" as const,
+          planId: "123e4567-e89b-42d3-a456-426614174000",
+          deliverableId: `sha256:${"e".repeat(64)}`,
+          workUnitId: "example",
+          head: "a".repeat(40),
+        },
+        completedPasses: 7,
+        interactionText: "Accept this exact member terminus.",
+      },
+      judgment: { mode: "owner-accepted" as const },
+    };
+    const accept = vi.fn(async () => ({
+      schemaVersion: 1 as const,
+      mode: "review-terminus-accept" as const,
+      state: "refused" as const,
+      nextAction: "rerun-status" as const,
+      reason: "stale-offer" as const,
+      detail: "The offer is stale.",
+      recommendedActionText: "Re-run work-unit review status.",
+    }));
+
+    await handleReviewTerminusAccept("-", undefined, {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify(request),
+      accept,
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(accept).toHaveBeenCalledWith(request, "/repo", undefined);
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      mode: "review-terminus-accept",
+      state: "refused",
+      reason: "stale-offer",
     });
   });
 });

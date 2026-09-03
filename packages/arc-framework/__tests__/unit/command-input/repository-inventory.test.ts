@@ -254,6 +254,7 @@ describe("repository command-input inventory", () => {
       "review planning-lane",
       "review pre-publication",
       "review status",
+      "review terminus accept",
       "set-stage",
       "start",
       "status",
@@ -285,6 +286,7 @@ describe("repository command-input inventory", () => {
       "review",
       "review pre-publication",
       "review status",
+      "review terminus accept",
     ]);
   });
 

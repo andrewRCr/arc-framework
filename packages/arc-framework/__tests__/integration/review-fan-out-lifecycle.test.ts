@@ -16,6 +16,7 @@ import {
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewRespond,
+  handleReviewTerminusAccept,
 } from "../../src/handlers/review.js";
 import { canonicalDigest, canonicalize } from "../../src/lib/canonical/canonical-json.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from
@@ -110,6 +111,11 @@ import type { DeliveryLocalReviewAdmission } from
   "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { projectLocalReviewGuidance } from
   "../../src/scripts/review-gate/policy/local-review-guidance.js";
+import {
+  DeliveryReviewTerminusAcceptanceResultSchema,
+  DeliveryReviewTerminusOfferSchema,
+  resolveDeliveryReviewTerminusAcceptance,
+} from "../../src/scripts/review-gate/policy/delivery-review-terminus.js";
 import { attestLocalReviewCommand } from
   "../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { createLocalAttestDependencies } from
@@ -123,7 +129,9 @@ import { respondToReviewCommand } from
 import { createRespondDependencies } from
   "../../src/scripts/review-gate/runtime/respond-composition.js";
 import {
+  bindDeliveryReviewTerminusOffer,
   ReviewStatusCommandResultSchema,
+  ReviewStatusResultSchema,
   resolveReviewStatus,
 } from "../../src/scripts/review-gate/status.js";
 import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
@@ -664,6 +672,35 @@ async function statusThroughHandler(
         baseContained: true,
       }),
     }),
+    write: (text) => output.push(text),
+    setExitCode: (code) => exitCodes.push(code),
+  });
+  expect(exitCodes).toEqual([]);
+  return ReviewStatusCommandResultSchema.parse(JSON.parse(output.join("")));
+}
+
+async function workUnitStatusThroughHandler(
+  harness: FanOutHarness,
+  target: { repository: string; headRef: string; headSha: string },
+) {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
+  await handleReviewStatus({ workUnit: harness.plan.workUnitId, json: true }, undefined, {
+    resolveRoot: () => harness.root,
+    resolveWorkUnit: async () => {
+      const status = await statusThroughHandler(harness, target);
+      const versioned = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
+      if (versioned.boundary === null || versioned.version === null
+        || versioned.boundary.candidateSubjectDigest === null) {
+        throw new Error("expected versioned delivery review boundary");
+      }
+      return bindDeliveryReviewTerminusOffer(ReviewStatusResultSchema.parse(status), {
+        workUnitId: harness.plan.workUnitId,
+        expectedBoundaryVersion: versioned.version,
+        candidateId: versioned.boundary.candidateId,
+        candidateSubjectDigest: versioned.boundary.candidateSubjectDigest,
+      });
+    },
     write: (text) => output.push(text),
     setExitCode: (code) => exitCodes.push(code),
   });
@@ -1221,6 +1258,145 @@ async function awaitThroughProductionHandler(
 }
 
 describe("hosted review fan-out lifecycle", () => {
+  it("records one exact Owner terminus and durably advances to the next member without provider spend", async () => {
+    const harness = await createHarness();
+    await writeFile(
+      join(harness.root, ".arc", "system", "arc-config.yml"),
+      "branch:\n  base: main\nreview.standard_max_passes: 2\n",
+      "utf8",
+    );
+    const firstVehicle = member(harness.plan, 0, harness.oldFirst);
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    const firstStatus = await statusThroughHandler(harness, statusTarget);
+    if (firstStatus.nextAction !== "review-hosted-request") throw new Error("expected initial member request");
+    const requested = await requestThroughHandler(firstStatus.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-before-owner-terminus",
+        url: "https://example.test/review-before-owner-terminus",
+        createdAt: "2026-09-01T10:00:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec);
+    if (requested.nextAction !== "await") throw new Error("expected hosted review handle");
+    const finding = {
+      findingId: "finding-before-owner-terminus",
+      origin: "review-thread" as const,
+      commentId: "comment-before-owner-terminus",
+      threadId: "thread-before-owner-terminus",
+      settlement: "reply-and-resolve" as const,
+      severity: "minor" as const,
+      locus: "first.txt:1",
+      url: "https://example.test/finding-before-owner-terminus",
+    };
+    const awaited = await awaitThroughHandler(requested.handle, {
+      kind: "findings",
+      reviewUrl: "https://example.test/review-before-owner-terminus",
+      findings: [finding],
+    });
+    const review = targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.baseHead,
+      baseTree: harness.baseTree,
+      headSha: harness.oldFirst,
+      headTree: harness.oldFirstTree,
+    });
+    const progress = await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: awaited,
+      reviewTarget: review.reviewTarget,
+      requirement: review.requirement,
+      actorIdentity: "andrew",
+      now: "2026-09-01T10:01:00.000Z",
+    });
+    if (progress === null) throw new Error("expected findings progress");
+    await bindHostedAttemptDisposition(harness.store, {
+      operationId: laneProgressOperationId({
+        lane: "standard",
+        repositoryId: harness.repositoryId,
+        headSha: harness.oldFirst,
+      }),
+      attemptId: hostedLaneAttemptId(requested.handle),
+      dispositionSetId: canonicalDigest({ disposition: "owner-terminus" }),
+      findingIds: [finding.findingId],
+      noHostSettlementFindingIds: [finding.findingId],
+      now: "2026-09-01T10:02:00.000Z",
+    });
+    const continuation = await workUnitStatusThroughHandler(harness, statusTarget);
+    expect(continuation).toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      terminusAction: {
+        target: firstStatus.action.target,
+        vehicle: firstVehicle,
+        completedPasses: 1,
+      },
+    });
+    if (continuation.nextAction !== "review-hosted-request" || continuation.terminusAction === undefined) {
+      throw new Error("expected exact Owner terminus offer beside the next member pass");
+    }
+    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction);
+    const reviewOperationsBeforeAcceptance = await harness.store.readOperationSnapshot();
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleReviewTerminusAccept("-", undefined, {
+      resolveRoot: () => harness.root,
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        offer,
+        judgment: { mode: "owner-accepted" },
+      }),
+      accept: async (request) => {
+        const result = await resolveDeliveryReviewTerminusAcceptance(request, {
+          readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(harness.root, workUnitId),
+          readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
+          readCurrentOffer: async () => {
+            const current = await workUnitStatusThroughHandler(harness, statusTarget);
+            return "terminusAction" in current ? current.terminusAction ?? null : null;
+          },
+          writeBoundary: async (boundary, expectedVersion) => ({
+            status: "written",
+            path: await writeSubmissionBoundary(harness.root, boundary, expectedVersion),
+          }),
+        });
+        if (result.state === "recorded") {
+          await harness.exec("git", ["add", "--", result.boundaryPath], { cwd: harness.root });
+        }
+        return result;
+      },
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
+    expect(exitCodes).toEqual([]);
+    expect(DeliveryReviewTerminusAcceptanceResultSchema.parse(JSON.parse(output.join("")))).toMatchObject({
+      state: "recorded",
+      nextAction: "commit-boundary",
+      record: { vehicle: firstVehicle, terminus: { acceptedBy: "andrew", completedPasses: 1 } },
+    });
+    await expect(readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId)).resolves.toMatchObject({
+      boundary: { deliveryReviewTermini: [{ vehicle: firstVehicle }] },
+    });
+    await expect(workUnitStatusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        target: { repository, pullRequest: 42, headSha: harness.priorSecond },
+        vehicle: member(harness.plan, 1, harness.priorSecond),
+      },
+      routedObligation: {
+        conjunction: { members: [{ state: "discharged" }, { state: "outstanding" }] },
+      },
+    });
+    await expect(harness.store.readOperationSnapshot()).resolves.toEqual(reviewOperationsBeforeAcceptance);
+  });
+
   it("advances an eight-member conjunction through real Git and durable review stores", async () => {
     const harness = await createEightMemberHarness();
     const firstHead = harness.heads[0];

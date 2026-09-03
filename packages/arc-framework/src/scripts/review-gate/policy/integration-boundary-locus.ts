@@ -12,7 +12,11 @@ import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
-import { OwnerAcceptedReviewTerminusSchema, type OwnerAcceptedReviewTerminus } from "./review-terminus.js";
+import {
+  DeliveryReviewMemberTerminusSchema,
+  OwnerAcceptedReviewTerminusSchema,
+  type OwnerAcceptedReviewTerminus,
+} from "./review-terminus.js";
 
 const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const CandidateSubjectDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
@@ -109,6 +113,20 @@ const BoundaryCommonShape = {
    */
   candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
   terminus: OwnerAcceptedReviewTerminusSchema.nullable().default(null),
+  deliveryReviewTermini: z.array(DeliveryReviewMemberTerminusSchema).default([]).superRefine((records, context) => {
+    const seen = new Set<string>();
+    for (const [index, record] of records.entries()) {
+      const key = canonicalDigest(record.vehicle);
+      if (seen.has(key)) {
+        context.addIssue({
+          code: "custom",
+          path: [index, "vehicle"],
+          message: "delivery-member review termini must have unique exact vehicles",
+        });
+      }
+      seen.add(key);
+    }
+  }),
 };
 
 const CandidateReviewBoundaryFields = {
@@ -432,6 +450,7 @@ export function projectCorrectiveDeliveryReviewBoundary(input: {
     policy: null,
     reservation: source.reservation,
     terminus: source.terminus,
+    deliveryReviewTermini: source.deliveryReviewTermini,
     deliveryContinuation: continuation,
   });
 }
