@@ -1702,6 +1702,16 @@ describe("hosted review fan-out lifecycle", () => {
 
     await git(harness.root, ["commit", "-m", "close task"]);
     const currentHead = await git(harness.root, ["rev-parse", "HEAD"]);
+    const currentTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
+    harness.state = {
+      ...stateAtRecord,
+      members: stateAtRecord.members.map((deliveryMember, index) => index === 1
+        ? {
+            ...deliveryMember,
+            coordinates: { ...deliveryMember.coordinates!, head: currentHead, tree: currentTree },
+          }
+        : deliveryMember),
+    };
     const status = await statusThroughHandler(harness, {
       repository,
       headRef: "delivery/delivery-plan-record/moved-first",

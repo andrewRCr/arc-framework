@@ -23,7 +23,7 @@ export function deliveryTerminalRecordAdvanceIsRepresented(input: {
     && input.priorSubjectDigest === input.currentSubjectDigest;
 }
 
-/** Prove one terminal movement contains only Candidate-excluded machinery. */
+/** Prove one terminal movement contains only Candidate-represented operational records. */
 export async function projectGitDeliveryTerminalRecordAdvance(input: {
   readonly cwd: string;
   readonly exec: GitExec;
