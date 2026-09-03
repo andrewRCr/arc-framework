@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2200,26 +2200,36 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 - _Outcome:_ Member 7 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
-    - _Span:_ bounded diff `bb7e093c2..8106628b1`; cumulative reachability `8106628b1` at tree `b504843a5`.
-      Boundary-order deviation: the approved finding correction was projected back into Member 7 after its original
-      close, then the empty dependent suffix rebound top `c84f972ff` at tree `dfa511043`; no terminal-member content
-      enters the bounded member diff.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`;
-      _Evidence:_ coherent delivery state derives every exact current target and discharge before composing the
-      ordered conjunction; status settles only when every retained binding discharges. The production lifecycle
-      exercises changed-target settlement followed by a second member and refuses terminal discharge until both
-      clear, while request admission now rejects a later-member envelope before provider access.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`;
-      _Evidence:_ complete hosted coverage and exactly admitted local results may settle; supplemental coverage stays
-      non-settling. Contribution applicability still reuses the single structural arbiter and canonical Candidate
-      transition, while the final admission read permits only the conjunction's exact first outstanding action, so
-      out-of-order envelopes cannot spend an additional provider pass.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`;
-      _Evidence:_ the typed progression retains exact member, source, host, pass, and ceiling admission from status
-      through request, await, response, settlement, and terminal conjunction. Immediately before provider invocation,
-      production recomposes that progression and requires canonical equality with the submitted action; executable
-      coverage proves both refusal of a later member and admission of the exact first-outstanding action. Success
-      Criteria markers remain unchanged.
+    - _Span:_ bounded diff `8a45168e6..2309e23b5`; cumulative reachability `5a99f3f55` at tree `0788f0307`.
+      Boundary-order deviation: the approved local-review corrections were projected into Member 7 after its
+      original boundary; exact two-parent terminal absorption `5a99f3f55` retains the prior top while supplying
+      corrected Member 7 `2309e23b5`, so terminal-only content remains outside the bounded member diff.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the exact
+      delivery-member local operation binds PR 556, Member 7 head `5360c84d5`, and a complete chunk series; its one
+      aggregate result increments the standard lane exactly once. The live correction then published only Member 7
+      and retained the ordered public conjunction, with Members 1–6 discharged and Member 7 still exact-head bound.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the aggregate
+      result covers the complete contract-closed chunk union and dedicated seam without changing the shared
+      contribution arbiter. Finding corrections now reobserve endpoints and require symmetric, stable member-vehicle
+      identity before mechanically carrying authority; movement and asymmetric scopes stop instead of re-reviewing
+      or crossing member boundaries.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ local
+      prepare, durable resume, aggregate attestation, approved disposition, and correction routing retain the exact
+      member, source, head, pass, rubric, and chunked scope. The complete aggregate alone enters lane progress as one
+      pass, while Candidate transitions remain the sole durable applicability authority and partial reports carry no
+      settlement authority.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ the live
+      correction rebound and published `2309e23b5`, refreshed the dependent terminal member, and installed the same
+      pending scoped-verification continuation at state revision 349. Stale verification now yields to an already
+      projected exact authoring rebind, and all 21 production correction E2E cases cover that composed continuation.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ one
+      selector-free drive executed rebind, publication, and refresh, returned one semantic terminal conflict with
+      complete coordinates, resumed from its exact two-parent resolution, and stopped at the consolidated
+      verification target `5a99f3f55` / `0788f0307`. Targeted lint, both typechecks, and all 21 production E2E cases
+      passed on that exact tree; no hosted provider request ran and no generalized controller or review authority was
+      added.
+    - _Adversarial companion:_ the Heavy Member 7 two-pass cap remains exhausted; this acceptance adds no third pass.
+    - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 - _Forward amendment (2026-08-27):_ D8.5 requires delivery-member request admission to pass through the existing
   review driver. The completed implementation instead composed a hosted request directly after applicability, so a
@@ -3464,7 +3474,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               guard adds no hosted pass or new review authority.
             - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
-    - `[ ]` **7.7.R.aa Compose chunked local standard review for oversized delivery members**
+    - `[x]` **7.7.R.aa Compose chunked local standard review for oversized delivery members**
 
         - _Goal:_ An oversized first-outstanding member reaches the existing exact-target chunked local
           standard-review carrier before hosted spend, while bounded members, singleton review, delivery topology,
@@ -3495,9 +3505,13 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                 - _Outcome:_ The production fixture installs its own repository-local ARC launcher and removes
                   inherited package-bin paths, then drives an oversized member through exact status, local prepare,
                   durable resume, aggregate attestation, and ordered next-member progression without a hosted request.
-            - `[ ]` **7.7.R.aa.d Run the live Member 7 chunked review acceptance**
+            - `[x]` **7.7.R.aa.d Run the live Member 7 chunked review acceptance**
                 - _Goal:_ Contract-closed Member 7 chunks plus a dedicated seam cover the complete exact diff, and a
                   fresh aggregate evaluator emits the only result eligible as one standard-review pass.
+                - _Outcome:_ Five contract-closed chunks plus the dedicated seam covered the complete exact Member 7
+                  diff. One fresh aggregate result recorded five verified findings as a single complete standard
+                  pass; six atomic fixes closed them and two live-only composition gaps, then the selector-free drive
+                  reached the exact green terminal verification target without hosted spend.
 
         - _Scope boundary:_ No dynamic delivery-plan resegmentation, provider-refusal parser, convergence policy,
           generalized orchestration or step vocabulary, storage redesign, standing grant, or new configuration axis.
