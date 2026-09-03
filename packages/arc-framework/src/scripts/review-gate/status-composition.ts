@@ -207,7 +207,7 @@ export async function readRoutedObligation(
     readonly coverage?: HostedReviewCoverage;
     readonly sourceId?: string;
   },
-  deliveryHost: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
+  host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
 ): Promise<RoutedReviewObligation> {
   const subject = await resolveReviewSubject({
     headRef: target.headRef,
@@ -321,7 +321,7 @@ export async function readRoutedObligation(
       cwd,
       exec,
       delivery: memberLookup,
-      host: deliveryHost,
+      host,
     });
     if (reservation.target.kind === "delivery") {
       const resolution = await resolveHostedReservationTargets({
@@ -334,7 +334,7 @@ export async function readRoutedObligation(
           baseRevision: record.attestation.baseRevision,
         },
         delivery: memberLookup,
-        host: deliveryHost,
+        host,
         ...(terminalAdvance === undefined ? {} : { terminalAdvance }),
       });
       if (resolution.status !== "resolved" || resolution.kind !== "delivery") {
