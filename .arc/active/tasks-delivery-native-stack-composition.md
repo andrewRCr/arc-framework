@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3134,7 +3134,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
           state rebind still occurs once so hosted request coordinates remain current, while the resulting record
           commit no longer manufactures another carry. The focused classifier and all 21 production E2E cases pass.
 
-    - `[x]` **7.7.R.v Restore per-member Owner terminus parity**
+    - `[ ]` **7.7.R.v Restore per-member Owner terminus parity**
 
         - _Goal:_ An explicit Work Unit Owner terminus closes only the exact first-outstanding delivery member,
           remains durable across re-entry, and advances status to the next member without claiming a clean or
@@ -3243,6 +3243,24 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                 - _Adversarial companion:_ the Heavy Member 7 companion remains exhausted at its recorded two-pass
                   cap; this bounded re-entry amendment adds no third pass.
                 - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+
+        - _Forward amendment (2026-09-02):_ Fresh whole-work-unit verification re-rooted the Candidate after the
+          state-bound terminal coordinate. The continuation proof handled only a state coordinate at or after the
+          durable Candidate baseline, so it attempted reverse ancestry and again exposed the invalid singleton
+          stale-target remedy instead of Member 7.
+
+        - `[ ]` **7.7.R.v.c Preserve terminus re-entry after a post-state Candidate root**
+
+            - _Goal:_ Work-unit review status advances to the exact first-outstanding member when a freshly verified
+              Candidate baseline equals or descends from the exact state-bound terminal coordinate, without allowing
+              the superseded Candidate to carry reviewable task closure or weakening stored-tree and ancestry guards.
+
+            - Build `test-first`:
+                - Prove an exact state head below a fresh Candidate baseline reaches the recognized terminal request
+                  through Candidate currentness and selects the next retained member.
+                - Cover a state head equal to the Candidate baseline, a mismatched stored tree, and non-ancestral
+                  state movement.
+                - Retain the baseline-before-state subject-equality path and every existing refusal unchanged.
 
     - `[x]` **7.7.R.w Bind approved member fixes to their exact authoring locus**
 

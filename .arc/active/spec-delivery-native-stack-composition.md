@@ -1595,6 +1595,13 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   mismatched stored tree still refuses. This makes the existing commit, push, and status re-entry contract executable
   without mutating Delivery State for review-authority bookkeeping or manufacturing another Candidate-renewal cycle.
 
+  **Post-verification re-root clarification (2026-09-02):** A fresh Candidate root may place the durable baseline at
+  or after the exact state-bound terminal coordinate. In that direction, the attested Candidate root itself binds the
+  intervening reviewable content, so status proves the stored state head and tree at or below that baseline, then uses
+  ordinary Candidate currentness from the baseline through the recognized target. It does not require the impossible
+  reverse baseline-to-state ancestry or reuse the earlier Candidate across a task closure. A non-ancestral state head,
+  mismatched stored tree, or non-current Candidate still refuses before terminal-request substitution.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
