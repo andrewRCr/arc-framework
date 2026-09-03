@@ -17,8 +17,6 @@ import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { deriveDeliveryProviderRefreshSubject } from "../../src/lib/delivery/provider-refresh-observation.js";
 import { deriveDeliveryResidueLocators } from "../../src/lib/delivery/residue-reaping.js";
 import { advanceDeliveryReviewFixResponse } from "../../src/lib/delivery/review-fix.js";
-import { deliveryReviewFixRecordCommitMessage } from
-  "../../src/lib/delivery/review-fix-record-effects.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
@@ -2351,16 +2349,9 @@ describe("arc delivery position", () => {
       nextAction: "continue-hosted-review",
     });
     await git(fixture.repository, [
-      "commit",
-      "--no-verify",
-      "--only",
-      "-m",
-      deliveryReviewFixRecordCommitMessage(
-        "candidate-boundary-projection",
-        `meta-${fixture.plan.workUnitId}.md (integration)`,
-      ),
+      "restore",
+      "--staged",
       "--",
-      resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
       resolveSubmissionBoundaryPath(fixture.plan.workUnitId),
     ]);
 
@@ -2378,7 +2369,7 @@ describe("arc delivery position", () => {
       status: "review-status-required",
       stopKind: "review-spend",
       effectLog: [
-        { kind: "commit", recordClass: "candidate-boundary-projection", replayed: true },
+        { kind: "commit", recordClass: "candidate-boundary-projection" },
         { kind: "push", ref: "refs/heads/member-3" },
         { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
       ],

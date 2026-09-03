@@ -31,6 +31,20 @@ type RecoverableDeliveryReviewFixRecordClass = Exclude<
   "review-applicability-selection"
 >;
 
+/** Prove that the current Candidate differs by one review-fix verification response only. */
+export function isDeliveryReviewFixVerificationResponseAppend(
+  before: CandidateManagedRecordV1,
+  current: CandidateManagedRecordV1,
+): boolean {
+  if (current.transitions.length !== before.transitions.length + 1) return false;
+  const appended = current.transitions.at(-1);
+  if (appended?.transitionKind !== "verification-response") return false;
+  return canonicalize(before) === canonicalize({
+    ...current,
+    transitions: current.transitions.slice(0, -1),
+  });
+}
+
 /**
  * Reconstruct an interrupted driver-owned correction projection from its semantic before/after records.
  *
@@ -58,14 +72,7 @@ export function reconstructDeliveryReviewFixExpectedRecords(input: {
   if (input.recordClass === "boundary-projection") {
     if (canonicalize(beforeCandidate) !== canonicalize(currentCandidate)) return null;
   } else {
-    if (currentCandidate.transitions.length !== beforeCandidate.transitions.length + 1) return null;
-    const appended = currentCandidate.transitions.at(-1);
-    if (appended?.transitionKind !== "verification-response") return null;
-    const currentBeforeAppend = {
-      ...currentCandidate,
-      transitions: currentCandidate.transitions.slice(0, -1),
-    };
-    if (canonicalize(beforeCandidate) !== canonicalize(currentBeforeAppend)) return null;
+    if (!isDeliveryReviewFixVerificationResponseAppend(beforeCandidate, currentCandidate)) return null;
   }
   if (canonicalize(input.beforeBoundary) === canonicalize(input.currentBoundary)) return null;
   const baseline = reduceCandidateDurableBaseline(currentCandidate);
@@ -133,6 +140,7 @@ export function classifyDeliveryReviewFixStagedRecords(input: {
 export interface DeliveryReviewFixRecordEffectPorts {
   listStagedPaths(): Promise<readonly string[]>;
   readStagedRecordDigest(path: string): Promise<string | null>;
+  workingRecordMatchesStaged(path: string): Promise<boolean>;
   readRecoverableCommit(input: {
     readonly candidates: readonly {
       readonly recordClass: DeliveryReviewFixRecordClass;
@@ -292,6 +300,17 @@ export async function settleDeliveryReviewFixRecordEffects(input: {
         paths: classified.paths,
       };
     }
+    const workingMatches = await Promise.all(classified.paths.map(
+      (path) => input.ports.workingRecordMatchesStaged(path),
+    ));
+    const workingMismatches = classified.paths.filter((_path, index) => !workingMatches[index]);
+    if (workingMismatches.length > 0) {
+      return {
+        status: "refused",
+        reason: "record-effect-worktree-mismatch",
+        paths: workingMismatches,
+      };
+    }
     recordClass = classified.recordClass;
     const committed = await input.ports.commit({
       paths: classified.paths,
@@ -299,6 +318,20 @@ export async function settleDeliveryReviewFixRecordEffects(input: {
     });
     if (committed.status === "refused") return committed;
     head = committed.head;
+    const committedDigests = await Promise.all(classified.paths.map(
+      (path) => input.ports.readCommittedRecordDigest(head, path),
+    ));
+    const committedMismatches = classified.paths.filter((path, index) => {
+      const expected = expectedRecords.find((record) => record.path === path);
+      return committedDigests[index] === null || committedDigests[index] !== expected?.digest;
+    });
+    if (committedMismatches.length > 0) {
+      return {
+        status: "refused",
+        reason: "record-effect-committed-content-mismatch",
+        paths: committedMismatches,
+      };
+    }
     const current = await input.ports.readCurrentBranch();
     if (current === null) {
       return { status: "refused", reason: "record-effect-branch-unavailable" };
