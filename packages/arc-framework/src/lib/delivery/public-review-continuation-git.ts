@@ -95,7 +95,7 @@ export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
   const priorHead = input.candidate.durableBaselineTarget.revision;
   const recognizedHead = input.candidate.recognizedTarget.revision;
   const currentHead = input.terminalCoordinates?.head ?? recognizedHead;
-  if (priorHead === currentHead) return undefined;
+  if (priorHead === currentHead && currentHead === recognizedHead) return undefined;
   const localExec: GitExec = (command, args, options) => input.exec(command, args, {
     ...options,
     cwd: input.cwd,
@@ -103,6 +103,28 @@ export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
   });
   if (currentHead !== recognizedHead) {
     if (await readAncestry(localExec, currentHead, recognizedHead) !== "ancestor") return undefined;
+    const baselineIncludesState = currentHead === priorHead
+      || await readAncestry(localExec, currentHead, priorHead) === "ancestor";
+    if (baselineIncludesState) {
+      const [stateTree, recognizedTree] = await Promise.all([
+        localExec("git", ["rev-parse", `${currentHead}^{tree}`]),
+        localExec("git", ["rev-parse", `${recognizedHead}^{tree}`]),
+      ]);
+      const resolvedStateTree = stateTree.stdout.trim();
+      const resolvedRecognizedTree = recognizedTree.stdout.trim();
+      if (!isGitObjectId(resolvedStateTree)
+        || !isGitObjectId(resolvedRecognizedTree)
+        || input.terminalCoordinates?.tree !== resolvedStateTree) return undefined;
+      return {
+        priorHead: currentHead,
+        priorTree: resolvedStateTree,
+        currentHead: recognizedHead,
+        currentTree: resolvedRecognizedTree,
+        proof: input.candidate.recognition.kind === "machine"
+          ? input.candidate.recognition.proof
+          : "subject-equality",
+      };
+    }
     const stateAdvance = await projectGitDeliveryTerminalRecordAdvance({
       cwd: input.cwd,
       exec: input.exec,
