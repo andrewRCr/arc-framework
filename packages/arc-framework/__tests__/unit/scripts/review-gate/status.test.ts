@@ -1184,6 +1184,82 @@ describe("review status", () => {
     });
   });
 
+  it("refuses to broaden explicit incremental coverage through the complete-only local carrier", async () => {
+    const scopeSelection = {
+      mode: "chunked" as const,
+      target: hostedAction.target,
+    };
+    const ceilingOverride = {
+      target: hostedAction.target,
+      lane: "standard" as const,
+      exhaustedPassCount: 3,
+      nextPass: 4,
+    };
+    const policy = resolveReviewPolicy({
+      schemaVersion: 1,
+      target: hostedAction.target,
+      lane: "standard",
+      standardReview: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
+      maxPasses: 2,
+      completedPasses: 3,
+      attempts: [],
+      scopeSelection,
+      ceilingOverride,
+    });
+    const discharge = deliveryDischarge({
+      discharged: false,
+      detail: "The oversized member requires chunked local review.",
+      nextSource: "delegated-agent",
+      completedPasses: 3,
+      requestAdmission: policy,
+      requestCeilingOverride: ceilingOverride,
+      requestScopeSelection: scopeSelection,
+    });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [discharge],
+      requestCoverage: "incremental",
+    });
+
+    expect(obligation).toMatchObject({
+      state: "blocked",
+      reason: "coverage-unsupported",
+      conjunction: { members: [{ state: "outstanding", progress: { completedPasses: 3 } }] },
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "coverage-unsupported",
+      deliveryCursor: { currentMember: { target: hostedAction.target } },
+      remedy: {
+        argv: [
+          "arc", "review", "status", "--work-unit", "example", "--coverage", "incremental", "--json",
+        ],
+      },
+    });
+
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [discharge],
+    })).toMatchObject({
+      state: "review-required",
+      localAction: {
+        sourceId: "delegated-agent",
+        pass: 4,
+        ceilingOverride,
+        scopeSelection,
+      },
+    });
+  });
+
   it("refuses a chunked selection whose exact member target has moved", () => {
     const movedVehicle = DeliveryReviewMemberVehicleSchema.parse({
       ...memberVehicle,

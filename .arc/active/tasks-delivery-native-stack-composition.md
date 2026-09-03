@@ -3516,6 +3516,42 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
         - _Scope boundary:_ No dynamic delivery-plan resegmentation, provider-refusal parser, convergence policy,
           generalized orchestration or step vocabulary, storage redesign, standing grant, or new configuration axis.
 
+    - `[x]` **7.7.R.ab Refuse silent review-coverage broadening at local carrier selection**
+
+        - _Goal:_ An explicit incremental member-review request either reaches a carrier that preserves incremental
+          coverage or stops before preparation; oversized-member routing can never silently spend a complete local
+          pass under narrower authority.
+
+        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue — decision
+          record (2026-08-31), Amendment 9.
+
+        - Build `test-first` (one behavior at a time):
+            - `[x]` **7.7.R.ab.a Type the unsupported coverage collision at status**
+                - _Goal:_ When oversized-member routing selects the complete-only chunked local carrier for an
+                  explicit incremental request, status returns `blocked / coverage-unsupported / stop` with the
+                  exact delivery cursor before any local action can be prepared.
+                - _Outcome:_ Delivery obligation composition now stops every explicit incremental request whose
+                  ready source is the complete-only delegated carrier. The public stop has its own delivery-only
+                  schema, requires an outstanding conjunction and cursor, emits no local action, and retains
+                  incremental coverage in its safe retry rather than defaulting to complete.
+            - `[x]` **7.7.R.ab.b Preserve adjacent review routes and live recovery**
+                - _Goal:_ Complete chunked-local review, hosted incremental review, ceiling-override binding, source
+                  ordering, pass accounting, changed-target settlement, and singleton status retain their existing
+                  behavior; the already-prepared live operation ends without consuming pass 4.
+                - _Outcome:_ The exact unavailable attestation removed only the mismatched prepared operation and
+                  recorded no receipt or lane attempt. Unit coverage proves that the same source, pass 4 override,
+                  and chunk scope remain available for an explicit complete request; the production integration
+                  case preserves hosted incremental and complete chunked-local routing. The live WU-scoped command
+                  stopped on PR 556 at `5609e63c1`, retained Member 7 with three completed passes, and emitted no
+                  review action.
+
+        - _Verification:_ 50 focused status unit cases, 14 production fan-out integration cases, 77 Framework
+          contract cases, production and test typechecks, focused TypeScript lint, per-file Markdown lint, and all
+          three ARC contract checks pass. The live exact-target status probe independently exercised the built CLI.
+
+        - _Scope boundary:_ No local incremental carrier, new coverage record, prior-head selector, source-policy
+          change, convergence decision, or generalized review orchestration.
+
 ## **Phase 8:** Record retirement and doctrine
 
 **Delivery member:** 8 — `retirement-and-doctrine`

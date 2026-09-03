@@ -2548,7 +2548,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("routes an oversized first-outstanding member through chunked local review before hosted spend", async () => {
+  it("refuses incremental broadening before routing an oversized member through complete local review", async () => {
     const harness = await createHarness(["coderabbit-pr", "codex-pr", "delegated-agent"]);
     await writeFile(
       join(harness.root, ".arc", "system", "arc-config.yml"),
@@ -2562,6 +2562,18 @@ describe("hosted review fan-out lifecycle", () => {
       headRef: "delivery/delivery-plan-record/first",
       headSha: harness.oldFirst,
     };
+
+    await expect(statusThroughHandler(harness, statusTarget, undefined, "incremental")).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "coverage-unsupported",
+      deliveryCursor: {
+        currentMember: {
+          vehicle: first,
+          progress: { completedPasses: 0 },
+        },
+      },
+    });
 
     const localStatus = await statusThroughHandler(harness, statusTarget);
     expect(localStatus).toMatchObject({

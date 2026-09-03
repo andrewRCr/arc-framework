@@ -1638,6 +1638,17 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   cannot serve the selected chunk scope remains factual history but does not control the new scope or consume its
   pass. A terminal pass outcome attributed to an ineligible carrier remains invalid rather than becoming historical.
 
+- **D8.15 Explicit review coverage never broadens through carrier selection — amended 2026-09-03 after live
+  Member 7 pass 4 preparation.** Work-unit status may route an oversized target to D8.14's chunked local carrier,
+  but that carrier currently implements only complete exact-target coverage. When the caller explicitly requests
+  incremental coverage, status must not omit that request, return a complete local admission, or allow local prepare
+  to materialize the cumulative member under the incremental authorization. Until a first-class local incremental
+  carrier exists, this collision returns `blocked / coverage-unsupported / stop` before local preparation, retaining
+  the exact member cursor and leaving the authorized pass unconsumed. Complete chunked-local requests and hosted
+  incremental requests keep their existing behavior. The deferred carrier design owns exact prior/current span
+  selection, local operation and attestation coverage fields, incremental sizing, and non-settlement of the complete
+  lane; this guard adds none of them.
+
 ### D9 — Bookkeeping: ephemeral state and completed-record retirement
 
 - **D9.1 Posture unchanged.** Member and operation state stays ephemeral and version-checked; facts re-derive fresh
@@ -2489,6 +2500,10 @@ added.
     Bounded delivery members and singleton work units retain their prior routes, while no whole-target hosted pass,
     delivery-plan recut, source-policy change, convergence rule, generalized workflow engine, storage family, or new
     configuration axis is introduced (D8.14).
+48. An explicit incremental delivery-member review request cannot produce a complete local-review admission. If the
+    selected oversized-member carrier cannot represent incremental coverage, status returns a typed unsupported stop
+    before preparation and consumes no pass; complete chunked-local and hosted incremental routes remain unchanged
+    (D8.15).
 
 ## Open Questions
 

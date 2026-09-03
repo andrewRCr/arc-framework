@@ -744,3 +744,26 @@ Implementation clarification: if existing lane history already contains a non-co
 is ineligible for the newly selected chunk scope, retain that attempt as factual history but exclude it from
 current-scope terminal and fallback control. It consumes no pass. A clean or findings-bearing terminal result from an
 ineligible carrier is still invalid and fails closed.
+
+### Amendment 9 — explicit coverage cannot silently broaden (2026-09-03)
+
+The approved live Member 7 pass 4 requested incremental coverage after three complete local passes. Work-unit status
+accepted that request, but the member's cumulative size selected D8.14's chunked delegated carrier. Its delivery
+admission carries no coverage, local prepare therefore materialized the complete `8a45168e6..5609e63c1` member
+target, and local lane projection treats every terminal delegated result as complete. The returned reviewer contract
+made the mismatch visible before evaluator spend: the Owner authorized the bounded `515c63bbd..5609e63c1`
+correction delta, not another 34,609-line complete pass.
+
+Decided behavior: explicit coverage is an authority and cost boundary, not an advisory that carrier selection may
+widen. When an incremental request would select the current complete-only chunked local carrier, work-unit status
+returns `blocked / coverage-unsupported / stop` before emitting `review-local-prepare`. It retains the exact member
+cursor and consumes no pass. Complete oversized-member review and hosted incremental review remain unchanged. The
+already-prepared live operation is concluded honestly without attesting partial work as complete; the exact
+correction delta then runs as a disclosed fresh-context supplemental review, after which the existing Owner terminus
+is the only path that may settle the member.
+
+Routed out, not built here: a first-class local incremental carrier needs an exact prior/current review span,
+incremental-size carrier selection, coverage retained through operation state and attestation, and a non-settling
+lane result. That is review-orchestration design and is captured under `review-orchestration-right-sizing`. This
+amendment adds only the no-silent-upgrade guard and no new record, source-order rule, convergence policy, or generic
+control loop.

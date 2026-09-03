@@ -182,11 +182,22 @@ export const DeliveryLocalResumeActionSchema = z.strictObject({
   operationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u),
 });
 
+const RoutedReviewCoverageUnsupportedSchema = z.strictObject({
+  state: z.literal("blocked"),
+  reason: z.literal("coverage-unsupported"),
+  detail: z.string().min(1),
+  conjunction: DeliveryReviewConjunctionSchema.refine(
+    (conjunction) => conjunction.status === "outstanding",
+    "unsupported delivery review coverage requires an outstanding conjunction",
+  ),
+});
+
 export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
     state: z.enum(["settled", "review-required", "blocked"]),
     detail: z.string().min(1),
   }),
+  RoutedReviewCoverageUnsupportedSchema,
   z.strictObject({
     state: z.literal("settled"),
     detail: z.string().min(1),
@@ -630,6 +641,14 @@ export function composeDeliveryReviewObligation(input: {
         detail: "The standard-review driver selected an unsupported local review source.",
       };
     }
+    if (input.requestCoverage === "incremental") {
+      return RoutedReviewObligationSchema.parse({
+        state: "blocked",
+        reason: "coverage-unsupported",
+        detail: "The selected local review carrier cannot preserve explicit incremental coverage.",
+        conjunction: { kind: "delivery", status: "outstanding", members },
+      });
+    }
     return RoutedReviewObligationSchema.parse({
       state: "review-required",
       detail: discharge.detail,
@@ -798,6 +817,19 @@ const ReviewStatusBlockedSchema = z.strictObject({
   detail: z.string().trim().min(1),
   remedy: SpineRemedySchema,
 });
+const ReviewStatusCoverageUnsupportedSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  routedObligation: RoutedReviewCoverageUnsupportedSchema,
+  deliveryCursor: DeliveryReviewCursorSchema.refine(
+    (cursor) => cursor.status === "outstanding" && cursor.currentMember !== null,
+    "unsupported delivery review coverage requires an outstanding delivery cursor",
+  ),
+  state: z.literal("blocked"),
+  nextAction: z.literal("stop"),
+  reason: z.literal("coverage-unsupported"),
+  detail: z.string().trim().min(1),
+  remedy: SpineRemedySchema,
+});
 export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
   | z.infer<typeof ReviewStatusRunReviewSchema>
@@ -814,6 +846,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusApplicabilityConflictSchema>
   | z.infer<typeof ReviewStatusChecksPendingSchema>
   | z.infer<typeof ReviewStatusBaseMovedSchema>
+  | z.infer<typeof ReviewStatusCoverageUnsupportedSchema>
   | z.infer<typeof ReviewStatusBlockedSchema>;
 const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union([
   ReviewStatusSettledSchema,
@@ -831,6 +864,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusApplicabilityConflictSchema,
   ReviewStatusChecksPendingSchema,
   ReviewStatusBaseMovedSchema,
+  ReviewStatusCoverageUnsupportedSchema,
   ReviewStatusBlockedSchema,
 ]);
 export const ReviewStatusResultSchema: z.ZodType<ReviewStatusResult> = ReviewStatusResultSchemaInternal;
@@ -1017,15 +1051,47 @@ export async function resolveReviewStatus(
       consequence: base.routedObligation.consequence,
     };
   }
-  if (base.currentBaseOid === null || base.routedObligation.state === "blocked") {
+  if (base.currentBaseOid === null) {
     return {
       ...base,
       state: "blocked",
       nextAction: "stop",
       reason: "status-unavailable",
-      detail: base.currentBaseOid === null
-        ? "The current base revision is unavailable."
-        : base.routedObligation.detail,
+      detail: "The current base revision is unavailable.",
+      remedy: reviewStatusRetryRemedy(request.target),
+    };
+  }
+  if (base.routedObligation.state === "blocked") {
+    const coverageUnsupported = "reason" in base.routedObligation;
+    if (coverageUnsupported && currentMember !== null && conjunction !== undefined) {
+      return ReviewStatusCoverageUnsupportedSchema.parse({
+        ...base,
+        deliveryCursor: {
+          status: conjunction.status,
+          completedMemberCount: conjunction.members.filter((member) => member.state === "discharged").length,
+          memberCount: conjunction.members.length,
+          currentMember,
+        },
+        state: "blocked",
+        nextAction: "stop",
+        reason: "coverage-unsupported",
+        detail: base.routedObligation.detail,
+        remedy: spineRemedy(
+          "The selected local carrier cannot preserve explicit incremental coverage.",
+          "Use a carrier that preserves incremental coverage, then re-run",
+          [
+            "arc", "review", "status", "--work-unit", currentMember.vehicle.workUnitId,
+            "--coverage", "incremental", "--json",
+          ],
+        ),
+      });
+    }
+    return {
+      ...base,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail: base.routedObligation.detail,
       remedy: reviewStatusRetryRemedy(request.target),
     };
   }
