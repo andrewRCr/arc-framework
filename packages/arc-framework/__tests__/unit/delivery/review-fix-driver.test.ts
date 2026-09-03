@@ -294,6 +294,29 @@ describe("delivery review-fix driver", () => {
     expect(project).toHaveBeenCalledOnce();
   });
 
+  it("returns the exact replay remedy when staged acknowledgement authority cannot be proved", async () => {
+    const settlement = {
+      status: "refused" as const,
+      reason: "record-effect-recovery-unprovable",
+      paths: [".arc/system/.internal/candidates/example.json"],
+    };
+
+    await expect(driveDeliveryReviewFixContinuation({
+      project: vi.fn(),
+      execute: vi.fn(),
+      settleRecordEffects: vi.fn().mockResolvedValue(settlement),
+    })).resolves.toEqual({
+      status: "effect-stopped",
+      reason: "delivery-review-fix-effect-stopped",
+      actionKind: "record-settlement",
+      result: settlement,
+      effectLog: [],
+      recommendedActionText:
+        "Replay the exact verification acknowledgement request, then resume the correction with the returned "
+        + "recordEffects unchanged.",
+    });
+  });
+
   it("refuses a repeated identical record settlement without spinning", async () => {
     const effect = { kind: "commit" as const, recordClass: "boundary-projection", head: "3".repeat(40) };
     const settleRecordEffects = vi.fn().mockResolvedValue({ status: "settled", effects: [effect] });

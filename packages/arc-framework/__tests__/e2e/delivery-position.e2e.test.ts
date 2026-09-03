@@ -25,6 +25,8 @@ import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   candidateReviewApplicabilitySelections,
   createCandidateAttestation,
+  createCandidateVerificationResponseEvidence,
+  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import {
@@ -2252,30 +2254,140 @@ describe("arc delivery position", () => {
     ].join("\n"));
     await git(fixture.repository, ["add", ".arc/active"]);
 
+    const acknowledgementRequest = {
+      ...supersedingVerificationStop.acknowledgementInput,
+      verification: {
+        applicability: "focused",
+        target: supersedingVerificationStop.verification.target,
+        tier1: {
+          outcome: "passed",
+          provenance: "exact-tree-reuse",
+          targetTree: supersedingVerificationStop.verification.target.tree,
+          coveredInputs: "unchanged",
+        },
+        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      },
+    } as const;
+    const candidatePath = join(
+      fixture.repository,
+      resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
+    );
+    const pendingCandidateBytes = await readFile(candidatePath, "utf8");
+    const pendingCandidate = JSON.parse(pendingCandidateBytes) as CandidateManagedRecordV1;
+    const pendingBaseline = reduceCandidateDurableBaseline(pendingCandidate);
+    const pendingCurrentTarget = await collectGitCandidateTarget({
+      cwd: fixture.repository,
+      name: fixture.plan.workUnitId,
+      baseBranch: "main",
+      revision: supersedingVerificationStop.verification.target.head,
+      exec: createExecaGitExec(),
+    });
+    const pendingAuthorizedTransition = createCandidateVerificationResponseEvidence({
+      candidateId: pendingCandidate.attestation.candidateId,
+      oldTarget: pendingBaseline.target,
+      newTarget: pendingCurrentTarget,
+      authorityRef: supersedingVerificationStop.acknowledgementInput.continuationDigest,
+      verifiedBy: "test-user",
+      verifiedAt: "2026-09-03T13:55:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      implementationChanged:
+        pendingBaseline.target.subject.subjectDigest !== pendingCurrentTarget.subject.subjectDigest,
+    });
+    const pendingWrongAuthorityTransition = createCandidateVerificationResponseEvidence({
+      ...pendingAuthorizedTransition,
+      authorityRef: `sha256:${"0".repeat(64)}`,
+      verifiedAt: "2026-09-03T13:56:00.000Z",
+    });
+    await writeFile(candidatePath, `${JSON.stringify({
+      ...pendingCandidate,
+      transitions: [...pendingCandidate.transitions, pendingWrongAuthorityTransition],
+    }, null, 2)}\n`);
+    await git(fixture.repository, [
+      "add",
+      "--",
+      resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
+    ]);
+    const refusedPendingReplacement = await runArcWithStdin(
+      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify(acknowledgementRequest)}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      refusedPendingReplacement.exitCode,
+      `${refusedPendingReplacement.stderr}\n${refusedPendingReplacement.stdout}`,
+    ).toBe(1);
+    expect(JSON.parse(refusedPendingReplacement.stdout), refusedPendingReplacement.stdout).toMatchObject({
+      command: "delivery review-fix acknowledge",
+      status: "refused",
+      reason: "candidate-verification-replay-unproven",
+    });
+
+    const pendingWrongSuffix = createCandidateVerificationResponseEvidence({
+      candidateId: pendingCandidate.attestation.candidateId,
+      oldTarget: pendingCurrentTarget,
+      newTarget: pendingCurrentTarget,
+      authorityRef: `sha256:${"0".repeat(64)}`,
+      verifiedBy: "test-user",
+      verifiedAt: "2026-09-03T13:57:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      implementationChanged: false,
+    });
+    await writeFile(candidatePath, `${JSON.stringify({
+      ...pendingCandidate,
+      transitions: [
+        ...pendingCandidate.transitions,
+        pendingAuthorizedTransition,
+        pendingWrongSuffix,
+      ],
+    }, null, 2)}\n`);
+    await git(fixture.repository, [
+      "add",
+      "--",
+      resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
+    ]);
+    const refusedPendingSuffix = await runArcWithStdin(
+      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify(acknowledgementRequest)}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      refusedPendingSuffix.exitCode,
+      `${refusedPendingSuffix.stderr}\n${refusedPendingSuffix.stdout}`,
+    ).toBe(1);
+    expect(JSON.parse(refusedPendingSuffix.stdout), refusedPendingSuffix.stdout).toMatchObject({
+      command: "delivery review-fix acknowledge",
+      status: "refused",
+      reason: "candidate-verification-replay-unproven",
+    });
+    await writeFile(candidatePath, pendingCandidateBytes);
+    await git(fixture.repository, [
+      "add",
+      "--",
+      resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
+    ]);
+
     const acknowledged = await runArcWithStdin(
       ["delivery", "review-fix", "acknowledge", "-", "--json"],
       fixture.repository,
-      `${JSON.stringify({
-        ...supersedingVerificationStop.acknowledgementInput,
-        verification: {
-          applicability: "focused",
-          target: supersedingVerificationStop.verification.target,
-          tier1: {
-            outcome: "passed",
-            provenance: "exact-tree-reuse",
-            targetTree: supersedingVerificationStop.verification.target.tree,
-            coveredInputs: "unchanged",
-          },
-          verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
-        },
-      })}\n`,
+      `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
     );
     expect(acknowledged.exitCode, `${acknowledged.stderr}\n${acknowledged.stdout}`).toBe(0);
-    expect(JSON.parse(acknowledged.stdout), acknowledged.stdout).toMatchObject({
+    const acknowledgedOutput = JSON.parse(acknowledged.stdout) as {
+      recordEffects: Array<{ path: string; digest: string }>;
+    };
+    expect(acknowledgedOutput, acknowledged.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "acknowledged",
       nextAction: "continue-hosted-review",
+      recordEffects: expect.arrayContaining([
+        { path: resolveCandidateRecordRelativePath(fixture.plan.workUnitId), digest: expect.any(String) },
+        { path: resolveSubmissionBoundaryPath(fixture.plan.workUnitId), digest: expect.any(String) },
+      ]),
     });
     await git(fixture.repository, [
       "restore",
@@ -2284,12 +2396,141 @@ describe("arc delivery position", () => {
       resolveSubmissionBoundaryPath(fixture.plan.workUnitId),
     ]);
 
+    const acknowledgedCandidateBytes = await readFile(candidatePath, "utf8");
+    const wrongAuthorityCandidate = JSON.parse(acknowledgedCandidateBytes) as CandidateManagedRecordV1;
+    const appendedVerification = wrongAuthorityCandidate.transitions.at(-1);
+    if (appendedVerification?.transitionKind !== "verification-response") {
+      throw new Error("expected appended verification response");
+    }
+    wrongAuthorityCandidate.transitions.splice(-1, 1, createCandidateVerificationResponseEvidence({
+      candidateId: appendedVerification.candidateId,
+      oldTarget: appendedVerification.oldTarget,
+      newTarget: appendedVerification.newTarget,
+      authorityRef: `sha256:${"0".repeat(64)}`,
+      verifiedBy: appendedVerification.verifiedBy,
+      verifiedAt: appendedVerification.verifiedAt,
+      applicability: appendedVerification.applicability,
+      verificationEvidenceRefs: appendedVerification.verificationEvidenceRefs,
+      implementationChanged: appendedVerification.implementationChanged,
+    }));
+    await writeFile(candidatePath, `${JSON.stringify(wrongAuthorityCandidate, null, 2)}\n`);
+    await git(fixture.repository, [
+      "add",
+      "--",
+      resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
+    ]);
+
+    const unprovedResume = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(unprovedResume.exitCode, `${unprovedResume.stderr}\n${unprovedResume.stdout}`).toBe(0);
+    expect(JSON.parse(unprovedResume.stdout), unprovedResume.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "effect-stopped",
+      reason: "delivery-review-fix-effect-stopped",
+      actionKind: "record-settlement",
+      result: {
+        status: "refused",
+        reason: "record-effect-recovery-unprovable",
+      },
+      effectLog: [],
+    });
+
+    const refusedReplay = await runArcWithStdin(
+      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify(acknowledgementRequest)}\n`,
+      { env: fixture.env },
+    );
+    expect(refusedReplay.exitCode, `${refusedReplay.stderr}\n${refusedReplay.stdout}`).toBe(1);
+    expect(JSON.parse(refusedReplay.stdout), refusedReplay.stdout).toMatchObject({
+      command: "delivery review-fix acknowledge",
+      status: "refused",
+      reason: "candidate-verification-replay-unproven",
+    });
+
+    const trailingWrongAuthorityCandidate = JSON.parse(
+      acknowledgedCandidateBytes,
+    ) as CandidateManagedRecordV1;
+    const retainedVerification = trailingWrongAuthorityCandidate.transitions.at(-1);
+    if (retainedVerification?.transitionKind !== "verification-response") {
+      throw new Error("expected retained verification response");
+    }
+    trailingWrongAuthorityCandidate.transitions.push(createCandidateVerificationResponseEvidence({
+      candidateId: retainedVerification.candidateId,
+      oldTarget: retainedVerification.newTarget,
+      newTarget: retainedVerification.newTarget,
+      authorityRef: `sha256:${"0".repeat(64)}`,
+      verifiedBy: retainedVerification.verifiedBy,
+      verifiedAt: "2026-09-03T14:05:00.000Z",
+      applicability: retainedVerification.applicability,
+      verificationEvidenceRefs: retainedVerification.verificationEvidenceRefs,
+      implementationChanged: false,
+    }));
+    await writeFile(candidatePath, `${JSON.stringify(trailingWrongAuthorityCandidate, null, 2)}\n`);
+    await git(fixture.repository, [
+      "add",
+      "--",
+      resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
+    ]);
+    const refusedTrailingReplay = await runArcWithStdin(
+      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify(acknowledgementRequest)}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      refusedTrailingReplay.exitCode,
+      `${refusedTrailingReplay.stderr}\n${refusedTrailingReplay.stdout}`,
+    ).toBe(1);
+    expect(JSON.parse(refusedTrailingReplay.stdout), refusedTrailingReplay.stdout).toMatchObject({
+      command: "delivery review-fix acknowledge",
+      status: "refused",
+      reason: "candidate-verification-replay-unproven",
+    });
+
+    await writeFile(candidatePath, acknowledgedCandidateBytes);
+    await git(fixture.repository, [
+      "add",
+      "--",
+      resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
+    ]);
+    const replayedAcknowledgement = await runArcWithStdin(
+      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify(acknowledgementRequest)}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      replayedAcknowledgement.exitCode,
+      `${replayedAcknowledgement.stderr}\n${replayedAcknowledgement.stdout}`,
+    ).toBe(0);
+    const replayedAcknowledgementOutput = JSON.parse(replayedAcknowledgement.stdout) as {
+      recordEffects: Array<{ path: string; digest: string }>;
+    };
+    expect(replayedAcknowledgementOutput, replayedAcknowledgement.stdout).toMatchObject({
+      command: "delivery review-fix acknowledge",
+      status: "already-acknowledged",
+      nextAction: "continue-hosted-review",
+      recordEffects: expect.arrayContaining([
+        { path: resolveCandidateRecordRelativePath(fixture.plan.workUnitId), digest: expect.any(String) },
+        { path: resolveSubmissionBoundaryPath(fixture.plan.workUnitId), digest: expect.any(String) },
+      ]),
+    });
+
     const reviewStatusHostLog = join(fixture.repository, "review-status-host.log");
     await writeFile(reviewStatusHostLog, "");
     const resumed = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
-      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      `${JSON.stringify({
+        repository: "owner/repo",
+        remote: "origin",
+        recordEffects: replayedAcknowledgementOutput.recordEffects,
+      })}\n`,
       { env: { ...fixture.env, ARC_FAKE_GH_LOG: reviewStatusHostLog } },
     );
     expect(resumed.exitCode, `${resumed.stderr}\n${resumed.stdout}`).toBe(0);
