@@ -14,11 +14,12 @@
 - **Candidate:** `sha256:e3aa9faeb9ad4e7fb0f791b783dc8da83667b2ff61a4eef8c3187fd4923f9d24`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 9.1.R.g — Revalidate stale-continuation recovery at work-unit scope
+- **Last Completed:** Member 7 supplemental closure — bind acknowledgement recovery to the committed Candidate
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Candidate review pending — resume integration review
+- **Next Action:** integrate-work-unit Step 2 — project the reviewed correction into Member 7 and resume its retained
+  review
 
 - **PR URL:** [none]
 - **Completed:** [none]
