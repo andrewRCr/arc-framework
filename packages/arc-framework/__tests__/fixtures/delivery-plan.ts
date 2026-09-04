@@ -28,6 +28,14 @@ export function deliverySingleMemberStackPlanFixture(planId = defaultPlanId): De
   return buildDeliveryPlanFixture(planId, "stack-to-main", 1);
 }
 
+/** Construct a valid two-member stack plan for a caller-selected work unit. */
+export function deliveryStackPlanForWorkUnitFixture(
+  workUnitId: string,
+  planId = defaultPlanId,
+): DeliveryPlanV1 {
+  return buildDeliveryPlanFixture(planId, "stack-to-main", 2, undefined, workUnitId);
+}
+
 /** Construct a valid independently-landable three-member stack plan. */
 export function deliveryThreeMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
   return buildDeliveryPlanFixture(planId, "stack-to-main", 3);
@@ -43,6 +51,7 @@ function buildDeliveryPlanFixture(
   projection: "wu-integration-target" | "stack-to-main",
   memberCount = 2,
   memberTitles: readonly string[] = ["First member", "Second member", "Third member", "Fourth member"],
+  workUnitId = "delivery-plan-record",
 ): DeliveryPlanV1 {
   const implementation = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
@@ -51,7 +60,7 @@ function buildDeliveryPlanFixture(
   const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
     schemaVersion: 1,
     semanticsVersion: "delivery-plan/v1",
-    workUnitId: "delivery-plan-record",
+    workUnitId,
     design: {
       artifacts: [{ artifactId: "spec-delivery-plan-record.md" }],
       elements: [{ elementId: "detailed:state-contract" }],
