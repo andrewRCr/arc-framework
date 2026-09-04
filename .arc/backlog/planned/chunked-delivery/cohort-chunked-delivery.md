@@ -217,7 +217,7 @@ the cohort itself closes and archives.
 `delivery-integration-target` was retired unimplemented (2026-08-15, at the `delivery-native-stack-composition`
 minting): its private-target accumulator shape is the topology defect the v2 amendment removes, and its activation
 threshold was never met. The retirement disposition — including where a genuinely stack-ineligible concern routes
-instead — is recorded in `draft-delivery-native-stack-composition.md`.
+instead — is recorded in `spec-delivery-native-stack-composition.md`.
 
 ## Scope estimate
 
