@@ -67,6 +67,13 @@ detached gate path. Do not leave ordinary local branches or branched worktrees f
 them as work-unit loci or cleanup residue. The private refs are identity-free locators only and grant no delivery
 authority.
 
+The write half of that locus is typed too, so a correction interrupted between authoring and its gate replay
+completes without hand-writing a ref in the ARC-owned namespace. `arc delivery authoring rematerialize - --json`
+prepares the exact private ref and detached gate pair at the current public member;
+`arc delivery authoring rebind - --json` binds a clean detached authoring head to its candidate ref. Both take the
+exact inputs the correction continuation dispatches in-process and refuse with the executor's own typed reason on a
+dirty locus, a moved head or tree, a stale state revision, or an active operation.
+
 ```bash
 arc delivery eligibility prepare - --json
 ```

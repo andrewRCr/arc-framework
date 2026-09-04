@@ -644,6 +644,8 @@ const ReviewFixContinueSchema = z.strictObject({
 
 const RequestSchemas = {
   "authoring-locate": AuthoringLocateSchema,
+  "authoring-rematerialize": ReviewFixAuthoringRematerializeSchema,
+  "authoring-rebind": ReviewFixAuthoringRebindSchema,
   closeout: CloseoutSchema,
   "eligibility-prepare": PrepareSchema,
   "eligibility-close": CloseSchema,
@@ -1084,6 +1086,10 @@ const ResultSchema = z.union([
       gatePath: z.string().min(1),
     })),
   }),
+  z.strictObject({ status: z.literal("rematerialized") }),
+  z.strictObject({ status: z.literal("already-rematerialized"), replayed: z.literal(true) }),
+  z.strictObject({ status: z.literal("rebound") }),
+  z.strictObject({ status: z.literal("already-rebound"), replayed: z.literal(true) }),
   z.strictObject({ status: z.literal("materialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
@@ -1682,6 +1688,154 @@ async function executeDeliveryCommand(
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
+  const executeAuthoringRebind = async (input: unknown) => {
+    const reboundInput = ReviewFixAuthoringRebindSchema.safeParse(input);
+    if (!reboundInput.success) return { status: "refused" as const, reason: "authoring-rebind-invalid" };
+    const expected = reboundInput.data;
+    const [checkout, observedRef] = await Promise.all([
+      inspectDeliveryAuthoringCheckout(exec, expected.checkoutPath),
+      observeDeliveryEligibilityRef(exec, expected.ref),
+    ]);
+    if (checkout === null || observedRef === null) {
+      return { status: "refused" as const, reason: "authoring-rebind-unavailable" };
+    }
+    if (checkout.trackedDirty) {
+      return { status: "refused" as const, reason: "authoring-locus-dirty" };
+    }
+    if (checkout.head === expected.requestedHead && checkout.tree === expected.requestedTree
+      && observedRef.head === expected.requestedHead && observedRef.tree === expected.requestedTree) {
+      return { status: "already-rebound" as const, replayed: true };
+    }
+    if (checkout.head !== expected.requestedHead || checkout.tree !== expected.requestedTree
+      || observedRef.head !== expected.beforeHead || observedRef.tree !== expected.beforeTree) {
+      return { status: "refused" as const, reason: "authoring-rebind-moved" };
+    }
+    if (expected.beforeHead === expected.requestedHead
+      || await readAncestry(exec, expected.beforeHead, expected.requestedHead) !== "ancestor") {
+      return { status: "refused" as const, reason: "authoring-rebind-not-descendant" };
+    }
+    for (const ancestor of expected.requiredAncestorHeads) {
+      if (await readAncestry(exec, ancestor, expected.requestedHead) !== "ancestor") {
+        return { status: "refused" as const, reason: "authoring-rebind-ancestor-mismatch" };
+      }
+    }
+    if (expected.requiredFindingPaths !== undefined && expected.requiredFindingPaths.length > 0) {
+      const authoredPaths = (await exec(
+        "git",
+        ["diff", "--name-only", "-z", expected.publishedHead, expected.requestedHead, "--"],
+        { cwd: expected.checkoutPath, objectAccess: "local-only" },
+      )).stdout.split("\0").filter((path) => path !== "");
+      if (!expected.requiredFindingPaths.some((path) => authoredPaths.includes(path))) {
+        return { status: "refused" as const, reason: "authoring-rebind-finding-path-missing" };
+      }
+    }
+    const rebound = await rebindDeliveryCandidateRef({
+      exec,
+      ref: expected.ref,
+      beforeHead: expected.beforeHead,
+      requestedHead: expected.requestedHead,
+    });
+    if (rebound.status === "refused") {
+      return { status: "refused" as const, reason: `authoring-rebind-${rebound.reason}` };
+    }
+    return rebound.status === "adopted"
+      ? { status: "already-rebound" as const, replayed: true }
+      : { status: "rebound" as const };
+  };
+  const executeAuthoringRematerialize = async (input: unknown) => {
+    const rematerializeInput = ReviewFixAuthoringRematerializeSchema.safeParse(input);
+    if (!rematerializeInput.success) {
+      return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
+    }
+    const expected = rematerializeInput.data;
+    if ((expected.beforeHead === null) !== (expected.beforeTree === null)) {
+      return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
+    }
+    const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
+      planStore.readCurrent(expected.planId),
+      stateStore.read(expected.planId),
+      resolveActiveWu({ cwd }),
+      resolveGitCommonDir(exec, cwd),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null
+      || stateRead.value.revision !== expected.expectedStateRevision
+      || stateRead.value.value.activeOperation !== null
+      || active.status !== "resolved" || active.name !== planRead.value.workUnitId
+      || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
+      return { status: "refused" as const, reason: "authoring-rematerialize-authority-moved" };
+    }
+    const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
+    const locators = locatorResult.status === "derived"
+      ? locatorResult.locators.filter(
+          ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
+        )
+      : [];
+    const stateMembers = stateRead.value.value.members.filter(
+      ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
+    );
+    const locator = locators[0];
+    const member = stateMembers[0];
+    if (locators.length !== 1 || stateMembers.length !== 1 || locator === undefined || member === undefined
+      || locator.candidateRef !== expected.ref || resolve(locator.gatePath) !== resolve(expected.checkoutPath)
+      || member.coordinates === null || member.ref === null
+      || member.coordinates.head !== expected.requestedHead
+      || member.coordinates.tree !== expected.requestedTree) {
+      return { status: "refused" as const, reason: "authoring-rematerialize-coordinate-mismatch" };
+    }
+    const publicCoordinates = await observeDeliveryEligibilityRef(exec, member.ref);
+    if (publicCoordinates?.head !== expected.requestedHead
+      || publicCoordinates.tree !== expected.requestedTree) {
+      return { status: "refused" as const, reason: "authoring-rematerialize-public-moved" };
+    }
+    const observeCandidate = async () => {
+      const local = await observeDeliveryLocalRef(exec, expected.ref);
+      if (local.status === "refused") {
+        return { status: "refused" as const, reason: local.reason };
+      }
+      if (local.status === "absent") return { status: "absent" as const };
+      const coordinates = await observeDeliveryEligibilityRef(exec, expected.ref);
+      return coordinates === null || coordinates.head !== local.head
+        ? { status: "refused" as const, reason: "coordinate-unavailable" }
+        : { status: "observed" as const, ...coordinates };
+    };
+    return prepareDeliveryReviewFixCandidateGate({
+      before: expected.beforeHead === null || expected.beforeTree === null
+        ? { head: expected.requestedHead, tree: expected.requestedTree }
+        : { head: expected.beforeHead, tree: expected.beforeTree },
+      current: { head: expected.requestedHead, tree: expected.requestedTree },
+    }, {
+      observeGate: () => observeDeliveryReviewFixCandidateGate({
+        exec,
+        path: expected.checkoutPath,
+        pathExists,
+      }),
+      observeCandidate,
+      rewriteCandidate: ({ beforeHead, requestedHead }) => rebindDeliveryCandidateRef({
+        exec,
+        ref: expected.ref,
+        beforeHead,
+        requestedHead,
+      }),
+      resetGate: ({ beforeHead, requestedHead }) => resetDeliveryReviewFixCandidateGate({
+        exec,
+        path: expected.checkoutPath,
+        beforeHead,
+        requestedHead,
+      }),
+      createPair: (coordinates) => createDeliveryReviewFixCandidatePair({
+        exec,
+        ref: expected.ref,
+        path: expected.checkoutPath,
+        coordinates,
+        ensureParent: async (path) => {
+          await mkdir(dirname(path), { recursive: true });
+        },
+      }),
+    });
+  };
+  if (command === "authoring-rematerialize") return executeAuthoringRematerialize(request);
+  if (command === "authoring-rebind") return executeAuthoringRebind(request);
   const readExpectedRecordEffects = async (
     paths: readonly string[],
   ): Promise<readonly DeliveryReviewFixExpectedRecord[]> => Promise.all(
@@ -2572,148 +2726,6 @@ async function executeDeliveryCommand(
                 coordinates === null ? [] : [coordinates.head]),
             ],
       };
-    };
-    const executeAuthoringRebind = async (input: unknown) => {
-      const reboundInput = ReviewFixAuthoringRebindSchema.safeParse(input);
-      if (!reboundInput.success) return { status: "refused" as const, reason: "authoring-rebind-invalid" };
-      const expected = reboundInput.data;
-      const [checkout, observedRef] = await Promise.all([
-        inspectDeliveryAuthoringCheckout(exec, expected.checkoutPath),
-        observeDeliveryEligibilityRef(exec, expected.ref),
-      ]);
-      if (checkout === null || observedRef === null) {
-        return { status: "refused" as const, reason: "authoring-rebind-unavailable" };
-      }
-      if (checkout.trackedDirty) {
-        return { status: "refused" as const, reason: "authoring-locus-dirty" };
-      }
-      if (checkout.head !== expected.requestedHead || checkout.tree !== expected.requestedTree
-        || observedRef.head !== expected.beforeHead || observedRef.tree !== expected.beforeTree) {
-        return { status: "refused" as const, reason: "authoring-rebind-moved" };
-      }
-      if (expected.beforeHead === expected.requestedHead
-        || await readAncestry(exec, expected.beforeHead, expected.requestedHead) !== "ancestor") {
-        return { status: "refused" as const, reason: "authoring-rebind-not-descendant" };
-      }
-      for (const ancestor of expected.requiredAncestorHeads) {
-        if (await readAncestry(exec, ancestor, expected.requestedHead) !== "ancestor") {
-          return { status: "refused" as const, reason: "authoring-rebind-ancestor-mismatch" };
-        }
-      }
-      if (expected.requiredFindingPaths !== undefined && expected.requiredFindingPaths.length > 0) {
-        const authoredPaths = (await exec(
-          "git",
-          ["diff", "--name-only", "-z", expected.publishedHead, expected.requestedHead, "--"],
-          { cwd: expected.checkoutPath, objectAccess: "local-only" },
-        )).stdout.split("\0").filter((path) => path !== "");
-        if (!expected.requiredFindingPaths.some((path) => authoredPaths.includes(path))) {
-          return { status: "refused" as const, reason: "authoring-rebind-finding-path-missing" };
-        }
-      }
-      const rebound = await rebindDeliveryCandidateRef({
-        exec,
-        ref: expected.ref,
-        beforeHead: expected.beforeHead,
-        requestedHead: expected.requestedHead,
-      });
-      if (rebound.status === "refused") {
-        return { status: "refused" as const, reason: `authoring-rebind-${rebound.reason}` };
-      }
-      return rebound.status === "adopted"
-        ? { status: "already-rebound" as const, replayed: true }
-        : { status: "rebound" as const };
-    };
-    const executeAuthoringRematerialize = async (input: unknown) => {
-      const rematerializeInput = ReviewFixAuthoringRematerializeSchema.safeParse(input);
-      if (!rematerializeInput.success) {
-        return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
-      }
-      const expected = rematerializeInput.data;
-      if ((expected.beforeHead === null) !== (expected.beforeTree === null)) {
-        return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
-      }
-      const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
-        planStore.readCurrent(expected.planId),
-        stateStore.read(expected.planId),
-        resolveActiveWu({ cwd }),
-        resolveGitCommonDir(exec, cwd),
-      ]);
-      if (planRead.status !== "ok" || planRead.value === null
-        || stateRead.status !== "ok" || stateRead.value === null
-        || stateRead.value.revision !== expected.expectedStateRevision
-        || stateRead.value.value.activeOperation !== null
-        || active.status !== "resolved" || active.name !== planRead.value.workUnitId
-        || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
-        return { status: "refused" as const, reason: "authoring-rematerialize-authority-moved" };
-      }
-      const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
-      const locators = locatorResult.status === "derived"
-        ? locatorResult.locators.filter(
-            ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
-          )
-        : [];
-      const stateMembers = stateRead.value.value.members.filter(
-        ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
-      );
-      const locator = locators[0];
-      const member = stateMembers[0];
-      if (locators.length !== 1 || stateMembers.length !== 1 || locator === undefined || member === undefined
-        || locator.candidateRef !== expected.ref || resolve(locator.gatePath) !== resolve(expected.checkoutPath)
-        || member.coordinates === null || member.ref === null
-        || member.coordinates.head !== expected.requestedHead
-        || member.coordinates.tree !== expected.requestedTree) {
-        return { status: "refused" as const, reason: "authoring-rematerialize-coordinate-mismatch" };
-      }
-      const publicCoordinates = await observeDeliveryEligibilityRef(exec, member.ref);
-      if (publicCoordinates?.head !== expected.requestedHead
-        || publicCoordinates.tree !== expected.requestedTree) {
-        return { status: "refused" as const, reason: "authoring-rematerialize-public-moved" };
-      }
-      const observeCandidate = async () => {
-        const local = await observeDeliveryLocalRef(exec, expected.ref);
-        if (local.status === "refused") {
-          return { status: "refused" as const, reason: local.reason };
-        }
-        if (local.status === "absent") return { status: "absent" as const };
-        const coordinates = await observeDeliveryEligibilityRef(exec, expected.ref);
-        return coordinates === null || coordinates.head !== local.head
-          ? { status: "refused" as const, reason: "coordinate-unavailable" }
-          : { status: "observed" as const, ...coordinates };
-      };
-      return prepareDeliveryReviewFixCandidateGate({
-        before: expected.beforeHead === null || expected.beforeTree === null
-          ? { head: expected.requestedHead, tree: expected.requestedTree }
-          : { head: expected.beforeHead, tree: expected.beforeTree },
-        current: { head: expected.requestedHead, tree: expected.requestedTree },
-      }, {
-        observeGate: () => observeDeliveryReviewFixCandidateGate({
-          exec,
-          path: expected.checkoutPath,
-          pathExists,
-        }),
-        observeCandidate,
-        rewriteCandidate: ({ beforeHead, requestedHead }) => rebindDeliveryCandidateRef({
-          exec,
-          ref: expected.ref,
-          beforeHead,
-          requestedHead,
-        }),
-        resetGate: ({ beforeHead, requestedHead }) => resetDeliveryReviewFixCandidateGate({
-          exec,
-          path: expected.checkoutPath,
-          beforeHead,
-          requestedHead,
-        }),
-        createPair: (coordinates) => createDeliveryReviewFixCandidatePair({
-          exec,
-          ref: expected.ref,
-          path: expected.checkoutPath,
-          coordinates,
-          ensureParent: async (path) => {
-            await mkdir(dirname(path), { recursive: true });
-          },
-        }),
-      });
     };
     type DeliveryReviewFixServiceActionKind = Exclude<
       DeliveryReviewFixDriveDispatchAction["kind"],

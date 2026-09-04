@@ -780,6 +780,16 @@ deliveryAuthoring.command("locate").description("Resolve exact candidate refs an
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("authoring-locate", { ...opts, input }, context)
   )));
+deliveryAuthoring.command("rematerialize").description("Prepare one exact private candidate ref and detached gate pair")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("authoring-rematerialize", { ...opts, input }, context)
+  )));
+deliveryAuthoring.command("rebind").description("Bind one clean detached authoring head to its candidate ref")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("authoring-rebind", { ...opts, input }, context)
+  )));
 
 delivery.command("closeout").description("Reap completed delivery residue and retire its exact records")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")

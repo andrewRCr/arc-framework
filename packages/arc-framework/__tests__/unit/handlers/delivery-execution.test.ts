@@ -112,6 +112,86 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("exposes the authoring rematerialize executor as a strict verb", async () => {
+    const plan = deliveryStackPlanFixture();
+    const member = plan.members[0]!;
+    const request = {
+      planId: plan.planId,
+      selectedDeliverableId: member.deliverableId,
+      expectedStateRevision: 3,
+      ref: `refs/arc/delivery-candidates/${plan.planId}/${member.chunkKey}`,
+      checkoutPath: `/repo/.git/arc/delivery-gates/${plan.planId}/${member.chunkKey}`,
+      beforeHead: null,
+      beforeTree: null,
+      requestedHead: "1".repeat(40),
+      requestedTree: "2".repeat(40),
+    };
+    const write = vi.fn();
+    await handleDeliveryExecution("authoring-rematerialize", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute: vi.fn().mockResolvedValue({ status: "rematerialized" }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery authoring rematerialize",
+      status: "rematerialized",
+    });
+  });
+
+  it("exposes the authoring rebind executor as a strict verb and preserves its replay", async () => {
+    const plan = deliveryStackPlanFixture();
+    const member = plan.members[0]!;
+    const request = {
+      planId: plan.planId,
+      ref: `refs/arc/delivery-candidates/${plan.planId}/${member.chunkKey}`,
+      checkoutPath: `/repo/.git/arc/delivery-gates/${plan.planId}/${member.chunkKey}`,
+      beforeHead: "1".repeat(40),
+      beforeTree: "2".repeat(40),
+      requestedHead: "3".repeat(40),
+      requestedTree: "4".repeat(40),
+      publishedHead: "1".repeat(40),
+      requiredAncestorHeads: ["1".repeat(40)],
+    };
+    const write = vi.fn();
+    await handleDeliveryExecution("authoring-rebind", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute: vi.fn().mockResolvedValue({ status: "already-rebound", replayed: true }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery authoring rebind",
+      status: "already-rebound",
+      replayed: true,
+    });
+  });
+
+  it("refuses a malformed authoring rebind request before execution", async () => {
+    const execute = vi.fn();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    await handleDeliveryExecution("authoring-rebind", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: deliveryStackPlanFixture().planId,
+        ref: "refs/arc/delivery-candidates/plan/first",
+      })),
+      execute,
+      write,
+      setExitCode,
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery authoring rebind",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
   it("preserves a prepared service result through the strict verb envelope", async () => {
     const plan = deliveryStackPlanFixture();
     const snapshot = {

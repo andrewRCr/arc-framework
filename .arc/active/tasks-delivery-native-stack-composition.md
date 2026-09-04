@@ -3823,7 +3823,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           checkout-local Candidate boundary now prevents the foreign rewrites that motivated it. Repeated delivery
           re-entry remains stationary without weakening completed-lineage maintenance or hiding foreign dirt.
 
-    - `[ ]` **8.5.R.g Give the authoring executors a typed surface** — validate criteria at member scope
+    - `[x]` **8.5.R.g Give the authoring executors a typed surface** — validate criteria at member scope
 
         - _Goal:_ A correction interrupted between authoring on the work-unit branch and replaying into its member
           gate completes through typed verbs rather than a hand-written candidate ref inside the namespace D9.4
@@ -3834,17 +3834,36 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           are reachable only through the in-process correction dispatch, so an interrupted replay has no completion
           path — publication refuses `candidate-unchanged` until the gate advances.
 
-        - `[ ]` **8.5.R.g.1 Expose rematerialize and rebind as typed verbs**
+        - `[x]` **8.5.R.g.1 Expose rematerialize and rebind as typed verbs**
 
-            - Both executors gain public request schemas and handler routes over the inputs and guards they already
-              enforce: locus path and ref expectations, clean tracked tree, exact before and requested head and
-              tree, expected state revision, and no active operation.
+            - `arc delivery authoring rematerialize` and `arc delivery authoring rebind` route the existing request
+              schemas straight into the executors, which now live at the command scope so the in-process dispatch
+              and the verbs share one implementation. The strict result envelope admits the executors' four success
+              shapes unchanged.
 
-        - `[ ]` **8.5.R.g.2 Preserve refusal identity and adjacent routes**
+        - `[x]` **8.5.R.g.2 Preserve refusal identity and adjacent routes**
 
-            - Each verb returns the executor's existing typed refusal reason unchanged on a dirty locus, a moved
-              head or tree, a stale state revision, or an active operation. The in-process dispatch,
-              `authoring-locate`, gate provisioning, and closeout reaping retain their existing behavior.
+            - Real-CLI coverage in a temp repository drives the locate read half into both write verbs: a pair is
+              prepared at the public member and replays idempotently, a stale revision refuses
+              `authoring-rematerialize-authority-moved`, and rebind refuses `authoring-locus-dirty`,
+              `authoring-rebind-moved`, and `authoring-rebind-not-descendant` while leaving the candidate ref
+              untouched. `deliver-stack.md` names the two verbs beside the locate read.
+
+        - _Forward amendment (2026-09-04):_ Exposing the verbs showed the rebind executor's `already-rebound` arm is
+          unreachable: the moved check requires the ref at `beforeHead` and the descendant check requires
+          `beforeHead` to differ from `requestedHead`, so the ref can never already sit at the target except by a
+          race. A rebind verb interrupted after its ref update therefore refuses `authoring-rebind-moved` on the
+          exact rerun that the interrupted-recovery purpose calls for, while rematerialize replays cleanly.
+
+        - `[x]` **8.5.R.g.3 Make an exact rebind replay converge**
+
+            - _Goal:_ A rebind request whose ref and clean checkout already sit at exactly the requested head and
+              tree returns `already-rebound` without mutation, through the verb and the in-process dispatch alike,
+              while every genuinely moved, dirty, or non-descendant case keeps its existing refusal.
+            - The shared executor now recognizes the converged state after the dirty check and before the moved
+              check, so the arm the driver already accepts is reachable on the exact rerun. The e2e replays the
+              successful rebind, then proves moved against a ref that advanced under a stale `beforeHead` and
+              non-descendant against a checkout detached at an ancestor, with the candidate ref unchanged throughout.
 
         - _Scope boundary:_ No record, authoring-locus lifecycle, ownership registry, gate provisioning change, or
           authority beyond what the in-process dispatch already holds.
