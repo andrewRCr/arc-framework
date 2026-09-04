@@ -4366,16 +4366,229 @@ meta exists and that resolution shape is the exact defect the retired terminal a
               exhausted, so this primary correction walk makes no new independent adversarial-pass claim.
             - _Summary:_ forty-two met, three intentionally superseded, zero unresolved.
 
-### `[x]` **9.2 Preserve the terminal member's stacked base across proved head advance**
+- _Forward correction (2026-09-04):_ The terminal review correction was recorded as a second parent after
+  `Complete verification`, and the criterion-identity contract landed without regenerating this work unit's earlier
+  boundary reports. Restore the single terminal parent and regenerate the unpublished development records in place;
+  add no compatibility reader or migration contract.
 
-- _Goal:_ Work-unit review status resolves the retained terminal member pull request after a proved append-only
-  Candidate advance, preserving its canonical predecessor base and returning the outstanding member action instead
-  of a false `base-mismatch` refusal.
+    - `[x]` **9.1.R.j Preserve the terminal member's stacked base across proved head advance**
 
-- _Outcome:_ Status selection now retains the resolved member's state head solely for stacked-base lookup while the
-  proved current head binds the exact request. Live Member 8 status resolved PR 557 on its predecessor branch,
-  retained all seven earlier discharges, and returned its exact pass-3 ceiling and terminus choices; singleton base
-  admission and unproved-movement refusal remain unchanged.
+        - _Goal:_ Work-unit review status resolves the retained terminal member pull request after a proved
+          append-only Candidate advance, preserving its canonical predecessor base and returning the outstanding
+          member action instead of a false `base-mismatch` refusal.
+
+        - _Outcome:_ Status selection now retains the resolved member's state head solely for stacked-base lookup
+          while the proved current head binds the exact request. Live Member 8 status resolved PR 557 on its
+          predecessor branch, retained all seven earlier discharges, and returned its exact pass-3 ceiling and
+          terminus choices; singleton base admission and unproved-movement refusal remain unchanged.
+
+    - `[x]` **9.1.R.k Regenerate digest-bound criteria reports**
+
+        - _Goal:_ The current 45 Success Criteria identities bind the existing eight member reports and terminal seam
+          report by exact locus and digest, so the completed evidence survives only where the current immutable text
+          still matches and this pre-release work unit needs no compatibility mechanism.
+
+        - _Outcome:_ Digest-bound criteria report regeneration.
+            - _Regeneration basis:_ all 39 member loci resolve in prior exact-locus reports. The six terminal
+              seam entries were rewalked from the latest work-unit report and the relocated terminal-base
+              correction. Existing evidence and states carry only after the current locus resolves.
+            - _Digest normalization:_ SHA-256 over the root criterion's parsed first paragraph after removing
+              its bullet and checkbox marker and folding Markdown soft line breaks; marker state, wrapping, and
+              nested disposition annotations are excluded.
+            - _Criteria slice:_ `Success Criteria > Member 1 — member-boundary-verification`.
+            - _Span:_ exact recorded span and boundary-order deviations in Task 1.8.R.b -
+              `tasks-delivery-native-stack-composition.md`; reachability is the current task-list tree.
+            - _Evidence basis:_ the cited exact-locus report lineage, revalidated against the current criterion
+              text; each entry below carries that basis.
+            - _Criterion:_ `Success Criteria > Member 1 — member-boundary-verification > 1`;
+              _criterion-digest:_ `sha256:1b3a07ca39bc9c4b8ebfad90bc488d00a9e73e87898ac4a48d45c85f8864f860`;
+              _State:_ `[~]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 1 — member-boundary-verification > 2`;
+              _criterion-digest:_ `sha256:748a9b8c0c465e2f8ecd3e19b6bbf0642da114b550170c5e238fd4dce92065bd`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Summary:_ 1 met, 1 superseded, zero unresolved.
+            - _Criteria slice:_ `Success Criteria > Member 2 — contribution-identity`.
+            - _Span:_ exact recorded span and boundary-order deviations in Task 2.6 -
+              `tasks-delivery-native-stack-composition.md`; reachability is the current task-list tree.
+            - _Evidence basis:_ the cited exact-locus report lineage, revalidated against the current criterion
+              text; each entry below carries that basis.
+            - _Criterion:_ `Success Criteria > Member 2 — contribution-identity > 1`;
+              _criterion-digest:_ `sha256:3db47321cab1d64f10711e208deb12da3b7f240e8fccae228d81601b2dd55240`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 2 — contribution-identity > 2`;
+              _criterion-digest:_ `sha256:d3f00bbf106fd2de20c1be0871446ef4447c59111fbcc6e4a1293e0aaed9aa57`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 2 — contribution-identity > 3`;
+              _criterion-digest:_ `sha256:cb5e08ccf14f5054f1ce2f7d4fe1759d06035a452bd890dd1b5252099aed8a65`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Summary:_ 3 met, 0 superseded, zero unresolved.
+            - _Criteria slice:_ `Success Criteria > Member 3 — review-gate-resolution`.
+            - _Span:_ exact recorded span and boundary-order deviations in Task 3.5 and Task 9.1.R.j -
+              `tasks-delivery-native-stack-composition.md`; reachability is the current task-list tree.
+            - _Evidence basis:_ the cited exact-locus report lineage, revalidated against the current criterion
+              text; each entry below carries that basis.
+            - _Criterion:_ `Success Criteria > Member 3 — review-gate-resolution > 1`;
+              _criterion-digest:_ `sha256:ec2c2f6b0796634f88b2dc64f280ad1d43c013b902d871cf802d80c4b3100f39`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Summary:_ 1 met, 0 superseded, zero unresolved.
+            - _Criteria slice:_ `Success Criteria > Member 4 — topology-transition`.
+            - _Span:_ exact recorded span and boundary-order deviations in Task 4.7.R.b -
+              `tasks-delivery-native-stack-composition.md`; reachability is the current task-list tree.
+            - _Evidence basis:_ the cited exact-locus report lineage, revalidated against the current criterion
+              text; each entry below carries that basis.
+            - _Criterion:_ `Success Criteria > Member 4 — topology-transition > 1`;
+              _criterion-digest:_ `sha256:90e248ded8e8482bab26fb6622adec6c2274ec73dba20d780ace882bbdc44ba7`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Summary:_ 1 met, 0 superseded, zero unresolved.
+            - _Criteria slice:_ `Success Criteria > Member 5 — terminal-integration`.
+            - _Span:_ exact recorded span and boundary-order deviations in Task 5.7.R.g -
+              `tasks-delivery-native-stack-composition.md`; reachability is the current task-list tree.
+            - _Evidence basis:_ the cited exact-locus report lineage, revalidated against the current criterion
+              text; each entry below carries that basis.
+            - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 1`;
+              _criterion-digest:_ `sha256:e12067d88d83733a5daacf74ed913f8316f9d881e69c40a63fb18ced1ca0d1b7`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 2`;
+              _criterion-digest:_ `sha256:37af4ca129170e8c7614b3319b7958198b4dadb658d1838a1805092dbaa2b09b`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 3`;
+              _criterion-digest:_ `sha256:132fb4468451f8df8673537b42ec987ec4005b28c8b7fbb5a875f0efdfa794af`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 5 — terminal-integration > 4`;
+              _criterion-digest:_ `sha256:f97a2bb5463eafafc2c5f77085e2016fa07956763f20ba0479b6930511a90c31`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Summary:_ 4 met, 0 superseded, zero unresolved.
+            - _Criteria slice:_ `Success Criteria > Member 6 — refresh-and-native-landing`.
+            - _Span:_ exact recorded span and boundary-order deviations in Task 6.11.R.z.c.c.b -
+              `tasks-delivery-native-stack-composition.md`; reachability is the current task-list tree.
+            - _Evidence basis:_ the cited exact-locus report lineage, revalidated against the current criterion
+              text; each entry below carries that basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 1`;
+              _criterion-digest:_ `sha256:e45fde4acc9cfed521f3f7161f685b5204741f32c1722eb5bee70e26cd13a80d`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 2`;
+              _criterion-digest:_ `sha256:d95cdf7054a38dd9ef1b5ec9e247d292682afdff68bf0c3d33b5849d61cb9539`;
+              _State:_ `[~]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 3`;
+              _criterion-digest:_ `sha256:f58864b841e8fbac1ea4db7bba62675d278c575472b2a79d821d7999befa3304`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 4`;
+              _criterion-digest:_ `sha256:bf96b2c754f186fa501772463e19b29b8e4fe777a3ae710a67629e65b38f3ce7`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 5`;
+              _criterion-digest:_ `sha256:44de4fba2a5e6f7b96520fc0f82cd9528ad7b0bb176cec59a562f7b809d2a362`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 6`;
+              _criterion-digest:_ `sha256:75fa04daea4ffe5b9fdc77e9a3403b5ee945ca1d92f0772d7cd12cecc03d15f3`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 7`;
+              _criterion-digest:_ `sha256:9074d6415d9ac684eefd53daf8758a317f268037337c7d7370416d6e9fcbda0b`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 8`;
+              _criterion-digest:_ `sha256:1f909dc1e831b56ea0d0c7d2a8ef72eca85a4f0c986e7c23db12ea70aac2b950`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 9`;
+              _criterion-digest:_ `sha256:4b88f3db4550a11e32fd66ed3e46ae3deee9b6e2d71693b1b2ea70460100e385`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 10`;
+              _criterion-digest:_ `sha256:0e13dbc412c6e93c258935b8fa4d23dd7e7567b020d89dbea935928c980c9e24`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 11`;
+              _criterion-digest:_ `sha256:82fb5fc78bbf59c30a7589acda3f1634227491ac01565551a47e787ecfc8cd99`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 12`;
+              _criterion-digest:_ `sha256:f8aa90c09818b5145419c12d0f8d7c3cfbf11b91053963253691a9d37af0a9e0`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 6 — refresh-and-native-landing > 13`;
+              _criterion-digest:_ `sha256:8e7e936d59bbc83ead9fb0e022f038301e48ef235fdd16daebd5375a9b104885`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Summary:_ 12 met, 1 superseded, zero unresolved.
+            - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
+            - _Span:_ exact recorded span and boundary-order deviations in Tasks 7.7.R.x–7.7.R.ac -
+              `tasks-delivery-native-stack-composition.md`; reachability is the current task-list tree.
+            - _Evidence basis:_ the cited exact-locus report lineage, revalidated against the current criterion
+              text; each entry below carries that basis.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`;
+              _criterion-digest:_ `sha256:44218da267415d541532b9a18ec7279d88418b22d048ce5b548ef029cb1b11ad`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`;
+              _criterion-digest:_ `sha256:885873d1d7d13a01106c5ae4586bec158cff2f3a94ec255a7f476d4d3c039ec6`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`;
+              _criterion-digest:_ `sha256:209edac1da9cbaba26c40b757e62f55960880e62947ba1a3e37abf928f7d61ea`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`;
+              _criterion-digest:_ `sha256:3dbea54c1f0b785f7297ccc7e0cddf16b5b2466e7b3adebb3030f8d24fa9dd65`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`;
+              _criterion-digest:_ `sha256:65eef3825f1d4230c7b06d8491b954a0794149de8691b314d1b9eec36d829c6d`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 6`;
+              _criterion-digest:_ `sha256:7ff005972cd6fd2054df8145446149a6bd9c7c61c131f5fcadf34a79be3ee725`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Summary:_ 6 met, 0 superseded, zero unresolved.
+            - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
+            - _Span:_ exact recorded span and boundary-order deviations in Task 8.5 and its revisions through Task
+              8.5.R.k - `tasks-delivery-native-stack-composition.md`; reachability is the current task-list tree.
+            - _Evidence basis:_ the cited exact-locus report lineage, revalidated against the current criterion
+              text; each entry below carries that basis.
+            - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`;
+              _criterion-digest:_ `sha256:495d7dd1795f0a767340e8cd63ee20871318c83e9f4af274177da3f8cefbf053`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 2`;
+              _criterion-digest:_ `sha256:4f39cf4696d4117704b6d98475561722551ec40468b0ab597cd27c89fa969c75`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 3`;
+              _criterion-digest:_ `sha256:344666833311630b33cc13b73082fd164c9a555639d3bcd787469f8651ea36ca`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 4`;
+              _criterion-digest:_ `sha256:171e0856ad9749c2c018d0d166be20c0d0499d47205791e28854fecdf4c01b36`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 5`;
+              _criterion-digest:_ `sha256:8c287e8d7f231afad572ec0df1aa168be9f6056ade7a6f38ff6a5719b57ff07c`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 6`;
+              _criterion-digest:_ `sha256:2b65ec545217a80dfceba7c597496d32a5bea0aeeab9641a85248c31531cedb2`;
+              _State:_ `[~]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 7`;
+              _criterion-digest:_ `sha256:ebe15c79af5979f531f707c5b82d5574b0c915c17e01660fc1aa8dde0b45ecc4`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 8`;
+              _criterion-digest:_ `sha256:e1312da73d5135ce8933ce9f0ba97db118f6f4fc4d02e7ea37c4581a50401ed4`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 9`;
+              _criterion-digest:_ `sha256:92753cb4cf6b7a06106f0cb946ea0170ca74577882705093a2e798fce958d5c0`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Summary:_ 8 met, 1 superseded, zero unresolved.
+            - _Criteria slice:_ `Success Criteria > Cross-member seams`.
+            - _Span:_ exact recorded span and boundary-order deviations in Task 9.1.R.i and Task 9.1.R.j -
+              `tasks-delivery-native-stack-composition.md`; reachability is the current task-list tree.
+            - _Evidence basis:_ the cited exact-locus report lineage, revalidated against the current criterion
+              text; each entry below carries that basis.
+            - _Criterion:_ `Success Criteria > Cross-member seams > 1`;
+              _criterion-digest:_ `sha256:ebe680e00d4778b3d0630c64c584818c083eebd75235d9fe5d21f28c0cd20551`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Cross-member seams > 2`;
+              _criterion-digest:_ `sha256:91d1ed34ebe0fddd11dd0ac462b41a1cf484ceba3e3ba350e8030a1434f4b409`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Cross-member seams > 3`;
+              _criterion-digest:_ `sha256:2db4ede9922464c68336f7d70b7fe540edc5024a651b01d668d85c4d3bc1f4f5`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Cross-member seams > 4`;
+              _criterion-digest:_ `sha256:5bfad955035111a104174b881c44a4cd2d181e17c0497b14494233980e0c8e52`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Cross-member seams > 5`;
+              _criterion-digest:_ `sha256:5593b9f1ac7e795d091c38cf2074ed0f1542f562232da3a19ee68e48905a962c`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Criterion:_ `Success Criteria > Cross-member seams > 6`;
+              _criterion-digest:_ `sha256:6e3400fca90dcb0c0f525a97a0a95374806d40ee0e68fea7e2323786a1b6f82f`;
+              _State:_ `[x]`; _Evidence:_ the cited group evidence basis.
+            - _Summary:_ 6 met, 0 superseded, zero unresolved.
+            - _Union summary:_ 42 met, three superseded, zero unresolved across 45 unique loci.
+
+        - _Verification:_ Independent recomputation matched all 45 recorded digests and states at 45 unique loci;
+          Phase 9 contains one parent; task structure closes with no open task; targeted Markdown lint and all three
+          ARC contract checks pass. The changed path is Markdown-only, so the unchanged code suite was not repeated.
 
 ---
 

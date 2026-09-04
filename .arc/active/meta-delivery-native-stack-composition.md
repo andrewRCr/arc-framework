@@ -11,10 +11,10 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:c2426fb10fdd424a69356db491085a83404ec75855903a0b5267742030c25183`
+- **Candidate:** `sha256:b743ae8c992838c4d0392b8f6d475a793b656c48746afeb64779925e50582653`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 9.2 — Preserve the terminal member's stacked base across proved head advance
+- **Last Completed:** Task 9.1.R.k — Regenerate digest-bound criteria reports
 - **Next Task:** [none]
 - **Blockers:** [none]
 
