@@ -46,6 +46,15 @@ function candidates() {
   }));
 }
 
+function passedGateResults() {
+  return candidates().map((candidate, index) => ({
+    deliverableId: candidate.deliverableId,
+    head: index === 0 ? oid("b") : oid("c"),
+    tree: index === 0 ? oid("2") : oid("4"),
+    status: "passed" as const,
+  }));
+}
+
 describe("prepareDeliveryEligibility", () => {
   it("refuses a non-stack plan before observing Git", async () => {
     const deps = dependencies();
@@ -160,6 +169,44 @@ describe("prepareDeliveryEligibility", () => {
 });
 
 describe("eligibility observation bracket", () => {
+  it.each([
+    ["missing-gate-result", () => passedGateResults().slice(0, 1)],
+    ["duplicate-gate-result", () => [passedGateResults()[0]!, passedGateResults()[0]!]],
+    ["reordered-gate-result", () => passedGateResults().reverse()],
+    ["gate-result-failed", () => passedGateResults().map((result, index) => index === 0
+      ? { ...result, status: "failed" as const }
+      : result)],
+    ["gate-result-stale", () => passedGateResults().map((result, index) => index === 0
+      ? { ...result, tree: oid("9") }
+      : result)],
+  ] as const)("refuses %s evidence before publication mutation", async (reason, makeGateResults) => {
+    const deps = dependencies();
+    let mutated = false;
+
+    const result = await executeWithFreshDeliveryEligibility({
+      planId: deliveryStackPlanFixture().planId,
+      protectedBaseRef: "main",
+      topRef: "control",
+      candidates: candidates().map((candidate, index) => ({
+        ...candidate,
+        checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
+      })),
+      gateResults: makeGateResults(),
+    }, {
+      ...deps,
+      resolveOriginatingTopRef: async () => "control",
+      resolveLifecyclePaths: async () => [],
+      prepareMutation: async () => ({ status: "prepared" as const, value: undefined }),
+      mutate: async () => {
+        mutated = true;
+        return { status: "mutated" as const };
+      },
+    });
+
+    expect(result).toMatchObject({ status: "refused", reason });
+    expect(mutated).toBe(false);
+  });
+
   it("refuses malformed effective presentations before any publication mutation", async () => {
     const malformed = deliveryStackPlanWithMemberTitlesFixture([
       "Member title\nwith a second line",
@@ -177,6 +224,7 @@ describe("eligibility observation bracket", () => {
         ...candidate,
         checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
       })),
+      gateResults: passedGateResults(),
     }, {
       ...deps,
       resolveOriginatingTopRef: async () => "control",
@@ -213,6 +261,7 @@ describe("eligibility observation bracket", () => {
         ...candidate,
         checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
       })),
+      gateResults: passedGateResults(),
     }, {
       ...deps,
       resolveOriginatingTopRef: async () => "refs/heads/feat/example",
@@ -241,6 +290,7 @@ describe("eligibility observation bracket", () => {
         ...candidate,
         checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
       })),
+      gateResults: passedGateResults(),
     }, {
       ...deps,
       resolveOriginatingTopRef: async () => "control",
@@ -272,6 +322,7 @@ describe("eligibility observation bracket", () => {
       topRef: "control",
       memberOffset: 1,
       candidates: suffix,
+      gateResults: passedGateResults().slice(1),
     }, {
       ...deps,
       resolveOriginatingTopRef: async () => "control",
@@ -310,6 +361,7 @@ describe("eligibility observation bracket", () => {
         ...candidate,
         checkoutPath: `/tmp/${index === 0 ? "first" : "second"}`,
       })),
+      gateResults: passedGateResults(),
     }, {
       ...deps,
       resolveOriginatingTopRef: async () => "control",
@@ -358,7 +410,10 @@ describe("eligibility observation bracket", () => {
       candidates: candidates(), lifecyclePaths: [],
     }, deps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
-    await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toEqual({
+    await expect(closeDeliveryEligibility({
+      snapshot: prepared.snapshot,
+      gateResults: passedGateResults(),
+    }, deps)).resolves.toEqual({
       status: "eligible",
       snapshot: prepared.snapshot,
     });
@@ -375,7 +430,8 @@ describe("eligibility observation bracket", () => {
       status: "ok" as const,
       value: { planId: "foreign", workUnitId: "other", deliverableId: prepared.snapshot.members[0]!.deliverableId },
     }));
-    await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toMatchObject({
+    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+      .resolves.toMatchObject({
       status: "refused", reason: "head-already-bound", deliverableId: prepared.snapshot.members[0]!.deliverableId,
     });
   });
@@ -394,7 +450,8 @@ describe("eligibility observation bracket", () => {
         ? { planId: "foreign", workUnitId: "other", deliverableId: finalMember.deliverableId }
         : null,
     }));
-    await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toMatchObject({
+    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+      .resolves.toMatchObject({
       status: "refused", reason: "head-already-bound", deliverableId: finalMember.deliverableId,
     });
   });
@@ -412,7 +469,8 @@ describe("eligibility observation bracket", () => {
       ["candidate/first", { head: oid("b"), tree: oid("2") }],
       ["candidate/second", { head: oid("c"), tree: oid("4") }],
     ]).get(ref) ?? null);
-    await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toEqual({
+    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+      .resolves.toEqual({
       status: "refused", reason: "source-moved",
     });
   });
@@ -432,7 +490,8 @@ describe("eligibility observation bracket", () => {
     }, bindingDeps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
     bindingDeps.resolveMember = vi.fn(async () => ({ status: "refused" as const }));
-    await expect(closeDeliveryEligibility(prepared.snapshot, bindingDeps)).resolves.toEqual({
+    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, bindingDeps))
+      .resolves.toEqual({
       status: "refused", reason: "evidence-unavailable",
     });
   });
@@ -453,16 +512,21 @@ describe("eligibility observation bracket", () => {
         deliverableId: first.deliverableId,
       } : null,
     }));
-    await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toMatchObject({ status: "eligible" });
+    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+      .resolves.toMatchObject({ status: "eligible" });
 
     deps.compareNormalizedCompleteness = vi.fn(async () => ({ status: "refused" as const, reason: "dropped" as const }));
-    await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toEqual({
+    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+      .resolves.toEqual({
       status: "refused", reason: "completeness-dropped",
     });
 
     const movedPlanDeps = dependencies();
     movedPlanDeps.readCurrentPlan = vi.fn(async () => null);
-    await expect(closeDeliveryEligibility(prepared.snapshot, movedPlanDeps)).resolves.toEqual({
+    await expect(closeDeliveryEligibility({
+      snapshot: prepared.snapshot,
+      gateResults: passedGateResults(),
+    }, movedPlanDeps)).resolves.toEqual({
       status: "refused", reason: "plan-moved",
     });
   });

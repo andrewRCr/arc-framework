@@ -51,6 +51,11 @@ describe("packaged delivery workflow", () => {
     const terminalTail = packaged.slice(packaged.indexOf("arc delivery teardown"));
     expect(materializeSection).toMatch(/opt-out[\s\S]*zero native host calls/iu);
     expect(materializeSection).toContain("terminalPresentation");
+    expect(materializeSection).toContain("complete Tier 2 command set");
+    expect(materializeSection).toContain("gateResults");
+    expect(materializeSection.indexOf("gateResults")).toBeLessThan(
+      materializeSection.indexOf("arc delivery eligibility close"),
+    );
     expect(materializeSection.indexOf("terminalPresentation")).toBeLessThan(
       materializeSection.indexOf("arc delivery publish"),
     );
