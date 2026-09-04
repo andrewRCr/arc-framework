@@ -256,6 +256,7 @@ describe("arc delivery", () => {
           }],
           lifecyclePaths: [`.arc/active/meta-${plan.workUnitId}.md`],
         },
+        gateResults: [{ deliverableId: plan.members[0]!.deliverableId, head, tree, status: "passed" }],
       })}\n`);
 
       await chmod(stateDirectory, 0o500);
@@ -310,6 +311,7 @@ describe("arc delivery", () => {
           }],
           lifecyclePaths: [`.arc/active/meta-${plan.workUnitId}.md`],
         },
+        gateResults: [{ deliverableId: plan.members[0]!.deliverableId, head, tree, status: "passed" }],
       })}\n`);
 
       await chmod(stateDirectory, 0o500);
