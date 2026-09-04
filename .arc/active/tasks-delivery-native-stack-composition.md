@@ -3577,11 +3577,19 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                   carries the classification on its non-current result; an unreadable range, an unresolved active
                   work unit, and an absent terminal coordinate all report the classification as unavailable rather
                   than guessing a partition. Route selection is unchanged and remains Task 7.7.R.ac.b's.
-            - `[ ]` **7.7.R.ac.b Return a typed ambiguous stop instead of a confident route**
+            - `[x]` **7.7.R.ac.b Return a typed ambiguous stop instead of a confident route**
                 - _Goal:_ When non-lifecycle content is carried while a non-terminal member review is outstanding,
                   entry returns a typed stop naming both candidate routes, the classified delta, the outstanding
                   member, and each route's exact next action. It attributes no content and selects no member, and an
                   unavailable classification retains the closeout answer rather than inventing a route.
+                - _Outcome:_ Integration entry answers a non-current Candidate with `correction-route-ambiguous`
+                  only when the classified delta carries non-lifecycle content and a non-terminal member is still
+                  bound to a change request. The stop carries both delta partitions, the outstanding member and its
+                  request, and an ordered pair of routes with each one's exact next action; it selects neither.
+                  Lifecycle-only deltas, entries with no outstanding non-terminal member, and unavailable
+                  classifications retain the closeout route unchanged. The session probe surfaces the stop as an
+                  unresolved subject instead of projecting ordinary integration, and both Framework copies of the
+                  integration workflow dispatch it.
 
         - _Scope boundary:_ No content attribution, member selection, heuristic route choice, new record, or review
           authority. Route execution remains D5.13's resumable procedure; this task governs only what entry answers.
