@@ -15,6 +15,12 @@ export interface DeliveryEligibilityMember extends DeliveryEligibilityCoordinate
   readonly ref: string;
 }
 
+/** Caller-reported Tier 2 outcome for one exact disposable member candidate. */
+export interface DeliveryCandidateGateResult extends DeliveryEligibilityCoordinates {
+  readonly deliverableId: string;
+  readonly status: "passed" | "failed";
+}
+
 /** Ephemeral mechanical snapshot; never a persisted authorization token. */
 export interface DeliveryEligibilitySnapshot {
   readonly planId: string;
@@ -71,6 +77,11 @@ export interface DeliveryEligibilityRefusal {
     | "lifecycle-contribution"
     | "checkout-dirty"
     | "checkout-moved"
+    | "missing-gate-result"
+    | "duplicate-gate-result"
+    | "reordered-gate-result"
+    | "gate-result-failed"
+    | "gate-result-stale"
     | "lifecycle-paths-moved"
     | "completeness-dropped"
     | "completeness-invented"
@@ -122,6 +133,7 @@ export async function executeWithFreshDeliveryEligibility<
     readonly ref: string;
     readonly checkoutPath: string;
   }[];
+  readonly gateResults?: readonly DeliveryCandidateGateResult[];
 }, deps: FreshDeliveryEligibilityMutationDependencies<Prepared, Result, PreparationRefusal>): Promise<
   Result | PreparationRefusal | DeliveryEligibilityRefusal
 > {
@@ -136,6 +148,7 @@ export async function executeWithFreshDeliveryEligibility<
     ...input,
     plan,
     lifecyclePaths,
+    gateResults: input.gateResults,
   }, deps);
   if (eligible.status !== "eligible") return eligible;
   const prepared = await deps.prepareMutation({ plan, snapshot: eligible.snapshot });
@@ -164,6 +177,7 @@ async function revalidateDeliveryEligibilityForMutation(input: {
     readonly checkoutPath: string;
   }[];
   readonly lifecyclePaths: readonly string[];
+  readonly gateResults?: readonly DeliveryCandidateGateResult[];
 }, deps: DeliveryEligibilityDependencies): Promise<
   | { readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot }
   | DeliveryEligibilityRefusal
@@ -182,7 +196,9 @@ async function revalidateDeliveryEligibilityForMutation(input: {
     );
     if (checkout.status !== "exact") return checkout;
   }
-  return closeDeliveryEligibility(prepared.snapshot, deps);
+  return input.gateResults === undefined
+    ? closeMechanicalDeliveryEligibility(prepared.snapshot, deps)
+    : closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: input.gateResults }, deps);
 }
 
 /** Validate and pin one complete authored candidate chain before workflow-owned gates run. */
@@ -312,6 +328,19 @@ export async function verifyDeliveryCandidateCheckout(
 
 /** Close the observation window after workflow-owned gates without writing plan or state. */
 export async function closeDeliveryEligibility(
+  input: {
+    readonly snapshot: DeliveryEligibilitySnapshot;
+    readonly gateResults: readonly DeliveryCandidateGateResult[];
+  },
+  deps: DeliveryEligibilityDependencies,
+): Promise<{ readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot } | DeliveryEligibilityRefusal> {
+  const { snapshot } = input;
+  const gateRefusal = validateDeliveryCandidateGateResults(snapshot, input.gateResults);
+  if (gateRefusal !== null) return gateRefusal;
+  return closeMechanicalDeliveryEligibility(snapshot, deps);
+}
+
+async function closeMechanicalDeliveryEligibility(
   snapshot: DeliveryEligibilitySnapshot,
   deps: DeliveryEligibilityDependencies,
 ): Promise<{ readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot } | DeliveryEligibilityRefusal> {
@@ -355,6 +384,29 @@ export async function closeDeliveryEligibility(
     }
   }
   return { status: "eligible", snapshot };
+}
+
+function validateDeliveryCandidateGateResults(
+  snapshot: DeliveryEligibilitySnapshot,
+  results: readonly DeliveryCandidateGateResult[],
+): DeliveryEligibilityRefusal | null {
+  if (new Set(results.map((result) => result.deliverableId)).size !== results.length) {
+    return { status: "refused", reason: "duplicate-gate-result" };
+  }
+  if (results.length < snapshot.members.length) return { status: "refused", reason: "missing-gate-result" };
+  for (const [index, result] of results.entries()) {
+    const member = snapshot.members[index];
+    if (member === undefined || result.deliverableId !== member.deliverableId) {
+      return { status: "refused", reason: "reordered-gate-result" };
+    }
+    if (result.head !== member.head || result.tree !== member.tree) {
+      return { status: "refused", reason: "gate-result-stale", deliverableId: member.deliverableId };
+    }
+    if (result.status !== "passed") {
+      return { status: "refused", reason: "gate-result-failed", deliverableId: member.deliverableId };
+    }
+  }
+  return null;
 }
 
 function byteSort(left: string, right: string): number {

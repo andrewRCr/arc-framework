@@ -173,6 +173,11 @@ const RefSchema = z.string().startsWith("refs/");
 const CandidateSchema = z.strictObject({ deliverableId: DeliveryCanonicalDigestSchema, ref: RefSchema });
 const CoordinateSchema = z.strictObject({ head: GitObjectIdSchema, tree: GitObjectIdSchema });
 const EligibilityMemberSchema = CandidateSchema.extend(CoordinateSchema.shape);
+const CandidateGateResultSchema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  ...CoordinateSchema.shape,
+  status: z.enum(["passed", "failed"]),
+});
 const EligibilitySnapshotSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   workUnitId: z.string().min(1),
@@ -191,7 +196,10 @@ const PrepareSchema = z.strictObject({
   candidates: z.array(CandidateSchema).min(1),
   lifecyclePaths: z.array(z.string().min(1)),
 });
-const CloseSchema = z.strictObject({ snapshot: EligibilitySnapshotSchema });
+const CloseSchema = z.strictObject({
+  snapshot: EligibilitySnapshotSchema,
+  gateResults: z.array(CandidateGateResultSchema).min(1),
+});
 const MutationCandidateSchema = CandidateSchema.extend({ checkoutPath: z.string().min(1) });
 const MaterializeSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -201,6 +209,7 @@ const MaterializeSchema = z.strictObject({
   remote: z.string().min(1).default("origin"),
 });
 const PublishSchema = MaterializeSchema.extend({
+  gateResults: z.array(CandidateGateResultSchema).min(1),
   repository: z.string().min(1),
   draft: z.boolean(),
   presentations: z.array(z.strictObject({
@@ -2188,7 +2197,8 @@ async function executeDeliveryCommand(
     return prepareDeliveryEligibility(PrepareSchema.parse(request), eligibilityDeps);
   }
   if (command === "eligibility-close") {
-    return closeDeliveryEligibility(CloseSchema.parse(request).snapshot, {
+    const parsed = CloseSchema.parse(request);
+    return closeDeliveryEligibility(parsed, {
       ...eligibilityDeps,
       resolveMember: resolveMemberReadOnly,
     });
