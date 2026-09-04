@@ -1314,6 +1314,18 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   reshaping it and live with their owning work units: `verification-falsification-contract` owns the verification
   instrument's falsification quality, and the criteria-reachability lint has no owner yet — it is captured for
   routing, not assumed to exist.
+- **D7.8 Exact-tree executable-gate admission — amended 2026-09-04 after self-delivery exposed red member
+  boundaries.** Criteria validation and executable quality gates are distinct obligations. The existing task-loop
+  Tier 2 run remains mandatory at every member close-out, but it cannot authorize later publication: delivery
+  candidate filtering and subsequent work can produce a different exact tree, and a green terminal union can mask
+  a broken earlier boundary. Before initial publication, run the project's complete Tier 2 command set in every
+  returned detached member-gate checkout. Eligibility close and the publication mutation both require one ephemeral
+  `passed` result bound to each member's exact deliverable ID, head, and tree in plan order; missing, duplicate,
+  failed, reordered, or stale evidence refuses before any ref push or host mutation. Publication reobserves the
+  candidate checkout and coordinates before consuming the result. The result is caller-reported evidence of commands
+  that returned zero, not a cryptographic attestation, and creates no durable receipt, quality ledger, lifecycle
+  state, or generic gate runner. Hosted CI remains an independent exact-head lane after requests exist, and landing
+  retains its existing fail-closed required-check guard.
 
 ### D8 — Hosted-review reservation fans out per member
 

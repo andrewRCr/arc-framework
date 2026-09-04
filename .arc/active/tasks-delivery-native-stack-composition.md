@@ -194,7 +194,7 @@ copy together.
 - _Outcome:_ The installation recipe, Configurable classifier, self-hosting manifest, and init/update contract tests
   now carry `validate-criteria.md`; the package and project method bodies begin aligned.
 
-### `[x]` **1.8 Close delivery member 1** — validate criteria at member scope
+### `[ ]` **1.8 Close delivery member 1** — validate criteria at member scope
 
 - _Goal:_ Member 1's criteria group is walked at its own boundary, over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -261,6 +261,18 @@ copy together.
         - _Summary:_ one met, one superseded, zero unresolved. Both Heavy adversarial passes were consumed; the final
           confirmed finding was corrected and the settled criteria, workflows, current plan, and state were reread
           coherently without a third pass.
+
+- _Forward correction (2026-09-04):_ Exact-head CI exposed a deterministic command-surface failure at the first
+  member boundary that the later review-resolution member happened to remove. Repair the earliest independently
+  landable tree rather than relying on successor code to mask it.
+
+    - `[ ]` **1.8.R.c Repair and revalidate the Member 1 executable-gate boundary**
+
+        - _Goal:_ Member 1's exact cumulative tree passes its required project gates without changing the strict
+          method-frontmatter contract or depending on a later member's parser replacement.
+
+        - Reword only the diagnostic that the command-surface audit mistakes for an emitted ARC command, retain its
+          refusal semantics, run the exact Member 1 Tier 2 gate, and re-walk the amended Member 1 criteria slice.
 
 ## **Phase 2:** Structural contribution identity
 
@@ -395,7 +407,7 @@ throughout the landing window and leave every other consumer refusing, which is 
   hosted target resolver preserves singleton behavior for an authoritatively unbound work unit, returns a contained
   unavailable result on read failure, and persists no target list or cursor.
 
-### `[x]` **3.5 Close delivery member 3** — validate criteria at member scope
+### `[ ]` **3.5 Close delivery member 3** — validate criteria at member scope
 
 - _Goal:_ Member 3's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -408,6 +420,18 @@ throughout the landing window and leave every other consumer refusing, which is 
       _Evidence:_ exact-head reverse lookup addresses review status and hosted member progress, every shared
       change-request caller supplies the valid delivery bases, and session/recovery authority remains with the
       originating checkout. Fresh pass 2 found no residual finding after the hosted-member composition correction.
+
+- _Forward correction (2026-09-04):_ Members 3–6 reached hosted CI with delivery-binding fixtures that published
+  state without its canonical plan, so production lookup correctly returned `delivery-state-unavailable`. Repair
+  the first boundary that owns those review-resolution fixtures.
+
+    - `[ ]` **3.5.R.a Repair and revalidate canonical delivery-binding fixtures at Member 3**
+
+        - _Goal:_ Member 3's exact cumulative tree passes its required project gates with every delivery-state
+          integration fixture publishing the matching canonical plan first.
+
+        - Reuse the later proven fixture shape only where the failing review-binding tests require it, avoid pulling
+          later final-member behavior backward, run the exact Member 3 Tier 2 gate, and re-walk its criteria slice.
 
 ## **Phase 4:** Topology transition and publication
 
@@ -537,7 +561,7 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
     - The same ref reaches the same consumers under a name that still describes it — no behavior changes
     - Update the tests and fixtures that spell the old field names
 
-### `[x]` **4.7 Close delivery member 4** — validate criteria at member scope
+### `[ ]` **4.7 Close delivery member 4** — validate criteria at member scope
 
 - _Goal:_ Member 4's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -587,6 +611,21 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
               `68f3d325b` / `805749aa0`; the dependent-suffix rewrite changed no Member 4 contribution. The prior
               single-criterion report therefore remains exact, and the focused 28-test Member 4/6 adoption seam
               passed over the rebound top without another member-wide or adversarial cycle.
+
+- _Forward correction (2026-09-04):_ Initial publication admitted member candidates without consuming the
+  workflow-owned gate outcomes, while Member 4's exact tree also lacked three checkpoint/mock-isolation repairs
+  later supplied by Member 7. Close both defects at the first publication-owning boundary.
+
+    - `[ ]` **4.7.R.c Require exact member gate evidence and repair the Member 4 boundary**
+
+        - _Goal:_ Initial stacked publication refuses before any mutation unless every exact detached member
+          candidate reports a passed Tier 2 gate, and Member 4's own cumulative tree independently passes that gate.
+
+        - Add fail-first coverage for missing, duplicate, reordered, failed, and stale per-member results; bind the
+          ephemeral evidence to deliverable/head/tree at eligibility close and again inside fresh publication
+          admission; update the two shipped workflow copies; transplant only the later checkpoint composition,
+          test-fixture, and isolated-mock-list repairs required at this boundary; run exact Member 4 Tier 2; and
+          re-walk the amended Member 4 criteria slice. Add no durable receipt, gate runner, or hosted-CI coupling.
 
 ## **Phase 5:** Terminal integration arm
 
@@ -4057,7 +4096,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ The final full implementation tree passed Markdown and ARC contract lint, TypeScript and shell
   lint, both typechecks, package build, aggregate self-review, diff hygiene, 864 test files, and 11,396 tests. The
@@ -4604,6 +4643,20 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           and pending-intervention guards remain authoritative; a production-style Git lifecycle settles after the
           terminus boundary commit without another Owner decision or provider request.
 
+- _Forward correction (2026-09-04):_ The terminal green union masked deterministic red cumulative member trees, and
+  initial publication did not require the workflow-owned gate outcome it bracketed. Reconcile the repaired member
+  boundaries with the work-unit verification contract before any new review or CI spend.
+
+    - `[ ]` **9.1.R.m Revalidate independent member gate readiness at work-unit scope**
+
+        - _Goal:_ Every current delivery member is independently gate-clean at its exact cumulative tree, initial
+          publication mechanically refuses absent or stale evidence, and the final union remains unchanged except
+          for the bounded admission repair and its tests/docs.
+
+        - Consume the amended Member 1, 3, and 4 boundary reports; prove the remaining members inherit the repaired
+          predecessors without successor-only masking; reconcile all criteria digests affected by this amendment;
+          and run the applicable final union gates before presenting review applicability and hosted-CI scheduling.
+
 ---
 
 ## Success Criteria
@@ -4627,6 +4680,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   Member-scope verification remains member-assignable under the existing partition semantics; exactly one
   work-unit-scope verifier remains terminal and unassigned. Canonical plan and authoring schemas, coverage,
   fingerprints, composition, handlers, and regenerated development records all consume that classification.
+
+- `[ ]` A member's criteria walk never substitutes for executable quality gates: its close-out still requires the
+  task-loop Tier 2 run, and initial publication separately requires a passed Tier 2 result for the exact filtered
+  candidate tree so a later green union cannot mask an earlier broken boundary.
 
 ### Member 2 — `contribution-identity`
 
@@ -4656,6 +4713,10 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   the ordinary work-unit template and title. Publication validates a distinct caller-authored terminal title/body
   with the complete presentation set before mutation, and an exact-request retry does not rewrite it. Content-neutral
   ancestry adoption proceeds only when a dedicated in-core containment result proves the top tree unchanged.
+
+- `[ ]` Initial publication consumes one ephemeral passed Tier 2 result for every candidate in plan order, bound to
+  its exact deliverable ID, head, and tree and revalidated inside the fresh mutation window; missing, duplicate,
+  failed, reordered, or stale evidence refuses before any ref push or host mutation, with no durable gate store.
 
 ### Member 5 — `terminal-integration`
 

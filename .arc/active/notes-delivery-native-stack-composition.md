@@ -781,3 +781,29 @@ The exact local authoring head is ready; the prior state-bound request head retu
 as moved. Content commits and pushes remain outside the driver's machine-owned record-effect exception. This is a
 bounded submit-ready authoring repair under the rescue contract, not a new stop, automatic content publication,
 standing approval, or generalized workflow mechanism.
+
+### Amendment 11 — initial publication requires exact member gate evidence (2026-09-04)
+
+After all eight member reviews settled, exact-head CI inspection showed Members 1–6 red, Member 7 green, and the
+terminal member without a full rollup. The failures were deterministic boundary defects later members had repaired:
+Members 1–2 shared the command-surface false positive, Members 3–6 shared missing canonical delivery-plan fixtures,
+and Members 4–6 shared checkpoint/mock-isolation defects repaired in Member 7. The final union's green suite did not
+prove those earlier cumulative trees independently shippable.
+
+This violates D2/D2.1. The task loop did require Tier 2 before each closing member verifier, but ordinary completion
+persisted only the criteria report and treated `[x]` as implying the gate run. Delivery eligibility verified clean
+checkout coordinates around workflow-owned gates without consuming their outcome, and pre-publication review could
+therefore compose every member target even when the gate step had been skipped or had gone stale. Publication is the
+first hard correction seam: it creates the refs and requests that schedule hosted CI, so it cannot consult that CI
+before mutation; review settlement and hosted checks correctly remain independent, while landing already refuses a
+non-green exact head.
+
+The bounded repair keeps both axes separate. Initial delivery eligibility close and publish consume one ephemeral
+Tier 2 `passed` result for every exact candidate deliverable/head/tree, revalidating it against the same fresh
+candidate observation used for publication. No result, mismatched coordinates, duplicates, reordering, or any
+non-pass refuses before ref or host mutation. The evidence is an explicit caller report of zero-exit project gates,
+not protection against a malicious caller, and it is never persisted. This preserves D7.7's no-store decision and
+does not add a generic command runner. The current stack is repaired at the earliest failing cumulative boundaries
+(Members 1, 3, and 4), then restacked while preserving the final union. Exact member Tier 2 runs prove each repaired
+boundary before provider spend. Scheduling hosted CI as each member's review settles remains routed to
+`ci-defer-heavy-reconciliation`; it is not pulled into this correction.
