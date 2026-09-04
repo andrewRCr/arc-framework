@@ -71,8 +71,21 @@ authority.
 arc delivery eligibility prepare - --json
 ```
 
-Bracket each candidate's ordinary project gates with the returned exact checkout/head coordinates, then close the
-same observation window:
+Run the complete Tier 2 command set in every returned checkout. For each zero-exit run, report one result in the
+returned member order, bound to that member's exact coordinates:
+
+```json
+{
+  "gateResults": [{
+    "deliverableId": "{canonical deliverable ID}",
+    "head": "{returned candidate head}",
+    "tree": "{returned candidate tree}",
+    "status": "passed"
+  }]
+}
+```
+
+Supply the snapshot and complete `gateResults` list to close the same observation window:
 
 ```bash
 arc delivery eligibility close - --json
@@ -100,17 +113,18 @@ deliverable ID plus the ordinary terminal request as `terminalPresentation`:
 ```
 
 `summary`, terminal `title`, and terminal `body` are required; `changes` and `designReference` are content-gated.
-Supply that complete presentation set with the plan ID, repository locators, and the same candidate refs and checkout
-locators to the sole initial mutation verb:
+Supply that complete presentation set with the plan ID, repository locators, the same candidate refs and checkout
+locators, and the same `gateResults` list to the sole initial mutation verb:
 
 ```bash
 arc delivery publish - --json
 ```
 
 A refusal stops without publication. The verb resolves the current plan and originating top from repository-owned
-work-unit state, validates the complete presentation set, and reruns mechanical eligibility against the exact
-post-gate checkouts before the first ref push or host mutation. It then creates or adopts every member ref before
-opening any request: delivery refs in plan order, the content-neutral top adoption and ordinary top-branch push, then
+work-unit state, validates the complete presentation set, and reruns mechanical eligibility and exact Tier 2 result
+admission against the post-gate checkouts before the first ref push or host mutation. It then creates or adopts
+every member ref before opening any request: delivery refs in plan order, the content-neutral top adoption and
+ordinary top-branch push, then
 requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the originating branch
 over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒ `true`) so every request
 opens under the configured hold; the landing sequence releases that lock only after readiness. The verb derives
