@@ -415,7 +415,7 @@ throughout the landing window and leave every other consumer refusing, which is 
   hosted target resolver preserves singleton behavior for an authoritatively unbound work unit, returns a contained
   unavailable result on read failure, and persists no target list or cursor.
 
-### `[ ]` **3.5 Close delivery member 3** — validate criteria at member scope
+### `[x]` **3.5 Close delivery member 3** — validate criteria at member scope
 
 - _Goal:_ Member 3's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -433,13 +433,21 @@ throughout the landing window and leave every other consumer refusing, which is 
   state without its canonical plan, so production lookup correctly returned `delivery-state-unavailable`. Repair
   the first boundary that owns those review-resolution fixtures.
 
-    - `[ ]` **3.5.R.a Repair and revalidate canonical delivery-binding fixtures at Member 3**
+    - `[x]` **3.5.R.a Repair and revalidate canonical delivery-binding fixtures at Member 3**
 
         - _Goal:_ Member 3's exact cumulative tree passes its required project gates with every delivery-state
           integration fixture publishing the matching canonical plan first.
 
-        - Reuse the later proven fixture shape only where the failing review-binding tests require it, avoid pulling
-          later final-member behavior backward, run the exact Member 3 Tier 2 gate, and re-walk its criteria slice.
+        - _Outcome:_ The two review-binding integration fixtures now publish the matching canonical plan before
+          state and derive their plan digest and deliverable IDs from it; the shared builder accepts only the work-unit
+          identity they require. Member 3's exact cumulative tree `4b88f29de` passed Tier 2 at `3d646eb88` without
+          pulling later final-member behavior backward.
+
+            - _Criteria slice:_ `Success Criteria > Member 3 — review-gate-resolution`.
+            - _Span:_ correction `7961148d2..3d646eb88`; cumulative reachability `3d646eb88` at tree
+              `4b88f29de`; boundary-order deviation: the approved fixture correction reopened Member 3 after review.
+            - _Criterion 1:_ `[x]`; canonical plan/state lookup now exercises the exact reverse-binding contract in
+              both readiness and local-review composition. One met, zero superseded, zero unresolved.
 
 ## **Phase 4:** Topology transition and publication
 
