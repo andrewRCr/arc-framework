@@ -273,6 +273,20 @@ function preparedMemberRefs(
   return [...new Set(refs)];
 }
 
+function affectedNonterminalMemberRefs(
+  snapshot: DeliveryOperationSnapshotV1,
+  affectedDeliverableIds: readonly string[],
+): readonly string[] | null {
+  const affected = new Set(affectedDeliverableIds);
+  const refs: string[] = [];
+  for (const member of snapshot.members) {
+    if (!affected.has(member.deliverableId)) continue;
+    if (member.ref === null || !member.ref.startsWith("refs/heads/")) return null;
+    refs.push(member.ref);
+  }
+  return [...new Set(refs)];
+}
+
 function checkoutRefusal(
   observation: DeliveryMemberRefCheckoutObservation,
 ): { readonly reason: string; readonly paths?: readonly string[] } | null {
@@ -326,8 +340,18 @@ export async function executeDeliveryProviderRefresh(_input: {
     if (input.scope.kind === "complete-remainder" && pendingSelectedDeliverableId !== null) {
       return { status: "refused", reason: "selected-member-invalid" };
     }
-    const prepared: DeliveryProviderRefreshPreparationResult = input.scope.kind === "dependent-suffix"
-      && selectedIndex === derived.subject.before.members.length - 1
+    const preparationSkipped = input.scope.kind === "dependent-suffix"
+      && selectedIndex === derived.subject.before.members.length - 1;
+    if (!preparationSkipped) {
+      const mutableRefs = affectedNonterminalMemberRefs(
+        derived.subject.before,
+        derived.subject.affectedDeliverableIds,
+      );
+      if (mutableRefs === null) return { status: "refused", reason: "member-ref-subject-mismatch" };
+      const occupied = checkoutRefusal(await deps.observeMemberRefCheckouts(mutableRefs));
+      if (occupied !== null) return { status: "refused", ...occupied };
+    }
+    const prepared: DeliveryProviderRefreshPreparationResult = preparationSkipped
       ? {
           status: "prepared",
           observation: { snapshot: derived.subject.before, targetMovement: "exact" },

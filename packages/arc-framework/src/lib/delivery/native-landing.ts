@@ -21,6 +21,7 @@ import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position
 import type { DeliveryHostRequestObservation } from "./host.js";
 import type { DeliveryContributionEndpoints, DeliveryContributionProofResult } from "./contribution-proof.js";
 import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
+import type { DeliveryMemberRefCheckoutObservation } from "./git-materialization.js";
 
 export interface DeliveryNativeLandingMember {
   readonly deliverableId: string;
@@ -577,7 +578,12 @@ export type ReconcileLinkedNativeDeliverySuffixResult =
       readonly paths: readonly string[];
       readonly guidance: string;
     }
-  | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
+  | {
+      readonly status: "blocked";
+      readonly reason: string;
+      readonly paths?: readonly string[];
+      readonly recommendedActionText: string;
+    };
 
 /**
  * Reconcile the complete remaining registered suffix through the contribution-proven rewrite path.
@@ -596,6 +602,9 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly observeRequest: (binding: NonNullable<DeliveryStateV1["members"][number]["changeRequest"]>) => Promise<DeliveryHostRequestObservation>;
   readonly observeRef: (ref: string) => Promise<{ readonly head: string; readonly tree: string } | null>;
   readonly proveContribution: (endpoints: DeliveryContributionEndpoints) => Promise<DeliveryContributionProofResult>;
+  readonly observeMemberRefCheckouts: (
+    refs: readonly string[],
+  ) => Promise<DeliveryMemberRefCheckoutObservation>;
   readonly absorbTop: (input: {
     readonly topRef: string;
     readonly top: { readonly head: string; readonly tree: string };
@@ -770,6 +779,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
         "Keep the reservation and rerun `arc delivery native land-status` to reobserve the provider result.",
     };
   }
+  const changedRefs: string[] = [];
   for (const [index, observed] of observedMembers.entries()) {
     const before = beforeSuffix[index];
     if (before?.ref === null || before?.ref === undefined || before.ref !== observed.ref
@@ -782,6 +792,33 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       };
     }
     if (before.coordinates.head === observed.coordinates.head) continue;
+    changedRefs.push(before.ref);
+  }
+  if (changedRefs.length > 0) {
+    const checkoutObservation = await dependencies.observeMemberRefCheckouts([...new Set(changedRefs)]);
+    if (checkoutObservation.status === "refused") {
+      return {
+        status: "blocked",
+        reason: "member-ref-checkout-observation-unavailable",
+        recommendedActionText:
+          "Keep the reservation and restore observable local member-ref checkout authority before retrying.",
+      };
+    }
+    const paths = [...new Set(checkoutObservation.checkouts.map(({ path }) => path))].sort();
+    if (paths.length > 0) {
+      return {
+        status: "blocked",
+        reason: "member-ref-checked-out",
+        paths,
+        recommendedActionText:
+          "Keep the reservation and release the listed member-ref checkouts before retrying settlement.",
+      };
+    }
+  }
+  for (const [index, observed] of observedMembers.entries()) {
+    const before = beforeSuffix[index];
+    if (before?.ref === null || before?.ref === undefined || before.coordinates === null
+      || before.coordinates.head === observed.coordinates.head) continue;
     const rewritten = await dependencies.rewriteLocalRef({
       ref: before.ref,
       beforeHead: before.coordinates.head,

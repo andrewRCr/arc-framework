@@ -295,16 +295,20 @@ describe("provider refresh publication classification", () => {
     };
     const candidateResult = deriveDeliveryProviderRefreshCandidates({ plan, before, requested });
     if (candidateResult.status !== "derived") throw new Error("candidates must derive");
-    const checkedOutMember = requested.members[1]!;
+    const checkedOutMember = requested.members.at(-1)!;
     let statePublished = false;
     let memberPublished = false;
     let candidatesCleaned = false;
+    let preparationCalled = false;
     const dependencies = {
-      preparation: { prepare: async () => ({
-        status: "prepared" as const,
-        observation: { snapshot: requested, targetMovement: "exact" as const },
-        candidates: candidateResult.candidates,
-      }) },
+      preparation: { prepare: async () => {
+        preparationCalled = true;
+        return {
+          status: "prepared" as const,
+          observation: { snapshot: requested, targetMovement: "exact" as const },
+          candidates: candidateResult.candidates,
+        };
+      } },
       preflightTop: readyTop,
       observeMemberRefCheckouts: async (refs: readonly string[]) => ({
         status: "observed" as const,
@@ -348,10 +352,11 @@ describe("provider refresh publication classification", () => {
       reason: "member-ref-checked-out",
       paths: ["/tmp/member-seven"],
     });
-    expect({ statePublished, memberPublished, candidatesCleaned }).toEqual({
+    expect({ statePublished, memberPublished, candidatesCleaned, preparationCalled }).toEqual({
       statePublished: false,
       memberPublished: false,
-      candidatesCleaned: true,
+      candidatesCleaned: false,
+      preparationCalled: false,
     });
   });
 

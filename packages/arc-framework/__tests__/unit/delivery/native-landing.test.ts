@@ -705,6 +705,7 @@ describe("native delivery landing", () => {
       observeRequest: vi.fn(),
       observeRef: vi.fn(),
       proveContribution: vi.fn(),
+      observeMemberRefCheckouts: vi.fn(),
       absorbTop: vi.fn(),
       publishTop: vi.fn(),
       rewriteLocalRef: vi.fn(),
@@ -823,6 +824,7 @@ describe("native delivery landing", () => {
       } }),
       observeRef: vi.fn().mockResolvedValue(moved),
       proveContribution: proof,
+      observeMemberRefCheckouts: vi.fn().mockResolvedValue({ status: "observed", checkouts: [] }),
       absorbTop: vi.fn().mockResolvedValue({
         status: "absorbed",
         head: "c".repeat(40),
@@ -933,6 +935,7 @@ describe("native delivery landing", () => {
           ? { status: "accepted" as const, proof: "mechanical-reapply" as const }
           : { status: "refused" as const, reason: "contribution-diverged" as const, paths: ["unexpected"] };
       },
+      observeMemberRefCheckouts: async () => ({ status: "observed", checkouts: [] }),
       absorbTop: async (input) => provedHeads.size === 2
         && input.top.head === bound.members[3]!.coordinates!.head
         && input.highestMember.head === "c".repeat(40)
@@ -980,6 +983,34 @@ describe("native delivery landing", () => {
     expect(publishCount).toBe(1);
     expect([...localHeads.values()]).toEqual(["a".repeat(40), "c".repeat(40)]);
 
+    const rewriteLocalRef = vi.fn();
+    const absorbTop = vi.fn();
+    const publishTop = vi.fn();
+    const publishState = vi.fn();
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      observeMemberRefCheckouts: async (refs) => ({
+        status: "observed",
+        checkouts: [{ ref: refs[0]!, path: "/tmp/checked-out-member" }],
+      }),
+      absorbTop,
+      publishTop,
+      rewriteLocalRef,
+      stateStore: { publish: publishState },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "member-ref-checked-out",
+      paths: ["/tmp/checked-out-member"],
+      recommendedActionText:
+        "Keep the reservation and release the listed member-ref checkouts before retrying settlement.",
+    });
+    expect(rewriteLocalRef).not.toHaveBeenCalled();
+    expect(absorbTop).not.toHaveBeenCalled();
+    expect(publishTop).not.toHaveBeenCalled();
+    expect(publishState).not.toHaveBeenCalled();
+
     await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
       observeRequest,
       observeRef,
@@ -990,6 +1021,7 @@ describe("native delivery landing", () => {
             paths: ["src/conflict.ts"],
           }
         : { status: "accepted", proof: "mechanical-reapply" },
+      observeMemberRefCheckouts: async () => ({ status: "observed", checkouts: [] }),
       absorbTop: async () => { throw new Error("rejected suffix reached top absorption"); },
       publishTop: async () => { throw new Error("rejected suffix reached top publication"); },
       rewriteLocalRef: async () => { throw new Error("rejected suffix reached local ref rewrite"); },

@@ -106,23 +106,28 @@ describe("delivery closeout residue", () => {
     expect(writes).toHaveLength(2);
   });
 
-  it("reaps every exact refresh candidate in the plan namespace before reserving closeout", async () => {
+  it("reserves closeout before reaping every exact refresh candidate in the plan namespace", async () => {
     const { plan, state } = closeoutFixture();
     const stale = new Map([
       [`refs/arc/delivery-refresh-candidates/${plan.planId}/retired-member`, "7".repeat(40)],
       [`refs/arc/delivery-refresh-candidates/${plan.planId}/current-member`, "8".repeat(40)],
     ]);
     const writes: DeliveryStateV1[] = [];
+    const events: string[] = [];
     const result = await reapCompletedDeliveryResidue({
       plan, current: { revision: 4, value: state }, gitCommonDir: "/repo/.git",
     }, {
-      observeRefreshCandidates: async () => ({
+      observeRefreshCandidates: async () => {
+        events.push("observe-refresh");
+        return ({
         status: "observed",
         candidates: [...stale].map(([ref, head]) => ({ ref, head })),
-      }),
+        });
+      },
       observeCandidate: async () => ({ status: "absent" }),
       observeGate: async () => ({ status: "absent" }),
       deleteRefreshCandidate: async ({ ref, expectedHead }) => {
+        events.push("delete-refresh");
         if (stale.get(ref) !== expectedHead) return { status: "refused" };
         stale.delete(ref);
         return { status: "deleted" };
@@ -132,6 +137,7 @@ describe("delivery closeout residue", () => {
       deleteLocalMember: async () => ({ status: "adopted" }),
       deleteRemoteMember: async () => ({ status: "adopted" }),
       stateStore: { publish: async (_planId, value, revision) => {
+        events.push(value.activeOperation === null ? "publish-complete" : "publish-reservation");
         writes.push(value);
         return { status: "ok", value: { revision: revision + 1, value } };
       } },
@@ -140,12 +146,15 @@ describe("delivery closeout residue", () => {
     expect(result.status).toBe("reaped");
     expect(stale.size).toBe(0);
     expect(writes).toHaveLength(2);
+    expect(events.slice(0, 4)).toEqual([
+      "publish-reservation", "observe-refresh", "delete-refresh", "delete-refresh",
+    ]);
   });
 
-  it("blocks before a closeout reservation when exact refresh-candidate deletion refuses", async () => {
+  it("retains the closeout reservation when exact refresh-candidate deletion refuses", async () => {
     const { plan, state } = closeoutFixture();
     const ref = `refs/arc/delivery-refresh-candidates/${plan.planId}/stale-member`;
-    let reserved = false;
+    let persisted: { revision: number; value: DeliveryStateV1 } | null = null;
     const result = await reapCompletedDeliveryResidue({
       plan, current: { revision: 4, value: state }, gitCommonDir: "/repo/.git",
     }, {
@@ -160,14 +169,18 @@ describe("delivery closeout residue", () => {
       removeGate: async () => { throw new Error("must not remove"); },
       deleteLocalMember: async () => { throw new Error("must not delete member"); },
       deleteRemoteMember: async () => { throw new Error("must not delete member"); },
-      stateStore: { publish: async () => {
-        reserved = true;
-        throw new Error("must not reserve");
+      stateStore: { publish: async (_planId, value, revision) => {
+        persisted = { revision: revision + 1, value };
+        return { status: "ok", value: persisted };
       } },
     });
 
-    expect(result).toEqual({ status: "blocked", reason: "refresh-candidate-delete-refused" });
-    expect(reserved).toBe(false);
+    expect(result).toMatchObject({
+      status: "blocked",
+      reason: "refresh-candidate-delete-refused",
+      reservation: { revision: 5, value: { activeOperation: { kind: "teardown", mode: "closeout-residue" } } },
+    });
+    expect(persisted).not.toBeNull();
   });
 
   it("leaves mismatched candidate/gate evidence intact before reservation", async () => {

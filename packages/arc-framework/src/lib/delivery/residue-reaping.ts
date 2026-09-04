@@ -252,20 +252,6 @@ export async function reapCompletedDeliveryResidue(input: {
     }
   }
 
-  const refreshCandidates = await dependencies.observeRefreshCandidates(input.plan.planId);
-  if (refreshCandidates.status === "refused") {
-    return { status: "blocked", reason: "refresh-candidate-observation-refused" };
-  }
-  for (const candidate of refreshCandidates.candidates) {
-    const deleted = await dependencies.deleteRefreshCandidate({
-      ref: candidate.ref,
-      expectedHead: candidate.head,
-    });
-    if (deleted.status === "refused") {
-      return { status: "blocked", reason: "refresh-candidate-delete-refused" };
-    }
-  }
-
   let reservation: DeliveryRevisionedRecord<DeliveryStateV1>;
   if (input.current.value.activeOperation === null) {
     const candidateHeads: Array<{ deliverableId: string; head: string | null }> = [];
@@ -320,6 +306,20 @@ export async function reapCompletedDeliveryResidue(input: {
       return { status: "blocked", reason: "reservation-mismatch" };
     }
     reservation = input.current;
+  }
+
+  const refreshCandidates = await dependencies.observeRefreshCandidates(input.plan.planId);
+  if (refreshCandidates.status === "refused") {
+    return { status: "blocked", reason: "refresh-candidate-observation-refused", reservation };
+  }
+  for (const candidate of refreshCandidates.candidates) {
+    const deleted = await dependencies.deleteRefreshCandidate({
+      ref: candidate.ref,
+      expectedHead: candidate.head,
+    });
+    if (deleted.status === "refused") {
+      return { status: "blocked", reason: "refresh-candidate-delete-refused", reservation };
+    }
   }
 
   const operation = reservation.value.activeOperation;
