@@ -687,6 +687,34 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("reconciles a ready terminal authoring head before continuing", () => {
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      route: route("terminal-authoring"),
+      authoring: {
+        status: "ready",
+        kind: "top",
+        ref: "refs/heads/feat/example",
+        checkoutPath: "/repo",
+        head: "a".repeat(40),
+        tree: "b".repeat(40),
+      },
+    })).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-reconcile",
+        input: {
+          planId: plan.planId,
+          repository: request.repository,
+          remote: request.remote,
+          continuation: "read-position",
+          reviewFixSelectedDeliverableId: selectedDeliverableId,
+        },
+      },
+    });
+  });
+
   it("returns a submit-ready non-terminal authoring stop with the complete approved finding batch", () => {
     expect(projectDeliveryReviewFixContinuation({
       request,

@@ -614,6 +614,19 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       };
     };
     if (route.route === "terminal-authoring") {
+      if (input.authoring?.status === "ready") {
+        return dispatch({
+          kind: "delivery-reconcile" as const,
+          argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+          input: {
+            planId: entry.planId,
+            repository: request.repository,
+            remote: request.remote,
+            continuation: "read-position" as const,
+            reviewFixSelectedDeliverableId: entry.selectedDeliverableId,
+          },
+        }, "Rebind the exact terminal correction, then invoke this continuation again.");
+      }
       return authoringStop();
     }
     if (route.route === "terminal-rebind") {
