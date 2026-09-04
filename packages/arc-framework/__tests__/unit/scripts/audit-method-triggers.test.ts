@@ -178,7 +178,7 @@ describe("parseWorkflowFrontmatter", () => {
   });
 
   it.each([
-    ["a non-mapping arc declaration", "arc: []", "arc must be a mapping"],
+    ["a non-mapping arc declaration", "arc: []", "workflow arc block must be a mapping"],
     ["a non-array methods declaration", "arc:\n  methods: alpha", "arc.methods must be an array"],
     ["a mixed-type methods declaration", "arc:\n  methods: [alpha, 123]", "arc.methods must contain only strings"],
     ["a non-array extensions declaration", "arc:\n  extensions: post-x", "arc.extensions must be an array"],
