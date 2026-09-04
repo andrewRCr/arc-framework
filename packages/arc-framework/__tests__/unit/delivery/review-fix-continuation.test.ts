@@ -487,22 +487,25 @@ describe("delivery review-fix continuation projection", () => {
     });
     const response = settled.deliveryMemberFixResponse;
     if (response === null) throw new Error("settled local response fixture must retain verification evidence");
+    const terminalVerificationTarget = { head: "d".repeat(40), tree: "e".repeat(40) };
 
     expect(selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
       workUnitId: plan.workUnitId,
       planId: plan.planId,
       selectedDeliverableId,
-      target: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      selectedMemberTarget: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      target: terminalVerificationTarget,
       records: [settled],
     })).toEqual({
       status: "selected",
+      operationId: "local-operation-settled",
       verification: {
         applicability: "focused",
-        target: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+        target: terminalVerificationTarget,
         tier1: {
           outcome: "passed",
           provenance: "exact-tree-reuse",
-          targetTree: response.newTarget.headTree,
+          targetTree: terminalVerificationTarget.tree,
           coveredInputs: "unchanged",
         },
         verificationEvidenceRefs: ["verification://focused-fix"],
@@ -520,7 +523,8 @@ describe("delivery review-fix continuation projection", () => {
       workUnitId: plan.workUnitId,
       planId: plan.planId,
       selectedDeliverableId,
-      target: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      selectedMemberTarget: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      target: terminalVerificationTarget,
       records: [prior, settled],
     })).toMatchObject({ status: "selected" });
   });

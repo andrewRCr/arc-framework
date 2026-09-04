@@ -72,6 +72,7 @@ import { LocalReviewOperationStateStore } from
 import { HostedRequestHandleSchema } from
   "../../src/scripts/review-gate/hosted/request.js";
 import {
+  laneProgressOperationId,
   recordHostedPendingRequest,
   recordLaneAttempt,
   settleHostedAttemptFinding,
@@ -1779,6 +1780,16 @@ describe("arc delivery position", () => {
     await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
       status: "ok",
       value: { value: { pendingReviewFixVerification: null } },
+    });
+    await expect(operationStore.readOperation(laneProgressOperationId({
+      lane: "standard",
+      repositoryId: oldTarget.repositoryId,
+      headSha: oldTarget.headSha,
+    }))).resolves.toMatchObject({
+      state: {
+        kind: "lane-progress",
+        attempts: [{ attemptId: operation.operationId, outcome: "settled-findings" }],
+      },
     });
   });
 

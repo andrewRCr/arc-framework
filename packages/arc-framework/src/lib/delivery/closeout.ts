@@ -13,11 +13,18 @@ import {
   verifyDeliveryTerminalSettlement,
 } from "./retirement.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
+import {
+  resolveForwardDeliverySubjects,
+  type DeliveryRenameEvidenceAuthority,
+  type DeliveryRenameTransitionSource,
+} from "./plan-resolution.js";
 
 export interface DeliveryCloseoutDependencies {
   readonly planStore: Pick<DeliveryPlanStore<DeliveryPlanV1>, "enumerateCurrent" | "removeCurrent">;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "read" | "publish" | "remove">;
   readonly gitCommonDir: string;
+  readonly renameAuthority: DeliveryRenameEvidenceAuthority;
+  readonly renameTransitionSource: DeliveryRenameTransitionSource;
   readonly residue: Omit<DeliveryResidueReapingDependencies, "stateStore">;
   readonly retirement: Omit<DeliveryRetirementDependencies, "planStore" | "stateStore">;
 }
@@ -66,7 +73,15 @@ export async function closeoutCompletedDelivery(
 
   const enumerated = await dependencies.planStore.enumerateCurrent();
   if (enumerated.status === "refused") return blocked(`plan-${enumerated.reason}`);
-  const plans = enumerated.value.filter((plan) => plan.workUnitId === input.workUnitId);
+  const resolved = await resolveForwardDeliverySubjects({
+    records: enumerated.value,
+    currentWorkUnitId: input.workUnitId,
+    recordWorkUnitId: (plan) => plan.workUnitId,
+    authority: dependencies.renameAuthority,
+    transitionSource: dependencies.renameTransitionSource,
+  });
+  if (resolved.status === "indeterminate") return blocked(`plan-${resolved.reason}`);
+  const plans = resolved.records;
   const bound: Array<{
     readonly plan: DeliveryPlanV1;
     readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
@@ -104,7 +119,7 @@ export async function closeoutCompletedDelivery(
   }
 
   const retired = await retireCompletedDeliveryRecords({
-    workUnitId: input.workUnitId,
+    plans,
     repository: input.repository,
   }, {
     ...dependencies.retirement,

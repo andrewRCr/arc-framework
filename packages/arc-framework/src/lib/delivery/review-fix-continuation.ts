@@ -67,7 +67,11 @@ export type DurableDeliveryReviewFixResponseReplay =
 
 export type DurableLocalDeliveryReviewFixAcknowledgementReplay =
   | { readonly status: "none" }
-  | { readonly status: "selected"; readonly verification: VerificationResult }
+  | {
+      readonly status: "selected";
+      readonly operationId: string;
+      readonly verification: VerificationResult;
+    }
   | {
       readonly status: "refused";
       readonly reason:
@@ -156,6 +160,7 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
   readonly workUnitId: string;
   readonly planId: string;
   readonly selectedDeliverableId: string;
+  readonly selectedMemberTarget: { readonly head: string; readonly tree: string };
   readonly target: { readonly head: string; readonly tree: string };
   readonly records: readonly ApprovedDispositionRecord[];
 }): DurableLocalDeliveryReviewFixAcknowledgementReplay {
@@ -167,8 +172,8 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
       && record.source.kind === "attested-local"
       && response !== null
       && response.newTarget.kind === "delivery-member"
-      && response.newTarget.headSha === input.target.head
-      && response.newTarget.headTree === input.target.tree;
+      && response.newTarget.headSha === input.selectedMemberTarget.head
+      && response.newTarget.headTree === input.selectedMemberTarget.tree;
   });
   if (candidates.length > 1) {
     return { status: "refused", reason: "review-fix-acknowledgement-replay-ambiguous" };
@@ -183,6 +188,7 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
   }
   return {
     status: "selected",
+    operationId: selected.operationId,
     verification: {
       applicability: response.applicability,
       target: input.target,

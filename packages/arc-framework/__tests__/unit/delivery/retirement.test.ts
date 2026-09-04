@@ -44,7 +44,6 @@ function completedRecordsFixture() {
 function retirementDependencies(fixture: ReturnType<typeof completedRecordsFixture>) {
   return {
     planStore: {
-      enumerateCurrent: async () => ({ status: "ok" as const, value: [...fixture.plans.values()] }),
       removeCurrent: async (planId: string, expectedDigest: string) => {
         const current = fixture.plans.get(planId);
         if (current === undefined) return { status: "ok" as const, value: { removed: false } };
@@ -73,14 +72,17 @@ function retirementDependencies(fixture: ReturnType<typeof completedRecordsFixtu
   };
 }
 
+function retirementInput(fixture: ReturnType<typeof completedRecordsFixture>) {
+  return { plans: [...fixture.plans.values()], repository: "owner/repo" };
+}
+
 describe("delivery record retirement", () => {
   it("removes the completed bound pair and same-work-unit orphan plans", async () => {
     const fixture = completedRecordsFixture();
 
-    await expect(retireCompletedDeliveryRecords({
-      workUnitId: fixture.plan.workUnitId,
-      repository: "owner/repo",
-    }, retirementDependencies(fixture))).resolves.toEqual({
+    await expect(retireCompletedDeliveryRecords(
+      retirementInput(fixture), retirementDependencies(fixture),
+    )).resolves.toEqual({
       status: "retired",
       planIds: [fixture.plan.planId, fixture.orphan.planId],
     });
@@ -112,10 +114,9 @@ describe("delivery record retirement", () => {
     if (reserved.status !== "reserved") throw new Error("fixture operation must reserve");
     fixture.states.set(fixture.plan.planId, { revision: 7, value: reserved.state });
 
-    await expect(retireCompletedDeliveryRecords({
-      workUnitId: fixture.plan.workUnitId,
-      repository: "owner/repo",
-    }, retirementDependencies(fixture))).resolves.toMatchObject({
+    await expect(retireCompletedDeliveryRecords(
+      retirementInput(fixture), retirementDependencies(fixture),
+    )).resolves.toMatchObject({
       status: "blocked",
       reason: "operation-active",
     });
@@ -135,10 +136,9 @@ describe("delivery record retirement", () => {
       },
     });
 
-    await expect(retireCompletedDeliveryRecords({
-      workUnitId: fixture.plan.workUnitId,
-      repository: "owner/repo",
-    }, retirementDependencies(fixture))).resolves.toMatchObject({
+    await expect(retireCompletedDeliveryRecords(
+      retirementInput(fixture), retirementDependencies(fixture),
+    )).resolves.toMatchObject({
       status: "blocked",
       reason: "pending-review-fix-verification",
     });
@@ -156,10 +156,9 @@ describe("delivery record retirement", () => {
         observeRemoteRef: side === "remote" ? observed : dependencies.observeRemoteRef,
       };
 
-      await expect(retireCompletedDeliveryRecords({
-        workUnitId: fixture.plan.workUnitId,
-        repository: "owner/repo",
-      }, withResidue)).resolves.toMatchObject({ status: "blocked", reason: "member-ref-present" });
+      await expect(retireCompletedDeliveryRecords(
+        retirementInput(fixture), withResidue,
+      )).resolves.toMatchObject({ status: "blocked", reason: "member-ref-present" });
       expect({ plans: fixture.plans.size, states: fixture.states.size }).toEqual({ plans: 2, states: 1 });
     }
   });
@@ -173,10 +172,9 @@ describe("delivery record retirement", () => {
       const fixture = completedRecordsFixture();
       fixture.request = { ...fixture.request, ...request };
 
-      await expect(retireCompletedDeliveryRecords({
-        workUnitId: fixture.plan.workUnitId,
-        repository: "owner/repo",
-      }, retirementDependencies(fixture))).resolves.toMatchObject({
+      await expect(retireCompletedDeliveryRecords(
+        retirementInput(fixture), retirementDependencies(fixture),
+      )).resolves.toMatchObject({
         status: "blocked",
         reason: "terminal-unsettled",
       });
@@ -202,28 +200,29 @@ describe("delivery record retirement", () => {
       },
     };
 
-    await expect(retireCompletedDeliveryRecords({
-      workUnitId: fixture.plan.workUnitId,
-      repository: "owner/repo",
-    }, interruptedDependencies)).resolves.toMatchObject({
+    await expect(retireCompletedDeliveryRecords(
+      retirementInput(fixture), interruptedDependencies,
+    )).resolves.toMatchObject({
       status: "blocked",
       reason: "plan-version-conflict",
     });
     expect({ plans: fixture.plans.size, states: fixture.states.size }).toEqual({ plans: 2, states: 0 });
 
-    await expect(retireCompletedDeliveryRecords({
-      workUnitId: fixture.plan.workUnitId,
-      repository: "owner/repo",
-    }, dependencies)).resolves.toMatchObject({ status: "retired" });
+    await expect(retireCompletedDeliveryRecords(
+      retirementInput(fixture), dependencies,
+    )).resolves.toMatchObject({ status: "retired" });
     expect({ plans: fixture.plans.size, states: fixture.states.size }).toEqual({ plans: 0, states: 0 });
   });
 
   it("treats a repeated retirement as an idempotent success", async () => {
     const fixture = completedRecordsFixture();
     const dependencies = retirementDependencies(fixture);
-    const input = { workUnitId: fixture.plan.workUnitId, repository: "owner/repo" };
-    await expect(retireCompletedDeliveryRecords(input, dependencies)).resolves.toMatchObject({ status: "retired" });
-    await expect(retireCompletedDeliveryRecords(input, dependencies)).resolves.toEqual({
+    await expect(retireCompletedDeliveryRecords(
+      retirementInput(fixture), dependencies,
+    )).resolves.toMatchObject({ status: "retired" });
+    await expect(retireCompletedDeliveryRecords(
+      retirementInput(fixture), dependencies,
+    )).resolves.toEqual({
       status: "retired",
       planIds: [],
     });

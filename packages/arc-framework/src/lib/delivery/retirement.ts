@@ -3,7 +3,7 @@
 import type { DeliveryHostRequestObservation } from "./host.js";
 import type { DeliveryPlanStore, DeliveryStateStore } from "./ports.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
-import { SlugSchema, type CanonicalDigest } from "../kernel/index.js";
+import type { CanonicalDigest } from "../kernel/index.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 type DeliveryRefObservation =
@@ -12,7 +12,7 @@ type DeliveryRefObservation =
   | { readonly status: "refused"; readonly reason?: string };
 
 export interface DeliveryRetirementDependencies {
-  readonly planStore: Pick<DeliveryPlanStore<DeliveryPlanV1>, "enumerateCurrent" | "removeCurrent">;
+  readonly planStore: Pick<DeliveryPlanStore<DeliveryPlanV1>, "removeCurrent">;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "read" | "remove">;
   readonly observeLocalRef: (ref: string) => Promise<DeliveryRefObservation>;
   readonly observeRemoteRef: (ref: string) => Promise<DeliveryRefObservation>;
@@ -63,19 +63,15 @@ export async function verifyDeliveryTerminalSettlement(
     : { status: "blocked", reason: "terminal-unsettled" };
 }
 
-/** Retire one completed delivery record set selected by explicit work-unit identity. */
+/** Retire one already-authoritatively-selected completed delivery record set. */
 export async function retireCompletedDeliveryRecords(
-  input: { readonly workUnitId: string; readonly repository: string },
+  input: { readonly plans: readonly DeliveryPlanV1[]; readonly repository: string },
   dependencies: DeliveryRetirementDependencies,
 ): Promise<DeliveryRetirementResult> {
-  if (!SlugSchema.safeParse(input.workUnitId).success || input.repository.trim() === "") {
+  if (input.repository.trim() === "") {
     return { status: "blocked", reason: "identity-invalid" };
   }
-  const enumerated = await dependencies.planStore.enumerateCurrent();
-  if (enumerated.status === "refused") {
-    return { status: "blocked", reason: `plan-${enumerated.reason}` };
-  }
-  const plans = enumerated.value.filter((plan) => plan.workUnitId === input.workUnitId);
+  const plans = input.plans;
   if (plans.length === 0) return { status: "retired", planIds: [] };
 
   const records: Array<{ plan: DeliveryPlanV1; state: DeliveryStateV1; revision: number }> = [];

@@ -275,12 +275,14 @@ describe("eight-member delivery integration rehearsal", () => {
       readiness: async () => ({ status: "ready" }),
     })).resolves.toMatchObject({ status: "prepared", members: selection.members });
 
-    let persisted = { revision: 1, value: state };
-    const localRefs = new Set(state.members.slice(0, -1).map((member) => member.ref!));
-    const remoteRefs = new Set(localRefs);
+    let persisted: { revision: number; value: DeliveryStateV1 } | null = { revision: 1, value: state };
+    const localRefs = new Map(state.members.slice(0, -1).map((member) => [
+      member.ref!, member.coordinates!.head,
+    ]));
+    const remoteRefs = new Map(localRefs);
     const stateStore = {
       publish: async (_planId: string, value: DeliveryStateV1, expectedRevision: number) => {
-        if (expectedRevision !== persisted.revision) {
+        if (persisted === null || expectedRevision !== persisted.revision) {
           return { status: "refused" as const, reason: "version-conflict" as const };
         }
         persisted = { revision: expectedRevision + 1, value };
@@ -315,19 +317,23 @@ describe("eight-member delivery integration rehearsal", () => {
       },
     };
     for (const [index, member] of state.members.slice(0, -1).entries()) {
+      const current = persisted;
+      if (current === null) throw new Error("teardown state disappeared before closeout");
       const teardown = await teardownLandedDeliveryMember({
         plan,
-        current: persisted,
+        current,
         facts: positionFacts(state, plan.members.slice(0, index + 1).map(({ deliverableId }) => deliverableId)),
         deliverableId: member.deliverableId,
         repository: "owner/repo",
         protectedTargetRef: "refs/heads/main",
         host,
-        deleteLocalRef: async ({ ref }) => {
+        deleteLocalRef: async ({ ref, expectedHead }) => {
+          if (localRefs.get(ref) !== expectedHead) return { status: "refused" as const };
           localRefs.delete(ref);
           return { status: "deleted" as const };
         },
-        deleteRemoteRef: async ({ ref }) => {
+        deleteRemoteRef: async ({ ref, expectedHead }) => {
+          if (remoteRefs.get(ref) !== expectedHead) return { status: "refused" as const };
           remoteRefs.delete(ref);
           return { status: "deleted" as const };
         },
@@ -337,6 +343,8 @@ describe("eight-member delivery integration rehearsal", () => {
         ? { status: "torn-down", nextAction: "retarget" }
         : { status: "torn-down", nextAction: "continue" });
     }
+    expect({ localRefs: [...localRefs], remoteRefs: [...remoteRefs] })
+      .toEqual({ localRefs: [], remoteRefs: [] });
     terminalBaseRef = "main";
     expect(assessDeliveryTerminalTop({
       terminal: true,
@@ -381,11 +389,15 @@ describe("eight-member delivery integration rehearsal", () => {
         read: async () => ({ status: "ok", value: persisted }),
         publish: stateStore.publish,
         remove: async (_planId, expectedRevision) => {
+          if (persisted === null) return { status: "ok", value: { removed: false } };
           if (expectedRevision !== persisted.revision) return { status: "refused", reason: "version-conflict" };
+          persisted = null;
           return { status: "ok", value: { removed: true } };
         },
       },
       gitCommonDir: "/repo/.git",
+      renameAuthority: { status: "established", ref: "refs/heads/main" },
+      renameTransitionSource: { enumerate: async () => ({ status: "ok", value: [] }) },
       residue: {
         observeRefreshCandidates: async () => ({ status: "observed", candidates: [] }),
         observeCandidate: async (ref) => candidateHeads.has(ref)
@@ -405,8 +417,12 @@ describe("eight-member delivery integration rehearsal", () => {
           gateHeads.delete(path);
           return { status: "removed" };
         },
-        deleteLocalMember: async () => ({ status: "adopted" }),
-        deleteRemoteMember: async () => ({ status: "adopted" }),
+        deleteLocalMember: async ({ ref }) => localRefs.has(ref)
+          ? { status: "refused" }
+          : { status: "adopted" },
+        deleteRemoteMember: async ({ ref }) => remoteRefs.has(ref)
+          ? { status: "refused" }
+          : { status: "adopted" },
       },
       retirement: {
         observeLocalRef: async () => ({ status: "absent" }),
@@ -428,7 +444,13 @@ describe("eight-member delivery integration rehearsal", () => {
       },
     });
     expect(closed).toMatchObject({ status: "closed-out", planIds: [plan.planId] });
-    expect({ plans: plans.size, candidates: candidateHeads.size, gates: gateHeads.size })
-      .toEqual({ plans: 0, candidates: 0, gates: 0 });
+    expect({
+      plans: plans.size,
+      state: persisted,
+      localRefs: [...localRefs],
+      remoteRefs: [...remoteRefs],
+      candidates: candidateHeads.size,
+      gates: gateHeads.size,
+    }).toEqual({ plans: 0, state: null, localRefs: [], remoteRefs: [], candidates: 0, gates: 0 });
   });
 });

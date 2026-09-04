@@ -3,11 +3,16 @@ import { describe, expect, it } from "vitest";
 import { closeoutCompletedDelivery } from "../../../src/lib/delivery/closeout.js";
 import { deriveDeliveryResidueLocators } from "../../../src/lib/delivery/residue-reaping.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
-import { deliveryThreeMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import {
+  deliveryThreeMemberStackPlanFixture,
+  deliveryThreeMemberStackPlanForWorkUnitFixture,
+} from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
-function closeoutFixture() {
-  const plan = deliveryThreeMemberStackPlanFixture();
+function closeoutFixture(storedWorkUnitId?: string) {
+  const plan = storedWorkUnitId === undefined
+    ? deliveryThreeMemberStackPlanFixture()
+    : deliveryThreeMemberStackPlanForWorkUnitFixture(storedWorkUnitId);
   const initial = deliveryStateFixture(plan);
   const state: DeliveryStateV1 = {
     ...initial,
@@ -66,6 +71,8 @@ function closeoutFixture() {
         },
       },
       gitCommonDir: "/repo/.git",
+      renameAuthority: { status: "established" as const, ref: "refs/heads/main" },
+      renameTransitionSource: { enumerate: async () => ({ status: "ok" as const, value: [] }) },
       residue: {
         observeRefreshCandidates: async () => ({ status: "observed" as const, candidates: [] }),
         observeCandidate: async () => ({ status: "absent" as const }),
@@ -169,5 +176,52 @@ describe("delivery closeout", () => {
       localMembers: [...fixture.localMembers],
       remoteMembers: [...fixture.remoteMembers],
     }).toEqual({ plans: 0, state: null, localMembers: [], remoteMembers: [] });
+  });
+
+  it("closes a bound plan through authenticated rename history", async () => {
+    const fixture = closeoutFixture("original-delivery-unit");
+    const dependencies = {
+      ...fixture.dependencies,
+      renameTransitionSource: { enumerate: async () => ({
+        status: "ok" as const,
+        value: [{
+          subject: "original-delivery-unit",
+          outcome: { kind: "rename" as const, targetSlug: "renamed-delivery-unit" },
+        }],
+      }) },
+    };
+    await expect(closeoutCompletedDelivery({
+      workUnitId: "renamed-delivery-unit",
+      repository: "owner/repo",
+      remote: "origin",
+    }, dependencies)).resolves.toMatchObject({
+      status: "closed-out",
+      workUnitId: "renamed-delivery-unit",
+      planIds: [fixture.plan.planId],
+    });
+    expect({ plans: fixture.plans.size, state: fixture.currentState() }).toEqual({ plans: 0, state: null });
+  });
+
+  it("does not mutate when rename authority is indeterminate", async () => {
+    const fixture = closeoutFixture("original-delivery-unit");
+    const dependencies = {
+      ...fixture.dependencies,
+      renameTransitionSource: { enumerate: async () => ({
+        status: "refused" as const,
+        reason: "substrate-unreachable" as const,
+      }) },
+    };
+    await expect(closeoutCompletedDelivery({
+      workUnitId: "renamed-delivery-unit",
+      repository: "owner/repo",
+      remote: "origin",
+    }, dependencies)).resolves.toMatchObject({
+      status: "blocked",
+      reason: "plan-substrate-unreachable",
+    });
+    expect({ plans: fixture.plans.size, state: fixture.currentState() }).toEqual({
+      plans: 1,
+      state: { revision: 7, value: fixture.state },
+    });
   });
 });

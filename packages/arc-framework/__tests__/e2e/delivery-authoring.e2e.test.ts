@@ -14,6 +14,7 @@ interface AuthoringFixture {
   readonly deliverableId: string;
   readonly candidateRef: string;
   readonly gatePath: string;
+  readonly memberRef: string;
   readonly memberHead: string;
   readonly memberTree: string;
 }
@@ -117,6 +118,7 @@ describe("delivery authoring write verbs", () => {
       deliverableId: first.deliverableId,
       candidateRef: first.candidateRef,
       gatePath: first.gatePath,
+      memberRef: "refs/heads/delivery/first",
       memberHead: firstHead,
       memberTree: firstTree,
     };
@@ -189,6 +191,8 @@ describe("delivery authoring write verbs", () => {
     const authoredTree = await git(fixture.gatePath, ["rev-parse", "HEAD^{tree}"]);
     const request = (overrides: Record<string, unknown> = {}) => `${JSON.stringify({
       planId: fixture.planId,
+      selectedDeliverableId: fixture.deliverableId,
+      expectedStateRevision: 1,
       ref: fixture.candidateRef,
       checkoutPath: fixture.gatePath,
       beforeHead: fixture.memberHead,
@@ -196,6 +200,7 @@ describe("delivery authoring write verbs", () => {
       requestedHead: authoredHead,
       requestedTree: authoredTree,
       publishedHead: fixture.memberHead,
+      publishedTree: fixture.memberTree,
       requiredAncestorHeads: [fixture.memberHead],
       ...overrides,
     })}\n`;
@@ -234,6 +239,29 @@ describe("delivery authoring write verbs", () => {
       replayed: true,
     });
     expect(await git(repository, ["rev-parse", fixture.candidateRef])).toBe(authoredHead);
+
+    const staleAuthority = await rebind(request({ expectedStateRevision: 2 }));
+    expect(staleAuthority.exitCode).toBe(1);
+    expect(JSON.parse(staleAuthority.stdout)).toMatchObject({
+      status: "refused",
+      reason: "authoring-rebind-authority-moved",
+    });
+
+    const wrongLocator = await rebind(request({ checkoutPath: `${fixture.gatePath}-other` }));
+    expect(wrongLocator.exitCode).toBe(1);
+    expect(JSON.parse(wrongLocator.stdout)).toMatchObject({
+      status: "refused",
+      reason: "authoring-rebind-coordinate-mismatch",
+    });
+
+    await git(repository, ["update-ref", fixture.memberRef, authoredHead, fixture.memberHead]);
+    const publicMoved = await rebind(request());
+    expect(publicMoved.exitCode).toBe(1);
+    expect(JSON.parse(publicMoved.stdout)).toMatchObject({
+      status: "refused",
+      reason: "authoring-rebind-public-moved",
+    });
+    await git(repository, ["update-ref", fixture.memberRef, fixture.memberHead, authoredHead]);
 
     await writeFile(join(fixture.gatePath, "member-one.txt"), "member one\ncorrected twice\n");
     await git(fixture.gatePath, ["add", "member-one.txt"]);

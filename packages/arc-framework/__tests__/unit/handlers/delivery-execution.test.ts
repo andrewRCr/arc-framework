@@ -145,6 +145,8 @@ describe("delivery execution handler", () => {
     const member = plan.members[0]!;
     const request = {
       planId: plan.planId,
+      selectedDeliverableId: member.deliverableId,
+      expectedStateRevision: 3,
       ref: `refs/arc/delivery-candidates/${plan.planId}/${member.chunkKey}`,
       checkoutPath: `/repo/.git/arc/delivery-gates/${plan.planId}/${member.chunkKey}`,
       beforeHead: "1".repeat(40),
@@ -152,6 +154,7 @@ describe("delivery execution handler", () => {
       requestedHead: "3".repeat(40),
       requestedTree: "4".repeat(40),
       publishedHead: "1".repeat(40),
+      publishedTree: "2".repeat(40),
       requiredAncestorHeads: ["1".repeat(40)],
     };
     const write = vi.fn();
@@ -1367,13 +1370,9 @@ describe("delivery execution handler", () => {
     });
   });
 
-  it("admits the settled record-effect head on a terminal-rebind reconciliation", async () => {
+  it("rejects caller-authored settled record-effect authority", async () => {
     const state = deliveryStateFixture(deliveryStackPlanFixture());
-    const execute = vi.fn().mockResolvedValue({
-      status: "rebound",
-      state: { revision: 9, value: state },
-      nextAction: "rerun-checkpoint",
-    });
+    const execute = vi.fn();
     const write = vi.fn();
 
     await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
@@ -1387,8 +1386,11 @@ describe("delivery execution handler", () => {
       setExitCode: vi.fn(),
     });
 
-    expect(execute).toHaveBeenCalled();
-    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({ status: "rebound" });
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
   });
 
   it("preserves the terminal-coordinate rebind and checkpoint rerun envelope", async () => {

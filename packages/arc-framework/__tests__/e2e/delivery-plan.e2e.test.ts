@@ -114,6 +114,18 @@ describe("arc delivery", () => {
 
   it("reaps refs and retires records through the destructive closeout verb", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
+    const closeoutWorkUnitId = "renamed-delivery-plan-record";
+    const transitions = join(repository, ".arc", "system", ".internal", "transitions");
+    await mkdir(transitions, { recursive: true });
+    await writeFile(join(transitions, `${plan.workUnitId}.json`), `${JSON.stringify({
+      schemaVersion: 1,
+      origin: plan.workUnitId,
+      kind: "rename",
+      successors: [closeoutWorkUnitId],
+      edges: [],
+    })}\n`);
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "-m", "record closeout rename"]);
     const head = await git(repository, ["rev-parse", "HEAD"]);
     const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
     const initial = deliveryStateFixture(plan);
@@ -155,7 +167,7 @@ describe("arc delivery", () => {
       value: state,
     })}\n`);
     await writeFile(join(repository, "delivery-closeout.json"), `${JSON.stringify({
-      workUnitId: plan.workUnitId,
+      workUnitId: closeoutWorkUnitId,
       repository: "owner/repo",
       remote: "origin",
     })}\n`);
@@ -191,7 +203,7 @@ describe("arc delivery", () => {
     expect(JSON.parse(closed.stdout)).toMatchObject({
       command: "delivery closeout",
       status: "closed-out",
-      workUnitId: plan.workUnitId,
+      workUnitId: closeoutWorkUnitId,
       planIds: [plan.planId],
     });
     await expect(readFile(planPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
