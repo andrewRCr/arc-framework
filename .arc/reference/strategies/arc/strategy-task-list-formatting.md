@@ -356,7 +356,18 @@ phases per layer with the same grouped pattern in each, plus a cross-layer valid
 
 ## Verification Phase
 
-Required final phase of every task list — a single task pointing to
+When a Delivery Plan is present, each member task range ends with an assigned member-scope verification parent. It
+is the final assigned task in that member range, and its title ends with the exact role suffix
+`— validate criteria at member scope`:
+
+```markdown
+### `[ ]` **M.N {Member closing title} — validate criteria at member scope**
+```
+
+This member verifier records the boundary criteria report; it does not replace or multiply the sole terminal
+work-unit verification task.
+
+The required final phase of every task list contains that single terminal task pointing to
 [`verify-work-unit.md`][verify-work-unit]:
 
 ```markdown

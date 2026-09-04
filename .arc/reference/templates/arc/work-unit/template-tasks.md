@@ -53,6 +53,12 @@ _Purpose:_ {what this phase delivers and why this granularity}
     - `[ ]` **1.2.b {Subtask description}**
         - {detail bullet}
 
+<!-- With a Delivery Plan, end each member task range with an assigned verification parent. It is the final
+     assigned task in that member range, and its title must end with this exact suffix:
+### `[ ]` **{task-id} {Member closing title} — validate criteria at member scope**
+     Repeat for every member. These member verifiers are distinct from the sole terminal work-unit verification
+     task below. -->
+
 ## **Phase N:** Verification
 
 ### `[ ]` **N.1 Complete verification** — load and follow `verify-work-unit.md`

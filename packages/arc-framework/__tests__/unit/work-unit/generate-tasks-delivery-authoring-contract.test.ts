@@ -72,4 +72,22 @@ describe("generate-tasks delivery authoring contract", () => {
       expect(memberCloseOut).not.toContain("ordinary implementation parent");
     }
   });
+
+  it("teaches the member verifier shape in every shipped task-authoring reference", () => {
+    const suffix = "— validate criteria at member scope";
+    const references = [
+      "arc/reference/templates/arc/work-unit/template-tasks.md",
+      "arc/reference/strategies/arc/strategy-task-list-formatting.md",
+    ];
+
+    for (const relativePath of references) {
+      const packaged = readFileSync(join(PACKAGE_ROOT, relativePath), "utf8");
+      const installed = readFileSync(join(PROJECT_ROOT, ".arc", relativePath.replace(/^arc\//u, "")), "utf8");
+
+      expect(installed).toBe(packaged);
+      expect(packaged).toContain(suffix);
+      expect(packaged).toMatch(/member[^\n]*range[\s\S]*?final[\s\S]{0,160}?(?:parent|task)/iu);
+      expect(packaged).toMatch(/sole terminal\s+work-unit verification\s+task/u);
+    }
+  });
 });
