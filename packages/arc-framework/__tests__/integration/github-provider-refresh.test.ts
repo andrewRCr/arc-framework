@@ -741,6 +741,185 @@ describe("GitHub provider refresh preparation", () => {
     await expect(port.prepare(request)).resolves.toEqual({ status: "refused", reason: "scope-mismatch" });
   });
 
+  it("reuses a workspace-retained predecessor when the provider recreates its identity", async () => {
+    const repository = await createTempRepoCore({ prefix: "arc-github-provider-refresh-retained-" });
+    roots.push(repository);
+    const remoteParent = await mkdtemp(join(tmpdir(), "arc-github-provider-refresh-retained-remote-"));
+    roots.push(remoteParent);
+    const remote = join(remoteParent, "remote.git");
+    await execFileAsync("git", ["init", "--bare", remote]);
+    await git(repository, ["remote", "add", "origin", remote]);
+
+    const plan = deliveryFourMemberStackPlanFixture();
+    const selectedName = `delivery/example/${plan.members[0]!.chunkKey}`;
+    const mechanicalName = `delivery/example/${plan.members[1]!.chunkKey}`;
+    const conflictingName = `delivery/example/${plan.members[2]!.chunkKey}`;
+    const topName = "feat/example";
+
+    const base = await commitFile(repository, "base.txt", "base\n", "base");
+    await git(repository, ["push", "origin", `${base}:refs/heads/main`]);
+    await git(repository, ["switch", "-c", selectedName]);
+    const originalSelected = await commitFile(repository, "shared.txt", "original\n", "original selected");
+    await git(repository, ["switch", "-c", mechanicalName]);
+    const mechanical = await commitFile(repository, "mechanical.txt", "mechanical\n", "mechanical dependent");
+    await git(repository, ["switch", "-c", conflictingName]);
+    const conflicting = await commitFile(repository, "shared.txt", "dependent\n", "conflicting dependent");
+    await git(repository, ["switch", "-c", topName]);
+    const top = await commitFile(repository, "top.txt", "top\n", "top");
+    await git(repository, ["switch", selectedName]);
+    const selected = await commitFile(repository, "shared.txt", "selected\n", "selected correction");
+
+    const branchNames = [selectedName, mechanicalName, conflictingName] as const;
+    const remoteHeads = [selected, mechanical, conflicting] as const;
+    for (const [name, head] of [...branchNames.map((name, index) => [name, remoteHeads[index]!] as const),
+      [topName, top] as const]) {
+      await git(repository, ["push", "origin", `${head}:refs/heads/${name}`]);
+    }
+
+    const coordinate = async (head: string) => ({
+      head,
+      tree: await git(repository, ["rev-parse", `${head}^{tree}`]),
+    });
+    const fixture = deliveryStateFixture(plan);
+    const state = DeliveryStateV1Schema.parse({
+      ...fixture,
+      target: { ref: "refs/heads/main", coordinates: await coordinate(base) },
+      members: [
+        {
+          ...fixture.members[0],
+          ref: `refs/heads/${selectedName}`,
+          changeRequest: { providerId: "github", changeRequestId: "751" },
+          coordinates: { base, ...await coordinate(selected) },
+        },
+        {
+          ...fixture.members[1],
+          ref: `refs/heads/${mechanicalName}`,
+          changeRequest: { providerId: "github", changeRequestId: "752" },
+          coordinates: { base: originalSelected, ...await coordinate(mechanical) },
+        },
+        {
+          ...fixture.members[2],
+          ref: `refs/heads/${conflictingName}`,
+          changeRequest: { providerId: "github", changeRequestId: "753" },
+          coordinates: { base: mechanical, ...await coordinate(conflicting) },
+        },
+        {
+          ...fixture.members[3],
+          ref: `refs/heads/${topName}`,
+          changeRequest: { providerId: "github", changeRequestId: "754" },
+          coordinates: { base: conflicting, ...await coordinate(top) },
+        },
+      ],
+    });
+    const derived = deriveDeliveryProviderRefreshSubject({
+      plan,
+      state,
+      facts: { target: state.target, members: state.members, landedDeliverableIds: [] },
+    });
+    if (derived.status !== "derived") throw new Error("refresh subject must derive");
+    const before = derived.subject.before;
+    const remoteView = (): GhStackView => ({
+      trunk: "main",
+      currentBranch: selectedName,
+      branches: branchNames.map((name, index) => ({
+        name,
+        head: remoteHeads[index]!,
+        base: index === 0 ? base : index === 1 ? selected : mechanical,
+        isCurrent: index === 0,
+        isMerged: false,
+        isQueued: false,
+        needsRebase: index > 0,
+        pr: {
+          number: 751 + index,
+          url: `https://github.com/owner/repo/pull/${751 + index}`,
+          state: "OPEN",
+        },
+      })),
+    });
+    let providerAttempt = 0;
+    const gh: DeliveryProviderProcessRunner = {
+      run: async (args, options) => {
+        const cwd = options?.cwd;
+        if (cwd === undefined) throw new Error("provider cwd is required");
+        if (args[1] === "--version") return { stdout: "gh-stack 0.1.0\n", stderr: "" };
+        if (args[1] === "checkout") {
+          await git(cwd, ["config", "user.email", "test@test.com"]);
+          await git(cwd, ["config", "user.name", "Test User"]);
+          await git(cwd, ["update-ref", "refs/heads/main", base]);
+          for (const [index, name] of branchNames.entries()) {
+            await git(cwd, ["update-ref", `refs/heads/${name}`, remoteHeads[index]!]);
+          }
+          return { stdout: "", stderr: "" };
+        }
+        if (args[1] === "view") return { stdout: JSON.stringify(remoteView()), stderr: "" };
+        if (args[1] === "rebase") {
+          providerAttempt += 1;
+          await git(cwd, ["switch", mechanicalName]);
+          await git(cwd, ["rebase", "--onto", selectedName, originalSelected, mechanicalName]);
+          const tree = await git(cwd, ["rev-parse", "HEAD^{tree}"]);
+          const recreated = await git(cwd, [
+            "commit-tree", tree, "-p", selected, "-m", `provider mechanical ${providerAttempt}`,
+          ]);
+          await git(cwd, ["update-ref", `refs/heads/${mechanicalName}`, recreated]);
+          await git(cwd, ["switch", conflictingName]);
+          await expect(execFileAsync(
+            "git",
+            ["rebase", "--onto", recreated, mechanical, conflictingName],
+            { cwd },
+          )).rejects.toBeDefined();
+          throw new DeliveryProviderProcessError("provider history collision", {
+            stdout: "",
+            stderr: "conflicted after recreating a mechanical predecessor",
+            exitCode: 3,
+          });
+        }
+        throw new Error(`unexpected provider invocation: ${args.join(" ")}`);
+      },
+    };
+    const port = new GhDeliveryProviderRefreshPort({
+      git: makeGitExec(repository),
+      gh,
+      nativeStack: { observe: async () => ({ status: "registered", stackNumber: 558 }) },
+      checkoutPath: repository,
+      remote: "origin",
+    });
+    const request = {
+      plan,
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix" as const, selectedDeliverableId: plan.members[0]!.deliverableId },
+      before,
+    };
+
+    const conflict = await port.prepare(request);
+    if (conflict.status !== "refused" || conflict.reason !== "content-conflict"
+      || conflict.conflictPreparation?.workspace === undefined) {
+      throw new Error(`provider conflict workspace must be prepared: ${JSON.stringify(conflict)}`);
+    }
+    const retainedPredecessor = conflict.conflictPreparation.parents.refreshedPredecessor;
+    const resolutionWorkspace = conflict.conflictPreparation.workspace.path;
+    await expect(execFileAsync(
+      "git",
+      ["merge", "--no-ff", retainedPredecessor, "-m", "approved conflict resolution"],
+      { cwd: resolutionWorkspace },
+    )).rejects.toBeDefined();
+    await writeFile(join(resolutionWorkspace, "shared.txt"), "dependent\nselected\n", "utf8");
+    await git(resolutionWorkspace, ["add", "shared.txt"]);
+    await git(resolutionWorkspace, ["commit", "-m", "approved conflict resolution"]);
+    const resolution = await git(resolutionWorkspace, ["rev-parse", "HEAD"]);
+
+    const resumed = await port.prepare(request);
+    if (resumed.status === "refused") throw new Error(`${resumed.reason}: ${resumed.detail ?? "no detail"}`);
+    expect(providerAttempt).toBe(2);
+    expect(resumed).toMatchObject({
+      status: "prepared",
+      candidates: [
+        { deliverableId: plan.members[1]!.deliverableId, head: retainedPredecessor },
+        { deliverableId: plan.members[2]!.deliverableId, head: resolution },
+      ],
+      locallyResolvedDeliverableIds: [plan.members[2]!.deliverableId],
+    });
+  });
+
   it("preserves an isolated predecessor across cascading provider conflicts", async () => {
     const repository = await createTempRepoCore({ prefix: "arc-github-provider-refresh-cascade-" });
     roots.push(repository);

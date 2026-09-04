@@ -3185,6 +3185,22 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
               composition coverage, both typechecks, full TypeScript/Markdown/shell lint, all ARC contract checks, the
               standalone build, and the full 11,284-test matrix pass; one unrelated test remains intentionally skipped.
 
+        - `[x]` **7.7.R.u.s Reuse the exact retained predecessor before conflict-workspace adoption**
+
+            - _Goal:_ A provider retry that recreates a contribution-equivalent mechanical predecessor with a new
+              commit identity still consumes the already-prepared exact two-parent resolution, rather than making
+              its own detached-workspace resume impossible.
+
+            - _Forward clarification:_ The attended resolution retains exact ordered parents. Its provider-rebased
+              mechanical predecessor may be single-parent; reuse instead requires the deterministic candidate ref,
+              the exact three-way merge result, and ancestry from the current predecessor.
+
+            - _Outcome:_ Detached resolution workspaces now seed retained-predecessor discovery before replay.
+              Provider preparation replaces a recreated mechanical identity only after the candidate ref, object and
+              tree, exact merge result, and predecessor ancestry agree, then consumes the originally named
+              two-parent resolution. The real-Git regression proves two provider attempts with different commit
+              identities complete through ordinary workspace adoption while mismatched evidence retains refusal.
+
         - _Final driven-acceptance hardening:_ The production correction E2E exposed three seams that only compose
           after record settlement: Candidate-accepted terminal movement had to preserve the exact public review
           continuation in both entry and hosted-status readers; the driver had to reconcile that terminal record

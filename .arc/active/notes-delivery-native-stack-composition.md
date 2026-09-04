@@ -807,3 +807,28 @@ does not add a generic command runner. The current stack is repaired at the earl
 (Members 1, 3, and 4), then restacked while preserving the final union. Exact member Tier 2 runs prove each repaired
 boundary before provider spend. Scheduling hosted CI as each member's review settles remains routed to
 `ci-defer-heavy-reconciliation`; it is not pulled into this correction.
+
+### Amendment 12 — conflict retries preserve their retained predecessor identity (2026-09-04)
+
+The live Member 1 boundary repair reached Member 3's expected provider-history conflict after mechanically rebasing
+Member 2. ARC anchored that exact temporary Member 2 commit and prepared Member 3's detached two-parent resolution
+workspace. On retry, the provider recreated the same Member 2 contribution with a new commit identity before reaching
+the same Member 3 conflict. Workspace adoption then compared the approved merge to the newly generated parent and
+refused `conflict-resolution-mismatch`, even though the retained exact predecessor remained locally readable. Repeating
+the provider replay could never satisfy the documented resume contract.
+
+Decided behavior: conflict-candidate discovery treats an exact clean detached resolution workspace as the same
+pre-reservation evidence source as an already-advanced named member ref. It derives the workspace's retained
+predecessor chain only after the existing ordered-parent and object/tree checks. When a repeated provider collision
+has independently recreated one of those mechanical members, recovery replaces that isolated temporary identity with
+the retained exact candidate only when it proves the old member as first parent and the current exact predecessor as
+second parent; later conflict-workspace adoption then consumes the parent it originally named. Missing, dirty, stale,
+mismatched, or ambiguous evidence keeps the existing refusal and cleanup behavior. No remote ref, Delivery State,
+review authority, new record, or generalized retry policy is added. Task 7.7.R.u.s owns the bounded repair and the
+current Member 1 correction is its live acceptance.
+
+_Forward clarification:_ The ordered-parent proof above applies to the attended resolution commit, whose first
+parent remains the old member and whose second parent remains the refreshed predecessor. A provider-rebased
+mechanical predecessor may instead be a single-parent commit. Reusing that predecessor requires its deterministic
+candidate ref, an exact tree equal to the three-way merge result under the original base, and ancestry from the
+current exact predecessor; only the attended resolution retains the exact two-parent requirement.

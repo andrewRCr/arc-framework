@@ -418,6 +418,25 @@ async function readOrderedParents(
   }
 }
 
+async function exactMechanicalTree(input: {
+  readonly git: GitExec;
+  readonly cwd: string;
+  readonly member: DeliveryOperationSnapshotV1["members"][number];
+  readonly predecessorHead: string;
+}): Promise<string | null> {
+  if (input.member.coordinates === null) return null;
+  const mergeArgs = [
+    "merge-tree", "--write-tree", "--merge-base", input.member.coordinates.base,
+    "--name-only", "-z", "--no-messages", input.member.coordinates.head, input.predecessorHead,
+  ];
+  try {
+    const merged = mergeTreeOutput((await input.git("git", mergeArgs, { cwd: input.cwd })).stdout);
+    return merged !== null && merged.paths.length === 0 ? merged.tree : null;
+  } catch {
+    return null;
+  }
+}
+
 async function conflictCandidateReuse(input: {
   readonly git: GitExec;
   readonly cwd: string;
@@ -435,8 +454,25 @@ async function conflictCandidateReuse(input: {
     if (member?.ref === null || member?.ref === undefined || member.coordinates === null
       || predecessor === undefined) continue;
     const local = await readCoordinates(input.git, input.cwd, member.ref);
-    if (local === null || local.head === member.coordinates.head) continue;
-    const parents = await readOrderedParents(input.git, input.cwd, local.head);
+    if (local === null) continue;
+    let resolutionHead = local.head;
+    if (resolutionHead === member.coordinates.head) {
+      const locator = await deriveResolutionWorkspace({
+        git: input.git,
+        checkoutCwd: input.cwd,
+        plan: input.plan,
+        deliverableId: member.deliverableId,
+      });
+      if (locator.status === "refused") continue;
+      const workspace = await observeDeliveryGateCheckout({
+        exec: input.git,
+        path: locator.path,
+        pathExists,
+      });
+      if (workspace.status !== "observed" || workspace.head === member.coordinates.head) continue;
+      resolutionHead = workspace.head;
+    }
+    const parents = await readOrderedParents(input.git, input.cwd, resolutionHead);
     if (parents?.length !== 2 || parents[0] !== member.coordinates.head || parents[1] === undefined) continue;
     const candidate = deliveryProviderRefreshCandidateFor({
       plan: input.plan,
@@ -444,6 +480,28 @@ async function conflictCandidateReuse(input: {
       head: parents[1],
     });
     if (candidate === null) continue;
+    const predecessorIndex = index - 1;
+    const predecessorPredecessorHead = predecessorIndex === 0
+      ? input.before.target?.coordinates?.head
+      : input.before.members[predecessorIndex - 1]?.coordinates?.head;
+    const [directCandidate, directTree, directAncestry] = predecessorPredecessorHead === undefined
+      ? [null, null, false] as const
+      : await Promise.all([
+          readCoordinates(input.git, input.cwd, candidate.ref),
+          exactMechanicalTree({
+            git: input.git,
+            cwd: input.cwd,
+            member: predecessor,
+            predecessorHead: predecessorPredecessorHead,
+          }),
+          isAncestor(input.git, input.cwd, predecessorPredecessorHead, candidate.head),
+        ]);
+    if (directCandidate?.head === candidate.head && directTree !== null
+      && directCandidate.tree === directTree && directAncestry) {
+      retained.push(candidate);
+      reusable.set(candidate.deliverableId, candidate);
+      continue;
+    }
     const chain: DeliveryProviderRefreshCandidate[] = [];
     let chainIndex = index - 1;
     let chainHead = candidate.head;
@@ -590,6 +648,36 @@ async function absorbProviderHistoryCollision(input: {
         return { status: "refused", reason: "scope-mismatch" };
       }
     } else if (coordinates.head !== beforeMember.coordinates.head) {
+      const reusable = input.reusableCandidates.find(({ deliverableId }) => (
+        deliverableId === beforeMember.deliverableId
+      ));
+      if (reusable !== undefined && reusable.head !== coordinates.head) {
+        const mergedTree = await exactMechanicalTree({
+          git: input.git,
+          cwd: input.cwd,
+          member: beforeMember,
+          predecessorHead,
+        });
+        if (mergedTree !== null) {
+          const [local, isolated, predecessorContained] = await Promise.all([
+            readCoordinates(input.git, input.resolutionCwd, reusable.ref),
+            readCoordinates(input.git, input.cwd, reusable.head),
+            isAncestor(input.git, input.cwd, predecessorHead, reusable.head),
+          ]);
+          if (local?.head === reusable.head && local.tree === mergedTree
+            && isolated?.head === reusable.head && isolated.tree === mergedTree
+            && predecessorContained) {
+            await input.git("git", [
+              "update-ref", "-m", "delivery retained predecessor reuse",
+              beforeMember.ref, reusable.head, coordinates.head,
+            ], { cwd: input.cwd });
+            coordinates = await readCoordinates(input.git, input.cwd, beforeMember.ref);
+            if (coordinates?.head !== reusable.head || coordinates.tree !== mergedTree) {
+              return { status: "refused", reason: "workspace-unavailable" };
+            }
+          }
+        }
+      }
       if (!await isAncestor(input.git, input.cwd, predecessorHead, coordinates.head)) {
         return { status: "refused", reason: "scope-mismatch" };
       }
