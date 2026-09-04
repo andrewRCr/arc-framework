@@ -163,9 +163,10 @@ describe("prepublication workflow boundary", () => {
       expect(validateCriteria).toMatch(/do not re-derive member\s+criteria/u);
       expect(validateCriteria).toMatch(/walk the seam group\s+and union coherence/u);
       expect(validateCriteria).toMatch(
-        /criteria-slice:[\s\S]*?span:[\s\S]*?diff:[\s\S]*?reachability:[\s\S]*?boundary-order-deviation:[\s\S]*?criteria:[\s\S]*?- locus:/u,
+        /criteria-slice:[\s\S]*?span:[\s\S]*?diff:[\s\S]*?reachability:[\s\S]*?boundary-order-deviation:[\s\S]*?criteria:[\s\S]*?- locus:[\s\S]*?criterion-digest:/u,
       );
       expect(validateCriteria).not.toContain("- text:");
+      expect(validateCriteria).toMatch(/criterion digest[\s\S]*?(?:insertion|reorder)[\s\S]*?unresolved/u);
     }
   });
 
