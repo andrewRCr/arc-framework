@@ -68,6 +68,10 @@ export type DurableDeliveryReviewFixResponseReplay =
 export type DurableLocalDeliveryReviewFixAcknowledgementReplay =
   | { readonly status: "none" }
   | {
+      readonly status: "settlement-only";
+      readonly operationId: string;
+    }
+  | {
       readonly status: "selected";
       readonly operationId: string;
       readonly verification: VerificationResult;
@@ -151,10 +155,10 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
 }
 
 /**
- * Recover exact verification from a durable local response written before acknowledgement finished.
+ * Recover exact verification or settlement from a durable local response written before acknowledgement finished.
  *
  * @param input - Pending member target and durable disposition records.
- * @returns Exact reusable verification, no match, or a typed ambiguity/refusal.
+ * @returns Exact reusable verification, settlement-only authority, no match, or a typed ambiguity/refusal.
  */
 export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: {
   readonly workUnitId: string;
@@ -185,6 +189,10 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
     || response.hostedTarget !== null || response.hostedFixTarget !== null
     || response.fixConsumption.verificationRefs.length === 0) {
     return { status: "refused", reason: "review-fix-acknowledgement-replay-invalid" };
+  }
+  if (input.target.head !== response.newTarget.headSha
+    || input.target.tree !== response.newTarget.headTree) {
+    return { status: "settlement-only", operationId: selected.operationId };
   }
   return {
     status: "selected",

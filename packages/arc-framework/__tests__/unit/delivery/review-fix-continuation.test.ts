@@ -487,7 +487,10 @@ describe("delivery review-fix continuation projection", () => {
     });
     const response = settled.deliveryMemberFixResponse;
     if (response === null) throw new Error("settled local response fixture must retain verification evidence");
-    const terminalVerificationTarget = { head: "d".repeat(40), tree: "e".repeat(40) };
+    const terminalVerificationTarget = {
+      head: response.newTarget.headSha,
+      tree: response.newTarget.headTree,
+    };
 
     expect(selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
       workUnitId: plan.workUnitId,
@@ -510,6 +513,18 @@ describe("delivery review-fix continuation projection", () => {
         },
         verificationEvidenceRefs: ["verification://focused-fix"],
       },
+    });
+
+    expect(selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
+      workUnitId: plan.workUnitId,
+      planId: plan.planId,
+      selectedDeliverableId,
+      selectedMemberTarget: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      target: { head: "d".repeat(40), tree: "e".repeat(40) },
+      records: [settled],
+    })).toEqual({
+      status: "settlement-only",
+      operationId: "local-operation-settled",
     });
 
     const prior = {

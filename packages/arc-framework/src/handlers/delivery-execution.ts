@@ -3052,7 +3052,7 @@ async function executeDeliveryCommand(
         return { status: "refused", reason: "review-fix-response-ambiguous" };
       }
       const responseRecord = matchingResponseRecords[0];
-      if (durableLocalReplay.status === "selected") {
+      if (durableLocalReplay.status === "selected" || durableLocalReplay.status === "settlement-only") {
         if (responseRecord !== undefined) {
           return { status: "refused", reason: "review-fix-response-ambiguous" };
         }
@@ -3066,10 +3066,12 @@ async function executeDeliveryCommand(
           return { status: "refused", reason: "review-fix-response-invalid" };
         }
         localResponseSettlement = validated.settlement;
-        verification = {
-          ...durableLocalReplay.verification,
-          verificationEvidenceRefs: [...durableLocalReplay.verification.verificationEvidenceRefs],
-        };
+        if (durableLocalReplay.status === "selected") {
+          verification = {
+            ...durableLocalReplay.verification,
+            verificationEvidenceRefs: [...durableLocalReplay.verification.verificationEvidenceRefs],
+          };
+        }
       }
       if (responseRecord !== undefined) {
         const responseMember = responseRecord.deliveryMember;
