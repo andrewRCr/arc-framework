@@ -529,6 +529,7 @@ export function createReviewStatusPort(
     readonly target: ChangeRequestTargetRef;
     readonly pullRequest: number;
     readonly routedObligation: RoutedReviewObligation;
+    readonly deliveryLookupHeadSha: string;
   },
 ): ReviewStatusPort {
   return {
@@ -540,12 +541,19 @@ export function createReviewStatusPort(
         const baseRef = (await readConfigSettings(input.cwd)).settings["branch.base"];
         const refs = await changeRequestPort.readHeadRef(target.headRef);
         const actualHeadSha = refs.remote ?? refs.local ?? target.headSha;
+        const matchesPrecomputedTarget = precomputed !== undefined
+          && precomputed.target.repository.toLowerCase() === target.repository.toLowerCase()
+          && precomputed.target.headRef === target.headRef
+          && precomputed.target.headSha === target.headSha;
         const resolution = await resolveChangeRequest(
           {
             headRef: target.headRef,
             headSha: target.headSha,
             baseRef,
-            acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(memberLookup, target.headSha),
+            acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(
+              memberLookup,
+              matchesPrecomputedTarget ? precomputed.deliveryLookupHeadSha : target.headSha,
+            ),
           },
           changeRequestPort,
         );
@@ -569,11 +577,7 @@ export function createReviewStatusPort(
             ...base,
           };
         }
-        const matchesPrecomputed = precomputed !== undefined
-          && precomputed.target.repository.toLowerCase() === target.repository.toLowerCase()
-          && precomputed.target.headRef === target.headRef
-          && precomputed.target.headSha === target.headSha;
-        const routedObligation = matchesPrecomputed
+        const routedObligation = matchesPrecomputedTarget
           ? resolution.candidate.number === precomputed.pullRequest
             ? precomputed.routedObligation
             : {
@@ -623,7 +627,7 @@ export function createReviewStatusPort(
  * Select the exact current member target, carrying only a previously validated terminal advance.
  *
  * @param input - Durable state, routed conjunction, and optional validated terminal movement.
- * @returns The exact selected status target, or null when durable coordinates cannot justify it.
+ * @returns The exact selected target plus its state-backed member lookup head, or null when unjustified.
  */
 export function selectDeliveryReviewStatusTarget(input: {
   readonly anchor: ChangeRequestTargetRef;
@@ -640,12 +644,20 @@ export function selectDeliveryReviewStatusTarget(input: {
     readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   };
   readonly terminalAdvance?: { readonly stateHead: string; readonly currentHead: string };
-}): { readonly target: ChangeRequestTargetRef; readonly pullRequest: number } | null {
+}): {
+  readonly target: ChangeRequestTargetRef;
+  readonly pullRequest: number;
+  readonly deliveryLookupHeadSha: string;
+} | null {
   if (!input.outstanding) {
     const headSha = input.terminalAdvance?.stateHead === input.anchor.headSha
       ? input.terminalAdvance.currentHead
       : input.anchor.headSha;
-    return { target: { ...input.anchor, headSha }, pullRequest: input.terminalPullRequest };
+    return {
+      target: { ...input.anchor, headSha },
+      pullRequest: input.terminalPullRequest,
+      deliveryLookupHeadSha: input.anchor.headSha,
+    };
   }
   const selected = input.firstOutstanding;
   const selectedState = selected === undefined
@@ -666,6 +678,7 @@ export function selectDeliveryReviewStatusTarget(input: {
       headSha: selected.target.headSha,
     },
     pullRequest: selected.target.pullRequest,
+    deliveryLookupHeadSha: selectedState.coordinates.head,
   };
 }
 
@@ -763,6 +776,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     target: selectedTarget,
     pullRequest: selectedPullRequest,
     routedObligation: routed,
+    deliveryLookupHeadSha: selection.deliveryLookupHeadSha,
   }));
   return bindDeliveryReviewTerminusOffer(result, {
     workUnitId,

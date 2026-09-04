@@ -4366,6 +4366,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
               exhausted, so this primary correction walk makes no new independent adversarial-pass claim.
             - _Summary:_ forty-two met, three intentionally superseded, zero unresolved.
 
+### `[x]` **9.2 Preserve the terminal member's stacked base across proved head advance**
+
+- _Goal:_ Work-unit review status resolves the retained terminal member pull request after a proved append-only
+  Candidate advance, preserving its canonical predecessor base and returning the outstanding member action instead
+  of a false `base-mismatch` refusal.
+
+- _Outcome:_ Status selection now retains the resolved member's state head solely for stacked-base lookup while the
+  proved current head binds the exact request. Live Member 8 status resolved PR 557 on its predecessor branch,
+  retained all seven earlier discharges, and returned its exact pass-3 ceiling and terminus choices; singleton base
+  admission and unproved-movement refusal remain unchanged.
+
 ---
 
 ## Success Criteria
