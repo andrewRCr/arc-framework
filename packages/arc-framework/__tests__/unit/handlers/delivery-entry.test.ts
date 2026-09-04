@@ -43,6 +43,7 @@ describe("delivery entry handler", () => {
       planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
       selectedDeliverableId: `sha256:${"b".repeat(64)}`,
       entryMode: "execution",
+      derivedFrom: { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" },
       recommendedActionText: "Plan correction.",
     },
     {

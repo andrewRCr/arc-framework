@@ -514,8 +514,10 @@ selector reconstructed in prose.
 - `dispatch / dispatch` invokes `action.argv` with `action.input` unchanged, then re-enters this continuation
   without an interlock. The typed action may publish the selected correction, rematerialize the exact suffix, resume
   provider refresh/adoption, reconcile a persisted operation, or acknowledge completed scoped verification.
-- `authoring-required / author-terminal` returns to the calling task loop for the named terminal member. Author and
-  run ordinary project gates on the work-unit branch, then invoke `resumeAction`; do not publish a member ref.
+- `authoring-required / author-terminal` returns to the calling task loop for the named terminal member. Its
+  `derivedFrom` names the canonical fact that selected the member and route — the open task, the pending approved
+  review response, or the pending verification being superseded. Author and run ordinary project gates on the
+  work-unit branch, then invoke `resumeAction`; do not publish a member ref.
 - `verification-required / verify-review-fix` enters the scoped verification section below. After the correction
   task closes, invoke `resumeAction` with only the returned verification result added to its input.
 - `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or hosted
@@ -550,11 +552,11 @@ member-criteria and Tier 1 results, and records Tier 1 as passed with `provenanc
 tree. This is verification evidence for the exact correction delta, not a review verdict or signal-convergence
 decision.
 
-Every settlement result carries `acknowledgementInput`. Retain every field of that locator unchanged and return it
-plus the `verificationResult` to the calling task loop. After ordinary correction-task closure, pass the result to
-the continuation's `resumeAction`; the controller composes the exact acknowledgment and re-enters Candidate renewal.
-Do not acknowledge before task closure. These actions ride the same finding-disposition approval; do not add an
-interlock.
+The verification stop offers one resubmission shape: its `resumeAction`. Return the `verificationResult` to the
+calling task loop; after ordinary correction-task closure, invoke `resumeAction` with only `verification` added to
+its input. The controller derives the exact acknowledgment locator from canonical state itself and re-enters
+Candidate renewal; no acknowledgement input is echoed for the caller to retain. Do not acknowledge before task
+closure. These actions ride the same finding-disposition approval; do not add an interlock.
 
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:
 

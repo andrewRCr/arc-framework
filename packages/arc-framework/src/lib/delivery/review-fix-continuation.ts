@@ -468,7 +468,6 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
         nextAction: "verify-review-fix" as const,
         selectedDeliverableId: entry.selectedDeliverableId,
         verification: entry.verification,
-        acknowledgementInput: entry.acknowledgementInput,
         resumeAction: resumeAction(request),
         recommendedActionText: entry.recommendedActionText,
       };
@@ -590,6 +589,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
         status: "authoring-required" as const,
         route: route.route,
         selectedDeliverableId: route.selectedDeliverableId,
+        derivedFrom: entry.derivedFrom,
         nextAction: "author-correction" as const,
         authoring: {
           kind: input.authoring.kind,

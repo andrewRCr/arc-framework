@@ -1296,11 +1296,12 @@ describe("arc delivery position", () => {
           coveredInputs: "unchanged",
         },
       },
-      acknowledgementInput: continuation.acknowledgementInput,
       resumeAction: {
         argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+        input: { repository: "owner/repo", remote: "origin" },
       },
     });
+    expect(JSON.parse(controlled.stdout)).not.toHaveProperty("acknowledgementInput");
 
     await writeFile(join(fixture.repository, "rescue-follow-up.txt"), "newer rescue authoring\n");
     await git(fixture.repository, ["add", "rescue-follow-up.txt"]);
@@ -1334,6 +1335,15 @@ describe("arc delivery position", () => {
       },
     });
     expect(reboundContinuation.verification.target).not.toEqual(continuation.verification.target);
+    const reboundEntry = await runArcWithStdin(
+      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ entryMode: "integrating" })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
+    );
+    expect(reboundEntry.exitCode, `${reboundEntry.stderr}\n${reboundEntry.stdout}`).toBe(0);
+    const reboundAcknowledgementInput = (JSON.parse(reboundEntry.stdout) as typeof continuation)
+      .acknowledgementInput;
 
     await writeFile(taskListPath, taskList.replace("### `[ ]` **1.1", "### `[x]` **1.1"));
     const locus = await runArc(["locus", "--json"], fixture.repository, { env: fixture.env });
@@ -1349,7 +1359,7 @@ describe("arc delivery position", () => {
     });
     await git(fixture.repository, ["add", "-A"]);
     const acknowledgementRequest = {
-      ...reboundContinuation.acknowledgementInput,
+      ...reboundAcknowledgementInput,
       verification: {
         applicability: "focused",
         target: reboundContinuation.verification.target,
@@ -2310,13 +2320,6 @@ describe("arc delivery position", () => {
     expect(superseded.exitCode, `${superseded.stderr}\n${superseded.stdout}`).toBe(0);
     const supersedingVerificationStop = JSON.parse(superseded.stdout) as {
       verification: { target: { head: string; tree: string } };
-      acknowledgementInput: {
-        planId: string;
-        selectedDeliverableId: string;
-        memberDeliverableIds: string[];
-        expectedStateRevision: number;
-        continuationDigest: string;
-      };
     };
     expect(supersedingVerificationStop, superseded.stdout).toMatchObject({
       command: "delivery review-fix continue",
@@ -2331,6 +2334,22 @@ describe("arc delivery position", () => {
     });
     expect(supersedingVerificationStop.verification.target.head)
       .not.toBe(verificationStop.verification.target.head);
+    const supersedingEntry = await runArcWithStdin(
+      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ entryMode: "integrating" })}\n`,
+      { env: fixture.env },
+    );
+    expect(supersedingEntry.exitCode, `${supersedingEntry.stderr}\n${supersedingEntry.stdout}`).toBe(0);
+    const supersedingAcknowledgementInput = (JSON.parse(supersedingEntry.stdout) as {
+      acknowledgementInput: {
+        planId: string;
+        selectedDeliverableId: string;
+        memberDeliverableIds: string[];
+        expectedStateRevision: number;
+        continuationDigest: string;
+      };
+    }).acknowledgementInput;
     expect(await git(fixture.repository, ["rev-parse", locator.candidateRef])).toBe(revisedCorrectionHead);
     await writeFile(join(
       fixture.repository,
@@ -2349,7 +2368,7 @@ describe("arc delivery position", () => {
     await git(fixture.repository, ["add", ".arc/active"]);
 
     const acknowledgementRequest = {
-      ...supersedingVerificationStop.acknowledgementInput,
+      ...supersedingAcknowledgementInput,
       verification: {
         applicability: "focused",
         target: supersedingVerificationStop.verification.target,
@@ -2380,7 +2399,7 @@ describe("arc delivery position", () => {
       candidateId: pendingCandidate.attestation.candidateId,
       oldTarget: pendingBaseline.target,
       newTarget: pendingCurrentTarget,
-      authorityRef: supersedingVerificationStop.acknowledgementInput.continuationDigest,
+      authorityRef: supersedingAcknowledgementInput.continuationDigest,
       verifiedBy: "test-user",
       verifiedAt: "2026-09-03T13:55:00.000Z",
       applicability: "focused",

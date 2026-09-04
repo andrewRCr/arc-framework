@@ -146,6 +146,8 @@ function deliveryDispositionRecord(input: {
   });
 }
 
+const openTaskDerivation = { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" } as const;
+
 function correctionEntry(): DeliveryEntryInspectionResult {
   return {
     status: "correction-routing-required",
@@ -154,6 +156,7 @@ function correctionEntry(): DeliveryEntryInspectionResult {
     stateRevision: 3,
     selectedDeliverableId,
     entryMode: "execution",
+    derivedFrom: openTaskDerivation,
     recommendedActionText,
   };
 }
@@ -570,13 +573,16 @@ describe("delivery review-fix continuation projection", () => {
       recommendedActionText,
     };
 
-    expect(projectDeliveryReviewFixContinuation({ request, entry })).toMatchObject({
+    const verificationStop = projectDeliveryReviewFixContinuation({ request, entry });
+    expect(verificationStop).toMatchObject({
       status: "verification-required",
       verification: {
         target: continuation.verification.target,
         tier1Reuse: { targetTree: continuation.verification.target.tree },
       },
+      resumeAction: { input: { repository: request.repository, remote: request.remote } },
     });
+    expect(verificationStop).not.toHaveProperty("acknowledgementInput");
     const verification = {
       applicability: "focused" as const,
       target: continuation.verification.target,
@@ -661,6 +667,7 @@ describe("delivery review-fix continuation projection", () => {
     });
     expect(result).toMatchObject({ status });
     if (actionKind !== undefined) expect(result).toMatchObject({ action: { kind: actionKind } });
+    if (status === "authoring-required") expect(result).toMatchObject({ derivedFrom: openTaskDerivation });
   });
 
   it("refuses terminal authoring until the exact top locus is observed", () => {

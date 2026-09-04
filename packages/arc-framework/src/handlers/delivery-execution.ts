@@ -165,6 +165,7 @@ import { createDeliveryReviewFixReleaseEffectPorts } from
 import {
   inspectDeliveryPlanLocus,
   type DeliveryEntryInspectionResult,
+  DeliveryCorrectionDerivationSchema,
 } from "../lib/delivery/entry-inspection.js";
 import { validateDeliveryStateAgainstPlan } from "../lib/delivery/state.js";
 import {
@@ -940,7 +941,6 @@ const ReviewFixContinuationResultSchema = z.union([
     nextAction: z.literal("verify-review-fix"),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     verification: ReviewFixVerificationSchema,
-    acknowledgementInput: ReviewFixAcknowledgementInputSchema,
     resumeAction: ReviewFixContinuationResumeActionSchema,
     recommendedActionText: z.string().min(1),
     ...ReviewFixDriveEffectLogField,
@@ -949,6 +949,7 @@ const ReviewFixContinuationResultSchema = z.union([
     status: z.literal("authoring-required"),
     route: z.enum(["provider-refresh", "rematerialize", "terminal-authoring"]),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    derivedFrom: DeliveryCorrectionDerivationSchema,
     nextAction: z.enum(["author-terminal", "author-correction"]),
     authoring: z.strictObject({
       kind: z.enum(["candidate", "top"]),
@@ -2517,6 +2518,11 @@ async function executeDeliveryCommand(
             stateRevision: stateRead.value.revision,
             selectedDeliverableId: selection.selectedDeliverableId,
             entryMode: "execution",
+            derivedFrom: {
+              kind: "pending-review-response",
+              reviewedHead: selection.reviewedHead,
+              dispositionSetId: selection.dispositionSetId,
+            },
             recommendedActionText:
               "Plan the approved correction for the delivery member bound by the pending review response.",
           };
@@ -2540,6 +2546,10 @@ async function executeDeliveryCommand(
           stateRevision: entry.stateRevision,
           selectedDeliverableId: entry.selectedDeliverableId,
           entryMode: "execution",
+          derivedFrom: {
+            kind: "pending-verification",
+            continuationDigest: entry.acknowledgementInput.continuationDigest,
+          },
           recommendedActionText:
             "Supersede the pending verification with the newer exact correction authoring.",
         };

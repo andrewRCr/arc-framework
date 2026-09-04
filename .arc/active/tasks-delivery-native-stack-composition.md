@@ -3912,20 +3912,22 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   for one submission. Both are output-shape gaps on the unshipped continuation this member minted; fix them in
   place before the shape ships rather than after.
 
-    - `[ ]` **8.5.R.i Make correction stops self-explaining**
+    - `[x]` **8.5.R.i Make correction stops self-explaining**
 
         - _Goal:_ Every attended stop of the review-fix continuation names the exact fact that derived its route,
           and a stop that expects a resubmission offers exactly one input shape for it.
 
-        - `[ ]` **8.5.R.i.1 Name the deriving fact on routed stops**
-            - `authoring-required` and `correction-routing-required` carry the open task id (or the unsettled
-              response identity when that is the source) that selected the member and route; existing fields and
-              refusals are unchanged.
+        - `[x]` **8.5.R.i.1 Name the deriving fact on routed stops**
+            - `correction-routing-required` and the continuation's `authoring-required` carry a typed `derivedFrom`
+              with three arms: the open task (section and leaf ids), the pending approved review response
+              (reviewed head and disposition set), or the pending verification being superseded (continuation
+              digest). All four entry producers populate it and the execution-entry text names the open task.
 
-        - `[ ]` **8.5.R.i.2 Offer one resubmission shape on the verification stop**
-            - `verification-required` returns a single resume input the caller completes with `verification`,
-              and the acknowledgement verb's own input is no longer echoed beside it; `deliver-stack.md` names that
-              one shape.
+        - `[x]` **8.5.R.i.2 Offer one resubmission shape on the verification stop**
+            - The continuation's `verification-required` no longer echoes `acknowledgementInput`; `resumeAction`
+              is the one input the caller completes with `verification`. The low-level settlement verbs and
+              `entry inspect` keep the locator for the controller and for direct verb tests, which now read it
+              from `entry inspect`. `deliver-stack.md` names the single shape and the `derivedFrom` field.
 
         - _Scope boundary:_ Result-shape and workflow-prose changes only. No new state, record, orchestration
           surface, or change to routing decisions.

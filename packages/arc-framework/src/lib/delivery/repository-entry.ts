@@ -262,6 +262,11 @@ export async function inspectRepositoryDeliveryEntry(input: {
     stateRevision: state.revision,
     selectedDeliverableId: selection.selectedDeliverableId,
     entryMode: "execution",
+    derivedFrom: {
+      kind: "pending-review-response",
+      reviewedHead: selection.reviewedHead,
+      dispositionSetId: selection.dispositionSetId,
+    },
     recommendedActionText:
       "Continue the exact approved delivery-member correction through its selector-free driver.",
   };

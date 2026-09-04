@@ -89,6 +89,34 @@ export type DeliveryPlanLocusInspection =
         | "canonical-projection-mismatch";
     };
 
+/** The exact canonical fact that selected a correction's member and route. */
+export type DeliveryCorrectionDerivation =
+  | { readonly kind: "open-task"; readonly taskId: string; readonly leafTaskId: string }
+  | {
+      readonly kind: "pending-review-response";
+      readonly reviewedHead: string;
+      readonly dispositionSetId: string;
+    }
+  | { readonly kind: "pending-verification"; readonly continuationDigest: string };
+
+/** Strict schema for {@link DeliveryCorrectionDerivation}. */
+export const DeliveryCorrectionDerivationSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("open-task"),
+    taskId: z.string().min(1),
+    leafTaskId: z.string().min(1),
+  }),
+  z.strictObject({
+    kind: z.literal("pending-review-response"),
+    reviewedHead: DeliveryGitObjectIdSchema,
+    dispositionSetId: DeliveryCanonicalDigestSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("pending-verification"),
+    continuationDigest: DeliveryCanonicalDigestSchema,
+  }),
+]);
+
 export type DeliveryEntryInspectionResult =
   | {
       readonly status: "not-applicable";
@@ -130,6 +158,7 @@ export type DeliveryEntryInspectionResult =
       readonly stateRevision: number;
       readonly selectedDeliverableId: string;
       readonly entryMode: "execution";
+      readonly derivedFrom: DeliveryCorrectionDerivation;
       readonly recommendedActionText: string;
     }
   | ({
@@ -260,6 +289,7 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     status: z.literal("correction-routing-required"), nextAction: z.literal("plan-review-fix"),
     planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
     selectedDeliverableId: DeliveryCanonicalDigestSchema, entryMode: z.literal("execution"),
+    derivedFrom: DeliveryCorrectionDerivationSchema,
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -976,7 +1006,13 @@ export async function inspectDeliveryEntry(
       stateRevision: state.revision,
       selectedDeliverableId: owner.deliverableId,
       entryMode: "execution",
-      recommendedActionText: "Plan the approved correction for the delivery member that owns the open task.",
+      derivedFrom: {
+        kind: "open-task",
+        taskId: cursor.cursor.section.id,
+        leafTaskId: cursor.cursor.leaf.id,
+      },
+      recommendedActionText: "Plan the approved correction for the delivery member that owns open task "
+        + `${cursor.cursor.section.id} (open leaf ${cursor.cursor.leaf.id}).`,
     };
   }
   return {

@@ -688,6 +688,7 @@ describe("delivery entry inspection", () => {
         stateRevision: 3,
         selectedDeliverableId: plan.members[0]?.deliverableId,
         entryMode: "execution",
+        derivedFrom: { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" },
       });
   });
 
