@@ -11,10 +11,10 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:4ffa1b07eb7971efa1187a2f79be271469214be6855b36426cff3125f89236c7`
+- **Candidate:** `sha256:c2426fb10fdd424a69356db491085a83404ec75855903a0b5267742030c25183`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 9.1.R.i — Revalidate terminal publication gating at work-unit scope
+- **Last Completed:** Task 9.2 — Preserve the terminal member's stacked base across proved head advance
 - **Next Task:** [none]
 - **Blockers:** [none]
 
