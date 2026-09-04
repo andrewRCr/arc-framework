@@ -294,6 +294,90 @@ describe("delivery review-fix driver", () => {
     expect(project).toHaveBeenCalledOnce();
   });
 
+  it("forwards the head of its own settled record commit to the reconcile it dispatches next", async () => {
+    const recordHead = "3".repeat(40);
+    const reconcile: DeliveryReviewFixDriveDispatchAction = {
+      kind: "delivery-reconcile",
+      input: { planId: "plan-1", repository: "owner/repo", remote: "origin" },
+    };
+    const calls: string[] = [];
+    const settleRecordEffects = vi.fn()
+      .mockImplementationOnce(async () => {
+        calls.push("settle:settled");
+        return {
+          status: "settled",
+          effects: [
+            { kind: "commit", recordClass: "candidate-boundary-projection", head: recordHead },
+            {
+              kind: "push",
+              ref: "refs/heads/feat/example",
+              beforeHead: "2".repeat(40),
+              afterHead: recordHead,
+            },
+          ],
+        };
+      })
+      .mockImplementation(async () => {
+        calls.push("settle:idle");
+        return { status: "idle", effects: [] };
+      });
+    const project = vi.fn()
+      .mockImplementationOnce(async () => {
+        calls.push("project");
+        return {
+          step: { status: "dispatch", action: reconcile, recommendedActionText: "Reconcile." },
+          progress,
+        };
+      })
+      .mockImplementationOnce(async () => {
+        calls.push("project");
+        return {
+          step: { status: "review-status-required", nextAction: "rerun-checkpoint" },
+          progress: { ...progress, stateRevision: 8 },
+        };
+      });
+    const execute = vi.fn(async (action: DeliveryReviewFixDriveDispatchAction) => {
+      calls.push(`execute:${action.kind}`);
+      return { status: "rebound" };
+    });
+
+    await expect(driveDeliveryReviewFixContinuation({
+      project,
+      execute,
+      settleRecordEffects,
+    })).resolves.toMatchObject({ status: "review-status-required", nextAction: "rerun-checkpoint" });
+    expect(calls).toEqual([
+      "settle:settled",
+      "settle:idle",
+      "project",
+      "execute:delivery-reconcile",
+      "settle:idle",
+      "project",
+    ]);
+    expect(execute).toHaveBeenCalledWith(reconcile, { settledRecordEffectHead: recordHead });
+  });
+
+  it("dispatches with no settled record head before any record commit of its own", async () => {
+    const publish: DeliveryReviewFixDriveDispatchAction = { kind: "delivery-review-fix-publish" };
+    const project = vi.fn()
+      .mockResolvedValueOnce({
+        step: { status: "dispatch", action: publish, recommendedActionText: "Publish." },
+        progress,
+      })
+      .mockResolvedValueOnce({
+        step: { status: "authoring-required", nextAction: "author-correction" },
+        progress: { ...progress, stateRevision: 8 },
+      });
+    const execute = vi.fn().mockResolvedValue({ status: "published" });
+
+    await driveDeliveryReviewFixContinuation({
+      project,
+      execute,
+      settleRecordEffects: vi.fn().mockResolvedValue({ status: "idle", effects: [] }),
+    });
+    expect(execute).toHaveBeenCalledWith(publish, { settledRecordEffectHead: null });
+  });
+
   it("returns the exact replay remedy when staged acknowledgement authority cannot be proved", async () => {
     const settlement = {
       status: "refused" as const,

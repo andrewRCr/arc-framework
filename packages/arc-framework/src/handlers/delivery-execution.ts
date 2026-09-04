@@ -2735,7 +2735,7 @@ async function executeDeliveryCommand(
         const step = await project() as DeliveryReviewFixDriveStep<DeliveryReviewFixDriveDispatchAction>;
         return { step, progress: await observeProgress(step) };
       },
-      execute: async (action) => {
+      execute: async (action, context) => {
         let result;
         if (action.kind === "delivery-review-fix-authoring-rematerialize") {
           result = await executeAuthoringRematerialize(action.input);
@@ -2758,8 +2758,11 @@ async function executeDeliveryCommand(
             };
           }
         } else {
-          const dispatchInput = action.kind === "delivery-reconcile" && settledRecordEffectHead !== null
-            ? { ...action.input as Record<string, unknown>, settledRecordEffectHead }
+          const dispatchInput = action.kind === "delivery-reconcile" && context.settledRecordEffectHead !== null
+            ? {
+                ...action.input as Record<string, unknown>,
+                settledRecordEffectHead: context.settledRecordEffectHead,
+              }
             : action.input;
           result = await executeDeliveryCommand(commands[action.kind], dispatchInput, interaction);
         }
@@ -2853,7 +2856,6 @@ async function executeDeliveryCommand(
         });
         if (settlement.status !== "refused") {
           expectedRecordEffects = [];
-          settledRecordEffectHead = null;
           for (const effect of settlement.effects) {
             if (effect.kind === "commit") settledRecordEffectHead = effect.head;
           }

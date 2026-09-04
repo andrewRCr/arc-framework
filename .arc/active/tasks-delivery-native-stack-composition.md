@@ -3849,7 +3849,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
         - _Scope boundary:_ No record, authoring-locus lifecycle, ownership registry, gate provisioning change, or
           authority beyond what the in-process dispatch already holds.
 
-    - `[ ]` **8.5.R.h Absorb an acknowledgement's own record movement without renewing its verification**
+    - `[x]` **8.5.R.h Absorb an acknowledgement's own record movement without renewing its verification**
 
         - _Goal:_ A scoped review-fix verification that has just been acknowledged is not re-installed by the
           terminal rebind that absorbs the acknowledgement's own record-only commit, so the correction procedure
@@ -3863,22 +3863,25 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           distinguishing fact — it records the head of the record commit it has just settled — so the rebind needs
           that fact rather than a fresh classification of the delta.
 
-        - Build `test-first` (one behavior at a time):
-            - `[ ]` **8.5.R.h.1 Retire the settled verification at the driver's own record movement**
-                - _Goal:_ The rebind admits the settled record-effect head and, when the observed terminal
-                  coordinates are exactly that commit, leaves the acknowledged verification retired instead of
-                  re-installing it, so the continuation stops demanding the member it has just settled.
-            - `[x]` **8.5.R.h.2 Renew verification across every other terminal movement**
-                - _Goal:_ Predecessor absorption, substantive append-only movement, and any terminal advance
-                  carrying a non-record path retain the re-installed pending verification and its exact member
-                  scope; every existing refusal is unchanged.
+        - `[x]` **8.5.R.h.1 Retire the settled verification at the driver's own record movement**
+            - _Goal:_ The rebind admits the settled record-effect head and, when the observed terminal
+              coordinates are exactly that commit, leaves the acknowledged verification retired instead of
+              re-installing it, so the continuation stops demanding the member it has just settled.
+            - The correction driver now owns the settled record head: it reads the head off each settlement's
+              commit effect and passes it to every action it dispatches, so the reconcile input no longer depends
+              on handler-closure state. Port-call-order unit coverage proves the settled settlement, the idle
+              settlement that follows it, the projection, and the reconcile dispatch carrying that exact head.
+        - `[x]` **8.5.R.h.2 Renew verification across every other terminal movement**
+            - _Goal:_ Predecessor absorption, substantive append-only movement, and any terminal advance
+              carrying a non-record path retain the re-installed pending verification and its exact member
+              scope; every existing refusal is unchanged.
 
-        - _Note:_ The first implementation recognized the movement by re-reading the commit at the observed head
-          and matching its message against the machine-owned record message. It failed live: the stored message is
-          wrapped at the configured body width, while the matcher requires the unwrapped form, so the recognizer
-          returned false on every real record commit and the loop continued. The mechanism was replaced with the
-          exact one — the driver already records the head of the record commit it settles, and that head is now
-          forwarded to the reconciliation it dispatches, so no message or path re-derivation is involved.
+        - _Outcome:_ The retirement arm never fired because its input arrived undefined: the handler cleared its
+          settled head on every non-refused settlement, and the driver always runs one idle settlement between the
+          commit and the reconcile it dispatches, so the reconcile was dispatched without the head on every cycle.
+          The fact now travels with the driver's dispatch context; the handler retains its own copy only as the
+          record-reconstruction guard and never clears it on idle. Live fixed-point confirmation runs at the next
+          correction continuation.
 
         - _Scope boundary:_ No new record, state field, orchestration surface, or review authority, and no change
           to acknowledgement, boundary carry, or record settlement. This task governs only whether the rebind

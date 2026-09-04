@@ -86,12 +86,18 @@ export type DeliveryReviewFixDriveEffect =
       readonly afterHead: string;
     };
 
+/** Facts the driver established itself and hands to every dispatched action. */
+export interface DeliveryReviewFixDriveExecuteContext {
+  /** Head of the machine-owned record commit this drive settled most recently; `null` before any. */
+  readonly settledRecordEffectHead: string | null;
+}
+
 export interface DeliveryReviewFixDrivePorts<TAction extends DeliveryReviewFixDriveDispatchAction> {
   project(): Promise<{
     readonly step: DeliveryReviewFixDriveStep<TAction>;
     readonly progress: DeliveryReviewFixDriveProgress;
   }>;
-  execute(action: TAction): Promise<
+  execute(action: TAction, context: DeliveryReviewFixDriveExecuteContext): Promise<
     { readonly status: string; readonly replayed?: boolean } & Readonly<Record<string, unknown>>
   >;
   carryBoundary?(input: { readonly planId: string; readonly stateRevision: number }): Promise<
@@ -211,6 +217,7 @@ export async function driveDeliveryReviewFixContinuation<
 >(ports: DeliveryReviewFixDrivePorts<TAction>): Promise<Readonly<Record<string, unknown>>> {
   const effectLog: DeliveryReviewFixDriveEffect[] = [];
   const visited = new Set<string>();
+  let settledRecordEffectHead: string | null = null;
   let steps = 0;
   for (;;) {
     steps += 1;
@@ -241,6 +248,9 @@ export async function driveDeliveryReviewFixContinuation<
         };
       }
       effectLog.push(...settlement.effects);
+      for (const effect of settlement.effects) {
+        if (effect.kind === "commit") settledRecordEffectHead = effect.head;
+      }
       if (settlement.status === "settled") {
         const fingerprint = canonicalize({
           action: { kind: "record-settlement", effects: settlement.effects },
@@ -336,7 +346,7 @@ export async function driveDeliveryReviewFixContinuation<
       };
     }
     visited.add(fingerprint);
-    const result = await ports.execute(projected.step.action);
+    const result = await ports.execute(projected.step.action, { settledRecordEffectHead });
     effectLog.push({
       kind: result.replayed === true ? "no-op-replay" : "dispatch",
       actionKind: projected.step.action.kind,
