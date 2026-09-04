@@ -258,10 +258,6 @@ describe("classifyDeliveryPlanAmendment", () => {
       .toEqual({ status: "accepted" });
 
     const additive = successor(current, (authoring) => {
-      authoring.members[1]!.taskIds = [
-        authoring.members[0]!.taskIds.at(-1)!,
-        ...authoring.members[1]!.taskIds,
-      ];
       authoring.members[1]!.designElementIds = [
         ...authoring.members[1]!.designElementIds,
         authoring.members[0]!.designElementIds[0]!,
@@ -277,23 +273,6 @@ describe("classifyDeliveryPlanAmendment", () => {
     expect(classify({ current, proposed: changedBound, bound: [thirdId, firstId] })).toEqual({
       status: "replacement-required",
       affectedDeliverableIds: [firstId, thirdId],
-    });
-
-    const sharedAuthoring = authoringInput();
-    sharedAuthoring.members[1]!.taskIds = [
-      sharedAuthoring.members[0]!.taskIds.at(-1)!,
-      ...sharedAuthoring.members[1]!.taskIds,
-    ];
-    const sharedCurrent = constructPlan(null, sharedAuthoring);
-    const reducedCoverage = constructPlan(sharedCurrent);
-    const sharedSecondId = sharedCurrent.members[1]!.deliverableId as CanonicalDigest;
-    expect(classify({
-      current: sharedCurrent,
-      proposed: reducedCoverage,
-      bound: [sharedSecondId],
-    })).toEqual({
-      status: "replacement-required",
-      affectedDeliverableIds: [sharedSecondId],
     });
 
     const movedSemantics = successor(current, () => undefined, { task: { "1.3": "Moved second semantics" } });

@@ -77,7 +77,10 @@ describe("validateDeliveryTaskCoverage", () => {
 
     expect(result).toEqual({
       status: "refused",
-      issues: [{ kind: "member-verification-task-unbound", taskIds: ["1.2"] }],
+      issues: [
+        { kind: "member-verification-task-boundary", memberIndices: [0] },
+        { kind: "member-verification-task-unbound", taskIds: ["1.2"] },
+      ],
     });
   });
 
@@ -143,13 +146,28 @@ describe("validateDeliveryTaskCoverage", () => {
     });
   });
 
-  it("allows one task shared by adjacent members", () => {
+  it("refuses one member verifier shared by adjacent members", () => {
     const result = validateDeliveryTaskCoverage(coverageInput({
       tasks: taskRoles(["1.1", "1.2", "1.3"], ["1.2", "1.3"]),
       memberTaskIds: [["1.1", "1.2"], ["1.2", "1.3"]],
     }));
 
-    expect(result).toEqual({ status: "valid", advisories: [] });
+    expect(result).toEqual({
+      status: "refused",
+      issues: [{ kind: "member-verification-task-boundary", memberIndices: [0, 1] }],
+    });
+  });
+
+  it("refuses a member verifier assigned outside the member it closes", () => {
+    const result = validateDeliveryTaskCoverage(coverageInput({
+      tasks: taskRoles(["1.1", "1.2", "1.3", "1.4"], ["1.2", "1.4"]),
+      memberTaskIds: [["1.1", "1.2"], ["1.2", "1.3", "1.4"]],
+    }));
+
+    expect(result).toEqual({
+      status: "refused",
+      issues: [{ kind: "member-verification-task-boundary", memberIndices: [0, 1] }],
+    });
   });
 
   it("refuses one task shared by non-adjacent members", () => {
@@ -160,7 +178,10 @@ describe("validateDeliveryTaskCoverage", () => {
 
     expect(result).toEqual({
       status: "refused",
-      issues: [{ kind: "member-task-order", memberIndices: [0, 1, 2] }],
+      issues: [
+        { kind: "member-task-order", memberIndices: [0, 1, 2] },
+        { kind: "member-verification-task-boundary", memberIndices: [0, 2] },
+      ],
     });
   });
 

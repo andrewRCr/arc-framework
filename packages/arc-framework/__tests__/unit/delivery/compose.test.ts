@@ -115,6 +115,23 @@ describe("delivery composition checks", () => {
     })).toEqual({ status: "valid", advisories: [] });
   });
 
+  it("refuses an adjacent pair that shares one closing member verifier", () => {
+    expect(validateDeliveryCompositionCoverage({
+      entry: "from-tasks",
+      tasks: [
+        { taskId: "1.1", role: { kind: "implementation" as const } },
+        { taskId: "1.2", role: { kind: "verification" as const, scope: "member" } },
+      ],
+      members: [
+        { chunkKey: "first", taskIds: ["1.1", "1.2"] },
+        { chunkKey: "second", taskIds: ["1.2"] },
+      ],
+    })).toEqual({
+      status: "refused",
+      issues: [{ kind: "member-verification-task-boundary", memberIndices: [0, 1] }],
+    });
+  });
+
   it("refuses a member with no closing task even when all tasks are covered elsewhere", () => {
     expect(validateDeliveryCompositionCoverage({
       entry: "from-branch",

@@ -103,12 +103,27 @@ function findMemberVerificationTaskBoundaryIssue(
   readonly kind: "member-verification-task-boundary";
 }> | null {
   const taskById = new Map(input.tasks.map((task, position) => [task.taskId, { ...task, position }]));
+  const verifierOwners = new Map<string, number[]>();
+  for (const [memberIndex, taskIds] of input.memberTaskIds.entries()) {
+    for (const taskId of new Set(taskIds)) {
+      const task = taskById.get(taskId);
+      if (task?.role.kind === "verification" && task.role.scope === "member") {
+        verifierOwners.set(taskId, [...(verifierOwners.get(taskId) ?? []), memberIndex]);
+      }
+    }
+  }
   const offendingMemberIndices = input.memberTaskIds.flatMap((taskIds, memberIndex) => {
+    const verifierTaskIds = [...new Set(taskIds)].filter((taskId) => {
+      const task = taskById.get(taskId);
+      return task?.role.kind === "verification" && task.role.scope === "member";
+    });
     const finalTask = findFinalAssignableTask(taskIds, taskById);
     if (finalTask === undefined) return [];
-    return finalTask.role.kind === "verification" && finalTask.role.scope === "member"
-      ? []
-      : [memberIndex];
+    const verifierTaskId = verifierTaskIds[0];
+    return verifierTaskIds.length === 1
+      && verifierTaskId === finalTask.taskId
+      && verifierOwners.get(verifierTaskId)?.length === 1
+      ? [] : [memberIndex];
   });
 
   if (offendingMemberIndices.length === 0) return null;
