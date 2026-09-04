@@ -11,10 +11,10 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:b0ca9db330ee7b0e0f510006e0b8aa79bb2d9aaba099130cd7afe4b56972ff40`
+- **Candidate:** `sha256:4ffa1b07eb7971efa1187a2f79be271469214be6855b36426cff3125f89236c7`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 9.1.R.h — Revalidate the correction entry and authoring amendments at work-unit scope
+- **Last Completed:** Task 9.1.R.i — Revalidate terminal publication gating at work-unit scope
 - **Next Task:** [none]
 - **Blockers:** [none]
 

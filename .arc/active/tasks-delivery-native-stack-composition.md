@@ -3962,8 +3962,9 @@ meta exists and that resolution shape is the exact defect the retired terminal a
     - _Span:_ original diff `e11bd763d..270f42c1b`; earlier amendment diff `a374df393..b2d7ec52e`; prior amendment
       diff `530463f72..bfbf5073e`; live-rehearsal amendment diff `3d9ea7ef1`; recovery amendment diff `8b401796f`;
       fixed-origin amendment in the current worktree over `a3905981b`; correction fixed-point amendment diff
-      `ca50a8c33..1ae134f03` (Tasks 8.5.R.g through 8.5.R.j); reachability: the cumulative tree at `1ae134f03`;
-      boundary-order deviation: the approved Tasks 8.5.R.a through 8.5.R.j -
+      `ca50a8c33..1ae134f03` (Tasks 8.5.R.g through 8.5.R.j); terminal-publication amendment commit
+      `acbdaa740` plus the exact verification-repair patch (Task 8.5.R.k); reachability: the complete staged tree;
+      boundary-order deviation: the approved Tasks 8.5.R.a through 8.5.R.k -
       `tasks-delivery-native-stack-composition.md` forward amendments reopened Member 8 after its original boundary.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`; _State:_ `[x]`;
       _Evidence:_ exact plan/state, ref, Candidate, and gate retirement preserves each authority, requires the merged
@@ -3988,7 +3989,11 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       one implementation with the in-process dispatch, routed stops carry the deriving open task or pending
       response, the verification stop offers one resubmission shape, an acknowledgement's own record commit no
       longer renews the verification it settled, and the next correction is admitted past a contribution-equivalent
-      terminal. Real-CLI coverage reproduces each prior refusal and proves the route; no new state or record.
+      terminal. Terminal correction planning now also holds a clean local descendant at the existing
+      `authoring-required` stop until the hosted request exposes that exact head: the prior public head returns
+      explicit verify, commit, push, and resume guidance with no effect, the exact published head reconciles, and an
+      unrelated hosted head refuses. Real-CLI coverage reproduces each prior refusal and proves the route; no new
+      state or record.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 5`; _State:_ `[x]`;
       _Evidence:_ plain attestation emits a closed action and argv bound to the exact refused Candidate and staged
       subject. The handler requires paired selectors with deliberate re-rooting; the verb reobserves Candidate,
@@ -4027,7 +4032,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       repaired and source-verified. Pass 2 found ownerless explicit applicability lacked positive completed-lineage
       evidence and that this report still certified the superseded transfer; both were repaired under the approved
       disposition. The Heavy two-pass cap is exhausted, so no third independent pass is claimed; the fixed-point
-      amendment span was walked by the primary only.
+      and terminal-publication amendment spans were walked by the primary only.
     - _Summary:_ eight met, one superseded, zero unresolved.
 
 - _Forward amendment (2026-09-04):_ Live Member 8 correction resumed after a local content commit but before its
@@ -4315,6 +4320,51 @@ meta exists and that resolution shape is the exact defect the retired terminal a
               or assigned to an unowned follow-up.
             - _Summary:_ forty-two met, three intentionally superseded, zero unresolved. The prior declined broad
               adversarial companion carries forward; this narrow amendment adds no new complete-pass claim.
+
+- _Forward amendment (2026-09-04):_ Task 8.5.R.k added the terminal publication lease after the latest terminal
+  report. Consume that Member 8 boundary amendment and the deterministic gate-fixture repairs found by the fresh
+  full suite without replaying unaffected member verification or spending another provider review.
+
+    - `[x]` **9.1.R.i Revalidate terminal publication gating at work-unit scope**
+
+        - _Goal:_ The complete retained criteria union accounts for the terminal publication lease and remains
+          coherent across correction entry, Candidate transitions, provider refresh, hosted review, and closeout.
+
+        - _Outcome:_ Work-unit criteria report.
+            - _Criteria slice:_ all eight recorded member groups plus `Cross-member seams`.
+            - _Span:_ complete work-unit diff through `acbdaa740` plus this exact gate-fixture and terminal-report
+              patch; reachability is the complete staged tree. The Member 8 report now reaches Task 8.5.R.k, and all
+              prior member-boundary deviations remain recorded at their original loci.
+            - _Member groups:_ thirty-six criteria are met, three remain intentionally superseded, and none are
+              unresolved. Member 8's nine-criterion report now includes the publication-lease behavior: an unpushed
+              clean terminal descendant remains at `authoring-required`, the exact published head reconciles, and
+              unrelated hosted movement refuses before dispatch.
+            - _Seam 1:_ structural task closure, Candidate subject exactness, and deliberate re-rooting remain the
+              verification authority. The malformed closed-parent/open-descendant cursor and lost in-session route
+              selection exposed by compaction are routed to their existing backlog owners and are not claimed fixed
+              by this amendment.
+            - _Seam 2:_ review-fix continuation remains selector-free and returns its existing typed authoring stop
+              with the canonical deriving fact, locus, and submit-ready guidance. Publication stays an ordinary
+              author effect; the driver records no commit, push, or reconciliation effect before the hosted head is
+              exact.
+            - _Seam 3:_ canonical plan, versioned delivery state, originating checkout, terminal coordinates, and
+              hosted request jointly establish publication exactness. The repair adds no delivery identity, durable
+              field, standing authority, or alternate mutation route.
+            - _Seam 4:_ provider refresh, member ordering, contribution equivalence, and native landing are
+              unchanged. The corrected refresh fixture proves that an occupied changed-member ref refuses before
+              provider preparation, while the production-style correction fixture retains the adjacent local and
+              hosted review routes without dirtying its authoring locus.
+            - _Seam 5:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, the package
+              build, and the full suite pass over the amendment: 865 test files and 11,421 tests pass, with one
+              intentional skip each. Targeted ESLint, the focused production E2E, and diff hygiene also pass.
+            - _Seam 6:_ forty-two criteria are met, three are intentionally superseded, and none remain unresolved.
+              The composed tree is ready for deliberate Candidate re-rooting before Member 8's approved incremental
+              hosted pass; no provider review was spent while verification was stale.
+            - _Integrity:_ the publication behavior is executable implementation evidence, the live unpushed stop
+              is identified as its prompting observation, and the cursor/provenance defects are captured as
+              out-of-WU follow-up rather than hidden inside this report. The Heavy two-pass allowance remains
+              exhausted, so this primary correction walk makes no new independent adversarial-pass claim.
+            - _Summary:_ forty-two met, three intentionally superseded, zero unresolved.
 
 ---
 

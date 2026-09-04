@@ -24,7 +24,7 @@ describe("delivery discovered-entry workflow", () => {
 
     expect(content).toContain("Render `laterEntryCostText` and `recommendedActionText` verbatim when present");
     expect(content).toContain("invokes `publicationAction.command` unchanged before reading position");
-    expect(content).toContain("`authoring-required / author-terminal`");
+    expect(content).toContain("`authoring-required / author-correction`");
     expect(content).toContain("arc delivery review-fix continue - --json");
     expect(content).toContain("`refused` stops before every eligibility or mutation verb");
     expect(content).toContain("never parses headings, derives members, or re-decides cohesion");

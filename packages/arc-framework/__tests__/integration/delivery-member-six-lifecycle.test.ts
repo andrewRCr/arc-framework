@@ -310,27 +310,16 @@ function refreshDependencies(fixture: RefreshFixture, stateStore: ReturnType<typ
 }
 
 describe("member-six refresh adoption lifecycle", () => {
-  it("refuses a prepared refresh while a changed member ref is checked out", async () => {
+  it("refuses refresh before preparation while a changed member ref is checked out", async () => {
     const fixture = await createRefreshFixture();
     const memberRef = fixture.subject.before.members[0]!.ref!;
     const originalMember = fixture.subject.before.members[0]!.coordinates!.head;
-    const observed = await fixture.observeRefresh();
-    if (observed.status !== "observed") throw new Error("prepared refresh observation must resolve");
     await fixture.git([
       "push",
       `--force-with-lease=${memberRef}:${fixture.refreshedMember}`,
       "origin",
       `${originalMember}:${memberRef}`,
     ]);
-    const candidates = deriveDeliveryProviderRefreshCandidates({
-      plan: fixture.plan,
-      before: fixture.subject.before,
-      requested: observed.observation.snapshot,
-    });
-    if (candidates.status !== "derived") throw new Error("refresh candidates must derive");
-    for (const candidate of candidates.candidates) {
-      await fixture.git(["update-ref", candidate.ref, candidate.head]);
-    }
     const worktreeParent = await mkdtemp(join(tmpdir(), "arc-delivery-member-worktree-"));
     roots.push(worktreeParent);
     const memberCheckout = join(worktreeParent, "member");
@@ -345,11 +334,9 @@ describe("member-six refresh adoption lifecycle", () => {
       scope: { kind: "complete-remainder" },
       facts: fixture.facts,
     }, {
-      preparation: { prepare: async () => ({
-        status: "prepared",
-        observation: observed.observation,
-        candidates: candidates.candidates,
-      }) },
+      preparation: { prepare: async () => {
+        throw new Error("must not prepare while a changed member ref is checked out");
+      } },
       preflightTop: (input) => preflightGitDeliveryChainAbsorption({ exec: fixture.rawExec, ...input }),
       observeMemberRefCheckouts: (refs) => observeDeliveryMemberRefCheckouts(fixture.gitExec, refs),
       observePublishedHeads: async () => { throw new Error("must not observe publication"); },

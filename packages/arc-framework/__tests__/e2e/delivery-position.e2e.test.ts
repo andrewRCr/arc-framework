@@ -118,12 +118,25 @@ type ActiveOperationScenario =
   | "selected-change-terminal-authoring-before"
   | "selected-change-terminal-authoring-applied";
 
-async function positionFixture(activeOperation?: ActiveOperationScenario) {
+async function positionFixture(
+  activeOperation?: ActiveOperationScenario,
+  options: { reviewChunkingThresholdLines?: number; memberTwoLineCount?: number } = {},
+) {
   const repository = await createTempRepo("arc-delivery-position-");
   const remote = await mkdtemp(join(tmpdir(), "arc-delivery-position-remote-"));
   roots.push(repository, remote);
   const initialized = await runArc(["init", "--yes", "--name", "delivery-position"], repository);
   expect(initialized.exitCode, initialized.stderr).toBe(0);
+  if (options.reviewChunkingThresholdLines !== undefined) {
+    const configPath = join(repository, ".arc", "system", "arc-config.yml");
+    const initialConfig = await readFile(configPath, "utf8");
+    const configured = initialConfig.replace(
+      /^changeset\.advisory_threshold_lines:.*$/mu,
+      `changeset.advisory_threshold_lines: ${options.reviewChunkingThresholdLines}`,
+    );
+    expect(configured).not.toBe(initialConfig);
+    await writeFile(configPath, configured, "utf8");
+  }
   const localArcBin = join(repository, "node_modules", ".bin");
   const localArc = join(localArcBin, "arc");
   await mkdir(localArcBin, { recursive: true });
@@ -147,7 +160,15 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
   await git(repository, ["commit", "-m", "member one"]);
   const firstHead = await git(repository, ["rev-parse", "HEAD"]);
   const firstTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
-  await writeFile(join(repository, "member-two.txt"), "member two\n");
+  await writeFile(
+    join(repository, "member-two.txt"),
+    options.memberTwoLineCount === undefined
+      ? "member two\n"
+      : `${Array.from(
+          { length: options.memberTwoLineCount },
+          (_, index) => `member two ${index + 1}`,
+        ).join("\n")}\n`,
+  );
   await git(repository, ["add", "member-two.txt"]);
   await git(repository, ["commit", "-m", "member two"]);
   const secondHead = await git(repository, ["rev-parse", "HEAD"]);
@@ -551,6 +572,22 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     .split(delimiter)
     .filter((entry) => !entry.replaceAll("\\", "/").endsWith("/node_modules/.bin"))
     .join(delimiter);
+  const fakeGit = join(fakeBin, "git");
+  await writeFile(fakeGit, [
+    "#!/bin/sh",
+    "if [ \"${ARC_FAKE_SMALL_REVIEW_NUMSTAT:-0}\" = \"1\" ]; then",
+    "  for argument in \"$@\"; do",
+    "    if [ \"$argument\" = \"--numstat\" ]; then",
+    "      printf '1\\t0\\tmember-three.txt\\0'",
+    "      exit 0",
+    "    fi",
+    "  done",
+    "fi",
+    `export PATH=${quoteShellArgument(fixturePath)}`,
+    "exec git \"$@\"",
+    "",
+  ].join("\n"));
+  await chmod(fakeGit, 0o755);
   return {
     repository,
     plan,
@@ -2032,7 +2069,10 @@ describe("arc delivery position", () => {
   });
 
   it("drives a registered review correction through superseded verification to hosted review", async () => {
-    const fixture = await positionFixture("registered-current");
+    const fixture = await positionFixture("registered-current", {
+      reviewChunkingThresholdLines: 2,
+      memberTwoLineCount: 2,
+    });
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const current = await fixture.states.read(fixture.plan.planId);
     const selectedMember = current.status === "ok"
@@ -2669,8 +2709,25 @@ describe("arc delivery position", () => {
       ]),
     });
 
-    const reviewStatusHostLog = join(fixture.repository, "review-status-host.log");
+    await git(fixture.repository, [
+      "commit",
+      "--only",
+      "--no-verify",
+      "-m",
+      "close correction task",
+      "--",
+      ".arc/active/tasks-delivery-plan-record.md",
+    ]);
+
+    const reviewStatusHostRoot = await mkdtemp(join(tmpdir(), "arc-review-status-host-"));
+    roots.push(reviewStatusHostRoot);
+    const reviewStatusHostLog = join(reviewStatusHostRoot, "review-status-host.log");
     await writeFile(reviewStatusHostLog, "");
+    const statusBeforeResume = await git(fixture.repository, ["status", "--short"]);
+    expect(statusBeforeResume.split("\n")).toEqual([
+      "M  .arc/system/.internal/candidates/delivery-plan-record.boundary.json",
+      "M  .arc/system/.internal/candidates/delivery-plan-record.json",
+    ]);
     const resumed = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
@@ -3062,15 +3119,6 @@ describe("arc delivery position", () => {
       ...retainedAttemptIds.map((attemptId) => `operation-${attemptId}`),
     ]);
 
-    const configPath = join(fixture.repository, ".arc", "system", "arc-config.yml");
-    const initialConfig = await readFile(configPath, "utf8");
-    const oversizedConfig = initialConfig.replace(
-      /^changeset\.advisory_threshold_lines:.*$/mu,
-      "changeset.advisory_threshold_lines: 1",
-    );
-    expect(oversizedConfig).not.toBe(initialConfig);
-    await writeFile(configPath, oversizedConfig, "utf8");
-
     const continuedAfterBatch = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
@@ -3192,12 +3240,11 @@ describe("arc delivery position", () => {
       nextAction: "reduce",
     });
 
-    await writeFile(configPath, initialConfig, "utf8");
     const continuedAfterLocal = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
-      { env: fixture.env },
+      { env: { ...fixture.env, ARC_FAKE_SMALL_REVIEW_NUMSTAT: "1" } },
     );
     expect(continuedAfterLocal.exitCode, `${continuedAfterLocal.stderr}\n${continuedAfterLocal.stdout}`).toBe(0);
     const afterLocal = JSON.parse(continuedAfterLocal.stdout) as {
