@@ -1417,6 +1417,277 @@ describe("hosted review fan-out lifecycle", () => {
     await expect(harness.store.readOperationSnapshot()).resolves.toEqual(reviewOperationsBeforeAcceptance);
   });
 
+  it("settles the final member after its terminus boundary commit advances the terminal head", async () => {
+    const harness = await createHarness();
+    await moveDeliveryTargets(harness);
+    const stateTerminalHead = harness.currentSecond;
+    const sourceCandidate = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
+    if (sourceCandidate.record === null || sourceCandidate.version === null) {
+      throw new Error("source Candidate must exist");
+    }
+    const renewedTarget = await collectGitCandidateTarget({
+      cwd: harness.root,
+      name: harness.plan.workUnitId,
+      baseBranch: "main",
+      baseRevision: harness.baseHead,
+      revision: stateTerminalHead,
+      exec: harness.exec,
+    });
+    const renewedCandidate: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: createCandidateAttestation({
+        workUnit: harness.plan.workUnitId,
+        subject: renewedTarget.subject,
+        baseRevision: stateTerminalHead,
+        attestedBy: "andrew",
+        attestedAt: "2026-09-04T19:59:00.000Z",
+        verificationEvidenceRef: "verification://final-terminus",
+        supersedes: sourceCandidate.record.attestation.candidateId,
+      }),
+      subject: renewedTarget.subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    await writeCandidateRecord(
+      harness.root,
+      harness.plan.workUnitId,
+      renewedCandidate,
+      sourceCandidate.version,
+    );
+    const publicContinuation = projectDeliveryPublicReviewContinuation({
+      plan: harness.plan,
+      state: harness.state,
+      stateRevision: harness.stateRevision,
+    });
+    if (publicContinuation.status !== "projected") throw new Error("delivery continuation must project");
+    const publishedBoundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
+    if (publishedBoundary.boundary === null) throw new Error("publication boundary must exist");
+    await writeSubmissionBoundary(harness.root, projectCorrectiveDeliveryReviewBoundary({
+      workUnit: harness.plan.workUnitId,
+      candidateId: renewedCandidate.attestation.candidateId,
+      candidateSubjectDigest: renewedCandidate.subject.subjectDigest,
+      supersedesCandidateId: renewedCandidate.attestation.supersedes ?? null,
+      sourceBoundary: publishedBoundary.boundary,
+      deliveryContinuation: publicContinuation.continuation,
+    }), publishedBoundary.version);
+    const candidatePath = resolveCandidateRecordRelativePath(harness.plan.workUnitId);
+    const boundaryPath = resolveSubmissionBoundaryPath(harness.plan.workUnitId);
+    await git(harness.root, ["add", candidatePath, boundaryPath]);
+    await git(harness.root, [
+      "commit",
+      "--only",
+      candidatePath,
+      boundaryPath,
+      "-m",
+      "establish public correction records",
+    ]);
+    const initialTerminalHead = await git(harness.root, ["rev-parse", "HEAD"]);
+    const initialTerminalTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
+    const reviewState: DeliveryStateV1 = {
+      ...harness.state,
+      members: harness.state.members.map((deliveryMember, index) => index === 1
+        ? {
+            ...deliveryMember,
+            coordinates: {
+              ...deliveryMember.coordinates!,
+              head: initialTerminalHead,
+              tree: initialTerminalTree,
+            },
+          }
+        : deliveryMember),
+    };
+    const publishedReviewState = await harness.states.publish(
+      harness.plan.planId,
+      reviewState,
+      harness.stateRevision,
+    );
+    if (publishedReviewState.status !== "ok") throw new Error("review delivery state must publish");
+    harness.state = reviewState;
+    harness.stateRevision = publishedReviewState.value.revision;
+    const reviewContinuation = projectDeliveryPublicReviewContinuation({
+      plan: harness.plan,
+      state: harness.state,
+      stateRevision: harness.stateRevision,
+    });
+    if (reviewContinuation.status !== "projected") throw new Error("review continuation must project");
+    const committedBoundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
+    if (committedBoundary.boundary?.locus !== "hosted-review-pending"
+      || committedBoundary.boundary.nextAction.kind !== "continue-hosted-review") {
+      throw new Error("committed delivery-review boundary must exist");
+    }
+    await writeSubmissionBoundary(harness.root, {
+      ...committedBoundary.boundary,
+      deliveryContinuation: reviewContinuation.continuation,
+    }, committedBoundary.version);
+    const firstStatusTarget = {
+      repository,
+      headRef: "feat/delivery-plan-record",
+      headSha: initialTerminalHead,
+    };
+
+    const firstStatus = await statusThroughHandler(harness, firstStatusTarget);
+    if (firstStatus.nextAction !== "review-hosted-request") {
+      throw new Error(`expected first member request: ${JSON.stringify(firstStatus)}`);
+    }
+    const firstRequested = await requestThroughHandler(firstStatus.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-before-final-terminus",
+        url: "https://example.test/review-before-final-terminus",
+        createdAt: "2026-09-04T20:00:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec);
+    if (firstRequested.nextAction !== "await") throw new Error("expected first member review handle");
+    const firstAwaited = await awaitThroughHandler(firstRequested.handle, {
+      kind: "clean",
+      reviewUrl: "https://example.test/review-before-final-terminus",
+    });
+    const firstReview = targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.baseHead,
+      baseTree: harness.baseTree,
+      headSha: harness.movedFirst,
+      headTree: harness.movedFirstTree,
+    });
+    await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: firstAwaited,
+      reviewTarget: firstReview.reviewTarget,
+      requirement: firstReview.requirement,
+      actorIdentity: "andrew",
+      now: "2026-09-04T20:01:00.000Z",
+    });
+
+    const finalStatus = await statusThroughHandler(harness, firstStatusTarget);
+    expect(finalStatus).toMatchObject({
+      nextAction: "review-hosted-request",
+      action: {
+        target: { headSha: initialTerminalHead },
+        vehicle: member(harness.plan, 1, initialTerminalHead),
+      },
+    });
+    if (finalStatus.nextAction !== "review-hosted-request") throw new Error("expected final member request");
+    const finalRequested = await requestThroughHandler(finalStatus.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-final-terminus",
+        url: "https://example.test/review-final-terminus",
+        createdAt: "2026-09-04T20:02:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec);
+    if (finalRequested.nextAction !== "await") throw new Error("expected final member review handle");
+    const finding = {
+      findingId: "finding-before-final-terminus",
+      origin: "review-thread" as const,
+      commentId: "comment-before-final-terminus",
+      threadId: "thread-before-final-terminus",
+      settlement: "reply-and-resolve" as const,
+      severity: "minor" as const,
+      locus: "second.txt:1",
+      url: "https://example.test/finding-before-final-terminus",
+    };
+    const finalAwaited = await awaitThroughHandler(finalRequested.handle, {
+      kind: "findings",
+      reviewUrl: "https://example.test/review-final-terminus",
+      findings: [finding],
+    });
+    const finalReview = targetAndRequirement({
+      repositoryId: harness.repositoryId,
+      baseSha: harness.movedFirst,
+      baseTree: harness.movedFirstTree,
+      headSha: initialTerminalHead,
+      headTree: initialTerminalTree,
+    });
+    const finalProgress = await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: finalAwaited,
+      reviewTarget: finalReview.reviewTarget,
+      requirement: finalReview.requirement,
+      actorIdentity: "andrew",
+      now: "2026-09-04T20:03:00.000Z",
+    });
+    if (finalProgress === null) throw new Error("expected final member findings progress");
+    await bindHostedAttemptDisposition(harness.store, {
+      operationId: laneProgressOperationId({
+        lane: "standard",
+        repositoryId: harness.repositoryId,
+        headSha: initialTerminalHead,
+      }),
+      attemptId: hostedLaneAttemptId(finalRequested.handle),
+      dispositionSetId: canonicalDigest({ disposition: "final-owner-terminus" }),
+      findingIds: [finding.findingId],
+      noHostSettlementFindingIds: [finding.findingId],
+      now: "2026-09-04T20:04:00.000Z",
+    });
+
+    const continuation = await workUnitStatusThroughHandler(harness, firstStatusTarget);
+    expect(continuation).toMatchObject({
+      terminusAction: {
+        target: { headSha: initialTerminalHead },
+        vehicle: member(harness.plan, 1, initialTerminalHead),
+        completedPasses: 1,
+      },
+    });
+    if (!("terminusAction" in continuation) || continuation.terminusAction === undefined) {
+      throw new Error("expected final member terminus offer");
+    }
+    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction);
+    const accepted = await resolveDeliveryReviewTerminusAcceptance({
+      schemaVersion: 1,
+      offer,
+      judgment: { mode: "owner-accepted" },
+    }, {
+      readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(harness.root, workUnitId),
+      readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
+      readCurrentOffer: async () => {
+        const current = await workUnitStatusThroughHandler(harness, firstStatusTarget);
+        return "terminusAction" in current ? current.terminusAction ?? null : null;
+      },
+      writeBoundary: async (boundary, expectedVersion) => ({
+        status: "written",
+        path: await writeSubmissionBoundary(harness.root, boundary, expectedVersion),
+      }),
+    });
+    expect(accepted).toMatchObject({ state: "recorded", nextAction: "commit-boundary" });
+    if (accepted.state !== "recorded") throw new Error("expected recorded final member terminus");
+    await git(harness.root, ["add", accepted.boundaryPath]);
+    await git(harness.root, ["commit", "--only", accepted.boundaryPath, "-m", "record final terminus"]);
+    const advancedTerminalHead = await git(harness.root, ["rev-parse", "HEAD"]);
+    expect(advancedTerminalHead).not.toBe(initialTerminalHead);
+
+    let capturedAdvance: { stateHead: string; currentHead: string } | undefined;
+    const routedAfterCommit = await readRoutedObligation(
+      harness.root,
+      harness.exec,
+      firstStatusTarget,
+      42,
+      new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec }),
+      harness.baseHead,
+      undefined,
+      deliveryHost(harness),
+      { captureTerminalAdvance: (advance) => { capturedAdvance = advance; } },
+    );
+    if (routedAfterCommit.state === "blocked") {
+      throw new Error(`final terminus re-entry blocked: ${JSON.stringify({ capturedAdvance, routedAfterCommit })}`);
+    }
+
+    await expect(statusThroughHandler(harness, firstStatusTarget)).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      routedObligation: {
+        conjunction: {
+          status: "discharged",
+          members: [{ state: "discharged" }, { state: "discharged" }],
+        },
+      },
+    });
+  });
+
   it("advances an eight-member conjunction through real Git and durable review stores", async () => {
     const harness = await createEightMemberHarness();
     const firstHead = harness.heads[0];

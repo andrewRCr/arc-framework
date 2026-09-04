@@ -4590,6 +4590,20 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           Phase 9 contains one parent; task structure closes with no open task; targeted Markdown lint and all three
           ARC contract checks pass. The changed path is Markdown-only, so the unchanged code suite was not repeated.
 
+- _Forward correction (2026-09-04):_ Accepting the final delivery member's exact Owner terminus committed its boundary
+  record onto that same member branch, advanced the public head, and immediately re-offered the decision. Reuse the
+  existing terminal record-advance proof so the accepted authority survives only its provably mechanical suffix.
+
+    - `[x]` **9.1.R.l Preserve the final member terminus across its own record commit**
+
+        - _Goal:_ The final delivery member's accepted Owner terminus settles review after its boundary record is
+          committed and pushed, while substantive or unproved head movement still requires fresh review authority.
+
+        - _Outcome:_ Work-unit status now composes the existing terminal record-advance proof for the final member and
+          applies the stored terminus only across that mechanically represented suffix. Exact identity, pass-count,
+          and pending-intervention guards remain authoritative; a production-style Git lifecycle settles after the
+          terminus boundary commit without another Owner decision or provider request.
+
 ---
 
 ## Success Criteria

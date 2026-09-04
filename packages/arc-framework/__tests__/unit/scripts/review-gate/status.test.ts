@@ -1090,6 +1090,47 @@ describe("review status", () => {
     });
   });
 
+  it("applies a final-member Owner terminus across a proved record-only head advance", () => {
+    const priorVehicle = DeliveryReviewMemberVehicleSchema.parse({ ...memberVehicle, head: oid("9") });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The moved member requires review.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: readyAdmission("coderabbit-pr"),
+        completedPasses: 2,
+      })],
+      ownerTermini: [{
+        vehicle: priorVehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 2,
+        },
+      }],
+      ownerTerminusAdvances: [{
+        priorVehicle,
+        currentVehicle: memberVehicle,
+        proof: {
+          priorHead: priorVehicle.head,
+          priorTree: oid("8"),
+          currentHead: memberVehicle.head,
+          currentTree: oid("7"),
+          proof: "subject-equality",
+        },
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "settled",
+      conjunction: { members: [{ state: "discharged" }] },
+    });
+  });
+
   it("routes the driver's delegated-agent fallback for the exact outstanding member", async () => {
     const policy = resolveReviewPolicy({
       schemaVersion: 1,

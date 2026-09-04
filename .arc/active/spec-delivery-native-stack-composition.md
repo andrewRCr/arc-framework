@@ -1661,6 +1661,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   counts retain precedence. This is durability of the existing exact authority across a Candidate-record reset, not a
   carried applicability selection, convergence inference, or new standing grant.
 
+  **Terminal self-record clarification (2026-09-04):** The final delivery member is the work-unit branch, so
+  committing its accepted Owner terminus advances the same public head the exact record names. Preserve that record
+  across the resulting terminal suffix only when the stored terminus and current target retain the same stable member
+  identity and completed-pass count, the stored head is a strict ancestor of the current head, and the existing
+  terminal-record arbiter proves equal Candidate subjects. Pending findings, hosted settlement, request or await state,
+  local continuation, conflicting applicability authority, non-ancestral movement, and any Candidate-subject change
+  retain precedence. The stored record remains unchanged; the proof composes its exact authority with mechanical
+  record movement and creates no rewritten terminus, convergence inference, or generic head-movement escape.
+
 - **D8.14 Oversized delivery members compose with chunked local standard review — amended 2026-09-03 after the
   Member 7 hosted request exceeded both configured attention signals and the provider's file limit.** Before
   admitting hosted spend, work-unit status measures the exact first-outstanding member change set and invokes the

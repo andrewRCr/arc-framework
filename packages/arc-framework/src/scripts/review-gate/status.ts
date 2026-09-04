@@ -5,9 +5,12 @@ import { z } from "zod";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import {
   DeliveryReviewMemberVehicleSchema,
+  sameDeliveryReviewMemberIdentity,
   sameDeliveryReviewMemberVehicle,
   type DeliveryReviewMemberVehicle,
 } from "../../lib/delivery/review-vehicle.js";
+import type { DeliveryTerminalCoordinateAdvanceProof } from
+  "../../lib/delivery/public-review-continuation.js";
 import { ChangeRequestTargetRefSchema } from "./change-request.js";
 import {
   SpineRemedySchema,
@@ -342,6 +345,13 @@ interface ReviewDischargeIntervention {
   readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
 }
 
+/** Git-proved mechanical movement from one exact stored terminus vehicle to its current terminal target. */
+export interface DeliveryReviewOwnerTerminusAdvance {
+  readonly priorVehicle: DeliveryReviewMemberVehicle;
+  readonly currentVehicle: DeliveryReviewMemberVehicle;
+  readonly proof: DeliveryTerminalCoordinateAdvanceProof;
+}
+
 /**
  * Decide whether one exact stored Owner terminus discharges a delivery-member projection.
  *
@@ -361,10 +371,18 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
     readonly completedPasses: number;
   };
   readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  readonly ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): boolean {
-  const terminus = input.ownerTermini?.find((record) => (
-    sameDeliveryReviewMemberVehicle(record.vehicle, input.target.vehicle)
-  ));
+  const terminus = input.ownerTermini?.find((record) => {
+    if (sameDeliveryReviewMemberVehicle(record.vehicle, input.target.vehicle)) return true;
+    return input.ownerTerminusAdvances?.some((advance) => (
+      sameDeliveryReviewMemberVehicle(record.vehicle, advance.priorVehicle)
+      && sameDeliveryReviewMemberVehicle(input.target.vehicle, advance.currentVehicle)
+      && sameDeliveryReviewMemberIdentity(advance.priorVehicle, advance.currentVehicle)
+      && advance.proof.priorHead === advance.priorVehicle.head
+      && advance.proof.currentHead === advance.currentVehicle.head
+    )) ?? false;
+  });
   const replayedApplicability = input.discharge.applicability?.state === "decision-required"
     && input.discharge.applicabilityAuthority !== "blocked";
   const hasPendingIntervention = input.discharge.responsePlan !== undefined
@@ -524,6 +542,7 @@ export function composeDeliveryReviewObligation(input: {
   requestCoverage?: HostedReviewCoverage;
   requestInvocation?: { readonly mode: "force"; readonly sourceId: string };
   ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): RoutedReviewObligation {
   if (input.targets.length === 0 || input.targets.length !== input.discharges.length) {
     return {
@@ -537,6 +556,7 @@ export function composeDeliveryReviewObligation(input: {
       target,
       discharge,
       ownerTermini: input.ownerTermini,
+      ownerTerminusAdvances: input.ownerTerminusAdvances,
     })) return discharge;
     return {
       ...discharge,

@@ -19,8 +19,12 @@ import {
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { validateDeliveryPublicReviewContinuation } from
   "../../lib/delivery/public-review-continuation.js";
-import { projectGitDeliveryTerminalCoordinateAdvance } from
+import {
+  projectGitDeliveryTerminalCoordinateAdvance,
+  projectGitDeliveryTerminalRecordAdvance,
+} from
   "../../lib/delivery/public-review-continuation-git.js";
+import { sameDeliveryReviewMemberIdentity } from "../../lib/delivery/review-vehicle.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
   type DeliveryDischargeTargetLookup,
@@ -63,6 +67,7 @@ import {
   composeSingletonReviewObligation,
   isDeliveryReviewMemberDischargedByOwnerTerminus,
   resolveReviewStatus,
+  type DeliveryReviewOwnerTerminusAdvance,
   type ReviewStatusObservation,
   type ReviewStatusPort,
   type ReviewStatusResult,
@@ -374,6 +379,29 @@ export async function readRoutedObligation(
       if (deliveryTargets.length !== resolution.targets.length) {
         return { state: "blocked", detail: "The retained delivery-member review selectors are unavailable." };
       }
+      const terminalTarget = deliveryTargets.at(-1);
+      const ownerTerminusAdvances: DeliveryReviewOwnerTerminusAdvance[] = terminalTarget === undefined
+        || terminalTarget.position !== terminalTarget.memberCount
+        ? []
+        : (await Promise.all(boundary.deliveryReviewTermini.map(async (record) => {
+            if (!sameDeliveryReviewMemberIdentity(record.vehicle, terminalTarget.vehicle)
+              || record.vehicle.head === terminalTarget.vehicle.head) return [];
+            const proof = await projectGitDeliveryTerminalRecordAdvance({
+              cwd,
+              exec,
+              workUnitId: workUnit,
+              baseBranch,
+              priorHead: record.vehicle.head,
+              currentHead: terminalTarget.vehicle.head,
+            });
+            return proof === undefined
+              ? []
+              : [{
+                  priorVehicle: record.vehicle,
+                  currentVehicle: terminalTarget.vehicle,
+                  proof,
+                }];
+          }))).flat();
       const discharges = await Promise.all(deliveryTargets.map((memberTarget) => readDischarge({
         reservation,
         baseRevision: memberTarget.baseRevision,
@@ -432,6 +460,7 @@ export async function readRoutedObligation(
             target: memberTarget,
             discharge,
             ownerTermini: boundary.deliveryReviewTermini,
+            ownerTerminusAdvances,
           }));
       });
       const firstOutstanding = discharges[firstOutstandingIndex];
@@ -497,6 +526,7 @@ export async function readRoutedObligation(
           candidateId: record.attestation.candidateId,
         },
         ownerTermini: boundary.deliveryReviewTermini,
+        ownerTerminusAdvances,
       });
     }
     const discharge = await readDischarge({
