@@ -82,6 +82,9 @@ export async function runDerivedLocusStateProbe(
         if (result.status === "candidate-renewal-required") {
           return { status: "candidate-renewal-required" };
         }
+        if (result.status === "correction-route-ambiguous") {
+          return { status: "refused", message: result.recommendedActionText };
+        }
         return result.status === "refused"
           ? { status: "refused", message: result.recommendedActionText }
           : { status: "none" };

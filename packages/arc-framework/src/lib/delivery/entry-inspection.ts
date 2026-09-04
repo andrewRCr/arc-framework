@@ -21,6 +21,7 @@ import {
   DeliveryGitObjectIdSchema,
   DeliveryPlanIdSchema,
 } from "./schema.js";
+import type { DeliveryTerminalDeltaClassification } from "./lifecycle-contribution.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 import {
   DELIVERY_PLAN_END_SENTINEL,
@@ -28,6 +29,7 @@ import {
   renderDeliveryPlanSection,
 } from "./task-list-render.js";
 import type {
+  DeliveryChangeRequestV1,
   DeliveryMemberCoordinatesV1,
   DeliveryPlanV1,
   DeliveryStateV1,
@@ -36,6 +38,9 @@ import {
   projectDeliveryReviewFixVerificationContinuation,
   type DeliveryReviewFixVerificationContinuation,
 } from "./review-fix-verification.js";
+
+/** Selector-free continuation the member-correction route enters. */
+const MEMBER_CORRECTION_COMMAND = "arc delivery review-fix continue - --json";
 
 const AttendedDeliveryEntryInspectionRequestSchema = z.strictObject({
   workUnitId: SlugSchema,
@@ -148,6 +153,26 @@ export type DeliveryEntryInspectionResult =
       readonly nextAction: "verify-work-unit";
       readonly planId: string;
       readonly stateRevision: number;
+      readonly recommendedActionText: string;
+    }
+  | {
+      readonly status: "correction-route-ambiguous";
+      readonly nextAction: "stop";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly terminalDelta: Extract<
+        DeliveryTerminalDeltaClassification,
+        { readonly kind: "carries-non-lifecycle" }
+      >;
+      readonly outstandingMember: OutstandingNonTerminalDeliveryMember;
+      readonly routes: readonly [
+        { readonly kind: "candidate-verification"; readonly nextAction: "verify-work-unit" },
+        {
+          readonly kind: "member-correction";
+          readonly nextAction: "plan-review-fix";
+          readonly command: string;
+        },
+      ];
       readonly recommendedActionText: string;
     }
   | {
@@ -282,6 +307,36 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
+    status: z.literal("correction-route-ambiguous"),
+    nextAction: z.literal("stop"),
+    planId: DeliveryPlanIdSchema,
+    stateRevision: z.number().int().positive(),
+    terminalDelta: z.strictObject({
+      kind: z.literal("carries-non-lifecycle"),
+      lifecyclePaths: z.array(z.string().min(1)),
+      nonLifecyclePaths: z.array(z.string().min(1)).min(1),
+    }),
+    outstandingMember: z.strictObject({
+      deliverableId: DeliveryCanonicalDigestSchema,
+      changeRequest: z.strictObject({
+        providerId: z.string().min(1),
+        changeRequestId: z.string().min(1),
+      }),
+    }),
+    routes: z.tuple([
+      z.strictObject({
+        kind: z.literal("candidate-verification"),
+        nextAction: z.literal("verify-work-unit"),
+      }),
+      z.strictObject({
+        kind: z.literal("member-correction"),
+        nextAction: z.literal("plan-review-fix"),
+        command: z.literal(MEMBER_CORRECTION_COMMAND),
+      }),
+    ]),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
     status: z.literal("continue-publication"), nextAction: z.literal("continue-publication"),
     planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
     publicationAction: ContinuePublicationActionSchema, recommendedActionText: z.string().min(1),
@@ -351,7 +406,10 @@ type ReadCandidate =
         readonly terminalCoordinateAdvance?: DeliveryTerminalCoordinateAdvanceProof;
       } | null;
     }
-  | { readonly status: "non-current" }
+  | {
+      readonly status: "non-current";
+      readonly terminalDelta?: DeliveryTerminalDeltaClassification;
+    }
   | { readonly status: "refused" };
 
 /** Read-only dependencies; the port intentionally exposes no publish or mutation methods. */
@@ -538,6 +596,38 @@ export function inspectDeliveryPlanLocus(
   return actual === expected
     ? { status: "canonical" }
     : { status: "refused", reason: "canonical-projection-mismatch" };
+}
+
+/** One non-terminal delivery member still bound to a change request at the entry seam. */
+export interface OutstandingNonTerminalDeliveryMember {
+  readonly deliverableId: string;
+  readonly changeRequest: DeliveryChangeRequestV1;
+}
+
+/**
+ * Select the first non-terminal member whose review the seam can still see as outstanding.
+ *
+ * The seam reads no per-member review progress, so a member bound to a change request is the
+ * strongest outstanding-review evidence available here. The terminal member is never selected:
+ * its branch is the work-unit branch, so content carried there is already its own.
+ *
+ * @param input - The canonical plan and its coherent delivery state.
+ * @returns The first plan-ordered bound non-terminal member, or `null` when none is bound.
+ */
+export function selectOutstandingNonTerminalDeliveryMember(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryStateV1;
+}): OutstandingNonTerminalDeliveryMember | null {
+  const terminalIndex = input.plan.members.length - 1;
+  for (const [index, planMember] of input.plan.members.entries()) {
+    if (index >= terminalIndex) break;
+    const bound = input.state.members.find(
+      (member) => member.deliverableId === planMember.deliverableId,
+    )?.changeRequest;
+    if (bound == null) continue;
+    return { deliverableId: planMember.deliverableId, changeRequest: bound };
+  }
+  return null;
 }
 
 /** Derive the exact delivery entry route from its entry context and authoritative read-only facts. */
@@ -773,6 +863,31 @@ export async function inspectDeliveryEntry(
       }
       if (candidate.status === "refused") return refused("evidence-unavailable");
       if (candidate.status === "non-current") {
+        const outstanding = selectOutstandingNonTerminalDeliveryMember({ plan, state: state.value });
+        if (candidate.terminalDelta?.kind === "carries-non-lifecycle" && outstanding !== null) {
+          return {
+            status: "correction-route-ambiguous",
+            nextAction: "stop",
+            planId: plan.planId,
+            stateRevision: state.revision,
+            terminalDelta: candidate.terminalDelta,
+            outstandingMember: outstanding,
+            routes: [
+              { kind: "candidate-verification", nextAction: "verify-work-unit" },
+              {
+                kind: "member-correction",
+                nextAction: "plan-review-fix",
+                command: MEMBER_CORRECTION_COMMAND,
+              },
+            ],
+            recommendedActionText:
+              `The work-unit branch carries ${candidate.terminalDelta.nonLifecyclePaths.length} path(s) outside `
+              + `this work unit's lifecycle artifacts while delivery member ${outstanding.deliverableId} is still `
+              + "under review. Delivery entry attributes no content to a member, so both routes remain open: "
+              + "complete Candidate verification closeout when the carried content belongs to the terminal member, "
+              + `or resume the member correction with \`${MEMBER_CORRECTION_COMMAND}\` when it is that member's fix.`,
+          };
+        }
         return {
           status: "candidate-verification-required",
           nextAction: "verify-work-unit",

@@ -5,6 +5,7 @@ import {
   inspectDeliveryEntry,
   inspectDeliveryPlanLocus,
   inspectDeliveryReopen,
+  selectOutstandingNonTerminalDeliveryMember,
 } from "../../../src/lib/delivery/entry-inspection.js";
 import {
   DELIVERY_PLAN_START_SENTINEL,
@@ -20,7 +21,9 @@ import {
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import {
   deliveryFourMemberStackPlanFixture,
+  deliverySingleMemberStackPlanFixture,
   deliveryStackPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -48,6 +51,14 @@ function dependencies(input: {
       proof: "subject-equality" | "tree-equality" | "mechanical-reapply";
     };
   } | null | "non-current" | "refused";
+  candidateTerminalDelta?: {
+    kind: "lifecycle-only";
+    lifecyclePaths: readonly string[];
+  } | {
+    kind: "carries-non-lifecycle";
+    lifecyclePaths: readonly string[];
+    nonLifecyclePaths: readonly string[];
+  };
   candidateTerminalCoordinates?: {
     readonly base: string;
     readonly head: string;
@@ -90,7 +101,9 @@ function dependencies(input: {
       : input.candidate === "refused"
         ? { status: "refused" as const }
         : input.candidate === "non-current"
-          ? { status: "non-current" as const }
+          ? input.candidateTerminalDelta === undefined
+            ? { status: "non-current" as const }
+            : { status: "non-current" as const, terminalDelta: input.candidateTerminalDelta }
           : { status: "ok" as const, value: input.candidate ?? null }),
   };
 }
@@ -898,6 +911,164 @@ describe("delivery entry inspection", () => {
     }, dependencies())).resolves.toMatchObject({
       status: "not-applicable",
       nextAction: "continue-work-unit",
+    });
+  });
+});
+
+describe("selectOutstandingNonTerminalDeliveryMember", () => {
+  function bind(
+    boundPlan: ReturnType<typeof deliveryThreeMemberStackPlanFixture>,
+    boundIndexes: readonly number[],
+  ) {
+    const state = deliveryStateFixture(boundPlan);
+    return {
+      ...state,
+      members: state.members.map((member, index) => ({
+        ...member,
+        changeRequest: boundIndexes.includes(index)
+          ? { providerId: "github", changeRequestId: String(index + 101) }
+          : null,
+      })),
+    };
+  }
+
+  it("selects the first plan-ordered non-terminal member carrying a bound request", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: bind(threeMemberPlan, [0, 1, 2]),
+    })).toEqual({
+      deliverableId: threeMemberPlan.members[0]?.deliverableId,
+      changeRequest: { providerId: "github", changeRequestId: "101" },
+    });
+  });
+
+  it("skips an unbound non-terminal member and selects the next bound one", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: bind(threeMemberPlan, [1, 2]),
+    })).toEqual({
+      deliverableId: threeMemberPlan.members[1]?.deliverableId,
+      changeRequest: { providerId: "github", changeRequestId: "102" },
+    });
+  });
+
+  it("selects nothing when only the terminal member carries a bound request", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: bind(threeMemberPlan, [2]),
+    })).toBeNull();
+  });
+
+  it("selects nothing from a terminal-only plan whose single member is bound", () => {
+    const singleMemberPlan = deliverySingleMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: singleMemberPlan,
+      state: bind(singleMemberPlan, [0]),
+    })).toBeNull();
+  });
+
+  it("selects nothing when no member carries a bound request", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: bind(threeMemberPlan, []),
+    })).toBeNull();
+  });
+});
+
+describe("inspectDeliveryEntry — non-current Candidate classification", () => {
+  const carriesNonLifecycle = {
+    kind: "carries-non-lifecycle" as const,
+    lifecyclePaths: [".arc/active/tasks-example.md"],
+    nonLifecyclePaths: ["packages/arc-framework/src/lib/delivery/review-fix.ts"],
+  };
+
+  function integratingEntry(overrides: Parameters<typeof dependencies>[0]) {
+    const fixture = publicContinuationFixture();
+    return inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision,
+      integrationBoundary: fixture.boundary,
+      candidate: "non-current",
+      ...overrides,
+    }));
+  }
+
+  it("stops ambiguously when carried content meets an outstanding non-terminal member", async () => {
+    const result = await integratingEntry({ candidateTerminalDelta: carriesNonLifecycle });
+
+    expect(result).toMatchObject({
+      status: "correction-route-ambiguous",
+      nextAction: "stop",
+      planId: plan.planId,
+      terminalDelta: carriesNonLifecycle,
+      outstandingMember: {
+        deliverableId: plan.members[0]?.deliverableId,
+        changeRequest: { providerId: "github", changeRequestId: "101" },
+      },
+      routes: [
+        { kind: "candidate-verification", nextAction: "verify-work-unit" },
+        {
+          kind: "member-correction",
+          nextAction: "plan-review-fix",
+          command: "arc delivery review-fix continue - --json",
+        },
+      ],
+    });
+  });
+
+  it("names both candidate routes in the rendered stop text", async () => {
+    const result = await integratingEntry({ candidateTerminalDelta: carriesNonLifecycle });
+
+    expect(result).toMatchObject({
+      recommendedActionText: expect.stringContaining("verification closeout"),
+    });
+    expect(result).toMatchObject({
+      recommendedActionText: expect.stringContaining("arc delivery review-fix continue - --json"),
+    });
+  });
+
+  it("retains verification closeout for a delta reaching only lifecycle artifacts", async () => {
+    await expect(integratingEntry({
+      candidateTerminalDelta: {
+        kind: "lifecycle-only",
+        lifecyclePaths: [".arc/active/tasks-example.md"],
+      },
+    })).resolves.toMatchObject({
+      status: "candidate-verification-required",
+      nextAction: "verify-work-unit",
+    });
+  });
+
+  it("retains verification closeout when no non-terminal member review is outstanding", async () => {
+    const fixture = publicContinuationFixture();
+    const terminalOnly = {
+      ...fixture.state,
+      members: fixture.state.members.map((member, index) => ({
+        ...member,
+        changeRequest: index === fixture.state.members.length - 1 ? member.changeRequest : null,
+      })),
+    };
+
+    await expect(integratingEntry({
+      state: terminalOnly,
+      candidateTerminalDelta: carriesNonLifecycle,
+    })).resolves.toMatchObject({
+      status: "candidate-verification-required",
+      nextAction: "verify-work-unit",
     });
   });
 });

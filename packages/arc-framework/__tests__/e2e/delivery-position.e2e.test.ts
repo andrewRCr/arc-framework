@@ -1225,6 +1225,29 @@ describe("arc delivery position", () => {
       "- **Next Action:** [none]",
       "",
     ].join("\n"));
+    await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
+    const installedHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+    const installedTree = await git(fixture.repository, ["rev-parse", "HEAD^{tree}"]);
+    const stateBeforeEntry = await fixture.states.read(fixture.plan.planId);
+    if (stateBeforeEntry.status !== "ok" || stateBeforeEntry.value === null) {
+      throw new Error("response-loss fixture requires readable delivery state");
+    }
+    const installedState = DeliveryStateV1Schema.parse({
+      ...stateBeforeEntry.value.value,
+      members: stateBeforeEntry.value.value.members.map((member, index, members) =>
+        index === members.length - 1 && member.coordinates !== null
+          ? { ...member, coordinates: { ...member.coordinates, head: installedHead, tree: installedTree } }
+          : member),
+    });
+    const installedPublished = await fixture.states.publish(
+      fixture.plan.planId,
+      installedState,
+      stateBeforeEntry.value.revision,
+    );
+    if (installedPublished.status !== "ok") {
+      throw new Error("terminal coordinates must rebind onto the installed fixture commit");
+    }
     const entered = await runArcWithStdin(
       ["delivery", "entry", "inspect", "--input", "-", "--json"],
       fixture.repository,
