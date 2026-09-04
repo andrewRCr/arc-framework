@@ -4017,28 +4017,35 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       re-entry now also converges live in this work unit: two consecutive correction cycles (state revisions 392
       through 397) each verified, acknowledged, committed and pushed their records, reconciled without re-installing
       the settled verification, and returned to authoring from the origin, where five cycles had previously looped.
+    - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 9`; _State:_ `[x]`;
+      _Evidence:_ `arc delivery authoring rematerialize` and `arc delivery authoring rebind` expose the existing
+      executors without adding authority. The verbs and in-process correction dispatch share one implementation and
+      retain the exact clean-locus, before/requested-head-and-tree, state-revision, and active-operation guards. The
+      real-CLI authoring scenario proves idempotent rematerialization and exact rebind replay, plus dirty-locus,
+      moved-head, stale-revision, and non-descendant refusals without changing the candidate ref.
     - _Adversarial companion:_ pass 1 found active-owner bypass and the absent stationary-cycle rehearsal; both were
       repaired and source-verified. Pass 2 found ownerless explicit applicability lacked positive completed-lineage
       evidence and that this report still certified the superseded transfer; both were repaired under the approved
       disposition. The Heavy two-pass cap is exhausted, so no third independent pass is claimed; the fixed-point
       amendment span was walked by the primary only.
-    - _Summary:_ seven met, one superseded, zero unresolved.
+    - _Summary:_ eight met, one superseded, zero unresolved.
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Final re-attestation passed Markdown and ARC contract lint, TypeScript and shell lint, both
-  typechecks, package build, aggregate self-review, and diff hygiene; 852 test files passed with one skipped and
-  11,078 tests passed with one skipped. The final task-list closure reran Markdown and ARC contract checks over its
-  only new covered input.
-- _Success criteria:_ 41 total: 38 met, three superseded, and none unresolved. All eight member reports resolve to
-  their current criteria loci and boundary spans; Member 8's amended report supersedes automatic checkout succession
-  and adds fixed-origin plus Candidate-isolation evidence without borrowing member or gate identity. Member 1's
-  implementation-task workaround and Member 6's external-only refresh clause remain intentionally superseded by
-  D7.2b and D5.9. Union coherence and all six cross-member seams hold through exact correction routing, provider
-  refresh, replayable member verification, review conjunction, cursorless closeout, Candidate recovery, and terminal
-  integration.
+- _Quality gates:_ The final full implementation tree passed Markdown and ARC contract lint, TypeScript and shell
+  lint, both typechecks, package build, aggregate self-review, diff hygiene, 864 test files, and 11,396 tests. The
+  later Member 8 correction amendments passed their focused unit, workflow-contract, real-CLI, and typecheck gates;
+  only task-list, meta, and Candidate-boundary records changed after their green target `c2a231b78`. Final closure
+  reran Markdown and ARC contract checks over that documentation-only delta rather than repeating the unchanged full
+  suite.
+- _Success criteria:_ 45 total: 42 met, three superseded, and none unresolved. Every member report resolves all of
+  its current criteria loci and boundary spans; the amended Member 7 and Member 8 reports carry correction-entry and
+  typed-authoring evidence into the complete union. Member 1's implementation-task workaround, Member 6's
+  external-only refresh clause, and Member 8's automatic checkout succession remain intentionally superseded by
+  D7.2b, D5.9, and fixed-origin D1.5. All six cross-member seams remain coherent through correction routing,
+  provider refresh, review conjunction, Candidate recovery, fixed-origin execution, and terminal integration.
 
 - _Forward amendment (2026-08-27):_ The D5.8-D5.10 corrections added Success Criteria 34 and 35 after this terminal
   report. Consume the updated Member 6 boundary report and revalidate the continuation's cross-member mutation
@@ -4253,11 +4260,41 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   seam and the authoring surface without re-deriving unchanged member criteria or repeating an unchanged full-suite
   gate.
 
-    - `[ ]` **9.1.R.h Revalidate the correction entry and authoring amendments at work-unit scope**
+    - `[x]` **9.1.R.h Revalidate the correction entry and authoring amendments at work-unit scope**
 
         - _Goal:_ The terminal report accounts for Success Criteria 49 and 50, and the amended entry seam and
           authoring verbs compose with delivery entry, the resumable correction procedure, Candidate transitions,
           and closeout without reopening execution verification or repeating an unaffected member walk.
+
+        - _Outcome:_ Work-unit criteria report.
+            - _Criteria slice:_ all eight recorded member groups plus `Cross-member seams`.
+            - _Span:_ complete work-unit diff through `5464871b3` plus this terminal-report patch; reachability is
+              the complete staged tree. Member 7's approved entry-seam amendment and Member 8's approved typed-
+              authoring amendment remain explicit boundary-order deviations in their recorded reports.
+            - _Member groups:_ thirty-six criteria met, three intentionally superseded, and none unresolved. The
+              Member 7 report carries all six current loci. The corrected Member 8 report carries all nine current
+              loci, including the authoring verbs' shared executor, exact guard, refusal, and replay evidence.
+            - _Seam 1:_ task closure and Candidate transitions stay exact. The integration-entry classifier adds no
+              authority: lifecycle-only or unavailable deltas retain closeout, while an ambiguous non-lifecycle
+              delta stops before choosing verification or member correction.
+            - _Seam 2:_ review-fix continuation remains selector-free and resumable. Its typed authoring verbs expose
+              the same guarded executors the driver dispatches in process, so interrupted replay neither hand-writes
+              a reserved ref nor opens a second mutation route.
+            - _Seam 3:_ canonical plan, state, and originating-checkout ownership remain upstream of member routing,
+              authoring, review, and Candidate mutation. Neither amendment introduces content attribution, a record,
+              a locus lifecycle, or provider-specific durable state.
+            - _Seam 4:_ provider-native refresh and ordered stack landing retain their existing member boundaries;
+              the entry stop selects neither candidate route, and authoring replays only an exact guarded request.
+            - _Seam 5:_ the implementation gate evidence remains bound to `c2a231b78`; the subsequent delta contains
+              only task-list, meta, and Candidate-boundary records, and the final documentation gates pass.
+            - _Seam 6:_ the complete union is ready for Candidate re-attestation after the retained Member 7 review
+              authority is consumed. Forty-two criteria are met, three are intentionally superseded, and none remain
+              unresolved; no unaffected member criterion was re-derived.
+            - _Integrity:_ the typed entry and authoring behaviors are executable implementation evidence, while the
+              live correction-cycle observations remain identified as live proof. No essential intent is deferred
+              or assigned to an unowned follow-up.
+            - _Summary:_ forty-two met, three intentionally superseded, zero unresolved. The prior declined broad
+              adversarial companion carries forward; this narrow amendment adds no new complete-pass claim.
 
 ---
 
@@ -4459,7 +4496,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   reuse is admitted only for an exact already-green rebound tree. No orchestration record, quality ledger, generic
   workflow engine, or convergence policy is added.
 
-- `[ ]` A non-current Candidate whose work-unit branch carries non-lifecycle content while a non-terminal member
+- `[x]` A non-current Candidate whose work-unit branch carries non-lifecycle content while a non-terminal member
   review is outstanding does not receive a confident verification-closeout route. The integration entry seam
   classifies the terminal delta and returns a typed ambiguous stop naming both candidate routes, the classified
   delta, the outstanding member, and each route's exact next action. Lifecycle-artifact-only deltas, deltas carried
@@ -4508,7 +4545,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   owning work unit; completed lineages remain available when no active work unit owns the checkout, foreign dirt
   stays blocking, and cross-work-unit refusal makes no file or index mutation.
 
-- `[ ]` An authoring replay interrupted between the work-unit-branch commit and its member-ref publication completes
+- `[x]` An authoring replay interrupted between the work-unit-branch commit and its member-ref publication completes
   through typed verbs rather than a hand-written candidate ref. The rematerialize and rebind executors are publicly
   reachable under the guards they already enforce, refuse with their existing typed reasons on a dirty locus, a
   moved head or tree, a stale state revision, or an active operation, and introduce no record, locus lifecycle,
