@@ -767,3 +767,17 @@ incremental-size carrier selection, coverage retained through operation state an
 lane result. That is review-orchestration design and is captured under `review-orchestration-right-sizing`. This
 amendment adds only the no-silent-upgrade guard and no new record, source-order rule, convergence policy, or generic
 control loop.
+
+### Amendment 10 — terminal authoring waits for hosted publication (2026-09-04)
+
+The first live Member 8 correction after the rescue was committed locally and the selector-free driver was resumed
+before the work-unit branch was pushed. Local authoring readiness treated the clean descendant as ready and dispatched
+terminal reconciliation; the existing exact-host guard then returned `top-request-mismatch`. No state was corrupted,
+but the stop carried no new decision and its generic effect-failure text hid the missing publication step.
+
+Decided behavior: before dispatching terminal reconciliation, the controller freshly observes the terminal request.
+The exact local authoring head is ready; the prior state-bound request head returns the existing
+`authoring-required` stop with explicit verify, commit, push, and resume guidance; any unrelated request head refuses
+as moved. Content commits and pushes remain outside the driver's machine-owned record-effect exception. This is a
+bounded submit-ready authoring repair under the rescue contract, not a new stop, automatic content publication,
+standing approval, or generalized workflow mechanism.

@@ -514,10 +514,11 @@ selector reconstructed in prose.
 - `dispatch / dispatch` invokes `action.argv` with `action.input` unchanged, then re-enters this continuation
   without an interlock. The typed action may publish the selected correction, rematerialize the exact suffix, resume
   provider refresh/adoption, reconcile a persisted operation, or acknowledge completed scoped verification.
-- `authoring-required / author-terminal` returns to the calling task loop for the named terminal member. Its
+- `authoring-required / author-correction` returns to the calling task loop for the named authoring locus. Its
   `derivedFrom` names the canonical fact that selected the member and route — the open task, the pending approved
-  review response, or the pending verification being superseded. Author and run ordinary project gates on the
-  work-unit branch, then invoke `resumeAction`; do not publish a member ref.
+  review response, or the pending verification being superseded. Render `recommendedActionText` verbatim, author
+  only in the returned `authoring` locus, run ordinary project gates there, then invoke `resumeAction`. Do not
+  reconstruct or invoke a lower-level delivery mutation.
 - `verification-required / verify-review-fix` enters the scoped verification section below. After the correction
   task closes, invoke `resumeAction` with only the returned verification result added to its input.
 - `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or hosted

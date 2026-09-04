@@ -1127,6 +1127,7 @@ describe("arc delivery position", () => {
       reason: "pending-review-fix-verification",
     });
     expect(await readFile(pendingHostLog, "utf8")).toBe("");
+    await unlink(pendingHostLog);
     const topState = await fixture.states.read(fixture.plan.planId);
     if (topState.status !== "ok" || topState.value === null) {
       throw new Error("pending review-fix state must remain readable");
@@ -1304,11 +1305,34 @@ describe("arc delivery position", () => {
     });
     expect(JSON.parse(controlled.stdout)).not.toHaveProperty("acknowledgementInput");
 
+    await git(fixture.repository, ["push", "-u", "origin", workUnitBranch]);
     await writeFile(join(fixture.repository, "rescue-follow-up.txt"), "newer rescue authoring\n");
     await git(fixture.repository, ["add", "rescue-follow-up.txt"]);
     await git(fixture.repository, ["commit", "-m", "newer rescue authoring"]);
     const reboundHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
     expect(reboundHead).not.toBe(continuation.verification.target.head);
+
+    const unpublishedControlled = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
+    );
+    expect(
+      unpublishedControlled.exitCode,
+      `${unpublishedControlled.stderr}\n${unpublishedControlled.stdout}`,
+    ).toBe(0);
+    expect(JSON.parse(unpublishedControlled.stdout), unpublishedControlled.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "authoring-required",
+      route: "terminal-authoring",
+      selectedDeliverableId,
+      nextAction: "author-correction",
+      authoring: { kind: "top", ref: `refs/heads/${workUnitBranch}`, checkoutPath: fixture.repository },
+      recommendedActionText: expect.stringMatching(/commit.*push/iu),
+      effectLog: [],
+    });
+
     await git(fixture.repository, ["push", "origin", workUnitBranch]);
     const preRebindState = await fixture.states.read(fixture.plan.planId);
     if (preRebindState.status !== "ok" || preRebindState.value === null) {

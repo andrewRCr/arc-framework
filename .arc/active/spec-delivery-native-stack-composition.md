@@ -1559,6 +1559,13 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
       stays owed. All approved findings for one member pass batch into one publication by default; an earlier publish
       requires an explicit reason.
 
+      **Forward clarification (2026-09-04):** Terminal authoring is ready for reconciliation only when fresh hosted
+      observation shows the terminal request at the exact clean local authoring head. If the request still names the
+      state-bound prior head, the controller returns the existing `authoring-required` stop with explicit verify,
+      commit, and work-unit-branch push guidance; it dispatches no reconcile effect. A request at any third head
+      refuses as moved. The driver never turns content publication into a machine-owned record effect and adds no new
+      stop kind, authority, or orchestration state.
+
     - **Restarted corrections consume exact existing evidence — amended 2026-09-01 after final live acceptance
       exposed four re-entry seams.** A clean detached authoring checkout that strictly descends from its current
       deterministic candidate ref, satisfies the existing required-ancestor predicates, and preserves the selected

@@ -738,6 +738,61 @@ describe("delivery review-fix routing", () => {
     });
   });
 
+  it("keeps a locally authored terminal correction at authoring until its branch is published", () => {
+    const { plan, state } = fixture();
+    const selectedDeliverableId = plan.members.at(-1)!.deliverableId;
+    const facts = terminalAuthoringFacts(state);
+
+    expect(planDeliveryReviewFixRoute({
+      plan,
+      state,
+      facts: {
+        ...facts,
+        terminalAuthoringMovement: {
+          ...facts.terminalAuthoringMovement,
+          publicationLeaseHead: facts.terminalAuthoringMovement.before.head,
+        },
+      },
+      selectedDeliverableId,
+      observation: null,
+      entryMode: "integrating",
+      repository: "owner/repo",
+      remote: "origin",
+    })).toMatchObject({
+      status: "planned",
+      route: "terminal-authoring",
+      selectedDeliverableId,
+      nextAction: "author-terminal",
+      recommendedActionText: expect.stringMatching(/commit.*push/iu),
+    });
+  });
+
+  it("refuses a locally authored terminal correction when its remote branch moved elsewhere", () => {
+    const { plan, state } = fixture();
+    const selectedDeliverableId = plan.members.at(-1)!.deliverableId;
+    const facts = terminalAuthoringFacts(state);
+
+    expect(planDeliveryReviewFixRoute({
+      plan,
+      state,
+      facts: {
+        ...facts,
+        terminalAuthoringMovement: {
+          ...facts.terminalAuthoringMovement,
+          publicationLeaseHead: "d".repeat(40),
+        },
+      },
+      selectedDeliverableId,
+      observation: null,
+      entryMode: "integrating",
+      repository: "owner/repo",
+      remote: "origin",
+    })).toMatchObject({
+      status: "refused",
+      reason: "terminal-publication-moved",
+    });
+  });
+
   it("keeps an integrating terminal review fix on authoring before publication", () => {
     const { plan, state } = fixture();
     const selectedDeliverableId = plan.members.at(-1)!.deliverableId;

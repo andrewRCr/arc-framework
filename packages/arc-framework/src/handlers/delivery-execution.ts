@@ -920,6 +920,7 @@ const ReviewFixRouteResultSchema = z.discriminatedUnion("route", [
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
     nextAction: z.literal("author-terminal"),
+    publicationRequired: z.literal(true).optional(),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -1247,6 +1248,7 @@ const ResultSchema = z.union([
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
     nextAction: z.literal("author-terminal"),
+    publicationRequired: z.literal(true).optional(),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -2219,6 +2221,7 @@ async function executeDeliveryCommand(
       const projectTerminalRecordRebind = async (
         planId: string,
         reviewFixSelectedDeliverableId?: string,
+        authoringEntry?: DeliveryCorrectionRoutingEntry,
       ) => {
         const [currentPlan, currentState, active] = await Promise.all([
           planStore.readCurrent(planId),
@@ -2231,15 +2234,64 @@ async function executeDeliveryCommand(
           return { status: "refused" as const, reason: "delivery-unavailable" };
         }
         const terminal = currentState.value.value.members.at(-1);
-        if (terminal?.ref !== `refs/heads/${active.branch}` || terminal.coordinates === null) {
+        if (terminal?.ref !== `refs/heads/${active.branch}`
+          || terminal.coordinates === null
+          || terminal.changeRequest === null) {
           return { status: "not-required" as const };
         }
-        const terminalRef = await observeDeliveryEligibilityRef(exec, terminal.ref);
-        if (terminalRef === null) {
+        const terminalCheckout = await inspectDeliveryAuthoringCheckout(exec, cwd);
+        if (terminalCheckout === null) {
           return { status: "refused" as const, reason: "terminal-rebind-unavailable" };
         }
-        if (terminalRef.head === terminal.coordinates.head) {
+        if (terminalCheckout.trackedDirty) {
+          return { status: "refused" as const, reason: "authoring-locus-dirty" };
+        }
+        if (terminalCheckout.head === terminal.coordinates.head) {
           return { status: "not-required" as const };
+        }
+        const observedTop = await new GhDeliveryHostPort(hostedGhRunner).readRequest(
+          parsed.repository,
+          terminal.changeRequest,
+        );
+        if (observedTop.status !== "observed") {
+          return { status: "refused" as const, reason: "top-request-unavailable" };
+        }
+        if (observedTop.request.repository !== parsed.repository
+          || observedTop.request.headRepository !== parsed.repository
+          || observedTop.request.headRef !== active.branch
+          || observedTop.request.state !== "open") {
+          return { status: "refused" as const, reason: "terminal-publication-moved" };
+        }
+        if (observedTop.request.headSha === terminal.coordinates.head) {
+          if (authoringEntry === undefined
+            || reviewFixSelectedDeliverableId !== authoringEntry.selectedDeliverableId) {
+            return { status: "refused" as const, reason: "terminal-publication-required" };
+          }
+          return projectDeliveryReviewFixContinuation({
+            request: projectionRequest,
+            entry: authoringEntry,
+            state: currentState.value,
+            activeBranch: active.branch,
+            route: {
+              status: "planned" as const,
+              route: "terminal-authoring" as const,
+              selectedDeliverableId: authoringEntry.selectedDeliverableId,
+              affectedDeliverableIds: [authoringEntry.selectedDeliverableId],
+              nextAction: "author-terminal" as const,
+              recommendedActionText:
+                "Verify and commit the approved correction on the exact terminal work-unit branch, push that "
+                + "branch, then resume; no delivery member rewrite is required.",
+            },
+            authoring: {
+              status: "authoring-required" as const,
+              kind: "top" as const,
+              ref: terminal.ref,
+              checkoutPath: cwd,
+            },
+          });
+        }
+        if (observedTop.request.headSha !== terminalCheckout.head) {
+          return { status: "refused" as const, reason: "terminal-publication-moved" };
         }
         return {
           status: "dispatch" as const,
@@ -2393,7 +2445,7 @@ async function executeDeliveryCommand(
                   },
                 };
               }
-              authoring = classifyDeliveryReviewFixAuthoringReadiness({
+              const readiness = classifyDeliveryReviewFixAuthoringReadiness({
                 locus: { kind: candidateRoute ? "candidate" : "top", ref, checkoutPath },
                 publishedHead: candidateRoute ? selected.coordinates.head : terminalHead,
                 observed,
@@ -2403,6 +2455,10 @@ async function executeDeliveryCommand(
                 requiredAncestorHeads,
                 ancestry,
               });
+              authoring = planned.data.route === "terminal-authoring"
+                && planned.data.publicationRequired === true && readiness.status === "ready"
+                ? { status: "authoring-required" as const, kind: "top" as const, ref, checkoutPath }
+                : readiness;
               if (candidateRoute && authoring.status === "authoring-required") {
                 const gateAbsent = candidateGate?.status === "absent";
                 const refAbsent = observedRef === null;
@@ -2454,6 +2510,8 @@ async function executeDeliveryCommand(
         return {
           status: "prepared" as const,
           authoring,
+          publicationRequired: planned.data.route === "terminal-authoring"
+            && planned.data.publicationRequired === true,
           result: projectDeliveryReviewFixContinuation({
             request: projectionRequest,
             entry: correctionEntry,
@@ -2733,6 +2791,10 @@ async function executeDeliveryCommand(
           entry = correctionEntry;
           preparedCorrection = prepared;
         } else if (prepared.status === "prepared"
+          && "publicationRequired" in prepared && prepared.publicationRequired === true
+          && prepared.result.status === "authoring-required") {
+          return prepared.result;
+        } else if (prepared.status === "prepared"
           && prepared.result.status === "dispatch"
           && "kind" in prepared.result.action
           && prepared.result.action.kind === "delivery-review-fix-authoring-rebind") {
@@ -2741,6 +2803,7 @@ async function executeDeliveryCommand(
           const terminalRebind = await projectTerminalRecordRebind(
             entry.planId,
             entry.selectedDeliverableId,
+            correctionEntry,
           );
           if (terminalRebind.status !== "not-required") return terminalRebind;
         }
@@ -3812,7 +3875,7 @@ async function executeDeliveryCommand(
       parsed.remote,
       parsed.selectedDeliverableId,
       command === "review-fix-plan"
-        && ReviewFixPlanSchema.parse(parsed).entryMode === "execution",
+        && plan.members.at(-1)?.deliverableId === parsed.selectedDeliverableId,
     );
     if (authority.status === "refused") {
       return {

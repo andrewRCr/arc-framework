@@ -222,6 +222,7 @@ export type DeliveryReviewFixRouteResult =
       readonly status: "planned";
       readonly route: "terminal-authoring";
       readonly nextAction: "author-terminal";
+      readonly publicationRequired?: true;
     } & DeliveryReviewFixRouteCommon
   | {
       readonly status: "planned";
@@ -282,11 +283,34 @@ export function planDeliveryReviewFixRoute(
       };
     }
     if (input.entryMode === "integrating" && input.facts.terminalAuthoringMovement !== undefined) {
-      if (input.facts.terminalAuthoringMovement.deliverableId !== input.selectedDeliverableId) {
+      const movement = input.facts.terminalAuthoringMovement;
+      if (movement.deliverableId !== input.selectedDeliverableId) {
         return {
           status: "refused",
           reason: "position-mismatch",
           recommendedActionText: "Restore one exact published terminal movement before rebinding its correction.",
+        };
+      }
+      if (movement.publicationLeaseHead === movement.before.head) {
+        return {
+          status: "planned",
+          route: "terminal-authoring",
+          selectedDeliverableId: input.selectedDeliverableId,
+          affectedDeliverableIds: [input.selectedDeliverableId],
+          nextAction: "author-terminal",
+          publicationRequired: true,
+          recommendedActionText:
+            "Verify and commit the approved correction on the exact terminal work-unit branch, push that branch, "
+            + "then resume; no delivery member rewrite is required.",
+        };
+      }
+      if (movement.publicationLeaseHead !== movement.after.head) {
+        return {
+          status: "refused",
+          reason: "terminal-publication-moved",
+          recommendedActionText:
+            "Restore the terminal remote branch to either the state-bound or exact locally authored head before "
+            + "resuming its correction.",
         };
       }
       return {
@@ -313,8 +337,8 @@ export function planDeliveryReviewFixRoute(
       affectedDeliverableIds: [input.selectedDeliverableId],
       nextAction: "author-terminal",
       recommendedActionText:
-        "Author the approved correction on the exact terminal work-unit branch; no delivery member rewrite is "
-        + "required.",
+        "Author and verify the approved correction on the exact terminal work-unit branch, commit it, push that "
+        + "branch, then resume; no delivery member rewrite is required.",
     };
   }
   const subject = deriveDeliveryProviderRefreshSubject({

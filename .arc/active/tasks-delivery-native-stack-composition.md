@@ -4030,6 +4030,26 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       amendment span was walked by the primary only.
     - _Summary:_ eight met, one superseded, zero unresolved.
 
+- _Forward amendment (2026-09-04):_ Live Member 8 correction resumed after a local content commit but before its
+  work-unit branch push. The rescued driver dispatched reconciliation and exposed the existing host exactness guard
+  only as `top-request-mismatch`, creating a decision-free stop. Hold that effect at authoring instead.
+
+    - `[x]` **8.5.R.k Hold terminal reconciliation until authored content is public**
+
+        - _Goal:_ A locally authored terminal correction remains at the existing submit-ready `authoring-required`
+          stop until the hosted request exposes that exact head; the prior public head receives explicit verify,
+          commit, push, and resume guidance, while unrelated host movement refuses before reconciliation.
+
+        - Build `test-first` through the live-shaped unpushed descendant, the published exact-head continuation, and
+          unrelated hosted movement. Keep content publication outside the driver's machine-owned record effects and
+          add no stop kind, durable state, standing authority, or generalized control flow.
+
+        - _Outcome:_ Terminal correction planning now composes the existing append-only local-head proof with its
+          remote publication lease. An unpushed clean descendant returns `authoring-required` with commit/push
+          guidance and an empty effect log; the exact published head proceeds to reconciliation, while a third head
+          refuses before dispatch. The pending-verification fallback applies the same host check instead of exposing
+          `top-request-mismatch`. Focused controller, route, workflow-contract, type, and built-CLI tests pass.
+
 ## **Phase 9:** Verification
 
 ### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`

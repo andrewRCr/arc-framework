@@ -183,7 +183,7 @@ describe("packaged delivery workflow", () => {
     expect(correctionTail).toMatch(/request carries only[\s\S]*repository and remote identities/iu);
     expect(correctionTail).toMatch(/dispatch \/ dispatch[\s\S]*action\.argv[\s\S]*action\.input[\s\S]*re-enters/iu);
     expect(correctionTail).toMatch(
-      /authoring-required \/ author-terminal[\s\S]*verification-required \/ verify-review-fix[\s\S]*authority-required \/ dispatch-authority-action[\s\S]*idle \/ continue-work-unit/iu,
+      /authoring-required \/ author-correction[\s\S]*verification-required \/ verify-review-fix[\s\S]*authority-required \/ dispatch-authority-action[\s\S]*idle \/ continue-work-unit/iu,
     );
     expect(correctionTail).toMatch(/does not create an orchestration record/iu);
     expect(correctionTail).toMatch(
