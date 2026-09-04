@@ -14,14 +14,13 @@
 - **Candidate:** `sha256:e3aa9faeb9ad4e7fb0f791b783dc8da83667b2ff61a4eef8c3187fd4923f9d24`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 7.7 — Member 7 published, walked at member scope, and closed
-- **Next Task:** `8.5.R.h`
-- **Blockers:** The scoped review-fix verification renews itself: acknowledging it commits the machine-owned
-  records, that commit moves the terminal head, and the rebind re-installs the verification just settled. Delivery
-  cannot settle until Task 8.5.R.h reaches its fixed point.
+- **Last Completed:** Task 8.5 — Member 8 closed at member scope after the correction fixed-point amendments
+- **Next Task:** Task 9.1.R.h — Revalidate the correction entry and authoring amendments at work-unit scope
+  (line ~4256)
+- **Blockers:** [none]
 
-- **Next Action:** Task 8.5.R.h — establish whether `driveDeliveryReviewFixContinuation` invokes its
-  `settleRecordEffects` port before dispatching `delivery-reconcile`, and in which closure the settlement runs
+- **Next Action:** Re-enter `arc delivery review-fix continue` from the pushed branch; consume the retained
+  hosted-review authority action for Member 7 (owner selected `covered`), then start Task 9.1.R.h
 
 - **PR URL:** [none]
 - **Completed:** [none]
