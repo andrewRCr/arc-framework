@@ -2192,7 +2192,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2200,36 +2200,54 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 - _Outcome:_ Member 7 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
-    - _Span:_ bounded diff `8a45168e6..2309e23b5`; cumulative reachability `5a99f3f55` at tree `0788f0307`.
-      Boundary-order deviation: the approved local-review corrections were projected into Member 7 after its
-      original boundary; exact two-parent terminal absorption `5a99f3f55` retains the prior top while supplying
-      corrected Member 7 `2309e23b5`, so terminal-only content remains outside the bounded member diff.
+    - _Span:_ bounded diff `8a45168e6..ac09c41b9`; cumulative reachability `c728a1f0b` at tree `833756c8e`.
+      Boundary-order deviation: the approved local-review corrections, the supplemental closure, and the entry-seam
+      separation were all projected into Member 7 after its original boundary; exact two-parent terminal absorption
+      `c728a1f0b` retains the prior top while supplying corrected Member 7 `ac09c41b9`, so terminal-only content
+      remains outside the bounded member diff. That reachability is also the scoped verification target, so the
+      criteria walk and Tier 1 name one tree.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the exact
       delivery-member local operation binds PR 556, Member 7 head `5360c84d5`, and a complete chunk series; its one
-      aggregate result increments the standard lane exactly once. The live correction then published only Member 7
-      and retained the ordered public conjunction, with Members 1–6 discharged and Member 7 still exact-head bound.
+      aggregate result increments the standard lane exactly once. The live correction published only Member 7 —
+      now at `ac09c41b9` — and retained the ordered public conjunction, with Members 1–6 discharged and Member 7
+      still exact-head bound.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the aggregate
       result covers the complete contract-closed chunk union and dedicated seam without changing the shared
-      contribution arbiter. Finding corrections now reobserve endpoints and require symmetric, stable member-vehicle
+      contribution arbiter. Finding corrections reobserve endpoints and require symmetric, stable member-vehicle
       identity before mechanically carrying authority; movement and asymmetric scopes stop instead of re-reviewing
-      or crossing member boundaries.
+      or crossing member boundaries. Admission narrowed further: an explicit incremental request whose only ready
+      source is the complete-only chunked local carrier now stops at `coverage-unsupported` before preparation
+      rather than silently widening coverage to a complete pass.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ local
       prepare, durable resume, aggregate attestation, approved disposition, and correction routing retain the exact
-      member, source, head, pass, rubric, and chunked scope. The complete aggregate alone enters lane progress as one
-      pass, while Candidate transitions remain the sole durable applicability authority and partial reports carry no
-      settlement authority.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ the live
-      correction rebound and published `2309e23b5`, refreshed the dependent terminal member, and installed the same
-      pending scoped-verification continuation at state revision 349. Stale verification now yields to an already
-      projected exact authoring rebind, and all 21 production correction E2E cases cover that composed continuation.
+      member, source, head, pass, rubric, and chunked scope through status composition and every typed review verb.
+      The complete aggregate alone enters lane progress as one pass, while Candidate transitions remain the sole
+      durable applicability authority and partial reports carry no settlement authority.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ registered
+      dependent refresh, unregistered rematerialization, and terminal correction rebind install one pending scoped
+      verification continuation — this drive reinstalled it at state revision 379. Stale verification yields to an
+      already projected exact authoring rebind, and response-loss re-entry is now proven against a Candidate
+      committed on the branch rather than an uncommitted fixture, so recovery cannot pass while the record it binds
+      is absent from `HEAD`.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ one
-      selector-free drive executed rebind, publication, and refresh, returned one semantic terminal conflict with
-      complete coordinates, resumed from its exact two-parent resolution, and stopped at the consolidated
-      verification target `5a99f3f55` / `0788f0307`. Targeted lint, both typechecks, and all 21 production E2E cases
-      passed on that exact tree; no hosted provider request ran and no generalized controller or review authority was
-      added.
+      selector-free drive executed authoring rebind, publication, and provider refresh, stopped once on a semantic
+      terminal conflict carrying its exact prepared two-parent coordinates, and resumed from the recorded
+      resolution to the consolidated verification target `c728a1f0b` / `833756c8e`. Correction records now recover
+      across interruption from canonical state alone, and acknowledgement recovery binds to the committed `HEAD`
+      Candidate. Tier 1 reran whole on the target tree; no hosted provider request ran and no orchestration record,
+      quality ledger, or convergence policy was added.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 6`; _State:_ `[x]`; _Evidence:_ integration
+      entry partitions the terminal delta against the work unit's lifecycle-contribution group — including the
+      machine-owned Candidate and boundary records, whose omission produced spurious stops — selects the first
+      plan-ordered non-terminal member still bound to a change request, and answers `correction-route-ambiguous`
+      only when both hold. The stop carries both delta partitions, the outstanding member and its request, and an
+      ordered pair of routes with each one's next action, selecting neither. Lifecycle-only deltas and entries with
+      no outstanding member retain the closeout route; each unavailable arm — unreadable range, unresolved active
+      work unit, absent terminal coordinate — reports the classification unavailable and retains that route rather
+      than inventing one. The session probe surfaces the stop as an unresolved subject instead of projecting
+      ordinary integration, and both Framework copies of the integration workflow dispatch it.
     - _Adversarial companion:_ the Heavy Member 7 two-pass cap remains exhausted; this acceptance adds no third pass.
-    - _Summary:_ five met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+    - _Summary:_ six met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 - _Forward amendment (2026-08-27):_ D8.5 requires delivery-member request admission to pass through the existing
   review driver. The completed implementation instead composed a hosted request directly after applicability, so a
@@ -3552,7 +3570,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
         - _Scope boundary:_ No local incremental carrier, new coverage record, prior-head selector, source-policy
           change, convergence decision, or generalized review orchestration.
 
-    - `[ ]` **7.7.R.ac Separate the correction entry seam's two non-current-Candidate states** — validate criteria
+    - `[x]` **7.7.R.ac Separate the correction entry seam's two non-current-Candidate states** — validate criteria
       at member scope
 
         - _Goal:_ A non-current Candidate whose work-unit branch carries non-lifecycle content while a non-terminal
@@ -3590,6 +3608,16 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
                   classifications retain the closeout route unchanged. The session probe surfaces the stop as an
                   unresolved subject instead of projecting ordinary integration, and both Framework copies of the
                   integration workflow dispatch it.
+
+        - _Outcome:_ The seam now separates the two non-current-Candidate states from facts entry already
+          reads: a lifecycle partition of the terminal delta and a plan-ordered outstanding-member selector
+          decide together whether the closeout route is still a confident answer. The partition counts the work
+          unit's machine-owned Candidate and boundary records as lifecycle, without which ARC's own record-only
+          commits read as member content and produce spurious stops. It fired on this member's own projection:
+          the drive reached publication and refresh with no ambiguous stop, because the delta was lifecycle-only.
+
+        - _Verification:_ 864 test files and 11396 tests pass on the verification target tree `833756c8e`, with
+          both typechecks, TypeScript, shell, and Markdown lint, and all three ARC contract checks green.
 
         - _Scope boundary:_ No content attribution, member selection, heuristic route choice, new record, or review
           authority. Route execution remains D5.13's resumable procedure; this task governs only what entry answers.
