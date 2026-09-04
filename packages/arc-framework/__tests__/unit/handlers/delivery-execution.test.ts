@@ -116,6 +116,13 @@ describe("delivery execution handler", () => {
     const plan = deliveryStackPlanFixture();
     const member = plan.members[0]!;
     const request = {
+      repository: "owner/repo",
+      remote: "origin",
+      derivedFrom: { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" },
+      route: "provider-refresh",
+      affectedDeliverableIds: [member.deliverableId],
+      requiredAncestorHeads: ["1".repeat(40)],
+      requiredFindingPaths: [],
       planId: plan.planId,
       selectedDeliverableId: member.deliverableId,
       expectedStateRevision: 3,
@@ -144,6 +151,12 @@ describe("delivery execution handler", () => {
     const plan = deliveryStackPlanFixture();
     const member = plan.members[0]!;
     const request = {
+      repository: "owner/repo",
+      remote: "origin",
+      derivedFrom: { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" },
+      route: "provider-refresh",
+      affectedDeliverableIds: [member.deliverableId],
+      requiredFindingPaths: [],
       planId: plan.planId,
       selectedDeliverableId: member.deliverableId,
       expectedStateRevision: 3,

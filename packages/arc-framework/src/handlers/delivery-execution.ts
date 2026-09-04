@@ -305,7 +305,16 @@ const ReviewFixVerificationSchema = z.strictObject({
     coveredInputs: z.literal("unchanged"),
   }),
 });
-const ReviewFixAuthoringRebindSchema = z.strictObject({
+const ReviewFixAuthoringAuthoritySchema = z.strictObject({
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+  derivedFrom: DeliveryCorrectionDerivationSchema,
+  route: z.literal("provider-refresh"),
+  affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+  requiredAncestorHeads: z.array(GitObjectIdSchema).min(1),
+  requiredFindingPaths: z.array(z.string().min(1)),
+});
+const ReviewFixAuthoringRebindSchema = ReviewFixAuthoringAuthoritySchema.extend({
   planId: DeliveryPlanIdSchema,
   selectedDeliverableId: DeliveryCanonicalDigestSchema,
   expectedStateRevision: z.number().int().positive(),
@@ -317,10 +326,8 @@ const ReviewFixAuthoringRebindSchema = z.strictObject({
   requestedTree: GitObjectIdSchema,
   publishedHead: GitObjectIdSchema,
   publishedTree: GitObjectIdSchema,
-  requiredAncestorHeads: z.array(GitObjectIdSchema),
-  requiredFindingPaths: z.array(z.string().min(1)).optional(),
 });
-const ReviewFixAuthoringRematerializeSchema = z.strictObject({
+const ReviewFixAuthoringRematerializeSchema = ReviewFixAuthoringAuthoritySchema.extend({
   planId: DeliveryPlanIdSchema,
   selectedDeliverableId: DeliveryCanonicalDigestSchema,
   expectedStateRevision: z.number().int().positive(),
@@ -1693,6 +1700,95 @@ async function executeDeliveryCommand(
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
+  const revalidateAuthoringAuthority = async (
+    expected: z.infer<typeof ReviewFixAuthoringAuthoritySchema> & {
+      readonly planId: string;
+      readonly selectedDeliverableId: string;
+      readonly expectedStateRevision: number;
+    },
+    state: DeliveryStateV1,
+  ): Promise<{ readonly status: "current" } | { readonly status: "moved" }> => {
+    let currentDerivation: z.infer<typeof DeliveryCorrectionDerivationSchema> | undefined;
+    let requiredFindingPaths: readonly string[] = [];
+    try {
+      const entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction);
+      if (expected.derivedFrom.kind === "open-task") {
+        if (entry.status !== "correction-routing-required"
+          || entry.planId !== expected.planId
+          || entry.stateRevision !== expected.expectedStateRevision
+          || entry.selectedDeliverableId !== expected.selectedDeliverableId
+          || canonicalize(entry.derivedFrom) !== canonicalize(expected.derivedFrom)) {
+          return { status: "moved" };
+        }
+        currentDerivation = entry.derivedFrom;
+      } else if (expected.derivedFrom.kind === "pending-verification") {
+        if (entry.status !== "review-fix-verification-required"
+          || entry.planId !== expected.planId
+          || entry.stateRevision !== expected.expectedStateRevision
+          || entry.selectedDeliverableId !== expected.selectedDeliverableId
+          || entry.acknowledgementInput.continuationDigest
+            !== expected.derivedFrom.continuationDigest) {
+          return { status: "moved" };
+        }
+        currentDerivation = expected.derivedFrom;
+      } else {
+        if (entry.status !== "not-applicable") return { status: "moved" };
+        const records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+        const selection = selectPendingDeliveryReviewFixAuthority({
+          workUnitId: state.workUnitId,
+          records,
+        });
+        if (selection.status !== "selected"
+          || selection.planId !== expected.planId
+          || selection.selectedDeliverableId !== expected.selectedDeliverableId
+          || selection.reviewedHead !== expected.derivedFrom.reviewedHead
+          || selection.dispositionSetId !== expected.derivedFrom.dispositionSetId
+          || !pendingDeliveryReviewFixAuthorityIsCurrent({
+            selectedDeliverableId: selection.selectedDeliverableId,
+            reviewedHead: selection.reviewedHead,
+            state,
+          })) {
+          return { status: "moved" };
+        }
+        currentDerivation = expected.derivedFrom;
+        requiredFindingPaths = selection.authorizedFindingLoci
+          .map(reviewFixFindingPath)
+          .filter((path): path is string => path !== null);
+      }
+    } catch {
+      return { status: "moved" };
+    }
+    if (canonicalize(currentDerivation) !== canonicalize(expected.derivedFrom)) {
+      return { status: "moved" };
+    }
+
+    const planned = ReviewFixRouteResultSchema.safeParse(await executeDeliveryCommand(
+      "review-fix-plan",
+      {
+        planId: expected.planId,
+        selectedDeliverableId: expected.selectedDeliverableId,
+        repository: expected.repository,
+        remote: expected.remote,
+        entryMode: "integrating",
+      },
+      interaction,
+    ));
+    if (!planned.success || planned.data.route !== "provider-refresh"
+      || planned.data.selectedDeliverableId !== expected.selectedDeliverableId
+      || canonicalize(planned.data.affectedDeliverableIds)
+        !== canonicalize(expected.affectedDeliverableIds)
+      || canonicalize(planned.data.candidateRequirements.requiredAncestorHeads)
+        !== canonicalize(expected.requiredAncestorHeads)) {
+      return { status: "moved" };
+    }
+
+    const canonicalPaths = (paths: readonly string[]) =>
+      sortByCanonicalBytes([...new Set(paths)]);
+    return canonicalize(canonicalPaths(requiredFindingPaths))
+      === canonicalize(canonicalPaths(expected.requiredFindingPaths))
+      ? { status: "current" }
+      : { status: "moved" };
+  };
   const executeAuthoringRebind = async (input: unknown) => {
     const reboundInput = ReviewFixAuthoringRebindSchema.safeParse(input);
     if (!reboundInput.success) return { status: "refused" as const, reason: "authoring-rebind-invalid" };
@@ -1709,6 +1805,9 @@ async function executeDeliveryCommand(
       || stateRead.value.value.activeOperation !== null
       || active.status !== "resolved" || active.name !== planRead.value.workUnitId
       || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
+      return { status: "refused" as const, reason: "authoring-rebind-authority-moved" };
+    }
+    if ((await revalidateAuthoringAuthority(expected, stateRead.value.value)).status !== "current") {
       return { status: "refused" as const, reason: "authoring-rebind-authority-moved" };
     }
     const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
@@ -1762,7 +1861,7 @@ async function executeDeliveryCommand(
         return { status: "refused" as const, reason: "authoring-rebind-ancestor-mismatch" };
       }
     }
-    if (expected.requiredFindingPaths !== undefined && expected.requiredFindingPaths.length > 0) {
+    if (expected.requiredFindingPaths.length > 0) {
       const authoredPaths = (await exec(
         "git",
         ["diff", "--name-only", "-z", expected.publishedHead, expected.requestedHead, "--"],
@@ -1807,6 +1906,9 @@ async function executeDeliveryCommand(
       || stateRead.value.value.activeOperation !== null
       || active.status !== "resolved" || active.name !== planRead.value.workUnitId
       || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
+      return { status: "refused" as const, reason: "authoring-rematerialize-authority-moved" };
+    }
+    if ((await revalidateAuthoringAuthority(expected, stateRead.value.value)).status !== "current") {
       return { status: "refused" as const, reason: "authoring-rematerialize-authority-moved" };
     }
     const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
@@ -2248,7 +2350,7 @@ async function executeDeliveryCommand(
                   )).stdout.split("\0").filter((path) => path !== "");
               const requiredFindingPaths = approvedDispositionSet?.authorizedFindingLoci
                 .map(reviewFixFindingPath)
-                .filter((path): path is string => path !== null);
+                .filter((path): path is string => path !== null) ?? [];
               const ancestry = observed === null
                 ? []
                 : await Promise.all(requiredAncestorHeads.map(async (ancestor: string) => ({
@@ -2266,6 +2368,11 @@ async function executeDeliveryCommand(
                     action: {
                       kind: "delivery-review-fix-authoring-rebind" as const,
                       input: {
+                        repository: parsed.repository,
+                        remote: parsed.remote,
+                        derivedFrom: correctionEntry.derivedFrom,
+                        route: "provider-refresh" as const,
+                        affectedDeliverableIds: planned.data.affectedDeliverableIds,
                         planId: correctionEntry.planId,
                         selectedDeliverableId: correctionEntry.selectedDeliverableId,
                         expectedStateRevision: stateRead.value.revision,
@@ -2278,7 +2385,7 @@ async function executeDeliveryCommand(
                         publishedHead: selected.coordinates.head,
                         publishedTree: selected.coordinates.tree,
                         requiredAncestorHeads,
-                        ...(requiredFindingPaths === undefined ? {} : { requiredFindingPaths }),
+                        requiredFindingPaths,
                       },
                     },
                     recommendedActionText:
@@ -2292,7 +2399,7 @@ async function executeDeliveryCommand(
                 observed,
                 refCoordinates: observedRef,
                 ...(authoredPaths === undefined ? {} : { authoredPaths }),
-                ...(requiredFindingPaths === undefined ? {} : { requiredFindingPaths }),
+                requiredFindingPaths,
                 requiredAncestorHeads,
                 ancestry,
               });
@@ -2317,6 +2424,11 @@ async function executeDeliveryCommand(
                       action: {
                         kind: "delivery-review-fix-authoring-rematerialize" as const,
                         input: {
+                          repository: parsed.repository,
+                          remote: parsed.remote,
+                          derivedFrom: correctionEntry.derivedFrom,
+                          route: "provider-refresh" as const,
+                          affectedDeliverableIds: planned.data.affectedDeliverableIds,
                           planId: correctionEntry.planId,
                           selectedDeliverableId: correctionEntry.selectedDeliverableId,
                           expectedStateRevision: stateRead.value.revision,
@@ -2326,6 +2438,8 @@ async function executeDeliveryCommand(
                           beforeTree: observedRef?.tree ?? null,
                           requestedHead: selected.coordinates.head,
                           requestedTree: selected.coordinates.tree,
+                          requiredAncestorHeads,
+                          requiredFindingPaths,
                         },
                       },
                       recommendedActionText:
