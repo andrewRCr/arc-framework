@@ -3887,6 +3887,30 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           to acknowledgement, boundary carry, or record settlement. This task governs only whether the rebind
           renews a verification it has just settled.
 
+- _Forward amendment (2026-09-04):_ The first fixed-point run past the renewal loop stopped on
+  `authoring-required` without naming the open task that derived the route, and the preceding
+  `verification-required` stop returned two candidate input objects (`acknowledgementInput` and `resumeAction`)
+  for one submission. Both are output-shape gaps on the unshipped continuation this member minted; fix them in
+  place before the shape ships rather than after.
+
+    - `[ ]` **8.5.R.i Make correction stops self-explaining**
+
+        - _Goal:_ Every attended stop of the review-fix continuation names the exact fact that derived its route,
+          and a stop that expects a resubmission offers exactly one input shape for it.
+
+        - `[ ]` **8.5.R.i.1 Name the deriving fact on routed stops**
+            - `authoring-required` and `correction-routing-required` carry the open task id (or the unsettled
+              response identity when that is the source) that selected the member and route; existing fields and
+              refusals are unchanged.
+
+        - `[ ]` **8.5.R.i.2 Offer one resubmission shape on the verification stop**
+            - `verification-required` returns a single resume input the caller completes with `verification`,
+              and the acknowledgement verb's own input is no longer echoed beside it; `deliver-stack.md` names that
+              one shape.
+
+        - _Scope boundary:_ Result-shape and workflow-prose changes only. No new state, record, orchestration
+          surface, or change to routing decisions.
+
 - _Outcome:_ Member 8 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
