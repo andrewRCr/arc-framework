@@ -5,6 +5,7 @@ import {
   deliveryReviewFixRecordCommitMessage,
   deliveryReviewFixRecordDigest,
   isDeliveryReviewFixRecordCommitMessage,
+  isSettledDeliveryReviewFixRecordMovement,
   isDeliveryReviewFixVerificationResponseAppend,
   reconstructDeliveryReviewFixExpectedRecords,
   settleDeliveryReviewFixRecordEffects,
@@ -36,6 +37,51 @@ const matchingWorkingRecords = {
 };
 
 describe("delivery review-fix record effects", () => {
+  const MOVEMENT_WU = "delivery-native-stack-composition";
+  const CANDIDATE_RECORD = `.arc/system/.internal/candidates/${MOVEMENT_WU}.json`;
+  const BOUNDARY_RECORD = `.arc/system/.internal/candidates/${MOVEMENT_WU}.boundary.json`;
+  const BOUND_HEAD = "a".repeat(40);
+  const movementMessage = deliveryReviewFixRecordCommitMessage(
+    "candidate-boundary-projection",
+    `meta-${MOVEMENT_WU}.md (integration)`,
+    [
+      { path: CANDIDATE_RECORD, digest: deliveryReviewFixRecordDigest("candidate") },
+      { path: BOUNDARY_RECORD, digest: deliveryReviewFixRecordDigest("boundary") },
+    ],
+  );
+  const movementInput = {
+    workUnitId: MOVEMENT_WU,
+    boundHead: BOUND_HEAD,
+    parent: BOUND_HEAD,
+    changedPaths: [CANDIDATE_RECORD, BOUNDARY_RECORD],
+    message: movementMessage,
+  };
+
+  it("recognizes a record-only commit resting directly on the bound terminal head", () => {
+    expect(isSettledDeliveryReviewFixRecordMovement(movementInput)).toBe(true);
+  });
+
+  it("rejects a commit carrying any path outside the machine-owned records", () => {
+    expect(isSettledDeliveryReviewFixRecordMovement({
+      ...movementInput,
+      changedPaths: [CANDIDATE_RECORD, BOUNDARY_RECORD, "packages/arc-framework/src/cli.ts"],
+    })).toBe(false);
+  });
+
+  it("rejects a record commit that does not rest on the bound terminal head", () => {
+    expect(isSettledDeliveryReviewFixRecordMovement({
+      ...movementInput,
+      parent: "c".repeat(40),
+    })).toBe(false);
+  });
+
+  it("rejects a record-path commit whose message is not the machine-owned record message", () => {
+    expect(isSettledDeliveryReviewFixRecordMovement({
+      ...movementInput,
+      message: "chore(delivery): carry correction review boundary",
+    })).toBe(false);
+  });
+
   it("reconstructs only the exact semantic boundary carry", () => {
     const plan = deliveryStackPlanFixture();
     const initial = deliveryStateFixture(plan);

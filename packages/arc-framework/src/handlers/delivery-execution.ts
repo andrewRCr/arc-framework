@@ -154,6 +154,7 @@ import {
   classifyDeliveryReviewFixStagedRecords,
   deliveryReviewFixRecordDigest,
   isDeliveryReviewFixRecordCommitMessage,
+  isSettledDeliveryReviewFixRecordMovement,
   isDeliveryReviewFixVerificationResponseAppend,
   reconstructDeliveryReviewFixExpectedRecords,
   settleDeliveryReviewFixRecordEffects,
@@ -1539,6 +1540,45 @@ export async function handleDeliveryExecution(
 function emit(deps: DeliveryExecutionHandlerDependencies, command: DeliveryExecutionCommand, result: DeliveryExecutionResult): void {
   deps.write(`${JSON.stringify({ schemaVersion: 1, command: executionPath(command), ...result })}\n`);
   if (result.status === "refused" || result.status === "blocked") deps.setExitCode(1);
+}
+
+/** Name the observed terminal head only when it is the correction's own settled record commit. */
+async function resolveSettledTerminalRecordMovement(input: {
+  readonly cwd: string;
+  readonly exec: GitExec;
+  readonly workUnitId: string;
+  readonly boundHead: string;
+  readonly observedHead: string;
+}): Promise<string | null> {
+  if (input.observedHead === input.boundHead) return null;
+  const options = { cwd: input.cwd, objectAccess: "local-only" as const };
+  let parent: string;
+  let changedPaths: readonly string[];
+  let message: string;
+  try {
+    [parent, changedPaths, message] = await Promise.all([
+      input.exec("git", ["rev-parse", `${input.observedHead}^`], options)
+        .then(({ stdout }) => stdout.trim()),
+      input.exec(
+        "git",
+        ["diff-tree", "--no-commit-id", "--name-only", "-z", "-r", input.observedHead, "--"],
+        options,
+      ).then(({ stdout }) => stdout.split("\0").filter((path) => path !== "")),
+      input.exec("git", ["log", "-1", "--format=%B", input.observedHead], options)
+        .then(({ stdout }) => stdout.trimEnd()),
+    ]);
+  } catch {
+    return null;
+  }
+  return isSettledDeliveryReviewFixRecordMovement({
+    workUnitId: input.workUnitId,
+    boundHead: input.boundHead,
+    parent,
+    changedPaths,
+    message,
+  })
+    ? input.observedHead
+    : null;
 }
 
 async function observeNativeDeliveryEffect(
@@ -4773,6 +4813,13 @@ async function executeDeliveryCommand(
           baseRevision: requestedPredecessorBase ? predecessorHead : baseRevision,
           exec,
         });
+        const settledRecordEffectHead = await resolveSettledTerminalRecordMovement({
+          cwd,
+          exec,
+          workUnitId: currentPlan.workUnitId,
+          boundHead: terminal.coordinates.head,
+          observedHead: coordinates.head,
+        });
         const projected = rebindDeliveryTerminalCoordinates({
           plan: currentPlan,
           state: currentState.value,
@@ -4786,6 +4833,7 @@ async function executeDeliveryCommand(
           repository: parsed.repository,
           request: observedTop.request,
           coordinates: { base, head: coordinates.head, tree: coordinates.tree },
+          ...(settledRecordEffectHead === null ? {} : { settledRecordEffectHead }),
         });
         if (projected.status === "refused") return projected;
         const published = await stateStore.publish(

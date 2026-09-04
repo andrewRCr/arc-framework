@@ -161,6 +161,7 @@ export function rebindDeliveryTerminalCoordinates(input: {
   readonly repository: string;
   readonly request: DeliveryTerminalRebindTopObservation;
   readonly coordinates: DeliveryMemberCoordinatesV1;
+  readonly settledRecordEffectHead?: string;
 }): DeliveryTerminalCoordinateRebindResult {
   if (input.candidate.state !== "current" && input.candidate.state !== "review-fix") {
     return { status: "refused", reason: "candidate-not-current" };
@@ -258,7 +259,11 @@ export function rebindDeliveryTerminalCoordinates(input: {
   };
   const parsedRebound = DeliveryStateV1Schema.safeParse(rebound);
   if (!parsedRebound.success) return { status: "refused", reason: "state-mismatch" };
-  const reboundWithVerification = reviewFix
+  const settledRecordMovement = reviewFix
+    && input.settledRecordEffectHead !== undefined
+    && input.settledRecordEffectHead === coordinates.data.head;
+  const renewVerification = reviewFix && !settledRecordMovement;
+  const reboundWithVerification = renewVerification
     ? DeliveryStateV1Schema.safeParse({
         ...parsedRebound.data,
         pendingReviewFixVerification: {
@@ -267,14 +272,14 @@ export function rebindDeliveryTerminalCoordinates(input: {
         },
       })
     : null;
-  const state = reviewFix
+  const state = renewVerification
     ? reboundWithVerification?.success === true ? reboundWithVerification.data : null
     : parsedRebound.data;
   if (state === null) return { status: "refused", reason: "state-mismatch" };
   return {
     status: "rebound",
     state,
-    nextAction: reviewFix ? "verify-review-fix" : "rerun-checkpoint",
+    nextAction: renewVerification ? "verify-review-fix" : "rerun-checkpoint",
   };
 }
 

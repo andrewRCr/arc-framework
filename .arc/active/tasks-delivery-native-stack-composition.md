@@ -3849,6 +3849,41 @@ meta exists and that resolution shape is the exact defect the retired terminal a
         - _Scope boundary:_ No record, authoring-locus lifecycle, ownership registry, gate provisioning change, or
           authority beyond what the in-process dispatch already holds.
 
+    - `[x]` **8.5.R.h Absorb an acknowledgement's own record movement without renewing its verification**
+
+        - _Goal:_ A scoped review-fix verification that has just been acknowledged is not re-installed by the
+          terminal rebind that absorbs the acknowledgement's own record-only commit, so the correction procedure
+          reaches a fixed point. Substantive append-only terminal movement still renews it.
+
+        - **Additional Context:** The prompt is this work unit's own live Member 7 projection. Each acknowledgement
+          wrote its boundary carry, committed the two machine-owned records, and moved the terminal head; the
+          rebind then re-installed the identical pending verification and the continuation demanded the same member
+          again, across three observed cycles. The relaxed pending-verification guard and the unconditional
+          re-install arrived together with append-only terminal rebinding. The driver already holds the
+          distinguishing fact — it records the head of the record commit it has just settled — so the rebind needs
+          that fact rather than a fresh classification of the delta.
+
+        - Build `test-first` (one behavior at a time):
+            - `[x]` **8.5.R.h.1 Retire the settled verification at the driver's own record movement**
+                - _Goal:_ The rebind admits the settled record-effect head and, when the observed terminal
+                  coordinates are exactly that commit, leaves the acknowledged verification retired instead of
+                  re-installing it, so the continuation stops demanding the member it has just settled.
+            - `[x]` **8.5.R.h.2 Renew verification across every other terminal movement**
+                - _Goal:_ Predecessor absorption, substantive append-only movement, and any terminal advance
+                  carrying a non-record path retain the re-installed pending verification and its exact member
+                  scope; every existing refusal is unchanged.
+
+        - _Outcome:_ The rebind now admits the head of the record commit the driver has just settled and, when
+          the observed terminal coordinates are exactly that commit, leaves the acknowledged verification retired
+          and falls back to the position checkpoint. Recognition reuses the existing record classifiers rather
+          than adding one: the commit must rest on the bound terminal head, change exactly the work unit's
+          machine-owned records, and carry the machine-owned record message, so any additional path renews the
+          verification as before.
+
+        - _Scope boundary:_ No new record, state field, orchestration surface, or review authority, and no change
+          to acknowledgement, boundary carry, or record settlement. This task governs only whether the rebind
+          renews a verification it has just settled.
+
 - _Outcome:_ Member 8 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
