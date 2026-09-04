@@ -3684,7 +3684,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   a worked fail-closed instance and names separate field-evidence triggers for reopening landing timing and terminal
   authorization composition.
 
-### `[ ]` **8.5 Close delivery member 8** — validate criteria at member scope
+### `[x]` **8.5 Close delivery member 8** — validate criteria at member scope
 
 - _Goal:_ Member 8's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3961,8 +3961,9 @@ meta exists and that resolution shape is the exact defect the retired terminal a
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
     - _Span:_ original diff `e11bd763d..270f42c1b`; earlier amendment diff `a374df393..b2d7ec52e`; prior amendment
       diff `530463f72..bfbf5073e`; live-rehearsal amendment diff `3d9ea7ef1`; recovery amendment diff `8b401796f`;
-      fixed-origin amendment in the current worktree over `a3905981b`; reachability through the current worktree;
-      boundary-order deviation: the approved Tasks 8.5.R.a through 8.5.R.f -
+      fixed-origin amendment in the current worktree over `a3905981b`; correction fixed-point amendment diff
+      `ca50a8c33..1ae134f03` (Tasks 8.5.R.g through 8.5.R.j); reachability: the cumulative tree at `1ae134f03`;
+      boundary-order deviation: the approved Tasks 8.5.R.a through 8.5.R.j -
       `tasks-delivery-native-stack-composition.md` forward amendments reopened Member 8 after its original boundary.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 1`; _State:_ `[x]`;
       _Evidence:_ exact plan/state, ref, Candidate, and gate retirement preserves each authority, requires the merged
@@ -3983,6 +3984,11 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       candidate/gate locators from canonical plan and repository identity; dependent external fallback preserves the
       selected and lower prefix through structural adoption. Unit, workflow-contract, executable E2E, and live-shaped
       rehearsal coverage prove the routes without a new state transition or provider-specific plan/state field.
+      The fixed-point amendment keeps every route typed: the authoring executors are reachable as verbs that share
+      one implementation with the in-process dispatch, routed stops carry the deriving open task or pending
+      response, the verification stop offers one resubmission shape, an acknowledgement's own record commit no
+      longer renews the verification it settled, and the next correction is admitted past a contribution-equivalent
+      terminal. Real-CLI coverage reproduces each prior refusal and proves the route; no new state or record.
     - _Criterion:_ `Success Criteria > Member 8 — retirement-and-doctrine > 5`; _State:_ `[x]`;
       _Evidence:_ plain attestation emits a closed action and argv bound to the exact refused Candidate and staged
       subject. The handler requires paired selectors with deliberate re-rooting; the verb reobserves Candidate,
@@ -4007,11 +4013,15 @@ meta exists and that resolution shape is the exact defect the retired terminal a
       index unchanged, restored-origin and archived-lineage continuations succeed, foreign dirt stays blocking, and
       the stationary three-member rehearsal crosses correction, review response, verification, and integration entry
       from the origin with lifecycle-free member and gate inputs. Fail-first unit coverage additionally proves that
-      ownerless non-completed records and authority movement at the mutation seam refuse before mutation.
+      ownerless non-completed records and authority movement at the mutation seam refuse before mutation. Repeated
+      re-entry now also converges live in this work unit: two consecutive correction cycles (state revisions 392
+      through 397) each verified, acknowledged, committed and pushed their records, reconciled without re-installing
+      the settled verification, and returned to authoring from the origin, where five cycles had previously looped.
     - _Adversarial companion:_ pass 1 found active-owner bypass and the absent stationary-cycle rehearsal; both were
       repaired and source-verified. Pass 2 found ownerless explicit applicability lacked positive completed-lineage
       evidence and that this report still certified the superseded transfer; both were repaired under the approved
-      disposition. The Heavy two-pass cap is exhausted, so no third independent pass is claimed.
+      disposition. The Heavy two-pass cap is exhausted, so no third independent pass is claimed; the fixed-point
+      amendment span was walked by the primary only.
     - _Summary:_ seven met, one superseded, zero unresolved.
 
 ## **Phase 9:** Verification
