@@ -295,8 +295,13 @@ export function createIntegrationCheckpointDependencies(input: {
     return identityPromise;
   };
   const composeLineageReview = createLineageReviewComposer(input);
-  const readHostedReservationDischarge = createHostedReservationDischargeReader(input);
   const deliveryLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
+  const deliveryHost = new GhDeliveryHostPort(hostedGhRunner);
+  const readHostedReservationDischarge = createHostedReservationDischargeReader({
+    ...input,
+    delivery: deliveryLookup,
+    host: deliveryHost,
+  });
   const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
   const lifecycleStorage = input.lifecycleStorage ?? {
     readSnapshot: async () => {
@@ -586,7 +591,7 @@ export function createIntegrationCheckpointDependencies(input: {
           baseRevision: terminal.coordinates.base,
         },
         delivery: deliveryLookup,
-        host: new GhDeliveryHostPort(hostedGhRunner),
+        host: deliveryHost,
       });
       if (targetResolution.status !== "resolved" || targetResolution.kind !== "delivery"
         || targetResolution.targets.length !== members.length) {
