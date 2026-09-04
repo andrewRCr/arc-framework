@@ -3849,7 +3849,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
         - _Scope boundary:_ No record, authoring-locus lifecycle, ownership registry, gate provisioning change, or
           authority beyond what the in-process dispatch already holds.
 
-    - `[x]` **8.5.R.h Absorb an acknowledgement's own record movement without renewing its verification**
+    - `[ ]` **8.5.R.h Absorb an acknowledgement's own record movement without renewing its verification**
 
         - _Goal:_ A scoped review-fix verification that has just been acknowledged is not re-installed by the
           terminal rebind that absorbs the acknowledgement's own record-only commit, so the correction procedure
@@ -3864,7 +3864,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           that fact rather than a fresh classification of the delta.
 
         - Build `test-first` (one behavior at a time):
-            - `[x]` **8.5.R.h.1 Retire the settled verification at the driver's own record movement**
+            - `[ ]` **8.5.R.h.1 Retire the settled verification at the driver's own record movement**
                 - _Goal:_ The rebind admits the settled record-effect head and, when the observed terminal
                   coordinates are exactly that commit, leaves the acknowledged verification retired instead of
                   re-installing it, so the continuation stops demanding the member it has just settled.
@@ -3873,12 +3873,12 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                   carrying a non-record path retain the re-installed pending verification and its exact member
                   scope; every existing refusal is unchanged.
 
-        - _Outcome:_ The rebind now admits the head of the record commit the driver has just settled and, when
-          the observed terminal coordinates are exactly that commit, leaves the acknowledged verification retired
-          and falls back to the position checkpoint. Recognition reuses the existing record classifiers rather
-          than adding one: the commit must rest on the bound terminal head, change exactly the work unit's
-          machine-owned records, and carry the machine-owned record message, so any additional path renews the
-          verification as before.
+        - _Note:_ The first implementation recognized the movement by re-reading the commit at the observed head
+          and matching its message against the machine-owned record message. It failed live: the stored message is
+          wrapped at the configured body width, while the matcher requires the unwrapped form, so the recognizer
+          returned false on every real record commit and the loop continued. The mechanism was replaced with the
+          exact one — the driver already records the head of the record commit it settles, and that head is now
+          forwarded to the reconciliation it dispatches, so no message or path re-derivation is involved.
 
         - _Scope boundary:_ No new record, state field, orchestration surface, or review authority, and no change
           to acknowledgement, boundary carry, or record settlement. This task governs only whether the rebind

@@ -1287,6 +1287,30 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("admits the settled record-effect head on a terminal-rebind reconciliation", async () => {
+    const state = deliveryStateFixture(deliveryStackPlanFixture());
+    const execute = vi.fn().mockResolvedValue({
+      status: "rebound",
+      state: { revision: 9, value: state },
+      nextAction: "rerun-checkpoint",
+    });
+    const write = vi.fn();
+
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: state.planId,
+        repository: "owner/repo",
+        settledRecordEffectHead: "d".repeat(40),
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({ status: "rebound" });
+  });
+
   it("preserves the terminal-coordinate rebind and checkpoint rerun envelope", async () => {
     const state = deliveryStateFixture(deliveryStackPlanFixture());
     const terminalHead = "a".repeat(40);

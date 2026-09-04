@@ -227,29 +227,6 @@ export function isDeliveryReviewFixRecordCommitMessage(input: {
   return /^sha256:[0-9a-f]{64}$/u.test(digest);
 }
 
-/** Recognize one exact machine-owned record commit resting directly on the bound terminal head. */
-export function isSettledDeliveryReviewFixRecordMovement(input: {
-  readonly workUnitId: string;
-  readonly boundHead: string;
-  readonly parent: string;
-  readonly changedPaths: readonly string[];
-  readonly message: string;
-}): boolean {
-  if (input.parent !== input.boundHead) return false;
-  const changedPaths = sortByCanonicalBytes([...new Set(input.changedPaths)]);
-  const classified = classifyDeliveryReviewFixStagedRecords({
-    workUnitId: input.workUnitId,
-    paths: changedPaths,
-  });
-  return classified.status === "ready"
-    && canonicalize(changedPaths) === canonicalize(classified.paths)
-    && isDeliveryReviewFixRecordCommitMessage({
-      message: input.message,
-      recordClass: classified.recordClass,
-      context: `meta-${input.workUnitId}.md (integration)`,
-    });
-}
-
 /** Commit and publish one exact staged correction-record batch. */
 export async function settleDeliveryReviewFixRecordEffects(input: {
   readonly workUnitId: string;
