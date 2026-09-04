@@ -232,6 +232,94 @@ describe("delivery terminal integration", () => {
     });
   });
 
+  it("rebinds a terminal that advanced by contribution-equivalent movement without a pending verification", () => {
+    const f = terminalRebindFixture();
+    const terminal = f.state.members.at(-1)!;
+    const recordHead = "d".repeat(40);
+    const correctedHead = "f".repeat(40);
+    const correctedSubject = createCandidateSubjectSnapshot([{
+      path: "feature.ts",
+      digest: canonicalDigest({ content: "corrected after settled record" }),
+      mode: "100644",
+      treatment: "reviewable",
+    }]);
+    const candidate = {
+      schemaVersion: 1 as const,
+      mode: "candidate-effective-target" as const,
+      state: "review-fix" as const,
+      candidateId: f.candidate.candidateId,
+      durableBaselineTarget: f.candidate.durableBaselineTarget,
+      currentTarget: { revision: correctedHead, subject: correctedSubject },
+      selectedDeliverableId: terminal.deliverableId,
+      memberDeliverableIds: [terminal.deliverableId],
+      retainedTerminalTarget: { revision: recordHead, baselineRelation: "equivalent" as const },
+      convergenceVerification: "satisfied" as const,
+    } as unknown as typeof f.input.candidate;
+    const coordinates = { ...f.coordinates, head: correctedHead, tree: "e".repeat(40) };
+    const state = {
+      ...f.state,
+      pendingReviewFixVerification: null,
+      members: f.state.members.map((member, index, members) => index === members.length - 1
+        ? { ...member, coordinates: { ...member.coordinates!, head: recordHead } }
+        : member),
+    };
+
+    expect(rebindDeliveryTerminalCoordinates({
+      ...f.input,
+      state,
+      candidate,
+      request: { ...f.input.request, headSha: correctedHead },
+      coordinates,
+    })).toEqual({
+      status: "rebound",
+      state: {
+        ...state,
+        members: state.members.map((member, index, members) => index === members.length - 1
+          ? { ...member, coordinates }
+          : member),
+        pendingReviewFixVerification: {
+          selectedDeliverableId: terminal.deliverableId,
+          memberDeliverableIds: [terminal.deliverableId],
+        },
+      },
+      nextAction: "verify-review-fix",
+    });
+  });
+
+  it("still refuses an unverified non-equivalent descendant terminal without a pending verification", () => {
+    const f = terminalRebindFixture();
+    const terminal = f.state.members.at(-1)!;
+    const driftedHead = "d".repeat(40);
+    const correctedHead = "f".repeat(40);
+    const candidate = {
+      schemaVersion: 1 as const,
+      mode: "candidate-effective-target" as const,
+      state: "review-fix" as const,
+      candidateId: f.candidate.candidateId,
+      durableBaselineTarget: f.candidate.durableBaselineTarget,
+      currentTarget: { revision: correctedHead, subject: f.candidate.durableBaselineTarget.subject },
+      selectedDeliverableId: terminal.deliverableId,
+      memberDeliverableIds: [terminal.deliverableId],
+      retainedTerminalTarget: { revision: driftedHead, baselineRelation: "ancestor" as const },
+      convergenceVerification: "satisfied" as const,
+    } as unknown as typeof f.input.candidate;
+    const state = {
+      ...f.state,
+      pendingReviewFixVerification: null,
+      members: f.state.members.map((member, index, members) => index === members.length - 1
+        ? { ...member, coordinates: { ...member.coordinates!, head: driftedHead } }
+        : member),
+    };
+
+    expect(rebindDeliveryTerminalCoordinates({
+      ...f.input,
+      state,
+      candidate,
+      request: { ...f.input.request, headSha: correctedHead },
+      coordinates: { ...f.coordinates, head: correctedHead, tree: "e".repeat(40) },
+    })).toEqual({ status: "refused", reason: "candidate-not-current" });
+  });
+
   it("retires a settled verification when the terminal absorbs the driver's own record commit", () => {
     const f = terminalRebindFixture();
     const terminal = f.state.members.at(-1)!;

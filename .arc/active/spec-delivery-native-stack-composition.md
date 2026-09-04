@@ -518,6 +518,14 @@ attestation semantics.
   rebind review authority. The integration checkpoint then reobserves the current target and exclusively owns the
   typed `request-authority`, `rerun-checkpoint`, `stop`, or `upgrade` action. A missing, malformed, or mismatched
   Candidate record, or a boundary that cannot recover against that durable identity, remains fail-closed.
+  **Amended 2026-09-04 after the first correction following a settled acknowledgement refused the rebind:** The
+  reconcile relates the terminal head the state retains to the Candidate's durable baseline in one of three ways —
+  the same revision, an unverified descendant whose scoped verification is still pending, or a descendant whose
+  Candidate subject digest equals the baseline's. The third relation is derived with the Candidate's own subject
+  collection at the retained head, so a settled record commit, an applicability-selection record, or an
+  operational-only lifecycle write never strands the next correction; it is admitted like the exact case and needs
+  no pending verification. A descendant that changes the subject without a pending verification still refuses
+  `candidate-not-current`. No record, state field, or authority is added.
 - **D3.10 Judgment-bounded Candidate applicability — amended 2026-08-22 after ordinary team base movement made
   D3.9's whole-work-unit default disproportionate.** This amendment supersedes only D3.9's rule that every changed
   Candidate subject pays whole-work-unit verification. The base-plus-head compare-and-set, ordinary post-merge

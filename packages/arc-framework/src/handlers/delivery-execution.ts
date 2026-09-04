@@ -4720,12 +4720,27 @@ async function executeDeliveryCommand(
             || baselineCurrentness.convergenceVerification !== "satisfied") {
             return { status: "refused", reason: "candidate-baseline-unverified" };
           }
-          const retainedTerminalTarget = baseline.target.revision === terminal.coordinates.head
-            ? { revision: terminal.coordinates.head, baselineRelation: "exact" as const }
-            : matchingPendingVerification
-              && await readAncestry(localExec, baseline.target.revision, terminal.coordinates.head) === "ancestor"
-              ? { revision: terminal.coordinates.head, baselineRelation: "ancestor" as const }
+          const retainedHead = terminal.coordinates.head;
+          const retainedTerminalTarget = await (async () => {
+            if (baseline.target.revision === retainedHead) {
+              return { revision: retainedHead, baselineRelation: "exact" as const };
+            }
+            if (await readAncestry(localExec, baseline.target.revision, retainedHead) !== "ancestor") return null;
+            if (matchingPendingVerification) {
+              return { revision: retainedHead, baselineRelation: "ancestor" as const };
+            }
+            const retainedTarget = await collectGitCandidateTarget({
+              cwd,
+              name: currentPlan.workUnitId,
+              baseBranch,
+              baseRevision,
+              revision: retainedHead,
+              exec,
+            });
+            return retainedTarget.subject.subjectDigest === baseline.target.subject.subjectDigest
+              ? { revision: retainedHead, baselineRelation: "equivalent" as const }
               : null;
+          })();
           if (retainedTerminalTarget === null) {
             return { status: "refused", reason: "candidate-not-current" };
           }

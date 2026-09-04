@@ -117,9 +117,14 @@ export interface DeliveryTerminalReviewFixCandidate {
   readonly currentTarget: CandidateLineageTarget;
   readonly selectedDeliverableId: string;
   readonly memberDeliverableIds: readonly string[];
+  /**
+   * The terminal head the state retains and how it relates to the durable baseline: the same revision
+   * (`exact`), an unverified descendant whose verification is still pending (`ancestor`), or a descendant whose
+   * Candidate subject digest equals the baseline's, such as a settled record commit (`equivalent`).
+   */
   readonly retainedTerminalTarget: {
     readonly revision: string;
-    readonly baselineRelation: "exact" | "ancestor";
+    readonly baselineRelation: "exact" | "ancestor" | "equivalent";
   };
   readonly convergenceVerification: "satisfied";
 }

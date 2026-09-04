@@ -307,6 +307,7 @@ describe("delivery terminal recovery", () => {
   async function installTerminalRebindFixture(input: {
     readonly requestBase?: "target" | "predecessor";
     readonly reviewFix?: boolean;
+    readonly settledRecord?: boolean;
   } = {}): Promise<{
     readonly fixture: Awaited<ReturnType<typeof installFixture>>;
     readonly envelope: { readonly revision: number };
@@ -366,6 +367,12 @@ describe("delivery terminal recovery", () => {
         ? []
         : [writeFile(fixture.mutationMarker, "")]),
     ]);
+    let recordHead: string | null = null;
+    if (input.settledRecord === true) {
+      await git(repository, ["add", "--", candidatePath, boundaryPath]);
+      await git(repository, ["commit", "--no-verify", "-m", "chore(delivery): carry correction review boundary"]);
+      recordHead = await git(repository, ["rev-parse", "HEAD"]);
+    }
     if (input.reviewFix === true) {
       await writeFile(join(repository, "terminal-correction.ts"), "export const correction = true;\n");
       await git(repository, ["add", "terminal-correction.ts"]);
@@ -394,7 +401,7 @@ describe("delivery terminal recovery", () => {
             coordinates: {
               ...member.coordinates!,
               base: fixture.triggerHead,
-              head: input.reviewFix === true ? candidateHead : fixture.triggerHead,
+              head: recordHead ?? (input.reviewFix === true ? candidateHead : fixture.triggerHead),
             },
           }
         : member),
@@ -710,6 +717,43 @@ describe("delivery terminal recovery", () => {
         continuationDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
       },
       state: {
+        value: {
+          members: [expect.anything(), { coordinates: { head: currentHead } }],
+          pendingReviewFixVerification: {
+            selectedDeliverableId,
+            memberDeliverableIds: [selectedDeliverableId],
+          },
+        },
+      },
+    });
+  });
+
+  it("renews verification for substantive movement past a settled record-only terminal", async () => {
+    const { fixture, envelope, currentHead, request } = await installTerminalRebindFixture({
+      reviewFix: true,
+      settledRecord: true,
+    });
+    const selectedDeliverableId = deliveryStackPlanFixture().members.at(-1)!.deliverableId;
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        ...(JSON.parse(request) as Record<string, unknown>),
+        continuation: "read-position",
+        reviewFixSelectedDeliverableId: selectedDeliverableId,
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "rebound",
+      selectedDeliverableId,
+      nextAction: "verify-review-fix",
+      verification: { memberDeliverableIds: [selectedDeliverableId], target: { head: currentHead } },
+      state: {
+        revision: envelope.revision + 1,
         value: {
           members: [expect.anything(), { coordinates: { head: currentHead } }],
           pendingReviewFixVerification: {

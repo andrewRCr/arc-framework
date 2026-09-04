@@ -3932,6 +3932,30 @@ meta exists and that resolution shape is the exact defect the retired terminal a
         - _Scope boundary:_ Result-shape and workflow-prose changes only. No new state, record, orchestration
           surface, or change to routing decisions.
 
+- _Forward amendment (2026-09-04):_ The first correction after the settled acknowledgement refused
+  `candidate-not-current` at the terminal rebind. Retiring the verification (Task 8.5.R.h) leaves the bound terminal
+  one record-only commit past the Candidate's durable baseline with no pending verification, and the reconcile
+  admitted a baseline-descendant terminal only under a pending verification. The state the fixed point produces was
+  therefore one the next correction could not enter.
+
+    - `[x]` **8.5.R.j Admit contribution-equivalent terminal movement at the next correction**
+
+        - _Goal:_ A terminal bound past the Candidate's durable baseline by movement whose Candidate subject digest
+          equals the baseline's is admitted to the terminal rebind without a pending verification, so a settled
+          record commit (or any operational-only write) never strands the next correction; a non-equivalent
+          descendant without a pending verification still refuses.
+
+        - _Outcome:_ The reconcile derives a third retained-target relation, `equivalent`, by collecting the
+          Candidate subject at the retained terminal head with the same collector it already uses for the current
+          head and comparing digests against the durable baseline; the rebind admits it like `exact`. Because the
+          subject classifies the Candidate's own record and boundary as projections and lifecycle writes as
+          operational, the relation covers settled record commits, applicability-selection records, and handoff
+          commits alike. A real-CLI reconcile over a record-only terminal reproduced the live refusal before the
+          fix and now rebinds with the verification renewed for the substantive head.
+
+        - _Scope boundary:_ One new baseline relation derived with the Candidate's existing subject collection. No
+          new record, state field, or authority.
+
 - _Outcome:_ Member 8 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 8 — retirement-and-doctrine`.
