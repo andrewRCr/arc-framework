@@ -194,7 +194,7 @@ copy together.
 - _Outcome:_ The installation recipe, Configurable classifier, self-hosting manifest, and init/update contract tests
   now carry `validate-criteria.md`; the package and project method bodies begin aligned.
 
-### `[ ]` **1.8 Close delivery member 1** — validate criteria at member scope
+### `[x]` **1.8 Close delivery member 1** — validate criteria at member scope
 
 - _Goal:_ Member 1's criteria group is walked at its own boundary, over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -266,13 +266,21 @@ copy together.
   member boundary that the later review-resolution member happened to remove. Repair the earliest independently
   landable tree rather than relying on successor code to mask it.
 
-    - `[ ]` **1.8.R.c Repair and revalidate the Member 1 executable-gate boundary**
+    - `[x]` **1.8.R.c Repair and revalidate the Member 1 executable-gate boundary**
 
         - _Goal:_ Member 1's exact cumulative tree passes its required project gates without changing the strict
           method-frontmatter contract or depending on a later member's parser replacement.
 
-        - Reword only the diagnostic that the command-surface audit mistakes for an emitted ARC command, retain its
-          refusal semantics, run the exact Member 1 Tier 2 gate, and re-walk the amended Member 1 criteria slice.
+        - _Outcome:_ The method-frontmatter refusal now avoids resembling an emitted ARC command while preserving
+          its strict semantics. Member 1's exact cumulative tree `8bdf07dc7` passed Tier 2 at `e873ea54c` and the
+          correction refreshed Members 1–2 without changing that tree's covered inputs.
+
+            - _Criteria slice:_ `Success Criteria > Member 1 — member-boundary-verification`.
+            - _Span:_ correction `65cc86ef3..e873ea54c`; cumulative reachability `e873ea54c` at tree
+              `8bdf07dc7`; boundary-order deviation: the approved gate correction reopened Member 1 after review.
+            - _Criterion 1:_ `[~]` under D7.2b's recorded supersession; _Criterion 2:_ `[x]` unchanged;
+              _Criterion 3, Member 1 clause:_ `[x]` from the exact Tier 2 run. The separately stated publication
+              clause remains assigned to Member 4. Two met, one superseded, zero unresolved at this boundary.
 
 ## **Phase 2:** Structural contribution identity
 
@@ -4700,6 +4708,9 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 - `[ ]` A member's criteria walk never substitutes for executable quality gates: its close-out still requires the
   task-loop Tier 2 run, and initial publication separately requires a passed Tier 2 result for the exact filtered
   candidate tree so a later green union cannot mask an earlier broken boundary.
+
+  **Boundary clarification (2026-09-04):** Member 1's walk evaluates the close-out clause. The separately stated
+  publication clause points to the matching Member 4 criterion, whose own boundary owns that later evidence.
 
 ### Member 2 — `contribution-identity`
 
