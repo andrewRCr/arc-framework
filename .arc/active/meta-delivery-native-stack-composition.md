@@ -11,10 +11,10 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:b743ae8c992838c4d0392b8f6d475a793b656c48746afeb64779925e50582653`
+- **Candidate:** `sha256:b64d64fa4e6892998e3b8111e999e516973d2e6f16ec42e0bccfbaab743a4ca6`
 
 - **Current Workflow:** `integrate-work-unit`
-- **Last Completed:** Task 9.1.R.k — Regenerate digest-bound criteria reports
+- **Last Completed:** Task 9.1.R.l — Preserve the final member terminus across its own record commit
 - **Next Task:** [none]
 - **Blockers:** [none]
 
