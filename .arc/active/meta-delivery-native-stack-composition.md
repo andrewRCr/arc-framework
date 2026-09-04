@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:e3aa9faeb9ad4e7fb0f791b783dc8da83667b2ff61a4eef8c3187fd4923f9d24`
 
-- **Current Workflow:** `process-task-loop`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 7.7 — Member 7 published, walked at member scope, and closed
 - **Next Task:** `8.5.R.h`
 - **Blockers:** The scoped review-fix verification renews itself: acknowledging it commits the machine-owned
