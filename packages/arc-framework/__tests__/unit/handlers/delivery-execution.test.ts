@@ -6,6 +6,12 @@ import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
   return {
+    gateResults: plan.members.map((member, index) => ({
+      deliverableId: member.deliverableId,
+      head: String(index + 5).repeat(40),
+      tree: String(index + 7).repeat(40),
+      status: "passed",
+    })),
     repository: "andrewRCr/arc-framework",
     draft: true,
     presentations: plan.members.slice(0, -1).map((member) => ({
@@ -309,6 +315,7 @@ describe("delivery execution handler", () => {
         ref: `refs/heads/candidate-${index + 1}`,
         checkoutPath: `/tmp/candidate-${index + 1}`,
       })),
+      gateResults: publicationFields(plan).gateResults,
       repository: "andrewRCr/arc-framework",
       draft: true,
       remote: "origin",
