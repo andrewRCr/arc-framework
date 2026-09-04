@@ -4,7 +4,9 @@ import { posix } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
 import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
+import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
 import { readTreeEntry } from "../work-unit/git-decomposition-object-readers.js";
+import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
 import { artifactMatcher } from "../work-unit/mutators/relocate-artifacts.js";
 import {
   classifyDeliveryTerminalDelta,
@@ -88,7 +90,13 @@ export async function classifyGitDeliveryTerminalDelta(input: {
     ]);
     return classifyDeliveryTerminalDelta({
       changedPaths: stdout.split("\0").filter((path) => path !== ""),
-      lifecyclePaths: [...resolved.workUnitArtifacts, ...resolved.sharedProjections],
+      lifecyclePaths: [
+        ...resolved.workUnitArtifacts,
+        ...resolved.sharedProjections,
+        // Machine-owned records for this work unit are never a delivery member's content.
+        resolveCandidateRecordRelativePath(input.workUnitId),
+        resolveSubmissionBoundaryPath(input.workUnitId),
+      ],
     });
   } catch {
     return null;

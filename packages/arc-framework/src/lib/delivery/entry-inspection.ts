@@ -39,6 +39,9 @@ import {
   type DeliveryReviewFixVerificationContinuation,
 } from "./review-fix-verification.js";
 
+/** Selector-free continuation the member-correction route enters. */
+const MEMBER_CORRECTION_COMMAND = "arc delivery review-fix continue - --json";
+
 const AttendedDeliveryEntryInspectionRequestSchema = z.strictObject({
   workUnitId: SlugSchema,
   boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
@@ -150,6 +153,26 @@ export type DeliveryEntryInspectionResult =
       readonly nextAction: "verify-work-unit";
       readonly planId: string;
       readonly stateRevision: number;
+      readonly recommendedActionText: string;
+    }
+  | {
+      readonly status: "correction-route-ambiguous";
+      readonly nextAction: "stop";
+      readonly planId: string;
+      readonly stateRevision: number;
+      readonly terminalDelta: Extract<
+        DeliveryTerminalDeltaClassification,
+        { readonly kind: "carries-non-lifecycle" }
+      >;
+      readonly outstandingMember: OutstandingNonTerminalDeliveryMember;
+      readonly routes: readonly [
+        { readonly kind: "candidate-verification"; readonly nextAction: "verify-work-unit" },
+        {
+          readonly kind: "member-correction";
+          readonly nextAction: "plan-review-fix";
+          readonly command: string;
+        },
+      ];
       readonly recommendedActionText: string;
     }
   | {
@@ -281,6 +304,36 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     nextAction: z.literal("verify-work-unit"),
     planId: DeliveryPlanIdSchema,
     stateRevision: z.number().int().positive(),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("correction-route-ambiguous"),
+    nextAction: z.literal("stop"),
+    planId: DeliveryPlanIdSchema,
+    stateRevision: z.number().int().positive(),
+    terminalDelta: z.strictObject({
+      kind: z.literal("carries-non-lifecycle"),
+      lifecyclePaths: z.array(z.string().min(1)),
+      nonLifecyclePaths: z.array(z.string().min(1)).min(1),
+    }),
+    outstandingMember: z.strictObject({
+      deliverableId: DeliveryCanonicalDigestSchema,
+      changeRequest: z.strictObject({
+        providerId: z.string().min(1),
+        changeRequestId: z.string().min(1),
+      }),
+    }),
+    routes: z.tuple([
+      z.strictObject({
+        kind: z.literal("candidate-verification"),
+        nextAction: z.literal("verify-work-unit"),
+      }),
+      z.strictObject({
+        kind: z.literal("member-correction"),
+        nextAction: z.literal("plan-review-fix"),
+        command: z.literal(MEMBER_CORRECTION_COMMAND),
+      }),
+    ]),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -810,6 +863,31 @@ export async function inspectDeliveryEntry(
       }
       if (candidate.status === "refused") return refused("evidence-unavailable");
       if (candidate.status === "non-current") {
+        const outstanding = selectOutstandingNonTerminalDeliveryMember({ plan, state: state.value });
+        if (candidate.terminalDelta?.kind === "carries-non-lifecycle" && outstanding !== null) {
+          return {
+            status: "correction-route-ambiguous",
+            nextAction: "stop",
+            planId: plan.planId,
+            stateRevision: state.revision,
+            terminalDelta: candidate.terminalDelta,
+            outstandingMember: outstanding,
+            routes: [
+              { kind: "candidate-verification", nextAction: "verify-work-unit" },
+              {
+                kind: "member-correction",
+                nextAction: "plan-review-fix",
+                command: MEMBER_CORRECTION_COMMAND,
+              },
+            ],
+            recommendedActionText:
+              `The work-unit branch carries ${candidate.terminalDelta.nonLifecyclePaths.length} path(s) outside `
+              + `this work unit's lifecycle artifacts while delivery member ${outstanding.deliverableId} is still `
+              + "under review. Delivery entry attributes no content to a member, so both routes remain open: "
+              + "complete Candidate verification closeout when the carried content belongs to the terminal member, "
+              + `or resume the member correction with \`${MEMBER_CORRECTION_COMMAND}\` when it is that member's fix.`,
+          };
+        }
         return {
           status: "candidate-verification-required",
           nextAction: "verify-work-unit",

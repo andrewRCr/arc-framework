@@ -100,6 +100,19 @@ describe("classifyGitDeliveryTerminalDelta", () => {
     });
   });
 
+  it("counts the work unit's machine-owned records as lifecycle paths", async () => {
+    await expect(classifyGitDeliveryTerminalDelta(input([
+      ".arc/system/.internal/candidates/example.json",
+      ".arc/system/.internal/candidates/example.boundary.json",
+    ]))).resolves.toEqual({
+      kind: "lifecycle-only",
+      lifecyclePaths: [
+        ".arc/system/.internal/candidates/example.boundary.json",
+        ".arc/system/.internal/candidates/example.json",
+      ],
+    });
+  });
+
   it("classifies an empty delta as lifecycle-only", async () => {
     await expect(classifyGitDeliveryTerminalDelta(input([]))).resolves.toEqual({
       kind: "lifecycle-only",

@@ -51,6 +51,14 @@ function dependencies(input: {
       proof: "subject-equality" | "tree-equality" | "mechanical-reapply";
     };
   } | null | "non-current" | "refused";
+  candidateTerminalDelta?: {
+    kind: "lifecycle-only";
+    lifecyclePaths: readonly string[];
+  } | {
+    kind: "carries-non-lifecycle";
+    lifecyclePaths: readonly string[];
+    nonLifecyclePaths: readonly string[];
+  };
   candidateTerminalCoordinates?: {
     readonly base: string;
     readonly head: string;
@@ -93,7 +101,9 @@ function dependencies(input: {
       : input.candidate === "refused"
         ? { status: "refused" as const }
         : input.candidate === "non-current"
-          ? { status: "non-current" as const }
+          ? input.candidateTerminalDelta === undefined
+            ? { status: "non-current" as const }
+            : { status: "non-current" as const, terminalDelta: input.candidateTerminalDelta }
           : { status: "ok" as const, value: input.candidate ?? null }),
   };
 }
@@ -971,5 +981,94 @@ describe("selectOutstandingNonTerminalDeliveryMember", () => {
       plan: threeMemberPlan,
       state: bind(threeMemberPlan, []),
     })).toBeNull();
+  });
+});
+
+describe("inspectDeliveryEntry — non-current Candidate classification", () => {
+  const carriesNonLifecycle = {
+    kind: "carries-non-lifecycle" as const,
+    lifecyclePaths: [".arc/active/tasks-example.md"],
+    nonLifecyclePaths: ["packages/arc-framework/src/lib/delivery/review-fix.ts"],
+  };
+
+  function integratingEntry(overrides: Parameters<typeof dependencies>[0]) {
+    const fixture = publicContinuationFixture();
+    return inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision,
+      integrationBoundary: fixture.boundary,
+      candidate: "non-current",
+      ...overrides,
+    }));
+  }
+
+  it("stops ambiguously when carried content meets an outstanding non-terminal member", async () => {
+    const result = await integratingEntry({ candidateTerminalDelta: carriesNonLifecycle });
+
+    expect(result).toMatchObject({
+      status: "correction-route-ambiguous",
+      nextAction: "stop",
+      planId: plan.planId,
+      terminalDelta: carriesNonLifecycle,
+      outstandingMember: {
+        deliverableId: plan.members[0]?.deliverableId,
+        changeRequest: { providerId: "github", changeRequestId: "101" },
+      },
+      routes: [
+        { kind: "candidate-verification", nextAction: "verify-work-unit" },
+        {
+          kind: "member-correction",
+          nextAction: "plan-review-fix",
+          command: "arc delivery review-fix continue - --json",
+        },
+      ],
+    });
+  });
+
+  it("names both candidate routes in the rendered stop text", async () => {
+    const result = await integratingEntry({ candidateTerminalDelta: carriesNonLifecycle });
+
+    expect(result).toMatchObject({
+      recommendedActionText: expect.stringContaining("verification closeout"),
+    });
+    expect(result).toMatchObject({
+      recommendedActionText: expect.stringContaining("arc delivery review-fix continue - --json"),
+    });
+  });
+
+  it("retains verification closeout for a delta reaching only lifecycle artifacts", async () => {
+    await expect(integratingEntry({
+      candidateTerminalDelta: {
+        kind: "lifecycle-only",
+        lifecyclePaths: [".arc/active/tasks-example.md"],
+      },
+    })).resolves.toMatchObject({
+      status: "candidate-verification-required",
+      nextAction: "verify-work-unit",
+    });
+  });
+
+  it("retains verification closeout when no non-terminal member review is outstanding", async () => {
+    const fixture = publicContinuationFixture();
+    const terminalOnly = {
+      ...fixture.state,
+      members: fixture.state.members.map((member, index) => ({
+        ...member,
+        changeRequest: index === fixture.state.members.length - 1 ? member.changeRequest : null,
+      })),
+    };
+
+    await expect(integratingEntry({
+      state: terminalOnly,
+      candidateTerminalDelta: carriesNonLifecycle,
+    })).resolves.toMatchObject({
+      status: "candidate-verification-required",
+      nextAction: "verify-work-unit",
+    });
   });
 });

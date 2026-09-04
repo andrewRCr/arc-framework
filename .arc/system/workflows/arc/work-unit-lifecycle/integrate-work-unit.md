@@ -71,6 +71,10 @@ remote identities, then follows the resumable correction procedure in `deliver-s
 verification, Frontline, or singleton prepublication.
 `candidate-verification-required` leaves this workflow for Candidate verification closeout; it synthesizes no
 attestation or review action.
+`correction-route-ambiguous` stops after rendering `recommendedActionText`. The seam has separated a work-unit
+branch carrying non-lifecycle content from an outstanding non-terminal member review, and it attributes that content
+to neither route. Obtain the Owner's selection between the two returned routes and enter the selected one unchanged;
+never infer it from branch movement, task-cursor position, or commit prose.
 `candidate-renewal-required` invokes its exact `attestationAction`, requires `unchanged`, then re-runs this entry
 inspection; attestation alone revalidates and refreshes the public delivery continuation without replaying
 verification or leaving `Integrating`.
