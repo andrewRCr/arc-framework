@@ -2260,7 +2260,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2268,15 +2268,16 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 - _Outcome:_ Member 7 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
-    - _Span:_ bounded diff `341b832e2..f859186cf`; cumulative reachability `f859186cf` at tree `e28cd855b`.
-      Boundary-order deviation: the exact-head terminus correction was projected into Member 7 after its original
-      boundary. Exact two-parent terminal absorption `787b6ef16` at tree `ce52b9a3e` retains originating top
-      `104f16e6f` while supplying corrected Member 7, so active WU artifacts remain outside the bounded member diff.
+    - _Span:_ bounded diff `341b832e2..9a202d045`; cumulative reachability `9a202d045` at tree `5a97f8583`.
+      Boundary-order deviation: the Owner-terminus corrections were projected into Member 7 after its original
+      boundary. Exact two-parent terminal absorption `527998ccf` at tree `ce42d9358` retains originating top
+      `878e71bf1` while supplying corrected Member 7, so active WU artifacts remain outside the bounded member diff.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _Criterion digest:_
       `sha256:44218da267415d541532b9a18ec7279d88418b22d048ce5b548ef029cb1b11ad`; _State:_ `[x]`;
       _Evidence:_ production status offers exact-current-head Owner termination on the first outstanding member,
-      acceptance records only that member's boundary terminus, and re-entry advances to the next retained member.
-      The Candidate and review-operation snapshots remain unchanged, so conjunction order and provider evidence
+      and acceptance records only that member's boundary terminus. A newly committed boundary re-enters through the
+      selector-free correction driver, which performs any owed terminal rebind before returning the next retained
+      member. Candidate and review-operation snapshots remain unchanged, so conjunction order and provider evidence
       are not replaced by the terminal decision.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _Criterion digest:_
       `sha256:885873d1d7d13a01106c5ae4586bec158cff2f3a94ec255a7f476d4d3c039ec6`; _State:_ `[x]`;
@@ -2287,23 +2288,24 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
       `sha256:209edac1da9cbaba26c40b757e62f55960880e62947ba1a3e37abf928f7d61ea`; _State:_ `[x]`;
       _Evidence:_ the existing applicability result carries its unchanged Candidate selection beside a submit-ready
       exact member terminus action. Both workflow copies present the terminal authority first, while acceptance
-      revalidates Candidate, boundary, vehicle, current head, and complete-pass count through the existing verb.
+      revalidates Candidate, boundary, vehicle, current head, and complete-pass count through the existing verb. Only
+      the record-producing arm enters correction rebind; exact replay and stale-offer refusal remain direct status.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _Criterion digest:_
       `sha256:3dbea54c1f0b785f7297ccc7e0cddf16b5b2466e7b3adebb3030f8d24fa9dd65`; _State:_ `[x]`;
       _Evidence:_ the live selector-free correction rebound and published only Member 7, refreshed the terminal top,
-      and installed one exact scoped-verification continuation for target `787b6ef16` / tree `ce52b9a3e` without
+      and installed one exact scoped-verification continuation for target `527998ccf` / tree `ce42d9358` without
       replaying whole-WU verification, Frontline, or provider review.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _Criterion digest:_
       `sha256:65eef3825f1d4230c7b06d8491b954a0794149de8691b314d1b9eec36d829c6d`; _State:_ `[x]`;
-      _Evidence:_ one driver invocation disclosed authoring rebind, selected-member publication, and provider refresh,
-      then stopped only for consolidated verification. The returned exact-tree reuse names the already-green
-      `ce52b9a3e` tree and unchanged covered inputs; no orchestration record, quality ledger, convergence policy, or
-      generalized control loop was added.
+      _Evidence:_ the resumable driver rebound authoring, published the selected member once, retained the provider
+      operation across a dirty-terminal project-gate stop, and resumed to consolidated verification after the
+      terminal amendment commit. Targeted Tier 1 then passed on exact tree `ce42d9358`; no orchestration record,
+      quality ledger, convergence policy, or generalized control loop was added.
     - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 6`; _Criterion digest:_
       `sha256:7ff005972cd6fd2054df8145446149a6bd9c7c61c131f5fcadf34a79be3ee725`; _State:_ `[x]`;
       _Evidence:_ execution entry selected Member 7 from open Task 7.7, and the correction driver reached publication
-      without an ambiguous route. The projected member commit contains only the six shippable workflow, source, and
-      test files; active notes, spec, and tasks remain terminal lifecycle content.
+      without an ambiguous route. The projected member commit contains only the two Framework workflow copies and
+      their contract test; active notes, spec, and tasks remain terminal lifecycle content.
     - _Adversarial companion:_ declined under the Owner's no-further-review direction; the Heavy Member 7 two-pass
       cap is already exhausted.
     - _Summary:_ six met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
@@ -3730,16 +3732,16 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
         - _Scope boundary:_ No automatic attempt supersession, applicability inference, convergence policy, standing
           grant, attempt chronology, new record family, or generalized workflow control loop.
 
-    - `[ ]` **7.7.R.ae Re-enter a committed Owner terminus through terminal rebind**
+    - `[x]` **7.7.R.ae Re-enter a committed Owner terminus through terminal rebind**
 
         - _Goal:_ After committing and pushing an exact delivery-member Owner terminus on the work-unit branch,
           integration resumes through the existing selector-free correction driver so an owed terminal-coordinate
           rebind completes before status selects the first outstanding member.
 
-        - _Note:_ The live Member 1 acceptance exposed the gap: direct status re-entry observed the advanced
-          work-unit head before Delivery State carried that exact terminal coordinate. The correction driver already
-          performed the machine-owned rebind and returned Member 3; this task corrects only the workflow route and
-          its executable contract test. Exact replay and refused stale offers retain direct status re-entry.
+        - _Outcome:_ Both Framework workflow copies now route a newly committed and pushed terminus through the
+          selector-free correction driver, while exact replay and stale-offer refusal remain direct status re-entry.
+          The contract test failed against the old route and passes on the correction; the live Member 7 drive then
+          published once, resumed its retained operation, and reached exact-tree scoped verification.
 
         - _Scope boundary:_ No new state, authority, convergence rule, provider call, Candidate renewal, or generic
           driver behavior.
