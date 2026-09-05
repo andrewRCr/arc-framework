@@ -11,7 +11,7 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:6cebd0f2dc86951dba5d3d3e9fee061700d40f0bb0a668033c42dbbc92f74814`
+- **Candidate:** `sha256:8aa433e38170137f6e10cc0a95ba416e0dc2cc35df4ef6340158838e91e9e318`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 9.1.R.n — Recover an interrupted prepared native landing exactly
