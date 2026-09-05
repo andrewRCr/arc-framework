@@ -16,7 +16,7 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { parseMetaFile } from "../lib/active/meta-reader.js";
 import {
-  closeDeliveryEligibility,
+  closeDeliveryEligibilityForPublication,
   executeWithFreshDeliveryEligibility,
   prepareDeliveryEligibility,
   type DeliveryEligibilitySnapshot,
@@ -4216,7 +4216,7 @@ async function executeDeliveryCommand(
   }
   if (command === "eligibility-close") {
     const parsed = CloseSchema.parse(request);
-    return closeDeliveryEligibility(parsed, {
+    return closeDeliveryEligibilityForPublication(parsed, {
       ...eligibilityDeps,
       resolveMember: resolveMemberReadOnly,
     });
