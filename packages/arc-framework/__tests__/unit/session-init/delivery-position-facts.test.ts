@@ -515,6 +515,7 @@ describe("session-init delivery position facts", () => {
       operationId: "land-1",
       kind: "land",
       mode: "sequential",
+      nativeArm: null,
       affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 5,
       before: landBefore,

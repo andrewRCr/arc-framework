@@ -316,6 +316,7 @@ async function positionFixture(
       operationId: "interrupted-native-position-operation",
       kind: "land",
       mode: "native",
+      nativeArm: "linked-atomic",
       affectedDeliverableIds: members.map(({ deliverableId }) => deliverableId),
       expectedStateRevision: 1,
       before: snapshot,

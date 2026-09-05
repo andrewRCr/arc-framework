@@ -4756,6 +4756,14 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           readiness reports every failed member/head in plan order. The packaged and installed workflow routes that
           envelope through the existing integration interlock, with focused unit, contract, and built-CLI E2E proof.
 
+        - _Verification:_ Fresh Tier 3 passed Markdown and ARC contract lint, TypeScript and shell lint, both
+          typechecks, package build, and the complete matrix: 865 test files and 11,433 tests passed, with one
+          intentional skip each. The first matrix run found two stale direct-reservation fixtures; an exhaustive
+          call-site scan proved those were the only omitted native-arm discriminators, their focused 22-test E2E and
+          13-test unit files passed, and the complete matrix then passed. The 47-criterion section remains
+          byte-identical to the recorded `1aed04955` union, so all eight exact member reports carry unchanged; the
+          native recovery and submission-boundary seam remains coherent at 44 met, three superseded, zero unresolved.
+
 ---
 
 ## Success Criteria
