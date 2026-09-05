@@ -11,10 +11,10 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:cc4bd5d6e6cbfda8f836f9ce623b5492dd55ba1f8d5762e6aa37318ade02ddf1`
+- **Candidate:** `sha256:56e4cc73fcf7571964b6026151d0a77b907548d10b36241b059395474e22ac48`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 9.1.R.o — Compose atomic readiness from one delivery-review conjunction
+- **Last Completed:** Task 9.1.R.p — Preserve the effective Candidate subject across public boundary carry
 - **Next Task:** [none]
 - **Blockers:** [none]
 
