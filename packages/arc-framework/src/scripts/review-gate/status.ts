@@ -748,6 +748,7 @@ const ReviewStatusApplicabilitySelectionSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("resolve-review-applicability"),
   selectionAction: ReviewApplicabilitySelectionActionSchema,
+  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
 });
 const ReviewStatusFindingsResponseSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -885,9 +886,10 @@ export function bindDeliveryReviewTerminusOffer(
   },
 ): ReviewStatusResult {
   const isCeiling = result.nextAction === "obtain-ceiling-override";
-  const isEligibleRequest = result.nextAction === "review-hosted-request"
-    || result.nextAction === "review-local-prepare";
-  if (!isCeiling && !isEligibleRequest) return result;
+  const isEligibleContinuation = result.nextAction === "review-hosted-request"
+    || result.nextAction === "review-local-prepare"
+    || result.nextAction === "resolve-review-applicability";
+  if (!isCeiling && !isEligibleContinuation) return result;
   const member = result.deliveryCursor?.currentMember;
   if (member === undefined || member === null) {
     if (isCeiling) {

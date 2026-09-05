@@ -725,6 +725,29 @@ describe("review status", () => {
       }));
 
       expect(bind(status)).not.toHaveProperty("terminusAction");
+      const applicability = reviewApplicabilityDecision(`attempt-${String(progress.completedPasses)}`);
+      const applicabilityObligation = composeDeliveryReviewObligation({
+        targets: [deliveryTarget(hostedAction.target)],
+        discharges: [deliveryDischarge({
+          discharged: false,
+          detail: "The earlier attempt needs an applicability decision.",
+          nextSource: null,
+          applicability,
+          completedPasses: progress.completedPasses,
+          passCeiling: progress.passCeiling,
+          attemptHistory: progress.attempts,
+        })],
+        applicabilityContext: {
+          workUnitId: "example",
+          expectedRecordVersion: canonicalDigest({ progress }),
+          candidateId: canonicalDigest({ candidate: progress }),
+        },
+      });
+      const applicabilityStatus = await resolveReviewStatus({ target }, port({
+        routedObligation: applicabilityObligation,
+      }));
+      expect(applicabilityStatus).toMatchObject({ nextAction: "resolve-review-applicability" });
+      expect(bind(applicabilityStatus)).not.toHaveProperty("terminusAction");
     }
   });
 
@@ -1387,6 +1410,16 @@ describe("review status", () => {
     const projection = reviewApplicabilityDecision();
     const expectedRecordVersion = canonicalDigest({ version: 2 });
     const candidateId = canonicalDigest({ candidate: 2 });
+    const completedPass = {
+      updatedAt: "2026-09-04T12:00:00.000Z",
+      headSha: projection.selector.priorHead,
+      sourceId: "coderabbit-pr",
+      outcome: "settled-findings" as const,
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      findingCount: 1,
+      settledFindingCount: 1,
+    };
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1394,6 +1427,8 @@ describe("review status", () => {
         detail: "The prior member review has an uncovered residual.",
         nextSource: null,
         applicability: projection,
+        completedPasses: 1,
+        attemptHistory: [completedPass],
       })],
       applicabilityContext: {
         workUnitId: "example",
@@ -1414,10 +1449,27 @@ describe("review status", () => {
       },
     });
     if (!("selectionAction" in obligation)) throw new Error("expected applicability selection action");
-    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+    const status = await resolveReviewStatus({ target }, port({ routedObligation: obligation }));
+    expect(status).toMatchObject({
       state: "review-required",
       nextAction: "resolve-review-applicability",
       selectionAction: obligation.selectionAction,
+    });
+    expect(bindDeliveryReviewTerminusOffer(status, {
+      workUnitId: "example",
+      expectedBoundaryVersion: `sha256:${"b".repeat(64)}`,
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+    })).toMatchObject({
+      state: "review-required",
+      nextAction: "resolve-review-applicability",
+      selectionAction: obligation.selectionAction,
+      terminusAction: {
+        kind: "delivery-member-owner-terminus",
+        target: hostedAction.target,
+        vehicle: memberVehicle,
+        completedPasses: 1,
+      },
     });
   });
 

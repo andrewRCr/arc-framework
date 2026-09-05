@@ -269,8 +269,10 @@ authoring. `ready-to-fix / apply-fix` remains the ordinary singleton route and n
 
 The action already carries the selected source, exact opened target, requested coverage, and any delivery-member
 vehicle. Status uses complete coverage by default; only the explicit supplemental route below returns incremental
-coverage. `resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice,
-and submits the returned `selectionAction` unchanged as `offer` beside that `selection` to:
+coverage. When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first.
+Explicit acceptance follows the terminus path above and re-enters status without resolving applicability. Absent
+explicit acceptance, render `selectionAction.interactionText`, obtain the Owner's typed choice, and submit the
+returned `selectionAction` unchanged as `offer` beside that `selection` to:
 
 ```bash
 arc candidate applicability resolve {workUnitId} -
