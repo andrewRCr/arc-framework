@@ -984,3 +984,42 @@ non-current terminal Candidate directly to verification closeout. The focused se
 live dirty-tree acceptance changed the entry to `candidate-verification-required`; session-init then wrote a fresh
 seed and `recover audit` returned `ready` for the exact checkout and dirty path set. Position and teardown remain
 responsible for fresh provider state, so this seam gains no merge or review authority.
+
+### Amendment 21 — terminal closeout must not reconstruct hosted or sequential work (2026-09-05)
+
+After the verified terminal correction and Delivery State rebind, session-init still projected
+`hosted-review-pending / continue-hosted-review` even though the retained records were Owner termini and the Owner
+had directed that no further review run. The read-only status command then selected already-landed PR 550 and
+reported its merged request as `base-moved`. The cause was not new review signal: target resolution rebound the
+first merged member's historical span to the new post-landing Candidate base. That reconstruction is required when
+sequential landing rewrites state coordinates, but it is false for the native aggregate result, which retains the
+exact authored member chain while advancing the protected target once.
+
+Decided behavior: delivery reservations use a provider-neutral continuation locus and action. The command reduces
+the retained conjunction; only its returned hosted-request action represents provider work. For merged members,
+exact equality between retained state heads, observed request heads, and the complete authored predecessor chain
+preserves the stored member bases. Any changed coordinate retains the existing sequential reconstruction. A
+same-Candidate stale continuation routes to ordinary attestation before a subject-digest mismatch can fabricate a
+hard stop; attestation alone validates and writes the renewal.
+
+The first live teardown separately refused because PR 556 correctly retained its authored predecessor branch as its
+base after native aggregate landing. Teardown now accepts a closed set: the protected target and, only for the exact
+selected landed member, its immediate predecessor ref from the coherent plan/state chain. Initial validation, final
+reobservation, and interrupted-operation recovery derive the same set. This adds no provider-general base policy,
+review verdict store, convergence rule, or standing authority; the live Owner decision is recorded through the
+existing exact terminus offer before teardown resumes.
+
+### Amendment 22 — terminal settlement is status resolution, not review continuation (2026-09-05)
+
+The first provider-neutral correction still named its durable locus `delivery-review-continuation` and told the
+operator to `continue-delivery-review`. That was more accurate than `hosted-review-pending`, but it remained false at
+the live terminal point: every member's review had been explicitly Owner-settled, and only the exact terminal-head
+record still needed durable reduction before teardown. No new pass or review judgment remained.
+
+Decided behavior: the canonical boundary is `delivery-status-required` with `resolve-delivery-status`, exposed to
+entry as `deliveryStatusAction` and carried through correction as `delivery-status`. The same work-unit reducer may
+return a review action earlier in a delivery, but the boundary itself claims only that status must be reduced. Only
+an exact downstream `review-hosted-request` authorizes provider work. At this terminal point the reduction should
+return settled immediately and hand control to position and teardown after the already-directed exact Owner terminus
+is recorded. The exact older delivery-shaped `hosted-review-pending` record remains a read-only normalization input;
+canonical writes use the neutral shape.
