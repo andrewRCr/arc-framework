@@ -4917,6 +4917,16 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 authorities, share it across every driver callback, and require the same run to rebind terminal
                 coordinates and return the exact landed-member teardown stop.
 
+        - _Archived Candidate-renewal amendment (2026-09-05):_ The next live acceptance correctly required a fresh
+          Candidate root for post-attestation code changes, but archived `--new-root` skipped public delivery renewal
+          and replaced the settled boundary and Owner termini with prepublication review.
+
+            35. Reproduce the same exact ready delivery-renewal evidence under both `Integrating` and `Shipped`, and
+                require the pre-correction shipped arm to reset the boundary instead of preserving that evidence.
+            36. Admit shipped re-rooting through the existing renewal proof, retain the exact reservation,
+                continuation, and member termini, then require the live correction driver to return Member 7
+                teardown without review or provider spend.
+
 ---
 
 ## Success Criteria

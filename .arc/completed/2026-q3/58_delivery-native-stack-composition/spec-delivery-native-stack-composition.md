@@ -2118,6 +2118,14 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   head checks remain unchanged before any effect. Missing, ambiguous, unowned, or non-completed evidence refuses.
   The fallback neither changes the public delivery-entry command nor infers work-unit identity from a branch.
 
+- **D9.25 Archived Candidate renewal retains exact public delivery settlement — amended 2026-09-05 after D9.24
+  live acceptance.** When a shipped work unit is explicitly admitted to `attest --new-root`, attestation runs the
+  same repository-backed delivery-renewal inspection used while integrating. A ready result version-writes the new
+  Candidate through the existing delivery-status boundary and preserves its exact reservation, delivery
+  continuation, and member Owner termini. Missing or mismatched evidence refuses before Candidate mutation. This
+  changes no review applicability, convergence, or authority contract; it prevents archive-before-merge from
+  discarding already-settled public delivery state during freshly verified closeout repair.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

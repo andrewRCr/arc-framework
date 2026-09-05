@@ -2729,7 +2729,7 @@ export async function handleAttest(
   let deliveryRenewal: Awaited<ReturnType<typeof inspectRepositoryDeliveryCandidateRenewal>> = {
     status: "not-applicable",
   };
-  if (meta.state === "Integrating") {
+  if (meta.state === "Integrating" || meta.state === "Shipped") {
     try {
       deliveryRenewal = await inspectRepositoryDeliveryCandidateRenewal({
         cwd: base.cwd,

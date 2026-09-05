@@ -1088,3 +1088,18 @@ from the archived meta and the live branch from Git, while terminal state and ho
 ref and head checks before any effect. Every driver callback consumes this same resolved locus. Missing, ambiguous,
 unowned, or non-completed fallback evidence refuses. This does not broaden the public entry command, infer identity
 from branch naming, or add a session-init dependency.
+
+### Amendment 27 — archived Candidate renewal preserves public settlement (2026-09-05)
+
+The Amendment 26 acceptance reached the archived work unit, then correctly required a new Candidate root because
+the closeout repairs changed reviewable content after the last attestation. Archived `--new-root` was already legal,
+but its delivery-renewal proof ran only for `Integrating`; the `Shipped` arm therefore replaced the settled public
+delivery boundary and its Owner termini with `candidate-review-pending`. The generated transition was discarded
+before commit.
+
+Decided behavior: a shipped work unit admitted to archived `--new-root` runs the same exact public-delivery renewal
+inspection as an integrating work unit. A ready result projects the new Candidate through the existing versioned
+delivery-status boundary, preserving its reservation, delivery continuation, and per-member Owner termini. Every
+existing mismatch still refuses before Candidate mutation. This adds no review bypass or new authority: it retains
+only the public settlement already authenticated by the renewal contract while Candidate verification supplies the
+new root.
