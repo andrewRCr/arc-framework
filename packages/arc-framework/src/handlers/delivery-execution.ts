@@ -3775,7 +3775,7 @@ async function executeDeliveryCommand(
     current: { readonly revision: number; readonly value: z.infer<typeof DeliveryStateV1Schema> },
     repository: string,
     remote: string,
-    mode: "exact" | "review-fix" | "review-fix-local" | "refresh-adopt"
+    mode: "exact" | "terminal-remedy" | "review-fix" | "review-fix-local" | "refresh-adopt"
       | "review-fix-adopt" | "review-fix-local-adopt" = "exact",
   ) => {
     const host = new GhDeliveryHostPort(hostedGhRunner);
@@ -3879,8 +3879,10 @@ async function executeDeliveryCommand(
         ...endpoints,
       }),
     }, {
-      ...(mode === "review-fix" || mode === "review-fix-local"
-        || mode === "review-fix-adopt" || mode === "review-fix-local-adopt"
+      ...(mode === "terminal-remedy"
+        ? { terminalAuthoringMovement: "allow-append-only-frozen-request" as const }
+        : mode === "review-fix" || mode === "review-fix-local"
+          || mode === "review-fix-adopt" || mode === "review-fix-local-adopt"
         ? { terminalAuthoringMovement: "allow-append-only" as const }
         : {}),
       ...(mode === "refresh-adopt" || mode === "review-fix-adopt" || mode === "review-fix-local-adopt"
@@ -5913,7 +5915,13 @@ async function executeDeliveryCommand(
       || stateRead.status !== "ok" || stateRead.value === null) {
       return { status: "refused", reason: "delivery-unavailable" };
     }
-    const observed = await observePosition(planRead.value, stateRead.value, parsed.repository, parsed.remote);
+    const observed = await observePosition(
+      planRead.value,
+      stateRead.value,
+      parsed.repository,
+      parsed.remote,
+      "terminal-remedy",
+    );
     if (observed.status !== "observed") return { status: "refused", reason: "position-unavailable" };
     return applyDeliveryTopRemedy({
       plan: planRead.value,

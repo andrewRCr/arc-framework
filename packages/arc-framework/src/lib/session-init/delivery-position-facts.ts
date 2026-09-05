@@ -53,7 +53,7 @@ type RequestState = "open" | "merged" | "closed" | null;
 
 /** Narrow observation policy for approved correction and external-adoption windows. */
 export interface DeliveryPositionObservationOptions {
-  readonly terminalAuthoringMovement?: "allow-append-only";
+  readonly terminalAuthoringMovement?: "allow-append-only" | "allow-append-only-frozen-request";
   readonly unlandedSuffixMovement?: "allow-external";
 }
 
@@ -120,7 +120,7 @@ async function observeTarget(
 async function observeMember(
   member: DeliveryOperationSnapshotV1["members"][number],
   dependencies: DeliveryPositionFactsDependencies,
-  allowAppendOnlyAuthoring = false,
+  appendOnlyAuthoring?: DeliveryPositionObservationOptions["terminalAuthoringMovement"],
   allowExternalMovement = false,
 ): Promise<{
   readonly exact: boolean;
@@ -167,12 +167,16 @@ async function observeMember(
         objectAccess: "local-only",
       });
       const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, remoteHead);
-      if (coordinates === null || (requestHead !== null && requestHead !== remoteHead)) {
+      const frozenClosedRequest = appendOnlyAuthoring === "allow-append-only-frozen-request"
+        && requestState === "closed" && requestHead === member.coordinates.head;
+      if (coordinates === null
+        || (requestHead !== null && requestHead !== remoteHead && !frozenClosedRequest)) {
         return { exact: false, requestState: null };
       }
       let remoteAuthoringMovement = false;
       if (remoteHead !== member.coordinates.head) {
-        if (allowAppendOnlyAuthoring && requestState === "open" && requestHead !== null
+        if (appendOnlyAuthoring !== undefined
+          && ((requestState === "open" && requestHead !== null) || frozenClosedRequest)
           && await localCommitMatches(member.coordinates, dependencies)
           && await readAncestry(localOnlyExec, member.coordinates.head, remoteHead) === "ancestor") {
           remoteAuthoringMovement = true;
@@ -185,7 +189,7 @@ async function observeMember(
       if (!remoteAuthoringMovement && coordinates.tree !== member.coordinates.tree) {
         return { exact: false, requestState: null };
       }
-      const localHead = allowAppendOnlyAuthoring ? dependencies.localHeads?.[branch] : undefined;
+      const localHead = appendOnlyAuthoring === undefined ? undefined : dependencies.localHeads?.[branch];
       if (localHead !== undefined && localHead !== remoteHead) {
         const localCoordinates = dependencies.localCommits[localHead] === true
           ? await observeDeliveryEligibilityRef(localOnlyExec, localHead)
@@ -387,7 +391,7 @@ async function observeFacts(
   const members = await Promise.all(state.members.map((member, index) => observeMember(
     member,
     dependencies,
-    index === terminalIndex && options.terminalAuthoringMovement === "allow-append-only",
+    index === terminalIndex ? options.terminalAuthoringMovement : undefined,
     index < terminalIndex && options.unlandedSuffixMovement === "allow-external",
   )));
   if (members.some((member) => !member.exact)) return null;

@@ -1185,3 +1185,20 @@ request when currentness is satisfied, so this preserves the recognized Candidat
 boundary; an actually blocked lineage retains its ordinary full-verification and new-root requirements. Active and
 Integrating continuations remain unchanged. This is lifecycle parity for the existing publication-renewal path, not
 new Candidate authority, review work, or a completed-WU mutation mechanism.
+
+### Amendment 33 — terminal repair observes the frozen-request publication gap (2026-09-05)
+
+After Amendment 32 renewed the shipped Candidate boundary, the live checkpoint correctly returned the authorized
+terminal `reopen-and-retarget` remedy. The terminal branch was already append-only ahead of Delivery State, while
+closed PR #557 remained frozen at the recorded state head on its deleted predecessor base. The top-remedy handler
+nevertheless invoked ordinary exact position observation, which rejected the branch/request disagreement before
+the remedy core could apply D9.29's exact old-head precondition. Passing the existing review-fix append-only option
+did not help because that policy intentionally requires an open request already tracking the published branch.
+
+Decided behavior: terminal repair receives its own observation policy for this one presentation. It recognizes only
+the exact closed request frozen at the state-bound head plus a locally available remote terminal head proved to be
+its strict append-only descendant, and exposes that fact as unadopted terminal authoring movement. The top-remedy
+core then independently re-reads the request and retains its exact repository, binding, ref, old head, state, base,
+trigger-ref, reservation, and CAS checks before mutation. Review-fix and ordinary position policies do not change.
+This completes the already-specified D9.29 entry path rather than granting new movement authority or generalizing
+position observation.

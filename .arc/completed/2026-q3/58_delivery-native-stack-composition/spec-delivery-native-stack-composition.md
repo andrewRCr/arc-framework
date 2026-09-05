@@ -2177,6 +2177,17 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   checks remain authoritative. This adds no lifecycle transition, Candidate authority, or second renewal path; it
   makes the checkpoint's typed continuation executable for the archive-before-merge topology it already supports.
 
+- **D9.31 Terminal repair observes an advanced branch behind its frozen closed request — amended 2026-09-05 after
+  the D9.30 live continuation.** The terminal-repair preflight may recognize one exact presentation in which the
+  already-pushed terminal ref is append-only ahead of delivery state's terminal head while the same closed request
+  remains frozen at that recorded head. Recognition requires the exact repository, request binding, head ref,
+  closed state, recorded request head, locally available recorded and current commits, and strict-ancestor proof;
+  it reports terminal authoring movement without changing state coordinates. This policy is available only to the
+  top-remedy handler. The remedy core still re-reads and requires the exact frozen request before reserving or
+  mutating, and ordinary position, review-fix, and external-adoption observations retain their existing policies.
+  This adds no head authority, persisted state, or generic request-movement tolerance; it admits the precondition
+  D9.29 already requires before the authorized repair can expose the newer head to terminal rebind.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

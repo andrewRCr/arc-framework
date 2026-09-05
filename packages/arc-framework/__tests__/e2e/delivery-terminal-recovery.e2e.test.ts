@@ -490,6 +490,9 @@ describe("delivery terminal recovery", () => {
       value: DeliveryStateV1;
     };
     const retainedHead = before.value.members.at(-1)!.coordinates!.head;
+    await git(repository, ["commit", "--allow-empty", "-m", "advance terminal authoring"]);
+    const advancedHead = await git(repository, ["rev-parse", "HEAD"]);
+    await git(repository, ["push", "origin", `${advancedHead}:refs/heads/member-2`]);
     const refreshedHead = "f".repeat(40);
     const result = await runArcWithStdin(
       ["delivery", "top-remedy", "-", "--json"],
@@ -504,7 +507,7 @@ describe("delivery terminal recovery", () => {
       { env: { ...fixture.env, ARC_FAKE_TOP_CLOSED: "1", ARC_FAKE_REFRESHED_TOP: "1" } },
     );
 
-    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
       command: "delivery top-remedy",
       status: "remedied",

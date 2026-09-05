@@ -5036,6 +5036,24 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           contract checks passed. The rebuilt live checkpoint emitted the archived-record continuation, and its
           invocation passed completed-lifecycle admission before correctly refusing the still-uncommitted subject.
 
+- _Forward correction (2026-09-05):_ The terminal remedy's outer position read rejected the intended live state in
+  which the pushed work-unit branch had advanced while its closed request remained frozen at the recorded head.
+  Admit that exact presentation without weakening the remedy's pre-mutation request check.
+
+    - `[x]` **9.1.R.t Admit frozen-request terminal authoring to the top remedy**
+
+        - _Goal:_ The authorized terminal repair can start when the published terminal branch is append-only ahead
+          of the exact closed request, while every head adoption remains reserved to terminal rebind.
+
+        - _Outcome:_ Position observation now has a top-remedy-only policy that accepts an exact closed request at
+          the state head plus a locally available strict append-only remote descendant. The remedy core still
+          revalidates the exact frozen request before mutation; ordinary and review-fix observation are unchanged.
+
+        - _Verification:_ The production-shaped built-CLI case failed first with `position-unavailable`, then all 18
+          terminal-recovery E2E cases passed with the terminal branch advanced before the remedy invocation. The 13
+          position-observation unit cases, focused ESLint, both typechecks, ARC contract checks, and authoritative
+          staged Markdown lint also passed.
+
 ---
 
 ## Success Criteria
