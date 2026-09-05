@@ -1605,8 +1605,11 @@ async function observeNativeDeliveryEffect(
   cwd: string,
   remote: string,
 ): Promise<DeliveryNativeEffectFacts> {
-  const merged: string[] = [];
-  const landedResults: Array<NonNullable<Awaited<ReturnType<typeof observeGitDeliveryLandingResult>>>> = [];
+  const merged: Array<{
+    readonly deliverableId: string;
+    readonly mergeCommitSha: string;
+    readonly coordinates: { readonly base: string; readonly head: string; readonly tree: string };
+  }> = [];
   for (const [index, entry] of operation.before.members.entries()) {
     const member = state.members.find((candidate) => candidate.deliverableId === entry.deliverableId);
     const prior = operation.before.members[index - 1];
@@ -1638,11 +1641,46 @@ async function observeNativeDeliveryEffect(
       if (observed.request.mergeCommitSha === null || observed.request.mergeCommitSha === undefined) {
         return { outcome: "ambiguous" };
       }
+      merged.push({
+        deliverableId: entry.deliverableId,
+        mergeCommitSha: observed.request.mergeCommitSha,
+        coordinates: entry.coordinates,
+      });
+    }
+  }
+  if (merged.length === 0) return { outcome: "none-landed" };
+  if (merged.length !== operation.before.members.length) {
+    return { outcome: "partial-landed", affectedDeliverableIds: merged.map(({ deliverableId }) => deliverableId) };
+  }
+  const targetBefore = operation.before.target?.coordinates;
+  if (targetBefore === null || targetBefore === undefined) {
+    return { outcome: "ambiguous" };
+  }
+  const landedResults: Array<NonNullable<Awaited<ReturnType<typeof observeGitDeliveryLandingResult>>>> = [];
+  if (operation.native?.arm === "linked-atomic" && merged.length > 1) {
+    const commonMergeCommit = merged[0]?.mergeCommitSha;
+    const highest = merged.at(-1);
+    if (commonMergeCommit === undefined || highest === undefined
+      || merged.some(({ mergeCommitSha }) => mergeCommitSha !== commonMergeCommit)) {
+      return { outcome: "ambiguous" };
+    }
+    const aggregateResult = await observeGitDeliveryLandingResult({
+      exec,
+      cwd,
+      remote,
+      resultHead: commonMergeCommit,
+      strategy: "merge",
+      beforeMember: highest.coordinates,
+    });
+    if (aggregateResult === null) return { outcome: "ambiguous" };
+    landedResults.push(aggregateResult);
+  } else {
+    for (const entry of merged) {
       const landedResult = await observeGitDeliveryLandingResult({
         exec,
         cwd,
         remote,
-        resultHead: observed.request.mergeCommitSha,
+        resultHead: entry.mergeCommitSha,
         strategy: "merge",
         beforeMember: entry.coordinates,
       });
@@ -1651,20 +1689,12 @@ async function observeNativeDeliveryEffect(
       if (previous !== undefined && landedResult.predecessor.head !== previous.member.head) {
         return { outcome: "ambiguous" };
       }
-      merged.push(entry.deliverableId);
       landedResults.push(landedResult);
     }
   }
-  if (merged.length === 0) return { outcome: "none-landed" };
-  if (merged.length !== operation.before.members.length) {
-    return { outcome: "partial-landed", affectedDeliverableIds: merged };
-  }
-  const targetBefore = operation.before.target?.coordinates;
   const firstResult = landedResults[0];
   const finalResult = landedResults.at(-1);
-  if (targetBefore === null || targetBefore === undefined || firstResult === undefined || finalResult === undefined) {
-    return { outcome: "ambiguous" };
-  }
+  if (firstResult === undefined || finalResult === undefined) return { outcome: "ambiguous" };
   const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
     ...options,
     cwd,

@@ -2024,6 +2024,16 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   status still rejects an unexplained open-head mismatch. This completes the prepared-set boundary without changing
   review liveness, applicability, convergence, terminal integration, or storage contracts.
 
+- **D9.15 Native atomic settlement proves the provider's aggregate merge result — amended 2026-09-05 after the
+  first live native effect.** A successful GitHub native stack merge closes every included pull request against its
+  authored base but assigns the same aggregate merge commit to the complete set. Settlement therefore validates
+  every request's exact repository, identity, head, base, and merged state, requires one non-null common merge
+  commit across the complete affected set, and proves that aggregate result once against the highest selected head.
+  The aggregate predecessor must still descend from the operation's protected-target coordinate, after which the
+  observed aggregate commit becomes the new target coordinate and the exact selected member coordinates remain
+  retained. A partial set, divergent merge commits, an invalid aggregate merge, or a contradictory provider-effect
+  status keeps the reservation and refuses. Single-member native settlement retains its ordinary per-request proof.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

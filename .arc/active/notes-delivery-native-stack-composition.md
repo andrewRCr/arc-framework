@@ -949,3 +949,20 @@ that content remains subject to the later Candidate and terminal-integration pat
 still uses its freshly observed current request head and checks, and ordinary status retains its mismatch refusal.
 The production E2E now advances both local HEAD and the fake terminal pull request before submit, and a focused unit
 case proves only the exact terminal identity may retain its prepared historical head.
+
+### Amendment 19 — native settlement consumes one aggregate merge commit (2026-09-05)
+
+The first live native effect crossed the provider boundary and GitHub reported it `merged`. PRs 550–556 all closed
+within six seconds, retained their exact authorized heads and authored bases, and reported one shared merge commit,
+`d7f6f9ef73a91af1ea1fda8b181531cb23fa823e`; `main` advanced to that same commit. The commit has the exact
+pre-effect protected base as first parent, the highest selected member as second parent, and the highest selected
+tree. ARC nevertheless returned `ambiguous-result` because its post-effect observer tried to prove the shared commit
+as each member's independent merge result. That model was exercised only by a fictional E2E fixture which created a
+different sequential merge commit for every request.
+
+Decided behavior: a multi-member `linked-atomic` settlement validates every selected request at its exact repository,
+identity, head, authored base, and merged state, requires the complete set to name one common merge commit, and proves
+that aggregate commit once against the highest selected head and protected-target ancestry. Divergent merge commits,
+partial closure, invalid aggregate structure, and contradictory effect status remain closed refusals with the
+reservation intact. The production E2E now emits the live provider shape and separately proves divergent coordinates
+remain ambiguous. No provider-general result model, sequential fallback, or new recovery authority is added.

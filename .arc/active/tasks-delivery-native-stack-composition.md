@@ -4820,6 +4820,18 @@ meta exists and that resolution shape is the exact defect the retired terminal a
             13. Re-run the live preserved seven-member submit under a newly presented exact interlock and require the
                 provider boundary to be crossed before closing this corrective task.
 
+        - _Atomic-settlement amendment (2026-09-05):_ The live effect merged all seven requests into one aggregate
+          commit, but settlement treated their shared merge coordinate as seven independent member merge commits and
+          rejected the completed effect as ambiguous.
+
+            14. Reproduce the exact GitHub result in the production E2E: every selected request is merged at its
+                authored head and base, every request reports the same aggregate merge commit, and the protected
+                target advances to that commit.
+            15. Prove the complete request set and common aggregate merge once against the highest selected head;
+                retain refusal for a partial set, divergent merge coordinates, or an invalid aggregate result.
+            16. Reconcile the retained live effect, require the completed seven-member landing to settle, then
+                continue through position, member teardown, and the terminal checkpoint.
+
 ---
 
 ## Success Criteria

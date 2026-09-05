@@ -410,19 +410,13 @@ describe("arc delivery", () => {
       baseRef: index === 0 ? "main" : state.members[index - 1]!.ref!.replace(/^refs\/heads\//u, ""),
       headRepository: "owner/repo",
     }));
-    let landedPredecessor = baseHead;
-    const landedMergeShas: string[] = [];
-    for (const [index, member] of state.members.slice(0, -1).entries()) {
-      const mergeSha = await git(repository, [
-        "commit-tree", member.coordinates!.tree,
-        "-p", landedPredecessor,
-        "-p", member.coordinates!.head,
-        "-m", `native merge ${index + 1}`,
-      ]);
-      landedMergeShas.push(mergeSha);
-      landedPredecessor = mergeSha;
-    }
-    const landedTargetHead = landedMergeShas.at(-1)!;
+    const highestNativeMember = state.members.at(-2)!;
+    const landedTargetHead = await git(repository, [
+      "commit-tree", highestNativeMember.coordinates!.tree,
+      "-p", baseHead,
+      "-p", highestNativeMember.coordinates!.head,
+      "-m", "native stack merge",
+    ]);
     const landedTargetTree = state.members.at(-2)!.coordinates!.tree;
     await git(repository, ["update-ref", "refs/heads/native-landing-result", landedTargetHead]);
     await git(repository, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
@@ -468,23 +462,32 @@ describe("arc delivery", () => {
       head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
       base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
     }));
-    const landedRequestResponses = nativeMembers.map((member, index) => JSON.stringify({
+    const landedRequestResponses = nativeMembers.map((member) => JSON.stringify({
       number: Number(member.changeRequestId),
       state: "closed",
       merged: true,
       draft: false,
       head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
       base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
-      merge_commit_sha: landedMergeShas[index],
+      merge_commit_sha: landedTargetHead,
     }));
-    const settledRequestResponses = nativeMembers.map((member, index) => JSON.stringify({
+    const divergentLandedRequestResponses = nativeMembers.map((member, index) => JSON.stringify({
+      number: Number(member.changeRequestId),
+      state: "closed",
+      merged: true,
+      draft: false,
+      head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
+      base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
+      merge_commit_sha: index === 0 ? member.headSha : landedTargetHead,
+    }));
+    const settledRequestResponses = nativeMembers.map((member) => JSON.stringify({
       number: Number(member.changeRequestId),
       state: "closed",
       merged: true,
       draft: false,
       head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
       base: { ref: "main", repo: { full_name: "owner/repo" } },
-      merge_commit_sha: landedMergeShas[index],
+      merge_commit_sha: landedTargetHead,
     }));
     const terminal = state.members.at(-1)!;
     const terminalRequestResponse = JSON.stringify({
@@ -588,7 +591,7 @@ describe("arc delivery", () => {
       "    ;;",
       ...nativeMembers.flatMap((member, index) => [
         `  repos/owner/repo/pulls/${member.changeRequestId})`,
-        `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "landed" ]; then printf '%s\\n' '${landedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '${settledRequestResponses[index]}'; else printf '%s\\n' '${requestResponses[index]}'; fi`,
+        `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "landed" ]; then printf '%s\\n' '${landedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "divergent-landed" ]; then printf '%s\\n' '${divergentLandedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '${settledRequestResponses[index]}'; else printf '%s\\n' '${requestResponses[index]}'; fi`,
         "    ;;",
       ]),
       `  repos/owner/repo/pulls/${terminal.changeRequest!.changeRequestId})`,
@@ -963,6 +966,18 @@ describe("arc delivery", () => {
       effectIdentity: "native-effect-1",
     });
     await git(repository, ["reset", "--hard", top.coordinates!.head]);
+
+    const divergentLanding = await runArcWithStdin(
+      ["delivery", "native", "land-status", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: plan.planId, request: expectedSubmitRequest.request, remote: "origin" })}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "divergent-landed" } },
+    );
+    expect(divergentLanding.exitCode, divergentLanding.stderr).toBe(1);
+    expect(JSON.parse(divergentLanding.stdout)).toMatchObject({
+      status: "blocked",
+      reason: "ambiguous-result",
+    });
 
     await git(repository, ["update-ref", "refs/heads/main", landedTargetHead]);
     const landed = await runArcWithStdin(
