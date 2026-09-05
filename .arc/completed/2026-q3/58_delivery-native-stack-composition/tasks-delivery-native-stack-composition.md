@@ -4769,7 +4769,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   review-unsettled. Share the authoritative conjunction across only this prepared set while preserving each
   member's exact host and check reads.
 
-    - `[ ]` **9.1.R.o Compose atomic readiness from one delivery-review conjunction**
+    - `[x]` **9.1.R.o Compose atomic readiness from one delivery-review conjunction**
 
         - _Goal:_ Native atomic preparation performs one routed delivery-review reduction per selected set, fans
           only exact member request/head/check readiness, and reserves the effect only when every member is ready.
@@ -4937,6 +4937,19 @@ meta exists and that resolution shape is the exact defect the retired terminal a
             38. Admit only the derived entering checkout joined to the exact completed work-unit record and matching
                 Owner identity, then require the committed terminus to survive its own mechanical record advance and
                 let the correction driver return Member 7 teardown without review or provider spend.
+
+        - _Outcome:_ Native atomic readiness and submission now reduce the delivery-review conjunction once per
+          selected set while retaining independent exact member observations. Prepared recovery, aggregate effect
+          settlement, post-landing review selection, terminal Candidate renewal, Owner-terminus acceptance, and the
+          archived correction driver compose through their existing typed boundaries. The live seven-member landing
+          settled, the final exact-head Owner terminus recorded without review spend, and the driver returned the
+          landed Member 7 teardown stop after its machine-owned terminal rebind and boundary carry.
+
+        - _Verification:_ The production archive-before-merge E2E passed with exact completed-locus Owner authority
+          and record-advance preservation. Fresh Tier 3 passed full TypeScript and shell lint, both typechecks,
+          Markdown and ARC contract checks, the production build, and the complete matrix: 865 test files and 11,447
+          tests passed, with one intentional skip each. The live acceptance reached `teardown-member` for
+          `review-fan-out` with no hosted request or provider spend.
 
 ---
 
