@@ -2109,6 +2109,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   driver-owned. Any refused, malformed, or non-discharged position/status retains its existing typed stop. The
   correction adds no dispatch kind, state transition, review decision, or generalized orchestration mechanism.
 
+- **D9.24 Correction continuation preserves its locus after archive-before-merge — amended 2026-09-05 after the
+  first D9.23 live acceptance.** The correction driver resolves one invocation-scoped work-unit locus shared by
+  record settlement, entry inspection, correction preparation, terminal rebind, and progress observation. The
+  ordinary active-meta resolution remains first. When it is absent, continuation accepts only the entering
+  checkout's derived Candidate mutation owner joined to the same slug's completed lifecycle-index record, reads the
+  archived task list, and derives the still-live branch from Git. Exact plan, state, terminal ref, pull-request, and
+  head checks remain unchanged before any effect. Missing, ambiguous, unowned, or non-completed evidence refuses.
+  The fallback neither changes the public delivery-entry command nor infers work-unit identity from a branch.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

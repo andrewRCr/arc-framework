@@ -1072,3 +1072,19 @@ and remote identities, then returns that exact typed result with the accumulated
 remains the attended destructive-authority stop; the driver never deletes a ref itself. A malformed or refused
 position remains a typed stop. This adds no dispatch kind, persisted state, review policy, or generalized control
 flow.
+
+### Amendment 26 — correction continuation survives archive-before-merge (2026-09-05)
+
+The first live acceptance of Amendment 25 stopped before projection because record-effect settlement still resolved
+only `.arc/active`. This work unit had already crossed the configured archive-before-merge ceremony, so its exact
+ownership marker and completed lifecycle record remained authoritative while no active meta existed. The same active
+assumption was repeated in correction entry inspection, terminal rebind, authoring preparation, and progress
+observation; repairing only the first refusal would have exposed the next one.
+
+Decided behavior: the correction driver resolves one cached work-unit locus for its whole invocation. It preserves
+the existing active-meta path first; otherwise it accepts only the entering checkout's existing derived Candidate
+mutation owner joined to that exact slug's completed lifecycle-index record. The completed arm reads the task list
+from the archived meta and the live branch from Git, while terminal state and host observations retain their exact
+ref and head checks before any effect. Every driver callback consumes this same resolved locus. Missing, ambiguous,
+unowned, or non-completed fallback evidence refuses. This does not broaden the public entry command, infer identity
+from branch naming, or add a session-init dependency.

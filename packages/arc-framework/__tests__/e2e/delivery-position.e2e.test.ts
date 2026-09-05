@@ -1,7 +1,7 @@
 /** Built-CLI coverage for fresh public delivery-position observation. */
 
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -22,6 +22,7 @@ import { advanceDeliveryReviewFixResponse } from "../../src/lib/delivery/review-
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
+import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
@@ -2185,9 +2186,61 @@ describe("arc delivery position", () => {
     expect(entry.exitCode, `${entry.stderr}\n${entry.stdout}`).toBe(0);
     expect(JSON.parse(entry.stdout), entry.stdout).toMatchObject({ status: "resolve-delivery-status" });
 
+    const completedDir = join(
+      fixture.repository,
+      ".arc",
+      "completed",
+      "2026-q3",
+      `01_${fixture.plan.workUnitId}`,
+    );
+    await mkdir(completedDir, { recursive: true });
+    const activeMetaPath = join(activeDir, `meta-${fixture.plan.workUnitId}.md`);
+    const shippedMeta = (await readFile(activeMetaPath, "utf8"))
+      .replace("- **State:** Integrating", "- **State:** Shipped")
+      .replace(`- **Branch:** ${branch}`, "- **Branch:** [none]")
+      .replace("- **Current Workflow:** `integrate-work-unit`", "- **Current Workflow:** [none]");
+    await writeFile(activeMetaPath, shippedMeta);
+    await rename(
+      activeMetaPath,
+      join(completedDir, `meta-${fixture.plan.workUnitId}.md`),
+    );
+    await rename(
+      join(activeDir, `tasks-${fixture.plan.workUnitId}.md`),
+      join(completedDir, `tasks-${fixture.plan.workUnitId}.md`),
+    );
+    await git(fixture.repository, ["add", ".arc/active", ".arc/completed"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "archive terminal delivery"]);
+    await git(fixture.repository, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+    await writeFile(
+      join(fixture.repository, ".git", "info", "exclude"),
+      "\n.arc/system/.internal/worktree-marker.json\n",
+      { flag: "a" },
+    );
+    const worktreeParent = await mkdtemp(join(tmpdir(), "arc-delivery-position-archived-"));
+    const archivedCheckout = join(worktreeParent, "worktree");
+    roots.push(worktreeParent);
+    await git(fixture.repository, ["switch", "--detach"]);
+    await git(fixture.repository, ["worktree", "add", archivedCheckout, branch]);
+    await writeWorktreeOwnershipMarker(archivedCheckout, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: fixture.plan.workUnitId },
+      spawningIdentity: "test-user",
+      now: Date.parse("2026-09-05T18:30:00.000Z"),
+    });
+    const archivedLocus = await runArc(["locus", "--json"], archivedCheckout, { env: fixture.env });
+    expect(archivedLocus.exitCode, `${archivedLocus.stderr}\n${archivedLocus.stdout}`).toBe(0);
+    expect(JSON.parse(archivedLocus.stdout), archivedLocus.stdout).toMatchObject({
+      entering: {
+        kind: "selected",
+        row: {
+          subject: { kind: "work-unit", key: fixture.plan.workUnitId },
+        },
+      },
+    });
+
     const result = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
-      fixture.repository,
+      archivedCheckout,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
     );

@@ -4906,6 +4906,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 log and the existing destructive-authority stop, then require the live Member 7 teardown selection
                 without manual command reconstruction.
 
+        - _Archived-locus amendment (2026-09-05):_ The first live acceptance stopped before settled position because
+          record-effect settlement, entry inspection, terminal rebind, correction preparation, and progress
+          observation each independently required the already-archived work unit to remain under `.arc/active`.
+
+            33. Extend the production E2E through the real archive-before-merge shape and an ARC-owned linked
+                checkout, then require the pre-correction continuation to refuse record settlement even though the
+                derived locus and completed lifecycle record identify the exact work unit.
+            34. Resolve one cached active-or-completed correction locus through existing ownership and lifecycle
+                authorities, share it across every driver callback, and require the same run to rebind terminal
+                coordinates and return the exact landed-member teardown stop.
+
 ---
 
 ## Success Criteria
