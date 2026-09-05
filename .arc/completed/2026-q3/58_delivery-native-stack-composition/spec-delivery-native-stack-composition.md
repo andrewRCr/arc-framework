@@ -2188,6 +2188,16 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   This adds no head authority, persisted state, or generic request-movement tolerance; it admits the precondition
   D9.29 already requires before the authorized repair can expose the newer head to terminal rebind.
 
+- **D9.32 GitHub terminal reopen-and-retarget is one native mutation — amended 2026-09-05 after the D9.31 live
+  retry.** GitHub's REST API refuses to change the base branch of a closed pull request, so D9.28's ordered REST
+  effects cannot execute. The GitHub adapter instead resolves the exact request's immutable node identity and
+  submits `state: OPEN` plus the protected `baseRefName` in one `updatePullRequest` mutation. The ordinary
+  open-request `retarget` arm retains its single REST base update. The existing operation reservation,
+  pre-mutation exact-request validation, post-mutation reobservation, D9.29 head handling, and reconciliation
+  classifier remain authoritative; a rejected native mutation leaves no ARC-designed halfway state to recover.
+  This corrects D9.28's host assumption without adding a durable phase, provider-independent transaction,
+  compatibility path, or broader GraphQL adapter.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

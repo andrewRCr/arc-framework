@@ -5051,8 +5051,25 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
         - _Verification:_ The production-shaped built-CLI case failed first with `position-unavailable`, then all 18
           terminal-recovery E2E cases passed with the terminal branch advanced before the remedy invocation. The 13
-          position-observation unit cases, focused ESLint, both typechecks, ARC contract checks, and authoritative
-          staged Markdown lint also passed.
+        position-observation unit cases, focused ESLint, both typechecks, ARC contract checks, and authoritative
+        staged Markdown lint also passed.
+
+- _Forward correction (2026-09-05):_ GitHub REST refuses to retarget a closed pull request, so the ordered terminal
+  repair cannot execute and reversing its calls would create an unsafe halfway state. Use the host's combined native
+  pull-request mutation instead.
+
+    - `[x]` **9.1.R.u Reopen and retarget the GitHub terminal request atomically**
+
+        - _Goal:_ Terminal repair can reopen the exact closed request onto the protected base without an invalid REST
+          ordering or a durable partial-effect window.
+
+        - _Outcome:_ The GitHub adapter now resolves the bound request number to its immutable node ID and submits
+          `OPEN` plus the protected base through one `updatePullRequest` mutation. Ordinary open-request retarget
+          remains one REST update, while reservation and post-effect reobservation remain unchanged.
+
+        - _Verification:_ A faithful host double rejected the old REST base update while closed, then accepted the
+          combined mutation. All 18 adapter unit tests and all 18 production-shaped terminal-recovery E2E cases
+          passed, along with focused ESLint, both typechecks, and ARC contract checks.
 
 ---
 

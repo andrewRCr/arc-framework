@@ -402,24 +402,52 @@ describe("GhDeliveryHostPort", () => {
       .resolves.toEqual({ status: "refused", reason: "unavailable" });
   });
 
-  it("retargets a closed terminal request before reopening it", async () => {
-    for (const [action, fromBaseRef, expectedCalls] of [
-      ["retarget", "delivery/example/previous", [[
-        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "base=main",
-      ]]],
-      ["reopen-and-retarget", "delivery/example/previous", [[
-        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "base=main",
-      ], [
-        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "state=open",
-      ]]],
-      ["reopen-and-retarget", "main", [[
-        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "state=open",
-      ]]],
+  it("reopens and retargets a closed terminal request in one GitHub mutation", async () => {
+    for (const [action, fromBaseRef] of [
+      ["retarget", "delivery/example/previous"],
+      ["reopen-and-retarget", "delivery/example/previous"],
+      ["reopen-and-retarget", "main"],
     ] as const) {
-      const calls: string[][] = [];
+      const request = {
+        baseRef: fromBaseRef,
+        state: action === "retarget" ? "open" : "closed",
+      };
       const port = new GhDeliveryHostPort({ run: async (args) => {
-        calls.push(args);
-        return { stdout: "{}", stderr: "" };
+        if (args[0] === "pr" && args[1] === "view") {
+          return { stdout: JSON.stringify({ id: "PR_terminal" }), stderr: "" };
+        }
+        if (args[0] === "api" && args[1] === "graphql") {
+          const query = args.find((arg) => arg.startsWith("query="));
+          if (query?.includes("updatePullRequest") !== true
+            || query.includes("state:OPEN") !== true
+            || query.includes("baseRefName:$base") !== true
+            || !args.includes("id=PR_terminal") || !args.includes("base=main")) {
+            throw new Error("invalid atomic pull-request mutation");
+          }
+          request.baseRef = "main";
+          request.state = "open";
+          return { stdout: JSON.stringify({ data: { updatePullRequest: { pullRequest: {
+            baseRefName: request.baseRef,
+            state: request.state.toUpperCase(),
+          } } } }), stderr: "" };
+        }
+        if (args.includes("base=main")) {
+          if (request.state === "closed") {
+            throw new HostedProcessError(
+              "Cannot change the base branch of a closed pull request.",
+              "gh: Validation Failed (HTTP 422)",
+              1,
+              422,
+            );
+          }
+          request.baseRef = "main";
+          return { stdout: "{}", stderr: "" };
+        }
+        if (args.includes("state=open")) {
+          request.state = "open";
+          return { stdout: "{}", stderr: "" };
+        }
+        throw new Error("unexpected host operation");
       } });
       await expect(port.applyTopRemedy({
         providerId: "github",
@@ -433,7 +461,7 @@ describe("GhDeliveryHostPort", () => {
         protectedBaseRef: "main",
         action,
       })).resolves.toEqual({ status: "submitted" });
-      expect(calls).toEqual(expectedCalls);
+      expect(request).toEqual({ baseRef: "main", state: "open" });
     }
     const malformedCalls: string[][] = [];
     const malformedRunner: HostedProcessRunner = { run: async (args) => {

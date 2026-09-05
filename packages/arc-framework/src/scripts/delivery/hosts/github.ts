@@ -391,14 +391,23 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
     }
     try {
       const requestPath = `repos/${effect.repository}/pulls/${effect.changeRequestId}`;
-      if (effect.fromBaseRef !== effect.protectedBaseRef) {
+      if (effect.action === "reopen-and-retarget") {
+        const identityResult = await this.runner.run([
+          "pr", "view", effect.changeRequestId, "--repo", effect.repository, "--json", "id",
+        ]);
+        const nodeId = record(parse(identityResult.stdout))?.id;
+        if (typeof nodeId !== "string" || nodeId === "") {
+          return { status: "refused", reason: "malformed" };
+        }
+        const mutation = "mutation($id:ID!,$base:String!){updatePullRequest(input:{pullRequestId:$id,"
+          + "state:OPEN,baseRefName:$base}){pullRequest{id}}}";
+        await this.runner.run([
+          "api", "graphql", "--raw-field", `query=${mutation}`,
+          "-F", `id=${nodeId}`, "-F", `base=${effect.protectedBaseRef}`,
+        ]);
+      } else if (effect.fromBaseRef !== effect.protectedBaseRef) {
         await this.runner.run([
           "api", requestPath, "--method", "PATCH", "-f", `base=${effect.protectedBaseRef}`,
-        ]);
-      }
-      if (effect.action === "reopen-and-retarget") {
-        await this.runner.run([
-          "api", requestPath, "--method", "PATCH", "-f", "state=open",
         ]);
       }
       return { status: "submitted" };

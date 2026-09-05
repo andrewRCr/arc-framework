@@ -1202,3 +1202,19 @@ core then independently re-reads the request and retains its exact repository, b
 trigger-ref, reservation, and CAS checks before mutation. Review-fix and ordinary position policies do not change.
 This completes the already-specified D9.29 entry path rather than granting new movement authority or generalizing
 position observation.
+
+### Amendment 34 — terminal reopen and retarget use GitHub's atomic mutation (2026-09-05)
+
+The D9.31 live retry reached its reserved host effect, but the first D9.28 call failed with HTTP 422: GitHub's REST
+API does not permit changing the base branch while a pull request is closed. PR #557 remained closed on its deleted
+Member 7 base with its frozen state-bound head, and operation reconciliation proved the effect unperformed and
+cleared the reservation. Reversing the REST calls would make the request temporarily open on a deleted base and
+could refresh its head before the protected target was installed, recreating the partial-effect recovery problem
+D9.28 was meant to solve.
+
+GitHub's `UpdatePullRequestInput` exposes `pullRequestId`, `state`, and `baseRefName` together. The repair therefore
+resolves the already-bound request number to its immutable node ID, then submits `OPEN` and the protected base in one
+native mutation. Its ordinary open-request retarget sibling remains one REST update. ARC still reserves the exact
+effect before mutation and reobserves afterward; GitHub owns atomic application of the combined request update, so
+ARC needs no durable subphase or new reconciliation state. This replaces D9.28's invalid API assumption while
+preserving D9.29's separation between host-effect settlement and any refreshed-head adoption.
