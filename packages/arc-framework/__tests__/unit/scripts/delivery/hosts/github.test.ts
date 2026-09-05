@@ -402,10 +402,19 @@ describe("GhDeliveryHostPort", () => {
       .resolves.toEqual({ status: "refused", reason: "unavailable" });
   });
 
-  it("applies each terminal remedy through one exact pull-request PATCH", async () => {
-    for (const [action, tail] of [
-      ["retarget", []],
-      ["reopen-and-retarget", ["-f", "state=open"]],
+  it("retargets a closed terminal request before reopening it", async () => {
+    for (const [action, fromBaseRef, expectedCalls] of [
+      ["retarget", "delivery/example/previous", [[
+        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "base=main",
+      ]]],
+      ["reopen-and-retarget", "delivery/example/previous", [[
+        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "base=main",
+      ], [
+        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "state=open",
+      ]]],
+      ["reopen-and-retarget", "main", [[
+        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "state=open",
+      ]]],
     ] as const) {
       const calls: string[][] = [];
       const port = new GhDeliveryHostPort({ run: async (args) => {
@@ -420,13 +429,11 @@ describe("GhDeliveryHostPort", () => {
         headSha,
         triggerRef: "refs/heads/delivery/example/previous",
         triggerHeadSha: "b".repeat(40),
-        fromBaseRef: "delivery/example/previous",
+        fromBaseRef,
         protectedBaseRef: "main",
         action,
       })).resolves.toEqual({ status: "submitted" });
-      expect(calls).toEqual([[
-        "api", `repos/${repository}/pulls/401`, "--method", "PATCH", "-f", "base=main", ...tail,
-      ]]);
+      expect(calls).toEqual(expectedCalls);
     }
     const malformedCalls: string[][] = [];
     const malformedRunner: HostedProcessRunner = { run: async (args) => {

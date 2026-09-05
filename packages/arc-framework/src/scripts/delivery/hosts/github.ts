@@ -390,11 +390,17 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
       return { status: "refused", reason: "malformed" };
     }
     try {
-      await this.runner.run([
-        "api", `repos/${effect.repository}/pulls/${effect.changeRequestId}`,
-        "--method", "PATCH", "-f", `base=${effect.protectedBaseRef}`,
-        ...(effect.action === "reopen-and-retarget" ? ["-f", "state=open"] : []),
-      ]);
+      const requestPath = `repos/${effect.repository}/pulls/${effect.changeRequestId}`;
+      if (effect.fromBaseRef !== effect.protectedBaseRef) {
+        await this.runner.run([
+          "api", requestPath, "--method", "PATCH", "-f", `base=${effect.protectedBaseRef}`,
+        ]);
+      }
+      if (effect.action === "reopen-and-retarget") {
+        await this.runner.run([
+          "api", requestPath, "--method", "PATCH", "-f", "state=open",
+        ]);
+      }
       return { status: "submitted" };
     } catch (error) {
       return {

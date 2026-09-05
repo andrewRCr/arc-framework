@@ -87,9 +87,10 @@ export function classifyDeliveryTopRemedyObservation(
       observation: { kind: "top-remedy", effect, outcome: "applied", snapshot },
     };
   }
-  if (request.baseRef === effect.fromBaseRef
-    && ((effect.action === "retarget" && request.state === "open")
-      || (effect.action === "reopen-and-retarget" && request.state === "closed"))) {
+  if ((effect.action === "retarget" && request.state === "open"
+      && request.baseRef === effect.fromBaseRef)
+    || (effect.action === "reopen-and-retarget" && request.state === "closed"
+      && (request.baseRef === effect.fromBaseRef || request.baseRef === effect.protectedBaseRef))) {
     return { outcome: "not-applied" };
   }
   return { outcome: "ambiguous" };

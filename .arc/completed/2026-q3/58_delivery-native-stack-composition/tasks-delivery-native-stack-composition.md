@@ -4971,6 +4971,24 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           typechecks, the production build, and the complete matrix: 865 test files and 11,448 tests passed, with one
           intentional skip each.
 
+- _Forward correction (2026-09-05):_ The live highest-member teardown closed the terminal request when its stacked
+  base disappeared, and GitHub rejected ARC's combined reopen-and-retarget PATCH. Order the two effects and preserve
+  typed retry after interruption between them.
+
+    - `[x]` **9.1.R.q Retarget the closed terminal request before reopening it**
+
+        - _Goal:_ Terminal top repair completes after its stacked base is deleted and remains recoverable if only the
+          retarget call lands.
+
+        - _Outcome:_ The GitHub adapter now retargets the exact closed terminal request before reopening it and
+          skips an already-applied retarget on retry. Operation reconciliation accepts the two exact closed states
+          around that boundary as retryable while retaining ambiguity for every other request movement.
+
+        - _Verification:_ Both focused behaviors failed against the prior implementation, then the adapter,
+          top-remedy, session-position, and built-CLI terminal-recovery set passed 56 tests. Fresh Tier 3 passed
+          Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, the production build, and the
+          complete matrix: 865 test files and 11,449 tests passed, with one intentional skip each.
+
 ---
 
 ## Success Criteria

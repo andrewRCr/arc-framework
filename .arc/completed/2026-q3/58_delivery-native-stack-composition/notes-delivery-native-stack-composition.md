@@ -1136,3 +1136,18 @@ reconstruction uses that same current projection instead of the durable root. Th
 case now carries a deliberately different durable root and effective subject through the composed driver, while a
 focused behavioral test proves the old reconstruction returns no valid boundary. This is an exact-subject repair to
 the existing carry contract, not a new record, standing authority, migration path, or generalized recovery rule.
+
+### Amendment 30 — terminal retarget precedes reopen (2026-09-05)
+
+The first live Member 7 teardown deleted its exact landed branch and GitHub immediately closed terminal PR #557
+because that branch was still the request's base. ARC then reserved the expected `reopen-and-retarget` effect, but
+the GitHub adapter submitted `base=main` and `state=open` together in one PATCH. GitHub rejected the combined
+mutation and changed neither field. Fresh reconciliation correctly proved the effect unperformed and cleared the
+reservation, leaving the terminal request safely closed on the deleted base.
+
+Decided behavior: GitHub terminal repair performs two ordered calls — retarget the exact closed request first, then
+reopen it. A crash or rejection after retarget but before reopen is a bounded, observable halfway state: recovery
+treats the exact closed request on either its recorded old base or the protected base as retryable, and a fresh retry
+skips an already-completed retarget. All other request movement remains ambiguous. This is the smallest completion of
+the existing failure-only top-remedy contract; it introduces no new operation kind, record, host authority, or
+general transaction substrate.

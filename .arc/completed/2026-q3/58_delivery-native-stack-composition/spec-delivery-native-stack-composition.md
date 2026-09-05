@@ -2145,6 +2145,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   or unprovable subject refuses without writing. This adds no authority, record, or compatibility branch; it keeps
   one existing public continuation bound to the Candidate subject the entry seam already recognized.
 
+- **D9.28 Terminal top repair orders retarget before reopen — amended 2026-09-05 after live Member 7 teardown.**
+  When deleting the highest non-terminal branch closes the terminal pull request, the GitHub adapter first retargets
+  that exact closed request to the protected base and only then reopens it. If interruption lands between those
+  calls, operation reconciliation recognizes either the unchanged closed request or the exact closed request already
+  on the protected base as retryable; every different binding, head, state, or base remains ambiguous. A retry skips
+  an already-applied retarget and performs only the owed reopen. The existing exact trigger-ref absence, terminal
+  binding, reservation, reobservation, and state-CAS guards remain authoritative. This adds no provider-independent
+  operation, durable field, merge authority, or generic multi-effect transaction mechanism.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

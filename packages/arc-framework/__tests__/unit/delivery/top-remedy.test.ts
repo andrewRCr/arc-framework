@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { applyDeliveryTopRemedy } from "../../../src/lib/delivery/top-remedy.js";
+import {
+  applyDeliveryTopRemedy,
+  classifyDeliveryTopRemedyObservation,
+} from "../../../src/lib/delivery/top-remedy.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -32,6 +35,24 @@ function fixture(state: "open" | "closed" = "open") {
 }
 
 describe("delivery top remedy", () => {
+  it("treats a closed request already retargeted to the protected base as retryable", () => {
+    const { state, request } = fixture("closed");
+    const terminal = state.members.at(-1)!;
+    const snapshot = { target: state.target, members: [terminal] };
+    expect(classifyDeliveryTopRemedyObservation({
+      providerId: "github",
+      repository: "owner/repo",
+      changeRequestId: terminal.changeRequest!.changeRequestId,
+      headRef: terminal.ref!.replace(/^refs\/heads\//u, ""),
+      headSha: terminal.coordinates!.head,
+      triggerRef: state.members.at(-2)!.ref!,
+      triggerHeadSha: state.members.at(-2)!.coordinates!.head,
+      fromBaseRef: "member-1",
+      protectedBaseRef: "main",
+      action: "reopen-and-retarget",
+    }, { ...request, baseRef: "main" }, snapshot)).toEqual({ outcome: "not-applied" });
+  });
+
   it.each([
     ["open", "retarget"],
     ["closed", "reopen-and-retarget"],
