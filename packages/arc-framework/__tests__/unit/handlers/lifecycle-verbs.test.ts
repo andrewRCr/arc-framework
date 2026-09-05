@@ -1590,18 +1590,18 @@ describe("handleAttest", () => {
 
     expect(persistedBoundary).toMatchObject({
       mode: "integration-boundary",
-      locus: "hosted-review-pending",
+      locus: "delivery-status-required",
       workUnit: "foo",
       candidateId,
       candidateSubjectDigest: subjectDigest,
       reservation,
       deliveryContinuation,
-      nextAction: expect.objectContaining({ kind: "continue-hosted-review" }),
+      nextAction: expect.objectContaining({ kind: "resolve-delivery-status" }),
     });
     expect(mockParseMetaRecord.mock.results.at(-1)?.value).toMatchObject({ state: "Integrating" });
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
       status: "attested",
-      locus: { locus: "hosted-review-pending", candidateId },
+      locus: { locus: "delivery-status-required", candidateId },
     });
   });
 
@@ -1715,7 +1715,7 @@ describe("handleAttest", () => {
     await handleAttest("foo", { json: true, newRoot: true });
 
     expect(persistedBoundary).toMatchObject({
-      locus: "hosted-review-pending",
+      locus: "delivery-status-required",
       candidateId,
       candidateSubjectDigest: subjectDigest,
       reservation,
@@ -1724,7 +1724,7 @@ describe("handleAttest", () => {
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
       status: "attested",
       operation: "re-root",
-      locus: { locus: "hosted-review-pending", candidateId },
+      locus: { locus: "delivery-status-required", candidateId },
     });
   });
 
@@ -1845,7 +1845,7 @@ describe("handleAttest", () => {
     });
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
       status: "attested",
-      locus: { locus: "hosted-review-pending", candidateId },
+      locus: { locus: "delivery-status-required", candidateId },
     });
   });
 

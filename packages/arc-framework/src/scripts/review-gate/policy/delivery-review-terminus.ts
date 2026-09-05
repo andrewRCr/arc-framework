@@ -141,12 +141,11 @@ export async function resolveDeliveryReviewTerminusAcceptance(
   const current = await dependencies.readBoundary(offer.workUnitId);
   const boundary = current.boundary;
   if (boundary === null
-    || boundary.locus !== "hosted-review-pending"
-    || boundary.nextAction.kind !== "continue-hosted-review"
+    || boundary.locus !== "delivery-status-required"
     || boundary.reservation.target.kind !== "delivery"
     || boundary.workUnit !== offer.workUnitId
     || boundary.reservation.target.planId !== offer.vehicle.planId) {
-    return refused("boundary-unavailable", "The exact hosted delivery-review boundary is unavailable.");
+    return refused("boundary-unavailable", "The exact delivery status is unavailable.");
   }
   const authority = await dependencies.readOwnerAuthority(offer.workUnitId);
   if (authority.status !== "authorized") {

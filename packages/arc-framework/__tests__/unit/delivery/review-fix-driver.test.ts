@@ -172,14 +172,14 @@ describe("delivery review-fix driver", () => {
         progress,
       })
       .mockResolvedValueOnce({
-        step: { status: "authority-required", authority: "hosted-review" },
+        step: { status: "authority-required", authority: "delivery-status" },
         progress: { ...progress, stateRevision: 8 },
       });
     const execute = vi.fn().mockResolvedValue({ status: "already-acknowledged", replayed: true });
 
     await expect(driveDeliveryReviewFixContinuation({ project, execute })).resolves.toEqual({
       status: "authority-required",
-      authority: "hosted-review",
+      authority: "delivery-status",
       effectLog: [{
         kind: "no-op-replay",
         actionKind: "delivery-review-fix-acknowledge",

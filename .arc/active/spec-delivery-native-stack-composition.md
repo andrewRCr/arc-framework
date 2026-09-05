@@ -2044,6 +2044,45 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   same terminal delta routes directly to Candidate verification closeout. This changes no review verdict,
   applicability, landing, or teardown authority: position and teardown still reobserve their exact host facts.
 
+- **D9.17 Post-landing review reduction preserves settled member evidence and names only the work that remains —
+  amended 2026-09-05 after the first live terminal rebind.** A delivery reservation projects a provider-neutral
+  delivery-review continuation rather than claiming that hosted review is pending. Its work-unit status command
+  still reduces the complete member conjunction, but only the returned hosted-request action claims or spends a
+  provider pass. Owner applicability, response, and terminus work retain their existing typed actions, and a settled
+  conjunction advances without a hosted-review fiction.
+
+  When a post-landing Candidate root moves beyond the protected target, merged members whose host heads and retained
+  state coordinates still form the exact authored predecessor chain keep those recorded review spans. This is the
+  native aggregate result: the shared merge changes the protected target but deliberately does not rewrite member
+  coordinates. A sequential landing whose state coordinates no longer match the merged request heads retains the
+  existing changed-target reconstruction from the Candidate base and prior observed member heads. The two cases are
+  selected only from the complete exact chain; no review verdict or landing fact is copied into a new record.
+
+- **D9.18 Stale public continuation routes through attestation before digest mismatch refusal — amended 2026-09-05.**
+  When the same current Candidate is verified, the delivery continuation names an older Delivery State revision, and
+  its stored subject digest differs from the recognized current subject, integration entry returns the existing
+  `candidate-renewal-required` attestation action. Attestation remains the sole validator and writer of the renewed
+  boundary. A different Candidate, a non-current Candidate, a current or forward continuation revision, or any
+  mismatched delivery identity still refuses; the entry seam gains no authority to rewrite evidence itself.
+
+- **D9.19 Native aggregate teardown accepts only the retained exact stacked base — amended 2026-09-05.** A proven
+  landed non-terminal member may retain its authored predecessor branch as the merged request base because native
+  aggregate landing closes the complete set without sequential retargeting. Teardown therefore accepts either the
+  protected target or that member's exact immediate predecessor ref derived from the current plan and coherent
+  state. Initial execution, interrupted-operation recovery, and final reobservation share the same closed base set;
+  an arbitrary, skipped, unlanded, or otherwise mismatched base still refuses before branch deletion or state
+  settlement.
+
+- **D9.20 Delivery status never implies that review remains open — amended 2026-09-05 before terminal closeout.**
+  D9.17's interim continuation name is replaced by the neutral `delivery-status-required` locus and
+  `resolve-delivery-status` action. Entry exposes that action as `deliveryStatusAction`; correction dispatch carries
+  `delivery-status` authority only to execute the exact reducer. These names describe neither a pending provider pass
+  nor a request for a new review decision. The work-unit status command reduces the retained member conjunction and
+  may immediately return the settled route when Owner termini already cover every member. Only a downstream exact
+  `review-hosted-request` action represents review work or authorizes provider spend. Existing exact legacy
+  `hosted-review-pending` delivery records remain a read-only normalization input; canonical writes use only the
+  neutral status shape.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

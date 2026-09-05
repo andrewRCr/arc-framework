@@ -6,12 +6,15 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/canonical/canonical-json.js";
-import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
+import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../../../lib/delivery/host.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
-import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
+import type {
+  DeliveryDischargeTargetBinding,
+  DeliveryDischargeTargetLookup,
+} from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from
   "../hosts/local/disposition-record-store.js";
@@ -242,9 +245,14 @@ export async function resolveHostedReservationTargets(input: {
     if (resolved.status !== "resolved" || resolved.targets.length === 0) {
       return { status: "unavailable", targets: [] };
     }
-    const targets: HostedReservationTarget[] = [];
+    const observedTargets: Array<{
+      readonly binding: DeliveryDischargeTargetBinding;
+      readonly index: number;
+      readonly pullRequest: number;
+      readonly request: DeliveryHostChangeRequest;
+      readonly targetHead: string;
+    }> = [];
     const requestIds = new Set<string>();
-    let landedBaseRevision = input.singleton.baseRevision;
     for (const [index, binding] of resolved.targets.entries()) {
       if (marker?.kind === "delivery"
         && (binding.planId !== marker.planId || binding.workUnitId !== marker.workUnitId)) {
@@ -287,11 +295,26 @@ export async function resolveHostedReservationTargets(input: {
         return { status: "unavailable", targets: [] };
       }
       const targetHead = representedPreparedTerminal ? binding.head : request.headSha;
+      observedTargets.push({ binding, index, pullRequest, request, targetHead });
+    }
+    const retainedAuthoredMergedChain = observedTargets
+      .filter(({ request }) => request.state === "merged")
+      .every(({ binding, index, request }) => {
+        const priorBinding = resolved.targets[index - 1];
+        return request.headSha === binding.head
+          && (priorBinding === undefined || binding.base === priorBinding.head);
+      });
+    const targets: HostedReservationTarget[] = [];
+    let landedBaseRevision = input.singleton.baseRevision;
+    for (const { binding, pullRequest, request, targetHead } of observedTargets) {
+      const retainsAuthoredCoordinates = request.state === "merged" && retainedAuthoredMergedChain;
       targets.push({
         repository: input.singleton.repository,
         pullRequest,
         headSha: targetHead,
-        baseRevision: request.state === "open" ? binding.base : landedBaseRevision,
+        baseRevision: request.state === "open" || retainsAuthoredCoordinates
+          ? binding.base
+          : landedBaseRevision,
         position: binding.position,
         memberCount: binding.memberCount,
         chunkKey: binding.chunkKey,

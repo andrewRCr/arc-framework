@@ -174,6 +174,7 @@ import {
   executeFreshDeliverySuffixRematerialization,
 } from "../lib/delivery/suffix-rematerialization.js";
 import {
+  deliveryTeardownAcceptedBaseRefs,
   matchesDeliveryTeardownRequest,
   teardownLandedDeliveryMember,
 } from "../lib/delivery/teardown.js";
@@ -290,7 +291,7 @@ import { defaultMergeLockPort } from "./review.js";
 import { resolveCandidateMutationOwner } from "./candidate-mutation-owner.js";
 import { inspectActiveRepositoryDeliveryEntry } from "./delivery-entry.js";
 import { requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
-import { ContinueHostedReviewActionSchema, ContinuePublicationActionSchema } from
+import { ResolveDeliveryStatusActionSchema, ContinuePublicationActionSchema } from
   "../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -871,8 +872,8 @@ const ReviewFixContinuationAuthorityActionSchema = z.discriminatedUnion("kind", 
     argv: z.tuple([z.literal("arc"), z.literal("attest"), SlugSchema, z.literal("--json")]),
   }),
   z.strictObject({
-    kind: z.literal("hosted-review"),
-    action: ContinueHostedReviewActionSchema,
+    kind: z.literal("delivery-status"),
+    action: ResolveDeliveryStatusActionSchema,
   }),
   z.strictObject({
     kind: z.literal("publication"),
@@ -1022,7 +1023,7 @@ const ReviewFixContinuationResultSchema = z.union([
   }),
   z.strictObject({
     status: z.literal("authority-required"),
-    authority: z.enum(["candidate-renewal", "hosted-review", "publication"]),
+    authority: z.enum(["candidate-renewal", "delivery-status", "publication"]),
     nextAction: z.literal("dispatch-authority-action"),
     action: ReviewFixContinuationAuthorityActionSchema,
     recommendedActionText: z.string().min(1),
@@ -1147,7 +1148,7 @@ const ResultSchema = z.union([
       verificationId: DeliveryCanonicalDigestSchema,
       recordPath: z.string().min(1),
     }),
-    nextAction: z.literal("continue-hosted-review"),
+    nextAction: z.literal("resolve-delivery-status"),
     boundaryCarry: z.strictObject({
       path: z.string().min(1),
       candidateId: DeliveryCanonicalDigestSchema,
@@ -2212,7 +2213,7 @@ async function executeDeliveryCommand(
       }
       if (beforeCandidate === null || currentCandidate === null
         || beforeBoundary.workUnit !== workUnitId || currentBoundary.workUnit !== workUnitId
-        || currentBoundary.locus !== "hosted-review-pending"
+        || currentBoundary.locus !== "delivery-status-required"
         || currentBoundary.reservation.target.kind !== "delivery") {
         return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
       }
@@ -2803,7 +2804,7 @@ async function executeDeliveryCommand(
           }
           const mayResume = mechanicallyPreserved
             ? pendingDeliveryReviewFixCanResumeFromIntegrationStatus(integratingEntry.status)
-            : integratingEntry.status === "continue-hosted-review";
+            : integratingEntry.status === "resolve-delivery-status";
           if (!mayResume) {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
@@ -2916,10 +2917,10 @@ async function executeDeliveryCommand(
         if (terminalRebind.status !== "not-required") return terminalRebind;
       }
       const continuation = projectDeliveryReviewFixContinuation({ request: projectionRequest, entry });
-      if (continuation.status !== "authority-required" || continuation.authority !== "hosted-review") {
+      if (continuation.status !== "authority-required" || continuation.authority !== "delivery-status") {
         return continuation;
       }
-      if (entry.status !== "continue-hosted-review") {
+      if (entry.status !== "resolve-delivery-status") {
         return { status: "refused" as const, reason: "review-status-entry-mismatch" };
       }
       const terminalRebind = await projectTerminalRecordRebind(entry.planId);
@@ -2995,14 +2996,14 @@ async function executeDeliveryCommand(
           reviewStatus,
           ...(authorityPreservation === undefined ? {} : { authorityPreservation }),
           recommendedActionText:
-            "Continue from the exact composed hosted-review status without re-deriving a member or pass.",
+            "Continue from the exact composed delivery status without re-deriving a member or pass.",
         };
       } catch {
         return {
           status: "refused" as const,
           reason: "review-status-unavailable",
           recommendedActionText:
-            "Restore the self-contained hosted delivery-review continuation before retrying the correction.",
+            "Restore the self-contained delivery status before retrying the correction.",
         };
       }
     };
@@ -3498,7 +3499,7 @@ async function executeDeliveryCommand(
           verificationId: recorded.transition.verificationId,
           recordPath,
         },
-        nextAction: "continue-hosted-review" as const,
+        nextAction: "resolve-delivery-status" as const,
         boundaryCarry: {
           path: boundaryPath,
           candidateId: carried.candidateId,
@@ -5245,7 +5246,8 @@ async function executeDeliveryCommand(
           candidate,
           publication: {
             settled: boundary.locus === "publication-pending"
-              || boundary.locus === "hosted-review-pending",
+              || boundary.locus === "hosted-review-pending"
+              || boundary.locus === "delivery-status-required",
             candidateId: boundary.candidateId,
             candidateSubjectDigest: boundary.candidateSubjectDigest,
           },
@@ -5416,10 +5418,19 @@ async function executeDeliveryCommand(
             if (ref.status === "refused" || request.status !== "observed" || targetRef === undefined) {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
+            const acceptedBaseRefs = deliveryTeardownAcceptedBaseRefs({
+              plan: currentPlan,
+              state: currentState.value,
+              deliverableId: before.deliverableId,
+              protectedTargetRef: targetRef,
+            });
+            if (acceptedBaseRefs === null) {
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
+            }
             const exactRequest = matchesDeliveryTeardownRequest({
                 request: request.request,
                 repository: parsed.repository,
-                protectedTargetRef: targetRef,
+                acceptedBaseRefs,
                 member: before,
             });
             if (!exactRequest) {

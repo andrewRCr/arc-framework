@@ -474,7 +474,8 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The current Candidate publication subject is unavailable.");
       }
       const publicLocus = publicationBoundary?.locus === "publication-pending"
-        || publicationBoundary?.locus === "hosted-review-pending";
+        || publicationBoundary?.locus === "hosted-review-pending"
+        || publicationBoundary?.locus === "delivery-status-required";
       return publicationBoundary !== null
         && publicLocus
         && publicationBoundary.candidateId === value.effective.candidateId
@@ -682,7 +683,8 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The durable publication boundary belongs to a different Candidate subject.");
       }
       if (publicationBoundary.locus !== "publication-pending"
-        && publicationBoundary.locus !== "hosted-review-pending") {
+        && publicationBoundary.locus !== "hosted-review-pending"
+        && publicationBoundary.locus !== "delivery-status-required") {
         throw new Error("The durable publication boundary has not entered public integration.");
       }
       const configuredBase = (await settings()).settings["branch.base"];

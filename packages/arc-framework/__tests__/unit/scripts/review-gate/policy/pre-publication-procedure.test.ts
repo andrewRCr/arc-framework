@@ -14,7 +14,7 @@ import {
   parseIntegrationBoundaryLocus,
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
   recoverIntegratingBoundary,
   recoverPublicationBoundary,
@@ -105,7 +105,7 @@ describe("integration boundary locus", () => {
     });
   });
 
-  it("routes a public delivery reservation directly to hosted-member status", () => {
+  it("routes a public delivery reservation through provider-neutral member status", () => {
     expect(projectPublicationBoundary({
       workUnit: "example",
       candidateId: `sha256:${"c".repeat(64)}`,
@@ -113,9 +113,9 @@ describe("integration boundary locus", () => {
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
     })).toMatchObject({
-      locus: "hosted-review-pending",
+      locus: "delivery-status-required",
       nextAction: {
-        kind: "continue-hosted-review",
+        kind: "resolve-delivery-status",
         workUnitId: "example",
         command: "arc review status --work-unit example --json",
       },
@@ -130,11 +130,12 @@ describe("integration boundary locus", () => {
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
     });
-    if (current.nextAction.kind !== "continue-hosted-review") {
-      throw new Error("expected delivery continuation");
+    if (current.nextAction.kind !== "resolve-delivery-status") {
+      throw new Error("expected delivery status");
     }
     const legacy = {
       ...current,
+      locus: "hosted-review-pending" as const,
       nextAction: {
         kind: "continue-hosted-review" as const,
         command: "arc review status --target '{targetRef}' --json" as const,
@@ -143,10 +144,40 @@ describe("integration boundary locus", () => {
     };
 
     expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
+      locus: "delivery-status-required",
       nextAction: {
-        kind: "continue-hosted-review",
+        kind: "resolve-delivery-status",
         workUnitId: "example",
         command: "arc review status --work-unit example --json",
+        interactionText: "Resolve the retained delivery status.",
+      },
+    });
+  });
+
+  it("normalizes the former work-unit delivery action without admitting it as a canonical boundary", () => {
+    const current = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+    const legacy = {
+      ...current,
+      locus: "hosted-review-pending" as const,
+      nextAction: {
+        ...current.nextAction,
+        kind: "continue-hosted-review" as const,
+        interactionText: "Resume the retained delivery-member review conjunction.",
+      },
+    };
+
+    expect(IntegrationBoundaryLocusSchema.safeParse(legacy).success).toBe(false);
+    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
+      locus: "delivery-status-required",
+      nextAction: {
+        kind: "resolve-delivery-status",
+        interactionText: "Resolve the retained delivery status.",
       },
     });
   });
@@ -190,7 +221,7 @@ describe("integration boundary locus", () => {
       memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
     };
 
-    expect(projectCorrectiveDeliveryReviewBoundary({
+    expect(projectCorrectiveDeliveryStatusBoundary({
       workUnit: "example",
       candidateId: currentCandidateId,
       candidateSubjectDigest: SUBJECT_DIGEST,
@@ -203,12 +234,12 @@ describe("integration boundary locus", () => {
       workUnit: "example",
       candidateId: currentCandidateId,
       candidateSubjectDigest: SUBJECT_DIGEST,
-      locus: "hosted-review-pending",
+      locus: "delivery-status-required",
       nextAction: {
-        kind: "continue-hosted-review",
+        kind: "resolve-delivery-status",
         workUnitId: "example",
         command: "arc review status --work-unit example --json",
-        interactionText: "Resume the retained delivery-member review conjunction.",
+        interactionText: "Resolve the retained delivery status.",
       },
       policy: null,
       reservation: source.reservation,
@@ -238,7 +269,7 @@ describe("integration boundary locus", () => {
       stateDigest: `sha256:${"2".repeat(64)}`,
       memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
     };
-    const carried = projectCorrectiveDeliveryReviewBoundary({
+    const carried = projectCorrectiveDeliveryStatusBoundary({
       workUnit: "example",
       candidateId,
       candidateSubjectDigest: SUBJECT_DIGEST,
@@ -253,7 +284,7 @@ describe("integration boundary locus", () => {
       memberEvidenceDigest: `sha256:${"5".repeat(64)}`,
     };
 
-    expect(projectCorrectiveDeliveryReviewBoundary({
+    expect(projectCorrectiveDeliveryStatusBoundary({
       workUnit: "example",
       candidateId,
       candidateSubjectDigest: SUBJECT_DIGEST,

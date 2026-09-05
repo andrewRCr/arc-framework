@@ -160,7 +160,7 @@ import {
 import {
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
@@ -2798,7 +2798,7 @@ export async function handleAttest(
         rawExec: createRawGitExec(base.cwd),
       }),
       publish: async (publication) => {
-        let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryReviewBoundary> | null = null;
+        let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryStatusBoundary> | null = null;
         if (deliveryRenewal.status === "ready") {
           const fresh = await inspectRepositoryDeliveryCandidateRenewal({
             cwd: base.cwd,
@@ -2817,7 +2817,7 @@ export async function handleAttest(
             throw new DeliveryCandidateRenewalRefusal("public delivery boundary disappeared");
           }
           try {
-            deliveryLocus = projectCorrectiveDeliveryReviewBoundary({
+            deliveryLocus = projectCorrectiveDeliveryStatusBoundary({
               workUnit: publication.name,
               candidateId: publication.candidateId,
               candidateSubjectDigest: publication.candidateSubjectDigest,

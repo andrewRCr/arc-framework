@@ -307,7 +307,7 @@ export function pendingDeliveryReviewFixCanResumeFromIntegrationStatus(
   return status === "candidate-renewal-required"
     || status === "candidate-verification-required"
     || status === "correction-routing-required"
-    || status === "continue-hosted-review";
+    || status === "resolve-delivery-status";
 }
 
 type VerificationResult = {
@@ -702,12 +702,12 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       recommendedActionText: entry.recommendedActionText,
     };
   }
-  if (entry.status === "continue-hosted-review") {
+  if (entry.status === "resolve-delivery-status") {
     return {
       status: "authority-required" as const,
-      authority: "hosted-review" as const,
+      authority: "delivery-status" as const,
       nextAction: "dispatch-authority-action" as const,
-      action: { kind: "hosted-review" as const, action: entry.hostedReviewAction },
+      action: { kind: "delivery-status" as const, action: entry.deliveryStatusAction },
       recommendedActionText: entry.recommendedActionText,
     };
   }

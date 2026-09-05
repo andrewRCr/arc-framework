@@ -897,7 +897,7 @@ describe("delivery review-fix continuation projection", () => {
 
   it.each([
     ["continue-publication", "publication"],
-    ["continue-hosted-review", "hosted-review"],
+    ["resolve-delivery-status", "delivery-status"],
   ] as const)("preserves the %s authority boundary", (status, authority) => {
     const entry = status === "continue-publication"
         ? {
@@ -914,11 +914,11 @@ describe("delivery review-fix continuation projection", () => {
           }
         : {
             status,
-            nextAction: "continue-hosted-review" as const,
+            nextAction: "resolve-delivery-status" as const,
             planId: plan.planId,
             stateRevision: 10,
-            hostedReviewAction: {
-              kind: "continue-hosted-review" as const,
+            deliveryStatusAction: {
+              kind: "resolve-delivery-status" as const,
               workUnitId: plan.workUnitId,
               command: `arc review status --work-unit ${plan.workUnitId} --json`,
               interactionText: recommendedActionText,
@@ -953,7 +953,7 @@ describe("delivery review-fix continuation projection", () => {
   it.each([
     "candidate-renewal-required",
     "candidate-verification-required",
-    "continue-hosted-review",
+    "resolve-delivery-status",
   ] as const)("preserves a proven pending response through %s", (status) => {
     expect(pendingDeliveryReviewFixCanResumeFromIntegrationStatus(status)).toBe(true);
   });

@@ -4843,6 +4843,35 @@ meta exists and that resolution shape is the exact defect the retired terminal a
             19. Require the live entry to route the terminal delta to Candidate verification, then require a fresh
                 compaction seed and recovery audit to resolve this checkout without manual locus reconstruction.
 
+        - _Terminal-closeout amendment (2026-09-05):_ Candidate renewal after aggregate landing exposed three
+          coupled false stops: the review boundary still claimed hosted work, review status rebound landed member
+          spans to the new Candidate base, and teardown rejected each request's retained stacked base.
+
+            20. Reproduce a post-landing Candidate root beyond the aggregate target and require exact retained member
+                coordinates to preserve their authored review spans. Keep the existing sequential changed-target
+                reconstruction when state coordinates differ from merged request heads.
+            21. Replace the delivery reservation's hosted-specific locus and action with one provider-neutral
+                continuation across entry, status, terminus, correction, checkpoint, session, and workflow consumers.
+                Reserve hosted wording and spend for an actual hosted-request result only.
+            22. Route a same-Candidate stale continuation with recognized subject movement through the ordinary
+                attestation renewal, while retaining mismatch refusal for different Candidates and non-stale state.
+            23. Accept teardown only against the protected target or the selected landed member's exact immediate
+                predecessor ref, using the same derived base set in initial execution, final reobservation, and
+                interrupted-operation recovery. Prove an arbitrary stacked base still refuses.
+            24. Renew the live boundary, record the already-directed Owner terminus for the exact terminal head,
+                tear down the landed non-terminal refs, and require the fresh position to reach terminal checkpoint.
+
+        - _Past-review terminology amendment (2026-09-05):_ The provider-neutral continuation still told the
+          operator to continue delivery review after the Owner had ended review. Make the boundary describe only the
+          unresolved status reduction; reserve review language and spend authority for a downstream explicit review
+          action.
+
+            25. Rename the canonical locus, action, entry field, and correction dispatch to delivery-status terms
+                across schemas, consumers, recovery, session projection, and both workflow copies.
+            26. Prove the work-unit reducer may return settled immediately from the neutral action and that only an
+                exact hosted-request result claims review work; retain exact read-only normalization of the older
+                delivery-shaped hosted boundary.
+
 ---
 
 ## Success Criteria

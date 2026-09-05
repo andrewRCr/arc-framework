@@ -24,7 +24,7 @@ import {
 import { projectDeliveryPublicReviewContinuation } from
   "../../../src/lib/delivery/public-review-continuation.js";
 import {
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { ApprovedDispositionRecordSchema } from
@@ -301,7 +301,7 @@ describe("delivery review-fix routing", () => {
       reservation,
       changeRequest: null,
     });
-    const boundary = projectCorrectiveDeliveryReviewBoundary({
+    const boundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId,
       candidateSubjectDigest: previousCandidateSubjectDigest,
@@ -324,7 +324,7 @@ describe("delivery review-fix routing", () => {
       boundary: {
         candidateId,
         candidateSubjectDigest,
-        locus: "hosted-review-pending",
+        locus: "delivery-status-required",
         deliveryContinuation: { stateRevision: 10 },
       },
     });

@@ -775,7 +775,7 @@ export function selectDeliveryReviewStatusTarget(input: {
   };
 }
 
-/** Resolve the live stacked-delivery review action without reconstructing a member target. */
+/** Resolve live stacked-delivery status without reconstructing a member target. */
 export async function resolveReviewStatusForWorkUnit(input: {
   readonly cwd: string;
   readonly exec: GitExec;
@@ -788,14 +788,13 @@ export async function resolveReviewStatusForWorkUnit(input: {
   const workUnitId = SlugSchema.parse(input.workUnitId);
   const versionedBoundary = await readSubmissionBoundaryVersioned(input.cwd, workUnitId);
   const boundary = versionedBoundary.boundary;
-  if (boundary?.locus !== "hosted-review-pending"
-    || boundary.nextAction.kind !== "continue-hosted-review"
+  if (boundary?.locus !== "delivery-status-required"
     || boundary.nextAction.workUnitId !== workUnitId
     || boundary.reservation.target.kind !== "delivery"
     || boundary.reservation.target.workUnitId !== workUnitId
     || boundary.candidateSubjectDigest === null
     || versionedBoundary.version === null) {
-    throw new Error("The work unit has no self-contained hosted delivery-review continuation.");
+    throw new Error("The work unit has no self-contained delivery status action.");
   }
   const memberLookup = new RepositoryDeliveryMemberLookup(input);
   const delivery = await memberLookup.resolveTerminalRecords(workUnitId);

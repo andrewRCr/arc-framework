@@ -1476,7 +1476,7 @@ describe("arc delivery position", () => {
     expect(JSON.parse(resumed.stdout), resumed.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "acknowledged",
-      nextAction: "continue-hosted-review",
+      nextAction: "resolve-delivery-status",
       boundaryCarry: { candidateId: candidate.attestation.candidateId },
     });
     const replayed = await runArcWithStdin(
@@ -1489,7 +1489,7 @@ describe("arc delivery position", () => {
     expect(JSON.parse(replayed.stdout), replayed.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "already-acknowledged",
-      nextAction: "continue-hosted-review",
+      nextAction: "resolve-delivery-status",
       boundaryCarry: { candidateId: candidate.attestation.candidateId },
     });
 
@@ -1516,8 +1516,8 @@ describe("arc delivery position", () => {
     );
     expect(recoveredEntry.exitCode, `${recoveredEntry.stderr}\n${recoveredEntry.stdout}`).toBe(0);
     expect(JSON.parse(recoveredEntry.stdout)).toMatchObject({
-      status: "continue-hosted-review",
-      nextAction: "continue-hosted-review",
+      status: "resolve-delivery-status",
+      nextAction: "resolve-delivery-status",
     });
 
     const session = await runArc(["status", "--session-init", "--json"], fixture.repository, {
@@ -2572,7 +2572,7 @@ describe("arc delivery position", () => {
     expect(acknowledgedOutput, acknowledged.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "acknowledged",
-      nextAction: "continue-hosted-review",
+      nextAction: "resolve-delivery-status",
       recordEffects: expect.arrayContaining([
         { path: resolveCandidateRecordRelativePath(fixture.plan.workUnitId), digest: expect.any(String) },
         { path: resolveSubmissionBoundaryPath(fixture.plan.workUnitId), digest: expect.any(String) },
@@ -2703,7 +2703,7 @@ describe("arc delivery position", () => {
     expect(replayedAcknowledgementOutput, replayedAcknowledgement.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "already-acknowledged",
-      nextAction: "continue-hosted-review",
+      nextAction: "resolve-delivery-status",
       recordEffects: expect.arrayContaining([
         { path: resolveCandidateRecordRelativePath(fixture.plan.workUnitId), digest: expect.any(String) },
         { path: resolveSubmissionBoundaryPath(fixture.plan.workUnitId), digest: expect.any(String) },

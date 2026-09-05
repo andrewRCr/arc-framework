@@ -22,7 +22,7 @@ import {
   type CandidateManagedRecordV1,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 import {
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
@@ -97,7 +97,7 @@ describe("delivery review-fix record effects", () => {
       reservation,
       changeRequest: null,
     });
-    const beforeBoundary = projectCorrectiveDeliveryReviewBoundary({
+    const beforeBoundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId: candidate.attestation.candidateId,
       candidateSubjectDigest: candidate.subject.subjectDigest,

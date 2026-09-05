@@ -15,7 +15,7 @@ import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js
 import { projectDeliveryPublicReviewContinuation } from
   "../../../src/lib/delivery/public-review-continuation.js";
 import {
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
@@ -154,7 +154,7 @@ function publicContinuationFixture() {
     },
     changeRequest: null,
   });
-  const boundary = projectCorrectiveDeliveryReviewBoundary({
+  const boundary = projectCorrectiveDeliveryStatusBoundary({
     workUnit: plan.workUnitId,
     candidateId,
     candidateSubjectDigest,
@@ -162,8 +162,8 @@ function publicContinuationFixture() {
     sourceBoundary: source,
     deliveryContinuation: continuation.continuation,
   });
-  if (boundary.locus !== "hosted-review-pending") {
-    throw new Error("fixture boundary must resume hosted review");
+  if (boundary.locus !== "delivery-status-required") {
+    throw new Error("fixture boundary must resume delivery review");
   }
   return { state, stateRevision, candidateId, candidateSubjectDigest, boundary };
 }
@@ -412,7 +412,7 @@ describe("delivery entry inspection", () => {
       },
       changeRequest: null,
     });
-    const boundary = projectCorrectiveDeliveryReviewBoundary({
+    const boundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId,
       candidateSubjectDigest,
@@ -432,11 +432,11 @@ describe("delivery entry inspection", () => {
       integrationBoundary: boundary,
       candidate: { candidateId, subjectDigest: candidateSubjectDigest },
     }))).resolves.toMatchObject({
-      status: "continue-hosted-review",
-      nextAction: "continue-hosted-review",
+      status: "resolve-delivery-status",
+      nextAction: "resolve-delivery-status",
       planId: plan.planId,
       stateRevision,
-      hostedReviewAction: boundary.nextAction,
+      deliveryStatusAction: boundary.nextAction,
     });
   });
 
@@ -517,7 +517,35 @@ describe("delivery entry inspection", () => {
     });
   });
 
-  it("preserves hosted review across a proven same-Candidate terminal record advance", async () => {
+  it("routes a stale same-Candidate continuation to renewal before subject-digest refusal", async () => {
+    const fixture = publicContinuationFixture();
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision + 1,
+      integrationBoundary: fixture.boundary,
+      candidate: {
+        candidateId: fixture.candidateId,
+        subjectDigest: `sha256:${"1".repeat(64)}`,
+        verificationResponseCurrent: true,
+      },
+    }))).resolves.toMatchObject({
+      status: "candidate-renewal-required",
+      nextAction: "renew-public-continuation",
+      planId: plan.planId,
+      stateRevision: fixture.stateRevision + 1,
+      attestationAction: {
+        argv: ["arc", "attest", plan.workUnitId, "--json"],
+      },
+    });
+  });
+
+  it("preserves delivery status across a proven same-Candidate terminal record advance", async () => {
     const fixture = publicContinuationFixture();
     const priorHead = fixture.state.members.at(-1)!.coordinates!.head;
     const currentHead = "f".repeat(40);
@@ -551,8 +579,8 @@ describe("delivery entry inspection", () => {
       workUnitId: plan.workUnitId,
       entryMode: "integrating",
     }, inspectionDependencies)).resolves.toMatchObject({
-      status: "continue-hosted-review",
-      nextAction: "continue-hosted-review",
+      status: "resolve-delivery-status",
+      nextAction: "resolve-delivery-status",
       planId: plan.planId,
       stateRevision: fixture.stateRevision + 1,
     });

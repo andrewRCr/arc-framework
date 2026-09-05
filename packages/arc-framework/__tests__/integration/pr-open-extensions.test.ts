@@ -156,7 +156,7 @@ describe("PR-open lifecycle extensions", () => {
     );
     const openedChangeRequest = workflow.indexOf("compose `openedChangeRequest");
     const reservation = workflow.indexOf("integrationBoundary.reservation", openedChangeRequest);
-    const deliveryResume = workflow.indexOf("`continue-hosted-review`", reservation);
+    const deliveryResume = workflow.indexOf("`resolve-delivery-status`", reservation);
     const singletonResume = workflow.indexOf("`continue-pre-publication-review`", deliveryResume);
     const hostedRequest = workflow.indexOf("arc review hosted request -", reservation);
 

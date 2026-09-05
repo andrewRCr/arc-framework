@@ -17,7 +17,7 @@ import {
 import type { RecoveryLocusFrame } from "../../../src/lib/recover/locus-context.js";
 import {
   createStandardReviewReservation,
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -476,7 +476,7 @@ function verificationToPublicOptions(input: {
   });
   const integrationBoundary = input.includeContinuation === false
     ? publicationBoundary
-    : projectCorrectiveDeliveryReviewBoundary({
+    : projectCorrectiveDeliveryStatusBoundary({
         workUnit: "demo",
         candidateId,
         candidateSubjectDigest,
@@ -722,13 +722,13 @@ describe("auditRecoveryState", () => {
     }));
   });
 
-  it("refuses corrective verification return without a Candidate-bound delivery continuation", async () => {
+  it("refuses corrective verification return without Candidate-bound delivery status", async () => {
     const result = await run(verificationToPublicOptions({ includeContinuation: false }));
 
     expect(result.status).toBe("stop");
     expect(result.stopReasons).toContainEqual(expect.objectContaining({
       kind: "integration-correction-unresolved",
-      message: expect.stringContaining("Candidate-bound delivery continuation"),
+      message: expect.stringContaining("Candidate-bound delivery status"),
     }));
   });
 

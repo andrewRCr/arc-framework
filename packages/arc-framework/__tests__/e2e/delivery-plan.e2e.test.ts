@@ -16,7 +16,7 @@ import { projectDeliveryPublicReviewContinuation } from
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
 } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -486,7 +486,7 @@ describe("arc delivery", () => {
       merged: true,
       draft: false,
       head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
-      base: { ref: "main", repo: { full_name: "owner/repo" } },
+      base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
       merge_commit_sha: landedTargetHead,
     }));
     const terminal = state.members.at(-1)!;
@@ -821,7 +821,7 @@ describe("arc delivery", () => {
       stateRevision: 1,
     });
     if (continuation.status !== "projected") throw new Error("delivery continuation must project");
-    const correctiveBoundary = projectCorrectiveDeliveryReviewBoundary({
+    const correctiveBoundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId: candidate.attestation.candidateId,
       candidateSubjectDigest: candidate.subject.subjectDigest,

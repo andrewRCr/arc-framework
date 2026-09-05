@@ -899,6 +899,7 @@ function phaseAcceptsBoundary(
         ...candidateLoci,
         "publication-pending",
         "hosted-review-pending",
+        "delivery-status-required",
       ].includes(boundary.locus);
   }
   return boundary === null;

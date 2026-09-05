@@ -29,9 +29,9 @@ const boundary = IntegrationBoundaryLocusSchema.parse({
   candidateId: digest("c"),
   candidateSubjectDigest: digest("f"),
   terminus: null,
-  locus: "hosted-review-pending",
+  locus: "delivery-status-required",
   nextAction: {
-    kind: "continue-hosted-review",
+    kind: "resolve-delivery-status",
     workUnitId: "example",
     command: "arc review status --work-unit example --json",
     interactionText: "Resume the retained delivery-member review conjunction.",

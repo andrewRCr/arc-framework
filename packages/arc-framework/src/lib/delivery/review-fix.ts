@@ -165,11 +165,10 @@ export function carryDeliveryReviewFixPublicBoundary(input: {
 }): DeliveryReviewFixBoundaryCarryResult {
   const boundary = input.boundary;
   if (boundary.mode !== "integration-boundary"
-    || boundary.locus !== "hosted-review-pending"
+    || boundary.locus !== "delivery-status-required"
     || boundary.workUnit !== input.plan.workUnitId
     || boundary.candidateId !== input.candidateId
     || boundary.candidateSubjectDigest !== input.sourceCandidateSubjectDigest
-    || boundary.nextAction.kind !== "continue-hosted-review"
     || boundary.reservation.target.kind !== "delivery"
     || boundary.reservation.target.planId !== input.plan.planId
     || boundary.reservation.target.workUnitId !== input.plan.workUnitId) {

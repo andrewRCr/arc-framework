@@ -94,7 +94,7 @@ describe("hosted review fan-out workflow", () => {
       "Resolve the branch head",
     );
     expect(entryDispatch).toMatch(
-      /continue-hosted-review[\s\S]*Step 2[\s\S]*do not resolve a singleton change request/iu,
+      /resolve-delivery-status[\s\S]*Step 2[\s\S]*do not resolve a singleton change request/iu,
     );
     expect(entryDispatch).toMatch(
       /candidate-renewal-required[\s\S]*attestationAction[\s\S]*requires `unchanged`[\s\S]*without replaying[\s\S]*verification/iu,
@@ -138,7 +138,7 @@ describe("hosted review fan-out workflow", () => {
       /Owner alternative first[\s\S]*Absent[\s\S]*explicit acceptance[\s\S]*selectionAction/iu,
     );
     expect(section).toMatch(/terminus[\s\S]*never[\s\S]*(?:clean|converged)/iu);
-    const deliveryResume = section.indexOf("`continue-hosted-review`");
+    const deliveryResume = section.indexOf("`resolve-delivery-status`");
     const singletonResume = section.indexOf("`continue-pre-publication-review`", deliveryResume);
     expect(deliveryResume).toBeGreaterThanOrEqual(0);
     expect(singletonResume).toBeGreaterThan(deliveryResume);

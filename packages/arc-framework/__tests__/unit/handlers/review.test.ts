@@ -935,9 +935,9 @@ describe("handleReviewTerminusAccept", () => {
       candidateId: `sha256:${"c".repeat(64)}`,
       candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
       terminus: null,
-      locus: "hosted-review-pending",
+      locus: "delivery-status-required",
       nextAction: {
-        kind: "continue-hosted-review",
+        kind: "resolve-delivery-status",
         workUnitId: "example",
         command: "arc review status --work-unit example --json",
         interactionText: "Resume review.",

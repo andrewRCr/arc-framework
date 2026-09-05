@@ -173,6 +173,53 @@ describe("landed delivery teardown", () => {
     }
   });
 
+  it("accepts the exact authored predecessor base for a landed stacked member", async () => {
+    const { plan, state: initial } = fixture();
+    const members = initial.members.map((member, index) => ({
+      ...member,
+      changeRequest: { providerId: "github", changeRequestId: String(101 + index) },
+    }));
+    const state = { ...initial, members };
+    const predecessor = members[0]!;
+    const highest = members[1]!;
+    const terminal = members[2]!;
+    const facts = {
+      target: state.target,
+      members,
+      landedDeliverableIds: [predecessor.deliverableId, highest.deliverableId],
+    };
+    const memberRequest = {
+      binding: highest.changeRequest!, repository: "owner/repo", headRepository: "owner/repo",
+      headRef: highest.ref!.replace("refs/heads/", ""), headSha: highest.coordinates!.head,
+      baseRef: predecessor.ref!.replace("refs/heads/", ""), state: "merged" as const, draft: false,
+    };
+    const result = await teardownLandedDeliveryMember({
+      plan,
+      current: { revision: 4, value: state },
+      facts,
+      deliverableId: highest.deliverableId,
+      repository: "owner/repo",
+      protectedTargetRef: "refs/heads/main",
+      host: { readRequest: async (_repository, binding) => binding.changeRequestId === "102"
+        ? { status: "observed", request: memberRequest }
+        : {
+            status: "observed",
+            request: {
+              binding: terminal.changeRequest!, repository: "owner/repo", headRepository: "owner/repo",
+              headRef: terminal.ref!.replace("refs/heads/", ""), headSha: terminal.coordinates!.head,
+              baseRef: "main", state: "open" as const, draft: true,
+            },
+          } },
+      deleteLocalRef: async () => ({ status: "deleted" }),
+      deleteRemoteRef: async () => ({ status: "deleted" }),
+      stateStore: { publish: async (_id, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    });
+
+    expect(result).toMatchObject({ status: "torn-down", nextAction: "terminal-checkpoint" });
+  });
+
   it("adopts exact ref absence but blocks wrong-head/open/unlanded evidence before reservation", async () => {
     const { plan, state, facts, first, request } = fixture();
     const publish = vi.fn();
@@ -192,6 +239,15 @@ describe("landed delivery teardown", () => {
     await expect(teardownLandedDeliveryMember({
       ...common,
       host: { readRequest: async () => ({ status: "observed", request: { ...request, state: "open" as const } }) },
+      deleteLocalRef: async () => ({ status: "adopted" }),
+      deleteRemoteRef: async () => ({ status: "adopted" }),
+    })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
+    await expect(teardownLandedDeliveryMember({
+      ...common,
+      host: { readRequest: async () => ({
+        status: "observed",
+        request: { ...request, baseRef: "feat/unrelated" },
+      }) },
       deleteLocalRef: async () => ({ status: "adopted" }),
       deleteRemoteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });

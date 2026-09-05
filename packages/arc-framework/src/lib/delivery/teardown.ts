@@ -17,6 +17,29 @@ import {
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
+function branchName(ref: string): string {
+  return ref.replace(/^refs\/heads\//u, "");
+}
+
+/** Derive the only request bases that preserve exact teardown authority for one retained member. */
+export function deliveryTeardownAcceptedBaseRefs(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryStateV1;
+  readonly deliverableId: string;
+  readonly protectedTargetRef: string;
+}): readonly string[] | null {
+  if (canonicalize(input.plan.members.map(({ deliverableId }) => deliverableId))
+    !== canonicalize(input.state.members.map(({ deliverableId }) => deliverableId))) return null;
+  const index = input.plan.members.findIndex(({ deliverableId }) => deliverableId === input.deliverableId);
+  if (index < 0) return null;
+  const accepted = [branchName(input.protectedTargetRef)];
+  if (index === 0) return accepted;
+  const predecessor = input.state.members[index - 1];
+  if (predecessor === undefined || predecessor.ref === null) return null;
+  accepted.push(branchName(predecessor.ref));
+  return [...new Set(accepted)];
+}
+
 export type TeardownLandedDeliveryMemberResult =
   | {
       readonly status: "torn-down";
@@ -52,7 +75,7 @@ export type TeardownLandedDeliveryMemberResult =
 export function matchesDeliveryTeardownRequest(input: {
   readonly request: DeliveryHostChangeRequest;
   readonly repository: string;
-  readonly protectedTargetRef: string;
+  readonly acceptedBaseRefs: readonly string[];
   readonly member: DeliveryStateV1["members"][number];
 }): boolean {
   const { request, member } = input;
@@ -60,9 +83,9 @@ export function matchesDeliveryTeardownRequest(input: {
     && request.repository === input.repository && request.headRepository === input.repository
     && request.binding.providerId === member.changeRequest.providerId
     && request.binding.changeRequestId === member.changeRequest.changeRequestId
-    && request.headRef === member.ref.replace(/^refs\/heads\//u, "")
+    && request.headRef === branchName(member.ref)
     && member.coordinates !== null && request.headSha === member.coordinates.head
-    && request.baseRef === input.protectedTargetRef.replace(/^refs\/heads\//u, "")
+    && input.acceptedBaseRefs.map(branchName).includes(request.baseRef)
     && (request.state === "merged" || request.state === "closed");
 }
 
@@ -97,6 +120,13 @@ export async function teardownLandedDeliveryMember(input: {
   if (member === undefined || member.ref === null || member.changeRequest === null || member.coordinates === null) {
     return { status: "refused", reason: "member-unbound" };
   }
+  const acceptedBaseRefs = deliveryTeardownAcceptedBaseRefs({
+    plan: input.plan,
+    state: input.current.value,
+    deliverableId: input.deliverableId,
+    protectedTargetRef: input.protectedTargetRef,
+  });
+  if (acceptedBaseRefs === null) return { status: "refused", reason: "request-mismatch" };
   const before = {
     target: input.current.value.target,
     members: [{
@@ -111,7 +141,7 @@ export async function teardownLandedDeliveryMember(input: {
   if (initialRequest.status !== "observed" || !matchesDeliveryTeardownRequest({
     request: initialRequest.request,
     repository: input.repository,
-    protectedTargetRef: input.protectedTargetRef,
+    acceptedBaseRefs,
     member,
   })) return { status: "refused", reason: "request-mismatch" };
 
@@ -157,7 +187,7 @@ export async function teardownLandedDeliveryMember(input: {
   if (finalRequest.status !== "observed" || !matchesDeliveryTeardownRequest({
     request: finalRequest.request,
     repository: input.repository,
-    protectedTargetRef: input.protectedTargetRef,
+    acceptedBaseRefs,
     member,
   }) || finalRequest.request.headSha !== initialRequest.request.headSha) {
     return { status: "blocked", reason: "request-mismatch", reservation: persistedReservation };

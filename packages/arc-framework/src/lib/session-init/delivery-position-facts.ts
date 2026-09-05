@@ -26,7 +26,10 @@ import {
   classifyDeliveryTopRemedyObservation,
   matchesDeliveryTopRemedyTrigger,
 } from "../delivery/top-remedy.js";
-import { matchesDeliveryTeardownRequest } from "../delivery/teardown.js";
+import {
+  deliveryTeardownAcceptedBaseRefs,
+  matchesDeliveryTeardownRequest,
+} from "../delivery/teardown.js";
 import { readAncestry } from "../work-unit/git-decomposition-object-readers.js";
 
 interface DeliveryPositionFactsDependencies {
@@ -238,6 +241,7 @@ async function snapshotIsCurrent(
 }
 
 async function observeOperation(
+  plan: DeliveryPlanV1,
   state: DeliveryStateV1,
   revision: number,
   dependencies: DeliveryPositionFactsDependencies,
@@ -330,10 +334,17 @@ async function observeOperation(
       || member.coordinates === null || targetRef === undefined) return null;
     const request = await dependencies.host.readRequest(dependencies.repository, member.changeRequest);
     if (request.status !== "observed") return null;
+    const acceptedBaseRefs = deliveryTeardownAcceptedBaseRefs({
+      plan,
+      state,
+      deliverableId: member.deliverableId,
+      protectedTargetRef: targetRef,
+    });
+    if (acceptedBaseRefs === null) return null;
     if (!matchesDeliveryTeardownRequest({
       request: request.request,
       repository: dependencies.repository,
-      protectedTargetRef: targetRef,
+      acceptedBaseRefs,
       member,
     })) {
       observation = { outcome: "ambiguous" };
@@ -428,7 +439,7 @@ export async function observeRepositoryDeliveryPosition(
   dependencies: DeliveryPositionFactsDependencies,
   options: DeliveryPositionObservationOptions = {},
 ): Promise<DeliveryPositionObservation> {
-  const operation = await observeOperation(state, revision, dependencies);
+  const operation = await observeOperation(plan, state, revision, dependencies);
   if (operation === null) return { status: "refused" };
   const facts = await observeFacts(plan, operation.projected, dependencies, options);
   return facts === null

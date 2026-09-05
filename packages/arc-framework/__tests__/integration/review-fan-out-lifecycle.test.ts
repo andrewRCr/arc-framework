@@ -100,7 +100,7 @@ import { resolveRepositoryIdentity } from
   "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import {
   createStandardReviewReservation,
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
 } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -1521,7 +1521,7 @@ describe("hosted review fan-out lifecycle", () => {
     if (publicContinuation.status !== "projected") throw new Error("delivery continuation must project");
     const publishedBoundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
     if (publishedBoundary.boundary === null) throw new Error("publication boundary must exist");
-    await writeSubmissionBoundary(harness.root, projectCorrectiveDeliveryReviewBoundary({
+    await writeSubmissionBoundary(harness.root, projectCorrectiveDeliveryStatusBoundary({
       workUnit: harness.plan.workUnitId,
       candidateId: renewedCandidate.attestation.candidateId,
       candidateSubjectDigest: renewedCandidate.subject.subjectDigest,
@@ -1570,9 +1570,9 @@ describe("hosted review fan-out lifecycle", () => {
     });
     if (reviewContinuation.status !== "projected") throw new Error("review continuation must project");
     const committedBoundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
-    if (committedBoundary.boundary?.locus !== "hosted-review-pending"
-      || committedBoundary.boundary.nextAction.kind !== "continue-hosted-review") {
-      throw new Error("committed delivery-review boundary must exist");
+    if (committedBoundary.boundary?.locus !== "delivery-status-required"
+      || committedBoundary.boundary.nextAction.kind !== "resolve-delivery-status") {
+      throw new Error("committed delivery-status boundary must exist");
     }
     await writeSubmissionBoundary(harness.root, {
       ...committedBoundary.boundary,
@@ -1847,7 +1847,7 @@ describe("hosted review fan-out lifecycle", () => {
     if (continuation.status !== "projected") throw new Error("delivery continuation must project");
     const sourceBoundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
     if (sourceBoundary.boundary === null) throw new Error("source boundary must exist");
-    const corrective = projectCorrectiveDeliveryReviewBoundary({
+    const corrective = projectCorrectiveDeliveryStatusBoundary({
       workUnit: harness.plan.workUnitId,
       candidateId: renewed.attestation.candidateId,
       candidateSubjectDigest: renewed.subject.subjectDigest,
@@ -1883,8 +1883,8 @@ describe("hosted review fan-out lifecycle", () => {
         },
       }),
     })).resolves.toMatchObject({
-      status: "continue-hosted-review",
-      hostedReviewAction: { kind: "continue-hosted-review" },
+      status: "resolve-delivery-status",
+      deliveryStatusAction: { kind: "resolve-delivery-status" },
     });
 
     await expect(statusThroughHandler(harness, {
@@ -2001,7 +2001,7 @@ describe("hosted review fan-out lifecycle", () => {
     if (continuation.status !== "projected") throw new Error("delivery continuation must project");
     const sourceBoundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
     if (sourceBoundary.boundary === null) throw new Error("source boundary must exist");
-    await writeSubmissionBoundary(harness.root, projectCorrectiveDeliveryReviewBoundary({
+    await writeSubmissionBoundary(harness.root, projectCorrectiveDeliveryStatusBoundary({
       workUnit: harness.plan.workUnitId,
       candidateId: renewed.attestation.candidateId,
       candidateSubjectDigest: renewed.subject.subjectDigest,
@@ -2083,7 +2083,7 @@ describe("hosted review fan-out lifecycle", () => {
       harness.plan.workUnitId,
     );
     if (beforeBoundaryReroot.boundary === null) throw new Error("boundary must exist before re-rooting");
-    await writeSubmissionBoundary(harness.root, projectCorrectiveDeliveryReviewBoundary({
+    await writeSubmissionBoundary(harness.root, projectCorrectiveDeliveryStatusBoundary({
       workUnit: harness.plan.workUnitId,
       candidateId: rerooted.attestation.candidateId,
       candidateSubjectDigest: rerooted.subject.subjectDigest,

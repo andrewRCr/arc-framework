@@ -6,7 +6,7 @@ import { scanTaskListStructure } from "../task-list/scanner.js";
 import { resolveTaskListCursor } from "../task-list/cursor.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import {
-  ContinueHostedReviewActionSchema,
+  ResolveDeliveryStatusActionSchema,
   ContinuePublicationActionSchema,
   type IntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
@@ -213,11 +213,11 @@ export type DeliveryEntryInspectionResult =
       readonly recommendedActionText: string;
     }
   | {
-      readonly status: "continue-hosted-review";
-      readonly nextAction: "continue-hosted-review";
+      readonly status: "resolve-delivery-status";
+      readonly nextAction: "resolve-delivery-status";
       readonly planId: string;
       readonly stateRevision: number;
-      readonly hostedReviewAction: z.infer<typeof ContinueHostedReviewActionSchema>;
+      readonly deliveryStatusAction: z.infer<typeof ResolveDeliveryStatusActionSchema>;
       readonly recommendedActionText: string;
     }
   | {
@@ -372,9 +372,9 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     publicationAction: ContinuePublicationActionSchema, recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
-    status: z.literal("continue-hosted-review"), nextAction: z.literal("continue-hosted-review"),
+    status: z.literal("resolve-delivery-status"), nextAction: z.literal("resolve-delivery-status"),
     planId: DeliveryPlanIdSchema, stateRevision: z.number().int().positive(),
-    hostedReviewAction: ContinueHostedReviewActionSchema, recommendedActionText: z.string().min(1),
+    deliveryStatusAction: ResolveDeliveryStatusActionSchema, recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
     status: z.literal("reopen-permitted"), composition: z.enum(["absent", "unbound"]),
@@ -510,7 +510,9 @@ export async function inspectDeliveryCandidateRenewal(
   }
   if (sourceBoundary === null
     || sourceBoundary.mode !== "integration-boundary"
-    || (sourceBoundary.locus !== "publication-pending" && sourceBoundary.locus !== "hosted-review-pending")
+    || (sourceBoundary.locus !== "publication-pending"
+      && sourceBoundary.locus !== "hosted-review-pending"
+      && sourceBoundary.locus !== "delivery-status-required")
     || sourceBoundary.workUnit !== workUnit
     || sourceBoundary.candidateSubjectDigest === null
     || sourceBoundary.reservation === null
@@ -871,7 +873,7 @@ export async function inspectDeliveryEntry(
       return refused("evidence-unavailable");
     }
     if (boundary.status === "refused") return refused("evidence-unavailable");
-    if (boundary.value?.locus === "hosted-review-pending"
+    if (boundary.value?.locus === "delivery-status-required"
       && boundary.value.deliveryContinuation === undefined) {
       let candidate: ReadCandidate;
       try {
@@ -882,7 +884,6 @@ export async function inspectDeliveryEntry(
       if (candidate.status === "ok"
         && candidate.value?.verificationResponseCurrent === true
         && candidate.value.candidateId === boundary.value.candidateId
-        && boundary.value.nextAction.kind === "continue-hosted-review"
         && boundary.value.reservation.target.kind === "delivery"
         && boundary.value.reservation.target.planId === plan.planId
         && boundary.value.reservation.target.workUnitId === plan.workUnitId) {
@@ -897,7 +898,7 @@ export async function inspectDeliveryEntry(
         };
       }
     }
-    if (boundary.value?.locus === "hosted-review-pending"
+    if (boundary.value?.locus === "delivery-status-required"
       && boundary.value.deliveryContinuation !== undefined) {
       let candidate: ReadCandidate;
       try {
@@ -941,9 +942,26 @@ export async function inspectDeliveryEntry(
             "Complete Candidate verification closeout before resuming the retained public delivery review.",
         };
       }
+      if (candidate.value !== null
+        && candidate.value.candidateId === boundary.value.candidateId
+        && candidate.value.verificationResponseCurrent === true
+        && candidate.value.subjectDigest !== boundary.value.candidateSubjectDigest
+        && boundary.value.deliveryContinuation.stateRevision < state.revision
+        && boundary.value.reservation.target.kind === "delivery"
+        && boundary.value.reservation.target.planId === plan.planId
+        && boundary.value.reservation.target.workUnitId === plan.workUnitId) {
+        return {
+          status: "candidate-renewal-required",
+          nextAction: "renew-public-continuation",
+          planId: plan.planId,
+          stateRevision: state.revision,
+          attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] },
+          recommendedActionText:
+            "Renew the exact public delivery continuation through corrective Candidate attestation.",
+        };
+      }
       if (candidate.value === null || candidate.value.candidateId !== boundary.value.candidateId
         || candidate.value.subjectDigest !== boundary.value.candidateSubjectDigest
-        || boundary.value.nextAction.kind !== "continue-hosted-review"
         || boundary.value.reservation.target.kind !== "delivery"
         || boundary.value.reservation.target.planId !== plan.planId
         || boundary.value.reservation.target.workUnitId !== plan.workUnitId) {
@@ -974,11 +992,11 @@ export async function inspectDeliveryEntry(
         return refused("public-continuation-mismatch");
       }
       return {
-        status: "continue-hosted-review",
-        nextAction: "continue-hosted-review",
+        status: "resolve-delivery-status",
+        nextAction: "resolve-delivery-status",
         planId: plan.planId,
         stateRevision: state.revision,
-        hostedReviewAction: boundary.value.nextAction,
+        deliveryStatusAction: boundary.value.nextAction,
         recommendedActionText: boundary.value.nextAction.interactionText,
       };
     }

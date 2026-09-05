@@ -584,7 +584,7 @@ describe("delivery execution handler", () => {
         verificationId: `sha256:${"b".repeat(64)}`,
         recordPath: ".arc/system/.internal/candidates/example.json",
       },
-      nextAction: "continue-hosted-review" as const,
+      nextAction: "resolve-delivery-status" as const,
       boundaryCarry: {
         path: `.arc/system/.internal/candidates/${plan.workUnitId}.boundary.json`,
         candidateId: `sha256:${"a".repeat(64)}`,

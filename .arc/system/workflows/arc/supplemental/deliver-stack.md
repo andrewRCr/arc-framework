@@ -546,9 +546,9 @@ selector reconstructed in prose.
   reconstruct or invoke a lower-level delivery mutation.
 - `verification-required / verify-review-fix` enters the scoped verification section below. After the correction
   task closes, invoke `resumeAction` with only the returned verification result added to its input.
-- `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or hosted
-  review action. Candidate renewal requires `unchanged` before re-entry. A hosted-review action resumes the retained
-  member review directly.
+- `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or delivery
+  status action. Candidate renewal requires `unchanged` before re-entry. A delivery-status action resumes the
+  provider-neutral retained-member reducer directly; only its exact hosted-request result authorizes provider work.
 - `idle / continue-work-unit` returns to the current non-delivery task. Every `refused` or downstream
   conflict/authority stop renders its typed reason and retains the durable continuation for retry.
 
