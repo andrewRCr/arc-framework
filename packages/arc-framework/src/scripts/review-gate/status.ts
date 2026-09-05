@@ -829,6 +829,7 @@ const ReviewStatusBaseMovedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("base-moved"),
   nextAction: z.literal("rerun-checkpoint"),
+  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
 });
 const ReviewStatusBlockedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -913,10 +914,11 @@ export function bindDeliveryReviewTerminusOffer(
   },
 ): ReviewStatusResult {
   const isCeiling = result.nextAction === "obtain-ceiling-override";
+  const isBaseMoved = result.state === "base-moved";
   const isEligibleContinuation = result.nextAction === "review-hosted-request"
     || result.nextAction === "review-local-prepare"
     || result.nextAction === "resolve-review-applicability";
-  if (!isCeiling && !isEligibleContinuation) return result;
+  if (!isCeiling && !isBaseMoved && !isEligibleContinuation) return result;
   const member = result.deliveryCursor?.currentMember;
   if (member === undefined || member === null) {
     if (isCeiling) {

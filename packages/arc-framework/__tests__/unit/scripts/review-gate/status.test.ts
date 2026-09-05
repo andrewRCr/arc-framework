@@ -592,6 +592,50 @@ describe("review status", () => {
     });
   });
 
+  it("retains the exact member terminus offer while base movement awaits checkpoint", async () => {
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The member remains eligible for another hosted pass.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: readyAdmission("coderabbit-pr"),
+        completedPasses: 1,
+        attemptHistory: [{
+          updatedAt: "2026-09-02T12:00:00.000Z",
+          headSha: memberVehicle.head,
+          sourceId: "coderabbit-pr",
+          outcome: "settled-findings",
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          findingCount: 1,
+          settledFindingCount: 1,
+        }],
+      })],
+    });
+    const status = await resolveReviewStatus({ target }, port({
+      routedObligation: obligation,
+      baseContained: false,
+    }));
+
+    expect(bindDeliveryReviewTerminusOffer(status, {
+      workUnitId: "example",
+      expectedBoundaryVersion: `sha256:${"b".repeat(64)}`,
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+    })).toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      terminusAction: {
+        kind: "delivery-member-owner-terminus",
+        workUnitId: "example",
+        target: hostedAction.target,
+        vehicle: memberVehicle,
+        completedPasses: 1,
+      },
+    });
+  });
+
   it("offers the exact member terminus beside a hosted request after one complete pass", async () => {
     const obligation = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],

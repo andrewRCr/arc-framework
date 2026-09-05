@@ -4883,6 +4883,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 verification workflow, closed task cursor, and matching dirty path set without reconstructing or
                 reviving review authority.
 
+        - _Base-moved terminus amendment (2026-09-05):_ The renewed exact terminal Candidate retained the Owner's
+          no-further-review direction, but status hid the submit-ready terminus offer behind a base-moved checkpoint
+          rerun. That left no review decision to make and entered reconcile before the required teardown and top
+          retarget.
+
+            29. Retain the exact first-outstanding member terminus offer on `base-moved` only after a completed
+                complete pass; keep checkpoint rerun as the default and preserve every base, check, and zero-pass
+                refusal.
+            30. Prove the built live status exposes the already-directed terminal offer, record it, then require the
+                existing continuation to rebind exact terminal coordinates and resume teardown without review spend.
+
 ---
 
 ## Success Criteria

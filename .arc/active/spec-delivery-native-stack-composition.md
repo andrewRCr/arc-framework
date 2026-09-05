@@ -2092,6 +2092,14 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   remains unresolved, and the later attestation preflight still revalidates the exact public delivery continuation
   before writing a new Candidate root or renewed boundary.
 
+- **D9.22 Base movement does not hide an available Owner terminus — amended 2026-09-05 after live terminal
+  closeout.** A WU-scoped delivery status whose first outstanding member has at least one completed complete review
+  pass retains its exact Owner-terminus offer when the current base moved. The default action remains
+  `rerun-checkpoint`; base currentness, checks, and every other integration prerequisite remain unsettled. Explicit
+  Owner acceptance records only that exact member/head terminus, after which the existing correction continuation
+  performs any owed terminal-coordinate rebind and returns to delivery position. A zero-pass or incremental-only
+  member gains no offer, and base movement never becomes review clearance by itself.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

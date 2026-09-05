@@ -1040,3 +1040,19 @@ publication, or merge authority; all other missing or mismatched-boundary states
 attestation continues to revalidate the exact public delivery continuation before it writes anything. Focused unit
 coverage proves both arms, and the rebuilt live CLI wrote a fresh seed and returned a ready recovery audit for this
 exact checkout, head, workflow, closed cursor, load set, and dirty path set.
+
+### Amendment 24 — base movement must not suppress an exact Owner terminus (2026-09-05)
+
+The renewed terminal Candidate correctly retained seven discharged members and selected only Member 8 as
+outstanding. The Owner had already directed that no further review run, and Member 8 retained two completed complete
+passes, but status returned only `base-moved / rerun-checkpoint`; the terminus binder admitted review requests,
+applicability offers, and ceiling stops but not that mechanically earlier result. Checkpoint then needed the stale
+terminal binding rebound before it could recognize PR 557's still-valid stacked base, so it stopped
+`unsafe-reconcile`. The stop carried no new decision and routed around the required teardown sequence.
+
+Decided behavior: `base-moved` remains a checkpoint rerun by default, but WU-scoped delivery status may attach the
+same submit-ready exact-head Owner-terminus offer when the first outstanding member has a completed complete pass.
+Explicit acceptance settles only review for that member and head; it does not attest base currentness, CI, or merge
+readiness. Zero-pass and incremental-only progress remain ineligible. The existing terminus commit and correction
+continuation then own terminal-coordinate rebind and delivery-position re-entry, restoring the intended
+status → Owner terminus → rebind → teardown → retarget → checkpoint order without new authority or review spend.
