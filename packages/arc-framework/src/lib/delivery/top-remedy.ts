@@ -28,6 +28,12 @@ export type ApplyDeliveryTopRemedyResult =
       readonly nextAction: "terminal-checkpoint";
       readonly top: ReadyTop;
     }
+  | {
+      readonly status: "remedied";
+      readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+      readonly nextAction: "terminal-checkpoint";
+      readonly terminalHeadAction: "rebind-required";
+    }
   | { readonly status: "refused"; readonly reason: string }
   | {
       readonly status: "blocked";
@@ -40,7 +46,7 @@ export type ApplyDeliveryTopRemedyResult =
       readonly reservation: DeliveryRevisionedRecord<DeliveryStateV1>;
     };
 
-function exactTerminalRequest(input: {
+function terminalRequestIdentityMatches(input: {
   readonly request: DeliveryHostChangeRequest;
   readonly repository: string;
   readonly terminal: DeliveryStateV1["members"][number];
@@ -49,8 +55,17 @@ function exactTerminalRequest(input: {
   return terminal.ref !== null && terminal.changeRequest !== null && terminal.coordinates !== null
     && request.repository === input.repository && request.headRepository === input.repository
     && canonicalize(request.binding) === canonicalize(terminal.changeRequest)
-    && request.headRef === terminal.ref.replace(/^refs\/heads\//u, "")
-    && request.headSha === terminal.coordinates.head;
+    && request.headRef === terminal.ref.replace(/^refs\/heads\//u, "");
+}
+
+function exactTerminalRequest(input: {
+  readonly request: DeliveryHostChangeRequest;
+  readonly repository: string;
+  readonly terminal: DeliveryStateV1["members"][number];
+}): boolean {
+  return terminalRequestIdentityMatches(input)
+    && input.terminal.coordinates !== null
+    && input.request.headSha === input.terminal.coordinates.head;
 }
 
 /**
@@ -68,7 +83,7 @@ export function matchesDeliveryTopRemedyTrigger(
     && trigger.ref === effect.triggerRef && trigger.coordinates.head === effect.triggerHeadSha;
 }
 
-/** Classify one fresh request observation against a persisted top-remedy effect. */
+/** Classify one fresh request observation against a persisted top-remedy effect without adopting head movement. */
 export function classifyDeliveryTopRemedyObservation(
   effect: DeliveryTopRemedyEffectV1,
   request: DeliveryHostChangeRequest,
@@ -78,8 +93,7 @@ export function classifyDeliveryTopRemedyObservation(
     && request.headRepository === effect.repository
     && request.binding.providerId === effect.providerId
     && request.binding.changeRequestId === effect.changeRequestId
-    && request.headRef === effect.headRef
-    && request.headSha === effect.headSha;
+    && request.headRef === effect.headRef;
   if (!exactBinding) return { outcome: "ambiguous" };
   if (request.state === "open" && request.baseRef === effect.protectedBaseRef) {
     return {
@@ -87,10 +101,11 @@ export function classifyDeliveryTopRemedyObservation(
       observation: { kind: "top-remedy", effect, outcome: "applied", snapshot },
     };
   }
-  if ((effect.action === "retarget" && request.state === "open"
+  if (request.headSha === effect.headSha
+    && ((effect.action === "retarget" && request.state === "open"
       && request.baseRef === effect.fromBaseRef)
     || (effect.action === "reopen-and-retarget" && request.state === "closed"
-      && (request.baseRef === effect.fromBaseRef || request.baseRef === effect.protectedBaseRef))) {
+      && (request.baseRef === effect.fromBaseRef || request.baseRef === effect.protectedBaseRef)))) {
     return { outcome: "not-applied" };
   }
   return { outcome: "ambiguous" };
@@ -196,16 +211,25 @@ export async function applyDeliveryTopRemedy(input: {
     return { status: "blocked", reason: "mutation-refused", reservation: persistedReservation.value };
   }
   const final = await input.host.readRequest(input.repository, terminal.changeRequest);
-  if (final.status !== "observed" || !exactTerminalRequest({
+  if (final.status !== "observed" || !terminalRequestIdentityMatches({
     request: final.request, repository: input.repository, terminal,
   })) return { status: "blocked", reason: "request-mismatch", reservation: persistedReservation.value };
+  const terminalHeadMoved = final.request.headSha !== terminal.coordinates.head;
+  const protectedBaseRef = input.protectedBaseRef.replace(/^refs\/heads\//u, "");
+  if (terminalHeadMoved
+    && (final.request.state !== "open" || final.request.baseRef !== protectedBaseRef)) {
+    return { status: "blocked", reason: "request-mismatch", reservation: persistedReservation.value };
+  }
   const top = assessDeliveryTerminalTop({
     terminal: true,
     protectedBaseRef: input.protectedBaseRef,
     publicationHead: terminal.coordinates.head,
     request: final.request,
   });
-  if (top.status !== "ready") {
+  const completion = terminalHeadMoved
+    ? { terminalHeadAction: "rebind-required" as const }
+    : top.status === "ready" ? { top } : null;
+  if (completion === null) {
     return { status: "blocked", reason: "request-mismatch", reservation: persistedReservation.value };
   }
   const accepted = acceptDeliveryOperationResult(persistedReservation.value, {
@@ -220,7 +244,13 @@ export async function applyDeliveryTopRemedy(input: {
   const persisted = await input.stateStore.publish(
     input.plan.planId, accepted.state, persistedReservation.value.revision,
   );
-  return persisted.status === "ok"
-    ? { status: "remedied", state: persisted.value, nextAction: "terminal-checkpoint", top }
-    : { status: "blocked", reason: "state-conflict", reservation: persistedReservation.value };
+  if (persisted.status !== "ok") {
+    return { status: "blocked", reason: "state-conflict", reservation: persistedReservation.value };
+  }
+  return {
+    status: "remedied",
+    state: persisted.value,
+    nextAction: "terminal-checkpoint",
+    ...completion,
+  };
 }

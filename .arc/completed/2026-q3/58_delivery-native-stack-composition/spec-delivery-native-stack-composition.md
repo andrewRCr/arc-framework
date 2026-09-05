@@ -2154,6 +2154,19 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   binding, reservation, reobservation, and state-CAS guards remain authoritative. This adds no provider-independent
   operation, durable field, merge authority, or generic multi-effect transaction mechanism.
 
+- **D9.29 Terminal top repair settles a host-refreshed head without adopting it — amended 2026-09-05 after the
+  D9.28 live retry trace.** Pre-mutation validation still requires the exact state-bound terminal request and head.
+  After the authorized retarget-and-reopen effect, GitHub may refresh that same request from its frozen closed head
+  to the already-pushed work-unit branch head. Post-effect and interrupted-operation reconciliation therefore settle
+  the top repair when the exact repository, request binding, head ref, open state, and protected base match, while
+  leaving delivery-state terminal coordinates unchanged. That result names `terminalHeadAction: rebind-required`
+  rather than presenting the stale state as a ready top. The next terminal checkpoint routes the unadopted head to
+  the existing Candidate-aware terminal rebind, which retains its append-only ancestry, effective-Candidate,
+  publication-boundary, exact-request-head, and state-CAS proofs. A not-yet-applied retry state still requires the
+  old exact head, and every other identity, state, or base movement remains ambiguous. This adds no head authority,
+  durable field, operation kind, or second rebind path; it separates settlement of the authorized host effect from
+  adoption of an independently proved terminal head.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

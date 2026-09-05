@@ -1151,3 +1151,22 @@ treats the exact closed request on either its recorded old base or the protected
 skips an already-completed retarget. All other request movement remains ambiguous. This is the smallest completion of
 the existing failure-only top-remedy contract; it introduces no new operation kind, record, host authority, or
 general transaction substrate.
+
+### Amendment 31 — terminal repair leaves a host-refreshed head to ordinary rebind (2026-09-05)
+
+After Amendment 30 landed, the terminal branch advanced from the state-bound `d1da19cde` to pushed Candidate head
+`ceac4e04a`, while closed PR #557 remained frozen at the old head on its deleted Member 7 base. The correction
+driver correctly refused to rebind a closed request. The already-approved retarget-and-reopen retry would make the
+request open on `main`, but GitHub can then refresh its head to the current branch tip. The old top-remedy
+postcondition required the request to remain at `d1da19cde`; a successful host effect followed by that legitimate
+refresh would therefore strand the persisted operation as ambiguous before the existing terminal rebind could run.
+
+Decided behavior: exact old-head validation remains a precondition to the authorized mutation. Once the same request
+is observed open on the protected base, top-remedy settlement records only that the requested base/state effect
+landed; it does not adopt the observed head, and delivery state remains bound to the old coordinates. The next
+action explicitly reports `terminalHeadAction: rebind-required` rather than a false ready-top projection, and the
+checkpoint invokes the existing terminal rebind, whose Candidate, publication, ancestry, request-head, and CAS
+checks decide whether the newer head may enter state. Interrupted reconciliation uses the same split. Closed or
+otherwise not-applied states still need the old exact head before retry, and all different request identities or
+unexpected state/base combinations remain ambiguous. This completes the D9.28 live path without creating another
+proof mechanism or weakening terminal-head adoption.

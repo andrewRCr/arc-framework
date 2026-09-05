@@ -146,10 +146,11 @@ describe("delivery terminal recovery", () => {
       stateValue: "open" | "closed",
       base: string,
       mergeCommitSha?: string,
+      merged = stateValue === "closed",
     ) => JSON.stringify({
       number,
       state: stateValue,
-      merged: stateValue === "closed",
+      merged,
       draft: stateValue === "open",
       head: {
         ref: member === 1 ? "delivery/member-1" : "member-2",
@@ -157,7 +158,7 @@ describe("delivery terminal recovery", () => {
         repo: { full_name: "owner/repo" },
       },
       base: { ref: base, repo: { full_name: "owner/repo" } },
-      merge_commit_sha: stateValue === "closed" ? mergeCommitSha ?? nativeMergeHead : null,
+      merge_commit_sha: merged ? mergeCommitSha ?? nativeMergeHead : null,
     });
     await mkdir(fakeBin);
     await writeFile(fakeGh, [
@@ -172,7 +173,7 @@ describe("delivery terminal recovery", () => {
       "  repos/owner/repo/pulls/402)",
       "    case \"$*\" in",
       "      *--method*PATCH*) : > \"$ARC_FAKE_GH_MARKER\"; printf '{}\\n' ;;",
-      `      *) if [ -f "$ARC_FAKE_GH_MARKER" ]; then printf '%s\\n' '${request(402, 2, terminalHead, "open", "main")}'; else printf '%s\\n' '${request(402, 2, terminalHead, "open", "delivery/member-1")}'; fi ;;`,
+      `      *) if [ -f "$ARC_FAKE_GH_MARKER" ]; then if [ "\${ARC_FAKE_REFRESHED_TOP:-0}" = "1" ]; then printf '%s\\n' '${request(402, 2, "f".repeat(40), "open", "main")}'; else printf '%s\\n' '${request(402, 2, terminalHead, "open", "main")}'; fi; elif [ "\${ARC_FAKE_TOP_CLOSED:-0}" = "1" ]; then printf '%s\\n' '${request(402, 2, terminalHead, "closed", "delivery/member-1", undefined, false)}'; else printf '%s\\n' '${request(402, 2, terminalHead, "open", "delivery/member-1")}'; fi ;;`,
       "    esac",
       "    ;;",
       "  repos/owner/repo/git/ref/heads/main)",
@@ -481,6 +482,42 @@ describe("delivery terminal recovery", () => {
       status: "remedied",
       nextAction: "terminal-checkpoint",
     });
+  });
+
+  it("settles a reopened top whose host view refreshes without adopting the new head", async () => {
+    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    const before = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: DeliveryStateV1;
+    };
+    const retainedHead = before.value.members.at(-1)!.coordinates!.head;
+    const refreshedHead = "f".repeat(40);
+    const result = await runArcWithStdin(
+      ["delivery", "top-remedy", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        planId: fixture.planId,
+        action: "reopen-and-retarget",
+        repository: "owner/repo",
+        protectedBaseRef: "main",
+        remote: "origin",
+      })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_TOP_CLOSED: "1", ARC_FAKE_REFRESHED_TOP: "1" } },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery top-remedy",
+      status: "remedied",
+      nextAction: "terminal-checkpoint",
+      terminalHeadAction: "rebind-required",
+      state: { value: { activeOperation: null } },
+    });
+    expect(JSON.parse(result.stdout)).not.toHaveProperty("top");
+    const after = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: DeliveryStateV1;
+    };
+    expect(after.value.members.at(-1)!.coordinates!.head).toBe(retainedHead);
+    expect(after.value.members.at(-1)!.coordinates!.head).not.toBe(refreshedHead);
   });
 
   it("continues an applied highest teardown through the freshly observed top remedy", async () => {

@@ -35,6 +35,37 @@ function fixture(state: "open" | "closed" = "open") {
 }
 
 describe("delivery top remedy", () => {
+  it("settles an applied reopen when the host refreshes the request to the published terminal head", () => {
+    const { state, request } = fixture("closed");
+    const terminal = state.members.at(-1)!;
+    const snapshot = { target: state.target, members: [terminal] };
+    expect(classifyDeliveryTopRemedyObservation({
+      providerId: "github",
+      repository: "owner/repo",
+      changeRequestId: terminal.changeRequest!.changeRequestId,
+      headRef: terminal.ref!.replace(/^refs\/heads\//u, ""),
+      headSha: terminal.coordinates!.head,
+      triggerRef: state.members.at(-2)!.ref!,
+      triggerHeadSha: state.members.at(-2)!.coordinates!.head,
+      fromBaseRef: "member-1",
+      protectedBaseRef: "main",
+      action: "reopen-and-retarget",
+    }, {
+      ...request,
+      state: "open",
+      baseRef: "main",
+      headSha: "f".repeat(40),
+    }, snapshot)).toEqual({
+      outcome: "applied",
+      observation: {
+        kind: "top-remedy",
+        effect: expect.objectContaining({ headSha: terminal.coordinates!.head }),
+        outcome: "applied",
+        snapshot,
+      },
+    });
+  });
+
   it("treats a closed request already retargeted to the protected base as retryable", () => {
     const { state, request } = fixture("closed");
     const terminal = state.members.at(-1)!;
@@ -51,6 +82,27 @@ describe("delivery top remedy", () => {
       protectedBaseRef: "main",
       action: "reopen-and-retarget",
     }, { ...request, baseRef: "main" }, snapshot)).toEqual({ outcome: "not-applied" });
+  });
+
+  it("does not retry a not-yet-applied remedy after unexplained head movement", () => {
+    const { state, request } = fixture("closed");
+    const terminal = state.members.at(-1)!;
+    expect(classifyDeliveryTopRemedyObservation({
+      providerId: "github",
+      repository: "owner/repo",
+      changeRequestId: terminal.changeRequest!.changeRequestId,
+      headRef: terminal.ref!.replace(/^refs\/heads\//u, ""),
+      headSha: terminal.coordinates!.head,
+      triggerRef: state.members.at(-2)!.ref!,
+      triggerHeadSha: state.members.at(-2)!.coordinates!.head,
+      fromBaseRef: "member-1",
+      protectedBaseRef: "main",
+      action: "reopen-and-retarget",
+    }, {
+      ...request,
+      baseRef: "main",
+      headSha: "f".repeat(40),
+    }, { target: state.target, members: [terminal] })).toEqual({ outcome: "ambiguous" });
   });
 
   it.each([
@@ -95,6 +147,53 @@ describe("delivery top remedy", () => {
       state: { value: { activeOperation: null } },
     });
     expect(events).toEqual(["read", "reserve", "mutate", "read", "clear"]);
+  });
+
+  it("clears the remedy while leaving a refreshed terminal head for ordinary rebind", async () => {
+    const { plan, state, request, facts } = fixture("closed");
+    const publishedHead = "f".repeat(40);
+    let reads = 0;
+    const result = await applyDeliveryTopRemedy({
+      plan,
+      current: { revision: 7, value: state },
+      facts,
+      action: "reopen-and-retarget",
+      repository: "owner/repo",
+      protectedBaseRef: "main",
+      host: {
+        readRequest: async () => ({
+          status: "observed",
+          request: ++reads === 1
+            ? request
+            : { ...request, state: "open", baseRef: "main", headSha: publishedHead },
+        }),
+        applyTopRemedy: async () => ({ status: "submitted" }),
+      },
+      observeTriggerRef: async () => ({ status: "absent" }),
+      stateStore: {
+        publish: async (_planId, value, revision) => ({
+          status: "ok", value: { revision: revision + 1, value },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "remedied",
+      nextAction: "terminal-checkpoint",
+      terminalHeadAction: "rebind-required",
+      state: {
+        value: {
+          activeOperation: null,
+          members: expect.arrayContaining([
+            expect.objectContaining({
+              deliverableId: state.members.at(-1)!.deliverableId,
+              coordinates: state.members.at(-1)!.coordinates,
+            }),
+          ]),
+        },
+      },
+    });
+    expect(result).not.toHaveProperty("top");
   });
 
   it("refuses stale operator intent before reserving or mutating", async () => {

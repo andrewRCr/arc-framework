@@ -1346,6 +1346,12 @@ const ResultSchema = z.union([
     nextAction: z.literal("terminal-checkpoint"),
     top: DeliveryTopReadySchema,
   }),
+  z.strictObject({
+    status: z.literal("remedied"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("terminal-checkpoint"),
+    terminalHeadAction: z.literal("rebind-required"),
+  }),
   z.strictObject({ status: z.literal("registered"), stackNumber: z.number().int().positive() }),
   z.strictObject({ status: z.literal("unregistered") }),
   z.strictObject({ status: z.enum(["partial", "incoherent"]), affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema) }),

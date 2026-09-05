@@ -4989,6 +4989,25 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, the production build, and the
           complete matrix: 865 test files and 11,449 tests passed, with one intentional skip each.
 
+- _Forward correction (2026-09-05):_ Reopening the retargeted request can refresh its frozen old head to the current
+  pushed terminal branch. Settle only the authorized host effect, leave that head unadopted, and route it through the
+  existing Candidate-aware terminal rebind.
+
+    - `[x]` **9.1.R.r Settle terminal repair before adopting a host-refreshed head**
+
+        - _Goal:_ A successful reopen-and-retarget does not strand its reservation when the host refreshes the
+          request head, and the refreshed head enters delivery state only through the existing terminal rebind.
+
+        - _Outcome:_ Top-remedy preconditions still bind the exact old request head. Post-effect execution and
+          interrupted reconciliation now settle the exact request identity on the protected base without changing
+          terminal coordinates; the result reports `terminalHeadAction: rebind-required`, an unperformed retry still
+          requires the old head, and the next checkpoint retains terminal-rebind authority over the new head.
+
+        - _Verification:_ Unit and built-CLI cases failed against the prior exact-head postcondition, then passed
+          alongside the top-remedy, GitHub adapter, session-position, and terminal-recovery coverage. Fresh Tier 3
+          passed Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, the production build,
+          and the complete matrix: 865 test files and 11,453 tests passed, with one intentional skip each.
+
 ---
 
 ## Success Criteria
