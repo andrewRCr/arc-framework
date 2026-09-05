@@ -1103,3 +1103,18 @@ delivery-status boundary, preserving its reservation, delivery continuation, and
 existing mismatch still refuses before Candidate mutation. This adds no review bypass or new authority: it retains
 only the public settlement already authenticated by the renewal contract while Candidate verification supplies the
 new root.
+
+### Amendment 28 — archived terminal review accepts exact Owner authority (2026-09-05)
+
+The renewed archived Candidate preserved every historical Owner terminus, but the final rescue fixes produced a new
+terminal head that correctly required its own exact-head terminus. Work-unit review status composed that offer from
+the completed record, while `review terminus accept` still resolved Owner authority only through active-WU context
+and refused the same checkout. That made the supported archive-before-merge path unable to serialize the Owner's
+already-stated no-further-review direction before teardown.
+
+Decided behavior: terminus acceptance keeps its ordinary active-WU authority read first. When that read refuses, it
+may fall back only to the derived entering checkout whose exact work-unit subject and completed lifecycle record are
+already joined by ARC's locus reader. The active identity must equal that completed record's Owner. Missing,
+ambiguous, non-completed, differently owned, or differently named loci retain refusal. The exact offer revalidation,
+boundary version check, record content, commit, push, and mechanical record-advance proof remain unchanged. This is
+archived closeout parity for one existing mutation, not general completed-WU edit authority.

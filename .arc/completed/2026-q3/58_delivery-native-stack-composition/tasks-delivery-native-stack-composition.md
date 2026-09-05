@@ -4927,6 +4927,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 continuation, and member termini, then require the live correction driver to return Member 7
                 teardown without review or provider spend.
 
+        - _Archived terminus-authority amendment (2026-09-05):_ The final exact terminal head correctly received a
+          new Owner-terminus offer after the rescue fixes, but acceptance still required active-WU context even though
+          status and correction continuation had already admitted this exact completed lifecycle locus.
+
+            37. Extend the production archive-before-merge E2E to omit the terminal terminus, obtain its exact offer
+                after archival, and require the pre-correction acceptance to refuse solely because the meta moved to
+                the completed lifecycle tier.
+            38. Admit only the derived entering checkout joined to the exact completed work-unit record and matching
+                Owner identity, then require the committed terminus to survive its own mechanical record advance and
+                let the correction driver return Member 7 teardown without review or provider spend.
+
 ---
 
 ## Success Criteria

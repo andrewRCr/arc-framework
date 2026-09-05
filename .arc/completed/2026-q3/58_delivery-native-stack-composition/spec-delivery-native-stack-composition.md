@@ -2126,6 +2126,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   changes no review applicability, convergence, or authority contract; it prevents archive-before-merge from
   discarding already-settled public delivery state during freshly verified closeout repair.
 
+- **D9.26 Archived terminal closeout retains exact Owner-terminus authority — amended 2026-09-05 after D9.25 live
+  acceptance.** `review terminus accept` resolves its ordinary active-WU Owner authority first. When that read
+  refuses, the command may accept only the derived entering checkout whose exact work-unit subject is joined to the
+  same completed lifecycle record, and only when the active identity equals that record's Owner. Every missing,
+  ambiguous, non-completed, differently named, or differently owned locus refuses. Offer freshness, exact boundary
+  versioning, record content, commit and push, and the existing mechanical record-advance proof remain unchanged.
+  The fallback grants no general mutation authority over completed work units; it preserves the existing terminal
+  review decision path after configured archive-before-merge closeout.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

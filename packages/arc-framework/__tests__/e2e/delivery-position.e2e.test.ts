@@ -2155,7 +2155,7 @@ describe("arc delivery position", () => {
         sourceBoundary,
         deliveryContinuation: publicContinuation.continuation,
       }),
-      deliveryReviewTermini: state.members.map((member) => ({
+      deliveryReviewTermini: state.members.slice(0, -1).map((member) => ({
         vehicle: {
           kind: "delivery-member",
           planId: fixture.plan.planId,
@@ -2237,6 +2237,43 @@ describe("arc delivery position", () => {
         },
       },
     });
+
+    const archivedStatus = await runArc(
+      ["review", "status", "--work-unit", fixture.plan.workUnitId, "--json"],
+      archivedCheckout,
+      { env: fixture.env },
+    );
+    expect(archivedStatus.exitCode, `${archivedStatus.stderr}\n${archivedStatus.stdout}`).toBe(0);
+    const archivedStatusOutput = JSON.parse(archivedStatus.stdout) as {
+      terminusAction?: unknown;
+    };
+    expect(archivedStatusOutput).toMatchObject({
+      nextAction: "resolve-review-applicability",
+      terminusAction: {
+        workUnitId: fixture.plan.workUnitId,
+        target: { headSha: expect.any(String) },
+        completedPasses: 1,
+      },
+    });
+    const acceptedTerminus = await runArcWithStdin(
+      ["review", "terminus", "accept", "-"],
+      archivedCheckout,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        offer: archivedStatusOutput.terminusAction,
+        judgment: { mode: "owner-accepted" },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(acceptedTerminus.exitCode, `${acceptedTerminus.stderr}\n${acceptedTerminus.stdout}`).toBe(0);
+    expect(JSON.parse(acceptedTerminus.stdout), acceptedTerminus.stdout).toMatchObject({
+      state: "recorded",
+      nextAction: "commit-boundary",
+    });
+    await git(archivedCheckout, [
+      "commit", "--no-verify", "-m", "chore(delivery): accept terminal review terminus",
+    ]);
+    await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
 
     const result = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
