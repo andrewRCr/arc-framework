@@ -1056,3 +1056,19 @@ Explicit acceptance settles only review for that member and head; it does not at
 readiness. Zero-pass and incremental-only progress remain ineligible. The existing terminus commit and correction
 continuation then own terminal-coordinate rebind and delivery-position re-entry, restoring the intended
 status → Owner terminus → rebind → teardown → retarget → checkpoint order without new authority or review spend.
+
+### Amendment 25 — settled review re-enters delivery position inside the correction driver (2026-09-05)
+
+The live Member 8 terminus path performed its exact terminal rebind, but the correction driver then returned the
+settled review reducer as `review-status-required / continue-reconcile`. The status carried a discharged conjunction
+and cursor, so it represented no review decision, external wait, or integration authority. Delivery position already
+selected Member 7 teardown from the same canonical plan and state, but reaching it required the agent to abandon the
+driver and reconstruct the next command manually.
+
+Decided behavior: after terminal rebind or any other deterministic correction effect, a WU-scoped status whose routed
+obligation, delivery conjunction, and delivery cursor are all discharged is internal continuation evidence. The
+driver immediately performs one fresh read-only delivery-position projection with its already-bound plan, repository,
+and remote identities, then returns that exact typed result with the accumulated effect log. `teardown-member`
+remains the attended destructive-authority stop; the driver never deletes a ref itself. A malformed or refused
+position remains a typed stop. This adds no dispatch kind, persisted state, review policy, or generalized control
+flow.

@@ -1190,6 +1190,7 @@ const ResultSchema = z.union([
     selectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
     plannedSuffix: z.array(DeliveryCanonicalDigestSchema).optional(),
     recommendedActionText: z.string().min(1).optional(),
+    ...ReviewFixDriveEffectLogField,
   }),
   z.strictObject({
     status: z.literal("applied"),
@@ -2932,6 +2933,19 @@ async function executeDeliveryCommand(
           workUnitId: continuation.action.action.workUnitId,
           remote: parsed.remote,
         });
+        const settledDeliveryConjunction = reviewStatus.routedObligation.state === "settled"
+          && "conjunction" in reviewStatus.routedObligation
+          && reviewStatus.routedObligation.conjunction.status === "discharged"
+          && reviewStatus.deliveryCursor?.status === "discharged";
+        if (settledDeliveryConjunction) {
+          const positioned = await executeDeliveryCommand("position", {
+            planId: entry.planId,
+            repository: parsed.repository,
+            remote: parsed.remote,
+          }, interaction);
+          const parsedPosition = ResultSchema.safeParse(positioned);
+          return parsedPosition.success ? parsedPosition.data : invalidServiceResult(positioned);
+        }
         if (reviewStatus.nextAction === "respond-to-findings") {
           let records;
           try {

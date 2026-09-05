@@ -15,6 +15,8 @@ import {
 import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { deriveDeliveryProviderRefreshSubject } from "../../src/lib/delivery/provider-refresh-observation.js";
+import { projectDeliveryPublicReviewContinuation } from
+  "../../src/lib/delivery/public-review-continuation.js";
 import { deriveDeliveryResidueLocators } from "../../src/lib/delivery/residue-reaping.js";
 import { advanceDeliveryReviewFixResponse } from "../../src/lib/delivery/review-fix.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
@@ -39,8 +41,11 @@ import {
   resolveSubmissionBoundaryPath,
   writeSubmissionBoundary,
 } from "../../src/lib/work-unit/submission-boundary-store.js";
-import { projectPublicationBoundary } from
-  "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  IntegrationBoundaryLocusSchema,
+  projectCorrectiveDeliveryStatusBoundary,
+  projectPublicationBoundary,
+} from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import type { DeliveryLocalReviewAdmission } from
   "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { ApprovedDispositionRecordSchema } from
@@ -108,6 +113,7 @@ type ActiveOperationScenario =
   | "native"
   | "provider-refresh-partial"
   | "landed-prefix"
+  | "landed-nonterminal"
   | "registered-current"
   | "terminal-authoring"
   | "registered-terminal-authoring"
@@ -227,7 +233,7 @@ async function positionFixture(
     : thirdHead;
   await git(repository, [
     "push", "origin",
-    `${targetHead}:refs/heads/main`,
+    `${activeOperation === "landed-nonterminal" ? secondHead : targetHead}:refs/heads/main`,
     `${publishedFirstHead}:refs/heads/${firstBranch}`,
     `${publishedSecondHead}:refs/heads/${secondBranch}`,
     `${publishedThirdHead}:refs/heads/member-3`,
@@ -276,7 +282,7 @@ async function positionFixture(
       {
         deliverableId: plan.members[2]!.deliverableId,
         ref: "refs/heads/member-3",
-        changeRequest: terminalAuthoring || registeredCurrent
+        changeRequest: terminalAuthoring || registeredCurrent || activeOperation === "landed-nonterminal"
           ? { providerId: "github", changeRequestId: "403" }
           : null,
         coordinates: { base: secondHead, head: thirdHead, tree: thirdTree },
@@ -491,7 +497,7 @@ async function positionFixture(
     "  printf '%s\\n' '{\"nameWithOwner\":\"owner/repo\"}'; exit 0",
     "fi",
     "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ]; then",
-    activeOperation === "registered-current"
+    activeOperation === "registered-current" || activeOperation === "landed-nonterminal"
       ? [
         "  case \"$*\" in",
         `    *"--head ${firstBranch}"*) printf '${registeredFirstReviewTarget}\\n' `
@@ -524,27 +530,35 @@ async function positionFixture(
     "fi",
     "case \"$2\" in",
     "  repos/owner/repo/git/ref/heads/main)",
-    `    printf '%s\\n' '${JSON.stringify({ object: { sha: targetHead } })}'`,
+    "    printf '{\"object\":{\"sha\":\"%s\"}}\\n' \"$(remote_head 'main')\"",
     "    ;;",
     `  repos/owner/repo/git/commits/${targetHead})`,
     `    printf '%s\\n' '${JSON.stringify({ tree: { sha: targetTree } })}'`,
     "    ;;",
+    `  repos/owner/repo/git/commits/${secondHead})`,
+    `    printf '%s\\n' '${JSON.stringify({ tree: { sha: secondTree } })}'`,
+    "    ;;",
     "  repos/owner/repo/branches/main|"
       + "repos/owner/repo/branches/delivery%2Fmember-1|"
-      + "repos/owner/repo/branches/delivery%2Fmember-2)",
+      + "repos/owner/repo/branches/delivery%2Fmember-2|"
+      + "repos/owner/repo/branches/member-1|"
+      + "repos/owner/repo/branches/member-2|"
+      + "repos/owner/repo/branches/member-3)",
     "    printf '%s\\n' '{}';;",
     "  repos/owner/repo/pulls/401)",
-    activeOperation === "landed-prefix"
+    activeOperation === "landed-prefix" || activeOperation === "landed-nonterminal"
       ? `    printf '%s\\n' '${request(401, firstBranch, publishedFirstHead, "main", "merged")}'`
       : `    printf '${request(401, firstBranch, "%s", "main")}\\n' "$(remote_head '${firstBranch}')"`,
     "    ;;",
     "  repos/owner/repo/pulls/402)",
-    `    printf '${request(
-      402,
-      secondBranch,
-      "%s",
-      activeOperation === "landed-prefix" ? "main" : firstBranch,
-    )}\\n' "$(remote_head '${secondBranch}')"`,
+    activeOperation === "landed-nonterminal"
+      ? `    printf '%s\\n' '${request(402, secondBranch, publishedSecondHead, firstBranch, "merged")}'`
+      : `    printf '${request(
+        402,
+        secondBranch,
+        "%s",
+        activeOperation === "landed-prefix" ? "main" : firstBranch,
+      )}\\n' "$(remote_head '${secondBranch}')"`,
     "    ;;",
     "  repos/owner/repo/pulls/403)",
     "    if [ -n \"${ARC_FAKE_TERMINAL_REF:-}\" ]; then",
@@ -1921,6 +1935,277 @@ describe("arc delivery position", () => {
       route: "rematerialize",
       selectedDeliverableId: fixture.plan.members[1]!.deliverableId,
       affectedDeliverableIds: [fixture.plan.members[1]!.deliverableId],
+    });
+  });
+
+  it("returns settled review to the highest landed teardown after terminal rebind", async () => {
+    const fixture = await positionFixture("landed-nonterminal");
+    const stateRead = await fixture.states.read(fixture.plan.planId);
+    if (stateRead.status !== "ok" || stateRead.value === null) {
+      throw new Error("settled teardown delivery state must be readable");
+    }
+    let state = stateRead.value.value;
+    let stateRevision = stateRead.value.revision;
+    const terminal = state.members.at(-1);
+    const highestLanded = state.members.at(-2);
+    if (terminal?.coordinates === null || terminal?.coordinates === undefined || terminal.ref === null
+      || highestLanded?.coordinates === null || highestLanded?.coordinates === undefined) {
+      throw new Error("settled teardown fixture must retain exact terminal and landed coordinates");
+    }
+    const branch = terminal.ref.replace(/^refs\/heads\//u, "");
+    await git(fixture.repository, ["checkout", "-B", branch, terminal.coordinates.head]);
+    await git(fixture.repository, ["branch", "-f", "main", highestLanded.coordinates.head]);
+    const activeDir = join(fixture.repository, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(join(activeDir, `tasks-${fixture.plan.workUnitId}.md`), [
+      `# Task List: ${fixture.plan.workUnitId}`,
+      "",
+      renderDeliveryPlanSection(fixture.plan),
+      "## **Phase 1:** Members",
+      "",
+      "### `[x]` **1.1 Close delivery**",
+      "",
+    ].join("\n"));
+    await git(fixture.repository, ["add", join(".arc", "active", `tasks-${fixture.plan.workUnitId}.md`)]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "install closed delivery task"]);
+    const reviewedTerminalHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+    const reviewedTerminalTree = await git(fixture.repository, ["rev-parse", "HEAD^{tree}"]);
+    state = {
+      ...state,
+      target: {
+        ...state.target!,
+        coordinates: {
+          head: highestLanded.coordinates.head,
+          tree: highestLanded.coordinates.tree,
+        },
+      },
+      members: state.members.map((member) => member.deliverableId === terminal.deliverableId
+        ? {
+            ...member,
+            coordinates: {
+              ...member.coordinates!,
+              head: reviewedTerminalHead,
+              tree: reviewedTerminalTree,
+            },
+          }
+        : member),
+    };
+    const statePublication = await fixture.states.publish(fixture.plan.planId, state, stateRevision);
+    if (statePublication.status !== "ok") throw new Error("reviewed terminal state must publish");
+    stateRevision = statePublication.value.revision;
+    const reviewedTerminal = state.members.at(-1);
+    if (reviewedTerminal?.coordinates === null || reviewedTerminal?.coordinates === undefined) {
+      throw new Error("reviewed terminal coordinates must remain bound");
+    }
+    const reviewPublisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), fixture.repository);
+    const reviewStore = new LocalReviewOperationStateStore(reviewPublisher);
+    const repositoryId = await resolveRepositoryIdentity(reviewPublisher);
+    for (const [index, member] of state.members.entries()) {
+      if (member.coordinates === null || member.changeRequest === null) {
+        throw new Error("settled teardown review member must be fully bound");
+      }
+      const pullRequest = Number(member.changeRequest.changeRequestId);
+      const reviewTarget = createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "delivery-member",
+        repositoryId,
+        baseRef: "main",
+        diffBaseSha: member.coordinates.base,
+        diffBaseTree: await git(fixture.repository, ["rev-parse", `${member.coordinates.base}^{tree}`]),
+        headSha: member.coordinates.head,
+        headTree: member.coordinates.tree,
+      });
+      const requirement = createReviewRequirement({
+        target: reviewTarget,
+        projection: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: canonicalDigest({ rubric: "standard" }),
+          retrigger: "full-final",
+          count: 1,
+        },
+        acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+        initialAdmission: "checkpoint",
+      });
+      if (requirement === null || !Number.isSafeInteger(pullRequest)) {
+        throw new Error("settled teardown review requirement must derive");
+      }
+      await reviewStore.publishOperation({
+        schemaVersion: 1,
+        semanticsVersion: "review-operation/v1",
+        operationId: `lane-progress/settled-teardown-${index + 1}`,
+        updatedAt: `2026-09-05T18:0${index}:00.000Z`,
+        kind: "lane-progress",
+        lane: "standard",
+        repositoryId,
+        changeRequestId: `pull/${pullRequest}`,
+        headSha: member.coordinates.head,
+        completedPasses: 1,
+        attempts: [{
+          attemptId: `settled-teardown-${index + 1}`,
+          sourceId: "codex-pr",
+          outcome: "clean",
+          hosted: {
+            target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
+            requestedCoverage: "complete",
+            effectiveCoverage: "complete",
+            vehicle: {
+              kind: "delivery-member",
+              planId: fixture.plan.planId,
+              deliverableId: member.deliverableId,
+              workUnitId: fixture.plan.workUnitId,
+              head: member.coordinates.head,
+            },
+            reviewTarget,
+            requirement,
+            actorIdentity: "host-actor-1",
+            findings: [],
+            dispositionSetId: null,
+            settledFindingIds: [],
+          },
+        }],
+      }, 0);
+    }
+    const candidateTarget = await collectGitCandidateTarget({
+      cwd: fixture.repository,
+      name: fixture.plan.workUnitId,
+      baseBranch: "main",
+      baseRevision: highestLanded.coordinates.head,
+      revision: reviewedTerminal.coordinates.head,
+      exec: createExecaGitExec(),
+    });
+    const candidate: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: createCandidateAttestation({
+        workUnit: fixture.plan.workUnitId,
+        subject: candidateTarget.subject,
+        baseRevision: candidateTarget.revision,
+        attestedBy: "test-user",
+        attestedAt: "2026-09-05T18:00:00.000Z",
+        verificationEvidenceRef: "verification://settled-teardown",
+      }),
+      subject: candidateTarget.subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+    await writeFile(join(activeDir, `meta-${fixture.plan.workUnitId}.md`), [
+      `# Metadata: ${fixture.plan.workUnitId}`,
+      "",
+      "- **State:** Integrating",
+      "- **Owner:** test-user",
+      `- **Branch:** ${branch}`,
+      "- **Class:** Heavy",
+      "- **Priority:** P1",
+      "- **Origin:** [internal]",
+      `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
+      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Last Completed:** Task 1.1 — Close delivery",
+      "- **Next Task:** [none]",
+      "- **Next Action:** Resume delivery closeout",
+      "",
+    ].join("\n"));
+    await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
+    const reservation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "standard-review-reservation/v1" as const,
+      reservationId: canonicalDigest({ reservation: "settled-teardown" }),
+      sources: ["codex-pr"],
+      target: {
+        kind: "delivery" as const,
+        repository: "owner/repo",
+        workUnitId: fixture.plan.workUnitId,
+        planId: fixture.plan.planId,
+      },
+      obligation: {
+        obligation: "required" as const,
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        retrigger: "full-final" as const,
+        count: 1,
+      },
+    };
+    const sourceBoundary = projectPublicationBoundary({
+      workUnit: fixture.plan.workUnitId,
+      branch,
+      candidateId: candidate.attestation.candidateId,
+      candidateSubjectDigest: candidate.subject.subjectDigest,
+      reservation,
+      changeRequest: { repository: "owner/repo", pullRequest: 403 },
+    });
+    const publicContinuation = projectDeliveryPublicReviewContinuation({
+      plan: fixture.plan,
+      state,
+      stateRevision,
+    });
+    if (publicContinuation.status !== "projected") {
+      throw new Error(`settled teardown delivery continuation must project: ${JSON.stringify(publicContinuation)}`);
+    }
+    await writeSubmissionBoundary(fixture.repository, IntegrationBoundaryLocusSchema.parse({
+      ...projectCorrectiveDeliveryStatusBoundary({
+        workUnit: fixture.plan.workUnitId,
+        candidateId: candidate.attestation.candidateId,
+        candidateSubjectDigest: candidate.subject.subjectDigest,
+        supersedesCandidateId: null,
+        sourceBoundary,
+        deliveryContinuation: publicContinuation.continuation,
+      }),
+      deliveryReviewTermini: state.members.map((member) => ({
+        vehicle: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: member.deliverableId,
+          workUnitId: fixture.plan.workUnitId,
+          head: member.coordinates!.head,
+        },
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "test-user",
+          completedPasses: 1,
+        },
+      })),
+    }), null);
+    await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "record terminal review closure"]);
+    await git(fixture.repository, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+
+    const entry = await runArcWithStdin(
+      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ entryMode: "integrating" })}\n`,
+      { env: fixture.env },
+    );
+    expect(entry.exitCode, `${entry.stderr}\n${entry.stdout}`).toBe(0);
+    expect(JSON.parse(entry.stdout), entry.stdout).toMatchObject({ status: "resolve-delivery-status" });
+
+    const result = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout), result.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "position",
+      position: {
+        landedPrefix: state.members.slice(0, -1).map(({ deliverableId }) => deliverableId),
+        firstUnlanded: terminal.deliverableId,
+        boundSuffix: [terminal.deliverableId],
+      },
+      nextAction: "teardown-member",
+      selectedDeliverableId: highestLanded.deliverableId,
+      effectLog: [
+        { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
+      ],
     });
   });
 

@@ -4894,6 +4894,18 @@ meta exists and that resolution shape is the exact defect the retired terminal a
             30. Prove the built live status exposes the already-directed terminal offer, record it, then require the
                 existing continuation to rebind exact terminal coordinates and resume teardown without review spend.
 
+        - _Settled-review position amendment (2026-09-05):_ The exact continuation performed terminal rebind but
+          surfaced its discharged review reducer as another attended integration stop instead of resuming the
+          delivery position that already selected Member 7 teardown.
+
+            31. Reproduce the production shape through the built CLI: two landed non-terminal members, a retained
+                exact terminal review terminus across its record-only head advance, terminal rebind, and one fully
+                discharged member conjunction. Require the pre-correction driver to stop at settled review instead
+                of the expected teardown position.
+            32. Return a discharged delivery status directly through fresh position, preserving the driver's effect
+                log and the existing destructive-authority stop, then require the live Member 7 teardown selection
+                without manual command reconstruction.
+
 ---
 
 ## Success Criteria

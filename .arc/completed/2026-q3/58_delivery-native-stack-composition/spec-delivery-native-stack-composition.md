@@ -2100,6 +2100,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   performs any owed terminal-coordinate rebind and returns to delivery position. A zero-pass or incremental-only
   member gains no offer, and base movement never becomes review clearance by itself.
 
+- **D9.23 Settled delivery review returns directly to fresh position — amended 2026-09-05 after live terminal
+  closeout.** Inside `arc delivery review-fix continue`, a WU-scoped review-status result is deterministic
+  continuation evidence when its routed obligation, complete delivery conjunction, and delivery cursor are all
+  discharged. The correction driver immediately projects fresh delivery position from its bound plan, repository,
+  and remote identities and returns that exact typed result with the accumulated effect log. A
+  `teardown-member` result remains the existing attended destructive-authority stop; no ref deletion becomes
+  driver-owned. Any refused, malformed, or non-discharged position/status retains its existing typed stop. The
+  correction adds no dispatch kind, state transition, review decision, or generalized orchestration mechanism.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:
