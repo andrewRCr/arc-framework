@@ -14,7 +14,7 @@ import {
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import {
-  closeDeliveryEligibility,
+  closeDeliveryEligibilityForPublication,
   executeWithFreshDeliveryEligibility,
   prepareDeliveryEligibility,
   type DeliveryEligibilitySnapshot,
@@ -979,7 +979,7 @@ async function executeDeliveryCommand(
   }
   if (command === "eligibility-close") {
     const parsed = CloseSchema.parse(request);
-    return closeDeliveryEligibility(parsed, {
+    return closeDeliveryEligibilityForPublication(parsed, {
       ...eligibilityDeps,
       resolveMember: resolveMemberReadOnly,
     });

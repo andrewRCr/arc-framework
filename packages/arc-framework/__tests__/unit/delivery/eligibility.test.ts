@@ -9,6 +9,7 @@ import {
 } from "../../fixtures/delivery-plan.js";
 import {
   closeDeliveryEligibility,
+  closeDeliveryEligibilityForPublication,
   executeWithFreshDeliveryEligibility,
   prepareDeliveryEligibility,
   verifyDeliveryCandidateCheckout,
@@ -410,13 +411,14 @@ describe("eligibility observation bracket", () => {
       candidates: candidates(), lifecyclePaths: [],
     }, deps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
-    await expect(closeDeliveryEligibility({
-      snapshot: prepared.snapshot,
-      gateResults: passedGateResults(),
-    }, deps)).resolves.toEqual({
+    await expect(closeDeliveryEligibility(prepared.snapshot, deps)).resolves.toEqual({
       status: "eligible",
       snapshot: prepared.snapshot,
     });
+    await expect(closeDeliveryEligibilityForPublication({
+      snapshot: prepared.snapshot,
+      gateResults: passedGateResults(),
+    }, deps)).resolves.toEqual({ status: "eligible", snapshot: prepared.snapshot });
   });
 
   it("refuses a non-terminal head bound to a foreign member", async () => {
@@ -430,7 +432,7 @@ describe("eligibility observation bracket", () => {
       status: "ok" as const,
       value: { planId: "foreign", workUnitId: "other", deliverableId: prepared.snapshot.members[0]!.deliverableId },
     }));
-    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+    await expect(closeDeliveryEligibility(prepared.snapshot, deps))
       .resolves.toMatchObject({
       status: "refused", reason: "head-already-bound", deliverableId: prepared.snapshot.members[0]!.deliverableId,
     });
@@ -450,7 +452,7 @@ describe("eligibility observation bracket", () => {
         ? { planId: "foreign", workUnitId: "other", deliverableId: finalMember.deliverableId }
         : null,
     }));
-    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+    await expect(closeDeliveryEligibility(prepared.snapshot, deps))
       .resolves.toMatchObject({
       status: "refused", reason: "head-already-bound", deliverableId: finalMember.deliverableId,
     });
@@ -469,7 +471,7 @@ describe("eligibility observation bracket", () => {
       ["candidate/first", { head: oid("b"), tree: oid("2") }],
       ["candidate/second", { head: oid("c"), tree: oid("4") }],
     ]).get(ref) ?? null);
-    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+    await expect(closeDeliveryEligibility(prepared.snapshot, deps))
       .resolves.toEqual({
       status: "refused", reason: "source-moved",
     });
@@ -490,7 +492,7 @@ describe("eligibility observation bracket", () => {
     }, bindingDeps);
     if (prepared.status !== "prepared") throw new Error("fixture must prepare");
     bindingDeps.resolveMember = vi.fn(async () => ({ status: "refused" as const }));
-    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, bindingDeps))
+    await expect(closeDeliveryEligibility(prepared.snapshot, bindingDeps))
       .resolves.toEqual({
       status: "refused", reason: "evidence-unavailable",
     });
@@ -512,21 +514,18 @@ describe("eligibility observation bracket", () => {
         deliverableId: first.deliverableId,
       } : null,
     }));
-    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+    await expect(closeDeliveryEligibility(prepared.snapshot, deps))
       .resolves.toMatchObject({ status: "eligible" });
 
     deps.compareNormalizedCompleteness = vi.fn(async () => ({ status: "refused" as const, reason: "dropped" as const }));
-    await expect(closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: passedGateResults() }, deps))
+    await expect(closeDeliveryEligibility(prepared.snapshot, deps))
       .resolves.toEqual({
       status: "refused", reason: "completeness-dropped",
     });
 
     const movedPlanDeps = dependencies();
     movedPlanDeps.readCurrentPlan = vi.fn(async () => null);
-    await expect(closeDeliveryEligibility({
-      snapshot: prepared.snapshot,
-      gateResults: passedGateResults(),
-    }, movedPlanDeps)).resolves.toEqual({
+    await expect(closeDeliveryEligibility(prepared.snapshot, movedPlanDeps)).resolves.toEqual({
       status: "refused", reason: "plan-moved",
     });
   });

@@ -60,11 +60,13 @@ describe("packaged delivery workflow", () => {
     );
     expect(materializeSection).toMatch(/opt-out[\s\S]*zero native host calls/iu);
     expect(materializeSection).toContain("terminalPresentation");
-    expect(materializeSection).toContain("complete Tier 2 command set");
-    expect(materializeSection).toContain("gateResults");
-    expect(materializeSection.indexOf("gateResults")).toBeLessThan(
-      materializeSection.indexOf("arc delivery eligibility close"),
-    );
+    const tierTwoRun = packaged.indexOf("complete Tier 2 command set");
+    const gateResults = packaged.indexOf("gateResults", tierTwoRun);
+    const eligibilityClose = packaged.indexOf("arc delivery eligibility close", gateResults);
+    expect(tierTwoRun).toBeGreaterThan(-1);
+    expect(tierTwoRun).toBeLessThan(gateResults);
+    expect(gateResults).toBeLessThan(eligibilityClose);
+    expect(eligibilityClose).toBeLessThan(packaged.indexOf("arc delivery publish"));
     expect(materializeSection.indexOf("terminalPresentation")).toBeLessThan(
       materializeSection.indexOf("arc delivery publish"),
     );
