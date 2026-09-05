@@ -910,3 +910,24 @@ built-CLI acceptance continues past the earlier pending-effect stopping point th
 existing teardown-to-terminal route, so preparation and provider submission are no longer separately proved halves.
 The existing fresh `delivery position` continuation remains authoritative; no direct terminal action, new record,
 review policy, generic control loop, storage change, or speculative lock-recovery mechanism is added.
+
+### Amendment 17 — a prepared reservation cannot invalidate its own review revalidation (2026-09-05)
+
+The D9.12 correction reached one shared review reduction, but the faithful live submit still refused
+`fresh-set-refused`. The reduction itself used ordinary corrective review status. Native preparation had advanced
+Delivery State from revision 453 idle to revision 454 with an active prepared operation, so continuation validation
+returned `state-not-idle`; the newly committed WU correction also advanced the live work-unit head beyond the
+Candidate coordinate. Reconciliation preserved the prepared operation, submit refused it, and Candidate attestation
+refused while state was active, forming a typed deadlock before lock release or provider mutation. The prior E2E had
+used `reservation: null` with no corrective continuation and therefore never exercised either production guard.
+
+Decided behavior: only native submit for the exact current prepared operation may project review readiness through
+the reservation. It first validates the active-operation revision and snapshot, plan and operation IDs,
+`land / native / prepared` phase, and null effect identity. It then removes only that proven reservation from the
+comparison, uses the operation's pre-reservation state revision, and projects Candidate currentness at the terminal
+coordinate held by that state rather than the later work-unit head. The delivery-review conjunction is still reduced
+once, and each selected member still gets fresh exact pull-request, ref, head, and required-check observation before
+any lock release, state transition, or provider call. Ordinary review status remains blocked over the same active
+state, so this is not a general stale-Candidate escape. A production-style E2E now carries a real hosted reservation
+and corrective continuation, proves ordinary status blocks, advances the terminal head after preparation, submits
+successfully through the narrow scope, and continues through effect settlement and terminal handoff.

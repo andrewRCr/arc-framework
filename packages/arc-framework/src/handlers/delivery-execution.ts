@@ -4480,8 +4480,8 @@ async function executeDeliveryCommand(
     const plan = planRead.value;
     const current = stateRead.value;
     const host = new GhDeliveryHostPort(hostedGhRunner);
-    const reviewStatus = createReviewStatusPort({ cwd, exec });
     if (command === "native-land-prepare") {
+      const reviewStatus = createReviewStatusPort({ cwd, exec });
       const prepare = NativePrepareSchema.parse(parsed);
       const expectedChain = deriveNativeDeliveryMemberChain({
         state: current.value,
@@ -4566,6 +4566,15 @@ async function executeDeliveryCommand(
     if (command === "native-land-submit") {
       const submit = NativeSubmitSchema.parse(parsed);
       const operation = current.value.activeOperation;
+      const reviewStatusInput = {
+        cwd,
+        exec,
+        preparedNativeLanding: {
+          planId: submit.planId,
+          operationId: submit.operationId,
+        },
+      };
+      const reviewStatus = createReviewStatusPort(reviewStatusInput);
       const nativeResult = await submitReservedNativeDeliveryMerge({
         planId: submit.planId,
         current,
@@ -4610,7 +4619,7 @@ async function executeDeliveryCommand(
             if (expected === undefined || !Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
               throw new Error("reserved native landing member is unavailable");
             }
-            return createReviewStatusPort({ cwd, exec }, {
+            return createReviewStatusPort(reviewStatusInput, {
               target,
               pullRequest,
               routedObligation,

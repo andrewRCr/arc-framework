@@ -11,7 +11,14 @@ import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-s
 import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { createGitExec } from "../../src/lib/io-context.js";
-import { projectPublicationBoundary } from
+import { projectDeliveryPublicReviewContinuation } from
+  "../../src/lib/delivery/public-review-continuation.js";
+import {
+  createStandardReviewReservation,
+  IntegrationBoundaryLocusSchema,
+  projectCorrectiveDeliveryReviewBoundary,
+  projectPublicationBoundary,
+} from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import {
@@ -779,13 +786,65 @@ describe("arc delivery", () => {
       lineageAttestations: [],
     };
     await writeCandidateRecord(repository, plan.workUnitId, candidate, null);
-    await writeSubmissionBoundary(repository, projectPublicationBoundary({
+    const reservation = createStandardReviewReservation({
+      candidateId: candidate.attestation.candidateId,
+      sourceId: "coderabbit-pr",
+      target: {
+        kind: "delivery",
+        repository: "owner/repo",
+        workUnitId: plan.workUnitId,
+        planId: plan.planId,
+      },
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const sourceBoundary = projectPublicationBoundary({
       workUnit: plan.workUnitId,
       branch: topBranch,
       candidateId: candidate.attestation.candidateId,
       candidateSubjectDigest: candidate.subject.subjectDigest,
-      reservation: null,
+      reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 44 },
+    });
+    const continuation = projectDeliveryPublicReviewContinuation({
+      plan,
+      state,
+      stateRevision: 1,
+    });
+    if (continuation.status !== "projected") throw new Error("delivery continuation must project");
+    const correctiveBoundary = projectCorrectiveDeliveryReviewBoundary({
+      workUnit: plan.workUnitId,
+      candidateId: candidate.attestation.candidateId,
+      candidateSubjectDigest: candidate.subject.subjectDigest,
+      supersedesCandidateId: null,
+      sourceBoundary,
+      deliveryContinuation: continuation.continuation,
+    });
+    await writeSubmissionBoundary(repository, IntegrationBoundaryLocusSchema.parse({
+      ...correctiveBoundary,
+      deliveryReviewTermini: state.members.map((member) => ({
+        vehicle: {
+          kind: "delivery-member",
+          planId: plan.planId,
+          deliverableId: member.deliverableId,
+          workUnitId: plan.workUnitId,
+          head: member.coordinates!.head,
+        },
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "test-user",
+          completedPasses: 0,
+        },
+      })),
     }), null);
 
     const prepared = await runArcWithStdin(
@@ -801,6 +860,27 @@ describe("arc delivery", () => {
       members: nativeMembers.map(({ deliverableId, changeRequestId, headSha }) => ({
         deliverableId, changeRequestId, headSha,
       })),
+    });
+    const ordinaryPreparedStatus = await runArc(
+      [
+        "review", "status",
+        "--target", JSON.stringify({
+          repository: "owner/repo",
+          headRef: state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
+          headSha: nativeMembers[0]!.headSha,
+        }),
+        "--json",
+      ],
+      repository,
+      { env },
+    );
+    expect(ordinaryPreparedStatus.exitCode, ordinaryPreparedStatus.stderr).toBe(0);
+    expect(JSON.parse(ordinaryPreparedStatus.stdout)).toMatchObject({
+      state: "blocked",
+      routedObligation: {
+        state: "blocked",
+        detail: "The public delivery continuation is not current.",
+      },
     });
 
     const preparedStatePath = join(states, `${plan.planId}.json`);
@@ -866,6 +946,10 @@ describe("arc delivery", () => {
       reason: "native-stack-moved",
     });
 
+    await writeFile(join(repository, "terminal-residual.txt"), "post-prepare correction\n");
+    await git(repository, ["add", "terminal-residual.txt"]);
+    await git(repository, ["commit", "-m", "post-prepare correction"]);
+
     const submitted = await runArcWithStdin(
       ["delivery", "native", "land-submit", "-", "--json"],
       repository,
@@ -877,6 +961,7 @@ describe("arc delivery", () => {
       status: "pending",
       effectIdentity: "native-effect-1",
     });
+    await git(repository, ["reset", "--hard", top.coordinates!.head]);
 
     await git(repository, ["update-ref", "refs/heads/main", landedTargetHead]);
     const landed = await runArcWithStdin(

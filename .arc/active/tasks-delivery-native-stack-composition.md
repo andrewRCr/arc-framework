@@ -4795,6 +4795,19 @@ meta exists and that resolution shape is the exact defect the retired terminal a
             7. Re-run the live seven-member preparation and exact-head integration interlock on the corrected head;
                require the approved submit to cross the provider boundary without repeated review reduction.
 
+        - _Prepared-submit amendment (2026-09-05):_ The shared submission reduction still consumed ordinary
+          corrective review status, whose idle-state and live-Candidate guards necessarily reject the reservation
+          and later terminal-only correction commits. Preserve those guards for every ordinary caller while letting
+          the exact prepared submit validate the review subject that existed immediately before its own reservation.
+
+            8. Reproduce the live refusal with a real corrective delivery continuation, hosted reservation, active
+               prepared native operation, and a terminal work-unit commit after preparation.
+            9. Bind the exception to the exact current plan and prepared operation, validate the continuation against
+               its pre-reservation idle state and terminal coordinate, and retain fresh per-member host and check
+               observations. Prove ordinary review status remains blocked during the same reservation.
+            10. Re-run the live preserved seven-member submit under a fresh exact-head integration interlock and
+                require it to cross the provider boundary before closing this corrective task.
+
 ---
 
 ## Success Criteria

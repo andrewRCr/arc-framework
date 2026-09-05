@@ -19,6 +19,7 @@ import {
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { validateDeliveryPublicReviewContinuation } from
   "../../lib/delivery/public-review-continuation.js";
+import { validateDeliveryActiveOperation } from "../../lib/delivery/operation.js";
 import {
   projectGitDeliveryTerminalCoordinateAdvance,
   projectGitDeliveryTerminalRecordAdvance,
@@ -218,6 +219,10 @@ export async function readRoutedObligation(
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
   options: {
     readonly remote?: string;
+    readonly preparedNativeLanding?: {
+      readonly planId: string;
+      readonly operationId: string;
+    };
     readonly captureTerminalAdvance?: (
       advance: { readonly stateHead: string; readonly currentHead: string },
     ) => void;
@@ -254,22 +259,63 @@ export async function readRoutedObligation(
     let effective: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>>;
     let terminalAdvance: { readonly stateHead: string; readonly currentHead: string } | undefined;
     if (correctiveContinuation !== undefined) {
+      const delivery = await memberLookup.resolveTerminalRecords(workUnit);
+      if (delivery.status !== "resolved") {
+        return { state: "blocked", detail: "The public delivery continuation is unavailable." };
+      }
+      const preparedScope = options.preparedNativeLanding;
+      let continuationState = delivery.state;
+      let continuationStateRevision = delivery.stateRevision;
+      let preparedTerminalHead: string | undefined;
+      if (preparedScope !== undefined) {
+        const active = validateDeliveryActiveOperation({
+          revision: delivery.stateRevision,
+          value: delivery.state,
+        });
+        if (delivery.plan.planId !== preparedScope.planId
+          || active.status !== "valid"
+          || active.operation.operationId !== preparedScope.operationId
+          || active.operation.kind !== "land"
+          || active.operation.mode !== "native"
+          || active.operation.native?.phase !== "prepared"
+          || active.operation.effectIdentity !== null) {
+          return { state: "blocked", detail: "The prepared native landing review scope is not current." };
+        }
+        continuationState = { ...active.state, activeOperation: null };
+        continuationStateRevision = active.operation.stateRevision;
+        preparedTerminalHead = continuationState.members.at(-1)?.coordinates?.head;
+        if (preparedTerminalHead === undefined) {
+          return { state: "blocked", detail: "The prepared native landing has no terminal Candidate coordinate." };
+        }
+      }
+      const historicalTarget = preparedTerminalHead === undefined
+        ? undefined
+        : {
+            revision: preparedTerminalHead,
+            currentBase: await resolveGitCandidateTargetBase({
+              cwd,
+              revision: preparedTerminalHead,
+              baseBranch,
+              ...(currentBaseRevision === undefined ? {} : { baseRevision: currentBaseRevision }),
+              exec,
+            }),
+          };
       effective = await projectGitCandidateEffectiveTarget({
         cwd,
         name: workUnit,
         baseBranch,
-        ...(currentBaseRevision === undefined ? {} : { baseRevision: currentBaseRevision }),
+        ...(historicalTarget === undefined && currentBaseRevision !== undefined
+          ? { baseRevision: currentBaseRevision }
+          : {}),
         record,
         exec,
         rawExec: createRawGitExec(cwd),
+        ...(historicalTarget === undefined ? {} : { target: historicalTarget }),
       });
       if (effective.state !== "current") {
         return { state: "blocked", detail: "The owning work-unit Candidate is not current." };
       }
-      const delivery = await memberLookup.resolveTerminalRecords(workUnit);
-      const terminalCoordinates = delivery.status === "resolved"
-        ? delivery.state.members.at(-1)?.coordinates ?? undefined
-        : undefined;
+      const terminalCoordinates = continuationState.members.at(-1)?.coordinates ?? undefined;
       const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
         cwd,
         exec,
@@ -278,12 +324,11 @@ export async function readRoutedObligation(
         baseBranch,
         ...(terminalCoordinates === undefined ? {} : { terminalCoordinates }),
       });
-      if (delivery.status !== "resolved"
-        || validateDeliveryPublicReviewContinuation({
+      if (validateDeliveryPublicReviewContinuation({
           continuation: correctiveContinuation,
           plan: delivery.plan,
-          state: delivery.state,
-          stateRevision: delivery.stateRevision,
+          state: continuationState,
+          stateRevision: continuationStateRevision,
           ...(terminalCoordinateAdvance === undefined ? {} : { terminalCoordinateAdvance }),
         }).status !== "current") {
         return { state: "blocked", detail: "The public delivery continuation is not current." };
@@ -554,7 +599,15 @@ export async function readRoutedObligation(
 
 /** Bind GitHub, publication-boundary, and Git base reads to the status reducer. */
 export function createReviewStatusPort(
-  input: { cwd: string; exec: GitExec; remote?: string },
+  input: {
+    cwd: string;
+    exec: GitExec;
+    remote?: string;
+    preparedNativeLanding?: {
+      readonly planId: string;
+      readonly operationId: string;
+    };
+  },
   precomputed?: {
     readonly target: ChangeRequestTargetRef;
     readonly pullRequest: number;
@@ -628,7 +681,12 @@ export function createReviewStatusPort(
                     ...(coverage === undefined ? {} : { coverage }),
                   },
               undefined,
-              { remote },
+              {
+                remote,
+                ...(input.preparedNativeLanding === undefined
+                  ? {}
+                  : { preparedNativeLanding: input.preparedNativeLanding }),
+              },
             );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
         const signal = new AbortController().signal;

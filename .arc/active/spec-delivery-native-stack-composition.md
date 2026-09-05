@@ -1992,6 +1992,23 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   handoff. This closes the supported native landing path without adding convergence policy, storage, a generalized
   orchestration contract, a new authority, or speculative recovery and lock machinery.
 
+- **D9.13 Prepared native submission revalidates its pre-reservation review subject — amended 2026-09-05 after
+  D9.12's live acceptance exposed a self-invalidating reservation.** Reserving the native effect advances Delivery
+  State from idle to an active prepared operation, while correction commits may independently advance the terminal
+  work-unit branch before the approved submit fires. Ordinary corrective review status correctly rejects both facts:
+  its continuation requires idle Delivery State and its Candidate projection observes the live work-unit head. Using
+  that ordinary projection inside submit therefore makes every valid prepared reservation invalidate itself.
+
+  Only the exact prepared native submit projection treats its own reservation as transparent. It validates the
+  current active operation, exact plan and operation identities, `land / native / prepared` phase, null provider
+  identity, pre-reservation state revision, and unchanged before-snapshot; then it validates the carried public
+  review continuation against that operation's idle pre-reservation state and pins Candidate projection to the
+  terminal coordinate held there. The submit still freshly reobserves every selected pull request, ref, head, and
+  required-check result, plus the registered stack and merge policy, before lock release or provider mutation.
+  Ordinary review status remains blocked while Delivery State is active, and any mismatched, stale, submitting, or
+  already-identified operation refuses. This adds no reusable stale-Candidate option, persisted review verdict,
+  generalized status mode, new record, or authority over the later terminal correction.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:
