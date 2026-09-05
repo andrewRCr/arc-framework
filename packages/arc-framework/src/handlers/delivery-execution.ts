@@ -256,7 +256,10 @@ import { deliveryProviderGhRunner } from "../scripts/delivery/provider-process.j
 import { releaseMergeLock } from "../scripts/review-gate/merge-lock.js";
 import { evaluateReviewReadiness } from "../scripts/review-gate/readiness.js";
 import { MergeMethodSchema, resolveMergeMethod } from "../scripts/review-gate/merge-method.js";
-import { assessDeliveryLandingReviewReadiness } from
+import {
+  assessDeliveryLandingReviewReadiness,
+  createDeliveryLandingSetReviewReadiness,
+} from
   "../scripts/review-gate/delivery-landing-readiness.js";
 import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
@@ -4509,6 +4512,29 @@ async function executeDeliveryCommand(
           recommendedActionText: "Restore fresh delivery position before preparing a native landing.",
         };
       }
+      const anchor = expectedChain.members[0];
+      if (anchor === undefined) {
+        return {
+          status: "blocked",
+          reason: "member-set-mismatch",
+          recommendedActionText: "Refresh the exact plan-ordered member bindings before preparing again.",
+        };
+      }
+      const reviewReadiness = createDeliveryLandingSetReviewReadiness({
+        repository: prepare.repository,
+        headRef: anchor.headRef,
+        headSha: anchor.headSha,
+      }, reviewStatus, (target, routedObligation) => {
+        const expected = expectedChain.members.find((candidate) => candidate.headRef === target.headRef
+          && candidate.headSha === target.headSha);
+        if (expected === undefined) throw new Error("selected native landing member is unavailable");
+        return createReviewStatusPort({ cwd, exec }, {
+          target,
+          pullRequest: Number(expected.changeRequestId),
+          routedObligation,
+          deliveryLookupHeadSha: expected.headSha,
+        });
+      });
       return reserveNativeDeliveryLanding({
         plan, current, operationId: prepare.operationId, facts: observed.facts,
         selection: prepare.selection, repository: prepare.repository, baseRef: prepare.baseRef,
@@ -4529,11 +4555,11 @@ async function executeDeliveryCommand(
             || observed.request.baseRef !== expected.baseRef) {
             return { status: "refused" as const };
           }
-          return assessDeliveryLandingReviewReadiness({
+          return reviewReadiness({
             repository: prepare.repository,
             headRef: expected.headRef,
             headSha: expected.headSha,
-          }, reviewStatus);
+          });
         }, stateStore,
       });
     }

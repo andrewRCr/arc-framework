@@ -4764,6 +4764,23 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           byte-identical to the recorded `1aed04955` union, so all eight exact member reports carry unchanged; the
           native recovery and submission-boundary seam remains coherent at 44 met, three superseded, zero unresolved.
 
+- _Forward correction (2026-09-05):_ Live seven-member preparation ran one complete eight-member review reduction
+  per selected member, multiplying hosted reads and falsely classifying six exact green, discharged heads as
+  review-unsettled. Share the authoritative conjunction across only this prepared set while preserving each
+  member's exact host and check reads.
+
+    - `[ ]` **9.1.R.o Compose atomic readiness from one delivery-review conjunction**
+
+        - _Goal:_ Native atomic preparation performs one routed delivery-review reduction per selected set, fans
+          only exact member request/head/check readiness, and reserves the effect only when every member is ready.
+
+        - _Build:_ `test-first` (one behavior at a time):
+            1. Prove two members remain ready when a full delivery status source can be consumed only once.
+            2. Reuse that one settled conjunction through target-bound status ports while retaining independent
+               exact member observations.
+            3. Re-run the live seven-member preparation and require a submit-ready reservation within the slowest
+               bounded member read rather than seven complete delivery reductions.
+
 ---
 
 ## Success Criteria

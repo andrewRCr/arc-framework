@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { assessDeliveryLandingReviewReadiness } from
+import {
+  assessDeliveryLandingReviewReadiness,
+  createDeliveryLandingSetReviewReadiness,
+} from
   "../../../../src/scripts/review-gate/delivery-landing-readiness.js";
 import { RoutedReviewObligationSchema, type ReviewStatusObservation, type ReviewStatusPort } from
   "../../../../src/scripts/review-gate/status.js";
@@ -56,6 +59,34 @@ function observation(
 }
 
 describe("delivery landing review readiness", () => {
+  it("shares one delivery-review conjunction across independent exact member reads", async () => {
+    const secondTarget = {
+      repository: target.repository,
+      headRef: "delivery/member-2",
+      headSha: "c".repeat(40),
+    };
+    let sharedReadCount = 0;
+    const sharedStatus: ReviewStatusPort = {
+      observe: async (selected) => observation({
+        actualHeadSha: selected.headSha,
+        routedObligation: sharedReadCount++ === 0
+          ? observation().routedObligation
+          : { state: "blocked", detail: "The delivery reduction was repeated." },
+      }),
+    };
+    const readiness = createDeliveryLandingSetReviewReadiness(
+      target,
+      sharedStatus,
+      (selected, routedObligation) => port(observation({
+        actualHeadSha: selected.headSha,
+        routedObligation,
+      })),
+    );
+
+    await expect(Promise.all([readiness(target), readiness(secondTarget)]))
+      .resolves.toEqual([{ status: "ready" }, { status: "ready" }]);
+  });
+
   it.each(["green", "not-required"] as const)(
     "admits a settled exact head with %s checks",
     async (requiredChecks) => {

@@ -1968,6 +1968,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   unpublished in-flight development reservation is regenerated in the new exact shape before the live landing
   interlock is replayed.
 
+- **D9.11 Set-wide readiness shares one delivery-review reduction — amended 2026-09-05 after the live atomic
+  preparation falsely refused six settled members.** A native atomic preparation computes the routed delivery
+  review conjunction once from one exact selected member, then binds that result to every selected exact member
+  while their own request, head, and required-check observations remain independent and concurrent. It never runs
+  one complete delivery-review reduction per member. The shared result carries no clearance on its own: every
+  member still revalidates its exact request binding, remote head, and checks, and any unavailable or unsettled
+  shared conjunction refuses the complete set before reservation. This is a landing-composition correction, not a
+  review-convergence policy, generic cache, new record, or relaxation of exact-head readiness.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:
@@ -2645,6 +2654,10 @@ added.
     readiness reads execute concurrently and a refusal names every unready exact member in plan order. No merge is
     authorized by recovery, and no operation kind, recovery record, compatibility reader, or generalized control
     loop is added (D9.10).
+53. Native atomic preparation reduces the delivery review conjunction once per attempted set, reuses that exact
+    result only across the selected member set, and concurrently reobserves each member's own request, head, and
+    checks. It does not multiply the complete delivery-review projection by member count, and no shared result can
+    replace exact per-member host readiness or authorize a landing (D9.11).
 
 ## Open Questions
 
