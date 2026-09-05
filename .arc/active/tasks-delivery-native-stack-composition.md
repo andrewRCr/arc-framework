@@ -577,7 +577,7 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
     - The same ref reaches the same consumers under a name that still describes it — no behavior changes
     - Update the tests and fixtures that spell the old field names
 
-### `[ ]` **4.7 Close delivery member 4** — validate criteria at member scope
+### `[x]` **4.7 Close delivery member 4** — validate criteria at member scope
 
 - _Goal:_ Member 4's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -632,16 +632,29 @@ guarded by a subset check; absorption is the genuine content merge and belongs t
   workflow-owned gate outcomes, while Member 4's exact tree also lacked three checkpoint/mock-isolation repairs
   later supplied by Member 7. Close both defects at the first publication-owning boundary.
 
-    - `[ ]` **4.7.R.c Require exact member gate evidence and repair the Member 4 boundary**
+    - `[x]` **4.7.R.c Require exact member gate evidence and repair the Member 4 boundary**
 
         - _Goal:_ Initial stacked publication refuses before any mutation unless every exact detached member
           candidate reports a passed Tier 2 gate, and Member 4's own cumulative tree independently passes that gate.
 
-        - Add fail-first coverage for missing, duplicate, reordered, failed, and stale per-member results; bind the
-          ephemeral evidence to deliverable/head/tree at eligibility close and again inside fresh publication
-          admission; update the two shipped workflow copies; transplant only the later checkpoint composition,
-          test-fixture, and isolated-mock-list repairs required at this boundary; run exact Member 4 Tier 2; and
-          re-walk the amended Member 4 criteria slice. Add no durable receipt, gate runner, or hosted-CI coupling.
+        - _Outcome:_ Member 4 criteria report.
+            - _Criteria slice:_ `Success Criteria > Member 4 — topology-transition`.
+            - _Span:_ bounded diff `3d646eb88..0f1c1947e`; cumulative reachability `0f1c1947e` at tree
+              `e7ec11979`. The recorded Phase 5 terminal-path boundary-order deviation remains incorporated; this
+              correction adds no new deviation.
+            - _Criterion:_ `Success Criteria > Member 4 — topology-transition > 1`;
+              _criterion-digest:_ `sha256:90e248ded8e8482bab26fb6622adec6c2274ec73dba20d780ace882bbdc44ba7`;
+              _State:_ `[x]`; _Evidence:_ the current member retains the ordinary top request, complete presentation
+              preflight, and containment-guarded adoption. The correction changes only eligibility admission and
+              preserves a non-authorizing mechanical close for pre-binding review-target composition.
+            - _Criterion:_ `Success Criteria > Member 4 — topology-transition > 2`;
+              _criterion-digest:_ `sha256:e973757b8791067d9eba6919f320a97087324c191e9ef6f62b80b147680d1045`;
+              _State:_ `[x]`; _Evidence:_ initial eligibility close and publication require the complete ordered
+              deliverable/head/tree result set, reobserve the exact candidates, and refuse missing, duplicate,
+              reordered, failed, or stale evidence before mutation. The exact current member passed Tier 2; no
+              durable receipt, gate runner, or hosted-CI coupling was added.
+            - _Adversarial companion:_ declined after the primary walk and exact executable evidence.
+            - _Summary:_ two met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 5:** Terminal integration arm
 
