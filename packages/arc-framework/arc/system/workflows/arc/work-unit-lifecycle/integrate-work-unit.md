@@ -217,10 +217,17 @@ explicit `judgment.mode: owner-accepted` to:
 arc review terminus accept -
 ```
 
-`recorded / commit-boundary` stages the exact boundary record. Commit and push it, then re-enter status.
-`exact-replay / continue` re-enters directly. `refused / rerun-status` re-enters without reusing the stale offer;
-every other result stops. The terminus records explicit Owner authority only; never report the member clean or
-converged from it.
+`recorded / commit-boundary` stages the exact boundary record. Commit and push it, then resume through the
+selector-free correction procedure with only the repository and remote identities:
+
+```bash
+printf '%s\n' '{"repository":"{repositoryRef}","remote":"origin"}' | arc delivery review-fix continue - --json
+```
+
+The procedure performs any owed terminal-coordinate rebind before returning the first outstanding member.
+`exact-replay / continue` and `refused / rerun-status` create no new head and re-enter status directly; the refused
+arm does not reuse the stale offer. Every other result stops. The terminus records explicit Owner authority only;
+never report the member clean or converged from it.
 
 `review-hosted-request` means pass the returned action unchanged to:
 
