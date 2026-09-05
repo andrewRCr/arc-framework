@@ -197,8 +197,11 @@ async function revalidateDeliveryEligibilityForMutation(input: {
     if (checkout.status !== "exact") return checkout;
   }
   return input.gateResults === undefined
-    ? closeMechanicalDeliveryEligibility(prepared.snapshot, deps)
-    : closeDeliveryEligibility({ snapshot: prepared.snapshot, gateResults: input.gateResults }, deps);
+    ? closeDeliveryEligibility(prepared.snapshot, deps)
+    : closeDeliveryEligibilityForPublication({
+      snapshot: prepared.snapshot,
+      gateResults: input.gateResults,
+    }, deps);
 }
 
 /** Validate and pin one complete authored candidate chain before workflow-owned gates run. */
@@ -326,8 +329,28 @@ export async function verifyDeliveryCandidateCheckout(
   return { status: "exact" };
 }
 
-/** Close the observation window after workflow-owned gates without writing plan or state. */
+/**
+ * Close a mechanically exact eligibility window without granting publication authority.
+ *
+ * @param snapshot - Prepared candidate coordinates to reobserve
+ * @param deps - Exact Git, plan, and member-binding readers
+ * @returns The eligible snapshot or the first mechanical refusal
+ */
 export async function closeDeliveryEligibility(
+  snapshot: DeliveryEligibilitySnapshot,
+  deps: DeliveryEligibilityDependencies,
+): Promise<{ readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot } | DeliveryEligibilityRefusal> {
+  return closeMechanicalDeliveryEligibility(snapshot, deps);
+}
+
+/**
+ * Close the publication eligibility window after consuming workflow-owned gate results.
+ *
+ * @param input - Prepared candidate coordinates and their ordered exact gate results
+ * @param deps - Exact Git, plan, and member-binding readers
+ * @returns The eligible snapshot or the first gate or mechanical refusal
+ */
+export async function closeDeliveryEligibilityForPublication(
   input: {
     readonly snapshot: DeliveryEligibilitySnapshot;
     readonly gateResults: readonly DeliveryCandidateGateResult[];
