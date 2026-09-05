@@ -604,13 +604,15 @@ describe("delivery entry inspection", () => {
       nextAction: "verify-work-unit",
       planId: plan.planId,
       stateRevision: fixture.stateRevision,
+      recommendedActionText:
+        "Complete Candidate verification closeout before resolving the retained delivery status.",
     });
   });
 
   it.each([
     ["different current Candidate", { candidateId: `sha256:${"0".repeat(64)}`, stateRevision: 7 }],
     ["non-forward state revision", { candidateId: `sha256:${"b".repeat(64)}`, stateRevision: 6 }],
-  ])("refuses a corrective hosted continuation with %s", async (_name, stale) => {
+  ])("refuses corrective delivery status with %s", async (_name, stale) => {
     const fixture = publicContinuationFixture();
 
     await expect(inspectDeliveryEntry({

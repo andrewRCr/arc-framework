@@ -583,7 +583,7 @@ function refused(reason: Extract<DeliveryEntryInspectionResult, { status: "refus
       : reason === "review-fix-response-invalid" || reason === "review-fix-response-stale"
         ? "Restore the exact approved response, delivery plan, member, and current state binding before resuming."
         : reason === "public-continuation-mismatch"
-    ? "Restore the exact Candidate, plan, state, member, and public continuation binding before resuming review."
+    ? "Restore the exact Candidate, plan, state, member, and public continuation before resolving delivery status."
     : reason === "provisional-unconfirmed"
     ? "Confirm the prior attended delivery disposition before canonicalizing provisional intent."
     : reason === "task-cursor-unavailable"
@@ -939,7 +939,7 @@ export async function inspectDeliveryEntry(
           planId: plan.planId,
           stateRevision: state.revision,
           recommendedActionText:
-            "Complete Candidate verification closeout before resuming the retained public delivery review.",
+            "Complete Candidate verification closeout before resolving the retained delivery status.",
         };
       }
       if (candidate.value !== null

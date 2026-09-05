@@ -2375,7 +2375,7 @@ async function executeDeliveryCommand(
             },
           },
           recommendedActionText:
-            "Rebind the machine-owned terminal record advance before recomposing hosted review status.",
+            "Rebind the machine-owned terminal record advance before resolving delivery status.",
         };
       };
       const prepareCorrection = async (correctionEntry: DeliveryCorrectionRoutingEntry) => {
