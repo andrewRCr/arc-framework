@@ -2260,7 +2260,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -2268,53 +2268,44 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 - _Outcome:_ Member 7 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 7 — review-fan-out`.
-    - _Span:_ bounded diff `8a45168e6..ac09c41b9`; cumulative reachability `c728a1f0b` at tree `833756c8e`.
-      Boundary-order deviation: the approved local-review corrections, the supplemental closure, and the entry-seam
-      separation were all projected into Member 7 after its original boundary; exact two-parent terminal absorption
-      `c728a1f0b` retains the prior top while supplying corrected Member 7 `ac09c41b9`, so terminal-only content
-      remains outside the bounded member diff. That reachability is also the scoped verification target, so the
-      criteria walk and Tier 1 name one tree.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _State:_ `[x]`; _Evidence:_ the exact
-      delivery-member local operation binds PR 556, Member 7 head `5360c84d5`, and a complete chunk series; its one
-      aggregate result increments the standard lane exactly once. The live correction published only Member 7 —
-      now at `ac09c41b9` — and retained the ordered public conjunction, with Members 1–6 discharged and Member 7
-      still exact-head bound.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _State:_ `[x]`; _Evidence:_ the aggregate
-      result covers the complete contract-closed chunk union and dedicated seam without changing the shared
-      contribution arbiter. Finding corrections reobserve endpoints and require symmetric, stable member-vehicle
-      identity before mechanically carrying authority; movement and asymmetric scopes stop instead of re-reviewing
-      or crossing member boundaries. Admission narrowed further: an explicit incremental request whose only ready
-      source is the complete-only chunked local carrier now stops at `coverage-unsupported` before preparation
-      rather than silently widening coverage to a complete pass.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _State:_ `[x]`; _Evidence:_ local
-      prepare, durable resume, aggregate attestation, approved disposition, and correction routing retain the exact
-      member, source, head, pass, rubric, and chunked scope through status composition and every typed review verb.
-      The complete aggregate alone enters lane progress as one pass, while Candidate transitions remain the sole
-      durable applicability authority and partial reports carry no settlement authority.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _State:_ `[x]`; _Evidence:_ registered
-      dependent refresh, unregistered rematerialization, and terminal correction rebind install one pending scoped
-      verification continuation — this drive reinstalled it at state revision 379. Stale verification yields to an
-      already projected exact authoring rebind, and response-loss re-entry is now proven against a Candidate
-      committed on the branch rather than an uncommitted fixture, so recovery cannot pass while the record it binds
-      is absent from `HEAD`.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _State:_ `[x]`; _Evidence:_ one
-      selector-free drive executed authoring rebind, publication, and provider refresh, stopped once on a semantic
-      terminal conflict carrying its exact prepared two-parent coordinates, and resumed from the recorded
-      resolution to the consolidated verification target `c728a1f0b` / `833756c8e`. Correction records now recover
-      across interruption from canonical state alone, and acknowledgement recovery binds to the committed `HEAD`
-      Candidate. Tier 1 reran whole on the target tree; no hosted provider request ran and no orchestration record,
-      quality ledger, or convergence policy was added.
-    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 6`; _State:_ `[x]`; _Evidence:_ integration
-      entry partitions the terminal delta against the work unit's lifecycle-contribution group — including the
-      machine-owned Candidate and boundary records, whose omission produced spurious stops — selects the first
-      plan-ordered non-terminal member still bound to a change request, and answers `correction-route-ambiguous`
-      only when both hold. The stop carries both delta partitions, the outstanding member and its request, and an
-      ordered pair of routes with each one's next action, selecting neither. Lifecycle-only deltas and entries with
-      no outstanding member retain the closeout route; each unavailable arm — unreadable range, unresolved active
-      work unit, absent terminal coordinate — reports the classification unavailable and retains that route rather
-      than inventing one. The session probe surfaces the stop as an unresolved subject instead of projecting
-      ordinary integration, and both Framework copies of the integration workflow dispatch it.
-    - _Adversarial companion:_ the Heavy Member 7 two-pass cap remains exhausted; this acceptance adds no third pass.
+    - _Span:_ bounded diff `341b832e2..f859186cf`; cumulative reachability `f859186cf` at tree `e28cd855b`.
+      Boundary-order deviation: the exact-head terminus correction was projected into Member 7 after its original
+      boundary. Exact two-parent terminal absorption `787b6ef16` at tree `ce52b9a3e` retains originating top
+      `104f16e6f` while supplying corrected Member 7, so active WU artifacts remain outside the bounded member diff.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 1`; _Criterion digest:_
+      `sha256:44218da267415d541532b9a18ec7279d88418b22d048ce5b548ef029cb1b11ad`; _State:_ `[x]`;
+      _Evidence:_ production status offers exact-current-head Owner termination on the first outstanding member,
+      acceptance records only that member's boundary terminus, and re-entry advances to the next retained member.
+      The Candidate and review-operation snapshots remain unchanged, so conjunction order and provider evidence
+      are not replaced by the terminal decision.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 2`; _Criterion digest:_
+      `sha256:885873d1d7d13a01106c5ae4586bec158cff2f3a94ec255a7f476d4d3c039ec6`; _State:_ `[x]`;
+      _Evidence:_ accepting the exact terminus suppresses historical replay without classifying any residual as
+      covered or invoking another review. Declining it preserves the existing applicability action; zero-pass and
+      incremental-only histories receive no offer. The contribution arbiter and path-based proof are unchanged.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 3`; _Criterion digest:_
+      `sha256:209edac1da9cbaba26c40b757e62f55960880e62947ba1a3e37abf928f7d61ea`; _State:_ `[x]`;
+      _Evidence:_ the existing applicability result carries its unchanged Candidate selection beside a submit-ready
+      exact member terminus action. Both workflow copies present the terminal authority first, while acceptance
+      revalidates Candidate, boundary, vehicle, current head, and complete-pass count through the existing verb.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 4`; _Criterion digest:_
+      `sha256:3dbea54c1f0b785f7297ccc7e0cddf16b5b2466e7b3adebb3030f8d24fa9dd65`; _State:_ `[x]`;
+      _Evidence:_ the live selector-free correction rebound and published only Member 7, refreshed the terminal top,
+      and installed one exact scoped-verification continuation for target `787b6ef16` / tree `ce52b9a3e` without
+      replaying whole-WU verification, Frontline, or provider review.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 5`; _Criterion digest:_
+      `sha256:65eef3825f1d4230c7b06d8491b954a0794149de8691b314d1b9eec36d829c6d`; _State:_ `[x]`;
+      _Evidence:_ one driver invocation disclosed authoring rebind, selected-member publication, and provider refresh,
+      then stopped only for consolidated verification. The returned exact-tree reuse names the already-green
+      `ce52b9a3e` tree and unchanged covered inputs; no orchestration record, quality ledger, convergence policy, or
+      generalized control loop was added.
+    - _Criterion:_ `Success Criteria > Member 7 — review-fan-out > 6`; _Criterion digest:_
+      `sha256:7ff005972cd6fd2054df8145446149a6bd9c7c61c131f5fcadf34a79be3ee725`; _State:_ `[x]`;
+      _Evidence:_ execution entry selected Member 7 from open Task 7.7, and the correction driver reached publication
+      without an ambiguous route. The projected member commit contains only the six shippable workflow, source, and
+      test files; active notes, spec, and tasks remain terminal lifecycle content.
+    - _Adversarial companion:_ declined under the Owner's no-further-review direction; the Heavy Member 7 two-pass
+      cap is already exhausted.
     - _Summary:_ six met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 - _Forward amendment (2026-08-27):_ D8.5 requires delivery-member request admission to pass through the existing
