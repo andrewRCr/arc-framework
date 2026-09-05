@@ -110,7 +110,11 @@ describe("PR-open lifecycle extensions", () => {
       expect(pushExtension).toBeLessThan(pushInterlock);
       expect(pushInterlock).toBeLessThan(push);
       expect(prepare).not.toContain("#pre-push-review");
-      expect(integrate).not.toContain("arc publish {name}");
+      const reconcileStep = integrate.indexOf("### 10) Behind-base reconcile gate and merge");
+      const correctionPublish = integrate.indexOf("arc publish {name} --json", reconcileStep);
+      expect(reconcileStep).toBeGreaterThan(-1);
+      expect(correctionPublish).toBeGreaterThan(reconcileStep);
+      expect(integrate.slice(0, reconcileStep)).not.toContain("arc publish {name}");
       expect(integrate).toContain("Step 1, from the idempotent **push** action");
     }
   });
@@ -145,22 +149,27 @@ describe("PR-open lifecycle extensions", () => {
     expect(frontlineCycle.replace(/\s+/gu, " ")).toContain("Tier 1 gates");
   });
 
-  it("resumes post-PR hosted review from the carried reservation without rerouting sources", async () => {
+  it("resumes post-PR hosted review directly through public status", async () => {
     const workflow = await readFile(
       resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       "utf8",
     );
     const openedChangeRequest = workflow.indexOf("compose `openedChangeRequest");
     const reservation = workflow.indexOf("integrationBoundary.reservation", openedChangeRequest);
+    const deliveryResume = workflow.indexOf("`continue-hosted-review`", reservation);
+    const singletonResume = workflow.indexOf("`continue-pre-publication-review`", deliveryResume);
     const hostedRequest = workflow.indexOf("arc review hosted request -", reservation);
 
-    expect([openedChangeRequest, reservation, hostedRequest].every((index) => index >= 0)).toBe(true);
+    expect([openedChangeRequest, reservation, deliveryResume, singletonResume, hostedRequest]
+      .every((index) => index >= 0)).toBe(true);
     expect(openedChangeRequest).toBeLessThan(reservation);
     expect(reservation).toBeLessThan(hostedRequest);
     expect(workflow.slice(openedChangeRequest, hostedRequest)).not.toContain("arc review chunking resolve -");
-    expect(workflow.slice(reservation, hostedRequest)).toContain("integrationBoundary.nextAction.command");
-    expect(workflow.slice(reservation, hostedRequest)).toContain("policy.payload.sourceId");
-    expect(workflow.slice(reservation, hostedRequest)).toContain("policy.payload.pass");
+    const publicDeliveryResume = workflow.slice(deliveryResume, singletonResume);
+    expect(publicDeliveryResume).toContain("integrationBoundary.nextAction.command");
+    expect(publicDeliveryResume).toContain("WU-scoped public status reducer");
+    expect(publicDeliveryResume).not.toContain("arc review pre-publication");
+    expect(publicDeliveryResume).not.toContain("policy.payload");
   });
 
   it("runs the same frontline cycle only for full-protection Errand publication", async () => {

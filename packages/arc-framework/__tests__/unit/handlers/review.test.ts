@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -21,8 +25,14 @@ import {
   handleReviewChecksAwait,
   handleReviewReduce,
   handleReviewRespond,
+  handleReviewStatus,
+  handleReviewTerminusAccept,
+  stageDeliveryReviewTerminusBoundary,
 } from "../../../src/handlers/review.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
+import { IntegrationBoundaryLocusSchema } from
+  "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   createReviewRequirement,
   createReviewTarget,
@@ -107,13 +117,14 @@ describe("handleReviewMergeMethodResolve", () => {
   it("emits the live validation result for the configured method", async () => {
     const write = vi.fn();
     const readConfiguredMethod = vi.fn(async () => "squash" as const);
-    await handleReviewMergeMethodResolve({ json: true }, {
+    await handleReviewMergeMethodResolve({ json: true, stackPosition: "top" }, {
       resolveRoot: () => "/repo",
       readConfiguredMethod,
-      resolve: async (method) => ({
+      resolve: async (method, stackPosition) => ({
         schemaVersion: 1,
         mode: "review-merge-method-resolve",
         repository: "owner/repo",
+        stackPosition,
         state: "validated",
         nextAction: "use-method",
         method,
@@ -127,6 +138,7 @@ describe("handleReviewMergeMethodResolve", () => {
       state: "validated",
       nextAction: "use-method",
       method: "squash",
+      stackPosition: "top",
     });
     expect(readConfiguredMethod).toHaveBeenCalledWith("/repo");
   });
@@ -145,8 +157,37 @@ describe("handleReviewMergeMethodResolve", () => {
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
       state: "blocked",
       reason: "policy-unreadable",
+      stackPosition: "non-delivery",
       configuredMethod: null,
       allowedMethods: [],
+    });
+  });
+
+  it("fails closed on an invalid stack position", async () => {
+    const write = vi.fn();
+    await handleReviewMergeMethodResolve({ json: true, stackPosition: "middle" }, {
+      resolveRoot: () => "/repo",
+      readConfiguredMethod: async () => "merge",
+      resolve: async (_method, stackPosition) => ({
+        schemaVersion: 1,
+        mode: "review-merge-method-resolve",
+        repository: "owner/repo",
+        stackPosition,
+        state: "validated",
+        nextAction: "use-method",
+        method: "merge",
+        allowedMethods: ["merge"],
+        policyFingerprint: `sha256:${"a".repeat(64)}`,
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      state: "blocked",
+      reason: "invalid-input",
+      stackPosition: "non-delivery",
+      detail: "Stack position must be non-delivery, intermediate, or top.",
     });
   });
 });
@@ -701,6 +742,308 @@ describe("handleReviewResolve", () => {
       state: "no-op",
       nextAction: "none",
     });
+  });
+});
+
+describe("handleReviewStatus", () => {
+  it("routes a work-unit cursor through joined delivery status without requiring a target", async () => {
+    const output: string[] = [];
+    const resolve = vi.fn();
+    const resolveWorkUnit = vi.fn(async (_root, request) => ({
+      schemaVersion: 1 as const,
+      mode: "review-status" as const,
+      target: {
+        repository: "owner/repo",
+        headRef: "delivery/example/member-1",
+        headSha: "c".repeat(40),
+      },
+      requiredChecks: "green" as const,
+      routedObligation: {
+        state: "review-required" as const,
+        detail: `Member one is selected for ${request.workUnitId}.`,
+      },
+      currentBaseOid: "b".repeat(40),
+      state: "review-required" as const,
+      nextAction: "run-review" as const,
+    }));
+
+    await handleReviewStatus({ workUnit: "example", json: true }, undefined, {
+      resolveRoot: () => "/repo",
+      resolve,
+      resolveWorkUnit,
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(resolveWorkUnit).toHaveBeenCalledWith("/repo", { workUnitId: "example" });
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      target: { headRef: "delivery/example/member-1" },
+      state: "review-required",
+      nextAction: "run-review",
+      routedObligation: { detail: "Member one is selected for example." },
+    });
+  });
+
+  it("passes an invocation-scoped source into work-unit status composition", async () => {
+    const output: string[] = [];
+    const resolveWorkUnit = vi.fn(async (_root, request) => ({
+      schemaVersion: 1 as const,
+      mode: "review-status" as const,
+      target: {
+        repository: "owner/repo",
+        headRef: "delivery/example/member-1",
+        headSha: "c".repeat(40),
+      },
+      requiredChecks: "green" as const,
+      routedObligation: {
+        state: "review-required" as const,
+        detail: `Selected ${request.sourceId ?? "default"}.`,
+      },
+      currentBaseOid: "b".repeat(40),
+      state: "review-required" as const,
+      nextAction: "run-review" as const,
+    }));
+
+    await handleReviewStatus({
+      workUnit: "example",
+      source: "codex-pr",
+      json: true,
+    }, undefined, {
+      resolveRoot: () => "/repo",
+      resolve: vi.fn(),
+      resolveWorkUnit,
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(resolveWorkUnit).toHaveBeenCalledWith("/repo", {
+      workUnitId: "example",
+      sourceId: "codex-pr",
+    });
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      routedObligation: { detail: "Selected codex-pr." },
+    });
+  });
+
+  it("passes an exact ceiling override into status composition", async () => {
+    const statusTarget = {
+      repository: "owner/repo",
+      headRef: "feat/example",
+      headSha: "c".repeat(40),
+    };
+    const ceilingOverride = {
+      target: { repository: "owner/repo", pullRequest: 42, headSha: "c".repeat(40) },
+      lane: "standard" as const,
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    };
+    const output: string[] = [];
+
+    await handleReviewStatus({
+      target: JSON.stringify(statusTarget),
+      ceilingOverride: JSON.stringify(ceilingOverride),
+      coverage: "incremental",
+      json: true,
+    }, undefined, {
+      resolveRoot: () => "/repo",
+      resolve: async (_root, request) => ({
+        schemaVersion: 1,
+        mode: "review-status",
+        target: request.target,
+        requiredChecks: "green",
+        routedObligation: {
+          state: "review-required",
+          detail: request.ceilingOverride === undefined
+            ? "Ceiling override missing."
+            : `Ceiling override admits pass ${String(request.ceilingOverride.nextPass)} with `
+              + `${request.coverage ?? "complete"} coverage.`,
+        },
+        currentBaseOid: "b".repeat(40),
+        state: "review-required",
+        nextAction: "run-review",
+      }),
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      routedObligation: { detail: "Ceiling override admits pass 3 with incremental coverage." },
+    });
+  });
+});
+
+describe("handleReviewTerminusAccept", () => {
+  it("passes one exact Owner judgment through the typed mutation boundary", async () => {
+    const output: string[] = [];
+    const request = {
+      schemaVersion: 1 as const,
+      offer: {
+        schemaVersion: 1 as const,
+        kind: "delivery-member-owner-terminus" as const,
+        workUnitId: "example",
+        remote: "origin",
+        expectedBoundaryVersion: `sha256:${"b".repeat(64)}`,
+        candidateId: `sha256:${"c".repeat(64)}`,
+        candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+        target: { repository: "owner/repo", pullRequest: 41, headSha: "a".repeat(40) },
+        vehicle: {
+          kind: "delivery-member" as const,
+          planId: "123e4567-e89b-42d3-a456-426614174000",
+          deliverableId: `sha256:${"e".repeat(64)}`,
+          workUnitId: "example",
+          head: "a".repeat(40),
+        },
+        completedPasses: 7,
+        interactionText: "Accept this exact member terminus.",
+      },
+      judgment: { mode: "owner-accepted" as const },
+    };
+    const accept = vi.fn(async () => ({
+      schemaVersion: 1 as const,
+      mode: "review-terminus-accept" as const,
+      state: "refused" as const,
+      nextAction: "rerun-status" as const,
+      reason: "stale-offer" as const,
+      detail: "The offer is stale.",
+      recommendedActionText: "Re-run work-unit review status.",
+    }));
+
+    await handleReviewTerminusAccept("-", undefined, {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify(request),
+      accept,
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(accept).toHaveBeenCalledWith(request, "/repo", undefined);
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      mode: "review-terminus-accept",
+      state: "refused",
+      reason: "stale-offer",
+    });
+  });
+
+  it("stages only the exact terminus transition left by a prior process", async () => {
+    const boundaryPath = ".arc/system/.internal/candidates/example.boundary.json";
+    const root = await mkdtemp(join(tmpdir(), "arc-terminus-replay-"));
+    const boundary = IntegrationBoundaryLocusSchema.parse({
+      schemaVersion: 1,
+      mode: "integration-boundary",
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+      terminus: null,
+      locus: "hosted-review-pending",
+      nextAction: {
+        kind: "continue-hosted-review",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
+        interactionText: "Resume review.",
+      },
+      policy: null,
+      reservation: {
+        schemaVersion: 1,
+        semanticsVersion: "standard-review-reservation/v1",
+        reservationId: `sha256:${"a".repeat(64)}`,
+        sources: ["coderabbit-pr"],
+        target: {
+          kind: "delivery",
+          repository: "owner/repo",
+          workUnitId: "example",
+          planId: "123e4567-e89b-42d3-a456-426614174000",
+        },
+        obligation: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: `sha256:${"f".repeat(64)}`,
+          retrigger: "full-final",
+          count: 1,
+        },
+      },
+    });
+    const record = {
+      vehicle: {
+        kind: "delivery-member" as const,
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"e".repeat(64)}`,
+        workUnitId: SlugSchema.parse("example"),
+        head: "a".repeat(40),
+      },
+      terminus: {
+        schemaVersion: 1 as const,
+        semanticsVersion: "review-terminus/v1" as const,
+        kind: "owner-accepted" as const,
+        lane: "standard" as const,
+        acceptedBy: "andrew",
+        completedPasses: 2,
+      },
+    };
+    await mkdir(dirname(join(root, boundaryPath)), { recursive: true });
+    await writeFile(join(root, boundaryPath), JSON.stringify({
+      ...boundary,
+      deliveryReviewTermini: [record],
+    }));
+    let staged = false;
+    const exec = vi.fn(async (_command: string, args: string[]) => {
+      if (args[0] === "show") return { stdout: JSON.stringify(boundary), stderr: "" };
+      if (args[0] === "add") {
+        staged = true;
+        return { stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command: ${args.join(" ")}`);
+    });
+
+    try {
+      await expect(stageDeliveryReviewTerminusBoundary({
+        root,
+        workUnitId: "example",
+        exec,
+        result: {
+          schemaVersion: 1,
+          mode: "review-terminus-accept",
+          state: "exact-replay",
+          nextAction: "continue",
+          record,
+          recommendedActionText: "The terminus is already durable.",
+        },
+      })).resolves.toMatchObject({
+        state: "recorded",
+        nextAction: "commit-boundary",
+        boundaryPath,
+        record,
+      });
+      expect(staged).toBe(true);
+
+      staged = false;
+      await writeFile(join(root, boundaryPath), JSON.stringify({
+        ...boundary,
+        candidateSubjectDigest: `sha256:${"9".repeat(64)}`,
+        deliveryReviewTermini: [record],
+      }));
+      await expect(stageDeliveryReviewTerminusBoundary({
+        root,
+        workUnitId: "example",
+        exec,
+        result: {
+          schemaVersion: 1,
+          mode: "review-terminus-accept",
+          state: "exact-replay",
+          nextAction: "continue",
+          record,
+          recommendedActionText: "The terminus is already durable.",
+        },
+      })).resolves.toMatchObject({
+        state: "refused",
+        nextAction: "rerun-status",
+        reason: "record-conflict",
+      });
+      expect(staged).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -1547,6 +1890,11 @@ describe("handleReviewPrePublication", () => {
     schemaVersion: 1 as const,
     workUnit: "example",
     candidateId: `sha256:${"c".repeat(64)}`,
+    reservationTarget: {
+      kind: "pinned-head" as const,
+      repository: target.repository,
+      headSha: target.headSha,
+    },
     selfReview: "inactive" as const,
     frontline: lane("frontline", []),
     standard: lane("standard", ["codex-pr"]),
@@ -1822,6 +2170,92 @@ describe("handleReviewPrePublication", () => {
         frontline: { invocation: { mode: "skip" } },
         standard: { scopeMode: "chunked" },
       },
+    });
+  });
+
+  it("binds a Frontline ceiling override to the exact member across same-pass fallback", async () => {
+    const lanes = {
+      frontline: {
+        scopeMode: "whole-target",
+        ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+      },
+    };
+    const readyRequest = {
+      ...request,
+      frontline: {
+        ...request.frontline,
+        frontlineActive: true,
+        sources: ["coderabbit-cli"],
+        completedPasses: 2,
+        maxPasses: 2,
+        scopeSelection: { mode: "whole-target" as const, target },
+        ceilingOverride: {
+          target,
+          lane: "frontline" as const,
+          exhaustedPassCount: 2,
+          nextPass: 3,
+        },
+      },
+    };
+    const dependencies = boundary({
+      readText: async () => JSON.stringify(lanes),
+      compose: vi.fn(async () => ({ status: "composed", request: readyRequest, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true, lanes: "lanes.json" }, dependencies);
+
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
+      policy: { state: string; nextAction: string };
+      nextAction: { command: string };
+    };
+    expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
+    const token = envelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(token).toBeDefined();
+    expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
+      lanes,
+      frontlineCeilingHeadSha: target.headSha,
+    });
+  });
+
+  it("consumes a bound Frontline ceiling override when composition advances to another member", async () => {
+    const priorHead = "f".repeat(40);
+    const lanes = {
+      frontline: {
+        scopeMode: "whole-target",
+        ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+      },
+    };
+    const nextTarget = { ...target, headSha: "9".repeat(40) };
+    const nextRequest = {
+      ...request,
+      frontline: {
+        ...request.frontline,
+        target: nextTarget,
+        frontlineActive: true,
+        sources: ["coderabbit-cli"],
+        scopeSelection: { mode: "whole-target" as const, target: nextTarget },
+      },
+      standard: { ...request.standard, target: nextTarget },
+    };
+    const resume = Buffer.from(JSON.stringify({
+      lanes,
+      frontlineCeilingHeadSha: priorHead,
+    }), "utf8").toString("base64url");
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request: nextRequest, advisories: [] })),
+    });
+
+    await handleReviewPrePublication("example", { json: true, resume }, dependencies);
+
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
+      policy: { state: string; nextAction: string };
+      nextAction: { command: string };
+    };
+    expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
+    const token = envelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(token).toBeDefined();
+    expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
+      lanes: { frontline: { scopeMode: "whole-target" } },
     });
   });
 

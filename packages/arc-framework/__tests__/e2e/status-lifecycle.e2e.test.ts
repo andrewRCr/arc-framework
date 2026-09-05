@@ -157,11 +157,18 @@ describe("status <slug>", () => {
         "",
         "- **State:** Active",
         `- **Branch:** ${branch}`,
+        `- **Task List:** \`tasks-${slug}.md\``,
         "- **Candidate:** [none]",
         "- **Current Workflow:** prepare-work-unit",
+        "- **Last Completed:** [none]",
+        "- **Next Task:** [none]",
         "- **Next Action:** prepare publication",
         "",
       ].join("\n"),
+    );
+    await writeFile(
+      join(tmpDir, ".arc", "active", `tasks-${slug}.md`),
+      "# Task List: Remote Candidate\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Complete verification**\n",
     );
     await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "-m", "activate candidate"], { cwd: tmpDir });

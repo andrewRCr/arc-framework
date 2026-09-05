@@ -3,7 +3,7 @@ purpose: Execute the task list's verification phase — Tier 3 gates, success cr
 audience: agent
 arc:
   methods:
-    - adversarial-review
+    - validate-criteria
     - self-review
     - review-triage
     - commit-footer
@@ -12,8 +12,9 @@ arc:
 
 # Workflow: Verify Completion
 
-Every task list ends with a verification phase containing a single task that points here.
-The task description is intentionally thin — this workflow is the authoritative protocol.
+Every task list ends with a verification phase containing a single task that points here. Delivery-member closing
+tasks may fire criteria validation at member scope without becoming additional verification tasks or loading this
+workflow. The terminal task description is intentionally thin — this workflow is the authoritative protocol.
 Complete the first two steps below, mark the single verification task `[x]` with completion notes covering what
 was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable edit, then complete Step 3.
 
@@ -38,18 +39,51 @@ Run the full quality gate suite as defined by the project's [Quality Gates Strat
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
 clean throughout implementation, the full-suite run serves as attestation that everything passes as a whole.
 
-## Step 2 — Validate Success Criteria Against Design Artifact
+## Step 2 — Validate Success Criteria at Work-Unit Scope
 
-Open the task list's upstream design/spec artifact, walk through its success criteria, and
-compare each against actual outcomes. Then mark each criterion in the task list's Success
-Criteria section (see [task-list-formatting strategy][task-list-formatting] § Success Criteria
-Section for format) using the three-state model:
+Inspect the task list for a Delivery Plan, then run the criteria walk at work-unit scope with exactly one of these
+criteria shapes.
+
+Without a Delivery Plan:
+
+```yaml
+validate-criteria:
+  scope:
+    kind: work-unit
+    criteria: task list's complete flat Success Criteria section
+    diff: complete work-unit diff
+    reachability: complete work-unit tree
+```
+
+With a Delivery Plan:
+
+```yaml
+validate-criteria:
+  scope:
+    kind: work-unit
+    criteria:
+      member-groups: recorded delivery-member criteria reports
+      seams: task list's Cross-member seams group
+    diff: complete work-unit diff
+    reachability: complete work-unit tree
+```
+
+Without a Delivery Plan, open the upstream design/spec artifact and compare every flat criterion against actual
+outcomes in the complete diff and tree. With a Delivery Plan, the method dispositions member groups from their
+recorded reports and walks only the seam group and union coherence against the complete tree. Consume the resulting
+report, then mark each criterion in the task list's Success Criteria section (see
+[task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
+model:
 
 - `[x]` — **Met.** Criterion satisfied as planned, or addressed differently (add a
   **Deviation** note).
 - `[~]` — **Superseded.** Intentionally dropped, deferred, or made irrelevant by a design
   decision during implementation (add a **Superseded** note).
 - `[ ]` — **Not met.** A genuine gap that needs discussion before the work is complete.
+
+If the combined report contains any `[ ]` criterion, stop. Leave the terminal work-unit verification task
+incomplete and do not enter Step 3 until the gap is fixed, deliberately superseded (including an approved
+deferral), or otherwise resolved; then rerun the criteria walk against the current work-unit subject.
 
 **Criterion text is immutable.** Never rewrite a criterion to match what was built. The
 original text preserves intent; annotations capture reality.
@@ -67,37 +101,15 @@ Before closing the criteria pass, verify delivery integrity:
 - Every deferred part of original intent has a correctly classified, sufficiently specified owner; essential
   unproven intent never rests on an assumed Errand or an unowned note.
 
-### Adversarial verify (advisory)
-
-The boundary carries an advisory adversarial fire-point that **augments** the self-verify above, never replaces
-it: a fresh pass independently re-validates the spec's success criteria against the diff. The mandate is
-**verify**, not review — the pass attacks the _claim of spec-conformance_ (criteria marked met that the diff
-does not deliver, gaps, wrongly-superseded items); the diff is evidence for conformance, not the target of
-open-ended quality critique (that runs in the review lanes). Withhold the implementer's `[x]` / `[~]` / `[ ]`
-markings from the pass; the primary compares the independent result to the self-verify.
-
-> [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; surface a neutral
-> offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds normally.
-
-```yaml
-adversarial-review:
-  rubric:          # the spec's success criteria, validated adversarially (stage-owned; no separate rubric method)
-  artifacts:       # spec-{name}.md + tasks-{name}.md (markings withheld) + the diff under verification
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
-  prior-findings:  # pass two onward; omitted on pass one
-```
-
 ## Step 3 — Attest the Candidate
 
 Complete the verification task's success-criteria and completion-note edits, then run `arc attest {name} --json`. It
 attests the staged subject as a Candidate, leaves lifecycle `State` unchanged, and returns the typed pre-publication
-locus. It refuses while verified reviewable content is absent from that staged subject, naming what is missing. The
-managed record and meta projection it writes are staged with it, so they ride the verification commit. A repeated
-invocation over the same subject is a no-op.
+locus. It requires the canonical task list to be readable, structurally valid, and closed with `no-open-task`; an
+open, missing, unbound, unreadable, or malformed task list refuses before Candidate authority is written. It also
+refuses while verified reviewable content is absent from the staged subject, naming what is missing. The managed
+record and meta projection it writes are staged with it, so they ride the verification commit. A repeated invocation
+over the same subject is a no-op.
 
 ## Completion Notes
 

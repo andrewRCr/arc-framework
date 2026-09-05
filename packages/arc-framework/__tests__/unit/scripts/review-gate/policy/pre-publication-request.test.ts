@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
 import {
   applyCarriedOwnerAcceptedTerminus,
   applyCarriedStandardReviewReservation,
@@ -23,10 +24,14 @@ import type { LaneProgressProjection } from "../../../../../src/scripts/review-g
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { selectPrePublicationReservationTarget } from
+  "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
 
 const HEAD = "a".repeat(40);
 const PREPUBLICATION_HEAD = "b".repeat(40);
 const CANDIDATE_ID = `sha256:${"c".repeat(64)}`;
+const DELIVERY_PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
+const WORK_UNIT_ID = SlugSchema.parse("example");
 const OWNER_TERMINUS = {
   schemaVersion: 1 as const,
   semanticsVersion: "review-terminus/v1" as const,
@@ -72,6 +77,34 @@ const immutableTarget: ImmutableTargetRead = {
   }),
 };
 
+function deliveryMemberTarget(input: {
+  deliverableCharacter: string;
+  baseCharacter: string;
+  headCharacter: string;
+}) {
+  const head = input.headCharacter.repeat(40);
+  return {
+    target: createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "arc-framework/example",
+      baseRef: "main",
+      diffBaseSha: input.baseCharacter.repeat(40),
+      diffBaseTree: input.baseCharacter.repeat(40),
+      headSha: head,
+      headTree: input.headCharacter.repeat(40),
+    }),
+    vehicle: {
+      kind: "delivery-member" as const,
+      planId: DELIVERY_PLAN_ID,
+      deliverableId: `sha256:${input.deliverableCharacter.repeat(64)}`,
+      workUnitId: WORK_UNIT_ID,
+      head,
+    },
+  };
+}
+
 function dependencies(
   overrides: Partial<PrePublicationCompositionDependencies> = {},
 ): PrePublicationCompositionDependencies {
@@ -79,6 +112,11 @@ function dependencies(
     readCandidate: vi.fn(async () => currentCandidate),
     readAssurance: vi.fn(async () => resolvedAssurance),
     resolveTarget: vi.fn(async () => resolvedTarget),
+    readReservationTarget: vi.fn(async (_workUnit, singleton) => ({
+      status: "resolved" as const,
+      target: { kind: "pinned-head" as const, ...singleton },
+    })),
+    readDeliveryReviewTargets: vi.fn(async () => ({ status: "absent" as const })),
     deriveImmutableTarget: vi.fn(async () => immutableTarget),
     readOwnerTerminusAuthority: vi.fn(async () => ({
       status: "authorized" as const,
@@ -97,6 +135,63 @@ function dependencies(
 }
 
 describe("composePrePublicationReviewRequest", () => {
+  it.each(["planned", "bound"] as const)(
+    "selects a delivery marker from one authoritative %s plan",
+    (status) => {
+      expect(selectPrePublicationReservationTarget({
+        workUnit: "example",
+        singleton: { repository: "arc-framework/example", headSha: HEAD },
+        delivery: {
+          status,
+          planId: "123e4567-e89b-12d3-a456-426614174000",
+          workUnitId: WORK_UNIT_ID,
+        },
+      })).toEqual({
+        status: "resolved",
+        target: {
+          kind: "delivery",
+          repository: "arc-framework/example",
+          planId: "123e4567-e89b-12d3-a456-426614174000",
+          workUnitId: WORK_UNIT_ID,
+        },
+      });
+    },
+  );
+
+  it("selects the singleton target only from authoritative plan absence", () => {
+    expect(selectPrePublicationReservationTarget({
+      workUnit: "example",
+      singleton: { repository: "arc-framework/example", headSha: HEAD },
+      delivery: { status: "absent" },
+    })).toEqual({
+      status: "resolved",
+      target: { kind: "pinned-head", repository: "arc-framework/example", headSha: HEAD },
+    });
+  });
+
+  it("refuses when delivery authority cannot establish the reservation target", () => {
+    expect(selectPrePublicationReservationTarget({
+      workUnit: "example",
+      singleton: { repository: "arc-framework/example", headSha: HEAD },
+      delivery: { status: "unavailable" },
+    })).toEqual({
+      status: "refused",
+      reason: "The pre-publication reservation target could not be resolved from delivery records.",
+    });
+  });
+
+  it("refuses a resolved plan that belongs to a different work unit", () => {
+    expect(selectPrePublicationReservationTarget({
+      workUnit: "example",
+      singleton: { repository: "arc-framework/example", headSha: HEAD },
+      delivery: {
+        status: "planned",
+        planId: "123e4567-e89b-12d3-a456-426614174000",
+        workUnitId: "other",
+      },
+    })).toMatchObject({ status: "refused" });
+  });
+
   it("keeps a carried reservation's source order after an approved Candidate subject advance", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
       readLanePolicy: async (lane) => lane === "frontline"
@@ -179,6 +274,250 @@ describe("composePrePublicationReviewRequest", () => {
     // The lane target routes; the exact target identifies. Conflating them is what left the
     // exact-target operations with no obtainable input.
     expect(composition.request.frontline.target).not.toHaveProperty("targetId");
+  });
+
+  it("selects the first outstanding delivery member without deriving an aggregate target", async () => {
+    const first = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const second = deliveryMemberTarget({
+      deliverableCharacter: "4",
+      baseCharacter: "3",
+      headCharacter: "5",
+    });
+    const deriveImmutableTarget = vi.fn(async () => immutableTarget);
+    const readLaneProgress = vi.fn(async (
+      lane: ReviewLane,
+      headSha: string,
+    ): Promise<LaneProgressProjection> => lane === "frontline" && headSha === first.target.headSha
+      ? {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [{ attemptId: "first-clean", sourceId: "coderabbit-cli", outcome: "clean" }],
+        }
+      : { status: "recorded", completedPasses: 0, attempts: [] });
+    const deps = Object.assign(dependencies({
+      deriveImmutableTarget,
+      readAssurance: async () => ({
+        ...resolvedAssurance,
+        activity: { selfReview: true, frontlineReview: true },
+      }),
+      readLanePolicy: async (lane) => lane === "frontline"
+        ? { sources: ["coderabbit-cli"], maxPasses: 2 }
+        : { sources: ["codex-pr"], maxPasses: 2 },
+      readLaneProgress,
+      readReservationTarget: async (_workUnit, singleton) => ({
+        status: "resolved" as const,
+        target: {
+          kind: "delivery" as const,
+          repository: singleton.repository,
+          planId: DELIVERY_PLAN_ID,
+          workUnitId: WORK_UNIT_ID,
+        },
+      }),
+    }), {
+      readDeliveryReviewTargets: async () => ({
+        status: "composed" as const,
+        planId: DELIVERY_PLAN_ID,
+        targets: [first, second],
+      }),
+    });
+
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, deps);
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(second.target);
+    expect(composition.request.frontline.target).toEqual({
+      repository: "arc-framework/example",
+      pullRequest: null,
+      headSha: second.target.headSha,
+    });
+    expect(composition.request.standard.target).toEqual(composition.request.frontline.target);
+    expect(deriveImmutableTarget).not.toHaveBeenCalled();
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", first.target.headSha, [first.target.headSha]);
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", second.target.headSha, [second.target.headSha]);
+  });
+
+  it("retains the terminal member after every delivery-member Frontline result settles", async () => {
+    const first = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const terminal = deliveryMemberTarget({
+      deliverableCharacter: "4",
+      baseCharacter: "3",
+      headCharacter: "5",
+    });
+    const deps = Object.assign(dependencies({
+      readAssurance: async () => ({
+        ...resolvedAssurance,
+        activity: { selfReview: true, frontlineReview: true },
+      }),
+      readLanePolicy: async (lane) => lane === "frontline"
+        ? { sources: ["coderabbit-cli"], maxPasses: 2 }
+        : { sources: ["codex-pr"], maxPasses: 2 },
+      readLaneProgress: async (lane, headSha) => lane === "frontline"
+        ? {
+            status: "recorded" as const,
+            completedPasses: 1,
+            attempts: [{
+              attemptId: `clean-${headSha}`,
+              sourceId: "coderabbit-cli",
+              outcome: "clean" as const,
+            }],
+          }
+        : { status: "recorded" as const, completedPasses: 0, attempts: [] },
+      readReservationTarget: async (_workUnit, singleton) => ({
+        status: "resolved" as const,
+        target: {
+          kind: "delivery" as const,
+          repository: singleton.repository,
+          planId: DELIVERY_PLAN_ID,
+          workUnitId: WORK_UNIT_ID,
+        },
+      }),
+    }), {
+      readDeliveryReviewTargets: async () => ({
+        status: "composed" as const,
+        planId: DELIVERY_PLAN_ID,
+        targets: [first, terminal],
+      }),
+    });
+
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, deps);
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(terminal.target);
+    expect(composition.request.frontline.target.headSha).toBe(terminal.target.headSha);
+    expect(composition.request.standard.target.headSha).toBe(terminal.target.headSha);
+    expect(composition.request.reservationTarget).toMatchObject({
+      kind: "delivery",
+      planId: DELIVERY_PLAN_ID,
+    });
+  });
+
+  it("applies a Frontline ceiling override only to its bound outstanding delivery member", async () => {
+    const first = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const second = deliveryMemberTarget({
+      deliverableCharacter: "4",
+      baseCharacter: "3",
+      headCharacter: "5",
+    });
+    const deps = Object.assign(dependencies({
+      readAssurance: async () => ({
+        ...resolvedAssurance,
+        activity: { selfReview: true, frontlineReview: true },
+      }),
+      readLanePolicy: async (lane) => lane === "frontline"
+        ? { sources: ["coderabbit-cli", "codex-cli"], maxPasses: 2 }
+        : { sources: ["codex-pr"], maxPasses: 2 },
+      readLaneProgress: async (lane, headSha) => lane === "frontline" && headSha === first.target.headSha
+        ? {
+            status: "recorded" as const,
+            completedPasses: 1,
+            attempts: [{ attemptId: "first-clean", sourceId: "coderabbit-cli", outcome: "clean" as const }],
+          }
+        : lane === "frontline"
+          ? {
+              status: "recorded" as const,
+              completedPasses: 2,
+              attempts: [{
+                attemptId: "second-rate-limited",
+                sourceId: "coderabbit-cli",
+                outcome: "rate-limited" as const,
+              }],
+            }
+          : { status: "recorded" as const, completedPasses: 0, attempts: [] },
+      readReservationTarget: async (_workUnit, singleton) => ({
+        status: "resolved" as const,
+        target: {
+          kind: "delivery" as const,
+          repository: singleton.repository,
+          planId: DELIVERY_PLAN_ID,
+          workUnitId: WORK_UNIT_ID,
+        },
+      }),
+    }), {
+      readDeliveryReviewTargets: async () => ({
+        status: "composed" as const,
+        planId: DELIVERY_PLAN_ID,
+        targets: [first, second],
+      }),
+    });
+    const lanes = {
+      frontline: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } },
+    };
+
+    const matching = await composePrePublicationReviewRequest({
+      workUnit: "example",
+      lanes,
+      frontlineCeilingHeadSha: second.target.headSha,
+    }, deps);
+    expect(matching.status).toBe("composed");
+    if (matching.status !== "composed") return;
+    expect(matching.request.target).toEqual(second.target);
+    expect(matching.request.frontline.ceilingOverride).toMatchObject({
+      target: { headSha: second.target.headSha },
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    });
+
+    const stale = await composePrePublicationReviewRequest({
+      workUnit: "example",
+      lanes,
+      frontlineCeilingHeadSha: first.target.headSha,
+    }, deps);
+    expect(stale.status).toBe("composed");
+    if (stale.status !== "composed") return;
+    expect(stale.request.target).toEqual(second.target);
+    expect(stale.request.frontline.ceilingOverride).toBeUndefined();
+  });
+
+  it("refuses unavailable delivery-member composition without an aggregate fallback", async () => {
+    const deriveImmutableTarget = vi.fn(async () => immutableTarget);
+    const deps = Object.assign(dependencies({ deriveImmutableTarget }), {
+      readDeliveryReviewTargets: async () => ({
+        status: "refused" as const,
+        reason: "checkout-dirty",
+      }),
+    });
+
+    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, deps);
+
+    expect(composition).toEqual({
+      status: "refused",
+      reason: "The pre-publication delivery-member targets could not be composed (checkout-dirty).",
+    });
+    expect(deriveImmutableTarget).not.toHaveBeenCalled();
+  });
+
+  it("refuses member targets that do not match the freshly selected delivery reservation", async () => {
+    const member = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const deps = Object.assign(dependencies(), {
+      readDeliveryReviewTargets: async () => ({
+        status: "composed" as const,
+        planId: DELIVERY_PLAN_ID,
+        targets: [member],
+      }),
+    });
+
+    await expect(composePrePublicationReviewRequest({ workUnit: "example" }, deps)).resolves.toEqual({
+      status: "refused",
+      reason: "The pre-publication delivery targets do not match the selected reservation.",
+    });
   });
 
   it("refuses independently resolved targets that do not identify the Candidate head", async () => {

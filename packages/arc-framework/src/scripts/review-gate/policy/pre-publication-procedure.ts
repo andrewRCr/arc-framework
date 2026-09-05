@@ -8,6 +8,7 @@ import {
   CandidateManagedRecordV1Schema,
   CandidateSubjectDeltaSchema,
   CandidateVerificationApplicabilitySchema,
+  candidateReviewResponses,
   createCandidateReviewResponseEvidence,
   diffCandidateSubjectSnapshots,
   type CandidateManagedRecordV1,
@@ -31,6 +32,7 @@ import {
   PublishCandidateActionSchema,
   RunConvergenceVerificationActionSchema,
   RunSelfReviewActionSchema,
+  StandardReviewReservationTargetSchema,
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
   type StandardReviewReservationV1,
@@ -52,6 +54,7 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   workUnit: SlugSchema,
   candidateId: CandidateIdSchema,
+  reservationTarget: StandardReviewReservationTargetSchema,
   /**
    * The immutable review target composed from repository state, or `null` when it is not derivable.
    *
@@ -72,6 +75,13 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
 }).superRefine((request, context) => {
   if (!samePolicyTarget(request.frontline.target, request.standard.target)) {
     context.addIssue({ code: "custom", path: ["standard", "target"], message: "must match the frontline target" });
+  }
+  if (request.reservationTarget.repository.toLowerCase() !== request.standard.target.repository.toLowerCase()) {
+    context.addIssue({
+      code: "custom",
+      path: ["reservationTarget", "repository"],
+      message: "must match the standard review target repository",
+    });
   }
 });
 export type PrePublicationReviewRequest = z.infer<typeof PrePublicationReviewRequestSchema>;
@@ -177,14 +187,11 @@ export type CandidateDeltaVerificationProjection = z.infer<typeof CandidateDelta
 export function projectCandidateDeltaVerification(input: {
   record: CandidateManagedRecordV1;
   current: z.input<typeof CandidateLineageTargetSchema>;
+  oldTarget: z.input<typeof CandidateLineageTargetSchema>;
 }): CandidateDeltaVerificationProjection {
   const record = CandidateManagedRecordV1Schema.parse(input.record);
   const current = CandidateLineageTargetSchema.parse(input.current);
-  const lastResponse = record.responses.at(-1);
-  const oldTarget = lastResponse?.newTarget ?? {
-    revision: record.attestation.baseRevision,
-    subject: record.subject,
-  };
+  const oldTarget = CandidateLineageTargetSchema.parse(input.oldTarget);
   return CandidateDeltaVerificationProjectionSchema.parse({
     schemaVersion: 1,
     candidateId: record.attestation.candidateId,
@@ -193,7 +200,7 @@ export function projectCandidateDeltaVerification(input: {
     delta: diffCandidateSubjectSnapshots(oldTarget.subject, current.subject),
     priorEvidenceRefs: [
       record.attestation.verificationEvidenceRef,
-      ...record.responses.flatMap(({ verificationEvidenceRefs }) => verificationEvidenceRefs),
+      ...candidateReviewResponses(record).flatMap(({ verificationEvidenceRefs }) => verificationEvidenceRefs),
       ...record.lineageAttestations.map(({ verificationEvidenceRef }) => verificationEvidenceRef),
     ],
     allowedApplicability: ["targeted", "focused", "full"],
@@ -331,18 +338,14 @@ function createStandardReviewReservation(
     semanticsVersion: "standard-review-reservation/v1" as const,
     candidateId: request.candidateId,
     sourceId,
-    target: {
-      repository: request.standard.target.repository,
-      headSha: request.standard.target.headSha,
-    },
+    target: request.reservationTarget,
     obligation: request.standard.standardReview,
   };
   return buildStandardReviewReservation({
     candidateId: fields.candidateId,
     sourceId: fields.sourceId,
     sources: request.standard.sources,
-    repository: fields.target.repository,
-    headSha: fields.target.headSha,
+    target: fields.target,
     obligation: fields.obligation,
   });
 }

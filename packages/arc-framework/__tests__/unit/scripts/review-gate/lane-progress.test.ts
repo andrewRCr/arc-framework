@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { DeliveryReviewMemberVehicleSchema } from
+  "../../../../src/lib/delivery/review-vehicle.js";
 import {
   LaneProgressStateSchema,
   type ReviewOperationState,
@@ -16,6 +18,7 @@ import {
   laneProgressOperationId,
   recordFrontlineAttempt,
   recordHostedAwaitAttempt,
+  recordHostedPendingRequest,
   recordHostedRequestUnavailableAttempt,
   readLaneProgress,
   readLaneProgressAcrossLineage,
@@ -215,6 +218,14 @@ const handle = {
     createdAt: "2026-08-15T11:00:00Z",
   },
 };
+const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
+  kind: "delivery-member",
+  planId: "123e4567-e89b-12d3-a456-426614174000",
+  deliverableId: `sha256:${"9".repeat(64)}`,
+  workUnitId: "example",
+  head: objectId("c"),
+});
+const deliveryHandle = { ...handle, vehicle: deliveryVehicle };
 const hostedReviewTarget = createReviewTarget({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
@@ -245,18 +256,49 @@ const hostedContext = {
   requirement: hostedRequirement,
   actorIdentity: "github-user-1",
 };
+const deliveryHostedReviewTarget = createReviewTarget({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  kind: "delivery-member",
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: objectId("a"),
+  diffBaseTree: objectId("b"),
+  headSha: objectId("c"),
+  headTree: objectId("d"),
+});
+const deliveryHostedRequirement = createReviewRequirement({
+  target: deliveryHostedReviewTarget,
+  projection: {
+    obligation: "required",
+    reasons: ["sensitive-change-set"],
+    rubricVersion: "standard-review/v1",
+    rubricDigest: `sha256:${"e".repeat(64)}`,
+    retrigger: "full-final",
+    count: 1,
+  },
+  acceptableSources: [{ sourceKind: "hosted", qualifier: handle.provider }],
+  initialAdmission: "automatic",
+});
+if (deliveryHostedRequirement === null) throw new Error("expected delivery hosted review requirement");
+const deliveryHostedContext = {
+  reviewTarget: deliveryHostedReviewTarget,
+  requirement: deliveryHostedRequirement,
+  actorIdentity: "github-user-1",
+};
 
 describe("hosted await lane recording", () => {
   it("durably records safe request-time unavailability for fallback after restart", async () => {
     const store = createStore();
     const state = await recordHostedRequestUnavailableAttempt(store, {
       repositoryId: "repo-1",
-      ...hostedContext,
+      ...deliveryHostedContext,
       request: {
         schemaVersion: 1,
         target: handle.target,
         provider: "coderabbit-pr",
         coverage: "complete",
+        vehicle: deliveryVehicle,
       },
       result: {
         schemaVersion: 1,
@@ -273,7 +315,7 @@ describe("hosted await lane recording", () => {
     expect(state.attempts).toEqual([expect.objectContaining({
       sourceId: "coderabbit-pr",
       outcome: "rate-limited",
-      hosted: expect.objectContaining({ target: handle.target }),
+      hosted: expect.objectContaining({ target: handle.target, vehicle: deliveryVehicle }),
     })]);
     expect(state.completedPasses).toBe(0);
   });
@@ -297,6 +339,53 @@ describe("hosted await lane recording", () => {
     expect(state?.completedPasses).toBe(0);
   });
 
+  it("retains incremental coverage without consuming a complete-review pass", async () => {
+    const store = createStore();
+    const incrementalHandle = {
+      ...deliveryHandle,
+      requestedCoverage: "incremental" as const,
+      effectiveCoverage: "incremental" as const,
+    };
+    const state = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: incrementalHandle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.test/review-incremental",
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+
+    expect(state?.completedPasses).toBe(0);
+    expect(state?.attempts[0]?.hosted).toMatchObject({
+      requestedCoverage: "incremental",
+      effectiveCoverage: "incremental",
+    });
+  });
+
+  it("retains a delivery selector on the concluded hosted attempt", async () => {
+    const store = createStore();
+    const state = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: deliveryHandle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.invalid/review",
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+
+    expect(state?.attempts[0]?.hosted).toMatchObject({ vehicle: deliveryVehicle });
+  });
+
   it("consumes a pass only for a verdict-bearing outcome", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
@@ -315,19 +404,65 @@ describe("hosted await lane recording", () => {
     expect(state?.completedPasses).toBe(1);
   });
 
-  it("records nothing when the bounded call only yielded at its deadline", async () => {
+  it("persists the request handle and advances that same attempt monotonically through await", async () => {
     const store = createStore();
-    const state = await recordHostedAwaitAttempt(store, {
+    const requested = await recordHostedPendingRequest(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      handle,
+      now: "2026-08-15T12:00:00Z",
+    });
+    const pending = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...hostedContext,
       result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "pending", nextAction: "await", elapsedMs: 10 },
-      now: "2026-08-15T12:00:00Z",
+      now: "2026-08-15T12:01:00Z",
     });
-    expect(state).toBeNull();
-    expect(store.state).toBeNull();
+    expect(requested.completedPasses).toBe(0);
+    expect(pending).toEqual(requested);
+    expect(pending?.attempts).toEqual([expect.objectContaining({
+      attemptId: hostedLaneAttemptId(handle),
+      outcome: "pending",
+      hosted: expect.objectContaining({ handle }),
+    })]);
+
+    const concluded = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.invalid/review",
+      },
+      now: "2026-08-15T12:02:00Z",
+    });
+    expect(concluded?.completedPasses).toBe(1);
+    expect(concluded?.attempts).toEqual([expect.objectContaining({
+      attemptId: hostedLaneAttemptId(handle),
+      outcome: "clean",
+      hosted: expect.objectContaining({ handle }),
+    })]);
+
+    const replay = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.invalid/review",
+      },
+      now: "2026-08-15T12:03:00Z",
+    });
+    expect(replay).toEqual(concluded);
   });
 
-  it("records nothing when unattended waiting requests inspection or extension", async () => {
+  it("retains the exact pending handle when unattended waiting requests inspection or extension", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
@@ -344,8 +479,12 @@ describe("hosted await lane recording", () => {
       now: "2026-08-15T12:00:00Z",
     });
 
-    expect(state).toBeNull();
-    expect(store.state).toBeNull();
+    expect(state?.completedPasses).toBe(0);
+    expect(state?.attempts).toEqual([expect.objectContaining({
+      attemptId: hostedLaneAttemptId(handle),
+      outcome: "pending",
+      hosted: expect.objectContaining({ handle }),
+    })]);
   });
 
   it("settles only the approved hosted finding set and is idempotent per finding", async () => {

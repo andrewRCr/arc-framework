@@ -38,6 +38,7 @@ import { type GitProcessError, normalizeGitRejection } from "./process-error.js"
 
 export interface PushWorktreeSpawnArgs {
   branch: string;
+  remote: string;
   args: readonly string[];
   /**
    * Working directory for the spawned `git push`. When undefined the spawn
@@ -67,7 +68,9 @@ export type PushWorktreeSpawn = (
 export interface PushWorktreeBranchOptions {
   exec: GitExec;
   branch: string;
-  /** Args appended after `origin <branch>`. Default: `[]`. */
+  /** Remote receiving the branch. Default: `origin`. */
+  remote?: string;
+  /** Args appended after `<remote> <branch>`. Default: `[]`. */
   args?: readonly string[];
   /**
    * Working directory for the wrapped `git push`. Forwarded to the
@@ -108,11 +111,11 @@ export type PushWorktreeBranchResult =
 export async function pushWorktreeBranch(
   options: PushWorktreeBranchOptions,
 ): Promise<PushWorktreeBranchResult> {
-  const { exec, branch, args = [], cwd, inheritStdio = false } = options;
+  const { exec, branch, remote = "origin", args = [], cwd, inheritStdio = false } = options;
 
   if (inheritStdio) {
     const spawnPush = options.spawnPush ?? defaultSpawnPush;
-    const result = await spawnPush({ branch, args, cwd, interaction: options.interaction });
+    const result = await spawnPush({ branch, remote, args, cwd, interaction: options.interaction });
     if (result.exitCode === 0) {
       return { status: "success", stdout: "", stderr: result.stderr };
     }
@@ -125,7 +128,7 @@ export async function pushWorktreeBranch(
   }
 
   try {
-    const invocation = ["push", "origin", branch, ...args];
+    const invocation = ["push", remote, branch, ...args];
     const { stdout, stderr } = cwd === undefined && options.interaction === undefined
       ? await exec("git", invocation)
       : await exec("git", invocation, {
@@ -146,8 +149,8 @@ export async function pushWorktreeBranch(
   }
 }
 
-const defaultSpawnPush: PushWorktreeSpawn = async ({ branch, args, cwd, interaction }) => {
-  const invocation = ["push", "origin", branch, ...args];
+const defaultSpawnPush: PushWorktreeSpawn = async ({ branch, remote, args, cwd, interaction }) => {
+  const invocation = ["push", remote, branch, ...args];
   const forbidden = interaction?.terminalPrompts === "forbidden";
   const env = forbidden
     ? {

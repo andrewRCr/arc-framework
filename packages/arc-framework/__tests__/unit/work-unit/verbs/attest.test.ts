@@ -14,6 +14,7 @@ import {
 } from "../../../../src/lib/work-unit/verbs/attest.js";
 import { projectCandidateReviewBoundary } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectDurableCandidateTarget } from "../../../helpers/candidate.js";
 
 const REVISION = "a".repeat(40);
 const CHANGED_REVISION = "b".repeat(40);
@@ -43,6 +44,7 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
     verificationEvidenceRef: (name) => `tasks-${name}.md#verification`,
     readRecord: async () => ({ record: storedRecord, version: recordVersion }),
     currentTarget: async () => currentTarget,
+    effectiveTarget: (name, record) => projectDurableCandidateTarget({ cwd: "/repo", name, record }),
     publish: async (input) => {
       publicationCount += 1;
       storedRecord = input.record;
@@ -101,7 +103,7 @@ describe("runAttest", () => {
       storedRecord: {
         schemaVersion: 1,
         semanticsVersion: "candidate-attestation/v1",
-        responses: [],
+        transitions: [],
         lineageAttestations: [],
       },
     });
@@ -149,7 +151,7 @@ describe("runAttest", () => {
       verificationEvidenceRefs: ["test://candidate/focused"],
       implementationChanged: true,
     });
-    fixture.replaceRecord({ ...root, responses: [response] });
+    fixture.replaceRecord({ ...root, transitions: [response] });
     fixture.setCurrentTarget(changedTarget);
 
     const converged = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
@@ -170,6 +172,41 @@ describe("runAttest", () => {
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: { lineageAttestations: [{ target: changedTarget }] },
     });
+  });
+
+  it("republishes a committed machine-carried target without masking later staged content", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const root = fixture.state().storedRecord!;
+    const carriedTarget = { revision: CHANGED_REVISION, subject: subject("mechanically-carried") };
+    fixture.setCurrentTarget(carriedTarget);
+    fixture.context.effectiveTarget = async () => ({
+      schemaVersion: 1,
+      mode: "candidate-effective-target",
+      state: "current",
+      nextAction: "continue",
+      candidateId: root.attestation.candidateId,
+      durableBaselineTarget: { revision: root.attestation.baseRevision, subject: root.subject },
+      recognizedTarget: carriedTarget,
+      recognition: {
+        kind: "machine",
+        proof: "mechanical-reapply",
+        projectionDigest: canonicalDigest({ projection: "carried" }),
+        residualDigest: canonicalDigest({ residual: "carried" }),
+      },
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+    });
+
+    await expect(runAttest(fixture.context, { name: "example", lifecycle: "Active" }))
+      .resolves.toMatchObject({
+        status: "unchanged",
+        locus: { candidateSubjectDigest: carriedTarget.subject.subjectDigest },
+      });
+
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("staged-after-carry") });
+    await expect(runAttest(fixture.context, { name: "example", lifecycle: "Active" }))
+      .resolves.toMatchObject({ status: "blocked" });
   });
 
   it("rejects an unexplained reviewable delta without replacing the lineage root", async () => {
@@ -207,7 +244,7 @@ describe("runAttest", () => {
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: {
         attestation: { supersedes: superseded },
-        responses: [],
+        transitions: [],
         lineageAttestations: [],
       },
     });

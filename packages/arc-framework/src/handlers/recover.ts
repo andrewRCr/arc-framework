@@ -5,6 +5,7 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { z } from "zod";
 
 import { runRecoverStatus } from "../commands/status.js";
@@ -33,6 +34,8 @@ import {
   type RecoveryAuditStopReason,
   type RecoveryAuditVerdict,
 } from "../lib/recover/audit.js";
+import { resolveCommittedProgress } from "../lib/recover/committed-progress.js";
+import type { RecoveryTaskListEvidence } from "../lib/recover/integration-correction.js";
 import {
   assertRecoverAuditReport,
   type RecoverAuditReport,
@@ -213,6 +216,18 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     freshBranch,
     freshHead,
     freshRepoRoot: cwd,
+    resolveCommittedProgress: (seedHead, currentHead) => resolveCommittedProgress({
+      exec: recoveryGitExec,
+      cwd,
+      seedHead,
+      currentHead,
+    }),
+    resolveTaskListEvidence: (taskListPath) => resolveRecoveryTaskListEvidence({
+      cwd,
+      exec: recoveryGitExec,
+      seedHead: parsedSeed.seed.head,
+      taskListPath,
+    }),
   });
   writeReport({
     mode: "recover-audit",
@@ -221,6 +236,46 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     recover,
     verdict,
   }, Boolean(opts.json));
+}
+
+async function resolveRecoveryTaskListEvidence(input: {
+  cwd: string;
+  exec: GitExec;
+  seedHead: string;
+  taskListPath: string;
+}): Promise<RecoveryTaskListEvidence> {
+  let fresh: string;
+  try {
+    fresh = await readFile(recoveryTaskListPath(input.cwd, input.taskListPath), "utf8");
+  } catch (error) {
+    return {
+      status: "unavailable",
+      message: `fresh task-list progression evidence is unavailable: ${errorMessage(error)}`,
+    };
+  }
+
+  let seed: string | null = null;
+  try {
+    // The current in-repo storage adapter resolves the seed-time snapshot from
+    // Git. The audit core consumes only the injected snapshot pair.
+    seed = (await input.exec("git", ["show", `${input.seedHead}:${input.taskListPath}`])).stdout;
+  } catch {
+    // A seed-tree miss remains explicit null evidence. Public-to-task progression
+    // requires it; task closure can still be proven from the stored seed cursor.
+  }
+  return { status: "ok", seed, fresh };
+}
+
+function recoveryTaskListPath(cwd: string, taskListPath: string): string {
+  const absolutePath = resolve(cwd, taskListPath);
+  const relativePath = relative(cwd, absolutePath);
+  if (relativePath.length === 0
+    || relativePath === ".."
+    || relativePath.startsWith(`..${sep}`)
+    || isAbsolute(relativePath)) {
+    throw new Error(`Task list path must be repository-relative: ${taskListPath}`);
+  }
+  return absolutePath;
 }
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {

@@ -5,6 +5,7 @@ import {
   deriveDeliveryPosition,
   recognizeDeliverySuffixRetarget,
   resolveDeliveryPredecessorHead,
+  routeDeliveryPosition,
   type DeliveryPositionFactsV1,
 } from "../../../src/lib/delivery/position.js";
 import { deriveDeliveryPlanDigest } from "../../../src/lib/delivery/plan.js";
@@ -33,9 +34,14 @@ function positionFacts(
 }
 
 describe("deriveDeliveryPosition", () => {
-  it("uses the target only for a coordinate-free predecessor already known landed", () => {
+  it("uses the target for a predecessor already known landed while retaining its bound coordinates", () => {
     const state = deliveryStateFixture();
     const first = state.members[0]!;
+    expect(resolveDeliveryPredecessorHead({
+      ...positionFacts(state),
+      landedDeliverableIds: [first.deliverableId],
+    }, 1)).toBe(state.target!.coordinates!.head);
+
     const facts = positionFacts(state);
     facts.members[0] = { ...facts.members[0]!, coordinates: null };
 
@@ -66,6 +72,24 @@ describe("deriveDeliveryPosition", () => {
         firstUnlanded: null,
         boundSuffix: [],
       },
+    });
+  });
+
+  it("discloses append-only target movement without obligating a suffix refresh", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+
+    expect(routeDeliveryPosition(plan, state, {
+      ...positionFacts(state),
+      targetMovement: "append-only",
+    })).toMatchObject({
+      status: "position",
+      nextAction: "review-member",
+      selectedDeliverableId: plan.members[0]!.deliverableId,
+      plannedSuffix: [plan.members[0]!.deliverableId],
+      recommendedActionText:
+        "Base movement alone obligates no refresh. Continue append-only until a landing refusal or explicit "
+        + "operator choice requires the exact registered suffix.",
     });
   });
 
@@ -313,6 +337,7 @@ describe("recognizeDeliverySuffixRetarget", () => {
       activeOperation: {
         operationId: "rewrite",
         kind: "rewrite",
+        mode: "provider-adoption",
         affectedDeliverableIds: [state.members[1]!.deliverableId],
         stateRevision: 1,
         boundPlanDigest: plan.planDigest,

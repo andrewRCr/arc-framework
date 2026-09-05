@@ -1,14 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest, canonicalize } from "../../../../../src/lib/kernel/index.js";
+import { DeliveryReviewMemberVehicleSchema } from
+  "../../../../../src/lib/delivery/review-vehicle.js";
 import {
+  candidateReviewResponses,
   createCandidateAttestation,
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
   projectCandidateCurrentness,
+  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
+  ApprovedDispositionRecordSchema,
   createFrontlineOutcomeRecord,
   ErrandReviewBindingSchema,
   type ApprovedDispositionRecord,
@@ -169,6 +174,34 @@ function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
   return { target, authority, operation, source, receipt, receiptRef, finding };
 }
 
+function deliveryLocalFixture() {
+  const records = fixture(memberVehicle);
+  const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+    kind: "delivery-member",
+    planId: "123e4567-e89b-42d3-a456-426614174000",
+    deliverableId: memberVehicle.identity,
+    workUnitId: "example",
+    head: records.target.headSha,
+  });
+  records.operation.deliveryAdmission = {
+    schemaVersion: 1,
+    sourceId: "delegated-agent",
+    target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
+    vehicle,
+    pass: 1,
+    scopeSelection: {
+      mode: "chunked",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
+    },
+    statusTarget: {
+      repository: "owner/repo",
+      headRef: "delivery/example/member-7",
+      headSha: records.target.headSha,
+    },
+  };
+  return { ...records, vehicle };
+}
+
 function approved(input: {
   targetId: string;
   policyVersion: string;
@@ -232,7 +265,15 @@ function dependencies(records: ReturnType<typeof fixture>) {
           && record.errandFixResponse !== null
           && canonicalize({ ...disposition, errandFixResponse: null })
             === canonicalize({ ...record, errandFixResponse: null });
-        if (disposition !== null && canonicalize(disposition) !== canonicalize(record) && !errandAdvance) {
+        const deliveryAdvance = disposition !== null
+          && disposition.deliveryMemberFixResponse === null
+          && record.deliveryMemberFixResponse !== null
+          && canonicalize({ ...disposition, deliveryMemberFixResponse: null })
+            === canonicalize({ ...record, deliveryMemberFixResponse: null });
+        if (disposition !== null
+          && canonicalize(disposition) !== canonicalize(record)
+          && !errandAdvance
+          && !deliveryAdvance) {
           throw new Error("conflict");
         }
         disposition = record;
@@ -250,16 +291,14 @@ function dependencies(records: ReturnType<typeof fixture>) {
       proposerIdentity: records.authority.runtimeIdentity,
     }),
     resolveActiveErrand: async () => null,
+    resolveDeliveryMemberFixTarget: async () => null,
     now: () => "2026-07-23T21:00:00Z",
     readCandidateLineage: async () => {
       const record = candidateRecord();
-      return {
-        workUnit: "example",
-        record,
-        recordVersion: canonicalDigest(record),
-        current: { revision: records.target.headSha, subject: record.subject },
-        unstagedReviewablePaths: [],
-      };
+      return candidateLineageBinding(records, record, {
+        revision: records.target.headSha,
+        subject: record.subject,
+      });
     },
     appendCandidateResponse: () => Promise.reject(new Error("unexpected Candidate append")),
     stageCandidateResponse: () => Promise.reject(new Error("unexpected Candidate stage")),
@@ -291,8 +330,65 @@ function candidateRecord(): CandidateManagedRecordV1 {
       verificationEvidenceRef: "verification://root",
     }),
     subject: rootSubject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
+  };
+}
+
+function effectiveCurrent(
+  record: CandidateManagedRecordV1,
+  target: { revision: string; subject: ReturnType<typeof candidateSubject> },
+) {
+  const baseline = reduceCandidateDurableBaseline(record);
+  const implementationChanged = baseline.implementationChanged
+    || baseline.target.subject.subjectDigest !== target.subject.subjectDigest;
+  return {
+    schemaVersion: 1 as const,
+    mode: "candidate-effective-target" as const,
+    state: "current" as const,
+    nextAction: "continue" as const,
+    candidateId: record.attestation.candidateId,
+    durableBaselineTarget: baseline.target,
+    recognizedTarget: target,
+    recognition: { kind: "durable" as const },
+    implementationChanged,
+    convergenceVerification: implementationChanged ? "pending" as const : "satisfied" as const,
+  };
+}
+
+function effectiveChanged(
+  record: CandidateManagedRecordV1,
+  currentTarget: { revision: string; subject: ReturnType<typeof candidateSubject> },
+) {
+  const baseline = reduceCandidateDurableBaseline(record);
+  return {
+    schemaVersion: 1 as const,
+    mode: "candidate-effective-target" as const,
+    state: "changed" as const,
+    nextAction: "establish-new-root" as const,
+    candidateId: record.attestation.candidateId,
+    durableBaselineTarget: baseline.target,
+    currentTarget,
+    projectionDigest: digest("projection"),
+    residualDigest: digest("residual"),
+    selectedBy: "author-1",
+  };
+}
+
+function candidateLineageBinding(
+  records: ReturnType<typeof fixture>,
+  record: CandidateManagedRecordV1,
+  current: { revision: string; subject: ReturnType<typeof candidateSubject> },
+) {
+  const baseline = reduceCandidateDurableBaseline(record);
+  return {
+    workUnit: "example",
+    record,
+    recordVersion: canonicalDigest(record),
+    reviewed: effectiveCurrent(record, { revision: records.target.headSha, subject: baseline.target.subject }),
+    effective: effectiveCurrent(record, current),
+    current,
+    unstagedReviewablePaths: [],
   };
 }
 
@@ -326,11 +422,8 @@ function lineageDependencies(
       }),
     }),
     readCandidateLineage: async () => ({
-      workUnit: "example",
-      record,
+      ...candidateLineageBinding(records, record, current),
       recordVersion,
-      current,
-      unstagedReviewablePaths: [],
     }),
     appendCandidateResponse: async (input) => {
       appends.push(input);
@@ -370,8 +463,11 @@ function localRequest(
   };
 }
 
-function hostedResponseFixture(origin: "review-thread" | "review-body") {
-  const records = fixture();
+function hostedResponseFixture(
+  origin: "review-thread" | "review-body",
+  vehicle: LocalReviewState["vehicle"] = workUnitVehicle,
+) {
+  const records = fixture(vehicle);
   const attemptId = "hosted/attempt-1";
   const operationId = "lane-progress/hosted-1";
   const hostedFinding = origin === "review-thread"
@@ -413,7 +509,20 @@ function hostedResponseFixture(origin: "review-thread" | "review-body") {
       outcome: "findings" as const,
       hosted: {
         target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
+        requestedCoverage: "complete" as const,
+        effectiveCoverage: "complete" as const,
         reviewTarget: records.target,
+        ...(vehicle.kind !== "delivery-member"
+          ? {}
+          : {
+              vehicle: DeliveryReviewMemberVehicleSchema.parse({
+                kind: "delivery-member" as const,
+                planId: "123e4567-e89b-42d3-a456-426614174000",
+                deliverableId: vehicle.identity,
+                workUnitId: "example",
+                head: records.target.headSha,
+              }),
+            }),
         requirement: {
           ...records.operation.requirement,
           acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
@@ -443,6 +552,47 @@ function foreignApproval(records: ReturnType<typeof fixture>) {
 }
 
 describe("review response command", () => {
+  it("routes an approved local delivery-member fix through selector-free correction", async () => {
+    const records = deliveryLocalFixture();
+
+    await expect(respondToReviewCommand(localRequest(records), dependencies(records))).resolves.toMatchObject({
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: {
+        deliveryMember: records.vehicle,
+        correctionAction: {
+          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          input: { repository: "owner/repo", remote: "origin" },
+        },
+      },
+    });
+  });
+
+  it("binds an exact unowned local disposition to its admitted delivery member", async () => {
+    const records = deliveryLocalFixture();
+    const seedDeps = dependencies(records);
+    const appended: ApprovedDispositionRecord[] = [];
+    seedDeps.dispositionStore.appendDispositionRecord = async (record) => {
+      appended.push(record);
+      return { dispositionRecordRef: "git-common:review-gate/evidence/disposition.json" };
+    };
+    await respondToReviewCommand(localRequest(records), seedDeps);
+    const bound = appended[0];
+    if (bound === undefined) throw new Error("expected a bound disposition record");
+    const unowned = ApprovedDispositionRecordSchema.parse({ ...bound, deliveryMember: null });
+    const deps = dependencies(records);
+    deps.dispositionStore.readDispositionRecord = async () => unowned;
+    deps.dispositionStore.appendDispositionRecord = async () => ({
+      dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
+    });
+
+    await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: { deliveryMember: records.vehicle },
+    });
+  });
+
   it("constructs a source-bound proposal from author-owned finding decisions", async () => {
     const records = fixture();
     const earlierFinding = {
@@ -568,6 +718,100 @@ describe("review response command", () => {
         },
       },
     });
+  });
+
+  it("records a verified hosted delivery-member fix at the authoritative current member target", async () => {
+    const hosted = hostedResponseFixture("review-thread", memberVehicle);
+    const attempt = hosted.operation.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
+    const deps = dependencies(hosted.records);
+    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    deps.readCandidateLineage = async () => null;
+    const currentTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: hosted.records.target.repositoryId,
+      baseRef: hosted.records.target.baseRef,
+      diffBaseSha: hosted.records.target.diffBaseSha,
+      diffBaseTree: hosted.records.target.diffBaseTree,
+      headSha: objectId("1"),
+      headTree: objectId("2"),
+    });
+    const hostedFixTarget = {
+      ...attempt.hosted.target,
+      headSha: currentTarget.headSha,
+    };
+    const dispositions = approved({
+      targetId: hosted.records.target.targetId,
+      policyVersion: attempt.hosted.requirement.policyVersion,
+      rubricVersion: attempt.hosted.requirement.rubricVersion,
+      rubricDigest: attempt.hosted.requirement.rubricDigest,
+      sourceIdentity: "codex-pr",
+      finding: hosted.records.finding,
+    });
+    const request = {
+      schemaVersion: 1 as const,
+      source: { kind: "hosted" as const, attemptRef: hosted.attemptRef },
+      dispositions,
+    };
+
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
+      payload: {
+        deliveryMember: attempt.hosted.vehicle,
+        correctionAction: {
+          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          input: { repository: "owner/repo", remote: "origin" },
+        },
+      },
+    });
+    const verifiedRequest = {
+      ...request,
+      verifiedFix: {
+        applicability: "focused" as const,
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    };
+    await expect(respondToReviewCommand(verifiedRequest, deps))
+      .rejects.toThrow("authoritative current delivery-member target is unavailable");
+    const withCurrentMember = Object.assign(deps, {
+      resolveDeliveryMemberFixTarget: async () => ({ currentTarget, hostedFixTarget }),
+    });
+    await expect(respondToReviewCommand(verifiedRequest, withCurrentMember)).resolves.toMatchObject({
+      state: "delivery-member-advanced",
+      nextAction: "continue-review",
+      payload: {
+        currentTarget,
+        hostedFixTarget,
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
+    });
+    const reboundDisposition = vi.fn(async () => undefined);
+    withCurrentMember.bindHostedDisposition = reboundDisposition;
+    await expect(respondToReviewCommand(verifiedRequest, withCurrentMember)).resolves.toMatchObject({
+      state: "delivery-member-current",
+      nextAction: "continue-review",
+      payload: {
+        currentTarget,
+        hostedFixTarget,
+        hostedSettlementPlan: {
+          beforeFixFindingIds: [],
+          afterFixFindingIds: [hosted.records.finding.findingId],
+        },
+      },
+    });
+    expect(reboundDisposition).toHaveBeenCalledWith(expect.objectContaining({
+      operationId: hosted.operation.operationId,
+      attemptId: attempt.attemptId,
+      dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      findingIds: [hosted.records.finding.findingId],
+      noHostSettlementFindingIds: [],
+    }));
   });
 
   it("orders unchanged-head hosted settlements before fixes in a mixed approved set", async () => {
@@ -761,9 +1005,11 @@ describe("review response command", () => {
     });
     const lineage = await deps.readCandidateLineage(records.target);
     if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    const current = { revision: currentTarget.headSha, subject: candidateSubject("changed") };
     deps.readCandidateLineage = async () => ({
       ...lineage,
-      current: { revision: currentTarget.headSha, subject: candidateSubject("changed") },
+      current,
+      effective: effectiveChanged(lineage.record, current),
     });
     deps.dispositionStore.appendDispositionRecord = appendDispositionRecord;
 
@@ -800,9 +1046,11 @@ describe("review response command", () => {
     });
     const lineage = await deps.readCandidateLineage(records.target);
     if (lineage === null) throw new Error("expected a bound Candidate lineage");
+    const current = { revision: currentTarget.headSha, subject: lineage.record.subject };
     deps.readCandidateLineage = async () => ({
       ...lineage,
-      current: { revision: currentTarget.headSha, subject: lineage.record.subject },
+      current,
+      effective: effectiveCurrent(lineage.record, current),
     });
 
     await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
@@ -1051,7 +1299,7 @@ describe("verified-fix Candidate settlement", () => {
     });
 
     expect(appends).toHaveLength(1);
-    const [response] = appends[0]?.record.responses ?? [];
+    const [response] = appends[0] === undefined ? [] : candidateReviewResponses(appends[0].record);
     expect(response).toMatchObject({
       candidateId: record.attestation.candidateId,
       dispositionId: request.dispositions.dispositionSet.dispositionSetId,
@@ -1102,7 +1350,7 @@ describe("verified-fix Candidate settlement", () => {
       expectedRecordVersion: canonicalDigest(record),
       record: {
         subject: record.subject,
-        responses: [expect.objectContaining({ implementationChanged: false })],
+        transitions: [expect.objectContaining({ implementationChanged: false })],
       },
     });
   });
@@ -1121,13 +1369,7 @@ describe("verified-fix Candidate settlement", () => {
     });
     const advanced = appends[0]?.record;
     if (advanced === undefined) throw new Error("expected an appended Candidate record");
-    deps.readCandidateLineage = async () => ({
-      workUnit: "example",
-      record: advanced,
-      recordVersion: canonicalDigest(advanced),
-      current,
-      unstagedReviewablePaths: [],
-    });
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, current);
 
     await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
       state: "candidate-current",
@@ -1148,13 +1390,7 @@ describe("verified-fix Candidate settlement", () => {
     await respondToReviewCommand(request, deps);
     const advanced = appends[0]?.record;
     if (advanced === undefined) throw new Error("expected an appended Candidate record");
-    deps.readCandidateLineage = async () => ({
-      workUnit: "example",
-      record: advanced,
-      recordVersion: canonicalDigest(advanced),
-      current,
-      unstagedReviewablePaths: [],
-    });
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, current);
 
     await expect(respondToReviewCommand({
       ...request,
@@ -1169,7 +1405,7 @@ describe("verified-fix Candidate settlement", () => {
     const request = verifiedFixRequest(records);
     await respondToReviewCommand(request, deps);
     const advanced = appends[0]?.record;
-    const response = advanced?.responses[0];
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
     if (advanced === undefined || response === undefined) {
       throw new Error("expected an appended Candidate response");
     }
@@ -1186,15 +1422,38 @@ describe("verified-fix Candidate settlement", () => {
     });
     const conflicting = {
       ...advanced,
-      responses: [conflictingResponse],
+      transitions: [conflictingResponse],
     };
-    deps.readCandidateLineage = async () => ({
-      workUnit: "example",
-      record: conflicting,
-      recordVersion: canonicalDigest(conflicting),
-      current,
-      unstagedReviewablePaths: [],
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, conflicting, current);
+
+    await expect(respondToReviewCommand(request, deps)).rejects.toThrow("replay conflicts");
+  });
+
+  it("rejects an earlier response replay after a later response advances the Candidate again", async () => {
+    const records = fixture();
+    const firstCurrent = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, firstCurrent);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(request, deps);
+    const first = appends[0]?.record;
+    const firstResponse = first === undefined ? undefined : candidateReviewResponses(first)[0];
+    if (first === undefined || firstResponse === undefined) {
+      throw new Error("expected the first Candidate response");
+    }
+    const laterCurrent = { revision: objectId("f"), subject: candidateSubject("later-fix") };
+    const laterResponse = createCandidateReviewResponseEvidence({
+      candidateId: firstResponse.candidateId,
+      oldTarget: firstResponse.newTarget,
+      newTarget: laterCurrent,
+      dispositionId: digest("later-disposition"),
+      approvedBy: firstResponse.approvedBy,
+      appliedBy: firstResponse.appliedBy,
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://later-fix"],
+      implementationChanged: true,
     });
+    const advancedAgain = { ...first, transitions: [...first.transitions, laterResponse] };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advancedAgain, laterCurrent);
 
     await expect(respondToReviewCommand(request, deps)).rejects.toThrow("replay conflicts");
   });
@@ -1204,13 +1463,7 @@ describe("verified-fix Candidate settlement", () => {
     const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
     const { deps, record } = lineageDependencies(records, current);
     let persisted = record;
-    deps.readCandidateLineage = async () => ({
-      workUnit: "example",
-      record: persisted,
-      recordVersion: canonicalDigest(persisted),
-      current,
-      unstagedReviewablePaths: [],
-    });
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, persisted, current);
     deps.appendCandidateResponse = async ({ record: next }) => {
       persisted = next;
       throw new Error("git add failed after record write");

@@ -85,7 +85,6 @@ export type DeliveryPlanIssueCode =
   | "seam-incidence-order-mismatch"
   | "seam-owner-mismatch"
   | "seam-fingerprint-mismatch"
-  | "stack-member-count"
   | "stack-member-not-landable"
   | "member-fingerprint-mismatch"
   | "first-revision-lineage-mismatch"
@@ -488,9 +487,6 @@ function collectSeamIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue[]): v
 
 function collectProjectionIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue[]): void {
   if (plan.projection.kind !== "stack-to-main") return;
-  if (plan.members.length < 2) {
-    issues.push({ code: "stack-member-count", path: ["members"] });
-  }
   for (const [index, member] of plan.members.entries()) {
     if (member.mainlineLandability !== "independently-landable") {
       issues.push({ code: "stack-member-not-landable", path: ["members", index, "mainlineLandability"] });

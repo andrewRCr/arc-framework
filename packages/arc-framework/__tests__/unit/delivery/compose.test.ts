@@ -107,7 +107,7 @@ describe("delivery composition checks", () => {
     })).toEqual({ status: "valid", advisories: [] });
   });
 
-  it("admits a member with no task references when all tasks are covered elsewhere", () => {
+  it("refuses a member with no closing task even when all tasks are covered elsewhere", () => {
     expect(validateDeliveryCompositionCoverage({
       entry: "from-branch",
       implementationTaskIds: ["1.1"],
@@ -116,6 +116,9 @@ describe("delivery composition checks", () => {
         { chunkKey: "attributed", taskIds: ["1.1"] },
         { chunkKey: "review-fixes", taskIds: [] },
       ],
-    })).toEqual({ status: "valid", advisories: [] });
+    })).toEqual({
+      status: "refused",
+      issues: [{ kind: "member-task-order", memberIndices: [1] }],
+    });
   });
 });

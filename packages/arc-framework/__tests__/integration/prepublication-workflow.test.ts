@@ -10,7 +10,7 @@ const ROOTS = [
 ];
 
 describe("prepublication workflow boundary", () => {
-  it("keeps private review before publish and integration after it", async () => {
+  it("keeps private review before publish and exact member fallback in integration", async () => {
     for (const root of ROOTS) {
       const integrate = await readFile(
         resolve(root, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
@@ -18,9 +18,18 @@ describe("prepublication workflow boundary", () => {
       );
 
       expect(integrate).not.toContain("arc review pre-publication <wu> --json");
-      expect(integrate).not.toContain("arc review local prepare -");
       expect(integrate).toContain("**When to use:** `active/meta-{name}.md` shows `**State:** Integrating`");
       expect(integrate).toContain("### 1) Push the branch and open the PR");
+      const reviewIteration = integrate.indexOf("### 2) Review iteration");
+      const memberLocalFallback = integrate.indexOf("arc review local prepare -");
+      expect(reviewIteration).toBeGreaterThan(-1);
+      expect(memberLocalFallback).toBeGreaterThan(reviewIteration);
+      expect(integrate.slice(reviewIteration, memberLocalFallback))
+        .toContain("Pass its `action` unchanged as\n`deliveryAdmission`");
+      const reconcileStep = integrate.indexOf("### 10) Behind-base reconcile gate and merge");
+      const correctionPublish = integrate.indexOf("arc publish {name} --json", reconcileStep);
+      expect(reconcileStep).toBeGreaterThan(-1);
+      expect(correctionPublish).toBeGreaterThan(reconcileStep);
 
       const prepare = await readFile(
         resolve(root, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"),
@@ -32,6 +41,42 @@ describe("prepublication workflow boundary", () => {
       expect(prepare).toContain("arc publish {name} --json");
       expect(prepare).not.toContain("gh pr create");
       expect(prepare).not.toContain("arc integrate checkpoint");
+    }
+  });
+
+  it("prepares canonical private member targets before composing pre-publication review", async () => {
+    for (const root of ROOTS) {
+      const [prepare, delivery] = await Promise.all([
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
+        readFile(resolve(root, "system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
+      ]);
+      const entry = prepare.indexOf("arc delivery entry inspect --input - --json");
+      const privateCandidates = prepare.indexOf("Prepare private delivery candidates", entry);
+      const review = prepare.indexOf("arc review pre-publication <wu> --json", privateCandidates);
+      expect(entry).toBeGreaterThan(-1);
+      expect(prepare).toContain('{"entryMode":"prepublication"}');
+      expect(privateCandidates).toBeGreaterThan(entry);
+      expect(review).toBeGreaterThan(privateCandidates);
+      expect(prepare.slice(entry, review)).toMatch(
+        /`not-applicable`[\s\S]*`validate-canonical`[\s\S]*`refused`/u,
+      );
+      expect(prepare.slice(entry, review)).toContain("planId");
+      expect(prepare).toMatch(
+        /approved fix changes the Candidate[\s\S]*rerun Step 1[\s\S]*Prepare private delivery candidates/iu,
+      );
+
+      const preparation = delivery.indexOf("## Prepare private delivery candidates");
+      const locate = delivery.indexOf("arc delivery authoring locate - --json", preparation);
+      const eligibilityPrepare = delivery.indexOf("arc delivery eligibility prepare - --json", locate);
+      const eligibilityClose = delivery.indexOf("arc delivery eligibility close - --json", eligibilityPrepare);
+      const publish = delivery.indexOf("arc delivery publish - --json", eligibilityClose);
+      for (const position of [preparation, locate, eligibilityPrepare, eligibilityClose, publish]) {
+        expect(position).toBeGreaterThan(-1);
+      }
+      expect(preparation).toBeLessThan(locate);
+      expect(locate).toBeLessThan(eligibilityPrepare);
+      expect(eligibilityPrepare).toBeLessThan(eligibilityClose);
+      expect(eligibilityClose).toBeLessThan(publish);
     }
   });
 
@@ -56,6 +101,65 @@ describe("prepublication workflow boundary", () => {
       .toContain("system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md");
     expect(recipe.include_files)
       .toContain("reference/templates/arc/work-unit/template-pull-request.md");
+    expect(recipe.include_files).toContain("system/methods/validate-criteria.md");
+  });
+
+  it("fires validate-criteria directly at work-unit and delivery-member boundaries", async () => {
+    for (const root of ROOTS) {
+      const [verification, taskLoop, validateCriteria] = await Promise.all([
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
+        readFile(resolve(root, root === ROOTS[0]
+          ? "system/workflows/arc/process-task-loop.template.md"
+          : "system/workflows/arc/process-task-loop.md"), "utf8"),
+        readFile(resolve(root, "system/methods/validate-criteria.md"), "utf8"),
+      ]);
+
+      expect(verification).toContain("    - validate-criteria");
+      expect(verification).not.toContain("    - adversarial-review");
+      expect(verification).toContain("validate-criteria:\n  scope:\n    kind: work-unit");
+      expect(verification).toContain("Without a Delivery Plan:");
+      expect(verification).toContain("criteria: task list's complete flat Success Criteria section");
+      expect(verification).toContain("open the upstream design/spec artifact");
+      expect(verification).toContain("With a Delivery Plan:");
+      expect(verification).toContain("member-groups: recorded delivery-member criteria reports");
+      expect(verification).toContain("seams: task list's Cross-member seams group");
+      expect(verification).toContain("At least one executable check fails");
+      expect(verification).toContain("Present-tense architecture and completion claims distinguish");
+      expect(verification).toContain("Every deferred part of original intent");
+      expect(taskLoop).toContain("    - validate-criteria");
+      expect(taskLoop).not.toContain("    - adversarial-review");
+      expect(validateCriteria).toContain("arc:\n  methods:\n    - adversarial-review");
+      expect(validateCriteria).toContain("When none is present, open the\nupstream design/spec artifact");
+      expect(validateCriteria).toContain("flat Success Criteria section against actual outcomes");
+      expect(validateCriteria).toContain("When a Delivery Plan is present");
+      expect(validateCriteria).toContain("offer one fresh-context pass over the same selected scope");
+      const unresolvedStop = verification.indexOf("If the combined report contains any `[ ]` criterion, stop.");
+      const attestationStep = verification.indexOf("## Step 3 — Attest the Candidate");
+      expect(unresolvedStop).toBeGreaterThan(-1);
+      expect(attestationStep).toBeGreaterThan(unresolvedStop);
+      const coherentUnit = taskLoop.indexOf("2. **Coherent unit completion:**");
+      const memberBoundary = taskLoop.indexOf("3. **Delivery-member boundary (conditional):**");
+      const reportAndStop = taskLoop.indexOf("4. **Report and stop:**");
+      expect(coherentUnit).toBeGreaterThan(-1);
+      expect(memberBoundary).toBeGreaterThan(coherentUnit);
+      expect(reportAndStop).toBeGreaterThan(memberBoundary);
+      expect(taskLoop.slice(coherentUnit, memberBoundary))
+        .toContain("last task assigned to a delivery member");
+      const memberBoundarySection = taskLoop.slice(memberBoundary, reportAndStop);
+      const criteriaWalk = memberBoundarySection.indexOf("member's criteria walk");
+      const memberValidation = memberBoundarySection.indexOf("validate-criteria:");
+      expect(criteriaWalk).toBeGreaterThan(-1);
+      expect(memberBoundarySection).toMatch(/validate-criteria:\n\s+scope:\n\s+kind: delivery-member/u);
+      expect(memberValidation).toBeGreaterThan(criteriaWalk);
+      const unresolvedBranch = taskLoop.indexOf("**Unresolved member-report branch:**");
+      const resolvedBranch = taskLoop.indexOf("**Resolved completion branch:**");
+      expect(unresolvedBranch).toBeGreaterThan(memberBoundary);
+      expect(resolvedBranch).toBeGreaterThan(unresolvedBranch);
+      expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).toContain("leave the closing task `[ ]`");
+      expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toContain("Mark the task `[x]`");
+      expect(validateCriteria).toMatch(/do not re-derive member\s+criteria/u);
+      expect(validateCriteria).toMatch(/walk the seam group\s+and union coherence/u);
+    }
   });
 
   it("ships every pull-request template reference at its resolved installed path", async () => {
@@ -117,10 +221,12 @@ describe("prepublication workflow boundary", () => {
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/archive-work-unit.md"), "utf8"),
       ]);
 
-      const cleanRestart = integrate.indexOf("`clean` restarts this step without a commit");
+      const cleanContinuation = integrate.indexOf("`clean` continues to the checkpoint below");
+      const appliedRestart = integrate.indexOf("Restart this step. The correction changed the head");
       const readyCheckpoint = integrate.indexOf("On `ready / request-approval`");
-      expect(cleanRestart).toBeGreaterThan(-1);
-      expect(readyCheckpoint).toBeGreaterThan(cleanRestart);
+      expect(cleanContinuation).toBeGreaterThan(-1);
+      expect(appliedRestart).toBeGreaterThan(cleanContinuation);
+      expect(readyCheckpoint).toBeGreaterThan(appliedRestart);
       expect(integrate).toContain("Context: meta-{name}.md (integration)");
       expect(integrate).not.toContain("Context: meta-{name}.md (integration reconcile)");
       expect(archive).toContain("per `integrate-work-unit.md` Steps 5–7");

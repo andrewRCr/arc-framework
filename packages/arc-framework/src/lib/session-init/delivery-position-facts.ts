@@ -10,11 +10,24 @@ import {
 } from "../delivery/operation.js";
 import type { DeliveryPositionFactsV1 } from "../delivery/position.js";
 import type {
+  DeliveryMemberCoordinatesV1,
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
   DeliveryStateV1,
+  DeliveryTargetCoordinatesV1,
 } from "../delivery/schema.js";
+import type {
+  DeliveryContributionEndpoints,
+  DeliveryContributionProofResult,
+} from "../delivery/contribution-proof.js";
+import type { DeliveryLandingResultCoordinates } from "../delivery/git-landing-result.js";
 import type { DeliveryPositionObservation } from "./delivery-position.js";
+import {
+  classifyDeliveryTopRemedyObservation,
+  matchesDeliveryTopRemedyTrigger,
+} from "../delivery/top-remedy.js";
+import { matchesDeliveryTeardownRequest } from "../delivery/teardown.js";
+import { readAncestry } from "../work-unit/git-decomposition-object-readers.js";
 
 interface DeliveryPositionFactsDependencies {
   readonly exec: GitExec;
@@ -23,26 +36,95 @@ interface DeliveryPositionFactsDependencies {
   readonly repository: string;
   readonly remoteHeads: Readonly<Record<string, string>>;
   readonly localCommits: Readonly<Record<string, boolean>>;
+  readonly localHeads?: Readonly<Record<string, string>>;
+  readonly materializeTarget: (coordinates: DeliveryTargetCoordinatesV1) => Promise<boolean>;
+  readonly observeLandedResult: (input: {
+    readonly mergeCommitSha: string;
+    readonly strategy: "merge" | "rebase" | "squash";
+    readonly beforeMember: DeliveryMemberCoordinatesV1;
+  }) => Promise<DeliveryLandingResultCoordinates | null>;
+  readonly proveContribution: (endpoints: DeliveryContributionEndpoints) => Promise<DeliveryContributionProofResult>;
 }
 
 type RequestState = "open" | "merged" | "closed" | null;
 
+/** Narrow observation policy for approved correction and external-adoption windows. */
+export interface DeliveryPositionObservationOptions {
+  readonly terminalAuthoringMovement?: "allow-append-only";
+  readonly unlandedSuffixMovement?: "allow-external";
+}
+
+async function retainedCommitIsAvailable(
+  ref: string,
+  coordinates: NonNullable<DeliveryOperationSnapshotV1["members"][number]["coordinates"]>,
+  dependencies: DeliveryPositionFactsDependencies,
+): Promise<boolean> {
+  const recorded = dependencies.localCommits[coordinates.head];
+  if (recorded === false) return false;
+  const prefix = "refs/heads/";
+  if (recorded === undefined
+    && (!ref.startsWith(prefix) || dependencies.remoteHeads[ref.slice(prefix.length)] !== undefined)) {
+    return false;
+  }
+  const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+    ...options,
+    cwd: dependencies.cwd,
+    objectAccess: "local-only",
+  });
+  const observed = await observeDeliveryEligibilityRef(localOnlyExec, coordinates.head);
+  return observed !== null
+    && observed.head === coordinates.head
+    && observed.tree === coordinates.tree;
+}
+
+async function localCommitMatches(
+  coordinates: NonNullable<DeliveryOperationSnapshotV1["members"][number]["coordinates"]>,
+  dependencies: DeliveryPositionFactsDependencies,
+): Promise<boolean> {
+  const recorded = dependencies.localCommits[coordinates.head];
+  if (recorded !== undefined) return recorded;
+  const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+    ...options,
+    cwd: dependencies.cwd,
+    objectAccess: "local-only",
+  });
+  const observed = await observeDeliveryEligibilityRef(localOnlyExec, coordinates.head);
+  return observed !== null
+    && observed.head === coordinates.head
+    && observed.tree === coordinates.tree;
+}
+
 async function observeTarget(
   target: DeliveryOperationSnapshotV1["target"],
   dependencies: DeliveryPositionFactsDependencies,
-): Promise<boolean> {
-  if (target === null) return true;
-  if (target.coordinates === null) return false;
+): Promise<"exact" | "append-only" | null> {
+  if (target === null) return "exact";
+  if (target.coordinates === null) return null;
   const observed = await dependencies.host.observeTarget(dependencies.repository, target.ref);
-  return observed.status === "observed"
-    && canonicalize(observed.coordinates) === canonicalize(target.coordinates);
+  if (observed.status !== "observed") return null;
+  if (canonicalize(observed.coordinates) === canonicalize(target.coordinates)) return "exact";
+  if (!await dependencies.materializeTarget(observed.coordinates)) return null;
+  const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+    ...options,
+    cwd: dependencies.cwd,
+    objectAccess: "local-only",
+  });
+  return await readAncestry(localOnlyExec, target.coordinates.head, observed.coordinates.head) === "ancestor"
+    ? "append-only"
+    : null;
 }
 
 async function observeMember(
   member: DeliveryOperationSnapshotV1["members"][number],
-  target: DeliveryOperationSnapshotV1["target"],
   dependencies: DeliveryPositionFactsDependencies,
-): Promise<{ readonly exact: boolean; readonly requestState: RequestState }> {
+  allowAppendOnlyAuthoring = false,
+  allowExternalMovement = false,
+): Promise<{
+  readonly exact: boolean;
+  readonly requestState: RequestState;
+  readonly externalMovement?: true;
+  readonly terminalAuthoringMovement?: DeliveryPositionFactsV1["terminalAuthoringMovement"];
+}> {
   if ((member.ref === null) !== (member.coordinates === null)) {
     return { exact: false, requestState: null };
   }
@@ -65,28 +147,77 @@ async function observeMember(
     if (!member.ref.startsWith(prefix)) return { exact: false, requestState: null };
     const branch = member.ref.slice(prefix.length);
     const remoteHead = dependencies.remoteHeads[branch];
-    const expectedRemoteHead = requestState === "merged" ? requestHead : member.coordinates.head;
-    if (remoteHead === undefined
-      || remoteHead !== expectedRemoteHead
-      || dependencies.localCommits[remoteHead] !== true) {
-      return { exact: false, requestState: null };
-    }
     if (requestState === "merged") {
-      if (target === null || target.coordinates === null
-        || member.coordinates.head !== target.coordinates.head
-        || member.coordinates.tree !== target.coordinates.tree) {
+      if (requestHead !== member.coordinates.head
+        || !await retainedCommitIsAvailable(member.ref, member.coordinates, dependencies)
+        || (remoteHead !== undefined && remoteHead !== member.coordinates.head)) {
         return { exact: false, requestState: null };
       }
     } else {
+      if (remoteHead === undefined
+        || dependencies.localCommits[remoteHead] !== true) {
+        return { exact: false, requestState: null };
+      }
       const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
         ...options,
         cwd: dependencies.cwd,
         objectAccess: "local-only",
       });
       const coordinates = await observeDeliveryEligibilityRef(localOnlyExec, remoteHead);
-      if (coordinates === null || coordinates.tree !== member.coordinates.tree
-        || (requestHead !== null && requestHead !== member.coordinates.head)) {
+      if (coordinates === null || (requestHead !== null && requestHead !== remoteHead)) {
         return { exact: false, requestState: null };
+      }
+      let remoteAuthoringMovement = false;
+      if (remoteHead !== member.coordinates.head) {
+        if (allowAppendOnlyAuthoring && requestState === "open" && requestHead !== null
+          && await localCommitMatches(member.coordinates, dependencies)
+          && await readAncestry(localOnlyExec, member.coordinates.head, remoteHead) === "ancestor") {
+          remoteAuthoringMovement = true;
+        } else {
+          return allowExternalMovement && requestState === "open"
+            ? { exact: true, requestState, externalMovement: true }
+            : { exact: false, requestState: null };
+        }
+      }
+      if (!remoteAuthoringMovement && coordinates.tree !== member.coordinates.tree) {
+        return { exact: false, requestState: null };
+      }
+      const localHead = allowAppendOnlyAuthoring ? dependencies.localHeads?.[branch] : undefined;
+      if (localHead !== undefined && localHead !== remoteHead) {
+        const localCoordinates = dependencies.localCommits[localHead] === true
+          ? await observeDeliveryEligibilityRef(localOnlyExec, localHead)
+          : null;
+        if (requestState !== "open" || requestHead !== remoteHead || localCoordinates === null
+          || !await localCommitMatches(member.coordinates, dependencies)
+          || await readAncestry(localOnlyExec, remoteHead, localHead) !== "ancestor") {
+          return { exact: false, requestState: null };
+        }
+        return {
+          exact: true,
+          requestState,
+          terminalAuthoringMovement: {
+            deliverableId: member.deliverableId,
+            before: member.coordinates,
+            after: {
+              base: member.coordinates.base,
+              head: localCoordinates.head,
+              tree: localCoordinates.tree,
+            },
+            publicationLeaseHead: remoteHead,
+          },
+        };
+      }
+      if (remoteAuthoringMovement) {
+        return {
+          exact: true,
+          requestState,
+          terminalAuthoringMovement: {
+            deliverableId: member.deliverableId,
+            before: member.coordinates,
+            after: { base: member.coordinates.base, head: coordinates.head, tree: coordinates.tree },
+            publicationLeaseHead: remoteHead,
+          },
+        };
       }
     }
   } else if (requestState === "merged") {
@@ -99,9 +230,9 @@ async function snapshotIsCurrent(
   snapshot: DeliveryOperationSnapshotV1,
   dependencies: DeliveryPositionFactsDependencies,
 ): Promise<boolean> {
-  if (!(await observeTarget(snapshot.target, dependencies))) return false;
+  if (await observeTarget(snapshot.target, dependencies) !== "exact") return false;
   const observed = await Promise.all(snapshot.members.map((member) => (
-    observeMember(member, snapshot.target, dependencies)
+    observeMember(member, dependencies)
   )));
   return observed.every((member) => member.exact);
 }
@@ -139,6 +270,7 @@ async function observeOperation(
       };
     } else return null;
   } else if (operation.kind === "land") {
+    if (operation.mode !== "sequential") return null;
     const request = await dependencies.host.readRequest(dependencies.repository, {
       providerId: operation.effect.providerId,
       changeRequestId: operation.effect.changeRequestId,
@@ -147,8 +279,20 @@ async function observeOperation(
     if (request.request.state === "open") {
       observation = { outcome: "not-applied" };
     } else if (request.request.state === "merged") {
-      const target = await dependencies.host.observeTarget(dependencies.repository, operation.effect.targetRef);
-      if (target.status !== "observed") return null;
+      const beforeMember = operation.before.members[0]?.coordinates;
+      const beforeTarget = operation.before.target?.coordinates;
+      const mergeCommitSha = request.request.mergeCommitSha;
+      if (beforeMember === null || beforeMember === undefined || beforeTarget === null
+        || beforeTarget === undefined || mergeCommitSha === null || mergeCommitSha === undefined) return null;
+      const landed = await dependencies.observeLandedResult({
+        mergeCommitSha,
+        strategy: operation.effect.strategy,
+        beforeMember,
+      });
+      if (landed === null || (await dependencies.proveContribution({
+        before: { predecessor: beforeTarget, member: beforeMember },
+        after: landed,
+      })).status !== "accepted") return null;
       observation = {
         outcome: "applied",
         observation: {
@@ -156,19 +300,56 @@ async function observeOperation(
           effect: operation.effect,
           outcome: "applied",
           snapshot: {
-            target: { ref: operation.effect.targetRef, coordinates: target.coordinates },
-            members: operation.before.members.map((member) => ({
-              ...member,
-              coordinates: member.coordinates === null ? null : {
-                base: member.coordinates.base,
-                head: target.coordinates.head,
-                tree: target.coordinates.tree,
-              },
-            })),
+            target: { ref: operation.effect.targetRef, coordinates: landed.member },
+            members: operation.before.members,
           },
         },
       };
     } else return null;
+  } else if (operation.kind === "top-remedy") {
+    const trigger = state.members.at(-2);
+    const prefix = "refs/heads/";
+    if (operation.effect.repository !== dependencies.repository
+      || !matchesDeliveryTopRemedyTrigger(operation.effect, trigger)
+      || !operation.effect.triggerRef.startsWith(prefix)
+      || dependencies.remoteHeads[operation.effect.triggerRef.slice(prefix.length)] !== undefined
+      || trigger?.coordinates === null || trigger?.coordinates === undefined
+      || !await retainedCommitIsAvailable(operation.effect.triggerRef, trigger.coordinates, dependencies)) return null;
+    const request = await dependencies.host.readRequest(dependencies.repository, {
+      providerId: operation.effect.providerId,
+      changeRequestId: operation.effect.changeRequestId,
+    });
+    if (request.status !== "observed") return null;
+    observation = classifyDeliveryTopRemedyObservation(
+      operation.effect, request.request, operation.requested,
+    );
+  } else if (operation.kind === "teardown") {
+    const member = operation.before.members[0];
+    const targetRef = operation.before.target?.ref;
+    if (member === undefined || member.ref === null || member.changeRequest === null
+      || member.coordinates === null || targetRef === undefined) return null;
+    const request = await dependencies.host.readRequest(dependencies.repository, member.changeRequest);
+    if (request.status !== "observed") return null;
+    if (!matchesDeliveryTeardownRequest({
+      request: request.request,
+      repository: dependencies.repository,
+      protectedTargetRef: targetRef,
+      member,
+    })) {
+      observation = { outcome: "ambiguous" };
+    } else {
+      const prefix = "refs/heads/";
+      if (!member.ref.startsWith(prefix)) return null;
+      const remoteHead = dependencies.remoteHeads[member.ref.slice(prefix.length)];
+      if (remoteHead === member.coordinates.head) {
+        observation = { outcome: "not-applied" };
+      } else if (remoteHead === undefined
+        && await retainedCommitIsAvailable(member.ref, member.coordinates, dependencies)) {
+        observation = { outcome: "applied", snapshot: operation.requested };
+      } else {
+        observation = { outcome: "ambiguous" };
+      }
+    }
   } else if (await snapshotIsCurrent(operation.requested, dependencies)) {
     observation = operation.requested;
   } else if (await snapshotIsCurrent(operation.before, dependencies)) {
@@ -187,14 +368,22 @@ async function observeFacts(
   plan: DeliveryPlanV1,
   state: DeliveryStateV1,
   dependencies: DeliveryPositionFactsDependencies,
+  options: DeliveryPositionObservationOptions,
 ): Promise<DeliveryPositionFactsV1 | null> {
-  if (!(await observeTarget(state.target, dependencies))) return null;
-  const members = await Promise.all(state.members.map((member) => observeMember(member, state.target, dependencies)));
+  const targetMovement = await observeTarget(state.target, dependencies);
+  if (targetMovement === null) return null;
+  const terminalIndex = state.members.length - 1;
+  const members = await Promise.all(state.members.map((member, index) => observeMember(
+    member,
+    dependencies,
+    index === terminalIndex && options.terminalAuthoringMovement === "allow-append-only",
+    index < terminalIndex && options.unlandedSuffixMovement === "allow-external",
+  )));
   if (members.some((member) => !member.exact)) return null;
+  const terminalAuthoringMovement = members[terminalIndex]?.terminalAuthoringMovement;
 
   const landedDeliverableIds: string[] = [];
   let unlandedSeen = false;
-  const terminalIndex = state.members.length - 1;
   const nonTerminalCleared = state.members.slice(0, -1).every((member) => (
     member.ref === null && member.changeRequest === null && member.coordinates === null
   ));
@@ -206,6 +395,7 @@ async function observeFacts(
         candidate.ref !== null || candidate.changeRequest !== null || candidate.coordinates !== null
       )));
     const landed = requestState === "merged" || cleared;
+    if (landed && members[index]?.externalMovement === true) return null;
     if (landed && unlandedSeen) return null;
     if (landed) landedDeliverableIds.push(member.deliverableId);
     else unlandedSeen = true;
@@ -216,6 +406,8 @@ async function observeFacts(
     target: state.target,
     members: state.members,
     landedDeliverableIds,
+    ...(targetMovement === "append-only" ? { targetMovement } : {}),
+    ...(terminalAuthoringMovement === undefined ? {} : { terminalAuthoringMovement }),
   };
 }
 
@@ -226,6 +418,7 @@ async function observeFacts(
  * @param state - Current coherent bound state.
  * @param revision - Store-owned revision paired with the state payload.
  * @param dependencies - Passive Git and host observation ports.
+ * @param options - Optional review-fix-only terminal authoring policy.
  * @returns Recognized facts for orientation, or a closed observation refusal.
  */
 export async function observeRepositoryDeliveryPosition(
@@ -233,10 +426,11 @@ export async function observeRepositoryDeliveryPosition(
   state: DeliveryStateV1,
   revision: number,
   dependencies: DeliveryPositionFactsDependencies,
+  options: DeliveryPositionObservationOptions = {},
 ): Promise<DeliveryPositionObservation> {
   const operation = await observeOperation(state, revision, dependencies);
   if (operation === null) return { status: "refused" };
-  const facts = await observeFacts(plan, operation.projected, dependencies);
+  const facts = await observeFacts(plan, operation.projected, dependencies, options);
   return facts === null
     ? { status: "refused" }
     : {

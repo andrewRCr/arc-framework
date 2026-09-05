@@ -46,6 +46,40 @@ describe("parseMethodFrontmatter", () => {
     expect(result.frontmatter?.related).toBeUndefined();
   });
 
+  it("accepts method-owned arc.methods dependencies", () => {
+    const content = [
+      "---",
+      "name: validate-criteria",
+      "description: Validate scoped criteria",
+      "arc:",
+      "  methods:",
+      "    - adversarial-review",
+      "override-active: false",
+      "---",
+      "",
+    ].join("\n");
+
+    const result = parseMethodFrontmatter(content, "validate-criteria");
+    expect(result.errors).toEqual([]);
+    expect(result.frontmatter?.arc).toEqual({ methods: ["adversarial-review"] });
+  });
+
+  it("rejects malformed method-owned declarations", () => {
+    const malformedMethods = validMethod.replace(
+      "override-active: false",
+      "arc:\n  methods: adversarial-review\noverride-active: false",
+    );
+    expect(parseMethodFrontmatter(malformedMethods, "commit-format").errors)
+      .toContain("invalid `arc.methods` (expected array of strings)");
+
+    const unknownArcField = validMethod.replace(
+      "override-active: false",
+      "arc:\n  extensions: []\noverride-active: false",
+    );
+    expect(parseMethodFrontmatter(unknownArcField, "commit-format").errors)
+      .toContain("unknown method `arc` frontmatter field `extensions`");
+  });
+
   it("accepts optional activation only for a registered activatable method", () => {
     const content = [
       "---",

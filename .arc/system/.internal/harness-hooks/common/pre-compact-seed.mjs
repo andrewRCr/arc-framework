@@ -14,40 +14,20 @@ import {
 // marker is scoped to a key the later reader hooks share — see codex-recovery-marker.
 const { sessionId, raw } = readHookInput();
 const hookCwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const cwd = isCodexHarness() ? resolveCodexExecutionCheckout(raw) ?? hookCwd : hookCwd;
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 const staleBuildCommand = process.env.ARC_HOOK_STALE_BUILD_COMMAND?.trim() || "";
 const env = { ...process.env };
+const hookDeadline = Date.now() + 29_000;
+const cwd = isCodexHarness() ? resolveCodexExecutionCheckout(raw) ?? hookCwd : hookCwd;
 
 try {
   reapExpiredRecoveryArtifacts();
-  let result = runSeedCommand();
-  let staleBuildFailure = null;
-  if (shouldRetryAfterBuild(result)) {
-    const build = spawnSync(staleBuildCommand, {
-      cwd,
-      env,
-      encoding: "utf8",
-      shell: true,
-      stdio: "ignore",
-      timeout: 20_000,
-      killSignal: "SIGKILL",
-    });
-    if (build.status === 0) {
-      result = runSeedCommand();
-      if (hasStaleBuildWarning(result)) {
-        staleBuildFailure = "seed command remained stale after repair";
-      }
-    } else {
-      staleBuildFailure = commandFailureMessage("stale-build repair", build);
-    }
-  }
-
+  const seedAttempt = runWithStaleBuildRepair("seed command", runSeedCommand);
   if (isCodexHarness()) {
-    if (staleBuildFailure === null) {
-      writeMarkerFromResult(result);
+    if (seedAttempt.failure === null) {
+      writeMarkerFromResult(seedAttempt.result);
     } else {
-      writeFallbackPendingMarker(staleBuildFailure, sessionId);
+      writeFallbackPendingMarker(seedAttempt.failure, sessionId);
     }
   }
 } catch {
@@ -75,9 +55,36 @@ function runSeedCommand() {
     encoding: "utf8",
     shell: true,
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 15_000,
+    timeout: remainingTimeout(),
     killSignal: "SIGKILL",
   });
+}
+
+function runWithStaleBuildRepair(label, run) {
+  let result = run();
+  if (!shouldRetryAfterBuild(result)) return { result, failure: null };
+
+  const build = spawnSync(staleBuildCommand, {
+    cwd,
+    env,
+    encoding: "utf8",
+    shell: true,
+    stdio: "ignore",
+    timeout: remainingTimeout(20_000),
+    killSignal: "SIGKILL",
+  });
+  if (build.status !== 0) {
+    return { result, failure: commandFailureMessage("stale-build repair", build) };
+  }
+
+  result = run();
+  return hasStaleBuildWarning(result)
+    ? { result, failure: `${label} remained stale after repair` }
+    : { result, failure: null };
+}
+
+function remainingTimeout(maximum = Number.POSITIVE_INFINITY) {
+  return Math.max(1, Math.min(maximum, hookDeadline - Date.now() - 250));
 }
 
 function shouldRetryAfterBuild(result) {

@@ -59,7 +59,11 @@ describe("repository delivery binding lookup", () => {
     expect(await states.publish(plan.planId, state, 0)).toMatchObject({ status: "ok" });
 
     await expect(lookup.resolve({ target: target(), workUnitId: plan.workUnitId }))
-      .resolves.toEqual({ status: "bound", planId: plan.planId });
+      .resolves.toEqual({
+        status: "bound",
+        planId: plan.planId,
+        targetKind: "work-unit",
+      });
   });
 
   it("contains namespace corruption and publisher failure as unavailable evidence", async () => {

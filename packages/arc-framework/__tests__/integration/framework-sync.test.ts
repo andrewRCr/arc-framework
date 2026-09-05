@@ -169,6 +169,7 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/review-chunking.md",
       "system/methods/review-response.md",
       "system/methods/review-triage.md",
+      "system/methods/validate-criteria.md",
       "system/extensions/README.md",
       "system/extensions/pre-pr-open.md",
       "system/workflows/arc/supplemental/run-errand.md",
@@ -213,6 +214,14 @@ describe("framework sync (self-hosting drift check)", () => {
     expect(standard).toContain("target identity, partition, and coverage state");
     expect(standard).toContain("one aggregate whole-target standard-review result");
     expect(adversarial).toContain("bounded chunk-series carrier mode");
+    expect(adversarial).toContain("authored-partition carrier mode");
+    const authoredPartition = adversarial.match(
+      /^### Authored-partition carrier mode$[\s\S]*?(?=^### |^---$)/mu,
+    )?.[0];
+    if (authoredPartition === undefined) throw new Error("missing authored-partition carrier section");
+    expect(authoredPartition).toMatch(/two or three[\s\S]*seam-and-aggregate[\s\S]*one logical pass/iu);
+    expect(adversarial).toMatch(/does not satisfy\s+`review-chunking`/u);
+    expect(adversarial).toContain("does not use `partition-map`");
     expect(guidance).not.toMatch(/per-chunk receipt|durable scope identity|review-gate runtime state/iu);
   });
 

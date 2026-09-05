@@ -1,9 +1,14 @@
 /** Machine-readable review workflow handlers. */
 
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { z, ZodError, type ZodType } from "zod";
 
-import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import {
+  declareCliOptionSite,
+  declareInteractionSite,
+  type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -20,10 +25,13 @@ import {
 } from "../lib/change-facts.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
+import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import type { GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/kernel/index.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
+import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { resolveUserIdentity } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
@@ -58,6 +66,7 @@ import {
 import {
   applyCarriedOwnerAcceptedTerminus,
   applyCarriedStandardReviewReservation,
+  consumeFrontlineCeilingOverride,
   consumeOwnerAcceptedTerminus,
   composePrePublicationReviewRequest,
   type PrePublicationComposition,
@@ -74,9 +83,18 @@ import {
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   readSubmissionBoundaryVersioned,
+  resolveSubmissionBoundaryPath,
+  SubmissionBoundaryVersionConflictError,
   writeSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
 import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
+import { GitObjectIdSchema } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
+import {
+  candidateExpectsEarlierReviewAttempt,
+  earlierAttemptRetainsReservationPosition,
+  projectEarlierReviewApplicability,
+} from
+  "../scripts/review-gate/policy/earlier-review-applicability.js";
 import {
   bindReviewSourceReference,
   parseReviewSourceReference,
@@ -120,7 +138,11 @@ import {
   type MergeLockTransitionRequest,
 } from "../scripts/review-gate/merge-lock.js";
 import { GhMergeLockPort } from "../scripts/review-gate/hosts/github/merge-lock.js";
+import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
+import { resolveAcceptableDeliveryBaseRefs } from
+  "../scripts/review-gate/core/delivery-member-lookup.js";
+import { resolveReviewHeadRef } from "../scripts/review-gate/core/review-subject.js";
 import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
@@ -132,7 +154,8 @@ import {
   HostedErrandProgressBindingSchema,
   type HostedReviewAdapter,
   type HostedErrandProgressBinding,
-  type HostedErrandRequestVehicle,
+  type HostedRequestVehicle,
+  type HostedReviewCoverage,
   type HostedProviderId,
   type HostedTarget,
 } from "../scripts/review-gate/hosted/request.js";
@@ -147,6 +170,7 @@ import {
   hostedLaneAttemptId,
   readLaneProgress,
   recordHostedAwaitAttempt,
+  recordHostedPendingRequest,
   recordHostedRequestUnavailableAttempt,
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
@@ -154,9 +178,14 @@ import {
   assertHostedErrandAdmission,
   assertHostedErrandBindingAuthority,
   assertHostedReservationAdmission,
+  assertHostedReservationBindingAuthority,
+  assertHostedReservationPolicyAdmission,
   configuredSourceSuffix,
+  hostedReservationAttemptsForTarget,
 } from
   "../scripts/review-gate/policy/hosted-reservation-admission.js";
+import { createHostedReservationDischargeReader } from
+  "../scripts/review-gate/policy/hosted-reservation-discharge.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
@@ -213,12 +242,18 @@ import {
   type ChangeRequestResolveResult,
 } from "../scripts/review-gate/change-request.js";
 import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
-import { deriveLocalReviewTarget } from "../scripts/review-gate/hosts/local/repository-target.js";
+import {
+  composeDeliveryMemberTarget,
+  deriveLocalReviewTarget,
+} from "../scripts/review-gate/hosts/local/repository-target.js";
 import {
   MergeMethodSchema,
+  MergeMethodStackPositionSchema,
   MergeMethodResolveResultSchema,
+  mergeMethodResolveArgv,
   resolveMergeMethod,
   type MergeMethodResolveResult,
+  type MergeMethodStackPosition,
 } from "../scripts/review-gate/merge-method.js";
 import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import {
@@ -228,14 +263,28 @@ import {
   type ChecksAwaitResult,
 } from "../scripts/review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
-import { createReviewStatusPort } from "../scripts/review-gate/status-composition.js";
+import {
+  createReviewStatusPort,
+  readRoutedObligation,
+  resolveReviewStatusForWorkUnit,
+} from "../scripts/review-gate/status-composition.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   ReviewStatusCommandResultSchema,
   resolveReviewStatus,
+  ReviewStatusSourceIdSchema,
   ReviewStatusTargetInputSchema,
+  ReviewStatusWorkUnitInputSchema,
   type ReviewStatusResult,
+  type ReviewStatusWorkUnitInput,
 } from "../scripts/review-gate/status.js";
+import {
+  DeliveryReviewTerminusAcceptanceInputSchema,
+  DeliveryReviewTerminusAcceptanceResultSchema,
+  resolveDeliveryReviewTerminusAcceptance,
+  type DeliveryReviewTerminusAcceptanceInput,
+  type DeliveryReviewTerminusAcceptanceResult,
+} from "../scripts/review-gate/policy/delivery-review-terminus.js";
 
 /**
  * Build the request-source operand schema owned by one review command.
@@ -269,6 +318,7 @@ const REVIEW_JSON_COMMAND_PATHS = [
   "review local resume",
   "review respond",
   "review reduce",
+  "review terminus accept",
 ] as const;
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
@@ -319,7 +369,27 @@ const reviewChecksAwaitInputRegistration: CommandInputRegistration = {
   },
 };
 
-export const ReviewStatusCliInputSchema = z.strictObject({ target: z.string().trim().min(1) });
+export const ReviewStatusCliInputSchema = z.strictObject({
+  target: z.string().trim().min(1).optional(),
+  workUnit: SlugSchema.optional(),
+  ceilingOverride: z.string().trim().min(1).optional(),
+  coverage: z.enum(["complete", "incremental"]).optional(),
+  source: ReviewStatusSourceIdSchema.optional(),
+}).superRefine((input, context) => {
+  if ((input.target === undefined) === (input.workUnit === undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "exactly one of --target or --work-unit is required",
+    });
+  }
+  if (input.source !== undefined && input.workUnit === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["source"],
+      message: "--source requires --work-unit",
+    });
+  }
+});
 
 /** Syntax-owned input for the pre-publication review procedure. */
 export const ReviewPrePublicationInputSchema = z.strictObject({
@@ -357,7 +427,24 @@ const reviewPrePublicationInputRegistration: CommandInputRegistration = {
 const reviewStatusInputRegistration: CommandInputRegistration = {
   commandPath: "review status",
   schema: ReviewStatusCliInputSchema,
-  schemaFields: { "option.target": "target" },
+  schemaFields: {
+    "option.target": "target",
+    "option.work-unit": "workUnit",
+    "option.ceiling-override": "ceilingOverride",
+    "option.coverage": "coverage",
+    "option.source": "source",
+  },
+};
+
+/** Syntax-owned stack position for merge-method resolution. */
+export const ReviewMergeMethodResolveInputSchema = z.strictObject({
+  stackPosition: MergeMethodStackPositionSchema.default("non-delivery"),
+});
+
+const reviewMergeMethodResolveInputRegistration: CommandInputRegistration = {
+  commandPath: "review merge-method resolve",
+  schema: ReviewMergeMethodResolveInputSchema,
+  schemaFields: { "option.stack-position": "stackPosition" },
 };
 
 /** Registry contributions owned by the review and merge-lock command adapters. */
@@ -371,6 +458,7 @@ export const reviewCommandInputRegistrations = [
   reviewChangeRequestInputRegistration,
   reviewChecksAwaitInputRegistration,
   reviewStatusInputRegistration,
+  reviewMergeMethodResolveInputRegistration,
   reviewPrePublicationInputRegistration,
 ] satisfies readonly CommandInputRegistration[];
 
@@ -397,7 +485,13 @@ export async function handleReviewChangeRequestResolve(
 ): Promise<void> {
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: ReviewChangeRequestResolveHandlerDependencies = {
-    resolve: (input, cwd) => resolveChangeRequest(input, createGhChangeRequestResolutionPort(exec, cwd)),
+    resolve: async (input, cwd) => resolveChangeRequest({
+      ...input,
+      acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(
+        new RepositoryDeliveryMemberLookup({ exec, cwd }),
+        input.headSha,
+      ),
+    }, createGhChangeRequestResolutionPort(exec, cwd)),
     resolveRoot: (cwd) => resolveArcRoot(cwd),
     readBaseRef: async (cwd) => {
       const config = await readConfigSettings(cwd);
@@ -467,19 +561,23 @@ export async function handleReviewChangeRequestResolve(
 
 export interface ReviewMergeMethodResolveOptions {
   json?: boolean;
+  stackPosition?: string;
 }
 
 export interface ReviewMergeMethodResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readConfiguredMethod(cwd: string): Promise<"merge" | "rebase" | "squash">;
-  resolve(method: "merge" | "rebase" | "squash"): Promise<MergeMethodResolveResult>;
+  resolve(
+    method: "merge" | "rebase" | "squash",
+    stackPosition: MergeMethodStackPosition,
+  ): Promise<MergeMethodResolveResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
 /** Validate the configured merge method against live repository policy. */
 export async function handleReviewMergeMethodResolve(
-  _options: ReviewMergeMethodResolveOptions,
+  options: ReviewMergeMethodResolveOptions,
   overrides: Partial<ReviewMergeMethodResolveHandlerDependencies> = {},
 ): Promise<void> {
   const port = createGhMergeMethodPolicyPort(hostedGhRunner);
@@ -490,23 +588,47 @@ export async function handleReviewMergeMethodResolve(
       if (config.warnings.length > 0) throw new Error(config.warnings.join("; "));
       return MergeMethodSchema.parse(config.settings["merge.strategy"]);
     },
-    resolve: (method) => resolveMergeMethod(method, port),
+    resolve: (method, stackPosition) => resolveMergeMethod(method, port, undefined, stackPosition),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
+  const parsedStackPosition = MergeMethodStackPositionSchema.safeParse(options.stackPosition ?? "non-delivery");
+  const stackPosition = parsedStackPosition.success ? parsedStackPosition.data : "non-delivery";
+  if (!parsedStackPosition.success) {
+    dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-merge-method-resolve",
+      repository: null,
+      stackPosition,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "invalid-input",
+      configuredMethod: null,
+      allowedMethods: [],
+      detail: "Stack position must be non-delivery, intermediate, or top.",
+      remedy: spineRemedy(
+        "Merge-method resolution requires a known stack position.",
+        "Review command usage",
+        ["arc", "review", "merge-method", "resolve", "--help"],
+      ),
+    }))}\n`);
+    dependencies.setExitCode(1);
+    return;
+  }
   try {
     const root = dependencies.resolveRoot(process.cwd());
     if (root === null) throw new Error("Merge-method resolution must run inside an ARC project.");
     const configuredMethod = await dependencies.readConfiguredMethod(root);
     dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse(
-      await dependencies.resolve(configuredMethod),
+      await dependencies.resolve(configuredMethod, stackPosition),
     ))}\n`);
   } catch (error) {
     dependencies.write(`${JSON.stringify(MergeMethodResolveResultSchema.parse({
       schemaVersion: 1,
       mode: "review-merge-method-resolve",
       repository: null,
+      stackPosition,
       state: "blocked",
       nextAction: "stop",
       reason: "policy-unreadable",
@@ -516,7 +638,7 @@ export async function handleReviewMergeMethodResolve(
       remedy: spineRemedy(
         "The configured merge method must come from readable project and repository policy.",
         "Run from the target ARC project after repairing its configuration, then re-run",
-        ["arc", "review", "merge-method", "resolve", "--json"],
+        mergeMethodResolveArgv(stackPosition),
       ),
     }))}\n`);
     dependencies.setExitCode(1);
@@ -533,13 +655,18 @@ export interface ReviewChecksAwaitOptions {
 }
 
 export interface ReviewStatusOptions {
-  target: string;
+  target?: string;
+  workUnit?: string;
+  ceilingOverride?: string;
+  coverage?: HostedReviewCoverage;
+  source?: string;
   json?: boolean;
 }
 
 export interface ReviewStatusHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   resolve(cwd: string, input: z.infer<typeof ReviewStatusTargetInputSchema>): Promise<ReviewStatusResult>;
+  resolveWorkUnit(cwd: string, input: ReviewStatusWorkUnitInput): Promise<ReviewStatusResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -554,19 +681,49 @@ export async function handleReviewStatus(
   const dependencies: ReviewStatusHandlerDependencies = {
     resolveRoot: (cwd) => resolveArcRoot(cwd),
     resolve: (root, request) => resolveReviewStatus(request, createReviewStatusPort({ cwd: root, exec })),
+    resolveWorkUnit: (root, request) => resolveReviewStatusForWorkUnit({ cwd: root, exec, ...request }),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
   let decoded: unknown;
-  try {
-    decoded = JSON.parse(options.target) as unknown;
-  } catch {
-    decoded = null;
+  let decodedCeilingOverride: unknown;
+  if (options.target !== undefined) {
+    try {
+      decoded = JSON.parse(options.target) as unknown;
+    } catch {
+      decoded = null;
+    }
   }
-  const parsed = ReviewStatusTargetInputSchema.safeParse({ target: decoded });
-  if (!parsed.success) {
-    const detail = parsed.error.issues.map(({ message }) => message).join("; ");
+  if (options.ceilingOverride !== undefined) {
+    try {
+      decodedCeilingOverride = JSON.parse(options.ceilingOverride) as unknown;
+    } catch {
+      decodedCeilingOverride = null;
+    }
+  }
+  const parsedCli = ReviewStatusCliInputSchema.safeParse({
+    ...(options.target === undefined ? {} : { target: options.target }),
+    ...(options.workUnit === undefined ? {} : { workUnit: options.workUnit }),
+    ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: options.ceilingOverride }),
+    ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+    ...(options.source === undefined ? {} : { source: options.source }),
+  });
+  const parsed = options.workUnit === undefined
+    ? ReviewStatusTargetInputSchema.safeParse({
+        target: decoded,
+        ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+        ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+      })
+    : ReviewStatusWorkUnitInputSchema.safeParse({
+        workUnitId: options.workUnit,
+        ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+        ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+        ...(options.source === undefined ? {} : { sourceId: options.source }),
+      });
+  if (!parsedCli.success || !parsed.success) {
+    const detail = [...(parsedCli.success ? [] : parsedCli.error.issues), ...(parsed.success ? [] : parsed.error.issues)]
+      .map(({ message }) => message).join("; ");
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-status",
@@ -593,7 +750,7 @@ export async function handleReviewStatus(
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-status",
-      target: parsed.data.target,
+      target: "target" in parsed.data ? parsed.data.target : null,
       requiredChecks: "unavailable",
       routedObligation: { state: "blocked", detail },
       currentBaseOid: null,
@@ -604,7 +761,9 @@ export async function handleReviewStatus(
       remedy: spineRemedy(
         "Review status requires repository-local ARC state.",
         "Change to the target ARC project, then re-run",
-        ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
+        "target" in parsed.data
+          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
+          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
       ),
     }))}\n`);
     dependencies.setExitCode(1);
@@ -612,14 +771,16 @@ export async function handleReviewStatus(
   }
   try {
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse(
-      await dependencies.resolve(cwd, parsed.data),
+      await ("target" in parsed.data
+        ? dependencies.resolve(cwd, parsed.data)
+        : dependencies.resolveWorkUnit(cwd, parsed.data)),
     ))}\n`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-status",
-      target: parsed.data.target,
+      target: "target" in parsed.data ? parsed.data.target : null,
       requiredChecks: "unavailable",
       routedObligation: { state: "blocked", detail },
       currentBaseOid: null,
@@ -630,11 +791,162 @@ export async function handleReviewStatus(
       remedy: spineRemedy(
         "Review status could not read its repository or host evidence.",
         "Resolve the operational failure, then re-run",
-        ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"],
+        "target" in parsed.data
+          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
+          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
       ),
     }))}\n`);
     dependencies.setExitCode(1);
   }
+}
+
+export interface ReviewTerminusAcceptHandlerDependencies extends ReviewHandlerBoundary {
+  accept(
+    request: DeliveryReviewTerminusAcceptanceInput,
+    root: string,
+    interaction?: InteractionContext,
+  ): Promise<DeliveryReviewTerminusAcceptanceResult>;
+}
+
+/**
+ * Stage a newly written or crash-recovered exact Owner-terminus boundary.
+ *
+ * @param input - Repository, Git boundary, work unit, and terminus acceptance result.
+ * @returns The original result, or a commit-required result when exact replay recovers unstaged bytes.
+ */
+export async function stageDeliveryReviewTerminusBoundary(input: {
+  readonly root: string;
+  readonly workUnitId: string;
+  readonly exec: GitExec;
+  readonly result: DeliveryReviewTerminusAcceptanceResult;
+}): Promise<DeliveryReviewTerminusAcceptanceResult> {
+  const boundaryPath = resolveSubmissionBoundaryPath(input.workUnitId);
+  if (input.result.state === "recorded") {
+    if (input.result.boundaryPath !== boundaryPath) {
+      throw new Error("The recorded Owner terminus returned an unexpected boundary path.");
+    }
+    await input.exec("git", ["add", "--", boundaryPath], { cwd: input.root });
+    return input.result;
+  }
+  if (input.result.state !== "exact-replay") return input.result;
+  const replay = input.result;
+  const refuseReplay = (detail: string): DeliveryReviewTerminusAcceptanceResult => (
+    DeliveryReviewTerminusAcceptanceResultSchema.parse({
+      schemaVersion: 1,
+      mode: "review-terminus-accept",
+      state: "refused",
+      nextAction: "rerun-status",
+      reason: "record-conflict",
+      detail,
+      recommendedActionText: "Re-run work-unit review status and act only on its current exact offer.",
+    })
+  );
+  let headBoundary: IntegrationBoundaryLocus;
+  let workingBoundary: IntegrationBoundaryLocus;
+  try {
+    const headBytes = (await input.exec("git", ["show", `HEAD:${boundaryPath}`], {
+      cwd: input.root,
+      objectAccess: "local-only",
+    })).stdout;
+    headBoundary = parseIntegrationBoundaryLocus(JSON.parse(headBytes) as unknown);
+    workingBoundary = parseIntegrationBoundaryLocus(
+      JSON.parse(await readFile(resolve(input.root, boundaryPath), "utf8")) as unknown,
+    );
+  } catch {
+    return refuseReplay("The exact boundary transition could not be reconstructed from HEAD and the worktree.");
+  }
+  if (headBoundary.workUnit !== input.workUnitId || workingBoundary.workUnit !== input.workUnitId) {
+    return refuseReplay("The recovered boundary does not belong to the offered work unit.");
+  }
+  const existing = headBoundary.deliveryReviewTermini.find(({ vehicle }) => (
+    sameDeliveryReviewMemberVehicle(vehicle, replay.record.vehicle)
+  ));
+  if (existing !== undefined && canonicalize(existing) !== canonicalize(replay.record)) {
+    return refuseReplay("HEAD already carries a conflicting terminus for the offered member.");
+  }
+  const expectedBoundary = existing === undefined
+    ? {
+        ...headBoundary,
+        deliveryReviewTermini: [...headBoundary.deliveryReviewTermini, replay.record],
+      }
+    : headBoundary;
+  if (canonicalize(workingBoundary) !== canonicalize(expectedBoundary)) {
+    return refuseReplay("The worktree boundary contains changes beyond the offered terminus transition.");
+  }
+  if (existing !== undefined) return replay;
+  await input.exec("git", ["add", "--", boundaryPath], { cwd: input.root });
+  return DeliveryReviewTerminusAcceptanceResultSchema.parse({
+    ...replay,
+    state: "recorded",
+    nextAction: "commit-boundary",
+    boundaryPath,
+    recommendedActionText:
+      "Commit and push the recovered Owner terminus boundary, then re-enter work-unit review status.",
+  });
+}
+
+async function acceptDeliveryReviewTerminus(
+  request: DeliveryReviewTerminusAcceptanceInput,
+  root: string,
+  interaction?: InteractionContext,
+): Promise<DeliveryReviewTerminusAcceptanceResult> {
+  const exec = createGitExec(interaction?.subprocess);
+  const ownerDependencies = createPrePublicationCompositionDependencies({ cwd: root, exec });
+  const result = await resolveDeliveryReviewTerminusAcceptance(request, {
+    readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(root, workUnitId),
+    readOwnerAuthority: (workUnitId) => ownerDependencies.readOwnerTerminusAuthority(workUnitId),
+    readCurrentOffer: async (workUnitId) => {
+      const status = await resolveReviewStatusForWorkUnit({
+        cwd: root,
+        exec,
+        workUnitId,
+        remote: request.offer.remote,
+      });
+      return "terminusAction" in status ? status.terminusAction ?? null : null;
+    },
+    writeBoundary: async (boundary, expectedVersion) => {
+      try {
+        return {
+          status: "written",
+          path: await writeSubmissionBoundary(root, boundary, expectedVersion),
+        };
+      } catch (error) {
+        if (error instanceof SubmissionBoundaryVersionConflictError) return { status: "version-conflict" };
+        throw error;
+      }
+    },
+  });
+  return stageDeliveryReviewTerminusBoundary({
+    root,
+    workUnitId: request.offer.workUnitId,
+    exec,
+    result,
+  });
+}
+
+/** Accept one exact delivery-member Owner terminus and emit one typed JSON result. */
+export async function handleReviewTerminusAccept(
+  source: string,
+  interaction?: InteractionContext,
+  overrides: Partial<ReviewTerminusAcceptHandlerDependencies> = {},
+): Promise<void> {
+  const dependencies: ReviewTerminusAcceptHandlerDependencies = {
+    ...defaultReviewHandlerBoundary(),
+    accept: acceptDeliveryReviewTerminus,
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode: "review-terminus-accept",
+    source,
+    requestSchema: DeliveryReviewTerminusAcceptanceInputSchema,
+    resultSchema: DeliveryReviewTerminusAcceptanceResultSchema,
+    dependencies,
+    execute: (request, root) => dependencies.accept(
+      DeliveryReviewTerminusAcceptanceInputSchema.parse(request),
+      root,
+      interaction,
+    ),
+  });
 }
 
 export interface ReviewChecksAwaitHandlerDependencies {
@@ -720,6 +1032,24 @@ export async function handleReviewChecksAwait(
 
 /** Input and interaction policies owned by the review command adapters. */
 export const reviewCommandInputPolicyDeclarations = [
+  {
+    commandPath: "review merge-method resolve",
+    aliases: [],
+    sites: [declareCliOptionSite("stack-position", {
+      acquisition: "safe-default",
+      schemaOwnership: "owned",
+      schemaField: "stackPosition",
+      defaultSource: JSON.stringify("non-delivery"),
+      cancellation: "not-applicable",
+      automation: {
+        noInput: "same",
+        flags: ["--stack-position <position>"],
+        acceptedSyntax: ["--stack-position <position>"],
+      },
+      mutationBoundary: "merge-method policy resolution",
+      subprocess: "none",
+    })],
+  },
   {
     commandPath: "review", aliases: [], sites: [
       declareInteractionSite(
@@ -1274,7 +1604,7 @@ function createHostedAdapters(): {
   return { adapters, observers: adapters, port };
 }
 
-type HostedProgressVehicle = HostedErrandRequestVehicle | HostedErrandProgressBinding;
+type HostedProgressVehicle = HostedRequestVehicle | HostedErrandProgressBinding;
 
 async function resolveHostedProgressContext(input: {
   root: string;
@@ -1283,31 +1613,63 @@ async function resolveHostedProgressContext(input: {
   provider: HostedProviderId;
   vehicle?: HostedProgressVehicle;
   settings?: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
+  admitCapacity: boolean;
 }) {
   const settings = input.settings ?? (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
   const repositoryId = await resolveRepositoryIdentity(input.publisher);
-  const reviewTarget = await deriveLocalReviewTarget({
-    exec: gitExec,
-    cwd: input.root,
-    baseRef,
-    repositoryId,
-  });
+  const memberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: input.root });
+  const memberResolution = await memberLookup.resolveMemberByHead(
+    input.vehicle?.kind === "delivery-member" ? input.vehicle.head : input.target.headSha,
+  );
+  if (input.vehicle?.kind === "delivery-member") {
+    if (memberResolution.status === "unavailable") {
+      throw new Error("Hosted delivery-member binding is unavailable.");
+    }
+    if (memberResolution.status === "unbound"
+      || memberResolution.member.planId !== input.vehicle.planId
+      || memberResolution.member.deliverableId !== input.vehicle.deliverableId
+      || memberResolution.member.head !== input.vehicle.head) {
+      throw new Error("Hosted delivery-member binding does not match the requested member.");
+    }
+  }
+  const member = memberResolution.status === "resolved"
+    && (input.vehicle?.kind === "delivery-member" || !memberResolution.member.isFinalMember)
+    ? memberResolution.member
+    : null;
+  const reviewTarget = member === null
+    ? await deriveLocalReviewTarget({
+        exec: gitExec,
+        cwd: input.root,
+        baseRef,
+        repositoryId,
+      })
+    : await composeDeliveryMemberTarget({
+        exec: gitExec,
+        cwd: input.root,
+        baseRef,
+        repositoryId,
+        member,
+      });
   if (reviewTarget.headSha !== input.target.headSha) {
     throw new Error("Hosted review target does not match the current local review target.");
   }
-  const branch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+  const currentBranch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.root,
   })).stdout.trim();
-  if (branch === "" || branch === "HEAD") throw new Error("Hosted review requires an attached branch.");
+  if (currentBranch === "" || currentBranch === "HEAD") {
+    throw new Error("Hosted review requires an attached originating branch.");
+  }
+  const branch = resolveReviewHeadRef(currentBranch, member);
+  const acceptableBaseRefs = member?.baseRef === null || member === null ? [] : [member.baseRef];
   const changeRequest = await resolveChangeRequest(
-    { headRef: branch, headSha: reviewTarget.headSha, baseRef, requireRemote: true },
+    { headRef: branch, headSha: reviewTarget.headSha, baseRef, acceptableBaseRefs, requireRemote: true },
     createGhChangeRequestResolutionPort(gitExec, input.root),
   );
   if (changeRequest.state !== "open"
     || changeRequest.targetRef.repository.toLowerCase() !== input.target.repository.toLowerCase()
     || changeRequest.candidate.number !== input.target.pullRequest
-    || changeRequest.candidate.baseRefName !== baseRef) {
+    || !new Set([baseRef, ...acceptableBaseRefs]).has(changeRequest.candidate.baseRefName)) {
     throw new Error("Hosted review target does not identify the current open change request.");
   }
   const store = new LocalReviewOperationStateStore(input.publisher);
@@ -1317,14 +1679,13 @@ async function resolveHostedProgressContext(input: {
     headSha: reviewTarget.headSha,
   });
   const attempts = progress.status === "recorded"
-    ? progress.attempts.filter((attempt) => (
-        attempt.hosted !== undefined
-        && attempt.hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
-        && attempt.hosted.target.pullRequest === input.target.pullRequest
-        && attempt.hosted.target.headSha === input.target.headSha
-      ))
+    ? hostedReservationAttemptsForTarget({
+        attempts: progress.attempts,
+        target: input.target,
+        ...(input.vehicle?.kind === "delivery-member" ? { vehicle: input.vehicle } : {}),
+      })
     : [];
-  if (input.vehicle !== undefined) {
+  if (input.vehicle?.kind === "errand") {
     const identity = await resolveUserIdentity(gitExec);
     const frame = await runDerivedLocusStateProbe({
       cwd: input.root,
@@ -1355,12 +1716,14 @@ async function resolveHostedProgressContext(input: {
       configuredSources,
       rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY,
     });
-    assertHostedErrandAdmission({
-      binding: errandBinding,
-      current,
-      provider: input.provider,
-      attempts,
-    });
+    if (input.admitCapacity) {
+      assertHostedErrandAdmission({
+        binding: errandBinding,
+        current,
+        provider: input.provider,
+        attempts,
+      });
+    }
     const requirement = createReviewRequirement({
       target: reviewTarget,
       projection: errandBinding.standardReview,
@@ -1368,14 +1731,26 @@ async function resolveHostedProgressContext(input: {
       initialAdmission: "automatic",
     });
     if (requirement === null) throw new Error("Hosted Errand progress does not carry an obligation.");
-    return { store, repositoryId, reviewTarget, requirement, errandBinding };
+    return {
+      store,
+      repositoryId,
+      reviewTarget,
+      requirement,
+      errandBinding,
+      reservation: null,
+      candidateRecord: null,
+      settings,
+      statusTarget: changeRequest.targetRef,
+    };
   }
 
-  const active = await resolveActiveWu({ cwd: input.root });
-  if (active.status !== "resolved" || active.name === "") {
-    throw new Error("Hosted review progress requires one active work unit or an explicit Errand vehicle.");
+  const active = member === null ? await resolveActiveWu({ cwd: input.root }) : null;
+  const workUnitId = member?.workUnitId
+    ?? (active?.status === "resolved" && active.name !== "" ? active.name : null);
+  if (workUnitId === null) {
+    throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");
   }
-  const boundary = (await readSubmissionBoundaryVersioned(input.root, active.name)).boundary;
+  const boundary = (await readSubmissionBoundaryVersioned(input.root, workUnitId)).boundary;
   if (boundary?.reservation === null || boundary?.reservation === undefined) {
     throw new Error("Hosted review progress requires the carried standard-review reservation.");
   }
@@ -1383,15 +1758,30 @@ async function resolveHostedProgressContext(input: {
   const candidate = await createPrePublicationCompositionDependencies({
     cwd: input.root,
     exec: gitExec,
-  }).readCandidate(active.name);
+  }).readCandidate(workUnitId);
   if (candidate.status !== "current") {
     throw new Error("Hosted review reservation requires a current Candidate.");
   }
-  assertHostedReservationAdmission({
+  const candidateRecord = await readCandidateRecord(input.root, workUnitId);
+  if (candidateRecord === null) {
+    throw new Error("Hosted review reservation requires the canonical Candidate record.");
+  }
+  const applicabilityQuery = {
+    schemaVersion: 1 as const,
+    repositoryId,
+    repository: input.target.repository,
+    pullRequest: input.target.pullRequest,
+    currentHead: input.target.headSha,
+    lane: "standard" as const,
+    sourceId: input.provider,
+    ...(input.vehicle?.kind === "delivery-member" ? { currentVehicle: input.vehicle } : {}),
+  };
+  const bindingAuthority = {
     reservation,
-    provider: input.provider,
     repository: input.target.repository,
     headSha: input.target.headSha,
+    targetKind: reviewTarget.kind,
+    ...(input.vehicle?.kind === "delivery-member" ? { vehicle: input.vehicle } : {}),
     boundary: {
       candidateId: boundary.candidateId,
       candidateSubjectDigest: boundary.candidateSubjectDigest,
@@ -1401,8 +1791,63 @@ async function resolveHostedProgressContext(input: {
       subjectDigest: candidate.subjectDigest,
       headSha: candidate.headSha,
     },
-    attempts,
-  });
+  };
+  if (input.admitCapacity && input.vehicle?.kind !== "delivery-member") {
+    const earlier = await projectEarlierReviewApplicability({
+      query: applicabilityQuery,
+      currentBase: reviewTarget.diffBaseSha,
+      snapshot: await store.readOperationSnapshot(),
+      candidate: candidateRecord,
+      exec: createRawGitExec(input.root),
+      observeEndpoints: async () => {
+        const currentMemberResolution = await memberLookup.resolveMemberByHead(reviewTarget.headSha);
+        const currentMember = currentMemberResolution.status === "resolved"
+          && !currentMemberResolution.member.isFinalMember
+          ? currentMemberResolution.member
+          : null;
+        const currentTarget = currentMember === null
+          ? await deriveLocalReviewTarget({
+              exec: gitExec,
+              cwd: input.root,
+              baseRef,
+              repositoryId,
+            })
+          : await composeDeliveryMemberTarget({
+              exec: gitExec,
+              cwd: input.root,
+              baseRef,
+              repositoryId,
+              member: currentMember,
+            });
+        return { head: currentTarget.headSha, base: currentTarget.diffBaseSha };
+      },
+    });
+    if (earlier.status === "unavailable"
+      || (earlier.status === "not-found"
+        && candidateExpectsEarlierReviewAttempt(candidateRecord, applicabilityQuery))) {
+      throw new Error("Hosted review contribution applicability is unavailable.");
+    }
+    const applicabilityAction = earlier.status !== "complete"
+      ? undefined
+      : earlier.attempts.some(({ applicability }) => applicability === "stop")
+        ? "stop" as const
+        : earlier.attempts.some(({ applicability }) => applicability === "request-review")
+          ? "request-review" as const
+          : earlier.attempts.some(({ outcome, applicability }) => (
+              applicability === "retain-prior-attempt"
+              && earlierAttemptRetainsReservationPosition(outcome)
+            ))
+            ? "retain-prior-attempt" as const
+            : undefined;
+    assertHostedReservationAdmission({
+      ...bindingAuthority,
+      provider: input.provider,
+      attempts,
+      ...(applicabilityAction === undefined ? {} : { applicabilityAction }),
+    });
+  } else {
+    assertHostedReservationBindingAuthority(bindingAuthority);
+  }
   const requirement = createReviewRequirement({
     target: reviewTarget,
     projection: reservation.obligation,
@@ -1410,7 +1855,17 @@ async function resolveHostedProgressContext(input: {
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("Hosted review reservation does not carry an obligation.");
-  return { store, repositoryId, reviewTarget, requirement, errandBinding: null };
+  return {
+    store,
+    repositoryId,
+    reviewTarget,
+    requirement,
+    errandBinding: null,
+    reservation,
+    candidateRecord,
+    settings,
+    statusTarget: changeRequest.targetRef,
+  };
 }
 
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
@@ -1815,18 +2270,113 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
     request: async (input) => {
       if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedRequestEnvelopeSchema.parse(input);
+      const deliveryVehicle = request.vehicle?.kind === "delivery-member" ? request.vehicle : null;
+      const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
+      const settings = (await readConfigSettings(root)).settings;
       const context = await resolveHostedProgressContext({
         root,
         publisher,
         target: request.target,
         provider: request.provider,
         ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
+        settings,
+        admitCapacity: true,
       });
+      const policy = deliveryVehicle === null
+        ? null
+        : await resolveConfiguredLanePolicy({
+            lane: "standard",
+            settings,
+            preferences: createLocalFrontlineSourcePreferenceReader({
+              cwd: root,
+              exec: gitExec,
+              readFile: (path) => readFile(path, "utf8"),
+            }),
+          });
       const result = await requestHostedReview(request, {
         adapters,
+        deliveryMemberLookup,
         ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
+        ...(deliveryVehicle === null || policy === null
+          ? {}
+          : {
+              admitDeliveryMemberRequest: async () => {
+                if (context.reservation === null) {
+                  throw new Error("Hosted delivery-member review requires a carried reservation.");
+                }
+                const discharge = await createHostedReservationDischargeReader({
+                  cwd: root,
+                  exec: gitExec,
+                  delivery: deliveryMemberLookup,
+                  host: new GhDeliveryHostPort(hostedGhRunner),
+                })({
+                  reservation: context.reservation,
+                  baseRevision: context.reviewTarget.diffBaseSha,
+                  approvedHead: request.target.headSha,
+                  changeRequest: {
+                    repository: request.target.repository,
+                    pullRequest: request.target.pullRequest,
+                  },
+                  vehicle: deliveryVehicle,
+                  candidate: context.candidateRecord,
+                });
+                if (discharge.discharged
+                  || (request.invocation === undefined && discharge.nextSource !== request.provider)) {
+                  throw new Error("Hosted delivery-member request no longer matches the fresh discharge position.");
+                }
+                assertHostedReservationPolicyAdmission({
+                  reservation: context.reservation,
+                  snapshot: await context.store.readOperationSnapshot(),
+                  repositoryId: context.repositoryId,
+                  target: request.target,
+                  vehicle: deliveryVehicle,
+                  provider: request.provider,
+                  maxPasses: policy.maxPasses,
+                  ...(discharge.requestAttempts === undefined
+                    ? {}
+                    : { requestAttempts: discharge.requestAttempts }),
+                  ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
+                  ...(request.ceilingOverride === undefined
+                    ? {}
+                    : { ceilingOverride: request.ceilingOverride }),
+                });
+                const currentObligation = await readRoutedObligation(
+                  root,
+                  gitExec,
+                  context.statusTarget,
+                  request.target.pullRequest,
+                  deliveryMemberLookup,
+                  undefined,
+                  {
+                    ...(request.ceilingOverride === undefined
+                      ? {}
+                      : { ceilingOverride: request.ceilingOverride }),
+                    coverage: request.coverage,
+                    ...(request.invocation === undefined
+                      ? {}
+                      : { sourceId: request.invocation.sourceId }),
+                  },
+                );
+                if (currentObligation.state !== "review-required"
+                  || !("action" in currentObligation)
+                  || canonicalize(currentObligation.action) !== canonicalize(request)) {
+                  throw new Error(
+                    "Hosted delivery-member request no longer matches the current first outstanding delivery member.",
+                  );
+                }
+              },
+            }),
       });
-      if (result.nextAction === "try-next-source") {
+      if (result.nextAction === "await") {
+        await recordHostedPendingRequest(context.store, {
+          repositoryId: context.repositoryId,
+          handle: result.handle,
+          reviewTarget: context.reviewTarget,
+          requirement: context.requirement,
+          actorIdentity: await port.currentActorIdentity(),
+          now: new Date().toISOString(),
+        });
+      } else if (result.nextAction === "try-next-source") {
         await recordHostedRequestUnavailableAttempt(context.store, {
           repositoryId: context.repositoryId,
           request,
@@ -1886,6 +2436,7 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
         provider: request.handle.provider,
         ...(request.handle.vehicle === undefined ? {} : { vehicle: request.handle.vehicle }),
         settings,
+        admitCapacity: false,
       });
       const result = await awaitHostedReview(timing.request, {
         observers,
@@ -1895,7 +2446,6 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
           sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
         },
       });
-      if (result.state === "pending") return result;
       const progress = await recordHostedAwaitAttempt(context.store, {
         repositoryId: context.repositoryId,
         result,
@@ -1904,7 +2454,7 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
         actorIdentity: await port.currentActorIdentity(),
         now: new Date().toISOString(),
       });
-      return result.state === "findings" && progress !== null
+      return result.state === "findings"
         ? {
             ...result,
             responseSourceRef: bindReviewSourceReference({
@@ -2026,6 +2576,7 @@ export interface ReviewPrePublicationJudgment {
   selfReview: "settled" | undefined;
   changeSet: unknown;
   lanes: unknown;
+  frontlineCeilingHeadSha: string | undefined;
 }
 
 export interface ReviewPrePublicationHandlerDependencies {
@@ -2060,6 +2611,9 @@ function defaultPrePublicationDependencies(
           ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
           ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
           ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
+          ...(judgment.frontlineCeilingHeadSha === undefined
+            ? {}
+            : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
         },
         createPrePublicationCompositionDependencies({ cwd: root, exec }),
       );
@@ -2186,17 +2740,20 @@ export async function handleReviewPrePublication(
           selfReview: z.literal("settled").optional(),
           changeSet: z.json().optional(),
           lanes: z.json().optional(),
+          frontlineCeilingHeadSha: GitObjectIdSchema.optional(),
         }).parse(JSON.parse(Buffer.from(input.data.resume, "base64url").toString("utf8")));
     judgment = resumed === null
       ? {
           selfReview: input.data.selfReview,
           changeSet: await readJudgment(input.data.changeSet),
           lanes: await readJudgment(input.data.lanes),
+          frontlineCeilingHeadSha: undefined,
         }
       : {
           selfReview: resumed.selfReview,
           changeSet: resumed.changeSet,
           lanes: resumed.lanes,
+          frontlineCeilingHeadSha: resumed.frontlineCeilingHeadSha,
         };
   } catch (error) {
     emitFailure(error, "request");
@@ -2229,13 +2786,28 @@ export async function handleReviewPrePublication(
       const replaySelfReview = envelope.nextAction.kind === "run-self-review"
         ? "settled"
         : judgment.selfReview;
-      const replayLanes = envelope.locus === "candidate-fix-pending"
+      let replayLanes = envelope.locus === "candidate-fix-pending"
         ? consumeOwnerAcceptedTerminus(judgment.lanes)
         : judgment.lanes;
+      const currentFrontlineHeadSha = composition.request.frontline.target.headSha;
+      const frontlineCeilingOverrideApplied = envelope.policy?.state === "ready"
+        && envelope.policy.nextAction === "run-frontline"
+        && envelope.policy.payload.ceilingOverrideApplied;
+      let replayFrontlineCeilingHeadSha = judgment.frontlineCeilingHeadSha;
+      if (frontlineCeilingOverrideApplied) {
+        replayFrontlineCeilingHeadSha = currentFrontlineHeadSha;
+      } else if (replayFrontlineCeilingHeadSha !== undefined
+        && replayFrontlineCeilingHeadSha !== currentFrontlineHeadSha) {
+        replayLanes = consumeFrontlineCeilingOverride(replayLanes);
+        replayFrontlineCeilingHeadSha = undefined;
+      }
       const resume = Buffer.from(canonicalize({
         ...(replaySelfReview === undefined ? {} : { selfReview: replaySelfReview }),
         ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
         ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
+        ...(replayFrontlineCeilingHeadSha === undefined
+          ? {}
+          : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }),
       }), "utf8").toString("base64url");
       envelope = PrePublicationReviewEnvelopeSchema.parse({
         ...envelope,

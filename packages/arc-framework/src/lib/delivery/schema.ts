@@ -2,13 +2,15 @@
 
 import { z } from "zod";
 
-import { SlugSchema, type KernelRegistry } from "../kernel/index.js";
+import { canonicalize, SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { ParentTaskIdSchema } from "../task-list/scanner.js";
 
 /** Runtime authority for delivery-domain canonical digests. */
 export const DeliveryCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 /** Minted stable identity for one delivery plan across all revisions. */
-export const DeliveryPlanIdSchema = z.uuid().overwrite((value) => value.toLowerCase());
+export const DeliveryPlanIdSchema = z.string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu)
+  .overwrite((value) => value.toLowerCase());
 export type DeliveryPlanId = z.infer<typeof DeliveryPlanIdSchema>;
 /** Runtime authority for non-empty opaque delivery identifiers. */
 export const DeliveryOpaqueIdSchema = z.string().min(1);
@@ -139,7 +141,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
 export type DeliveryPlanAuthoringInputV1 = z.infer<typeof DeliveryPlanAuthoringInputV1Schema>;
 
 const PositiveSafeIntegerSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
-const DeliveryGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+export const DeliveryGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 
 /** Exact destination objects observed for one selected target ref. */
 export const DeliveryTargetCoordinatesV1Schema = z.strictObject({
@@ -155,6 +157,17 @@ export const DeliveryMemberCoordinatesV1Schema = z.strictObject({
   tree: DeliveryGitObjectIdSchema,
 });
 export type DeliveryMemberCoordinatesV1 = z.infer<typeof DeliveryMemberCoordinatesV1Schema>;
+
+/** Proven append-only terminal movement retained as a provider-refresh lease baseline. */
+export const DeliveryTerminalAuthoringMovementV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  before: DeliveryMemberCoordinatesV1Schema,
+  after: DeliveryMemberCoordinatesV1Schema,
+  publicationLeaseHead: DeliveryGitObjectIdSchema,
+});
+export type DeliveryTerminalAuthoringMovementV1 = z.infer<
+  typeof DeliveryTerminalAuthoringMovementV1Schema
+>;
 
 /** One provider-owned change-request handle bound to a delivery member. */
 export const DeliveryChangeRequestV1Schema = z.strictObject({
@@ -205,6 +218,19 @@ export const DeliveryPublishEffectV1Schema = z.strictObject({
 });
 export type DeliveryPublishEffectV1 = z.infer<typeof DeliveryPublishEffectV1Schema>;
 
+/** Live repository-policy decision bound to one intermediate delivery mutation. */
+export const DeliveryMergePolicyBindingV1Schema = z.strictObject({
+  repository: DeliveryOpaqueIdSchema,
+  stackPosition: z.literal("intermediate"),
+  method: z.literal("merge"),
+  allowedMethods: z.array(z.enum(["merge", "rebase", "squash"])).min(1).refine(
+    (methods) => new Set(methods).size === methods.length && methods.includes("merge"),
+    "allowed methods must be distinct and include merge",
+  ),
+  policyFingerprint: DeliveryCanonicalDigestSchema,
+});
+export type DeliveryMergePolicyBindingV1 = z.infer<typeof DeliveryMergePolicyBindingV1Schema>;
+
 export const DeliveryLandEffectV1Schema = z.strictObject({
   providerId: DeliveryOpaqueIdSchema,
   repository: DeliveryOpaqueIdSchema,
@@ -212,9 +238,33 @@ export const DeliveryLandEffectV1Schema = z.strictObject({
   headSha: DeliveryGitObjectIdSchema,
   baseRef: DeliveryOpaqueIdSchema,
   targetRef: DeliveryOpaqueIdSchema,
-  strategy: z.enum(["merge", "rebase", "squash"]),
+  strategy: z.literal("merge"),
+  mergePolicy: DeliveryMergePolicyBindingV1Schema,
+}).superRefine((effect, context) => {
+  if (effect.repository !== effect.mergePolicy.repository) {
+    context.addIssue({
+      code: "custom",
+      path: ["mergePolicy", "repository"],
+      message: "merge policy repository must match the landing effect repository",
+    });
+  }
 });
 export type DeliveryLandEffectV1 = z.infer<typeof DeliveryLandEffectV1Schema>;
+
+/** Exact, explicitly selected repair of the retained terminal change request. */
+export const DeliveryTopRemedyEffectV1Schema = z.strictObject({
+  providerId: DeliveryOpaqueIdSchema,
+  repository: DeliveryOpaqueIdSchema,
+  changeRequestId: DeliveryOpaqueIdSchema,
+  headRef: DeliveryOpaqueIdSchema,
+  headSha: DeliveryGitObjectIdSchema,
+  triggerRef: DeliveryOpaqueIdSchema,
+  triggerHeadSha: DeliveryGitObjectIdSchema,
+  fromBaseRef: DeliveryOpaqueIdSchema,
+  protectedBaseRef: DeliveryOpaqueIdSchema,
+  action: z.enum(["retarget", "reopen-and-retarget"]),
+});
+export type DeliveryTopRemedyEffectV1 = z.infer<typeof DeliveryTopRemedyEffectV1Schema>;
 
 export const DeliveryHostEffectIdentityV1Schema = z.strictObject({
   providerId: DeliveryOpaqueIdSchema,
@@ -229,6 +279,10 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("rewrite"),
+    mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
+    terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
+    reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
+    reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("teardown"),
@@ -239,8 +293,13 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("land"),
+    mode: z.enum(["sequential", "native"]),
     effect: DeliveryLandEffectV1Schema,
     effectIdentity: DeliveryHostEffectIdentityV1Schema.nullable(),
+  }),
+  DeliveryOperationCommonV1Schema.extend({
+    kind: z.literal("top-remedy"),
+    effect: DeliveryTopRemedyEffectV1Schema,
   }),
 ]);
 export type DeliveryActiveOperationV1 = z.infer<typeof DeliveryActiveOperationV1Schema>;
@@ -251,6 +310,18 @@ const DeliveryStateMemberV1Schema = z.strictObject({
   changeRequest: DeliveryChangeRequestV1Schema.nullable(),
   coordinates: DeliveryMemberCoordinatesV1Schema.nullable(),
 });
+
+/** Exact plan-ordered member set whose post-settlement review-fix verification is still owed. */
+export const DeliveryPendingReviewFixVerificationV1Schema = z.strictObject({
+  selectedDeliverableId: DeliveryCanonicalDigestSchema,
+  memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).refine(
+    (ids) => new Set(ids).size === ids.length,
+    "pending review-fix verification members must be distinct",
+  ),
+});
+export type DeliveryPendingReviewFixVerificationV1 = z.infer<
+  typeof DeliveryPendingReviewFixVerificationV1Schema
+>;
 
 /** Mutable delivery execution state persisted separately from authored plan intent. */
 export const DeliveryStateV1Schema = z.strictObject({
@@ -271,6 +342,38 @@ export const DeliveryStateV1Schema = z.strictObject({
     "state members must be distinct",
   ),
   activeOperation: DeliveryActiveOperationV1Schema.nullable(),
+  pendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.nullable(),
+}).superRefine((state, context) => {
+  if (state.pendingReviewFixVerification === null) return;
+  const selectedIndex = state.members.findIndex(
+    ({ deliverableId }) => deliverableId === state.pendingReviewFixVerification?.selectedDeliverableId,
+  );
+  if (selectedIndex < 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["pendingReviewFixVerification", "selectedDeliverableId"],
+      message: "pending review-fix verification must select a state member",
+    });
+  }
+  const verificationIds = state.pendingReviewFixVerification.memberDeliverableIds;
+  const stateOrder = state.members
+    .filter(({ deliverableId }) => verificationIds.includes(deliverableId))
+    .map(({ deliverableId }) => deliverableId);
+  if (!verificationIds.includes(state.pendingReviewFixVerification.selectedDeliverableId)
+    || canonicalize(stateOrder) !== canonicalize(verificationIds)) {
+    context.addIssue({
+      code: "custom",
+      path: ["pendingReviewFixVerification", "memberDeliverableIds"],
+      message: "pending review-fix verification members must be plan-ordered state members including the selected member",
+    });
+  }
+  if (state.activeOperation !== null) {
+    context.addIssue({
+      code: "custom",
+      path: ["activeOperation"],
+      message: "pending review-fix verification requires an idle delivery state",
+    });
+  }
 });
 export type DeliveryStateV1 = z.infer<typeof DeliveryStateV1Schema>;
 

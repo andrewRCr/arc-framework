@@ -44,10 +44,13 @@ const nativeDeliveryCommandPaths: ReadonlySet<string> = new Set([
 
 const hostedGitHubCommandPaths: ReadonlySet<string> = new Set([
   ...nativeDeliveryCommandPaths,
+  "delivery refresh execute",
+  "delivery top-remedy",
   "integrate checkpoint",
   "integrate merge",
   "review pre-publication",
   "review status",
+  "review terminus accept",
 ]);
 
 const rawGitCommandPaths = [
@@ -56,6 +59,7 @@ const rawGitCommandPaths = [
   "archive",
   "attest",
   "base merge",
+  "candidate applicability resolve",
   "deactivate",
   "decompose",
   "delivery compose",
@@ -64,7 +68,6 @@ const rawGitCommandPaths = [
   "delivery entry inspect",
   "delivery land apply",
   "delivery land prepare",
-  "delivery materialize",
   "delivery native link",
   "delivery native land-prepare",
   "delivery native land-select",
@@ -78,11 +81,11 @@ const rawGitCommandPaths = [
   "delivery position",
   "delivery publish",
   "delivery reconcile",
+  "delivery refresh execute",
   "delivery rematerialize",
   "delivery rewrite",
   "delivery teardown",
-  "delivery terminal attach",
-  "delivery terminal prepare",
+  "delivery top-remedy",
   "demote",
   "finalize",
   "integrate checkpoint",
@@ -100,6 +103,7 @@ const rawGitCommandPaths = [
   "review planning-lane",
   "review pre-publication",
   "review status",
+  "review terminus accept",
   "set-stage",
   "start",
   "status",

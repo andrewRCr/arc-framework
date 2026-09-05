@@ -6,12 +6,15 @@ import { canonicalize } from "../kernel/index.js";
 import { validateDeliveryPlanRecord } from "./plan.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
+  DeliveryCanonicalDigestSchema,
   DeliveryLandEffectV1Schema,
   DeliveryHostEffectIdentityV1Schema,
   DeliveryOperationCommonV1Schema,
   DeliveryOperationSnapshotV1Schema,
   DeliveryPublishEffectV1Schema,
   DeliveryStateV1Schema,
+  DeliveryTerminalAuthoringMovementV1Schema,
+  DeliveryTopRemedyEffectV1Schema,
   type DeliveryActiveOperationV1,
   type DeliveryOperationSnapshotV1,
   type DeliveryPlanV1,
@@ -27,13 +30,27 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("materialize") }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("rewrite") }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("rewrite"),
+      mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
+      terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
+      reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
+      reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
+    }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("teardown") }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("publish"), effect: DeliveryPublishEffectV1Schema }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("land"), effect: DeliveryLandEffectV1Schema }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("land"),
+      mode: z.enum(["sequential", "native"]),
+      effect: DeliveryLandEffectV1Schema,
+    }),
+  DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
+    .extend({ ...reservationFields, kind: z.literal("top-remedy"), effect: DeliveryTopRemedyEffectV1Schema }),
 ]);
 export type DeliveryOperationReservationRequestV1 = z.infer<
   typeof DeliveryOperationReservationRequestV1Schema
@@ -52,6 +69,12 @@ const DeliveryHostAssignedObservationV1Schema = z.discriminatedUnion("kind", [
     outcome: z.literal("applied"),
     snapshot: DeliveryOperationSnapshotV1Schema,
   }),
+  z.strictObject({
+    kind: z.literal("top-remedy"),
+    effect: DeliveryTopRemedyEffectV1Schema,
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
 ]);
 
 const DeliveryHostReconciliationObservationV1Schema = z.discriminatedUnion("outcome", [
@@ -62,14 +85,27 @@ const DeliveryHostReconciliationObservationV1Schema = z.discriminatedUnion("outc
   z.strictObject({ outcome: z.literal("not-applied") }),
   z.strictObject({ outcome: z.literal("ambiguous") }),
 ]);
+const DeliveryTeardownReconciliationObservationV1Schema = z.discriminatedUnion("outcome", [
+  z.strictObject({
+    outcome: z.literal("applied"),
+    snapshot: DeliveryOperationSnapshotV1Schema,
+  }),
+  z.strictObject({ outcome: z.literal("not-applied") }),
+  z.strictObject({ outcome: z.literal("ambiguous") }),
+]);
 /** Host-assigned observation used to reconcile an interrupted publish or land. */
 export type DeliveryHostReconciliationObservationV1 = z.infer<
   typeof DeliveryHostReconciliationObservationV1Schema
 >;
+/** Physical outcome used when teardown intentionally retains its exact logical snapshot. */
+export type DeliveryTeardownReconciliationObservationV1 = z.infer<
+  typeof DeliveryTeardownReconciliationObservationV1Schema
+>;
 /** Exact observation accepted by delivery-operation reconciliation. */
 export type DeliveryOperationReconciliationObservationV1 =
   | DeliveryOperationSnapshotV1
-  | DeliveryHostReconciliationObservationV1;
+  | DeliveryHostReconciliationObservationV1
+  | DeliveryTeardownReconciliationObservationV1;
 
 /** Closed failures while reserving the single delivery-operation slot. */
 export type ReserveDeliveryOperationFailure =
@@ -78,6 +114,7 @@ export type ReserveDeliveryOperationFailure =
   | "stale-state"
   | "stale-plan-binding"
   | "operation-active"
+  | "pending-review-fix-verification"
   | "operation-invalid"
   | "unknown-deliverable"
   | "member-sequence-invalid"
@@ -154,6 +191,50 @@ function followsPlanOrder(plan: DeliveryPlanV1, deliverableIds: readonly string[
   return true;
 }
 
+function terminalAuthoringMovementMatchesState(
+  state: DeliveryStateV1,
+  movement: z.infer<typeof DeliveryTerminalAuthoringMovementV1Schema>,
+): boolean {
+  const terminal = state.members.at(-1);
+  // Position observation proves an intermediate publication lease is append-only; settlement
+  // revalidates that exact lease through the host CAS. State binding owns only the H0 -> H2 span.
+  return terminal !== undefined && terminal.deliverableId === movement.deliverableId
+    && terminal.coordinates !== null
+    && canonicalize(terminal.coordinates) === canonicalize(movement.before)
+    && movement.after.base === movement.before.base
+    && movement.after.head !== movement.before.head;
+}
+
+function reviewFixSelectionMatchesState(
+  state: DeliveryStateV1,
+  operation: {
+    readonly mode: "selected-change" | "review-fix" | "provider-refresh" | "provider-adoption";
+    readonly affectedDeliverableIds: readonly string[];
+    readonly reviewFixSelectedDeliverableId?: string;
+    readonly reviewFixVerificationDeliverableIds?: readonly string[];
+  },
+): boolean {
+  if (operation.reviewFixSelectedDeliverableId === undefined) {
+    return operation.reviewFixVerificationDeliverableIds === undefined;
+  }
+  if (operation.reviewFixVerificationDeliverableIds === undefined) return false;
+  const selectedIndex = state.members.findIndex(
+    ({ deliverableId }) => deliverableId === operation.reviewFixSelectedDeliverableId,
+  );
+  const verificationIds = operation.reviewFixVerificationDeliverableIds;
+  const stateOrder = state.members
+    .filter(({ deliverableId }) => verificationIds.includes(deliverableId))
+    .map(({ deliverableId }) => deliverableId);
+  return (operation.mode === "provider-refresh" || operation.mode === "provider-adoption")
+    && selectedIndex >= 0
+    && selectedIndex < state.members.length - 1
+    && operation.affectedDeliverableIds.includes(operation.reviewFixSelectedDeliverableId)
+    && verificationIds.includes(operation.reviewFixSelectedDeliverableId)
+    && new Set(verificationIds).size === verificationIds.length
+    && canonicalize(stateOrder) === canonicalize(verificationIds)
+    && verificationIds.every((deliverableId) => operation.affectedDeliverableIds.includes(deliverableId));
+}
+
 /**
  * Validate the one active operation carried by a published state revision.
  *
@@ -176,6 +257,14 @@ export function validateDeliveryActiveOperation(
   if (canonicalize(stateOrder) !== affectedBytes
     || canonicalize(operation.before.members.map((member) => member.deliverableId)) !== affectedBytes
     || canonicalize(operation.requested.members.map((member) => member.deliverableId)) !== affectedBytes) {
+    return { status: "blocked", reason: "state-invalid" };
+  }
+  if (operation.kind === "rewrite" && operation.terminalAuthoringMovement !== undefined
+    && ((operation.mode !== "provider-refresh" && operation.mode !== "provider-adoption")
+      || !terminalAuthoringMovementMatchesState(parsedState.data, operation.terminalAuthoringMovement))) {
+    return { status: "blocked", reason: "state-invalid" };
+  }
+  if (operation.kind === "rewrite" && !reviewFixSelectionMatchesState(parsedState.data, operation)) {
     return { status: "blocked", reason: "state-invalid" };
   }
   if (current.revision !== operation.stateRevision + 1
@@ -276,6 +365,17 @@ export function reserveDeliveryOperation(
   if (parsedState.data.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
   }
+  const pendingVerification = parsedState.data.pendingReviewFixVerification;
+  const supersedesPendingVerification = pendingVerification !== null
+    && parsedRequest.data.kind === "rewrite"
+    && parsedRequest.data.mode === "selected-change"
+    && canonicalize(parsedRequest.data.affectedDeliverableIds)
+      === canonicalize(pendingVerification.memberDeliverableIds)
+    && parsedRequest.data.affectedDeliverableIds.length === 1
+    && parsedRequest.data.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
+  if (pendingVerification !== null && !supersedesPendingVerification) {
+    return { status: "refused", reason: "pending-review-fix-verification" };
+  }
 
   const knownDeliverables = new Set(plan.members.map((member) => member.deliverableId));
   if (parsedRequest.data.affectedDeliverableIds.some((deliverableId) => !knownDeliverables.has(deliverableId))) {
@@ -289,6 +389,19 @@ export function reserveDeliveryOperation(
     || canonicalize(parsedRequest.data.requested.members.map((member) => member.deliverableId)) !== affectedBytes) {
     return { status: "refused", reason: "member-sequence-invalid" };
   }
+  if (parsedRequest.data.kind === "rewrite" && parsedRequest.data.terminalAuthoringMovement !== undefined
+    && ((parsedRequest.data.mode !== "provider-refresh" && parsedRequest.data.mode !== "provider-adoption")
+      || !terminalAuthoringMovementMatchesState(
+        parsedState.data,
+        parsedRequest.data.terminalAuthoringMovement,
+      ))) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  if (parsedRequest.data.kind === "rewrite") {
+    if (!reviewFixSelectionMatchesState(parsedState.data, parsedRequest.data)) {
+      return { status: "refused", reason: "operation-invalid" };
+    }
+  }
   if (canonicalize(snapshotFromState(parsedState.data, parsedRequest.data.affectedDeliverableIds))
     !== canonicalize(parsedRequest.data.before)) {
     return { status: "refused", reason: "before-state-mismatch" };
@@ -296,6 +409,9 @@ export function reserveDeliveryOperation(
 
   const reserved = DeliveryStateV1Schema.safeParse({
     ...parsedState.data,
+    pendingReviewFixVerification: supersedesPendingVerification
+      ? null
+      : parsedState.data.pendingReviewFixVerification,
     activeOperation: {
       operationId: parsedRequest.data.operationId,
       kind: parsedRequest.data.kind,
@@ -304,7 +420,23 @@ export function reserveDeliveryOperation(
       boundPlanDigest: plan.planDigest,
       before: parsedRequest.data.before,
       requested: parsedRequest.data.requested,
+      ...(parsedRequest.data.kind === "rewrite" || parsedRequest.data.kind === "land"
+        ? { mode: parsedRequest.data.mode }
+        : {}),
+      ...(parsedRequest.data.kind === "rewrite"
+        && parsedRequest.data.terminalAuthoringMovement !== undefined
+        ? { terminalAuthoringMovement: parsedRequest.data.terminalAuthoringMovement }
+        : {}),
+      ...(parsedRequest.data.kind === "rewrite"
+        && parsedRequest.data.reviewFixSelectedDeliverableId !== undefined
+        ? { reviewFixSelectedDeliverableId: parsedRequest.data.reviewFixSelectedDeliverableId }
+        : {}),
+      ...(parsedRequest.data.kind === "rewrite"
+        && parsedRequest.data.reviewFixVerificationDeliverableIds !== undefined
+        ? { reviewFixVerificationDeliverableIds: parsedRequest.data.reviewFixVerificationDeliverableIds }
+        : {}),
       ...(parsedRequest.data.kind === "publish" || parsedRequest.data.kind === "land"
+        || parsedRequest.data.kind === "top-remedy"
         ? { effect: parsedRequest.data.effect }
         : {}),
       ...(parsedRequest.data.kind === "land" ? { effectIdentity: null } : {}),
@@ -328,7 +460,8 @@ export function attachDeliveryOperationEffectIdentity(
   if (active.status === "blocked") {
     return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
   }
-  if (active.operation.kind !== "land" || active.operation.operationId !== operationId) {
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.operationId !== operationId) {
     return { status: "refused", reason: "wrong-operation" };
   }
   const parsedIdentity = DeliveryHostEffectIdentityV1Schema.safeParse(identity);
@@ -385,7 +518,8 @@ export function acceptDeliveryOperationResult(
 ): AcceptDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
-  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land"
+    || active.operation.kind === "top-remedy";
   const parsedHost = hostAssigned ? DeliveryHostAssignedObservationV1Schema.safeParse(observed) : null;
   if (hostAssigned && (parsedHost === null || !parsedHost.success
     || parsedHost.data.kind !== active.operation.kind
@@ -418,7 +552,25 @@ export function reconcileDeliveryOperation(
 ): ReconcileDeliveryOperationResult {
   const active = validateDeliveryActiveOperation(current);
   if (active.status === "blocked") return active;
-  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land";
+  if (active.operation.kind === "teardown") {
+    const parsedTeardown = DeliveryTeardownReconciliationObservationV1Schema.safeParse(observed);
+    if (!parsedTeardown.success) return { status: "blocked", reason: "observed-facts-invalid" };
+    if (parsedTeardown.data.outcome === "not-applied") {
+      return { status: "retry", operationId: active.operation.operationId };
+    }
+    if (parsedTeardown.data.outcome === "ambiguous") {
+      return { status: "blocked", reason: "ambiguous-result" };
+    }
+    if (canonicalize(parsedTeardown.data.snapshot) !== canonicalize(active.operation.requested)) {
+      return { status: "blocked", reason: "ambiguous-result" };
+    }
+    const next = applyObservedSnapshot(active.state, parsedTeardown.data.snapshot);
+    return next === null
+      ? { status: "blocked", reason: "state-invalid" }
+      : { status: "adopt", state: next };
+  }
+  const hostAssigned = active.operation.kind === "publish" || active.operation.kind === "land"
+    || active.operation.kind === "top-remedy";
   if (hostAssigned) {
     const parsedHost = DeliveryHostReconciliationObservationV1Schema.safeParse(observed);
     if (!parsedHost.success) return { status: "blocked", reason: "observed-facts-invalid" };
@@ -447,7 +599,8 @@ function acceptHostReconciliation(
   active: Extract<ValidateDeliveryActiveOperationResult, { readonly status: "valid" }>,
   observed: z.infer<typeof DeliveryHostAssignedObservationV1Schema>,
 ): ReconcileDeliveryOperationResult {
-  if ((active.operation.kind !== "publish" && active.operation.kind !== "land")
+  if ((active.operation.kind !== "publish" && active.operation.kind !== "land"
+      && active.operation.kind !== "top-remedy")
     || observed.kind !== active.operation.kind
     || canonicalize(observed.effect) !== canonicalize(active.operation.effect)
     || !matchesHostAssignedResult(active.operation, observed.snapshot)) {

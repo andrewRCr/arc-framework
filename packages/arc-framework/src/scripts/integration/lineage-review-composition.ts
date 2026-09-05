@@ -3,7 +3,12 @@
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import type { GitExec } from "../../lib/git/index.js";
+import { createRawGitExec } from "../../lib/io-context.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { candidateReviewResponses } from "../../lib/work-unit/candidate-attestation.js";
+import {
+  projectGitCandidateEffectiveTarget,
+} from "../../lib/work-unit/git-candidate-effective-target.js";
 import type { ApprovedDispositionRecord } from "../review-gate/core/advisory-records.js";
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { composeReviewResponseSettlementAction } from "../review-gate/core/response-plan.js";
@@ -42,12 +47,16 @@ export interface LineageReviewComposition {
  * operation is unavailable cannot be placed in any span and is left out when it is unrelated.
  *
  * @param input - The repository root and its Git boundary.
- * @returns A composer memoized per work unit and approved head.
+ * @returns A composer memoized per work unit, approved head, and checkpoint-validated base.
  */
 export function createLineageReviewComposer(input: {
   cwd: string;
   exec: GitExec;
-}): (workUnit: string, approvedHead: string) => Promise<LineageReviewComposition> {
+}): (
+  workUnit: string,
+  approvedHead: string,
+  approvedBase: string,
+) => Promise<LineageReviewComposition> {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const dispositionIndex = new LocalApprovedDispositionRecordStore(publisher);
   const operationStore = new LocalReviewOperationStateStore(publisher);
@@ -121,12 +130,29 @@ export function createLineageReviewComposer(input: {
     return target;
   };
 
-  const compose = async (workUnit: string, approvedHead: string): Promise<LineageReviewComposition> => {
+  const compose = async (
+    workUnit: string,
+    approvedHead: string,
+    approvedBase: string,
+  ): Promise<LineageReviewComposition> => {
     const record = await readCandidateRecord(input.cwd, workUnit);
     if (record === null) {
       throw new Error("The managed Candidate record disappeared during checkpoint composition.");
     }
-    const named = new Set(record.responses.map(({ dispositionId }) => dispositionId));
+    const baseBranch = (await readConfigSettings(input.cwd)).settings["branch.base"];
+    const effective = await projectGitCandidateEffectiveTarget({
+      cwd: input.cwd,
+      name: workUnit,
+      baseBranch,
+      record,
+      exec: input.exec,
+      rawExec: createRawGitExec(input.cwd),
+      target: { revision: approvedHead, currentBase: approvedBase },
+    });
+    if (effective.state !== "current" || effective.recognizedTarget.revision !== approvedHead) {
+      throw new Error("The approved head is not a current Candidate subject.");
+    }
+    const named = new Set(candidateReviewResponses(record).map(({ dispositionId }) => dispositionId));
     const [span, enumerated] = await Promise.all([
       candidateSpan(record.attestation.baseRevision, approvedHead),
       dispositionIndex.listDispositionRecords(),
@@ -179,11 +205,11 @@ export function createLineageReviewComposer(input: {
     return { dispositionIds: scoped.map(([dispositionId]) => dispositionId), actions };
   };
 
-  return (workUnit, approvedHead) => {
-    const key = `${workUnit} ${approvedHead}`;
+  return (workUnit, approvedHead, approvedBase) => {
+    const key = `${workUnit} ${approvedHead} ${approvedBase}`;
     let value = compositions.get(key);
     if (value === undefined) {
-      value = compose(workUnit, approvedHead);
+      value = compose(workUnit, approvedHead, approvedBase);
       compositions.set(key, value);
     }
     return value;

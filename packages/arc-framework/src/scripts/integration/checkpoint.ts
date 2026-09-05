@@ -4,7 +4,22 @@ import { z } from "zod";
 
 import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
 import type { CandidateCurrentnessProjection } from "../../lib/work-unit/candidate-attestation.js";
-import { MergeMethodSchema, type MergeMethodResolveResult } from "../review-gate/merge-method.js";
+import {
+  CandidateApplicabilityDecisionResultSchema,
+  CandidateApplicabilityResultSchema,
+  type CandidateApplicabilityDecisionResult,
+  type CandidateApplicabilityResult,
+} from "../../lib/work-unit/candidate-applicability.js";
+import {
+  CandidateApplicabilityResolutionSelectorSchema,
+  type CandidateApplicabilityResolutionSelector,
+} from "../../lib/work-unit/candidate-applicability-resolution.js";
+import {
+  MergeMethodSchema,
+  MergeMethodStackPositionSchema,
+  type MergeMethodResolveResult,
+  type MergeMethodStackPosition,
+} from "../review-gate/merge-method.js";
 import { RequiredCheckStatusSchema } from "../review-gate/status.js";
 import {
   CanonicalSettlementPlanSchema,
@@ -15,6 +30,9 @@ import {
   CheckpointInterlockSurfaceSchema,
   composeCheckpointInterlockSurface,
 } from "./interlock-surface.js";
+import type { DeliveryCheckpointArmResult } from "./delivery-checkpoint.js";
+import type { DeliveryTerminalDriftResult } from "../../lib/delivery/terminal-integration.js";
+import { DeliveryPlanIdSchema } from "../../lib/delivery/schema.js";
 import {
   SpineRemedySchema,
   checkpointResumeArgv,
@@ -139,6 +157,7 @@ export const ValidatedMergeMethodSchema = z.strictObject({
   schemaVersion: z.literal(1),
   mode: z.literal("review-merge-method-resolve"),
   repository: z.string().min(1),
+  stackPosition: MergeMethodStackPositionSchema,
   state: z.literal("validated"),
   nextAction: z.literal("use-method"),
   method: MergeMethodSchema,
@@ -151,9 +170,10 @@ const BlockedMergeMethodSchema = z.strictObject({
   schemaVersion: z.literal(1),
   mode: z.literal("review-merge-method-resolve"),
   repository: z.string().min(1).nullable(),
+  stackPosition: MergeMethodStackPositionSchema,
   state: z.literal("blocked"),
   nextAction: z.literal("stop"),
-  reason: z.enum(["method-disallowed", "policy-unreadable"]),
+  reason: z.enum(["invalid-input", "method-disallowed", "policy-unreadable"]),
   configuredMethod: MergeMethodSchema,
   allowedMethods: z.array(MergeMethodSchema),
   policyFingerprint: DigestSchema.optional(),
@@ -173,6 +193,57 @@ const CheckpointBlockedBaseShape = {
   nextAction: z.literal("stop"),
   remedy: SpineRemedySchema,
 };
+
+const CandidateApplicabilityCheckpointPayloadSchema = z.union([
+  CandidateApplicabilityDecisionResultSchema.extend({
+    resolutionSelector: CandidateApplicabilityResolutionSelectorSchema,
+  }),
+  CandidateApplicabilityResultSchema,
+]);
+
+const CandidateApplicabilityCheckpointResultSchema = z.strictObject({
+  ...ResultBaseShape,
+  state: z.literal("candidate-applicability"),
+  nextAction: z.enum(["request-authority", "rerun-checkpoint", "stop", "upgrade"]),
+  payload: CandidateApplicabilityCheckpointPayloadSchema,
+}).superRefine((result, context) => {
+  if (result.payload.state === "applicable") {
+    context.addIssue({
+      code: "custom",
+      path: ["payload", "state"],
+      message: "an applicable Candidate must be reduced to currentness before checkpoint dispatch",
+    });
+  }
+  if (result.payload.nextAction !== result.nextAction) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextAction"],
+      message: "must match the Candidate applicability result",
+    });
+  }
+  if (result.payload.state === "decision-required" && !("resolutionSelector" in result.payload)) {
+    context.addIssue({
+      code: "custom",
+      path: ["payload", "resolutionSelector"],
+      message: "a bounded applicability decision requires its exact resolution selector",
+    });
+  }
+});
+
+const CandidatePublicationCheckpointResultSchema = z.strictObject({
+  ...ResultBaseShape,
+  state: z.literal("candidate-publication-required"),
+  nextAction: z.literal("resume-pre-publication"),
+  payload: z.strictObject({
+    attestArgv: z.tuple([
+      z.literal("arc"),
+      z.literal("attest"),
+      SlugSchema,
+      z.literal("--json"),
+    ]),
+    recommendedActionText: z.string().min(1),
+  }),
+});
 
 
 const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", [
@@ -227,6 +298,14 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     reason: z.literal("composition-unavailable"),
     payload: z.strictObject({ detail: z.string().min(1) }),
   }),
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("blocked"),
+    nextAction: z.enum(["stop", "retarget", "reopen-and-retarget"]),
+    reason: z.literal("delivery-terminal-blocked"),
+    remedy: SpineRemedySchema,
+    payload: z.custom<Extract<DeliveryCheckpointArmResult, { readonly status: "blocked" }>>(),
+  }),
 ]);
 
 /** The blocked reasons the checkpoint refuses with — derived from the refusal union itself. */
@@ -258,7 +337,7 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
     attestArgv(workUnit),
   ),
   "candidate-unexplained-delta": (workUnit) => spineRemedy(
-    "A Candidate lineage advances only on approved review responses.",
+    "A Candidate lineage advances only on authorized transitions.",
     "Explain the reported delta through an approved response, or run full verification and root a new lineage over it",
     attestNewRootArgv(workUnit),
   ),
@@ -280,6 +359,11 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
   "composition-unavailable": (workUnit) => spineRemedy(
     "The ready composition binds the exact satisfied Candidate head.",
     "Resolve the reported composition failure, then re-run",
+    checkpointResumeArgv(workUnit),
+  ),
+  "delivery-terminal-blocked": (workUnit) => spineRemedy(
+    "A delivery Candidate reaches integration only through its exact terminal claim and member-review conjunction.",
+    "Apply the returned delivery remedy or resolve its reported evidence, then re-run",
     checkpointResumeArgv(workUnit),
   ),
 };
@@ -315,8 +399,22 @@ export const IntegrationCheckpointResultSchema = z.union([
     payload: z.strictObject({
       drift: z.custom<BaseDriftResult>(),
       safety: ReconcileSafetyFactsSchema,
+      candidateHead: ObjectIdSchema,
     }),
   }),
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("terminal-rebind-required"),
+    nextAction: z.literal("reconcile-delivery-state"),
+    payload: z.strictObject({
+      reconcileInput: z.strictObject({
+        planId: DeliveryPlanIdSchema,
+        repository: z.string().min(1),
+      }),
+    }),
+  }),
+  CandidatePublicationCheckpointResultSchema,
+  CandidateApplicabilityCheckpointResultSchema,
   IntegrationCheckpointBlockedResultSchema,
   z.strictObject({
     schemaVersion: z.literal(1),
@@ -376,17 +474,38 @@ export function checkpointOperationRefusal(workUnit: string, detail: string): In
 
 export interface IntegrationCheckpointDependencies {
   readDrift(workUnit: string): Promise<BaseDriftResult>;
+  classifyDeliveryDrift(workUnit: string, drift: BaseDriftResult): Promise<
+    | { readonly status: "not-applicable" }
+    | { readonly status: "unavailable"; readonly detail: string }
+    | DeliveryTerminalDriftResult
+  >;
   readReconcileHost(workUnit: string, drift: BaseDriftResult): Promise<ReconcileHostFact>;
   readLifecycle(workUnit: string): Promise<IntegrationLifecycleSummary>;
-  readCandidate(workUnit: string): Promise<CandidateCurrentnessProjection | null>;
-  resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
+  readCandidate(workUnit: string, baseRevision?: string): Promise<
+    CandidateCurrentnessProjection | Exclude<CandidateApplicabilityResult, { state: "applicable" }> | null
+  >;
+  composeCandidateApplicabilityResolutionSelector(
+    workUnit: string,
+    decision: CandidateApplicabilityDecisionResult,
+  ): Promise<CandidateApplicabilityResolutionSelector>;
+  readCandidatePublication(workUnit: string, baseRevision?: string): Promise<
+    { readonly status: "current" } | { readonly status: "refresh-required" }
+  >;
+  composeDelivery(input: {
+    workUnit: string;
+    candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
+    baseRevision: string;
+  }): Promise<DeliveryCheckpointArmResult>;
+  resolveMergeMethod(repository: string, stackPosition: MergeMethodStackPosition): Promise<MergeMethodResolveResult>;
   composeReady(input: {
     workUnit: string;
     lifecycle: IntegrationLifecycleSummary;
     candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
+    delivery: Extract<DeliveryCheckpointArmResult, { status: "not-applicable" | "ready" }>;
   }): Promise<CheckpointReadyComposition>;
   composeSettlementPlan(input: {
     workUnit: string;
+    baseRevision: string;
     composition: CheckpointReadyComposition;
   }): Promise<CanonicalSettlementPlan>;
   createHandle(input: CheckpointReadyComposition & {
@@ -396,7 +515,40 @@ export interface IntegrationCheckpointDependencies {
   }): Promise<string>;
 }
 
-function reconcileSafety(drift: BaseDriftResult, host: ReconcileHostFact): ReconcileSafetyFacts {
+async function candidateApplicabilityResult(
+  base: { schemaVersion: 1; mode: "integrate-checkpoint"; workUnit: string },
+  candidate: Exclude<CandidateApplicabilityResult, { state: "applicable" }>,
+  dependencies: IntegrationCheckpointDependencies,
+): Promise<IntegrationCheckpointResult> {
+  try {
+    const payload = candidate.state === "decision-required"
+      ? {
+          ...candidate,
+          resolutionSelector: await dependencies.composeCandidateApplicabilityResolutionSelector(
+            base.workUnit,
+            candidate,
+          ),
+        }
+      : candidate;
+    return IntegrationCheckpointResultSchema.parse({
+      ...base,
+      state: "candidate-applicability",
+      nextAction: candidate.nextAction,
+      payload,
+    });
+  } catch (error) {
+    return checkpointOperationRefusal(
+      base.workUnit,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
+function reconcileSafety(
+  drift: BaseDriftResult,
+  host: ReconcileHostFact,
+  safetyClass: "generic" | "residual-contained",
+): ReconcileSafetyFacts {
   const integrationEvidenceComplete = drift.integrationEvidence?.coverage === "complete";
   const overlapAvailable = drift.overlap?.status === "available";
   const substantivePaths = drift.overlap?.status === "available" ? drift.overlap.substantivePaths : [];
@@ -404,7 +556,7 @@ function reconcileSafety(drift: BaseDriftResult, host: ReconcileHostFact): Recon
   const analyzerSafe = drift.baseOid !== null
     && integrationEvidenceComplete
     && overlapAvailable
-    && substantivePaths.length === 0;
+    && (substantivePaths.length === 0 || safetyClass === "residual-contained");
   // Host mergeability is the whole host signal: the host reports that the merge conflicts, never
   // which paths conflict, so nothing here can be measured against the regenerable set.
   const hostSafe = host.state === "mergeable";
@@ -417,6 +569,36 @@ function reconcileSafety(drift: BaseDriftResult, host: ReconcileHostFact): Recon
     host,
     safe: analyzerSafe && hostSafe,
   });
+}
+
+function deliveryTerminalDisposition(
+  workUnit: string,
+  delivery: Extract<DeliveryCheckpointArmResult, { readonly status: "blocked" }>,
+): {
+  readonly nextAction: "stop" | "retarget" | "reopen-and-retarget";
+  readonly remedy: SpineRemedy;
+} {
+  if ((delivery.nextAction === "retarget" || delivery.nextAction === "reopen-and-retarget")
+    && delivery.planId !== undefined && delivery.remedy !== undefined) {
+    return {
+      nextAction: delivery.nextAction,
+      remedy: spineRemedy(
+        "The terminal delivery request targets the protected base before integration.",
+        "Apply the exact observed failure-only remedy",
+        ["arc", "delivery", "top-remedy", "-", "--json"],
+        {
+          planId: delivery.planId,
+          action: delivery.nextAction,
+          repository: delivery.remedy.repository,
+          protectedBaseRef: delivery.remedy.protectedBaseRef,
+        },
+      ),
+    };
+  }
+  return {
+    nextAction: "stop",
+    remedy: checkpointRemedy("delivery-terminal-blocked", workUnit),
+  };
 }
 
 /**
@@ -438,16 +620,80 @@ export async function checkpointIntegration(
   };
   const drift = await dependencies.readDrift(request.workUnit);
   if (drift.verdict === "reconcile") {
+    const deliveryDrift = await dependencies.classifyDeliveryDrift(request.workUnit, drift);
+    if (deliveryDrift.status === "unavailable") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "delivery-terminal-blocked",
+        remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
+        payload: {
+          status: "blocked",
+          nextAction: "stop",
+          reason: "drift-classification-unavailable",
+          detail: deliveryDrift.detail,
+        },
+      });
+    }
+    if (deliveryDrift.status === "refused") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "delivery-terminal-blocked",
+        remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
+        payload: {
+          status: "blocked",
+          nextAction: "stop",
+          reason: deliveryDrift.reason,
+          paths: deliveryDrift.paths,
+        },
+      });
+    }
     const safety = reconcileSafety(
       drift,
       ReconcileHostFactSchema.parse(await dependencies.readReconcileHost(request.workUnit, drift)),
+      deliveryDrift.status === "reconcile" ? deliveryDrift.safetyClass : "generic",
     );
     if (safety.safe) {
+      const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid ?? undefined);
+      if (candidate === null) {
+        return IntegrationCheckpointResultSchema.parse({
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "candidate-missing",
+          remedy: checkpointRemedy("candidate-missing", request.workUnit),
+          payload: { workUnit: request.workUnit },
+        });
+      }
+      if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate, dependencies);
+      if (candidate.status === "blocked") {
+        return IntegrationCheckpointResultSchema.parse({
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "candidate-unexplained-delta",
+          remedy: checkpointRemedy("candidate-unexplained-delta", request.workUnit),
+          payload: { candidate },
+        });
+      }
+      if (candidate.convergenceVerification === "pending") {
+        return IntegrationCheckpointResultSchema.parse({
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "candidate-convergence-pending",
+          remedy: checkpointRemedy("candidate-convergence-pending", request.workUnit),
+          payload: { candidate },
+        });
+      }
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "reconcile",
         nextAction: "reconcile-base",
-        payload: { drift, safety },
+        payload: { drift, safety, candidateHead: candidate.recognizedRevision },
       });
     }
     return IntegrationCheckpointResultSchema.parse({
@@ -460,6 +706,16 @@ export async function checkpointIntegration(
     });
   }
   if (drift.verdict !== "clean") {
+    return IntegrationCheckpointResultSchema.parse({
+      ...base,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "drift-unavailable",
+      remedy: checkpointRemedy("drift-unavailable", request.workUnit),
+      payload: { drift },
+    });
+  }
+  if (drift.baseOid === null) {
     return IntegrationCheckpointResultSchema.parse({
       ...base,
       state: "blocked",
@@ -482,7 +738,7 @@ export async function checkpointIntegration(
       payload: { lifecycle },
     });
   }
-  const candidate = await dependencies.readCandidate(request.workUnit);
+  const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid);
   if (candidate === null) {
     return IntegrationCheckpointResultSchema.parse({
       ...base,
@@ -493,6 +749,7 @@ export async function checkpointIntegration(
       payload: { workUnit: request.workUnit },
     });
   }
+  if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate, dependencies);
   if (candidate.status === "blocked") {
     return IntegrationCheckpointResultSchema.parse({
       ...base,
@@ -514,10 +771,53 @@ export async function checkpointIntegration(
     });
   }
   try {
+    const publication = await dependencies.readCandidatePublication(request.workUnit, drift.baseOid);
+    if (publication.status === "refresh-required") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "candidate-publication-required",
+        nextAction: "resume-pre-publication",
+        payload: {
+          attestArgv: [...attestArgv(request.workUnit), "--json"],
+          recommendedActionText:
+            "Refresh the recognized Candidate boundary, settle ordinary pre-publication review, then rerun checkpoint.",
+        },
+      });
+    }
+    const delivery = await dependencies.composeDelivery({
+      workUnit: request.workUnit,
+      candidate,
+      baseRevision: drift.baseOid,
+    });
+    if (delivery.status === "terminal-rebind-required") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: delivery.status,
+        nextAction: delivery.nextAction,
+        payload: {
+          reconcileInput: {
+            planId: delivery.planId,
+            repository: delivery.repository,
+          },
+        },
+      });
+    }
+    if (delivery.status === "blocked") {
+      const terminal = deliveryTerminalDisposition(request.workUnit, delivery);
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: terminal.nextAction,
+        reason: "delivery-terminal-blocked",
+        remedy: terminal.remedy,
+        payload: delivery,
+      });
+    }
     const composition = CheckpointReadyCompositionSchema.parse(await dependencies.composeReady({
       workUnit: request.workUnit,
       lifecycle,
       candidate,
+      delivery,
     }));
     const hostedReview = composition.requirementSummary.requirements
       .find(({ id }) => id === HOSTED_REVIEW_REQUIREMENT_ID);
@@ -543,9 +843,14 @@ export async function checkpointIntegration(
     ) {
       throw new Error("ready composition does not bind the exact satisfied Candidate head");
     }
-    const mergeMethod = await dependencies.resolveMergeMethod(composition.statusSummary.changeRequest.repository);
+    const stackPosition = delivery.status === "ready" ? "top" : "non-delivery";
+    const mergeMethod = await dependencies.resolveMergeMethod(
+      composition.statusSummary.changeRequest.repository,
+      stackPosition,
+    );
     if (mergeMethod.state !== "validated"
-      || mergeMethod.repository?.toLowerCase() !== composition.statusSummary.changeRequest.repository.toLowerCase()) {
+      || mergeMethod.repository?.toLowerCase() !== composition.statusSummary.changeRequest.repository.toLowerCase()
+      || mergeMethod.stackPosition !== stackPosition) {
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "blocked",
@@ -557,6 +862,7 @@ export async function checkpointIntegration(
     }
     const settlementPlan = CanonicalSettlementPlanSchema.parse(await dependencies.composeSettlementPlan({
       workUnit: request.workUnit,
+      baseRevision: drift.baseOid,
       composition,
     }));
     const settledDispositions = settlementDispositionIds(settlementPlan);

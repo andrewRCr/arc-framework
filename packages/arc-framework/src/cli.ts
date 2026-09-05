@@ -71,6 +71,7 @@ import {
   type DeliveryTransferExportOptions,
   type DeliveryTransferImportOptions,
 } from "./handlers/delivery-transfer.js";
+import { handleCandidateApplicabilityResolve } from "./handlers/candidate.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
@@ -168,6 +169,7 @@ import {
   handleReviewMergeMethodResolve,
   handleReviewChecksAwait,
   handleReviewStatus,
+  handleReviewTerminusAccept,
   handleReviewReduce,
   handleReviewRespond,
   type ReviewPrePublicationOptions,
@@ -488,6 +490,7 @@ program
   .command("reopen [slug]")
   .description("Withdraw an Integrating work unit back to Active (defaults to the current WU); closes its open PR")
   .option("--keep-pr", "Convert the PR to a draft instead of closing it")
+  .option("--task <task>", "Return to an exact reopened task instead of Candidate preparation")
   .action(withInteractionContext(
     {},
     (context, slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts, context),
@@ -564,6 +567,22 @@ program
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, name: string, opts: AttestOptions) => handleAttest(name, opts, context),
+  ));
+
+const candidate = program
+  .command("candidate")
+  .description("Resolve Candidate lineage transitions");
+
+const candidateApplicability = candidate
+  .command("applicability")
+  .description("Classify and bind Candidate applicability");
+
+candidateApplicability
+  .command("resolve <name> <input>")
+  .description("Re-derive and bind one exact applicability selection")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    (context, name: string, input: string) => handleCandidateApplicabilityResolve(name, input, context),
   ));
 
 program
@@ -710,6 +729,7 @@ baseCmd
   .command("merge")
   .description("Merge one checkpointed base revision append-only")
   .requiredOption("--expected-base <oid>", "Exact base revision approved by the checkpoint")
+  .requiredOption("--expected-head <oid>", "Exact Candidate head approved by the checkpoint")
   .requiredOption("--json", "Emit the typed merge outcome as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -746,6 +766,13 @@ const delivery = program
   .command("delivery")
   .description("Author, compose, and manage delivery plans");
 
+const deliveryAuthoring = delivery.command("authoring").description("Resolve deterministic authoring locators");
+deliveryAuthoring.command("locate").description("Resolve exact candidate refs and detached gate paths")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("authoring-locate", { ...opts, input }, context)
+  )));
+
 delivery.command("entry").description("Inspect the operator-invoked delivery entry route")
   .command("inspect").description("Read authoritative delivery intent and binding facts")
   .option("--input <path>", "Strict attended judgment JSON path, or - for standard input")
@@ -766,12 +793,7 @@ deliveryEligibility.command("close").description("Close the post-gate eligibilit
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("eligibility-close", { ...opts, input }, context)
   )));
-delivery.command("materialize").description("Create or adopt exact member refs and bind state")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("materialize", { ...opts, input }, context)
-  )));
-delivery.command("publish").description("Open or adopt exact non-terminal change requests")
+delivery.command("publish").description("Publish exact member refs and open or adopt every change request")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("publish", { ...opts, input }, context)
@@ -812,6 +834,45 @@ deliveryNative.command("land-status").description("Poll and reconcile one persis
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("native-land-status", { ...opts, input }, context)
   )));
+const deliveryRefresh = delivery.command("refresh")
+  .description("Plan, execute, or adopt one provider-refreshed suffix");
+deliveryRefresh.command("plan").description("Plan the exact operator-refreshed registered suffix")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("refresh-plan", { ...opts, input }, context)
+  )));
+deliveryRefresh.command("execute").description("Prepare and publish one provider-native suffix refresh")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("refresh-execute", { ...opts, input }, context)
+  )));
+deliveryRefresh.command("adopt").description("Observe, prove, and adopt one externally refreshed suffix")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("refresh-adopt", { ...opts, input }, context)
+  )));
+const deliveryReviewFix = delivery.command("review-fix")
+  .description("Route and publish one approved delivery-member review fix");
+deliveryReviewFix.command("continue").description("Resume the exact delivery review-fix continuation")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("review-fix-continue", { ...opts, input }, context)
+  )));
+deliveryReviewFix.command("plan").description("Select linked publication or complete rematerialization")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("review-fix-plan", { ...opts, input }, context)
+  )));
+deliveryReviewFix.command("publish").description("Publish one selected member before provider-native suffix refresh")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("review-fix-publish", { ...opts, input }, context)
+  )));
+deliveryReviewFix.command("acknowledge").description("Consume one completed review-fix verification continuation")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("review-fix-acknowledge", { ...opts, input }, context)
+  )));
 delivery.command("position").description("Derive the exact current delivery position")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
@@ -843,21 +904,15 @@ delivery.command("rematerialize").description("Reclose and rewrite one complete 
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("rematerialize", { ...opts, input }, context)
   )));
-const deliveryTerminal = delivery.command("terminal").description("Prepare and attach ordinary terminal integration");
-deliveryTerminal.command("prepare").description("Derive terminal readiness or the ordinary absorption intent")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("terminal-prepare", { ...opts, input }, context)
-  )));
-deliveryTerminal.command("attach").description("Attach an exact ordinary terminal merge to delivery state")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("terminal-attach", { ...opts, input }, context)
-  )));
-delivery.command("teardown").description("Retire one proven-landed member ref and binding")
+delivery.command("teardown").description("Retire one proven-landed member ref while retaining its binding")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
   .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
     handleDeliveryExecution("teardown", { ...opts, input }, context)
+  )));
+delivery.command("top-remedy").description("Apply one explicitly selected terminal request remedy")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
+    handleDeliveryExecution("top-remedy", { ...opts, input }, context)
   )));
 
 delivery
@@ -1477,7 +1532,11 @@ reviewCmd
 reviewCmd
   .command("status")
   .description("Resolve exact-target review, check, and base status")
-  .requiredOption("--target <target-ref>", "JSON targetRef emitted by review change-request resolve")
+  .option("--target <target-ref>", "JSON targetRef emitted by review change-request resolve")
+  .option("--work-unit <slug>", "Resolve the live stacked-delivery review continuation")
+  .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
+  .option("--coverage <coverage>", "Requested hosted coverage (complete or incremental)")
+  .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
   .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
@@ -1485,10 +1544,27 @@ reviewCmd
   ));
 
 reviewCmd
+  .command("terminus")
+  .description("Explicit review-terminus operations")
+  .command("accept")
+  .description("Accept one exact delivery-member Owner terminus as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .action(withInteractionContext(
+    { machineReadable: true },
+    (context, input: string) => handleReviewTerminusAccept(input, context),
+  ));
+
+reviewCmd
   .command("merge-method")
   .description("Configured merge-method operations")
   .command("resolve")
   .description("Validate the configured method against live repository policy")
+  .option(
+    "--stack-position <position>",
+    "Merge-method stack position (non-delivery, intermediate, or top)",
+    "non-delivery",
+  )
   .requiredOption("--json", "Emit a typed JSON result")
   .action((options: ReviewMergeMethodResolveOptions) => handleReviewMergeMethodResolve(options));
 

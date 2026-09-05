@@ -23,6 +23,7 @@ export type DeliveryTaskCoverageIssue =
   | { readonly kind: "uncovered-implementation-task"; readonly taskId: string }
   | { readonly kind: "unknown-task-reference"; readonly taskId: string; readonly memberIndex: number }
   | { readonly kind: "verification-task-assigned"; readonly memberIndex: number }
+  | { readonly kind: "member-task-order"; readonly memberIndices: readonly number[] }
   | { readonly kind: "entry-changed" };
 
 /** Result of entry-sensitive task coverage validation. */
@@ -59,6 +60,8 @@ export function validateDeliveryTaskCoverage(
       issues.push({ kind: "verification-task-assigned", memberIndex });
     }
   }
+  const memberTaskOrder = findMemberTaskOrderIssue(input);
+  if (memberTaskOrder !== null) issues.push(memberTaskOrder);
   if (input.entry === "from-tasks") {
     issues.push(...uncovered.map((taskId) => ({
       kind: "uncovered-implementation-task" as const,
@@ -74,5 +77,62 @@ export function validateDeliveryTaskCoverage(
   return {
     status: "valid",
     advisories: uncovered.map((taskId) => ({ kind: "uncovered-implementation-task", taskId })),
+  };
+}
+
+function findMemberTaskOrderIssue(
+  input: DeliveryTaskCoverageInput,
+): Extract<DeliveryTaskCoverageIssue, { readonly kind: "member-task-order" }> | null {
+  const positionByTaskId = new Map(
+    input.implementationTaskIds.map((taskId, position) => [taskId, position]),
+  );
+  const positionsByMember = input.memberTaskIds.map((taskIds) => [...new Set(taskIds)]
+    .flatMap((taskId) => {
+      const position = positionByTaskId.get(taskId);
+      return position === undefined ? [] : [position];
+    })
+    .sort((left, right) => left - right));
+  const offendingMemberIndices = new Set<number>();
+
+  for (const [memberIndex, taskIds] of input.memberTaskIds.entries()) {
+    if (taskIds.length === 0) offendingMemberIndices.add(memberIndex);
+  }
+
+  for (const [memberIndex, positions] of positionsByMember.entries()) {
+    for (let index = 1; index < positions.length; index += 1) {
+      const previous = positions[index - 1];
+      const current = positions[index];
+      if (previous !== undefined && current !== undefined && current !== previous + 1) {
+        offendingMemberIndices.add(memberIndex);
+      }
+    }
+  }
+
+  for (let leftIndex = 0; leftIndex < positionsByMember.length; leftIndex += 1) {
+    const leftLast = positionsByMember[leftIndex]?.at(-1);
+    if (leftLast === undefined) continue;
+    for (let rightIndex = leftIndex + 1; rightIndex < positionsByMember.length; rightIndex += 1) {
+      const rightFirst = positionsByMember[rightIndex]?.[0];
+      if (rightFirst !== undefined && leftLast > rightFirst) {
+        offendingMemberIndices.add(leftIndex);
+        offendingMemberIndices.add(rightIndex);
+      }
+    }
+  }
+
+  const memberTaskSets = input.memberTaskIds.map((taskIds) => new Set(taskIds));
+  for (const taskId of input.implementationTaskIds) {
+    const owners = memberTaskSets.flatMap((taskIds, memberIndex) => taskIds.has(taskId) ? [memberIndex] : []);
+    const firstOwner = owners[0];
+    const lastOwner = owners.at(-1);
+    if (firstOwner !== undefined && lastOwner !== undefined && lastOwner - firstOwner > 1) {
+      for (const memberIndex of owners) offendingMemberIndices.add(memberIndex);
+    }
+  }
+
+  if (offendingMemberIndices.size === 0) return null;
+  return {
+    kind: "member-task-order",
+    memberIndices: [...offendingMemberIndices].sort((left, right) => left - right),
   };
 }

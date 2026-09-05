@@ -40,6 +40,11 @@ import {
   type CommittedProgress,
   type CommittedProgressResolver,
 } from "./committed-progress.js";
+import {
+  projectIntegrationCorrectionRecovery,
+  type IntegrationCorrectionProjection,
+  type RecoveryTaskListEvidenceResolver,
+} from "./integration-correction.js";
 
 /** Stop reason categories emitted by the recovery audit. */
 export const RecoveryAuditStopKindSchema = z.enum([
@@ -64,6 +69,7 @@ export const RecoveryAuditStopKindSchema = z.enum([
   "task-cursor-unresolved",
   "task-cursor-malformed",
   "task-cursor-mismatch",
+  "integration-correction-unresolved",
 ]);
 export type RecoveryAuditStopKind = z.infer<typeof RecoveryAuditStopKindSchema>;
 
@@ -125,6 +131,20 @@ export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
     detail: z.strictObject({
       slug: z.string(),
       diff: LoadSetAuditDiffSchema,
+    }),
+  }),
+  z.strictObject({
+    kind: z.literal("integration-correction-progression"),
+    message: z.string(),
+    detail: z.strictObject({
+      workUnit: z.string(),
+      transition: z.enum([
+        "public-to-task",
+        "task-to-task",
+        "task-to-verification",
+        "task-to-continuation",
+        "verification-to-public",
+      ]),
     }),
   }),
 ]);
@@ -216,6 +236,8 @@ export interface AuditRecoveryStateOptions {
    * Injected in tests; defaults to a real git query against the current repo.
    */
   resolveCommittedProgress?: CommittedProgressResolver;
+  /** Resolves exact seed/fresh task-list text in the recovery checkout. */
+  resolveTaskListEvidence?: RecoveryTaskListEvidenceResolver;
 }
 
 /** Audit fresh recovery state against the compaction seed. */
@@ -229,12 +251,35 @@ export async function auditRecoveryState(
 
   const stopReasons: RecoveryAuditStopReason[] = [];
   const explainedDrift: RecoveryAuditExplainedDrift[] = [];
+  const integrationCorrection = await projectIntegrationCorrectionRecovery({
+    seed: options.seed,
+    derivedLocusState: options.recover.derivedLocusState,
+    recoveryFrame: options.recover.recoveryFrame,
+    loadSet: options.recover.loadSet,
+    taskCursor: options.recover.taskCursor,
+    resolveTaskListEvidence: options.resolveTaskListEvidence,
+  });
+  if (integrationCorrection.status === "refused") {
+    stopReasons.push({
+      kind: "integration-correction-unresolved",
+      message: integrationCorrection.message,
+    });
+  } else if (integrationCorrection.status === "accepted") {
+    explainedDrift.push({
+      kind: "integration-correction-progression",
+      message: "public integration advanced through one exact corrective substage",
+      detail: {
+        workUnit: integrationCorrection.workUnit,
+        transition: integrationCorrection.transition,
+      },
+    });
+  }
   auditRepoRoot(options, stopReasons);
   const locus = auditLocus(options, stopReasons, explainedDrift, committedProgress);
   const locusHint = auditLocusHint(options, stopReasons);
-  const loadSetAudit = auditLoadSet(options, stopReasons, explainedDrift);
+  const loadSetAudit = auditLoadSet(options, stopReasons, explainedDrift, integrationCorrection);
   const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
-  const taskCursor = auditTaskCursor(options, stopReasons);
+  const taskCursor = auditTaskCursor(options, stopReasons, integrationCorrection);
 
   return {
     status: stopReasons.length === 0 ? "ready" : "stop",
@@ -377,6 +422,7 @@ function auditLoadSet(
   options: AuditRecoveryStateOptions,
   stopReasons: RecoveryAuditStopReason[],
   explainedDrift: RecoveryAuditExplainedDrift[],
+  integrationCorrection: IntegrationCorrectionProjection,
 ): LoadSetAuditVerdict | null {
   if (!options.recover.loadSet.ok) {
     stopReasons.push({
@@ -393,7 +439,8 @@ function auditLoadSet(
   });
   const archivalRelocation = archivedIntegrationRelocation(options, verdict);
   const prepublicationProjection = candidatePrepublicationProjection(options, verdict);
-  if (verdict.diverged && archivalRelocation === null && prepublicationProjection === null) {
+  if (verdict.diverged && archivalRelocation === null && prepublicationProjection === null
+    && integrationCorrection.status !== "accepted") {
     stopReasons.push({
       kind: "load-set-drift",
       message: "fresh recovery load-set diverges from the compaction seed baseline",
@@ -422,7 +469,7 @@ function candidatePrepublicationProjection(
   const slug = options.seed.activeWorkUnit;
   if (slug === null
     || options.seed.sessionType !== "execution"
-    || options.seed.currentWorkflow !== "process-task-loop"
+    || options.seed.currentWorkflow !== "verify-work-unit"
     || options.seed.taskCursor !== null
     || !verdict.diverged
     || !options.recover.loadSet.ok
@@ -444,16 +491,14 @@ function candidatePrepublicationProjection(
     || entering.row.context.integrationBoundary === null
     || entering.row.context.taskCursor?.status !== "no-open-task") return null;
 
-  const taskEntries = options.seed.loadSet.entries.filter((entry) => entry.readMode.kind === "partial-strategic");
-  const processPath = ".arc/system/workflows/arc/process-task-loop.md";
+  const verifyPath = ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md";
   const preparePath = ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
-  if (taskEntries.length !== 1
-    || options.seed.loadSet.entries.filter((entry) => entry.path === processPath).length !== 1) return null;
+  if (options.seed.loadSet.entries.some((entry) => entry.readMode.kind === "partial-strategic")
+    || options.seed.loadSet.entries.filter((entry) => entry.path === verifyPath).length !== 1) return null;
   const projected = {
     manifestVersion: options.seed.loadSet.manifestVersion,
     entries: options.seed.loadSet.entries.flatMap((entry) => {
-      if (entry.readMode.kind === "partial-strategic") return [];
-      if (entry.path === processPath) return [{ path: preparePath, readMode: { kind: "full" as const } }];
+      if (entry.path === verifyPath) return [{ path: preparePath, readMode: { kind: "full" as const } }];
       return [entry];
     }),
   };
@@ -585,7 +630,11 @@ function dirtyProbeContradictionMessage(state: DirtyStateResult["state"]): strin
 function auditTaskCursor(
   options: AuditRecoveryStateOptions,
   stopReasons: RecoveryAuditStopReason[],
+  integrationCorrection: IntegrationCorrectionProjection,
 ): RecoveryAuditTaskCursor | null {
+  if (integrationCorrection.status === "accepted" && integrationCorrection.taskCursor !== null) {
+    return { ...integrationCorrection.taskCursor, match: true };
+  }
   if (!requiresTaskCursor(options)) return null;
 
   const expected = options.seed.taskCursor;
@@ -658,6 +707,15 @@ function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
     ? options.recover.recoveryFrame.value.sessionType
     : null;
   const freshCursor = options.recover.taskCursor;
+  if (options.seed.sessionType === "execution"
+    && options.seed.currentWorkflow === "verify-work-unit"
+    && options.seed.taskCursor === null
+    && freshSessionType === "execution"
+    && options.recover.recoveryFrame.ok
+    && options.recover.recoveryFrame.value.kind !== "none"
+    && options.recover.recoveryFrame.value.workflow === "verify-work-unit"
+    && freshCursor?.ok
+    && freshCursor.value.status === "no-open-task") return false;
   if (freshSessionType === "prepublication"
     && options.seed.taskCursor === null
     && freshCursor?.ok
