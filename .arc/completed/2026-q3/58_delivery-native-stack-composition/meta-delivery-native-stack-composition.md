@@ -11,10 +11,10 @@
 - **Design:** `spec-delivery-native-stack-composition.md`
 - **Task List:** `tasks-delivery-native-stack-composition.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:56e4cc73fcf7571964b6026151d0a77b907548d10b36241b059395474e22ac48`
+- **Candidate:** `sha256:fbcabe2f6e96ab9ede56df1e5a1b52d663684f9724fdbdcd87acfe754ae1bb22`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 9.1.R.p — Preserve the effective Candidate subject across public boundary carry
+- **Last Completed:** Task 9.1.R.q — Retarget the closed terminal request before reopening it
 - **Next Task:** [none]
 - **Blockers:** [none]
 
