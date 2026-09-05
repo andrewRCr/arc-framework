@@ -2009,6 +2009,21 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   already-identified operation refuses. This adds no reusable stale-Candidate option, persisted review verdict,
   generalized status mode, new record, or authority over the later terminal correction.
 
+- **D9.14 Prepared submission retains the unselected terminal review target — amended 2026-09-05 after the second
+  live submit exposed the host-facing half of D9.13.** The delivery-review conjunction enumerates every member,
+  including the terminal member that native landing deliberately excludes. Even after Candidate and continuation
+  projection were pinned to the pre-reservation terminal coordinate, target resolution observed the open terminal
+  pull request at the later work-unit head and rejected the historical binding before it could reduce the selected
+  members' settled review evidence.
+
+  Within the same exact prepared-native scope, target resolution retains the state-bound historical terminal head
+  for review reduction when that member is the sole plan terminal, is absent from the operation's affected member
+  set, and its bound pull request remains open at the same repository, request identity, and ref. The current terminal
+  request head is not substituted into historical review evidence and grants no authority over that later content.
+  Every affected non-terminal member remains bound to its freshly observed current request head, and ordinary review
+  status still rejects an unexplained open-head mismatch. This completes the prepared-set boundary without changing
+  review liveness, applicability, convergence, terminal integration, or storage contracts.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

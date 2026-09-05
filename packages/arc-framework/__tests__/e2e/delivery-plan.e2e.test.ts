@@ -592,7 +592,7 @@ describe("arc delivery", () => {
         "    ;;",
       ]),
       `  repos/owner/repo/pulls/${terminal.changeRequest!.changeRequestId})`,
-      `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '${settledTerminalRequestResponse}'; else printf '%s\\n' '${terminalRequestResponse}'; fi`,
+      `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '${settledTerminalRequestResponse}'; elif [ -n "\${ARC_FAKE_TERMINAL_HEAD:-}" ]; then printf '%s\\n' '${terminalRequestResponse}' | sed "s/${terminal.coordinates!.head}/$ARC_FAKE_TERMINAL_HEAD/"; else printf '%s\\n' '${terminalRequestResponse}'; fi`,
       "    ;;",
       `  repos/owner/repo/pulls/${nativeMembers.at(-1)!.changeRequestId}/merge-async)`,
       `    printf '%s\\n' '${mergeResponse}'`,
@@ -949,12 +949,13 @@ describe("arc delivery", () => {
     await writeFile(join(repository, "terminal-residual.txt"), "post-prepare correction\n");
     await git(repository, ["add", "terminal-residual.txt"]);
     await git(repository, ["commit", "-m", "post-prepare correction"]);
+    const terminalCorrectionHead = await git(repository, ["rev-parse", "HEAD"]);
 
     const submitted = await runArcWithStdin(
       ["delivery", "native", "land-submit", "-", "--json"],
       repository,
       `${JSON.stringify(submitRequest)}\n`,
-      { env },
+      { env: { ...env, ARC_FAKE_TERMINAL_HEAD: terminalCorrectionHead } },
     );
     expect(submitted.exitCode, submitted.stderr).toBe(0);
     expect(JSON.parse(submitted.stdout)).toMatchObject({

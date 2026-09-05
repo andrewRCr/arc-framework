@@ -461,6 +461,59 @@ describe("hosted reservation discharge", () => {
     })).resolves.toEqual({ status: "unavailable", targets: [] });
   });
 
+  it("retains the prepared terminal review target while its open request advances", async () => {
+    const input = {
+      workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery" as const,
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      singleton: { ...target(oid("9")), baseRevision: oid("0") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved" as const,
+          targets: [
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_ONE,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("9"),
+              position: 1, memberCount: 2, chunkKey: "member-1", title: "Member 1",
+            },
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_TWO,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "42", base: oid("9"), head: oid("a"),
+              position: 2, memberCount: 2, chunkKey: "member-2", title: "Member 2",
+            },
+          ],
+        }),
+      },
+      host: deliveryHost({
+        "41": { headSha: oid("9") },
+        "42": { headSha: oid("c") },
+      }),
+    };
+
+    await expect(resolveHostedReservationTargets({
+      ...input,
+      preparedTerminal: { deliverableId: MEMBER_TWO, stateHead: oid("a") },
+    })).resolves.toMatchObject({
+      status: "resolved",
+      kind: "delivery",
+      targets: [
+        { headSha: oid("9"), vehicle: { head: oid("9") } },
+        { headSha: oid("a"), vehicle: { head: oid("a") } },
+      ],
+    });
+
+    await expect(resolveHostedReservationTargets({
+      ...input,
+      preparedTerminal: { deliverableId: MEMBER_ONE, stateHead: oid("a") },
+    })).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
   it("fails closed when the retained ref does not match the observed head ref", async () => {
     await expect(resolveHostedReservationTargets({
       workUnitId: "delivery",

@@ -258,6 +258,7 @@ export async function readRoutedObligation(
       : undefined;
     let effective: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>>;
     let terminalAdvance: { readonly stateHead: string; readonly currentHead: string } | undefined;
+    let preparedTerminal: { readonly deliverableId: string; readonly stateHead: string } | undefined;
     if (correctiveContinuation !== undefined) {
       const delivery = await memberLookup.resolveTerminalRecords(workUnit);
       if (delivery.status !== "resolved") {
@@ -283,10 +284,13 @@ export async function readRoutedObligation(
         }
         continuationState = { ...active.state, activeOperation: null };
         continuationStateRevision = active.operation.stateRevision;
-        preparedTerminalHead = continuationState.members.at(-1)?.coordinates?.head;
-        if (preparedTerminalHead === undefined) {
+        const terminal = continuationState.members.at(-1);
+        preparedTerminalHead = terminal?.coordinates?.head;
+        if (terminal === undefined || preparedTerminalHead === undefined
+          || active.operation.affectedDeliverableIds.includes(terminal.deliverableId)) {
           return { state: "blocked", detail: "The prepared native landing has no terminal Candidate coordinate." };
         }
+        preparedTerminal = { deliverableId: terminal.deliverableId, stateHead: preparedTerminalHead };
       }
       const historicalTarget = preparedTerminalHead === undefined
         ? undefined
@@ -401,6 +405,7 @@ export async function readRoutedObligation(
         delivery: memberLookup,
         host,
         ...(terminalAdvance === undefined ? {} : { terminalAdvance }),
+        ...(preparedTerminal === undefined ? {} : { preparedTerminal }),
       });
       if (resolution.status !== "resolved" || resolution.kind !== "delivery") {
         return { state: "blocked", detail: "The retained delivery-member review targets are unavailable." };

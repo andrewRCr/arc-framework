@@ -217,6 +217,11 @@ export async function resolveHostedReservationTargets(input: {
     readonly stateHead: string;
     readonly currentHead: string;
   };
+  /** Historical terminal target retained while an exact prepared native operation lands only earlier members. */
+  readonly preparedTerminal?: {
+    readonly deliverableId: string;
+    readonly stateHead: string;
+  };
 }): Promise<HostedReservationTargetResolution> {
   try {
     const marker = input.reservation?.target;
@@ -265,19 +270,27 @@ export async function resolveHostedReservationTargets(input: {
         && index === resolved.targets.length - 1
         && binding.head === input.terminalAdvance.stateHead
         && request.headSha === input.terminalAdvance.currentHead;
+      const representedPreparedTerminal = input.preparedTerminal !== undefined
+        && binding.position === binding.memberCount
+        && index === resolved.targets.length - 1
+        && binding.deliverableId === input.preparedTerminal.deliverableId
+        && binding.head === input.preparedTerminal.stateHead
+        && request.state === "open";
       if (request.binding.providerId !== binding.providerId
         || request.binding.changeRequestId !== binding.changeRequestId
         || request.repository.toLowerCase() !== input.singleton.repository.toLowerCase()
         || request.headRepository.toLowerCase() !== input.singleton.repository.toLowerCase()
         || request.state === "closed"
         || (expectedHeadRef !== null && request.headRef !== expectedHeadRef)
-        || (request.state === "open" && request.headSha !== binding.head && !representedTerminalAdvance)) {
+        || (request.state === "open" && request.headSha !== binding.head
+          && !representedTerminalAdvance && !representedPreparedTerminal)) {
         return { status: "unavailable", targets: [] };
       }
+      const targetHead = representedPreparedTerminal ? binding.head : request.headSha;
       targets.push({
         repository: input.singleton.repository,
         pullRequest,
-        headSha: request.headSha,
+        headSha: targetHead,
         baseRevision: request.state === "open" ? binding.base : landedBaseRevision,
         position: binding.position,
         memberCount: binding.memberCount,
@@ -288,10 +301,10 @@ export async function resolveHostedReservationTargets(input: {
           planId: binding.planId,
           deliverableId: binding.deliverableId,
           workUnitId: binding.workUnitId,
-          head: request.headSha,
+          head: targetHead,
         }),
       });
-      landedBaseRevision = request.headSha;
+      landedBaseRevision = targetHead;
     }
     return { status: "resolved", kind: "delivery", targets };
   } catch {

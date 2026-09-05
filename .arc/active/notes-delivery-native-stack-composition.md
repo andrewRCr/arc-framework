@@ -931,3 +931,21 @@ any lock release, state transition, or provider call. Ordinary review status rem
 state, so this is not a general stale-Candidate escape. A production-style E2E now carries a real hosted reservation
 and corrective continuation, proves ordinary status blocks, advances the terminal head after preparation, submits
 successfully through the narrow scope, and continues through effect settlement and terminal handoff.
+
+### Amendment 18 — prepared review keeps the unselected terminal's historical target (2026-09-05)
+
+The first D9.13 live retry again refused `fresh-set-refused`, still before lock release or provider mutation. Direct
+scoped reduction showed `The retained delivery-member review targets are unavailable.` Fresh host inspection proved
+PRs 550–556 remained at every exact prepared head with green checks, while PR 557 had correctly advanced from the
+state-bound terminal coordinate to the newly pushed WU correction. The shared review conjunction enumerates all eight
+members, so its generic target resolver rejected that terminal mismatch even though native landing affects only the
+seven non-terminal members. The E2E had advanced local HEAD but left its fake terminal request at the old head, which
+is why D9.13 appeared complete.
+
+Decided behavior: the exact prepared-native projection retains the state-bound terminal head as the historical
+review target when the terminal member is not among the operation's affected IDs and the same bound pull request
+remains open on the same repository and ref. It does not reclassify, review, or authorize the later terminal content;
+that content remains subject to the later Candidate and terminal-integration path. Every selected non-terminal member
+still uses its freshly observed current request head and checks, and ordinary status retains its mismatch refusal.
+The production E2E now advances both local HEAD and the fake terminal pull request before submit, and a focused unit
+case proves only the exact terminal identity may retain its prepared historical head.

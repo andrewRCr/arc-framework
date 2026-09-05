@@ -4808,6 +4808,18 @@ meta exists and that resolution shape is the exact defect the retired terminal a
             10. Re-run the live preserved seven-member submit under a fresh exact-head integration interlock and
                 require it to cross the provider boundary before closing this corrective task.
 
+        - _Terminal-target amendment (2026-09-05):_ The exact prepared scope reached review-target resolution, but
+          that reducer still substituted PR 557's later work-unit head for the historical unselected terminal target
+          and rejected the conjunction. Retain the prepared terminal review coordinate without weakening any member
+          in the approved seven-member effect.
+
+            11. Make the production E2E advance the fake terminal pull request together with the local work-unit head
+                and require the unchanged submit to fail before the resolver correction.
+            12. Retain only the exact prepared operation's unselected terminal historical head while freshly checking
+                the same open request identity and ref; keep every affected member exact at its current host head.
+            13. Re-run the live preserved seven-member submit under a newly presented exact interlock and require the
+                provider boundary to be crossed before closing this corrective task.
+
 ---
 
 ## Success Criteria
