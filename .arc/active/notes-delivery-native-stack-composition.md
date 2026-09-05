@@ -966,3 +966,21 @@ that aggregate commit once against the highest selected head and protected-targe
 partial closure, invalid aggregate structure, and contradictory effect status remain closed refusals with the
 reservation intact. The production E2E now emits the live provider shape and separately proves divergent coordinates
 remain ambiguous. No provider-general result model, sequential fallback, or new recovery authority is added.
+
+### Amendment 20 — landed bindings are not outstanding review evidence (2026-09-05)
+
+After aggregate settlement, Delivery State revision 457 correctly retained PRs 550–556 for teardown and moved the
+protected target to `d7f6f9ef73a91af1ea1fda8b181531cb23fa823e`, whose tree equals the highest non-terminal
+member's cumulative tree. The integration entry seam nevertheless selected PR 550 as the first member “still under
+review” solely because its request binding remained present. That produced `correction-route-ambiguous` for the
+terminal correction commits, made `delivery position` bounce into an idle correction driver, and prevented both
+session-init locus resolution and compaction recovery. The retained binding was real but its interpretation was not:
+teardown requires it precisely because the member has already landed.
+
+Decided behavior: outstanding-member selection ignores the plan-ordered prefix through the highest non-terminal
+member whose cumulative tree is now the protected target, then selects the first bound request above that prefix.
+This keeps a partially landed stack's next member actionable while making a fully landed non-terminal set route a
+non-current terminal Candidate directly to verification closeout. The focused selector and entry tests pass, and a
+live dirty-tree acceptance changed the entry to `candidate-verification-required`; session-init then wrote a fresh
+seed and `recover audit` returned `ready` for the exact checkout and dirty path set. Position and teardown remain
+responsible for fresh provider state, so this seam gains no merge or review authority.

@@ -2034,6 +2034,16 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   retained. A partial set, divergent merge commits, an invalid aggregate merge, or a contradictory provider-effect
   status keeps the reservation and refuses. Single-member native settlement retains its ordinary per-request proof.
 
+- **D9.16 Post-landing entry does not confuse retained teardown evidence with outstanding review — amended
+  2026-09-05 after the first live native closeout.** Delivery teardown deliberately retains landed member request
+  bindings until their refs are removed. When corrective terminal content makes the Candidate non-current, the
+  integration entry seam excludes the plan-ordered prefix through the highest non-terminal member whose cumulative
+  tree is now the protected target before looking for an outstanding bound member. A retained binding inside that
+  settled prefix is teardown evidence, not evidence that its review remains open. A bound member above the prefix
+  still produces the existing correction-route ambiguity; when the complete non-terminal prefix has settled, the
+  same terminal delta routes directly to Candidate verification closeout. This changes no review verdict,
+  applicability, landing, or teardown authority: position and teardown still reobserve their exact host facts.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

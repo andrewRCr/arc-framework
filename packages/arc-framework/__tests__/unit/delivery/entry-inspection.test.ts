@@ -966,6 +966,58 @@ describe("selectOutstandingNonTerminalDeliveryMember", () => {
     })).toBeNull();
   });
 
+  it("does not treat retained landed-member bindings as outstanding review", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+    const state = bind(threeMemberPlan, [0, 1, 2]);
+    const highestNonTerminal = state.members.at(-2);
+    const target = state.target;
+    if (
+      highestNonTerminal?.coordinates === null
+      || highestNonTerminal?.coordinates === undefined
+      || target === null
+    ) {
+      throw new Error("fixture target and highest non-terminal member must be materialized");
+    }
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: {
+        ...state,
+        target: {
+          ...target,
+          coordinates: {
+            head: "f".repeat(40),
+            tree: highestNonTerminal.coordinates.tree,
+          },
+        },
+      },
+    })).toBeNull();
+  });
+
+  it("selects the first bound member above the landed target prefix", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+    const state = bind(threeMemberPlan, [0, 1, 2]);
+    const first = state.members[0];
+    const target = state.target;
+    if (first?.coordinates === null || first?.coordinates === undefined || target === null) {
+      throw new Error("fixture target and first member must be materialized");
+    }
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: {
+        ...state,
+        target: {
+          ...target,
+          coordinates: { head: "f".repeat(40), tree: first.coordinates.tree },
+        },
+      },
+    })).toEqual({
+      deliverableId: threeMemberPlan.members[1]?.deliverableId,
+      changeRequest: { providerId: "github", changeRequestId: "102" },
+    });
+  });
+
   it("selects nothing from a terminal-only plan whose single member is bound", () => {
     const singleMemberPlan = deliverySingleMemberStackPlanFixture();
 
@@ -1066,6 +1118,36 @@ describe("inspectDeliveryEntry — non-current Candidate classification", () => 
 
     await expect(integratingEntry({
       state: terminalOnly,
+      candidateTerminalDelta: carriesNonLifecycle,
+    })).resolves.toMatchObject({
+      status: "candidate-verification-required",
+      nextAction: "verify-work-unit",
+    });
+  });
+
+  it("retains verification closeout after every non-terminal member landed", async () => {
+    const fixture = publicContinuationFixture();
+    const highestNonTerminal = fixture.state.members.at(-2);
+    const target = fixture.state.target;
+    if (
+      highestNonTerminal?.coordinates === null
+      || highestNonTerminal?.coordinates === undefined
+      || target === null
+    ) {
+      throw new Error("fixture target and highest non-terminal member must be materialized");
+    }
+
+    await expect(integratingEntry({
+      state: {
+        ...fixture.state,
+        target: {
+          ...target,
+          coordinates: {
+            head: "f".repeat(40),
+            tree: highestNonTerminal.coordinates.tree,
+          },
+        },
+      },
       candidateTerminalDelta: carriesNonLifecycle,
     })).resolves.toMatchObject({
       status: "candidate-verification-required",

@@ -638,8 +638,10 @@ export interface OutstandingNonTerminalDeliveryMember {
  * Select the first non-terminal member whose review the seam can still see as outstanding.
  *
  * The seam reads no per-member review progress, so a member bound to a change request is the
- * strongest outstanding-review evidence available here. The terminal member is never selected:
- * its branch is the work-unit branch, so content carried there is already its own.
+ * strongest outstanding-review evidence available here. Retained bindings at or below the
+ * member whose cumulative tree is now the protected target are landed teardown evidence, not
+ * outstanding review. The terminal member is never selected: its branch is the work-unit branch,
+ * so content carried there is already its own.
  *
  * @param input - The canonical plan and its coherent delivery state.
  * @returns The first plan-ordered bound non-terminal member, or `null` when none is bound.
@@ -649,8 +651,20 @@ export function selectOutstandingNonTerminalDeliveryMember(input: {
   readonly state: DeliveryStateV1;
 }): OutstandingNonTerminalDeliveryMember | null {
   const terminalIndex = input.plan.members.length - 1;
+  const targetTree = input.state.target?.coordinates?.tree;
+  let landedThrough = -1;
+  if (targetTree !== undefined) {
+    for (let index = 0; index < terminalIndex; index += 1) {
+      const planMember = input.plan.members[index];
+      const stateMember = input.state.members.find(
+        (member) => member.deliverableId === planMember?.deliverableId,
+      );
+      if (stateMember?.coordinates?.tree === targetTree) landedThrough = index;
+    }
+  }
   for (const [index, planMember] of input.plan.members.entries()) {
     if (index >= terminalIndex) break;
+    if (index <= landedThrough) continue;
     const bound = input.state.members.find(
       (member) => member.deliverableId === planMember.deliverableId,
     )?.changeRequest;

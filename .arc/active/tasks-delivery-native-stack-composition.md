@@ -4832,6 +4832,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
             16. Reconcile the retained live effect, require the completed seven-member landing to settle, then
                 continue through position, member teardown, and the terminal checkpoint.
 
+        - _Post-landing entry amendment (2026-09-05):_ After settlement, the integration seam treated the seven
+          intentionally retained teardown bindings as seven still-reviewable members. That fabricated a Member 1
+          correction fork, blocked session resolution, and made compaction recovery unable to load the work unit.
+
+            17. Reproduce the retained-binding false positive after the protected target reaches the highest
+                non-terminal cumulative tree while every landed request binding remains in Delivery State.
+            18. Exclude only that exact settled prefix from outstanding-review selection; retain selection of the
+                first bound member above a partially settled prefix and the existing ambiguity before landing.
+            19. Require the live entry to route the terminal delta to Candidate verification, then require a fresh
+                compaction seed and recovery audit to resolve this checkout without manual locus reconstruction.
+
 ---
 
 ## Success Criteria
