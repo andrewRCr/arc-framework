@@ -1023,3 +1023,20 @@ an exact downstream `review-hosted-request` authorizes provider work. At this te
 return settled immediately and hand control to position and teardown after the already-directed exact Owner terminus
 is recorded. The exact older delivery-shaped `hosted-review-pending` record remains a read-only normalization input;
 canonical writes use the neutral shape.
+
+### Amendment 23 — changed-Candidate verification must remain a recoverable integration frame (2026-09-05)
+
+The first compaction after the terminal terminology correction could not write a seed: the Candidate was correctly
+non-current and delivery entry correctly returned `candidate-verification-required`, but checkout projection first
+required the stored boundary to match the older durable Candidate subject. That guard nulled `sessionType`,
+`workflow`, and the load set before delivery entry could select verification, so recovery stopped with “Selected
+entering work-unit projection is incomplete.” Manually restoring the boundary would have hidden the actual state and
+made the next compaction vulnerable to the same failure.
+
+Decided behavior: a non-current Integrating Candidate with a structurally closed task list may retain the integration
+session and load `verify-work-unit` only when the independent delivery-entry reducer returns
+`candidate-verification-required`. The projection carries `integrationBoundary: null`, so it revives no stale review,
+publication, or merge authority; all other missing or mismatched-boundary states remain unresolved. Candidate
+attestation continues to revalidate the exact public delivery continuation before it writes anything. Focused unit
+coverage proves both arms, and the rebuilt live CLI wrote a fresh seed and returned a ready recovery audit for this
+exact checkout, head, workflow, closed cursor, load set, and dirty path set.
