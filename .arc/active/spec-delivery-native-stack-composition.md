@@ -1977,6 +1977,21 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   shared conjunction refuses the complete set before reservation. This is a landing-composition correction, not a
   review-convergence policy, generic cache, new record, or relaxation of exact-head readiness.
 
+- **D9.12 Final submission preserves the same set-wide review boundary — amended 2026-09-05 after the first live
+  submit repeated D9.11's defect.** Native submission accepts one set-scoped readiness result for the exact reserved
+  members rather than invoking a member-shaped dependency once per member. Its production adapter computes the
+  routed delivery-review conjunction once from the reserved set's first exact member, then concurrently reobserves
+  every reserved request, head, and required-check result against that shared conjunction. Any member mismatch or
+  unavailable, unsettled shared result refuses the complete set before lock release, phase publication, or provider
+  mutation. Stack and merge-policy revalidation remain once per set; request, head, check, and configured lock reads
+  remain exact per member.
+
+  One production-style lifecycle acceptance drives the same reserved effect through submit, persisted effect polling,
+  exact all-landed settlement, fresh position routing, highest-member teardown, and the existing terminal checkpoint.
+  The applied result gains no parallel continuation: fresh `delivery position` and teardown remain the authoritative
+  handoff. This closes the supported native landing path without adding convergence policy, storage, a generalized
+  orchestration contract, a new authority, or speculative recovery and lock machinery.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

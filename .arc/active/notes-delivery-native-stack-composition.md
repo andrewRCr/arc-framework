@@ -894,3 +894,19 @@ actionable in one result. It does not parallelize provider mutation, add a retry
 or authorize landing. The current pre-release reservation is regenerated in the new shape from its exact selected
 action; no compatibility reader or migration surface is added. Task 9.1.R.n owns the focused test-first repair and
 the replayed live atomic preparation is its acceptance run before the integration interlock.
+
+### Amendment 16 — native submit shares the prepared set's review boundary (2026-09-05)
+
+The recovered seven-member preparation completed under one shared delivery-review conjunction, but its first approved
+submit refused `fresh-set-refused` before lock release or provider mutation. Source tracing found the same defect one
+layer later: final submission mapped the full review-status reducer over every reserved member instead of reusing the
+set-wide readiness adapter. Polling, native-effect classification, all-landed state settlement, suffix reconciliation,
+fresh position routing, highest-member teardown, and terminal checkpoint contain no further delivery-review reduction.
+
+Decided behavior: the submission service requests one readiness result for the exact reserved set, and its production
+adapter binds one routed delivery-review conjunction to concurrent exact request, head, and check observations for all
+members. A mismatch still refuses before lock release, submission-phase persistence, and the provider call. One
+built-CLI acceptance continues past the earlier pending-effect stopping point through effect settlement and the
+existing teardown-to-terminal route, so preparation and provider submission are no longer separately proved halves.
+The existing fresh `delivery position` continuation remains authoritative; no direct terminal action, new record,
+review policy, generic control loop, storage change, or speculative lock-recovery mechanism is added.

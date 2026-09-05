@@ -4593,20 +4593,51 @@ async function executeDeliveryCommand(
           }, host);
           return { status: observation.status === "registered" ? "exact" as const : "refused" as const };
         },
-        revalidate: async (deliverableId, headSha) => {
-          const member = current.value.members.find((candidate) => candidate.deliverableId === deliverableId);
-          if (member?.changeRequest === null || member?.changeRequest === undefined) return { status: "refused" as const };
-          const observed = await host.readRequest(submit.request.repository, member.changeRequest);
-          if (observed.status !== "observed" || observed.request.state !== "open"
-            || observed.request.repository !== submit.request.repository
-            || observed.request.headRepository !== submit.request.repository
-            || observed.request.headRef !== member.ref?.replace(/^refs\/heads\//u, "")
-            || observed.request.headSha !== headSha) return { status: "refused" as const };
-          return assessDeliveryLandingReviewReadiness({
+        revalidateSet: async (members) => {
+          const anchor = members[0];
+          if (anchor?.ref === null || anchor === undefined || anchor.changeRequest === null
+            || anchor.coordinates === null) return { status: "refused" as const };
+          const reviewReadiness = createDeliveryLandingSetReviewReadiness({
             repository: submit.request.repository,
-            headRef: observed.request.headRef,
-            headSha,
-          }, reviewStatus);
+            headRef: anchor.ref.replace(/^refs\/heads\//u, ""),
+            headSha: anchor.coordinates.head,
+          }, reviewStatus, (target, routedObligation) => {
+            const expected = members.find((candidate) => candidate.ref !== null
+              && candidate.coordinates !== null
+              && candidate.ref.replace(/^refs\/heads\//u, "") === target.headRef
+              && candidate.coordinates.head === target.headSha);
+            const pullRequest = Number(expected?.changeRequest?.changeRequestId);
+            if (expected === undefined || !Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
+              throw new Error("reserved native landing member is unavailable");
+            }
+            return createReviewStatusPort({ cwd, exec }, {
+              target,
+              pullRequest,
+              routedObligation,
+              deliveryLookupHeadSha: target.headSha,
+            });
+          });
+          const revalidated = await Promise.all(members.map(async (member) => {
+            if (member.ref === null || member.changeRequest === null || member.coordinates === null) {
+              return { status: "refused" as const };
+            }
+            const observed = await host.readRequest(submit.request.repository, member.changeRequest);
+            if (observed.status !== "observed" || observed.request.state !== "open"
+              || observed.request.repository !== submit.request.repository
+              || observed.request.headRepository !== submit.request.repository
+              || observed.request.binding.providerId !== member.changeRequest.providerId
+              || observed.request.binding.changeRequestId !== member.changeRequest.changeRequestId
+              || observed.request.headRef !== member.ref.replace(/^refs\/heads\//u, "")
+              || observed.request.headSha !== member.coordinates.head) return { status: "refused" as const };
+            return reviewReadiness({
+              repository: submit.request.repository,
+              headRef: observed.request.headRef,
+              headSha: member.coordinates.head,
+            });
+          }));
+          return revalidated.every(({ status }) => status === "ready")
+            ? { status: "ready" as const }
+            : { status: "refused" as const };
         },
         releaseLock: async (deliverableId) => {
           const member = current.value.members.find((candidate) => candidate.deliverableId === deliverableId);

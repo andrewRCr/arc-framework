@@ -403,6 +403,21 @@ describe("arc delivery", () => {
       baseRef: index === 0 ? "main" : state.members[index - 1]!.ref!.replace(/^refs\/heads\//u, ""),
       headRepository: "owner/repo",
     }));
+    let landedPredecessor = baseHead;
+    const landedMergeShas: string[] = [];
+    for (const [index, member] of state.members.slice(0, -1).entries()) {
+      const mergeSha = await git(repository, [
+        "commit-tree", member.coordinates!.tree,
+        "-p", landedPredecessor,
+        "-p", member.coordinates!.head,
+        "-m", `native merge ${index + 1}`,
+      ]);
+      landedMergeShas.push(mergeSha);
+      landedPredecessor = mergeSha;
+    }
+    const landedTargetHead = landedMergeShas.at(-1)!;
+    const landedTargetTree = state.members.at(-2)!.coordinates!.tree;
+    await git(repository, ["update-ref", "refs/heads/native-landing-result", landedTargetHead]);
     await git(repository, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
     await git(repository, ["config", `url.file://${repository}/.insteadOf`, "https://github.com/owner/repo.git"]);
     await git(repository, ["fetch", "origin", "main"]);
@@ -446,6 +461,24 @@ describe("arc delivery", () => {
       head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
       base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
     }));
+    const landedRequestResponses = nativeMembers.map((member, index) => JSON.stringify({
+      number: Number(member.changeRequestId),
+      state: "closed",
+      merged: true,
+      draft: false,
+      head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
+      base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
+      merge_commit_sha: landedMergeShas[index],
+    }));
+    const settledRequestResponses = nativeMembers.map((member, index) => JSON.stringify({
+      number: Number(member.changeRequestId),
+      state: "closed",
+      merged: true,
+      draft: false,
+      head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
+      base: { ref: "main", repo: { full_name: "owner/repo" } },
+      merge_commit_sha: landedMergeShas[index],
+    }));
     const terminal = state.members.at(-1)!;
     const terminalRequestResponse = JSON.stringify({
       number: Number(terminal.changeRequest!.changeRequestId),
@@ -461,6 +494,18 @@ describe("arc delivery", () => {
         ref: nativeMembers.at(-1)!.headRef,
         repo: { full_name: "owner/repo" },
       },
+    });
+    const settledTerminalRequestResponse = JSON.stringify({
+      number: Number(terminal.changeRequest!.changeRequestId),
+      state: "open",
+      merged: false,
+      draft: false,
+      head: {
+        ref: terminal.ref!.replace(/^refs\/heads\//u, ""),
+        sha: terminal.coordinates!.head,
+        repo: { full_name: "owner/repo" },
+      },
+      base: { ref: "main", repo: { full_name: "owner/repo" } },
     });
     const listResponses = nativeMembers.map((member) => JSON.stringify([{
       number: Number(member.changeRequestId),
@@ -522,10 +567,13 @@ describe("arc delivery", () => {
       "    printf '%s\\n' '{\"protection\":null}'",
       "    ;;",
       "  repos/owner/repo/git/ref/heads/main)",
-      `    printf '%s\\n' '{"object":{"sha":"${baseHead}"}}'`,
+      `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '{"object":{"sha":"${landedTargetHead}"}}'; else printf '%s\\n' '{"object":{"sha":"${baseHead}"}}'; fi`,
       "    ;;",
       `  repos/owner/repo/git/commits/${baseHead})`,
       `    printf '%s\\n' '{"tree":{"sha":"${baseTree}"}}'`,
+      "    ;;",
+      `  repos/owner/repo/git/commits/${landedTargetHead})`,
+      `    printf '%s\\n' '{"tree":{"sha":"${landedTargetTree}"}}'`,
       "    ;;",
       "  repos/owner/repo/stacks)",
       "    if [ \"${ARC_FAKE_GH_MODE:-registered}\" = \"unsupported\" ]; then echo 'HTTP 404' >&2; exit 1; fi",
@@ -533,14 +581,17 @@ describe("arc delivery", () => {
       "    ;;",
       ...nativeMembers.flatMap((member, index) => [
         `  repos/owner/repo/pulls/${member.changeRequestId})`,
-        `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedRequestResponses[index]}'; else printf '%s\\n' '${requestResponses[index]}'; fi`,
+        `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "landed" ]; then printf '%s\\n' '${landedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '${settledRequestResponses[index]}'; else printf '%s\\n' '${requestResponses[index]}'; fi`,
         "    ;;",
       ]),
       `  repos/owner/repo/pulls/${terminal.changeRequest!.changeRequestId})`,
-      `    printf '%s\\n' '${terminalRequestResponse}'`,
+      `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '${settledTerminalRequestResponse}'; else printf '%s\\n' '${terminalRequestResponse}'; fi`,
       "    ;;",
       `  repos/owner/repo/pulls/${nativeMembers.at(-1)!.changeRequestId}/merge-async)`,
       `    printf '%s\\n' '${mergeResponse}'`,
+      "    ;;",
+      `  repos/owner/repo/pulls/${nativeMembers.at(-1)!.changeRequestId}/merge-async/native-effect-1)`,
+      `    printf '%s\\n' '{"status":"merged"}'`,
       "    ;;",
       "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
       "esac",
@@ -827,6 +878,54 @@ describe("arc delivery", () => {
       effectIdentity: "native-effect-1",
     });
 
+    await git(repository, ["update-ref", "refs/heads/main", landedTargetHead]);
+    const landed = await runArcWithStdin(
+      ["delivery", "native", "land-status", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: plan.planId, request: expectedSubmitRequest.request, remote: "origin" })}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "landed" } },
+    );
+    expect(landed.exitCode, `${landed.stderr}\n${landed.stdout}`).toBe(0);
+    expect(JSON.parse(landed.stdout)).toMatchObject({
+      status: "applied",
+      state: { value: { target: { coordinates: { head: landedTargetHead } }, activeOperation: null } },
+    });
+
+    const positionInput = { planId: plan.planId, repository: "owner/repo", remote: "origin" };
+    const terminalPosition = await runArcWithStdin(
+      ["delivery", "position", "-", "--json"],
+      repository,
+      `${JSON.stringify(positionInput)}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "settled" } },
+    );
+    expect(terminalPosition.exitCode, `${terminalPosition.stderr}\n${terminalPosition.stdout}`).toBe(0);
+    const terminalPositionResult = JSON.parse(terminalPosition.stdout) as {
+      status: string;
+      selectedDeliverableId: string;
+    };
+    expect(terminalPositionResult).toMatchObject({
+      status: "position",
+      nextAction: "teardown-member",
+      selectedDeliverableId: state.members.at(-2)!.deliverableId,
+    });
+
+    const terminalHandoff = await runArcWithStdin(
+      ["delivery", "teardown", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        ...positionInput,
+        deliverableId: terminalPositionResult.selectedDeliverableId,
+        protectedTargetRef: "refs/heads/main",
+      })}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "settled" } },
+    );
+    expect(terminalHandoff.exitCode, `${terminalHandoff.stderr}\n${terminalHandoff.stdout}`).toBe(0);
+    expect(JSON.parse(terminalHandoff.stdout)).toMatchObject({
+      status: "torn-down",
+      nextAction: "terminal-checkpoint",
+      top: { status: "ready" },
+    });
+
     const degraded = await runArcWithStdin(
       ["delivery", "native", "unlink", "-", "--json"],
       repository,
@@ -835,7 +934,7 @@ describe("arc delivery", () => {
     );
     expect(degraded.exitCode, degraded.stderr).toBe(0);
     expect(JSON.parse(degraded.stdout)).toMatchObject({ status: "unlinked" });
-  });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("validates design input before writing task-derived authoring state", async () => {
     await installTaskFixture(repository);

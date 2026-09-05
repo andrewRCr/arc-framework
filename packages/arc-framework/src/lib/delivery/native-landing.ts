@@ -360,7 +360,9 @@ export async function submitReservedNativeDeliveryMerge(input: {
   readonly host: DeliveryNativeMergeHostPort;
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
   readonly reobserveSelection: () => Promise<{ readonly status: "exact" | "refused" }>;
-  readonly revalidate: (deliverableId: string, headSha: string) => Promise<{ readonly status: "ready" | "refused" }>;
+  readonly revalidateSet: (
+    members: DeliveryOperationSnapshotV1["members"],
+  ) => Promise<{ readonly status: "ready" | "refused" }>;
   readonly releaseLock: (deliverableId: string) => Promise<{ readonly status: "released" | "not-configured" | "refused" }>;
   readonly revalidateMergePolicy: (
     binding: DeliveryMergePolicyBindingV1,
@@ -394,12 +396,8 @@ export async function submitReservedNativeDeliveryMerge(input: {
   if ((await dependencies.reobserveSelection()).status !== "exact") {
     return { status: "blocked", reason: "native-stack-moved", recommendedActionText: "Reobserve the exact selected stack before returning to prepare." };
   }
-  const revalidated = await Promise.all(operation.before.members.map(async (member) => (
-    member.coordinates === null
-      ? { status: "refused" as const }
-      : dependencies.revalidate(member.deliverableId, member.coordinates.head)
-  )));
-  if (revalidated.some(({ status }) => status !== "ready")) {
+  if (operation.before.members.some((member) => member.coordinates === null)
+    || (await dependencies.revalidateSet(operation.before.members)).status !== "ready") {
     return {
       status: "blocked",
       reason: "fresh-set-refused",

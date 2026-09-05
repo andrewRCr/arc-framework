@@ -4781,6 +4781,20 @@ meta exists and that resolution shape is the exact defect the retired terminal a
             3. Re-run the live seven-member preparation and require a submit-ready reservation within the slowest
                bounded member read rather than seven complete delivery reductions.
 
+        - _Live-acceptance amendment (2026-09-05):_ Preparation completed, but the first approved submit repeated
+          the full delivery-review reduction through its member-shaped final-revalidation dependency and refused
+          before lock release or provider mutation. Close the same concern through the terminal handoff rather than
+          repairing one more callsite in isolation.
+
+            4. Make native submit request one set-scoped readiness result, with one shared routed conjunction and
+               independent exact request/head/check observations for every reserved member.
+            5. Prove the set boundary fails before the correction when its routed admission can be consumed once,
+               while merge policy, lock release, phase persistence, and provider submission retain their order.
+            6. Drive the built CLI from recovered preparation through submit, persisted effect polling, all-landed
+               settlement, fresh position, highest-member teardown, and `terminal-checkpoint`.
+            7. Re-run the live seven-member preparation and exact-head integration interlock on the corrected head;
+               require the approved submit to cross the provider boundary without repeated review reduction.
+
 ---
 
 ## Success Criteria

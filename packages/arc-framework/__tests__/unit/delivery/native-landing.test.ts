@@ -427,17 +427,24 @@ describe("native delivery landing", () => {
       host: policyMovedHost,
       stateStore,
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
-      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      revalidateSet: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
       revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "refused" }),
       observeEffect: vi.fn(),
     })).resolves.toMatchObject({ status: "blocked", reason: "merge-policy-moved" });
     expect(policyMovedHost.submitNativeMerge).not.toHaveBeenCalled();
 
+    let setAdmissionAvailable = true;
     const submitted = await submitReservedNativeDeliveryMerge({ planId: plan.planId, current: record, operationId: "operation-1", request }, {
       host, stateStore,
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
-      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      revalidateSet: vi.fn(async (members) => {
+        if (!setAdmissionAvailable || members.length !== ids.length) {
+          return { status: "refused" as const };
+        }
+        setAdmissionAvailable = false;
+        return { status: "ready" as const };
+      }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
       revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn(),
@@ -504,7 +511,7 @@ describe("native delivery landing", () => {
       host,
       stateStore,
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
-      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      revalidateSet: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
       revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn(),
@@ -596,7 +603,7 @@ describe("native delivery landing", () => {
       host,
       stateStore: { publish: vi.fn() },
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
-      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      revalidateSet: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
       revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn(),
@@ -628,7 +635,7 @@ describe("native delivery landing", () => {
       observeNativeMerge: vi.fn(),
     };
     const reobserveSelection = vi.fn();
-    const revalidate = vi.fn();
+    const revalidateSet = vi.fn();
     const releaseLock = vi.fn();
     const revalidateMergePolicy = vi.fn();
     const observeEffect = vi.fn();
@@ -636,7 +643,7 @@ describe("native delivery landing", () => {
     await expect(submitReservedNativeDeliveryMerge({
       planId: plan.planId, current, operationId: "operation-1", request,
     }, {
-      host, stateStore: { publish: vi.fn() }, reobserveSelection, revalidate, releaseLock,
+      host, stateStore: { publish: vi.fn() }, reobserveSelection, revalidateSet, releaseLock,
       revalidateMergePolicy, observeEffect,
     })).resolves.toMatchObject({ status: "blocked", reason: "protected-target-mismatch" });
     await expect(reconcileReservedNativeDeliveryMerge({
@@ -647,7 +654,7 @@ describe("native delivery landing", () => {
     expect(host.submitNativeMerge).not.toHaveBeenCalled();
     expect(host.observeNativeMerge).not.toHaveBeenCalled();
     expect(reobserveSelection).not.toHaveBeenCalled();
-    expect(revalidate).not.toHaveBeenCalled();
+    expect(revalidateSet).not.toHaveBeenCalled();
     expect(releaseLock).not.toHaveBeenCalled();
     expect(revalidateMergePolicy).not.toHaveBeenCalled();
     expect(observeEffect).not.toHaveBeenCalled();
@@ -809,7 +816,7 @@ describe("native delivery landing", () => {
       },
       stateStore,
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
-      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      revalidateSet: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
       revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn().mockResolvedValue({ outcome: "all-landed", snapshot }),
