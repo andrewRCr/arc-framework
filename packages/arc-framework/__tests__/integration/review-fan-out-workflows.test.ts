@@ -114,6 +114,20 @@ describe("hosted review fan-out workflow", () => {
     expect(section).toMatch(
       /terminusAction[\s\S]*arc review terminus accept -[\s\S]*recorded \/ commit-boundary[\s\S]*exact-replay \/ continue[\s\S]*refused \/ rerun-status/iu,
     );
+    const terminusSection = reviewSection(
+      section,
+      "When the Owner accepts any returned delivery-member terminus",
+      "`review-hosted-request` means",
+    );
+    const recordedTerminus = terminusSection.indexOf("`recorded / commit-boundary`");
+    const correctionResume = terminusSection.indexOf("arc delivery review-fix continue - --json");
+    const exactReplay = terminusSection.indexOf("`exact-replay / continue`");
+    expect(recordedTerminus).toBeGreaterThanOrEqual(0);
+    expect(correctionResume).toBeGreaterThan(recordedTerminus);
+    expect(exactReplay).toBeGreaterThan(correctionResume);
+    expect(terminusSection).toMatch(
+      /exact-replay \/ continue[\s\S]*refused \/ rerun-status[\s\S]*re-enter status directly/iu,
+    );
     expect(section).toMatch(
       /review-hosted-request[\s\S]*review-local-prepare[\s\S]*terminusAction[\s\S]*optional Owner alternative[\s\S]*absent explicit acceptance[\s\S]*review action unchanged/iu,
     );
