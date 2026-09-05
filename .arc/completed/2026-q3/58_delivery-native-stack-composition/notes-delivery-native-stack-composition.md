@@ -1170,3 +1170,18 @@ checks decide whether the newer head may enter state. Interrupted reconciliation
 otherwise not-applied states still need the old exact head before retry, and all different request identities or
 unexpected state/base combinations remain ambiguous. This completes the D9.28 live path without creating another
 proof mechanism or weakening terminal-head adoption.
+
+### Amendment 32 — shipped publication renewal uses the completed-record entry (2026-09-05)
+
+The D9.29 correction commit advanced the terminal branch and Candidate applicability was explicitly settled by a
+targeted check over the fresh Tier 3 tree. The next checkpoint correctly recognized the Candidate but found its
+publication boundary stale. It returned ordinary `arc attest`, which immediately rejected the already-archived
+Shipped record because completed-record mutation is admitted only through `--new-root`. No host or Candidate mutation
+occurred, but the typed continuation could not execute on the archive-before-merge path.
+
+Decided behavior: the checkpoint uses the lifecycle summary it already validated to emit the existing archived-record
+attestation entry for a Shipped Candidate publication refresh. `runAttest` already ignores `newRoot` as a re-root
+request when currentness is satisfied, so this preserves the recognized Candidate and repairs only the stale public
+boundary; an actually blocked lineage retains its ordinary full-verification and new-root requirements. Active and
+Integrating continuations remain unchanged. This is lifecycle parity for the existing publication-renewal path, not
+new Candidate authority, review work, or a completed-WU mutation mechanism.

@@ -5008,6 +5008,34 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           passed Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, the production build,
           and the complete matrix: 865 test files and 11,453 tests passed, with one intentional skip each.
 
+- _Forward correction (2026-09-05):_ Candidate publication refresh emitted the active-record attestation command
+  after archive-before-merge had already moved the Shipped work unit to the completed tier. Derive that continuation
+  from the checkpoint's validated lifecycle summary.
+
+    - `[x]` **9.1.R.s Keep shipped Candidate publication renewal executable after archival**
+
+        - _Goal:_ A stale publication boundary on a current archived Candidate resumes through the existing
+          completed-record attestation entry without fabricating a new Candidate root or replaying review.
+
+        - _Build `test-first` (one behavior at a time):_
+
+            1. Prove a Shipped completed lifecycle with a stale Candidate boundary receives the archived-record
+               attestation argv, while the existing Active and Integrating command remains unchanged.
+            2. Extend the typed checkpoint schema to admit that exact continuation and select it only from the
+               lifecycle summary already validated by the checkpoint.
+            3. Rebuild the CLI and resume the live checkpoint through publication renewal, terminal repair, and the
+               existing terminal-rebind path without hosted review or provider spend.
+
+        - _Outcome:_ Candidate publication refresh now derives its attestation argv from the checkpoint's validated
+          lifecycle summary. Shipped records enter through the existing completed-record `--new-root` admission,
+          whose current-Candidate arm repairs the boundary without creating a root; Active and Integrating records
+          retain ordinary attestation.
+
+        - _Verification:_ The Shipped checkpoint case failed first with the unusable active-record argv, then passed
+          alongside all 22 focused checkpoint tests. Focused lint, both typechecks, the production build, and ARC
+          contract checks passed. The rebuilt live checkpoint emitted the archived-record continuation, and its
+          invocation passed completed-lifecycle admission before correctly refusing the still-uncommitted subject.
+
 ---
 
 ## Success Criteria

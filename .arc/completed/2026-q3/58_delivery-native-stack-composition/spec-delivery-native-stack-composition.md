@@ -2167,6 +2167,16 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   durable field, operation kind, or second rebind path; it separates settlement of the authorized host effect from
   adoption of an independently proved terminal head.
 
+- **D9.30 Shipped Candidate publication renewal emits the archived-record attestation entry — amended 2026-09-05
+  after the D9.29 live retry.** When the integration checkpoint proves a current Candidate but finds its recognized
+  publication boundary stale, it derives the attestation continuation from the already-read lifecycle position.
+  Active and Integrating records retain ordinary attestation; a Shipped record in the completed tier receives the
+  existing `--new-root` entry required to admit completed-record mutation. That flag does not establish a new root
+  when Candidate currentness is already satisfied: the attestation verb keeps the recognized Candidate and repairs
+  only its publication boundary. Candidate applicability, verification, delivery renewal, and exact mutation-owner
+  checks remain authoritative. This adds no lifecycle transition, Candidate authority, or second renewal path; it
+  makes the checkpoint's typed continuation executable for the archive-before-merge topology it already supports.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:
