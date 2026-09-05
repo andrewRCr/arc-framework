@@ -1945,6 +1945,29 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   existing typed reason unchanged. Gate provisioning and reaping remain D9.4's, and the operation-scoped checkout
   lifecycle stays routed out.
 
+- **D9.10 Prepared native landing remains recoverable — amended 2026-09-05 after the first atomic landing
+  preparation outlived its caller.** Native preparation persisted the active `land / native` reservation before
+  returning its attended interlock, but the record distinguished neither a merely prepared effect from one whose
+  provider submission had begun nor `linked-single` from `linked-atomic`. A lost preparation response therefore
+  re-entered through effect reconciliation, observed exact `none-landed`, and returned the fail-closed
+  `submission-before-persist-unresolved` stop even though no submission command had run.
+
+  A native land reservation now binds its exact `linked-single | linked-atomic` arm and a
+  `prepared | submitting` submission phase. Reconciliation of `prepared` performs no provider-effect observation;
+  it derives the exact member/head presentation and consequence from the reservation and returns one submit-ready
+  `delivery-native-land-submit` action behind the same integration interlock. Submission freshly reobserves the
+  selected stack, revalidates every selected exact head and merge policy, releases the configured member locks, and
+  version-publishes `submitting` immediately before the provider merge call. A competing writer or lost phase write
+  invokes no provider effect. Once `submitting`, a missing effect identity retains the existing fail-closed
+  all-landed / partial / none-landed / ambiguous reconciliation because the provider call may have occurred.
+
+  Set-wide readiness checks are independent reads and execute concurrently. Their deterministic result retains plan
+  order and names every unready deliverable with its exact head, so a refusal identifies the repair locus without a
+  serial retry. Reservation still occurs only after the complete set is ready. This adds no operation kind, recovery
+  record, autonomous merge, standing authorization, compatibility reader, or generic orchestration mechanism; the
+  unpublished in-flight development reservation is regenerated in the new exact shape before the live landing
+  interlock is replayed.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:
@@ -2615,6 +2638,13 @@ added.
     integration resumes through the existing selector-free correction driver. The driver may machine-rebind the
     exact terminal coordinate before returning the first outstanding member; the route performs no Candidate
     renewal, provider request, applicability inference, new durable state, or new review authority (D5.13, D8.13).
+52. A native landing response lost after preparation re-enters the same exact member/head presentation and
+    integration interlock without observing or submitting a provider effect. The reservation durably distinguishes
+    its selected native arm and `prepared | submitting` phase; submission persists `submitting` immediately before
+    the provider call, while only that phase retains fail-closed identity-loss recovery. Independent set-wide
+    readiness reads execute concurrently and a refusal names every unready exact member in plan order. No merge is
+    authorized by recovery, and no operation kind, recovery record, compatibility reader, or generalized control
+    loop is added (D9.10).
 
 ## Open Questions
 

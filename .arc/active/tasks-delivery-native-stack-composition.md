@@ -4739,6 +4739,23 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           final-union Tier 3 proves no later regression. The 45 prior criterion digests remain exact, and the two
           added loci close the union at 44 met, three superseded, and zero unresolved.
 
+- _Forward correction (2026-09-05):_ The first atomic landing preparation persisted its reservation after the
+  caller lost the response, and recovery could not distinguish that prepared-only state from a submission whose
+  provider identity was lost. Preserve the conservative submitted-effect boundary while making preparation
+  resumable and its independent readiness reads bounded by the slowest member rather than their sum.
+
+    - `[x]` **9.1.R.n Recover an interrupted prepared native landing exactly**
+
+        - _Goal:_ A lost native preparation response returns the exact same landing interlock without provider
+          observation or mutation; provider identity-loss recovery remains fail-closed only after submission begins;
+          and set-wide readiness runs concurrently with exact member-specific refusal diagnostics.
+
+        - _Outcome:_ Native landing reservations now persist their exact arm and prepared/submitting phase; prepared
+          recovery returns the exact submit-ready presentation through native status and general reconciliation
+          without provider access, submission CAS-publishes its phase before the provider call, and concurrent
+          readiness reports every failed member/head in plan order. The packaged and installed workflow routes that
+          envelope through the existing integration interlock, with focused unit, contract, and built-CLI E2E proof.
+
 ---
 
 ## Success Criteria

@@ -967,6 +967,70 @@ describe("delivery execution handler", () => {
     expect(setExitCode).not.toHaveBeenCalled();
   });
 
+  it("preserves a prepared native submit action through native status and general reconciliation", async () => {
+    const plan = deliveryStackPlanFixture();
+    const member = plan.members[0]!;
+    const request = {
+      repository: "owner/repo",
+      topChangeRequestId: "42",
+      topHeadSha: "a".repeat(40),
+      mergeAction: "direct_merge" as const,
+      mergeMethod: "merge" as const,
+    };
+    const result = {
+      status: "prepared" as const,
+      transition: "preserved" as const,
+      action: "delivery-native-land-submit" as const,
+      presentation: {
+        operationId: "operation-1",
+        members: [{
+          deliverableId: member.deliverableId,
+          changeRequestId: request.topChangeRequestId,
+          headSha: request.topHeadSha,
+        }],
+        consequence: "Land only the displayed bottom member at its exact head.",
+      },
+      submitAction: {
+        command: "arc delivery native land-submit - --json" as const,
+        input: {
+          planId: plan.planId,
+          operationId: "operation-1",
+          request,
+          treeRoot: "/repo",
+          remote: "origin",
+        },
+      },
+      recommendedActionText: "Present the exact landing consequence and obtain integration approval.",
+    };
+    const cases = [
+      {
+        command: "native-land-status" as const,
+        commandName: "delivery native land-status",
+        input: { planId: plan.planId, request, remote: "origin" },
+      },
+      {
+        command: "reconcile" as const,
+        commandName: "delivery reconcile",
+        input: { planId: plan.planId, repository: request.repository, remote: "origin" },
+      },
+    ];
+
+    for (const entry of cases) {
+      const write = vi.fn();
+      await handleDeliveryExecution(entry.command, { input: "-", json: true }, undefined, {
+        readText: vi.fn().mockResolvedValue(JSON.stringify(entry.input)),
+        execute: vi.fn().mockResolvedValue(result),
+        write,
+        setExitCode: vi.fn(),
+      });
+      expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+        schemaVersion: 1,
+        command: entry.commandName,
+        ...result,
+      });
+    }
+  });
+
   it("surfaces native registration consequences before opt-in", async () => {
     const plan = deliveryStackPlanFixture();
     const fixture = deliveryStateFixture(plan);

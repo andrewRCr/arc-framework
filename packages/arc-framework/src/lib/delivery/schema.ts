@@ -335,6 +335,10 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("land"),
     mode: z.enum(["sequential", "native"]),
+    native: z.strictObject({
+      arm: z.enum(["linked-single", "linked-atomic"]),
+      phase: z.enum(["prepared", "submitting"]),
+    }).nullable(),
     effect: DeliveryLandEffectV1Schema,
     effectIdentity: DeliveryHostEffectIdentityV1Schema.nullable(),
   }),
@@ -385,6 +389,24 @@ export const DeliveryStateV1Schema = z.strictObject({
   activeOperation: DeliveryActiveOperationV1Schema.nullable(),
   pendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.nullable(),
 }).superRefine((state, context) => {
+  const landing = state.activeOperation?.kind === "land" ? state.activeOperation : null;
+  if (landing !== null) {
+    const nativeMode = landing.mode === "native";
+    if (nativeMode !== (landing.native !== null)) {
+      context.addIssue({
+        code: "custom",
+        path: ["activeOperation", "native"],
+        message: "native landing metadata must exist exactly for native landing mode",
+      });
+    }
+    if ((!nativeMode || landing.native?.phase === "prepared") && landing.effectIdentity !== null) {
+      context.addIssue({
+        code: "custom",
+        path: ["activeOperation", "effectIdentity"],
+        message: "an effect identity requires a submitting native landing",
+      });
+    }
+  }
   if (state.pendingReviewFixVerification === null) return;
   const selectedIndex = state.members.findIndex(
     ({ deliverableId }) => deliverableId === state.pendingReviewFixVerification?.selectedDeliverableId,

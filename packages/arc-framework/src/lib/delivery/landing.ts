@@ -452,6 +452,7 @@ export async function prepareDeliveryLanding(input: {
     operationId,
     kind: "land",
     mode: "sequential",
+    nativeArm: null,
     affectedDeliverableIds: [member.deliverableId],
     expectedStateRevision: input.current.revision,
     before,

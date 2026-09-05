@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   attachDeliveryOperationEffectIdentity,
+  beginNativeDeliverySubmission,
   reserveDeliveryOperation,
 } from "../../src/lib/delivery/operation.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
@@ -248,7 +249,7 @@ describe("delivery terminal recovery", () => {
 
   async function reserveInterruptedNativeLanding(
     fixture: { readonly statePath: string },
-    identityBound: boolean,
+    phase: "prepared" | "submitting" | "identified",
   ): Promise<void> {
     const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       planId: string;
@@ -267,6 +268,7 @@ describe("delivery terminal recovery", () => {
       operationId,
       kind: "land",
       mode: "native",
+      nativeArm: "linked-atomic",
       affectedDeliverableIds: members.map((member) => member.deliverableId),
       expectedStateRevision: envelope.revision,
       before: snapshot,
@@ -289,9 +291,16 @@ describe("delivery terminal recovery", () => {
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture native reservation refused");
-    const attached = identityBound
-      ? attachDeliveryOperationEffectIdentity(
+    const submitting = phase === "prepared"
+      ? null
+      : beginNativeDeliverySubmission(
           { revision: envelope.revision + 1, value: reserved.state },
+          operationId,
+        );
+    if (submitting?.status === "refused") throw new Error("fixture native submission transition refused");
+    const attached = phase === "identified" && submitting?.status === "begun"
+      ? attachDeliveryOperationEffectIdentity(
+          { revision: envelope.revision + 2, value: submitting.state },
           operationId,
           { providerId: "github", effectId: "native-effect-1" },
         )
@@ -299,8 +308,14 @@ describe("delivery terminal recovery", () => {
     if (attached?.status === "refused") throw new Error("fixture native identity attachment refused");
     await writeFile(fixture.statePath, `${JSON.stringify({
       ...envelope,
-      revision: envelope.revision + (attached === null ? 1 : 2),
-      value: attached === null ? reserved.state : attached.state,
+      revision: envelope.revision + (phase === "prepared" ? 1 : phase === "submitting" ? 2 : 3),
+      value: phase === "prepared"
+        ? reserved.state
+        : phase === "submitting" && submitting?.status === "begun"
+          ? submitting.state
+          : attached?.status === "attached"
+            ? attached.state
+            : reserved.state,
     })}\n`);
   }
 
@@ -864,7 +879,7 @@ describe("delivery terminal recovery", () => {
 
   it("retains a native landing reservation whose provider identity was not persisted", async () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
-    await reserveInterruptedNativeLanding(fixture, false);
+    await reserveInterruptedNativeLanding(fixture, "submitting");
     const result = await runArcWithStdin(
       ["delivery", "reconcile", "-", "--json"],
       repository,
@@ -891,7 +906,7 @@ describe("delivery terminal recovery", () => {
 
   it("clears a persisted failed native effect only after exact none-landed observation", async () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
-    await reserveInterruptedNativeLanding(fixture, true);
+    await reserveInterruptedNativeLanding(fixture, "identified");
     const result = await runArcWithStdin(
       ["delivery", "reconcile", "-", "--json"],
       repository,
@@ -920,7 +935,7 @@ describe("delivery terminal recovery", () => {
 
   it("retains a provider-reported merged effect when the selected request identity mismatches", async () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
-    await reserveInterruptedNativeLanding(fixture, true);
+    await reserveInterruptedNativeLanding(fixture, "identified");
     const result = await runArcWithStdin(
       ["delivery", "reconcile", "-", "--json"],
       repository,
@@ -945,7 +960,7 @@ describe("delivery terminal recovery", () => {
 
   it("settles a native landing at its merge result when the protected target advances afterward", async () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
-    await reserveInterruptedNativeLanding(fixture, true);
+    await reserveInterruptedNativeLanding(fixture, "identified");
     const result = await runArcWithStdin(
       ["delivery", "reconcile", "-", "--json"],
       repository,

@@ -153,7 +153,14 @@ the request.
 Follow the typed result. `applied / teardown-member` takes the returned `selectedDeliverableId` and immediately
 invokes `arc delivery teardown` with the existing plan, repository, protected-target, and remote locators before any
 ordinary position read. `applied / read-position` returns to `arc delivery position`; any other `applied` result
-follows its returned `nextAction`. A `retryable` result dispatches only one of these exact
+follows its returned `nextAction`. A `prepared / preserved / delivery-native-land-submit` result re-presents the
+returned `presentation`: render its exact member/head set and consequence verbatim.
+
+> [!IMPORTANT]
+> `integration-interlock`: Stop after prepared native landing recovery. Surface the exact recovered member/head set
+> and consequence; await approval before proceeding to the returned native submission.
+
+After approval, invoke the returned `submitAction` unchanged. A `retryable` result dispatches only one of these exact
 `transition / action / selector` arms:
 
 - `retryable / cleared / delivery-publish` with `operationKind: materialize` reruns
@@ -361,13 +368,17 @@ arc delivery native land-status - --json
 ```
 
 For ordinary polling after submission, use `land-status`. `pending` retains the reservation and polls the same
-persisted effect identity again. After a restart or interruption, invoke `land-status` with the same exact request;
-it also recovers a synchronous merged result whose effect identity was never assigned. The general recovery verb
-delegates an active native reservation to that same status-and-settlement path:
+persisted effect identity again. After a restart or interruption, invoke the general recovery verb with only the
+plan, repository, and remote locators:
 
 ```bash
 arc delivery reconcile - --json
 ```
+
+A recovered `prepared` reservation makes no provider observation: it re-presents the exact member/head set and
+consequence behind the same integration interlock, then invokes its returned `submitAction` unchanged after approval.
+A recovered `submitting` reservation never resubmits: a persisted identity returns to polling, while a missing
+identity is resolved only from exact all/partial/none/ambiguous effect facts.
 
 Only a `retryable` / `cleared` / `delivery-native-land-select` result, returned after a persisted terminal `failed`
 effect and exact `none-landed` observation, returns to preparation and a new interlock. `pending`, `partial-landed`,

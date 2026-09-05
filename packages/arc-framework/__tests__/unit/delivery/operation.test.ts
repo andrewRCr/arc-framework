@@ -235,6 +235,7 @@ describe("reserveDeliveryOperation", () => {
         ...operationRequestWithoutMode(state),
         kind: "land" as const,
         mode: "sequential" as const,
+        nativeArm: null,
         effect: landEffect(),
       },
       { ...operationRequestWithoutMode(state), kind: "top-remedy" as const, effect: topRemedyEffect() },
@@ -262,6 +263,7 @@ describe("reserveDeliveryOperation", () => {
       ...operationRequestWithoutMode(state),
       kind: "land" as const,
       mode: "sequential" as const,
+      nativeArm: null,
       effect: landEffect(),
     };
     const topRemedy = {
@@ -303,7 +305,7 @@ describe("reserveDeliveryOperation", () => {
     expect(reserveDeliveryOperation(
       { revision: STATE_REVISION, value: state },
       plan,
-      { ...land, mode: "sequential" },
+      { ...land, mode: "sequential", nativeArm: null },
     )).toMatchObject({
       status: "reserved",
       state: { activeOperation: { kind: "land", mode: "sequential" } },
@@ -560,6 +562,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
       ...current.value.activeOperation!,
       kind: "land" as const,
       mode: "native" as const,
+      native: { arm: "linked-single" as const, phase: "submitting" as const },
       effect: landEffect(),
       effectIdentity: null,
     };
@@ -569,7 +572,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
       ...record,
       value: {
         ...record.value,
-        activeOperation: { ...land, mode: "sequential" },
+        activeOperation: { ...land, mode: "sequential", native: null },
       },
     }, request.operationId, identity)).toEqual({ status: "refused", reason: "wrong-operation" });
     const attached = attachDeliveryOperationEffectIdentity(record, request.operationId, identity);
@@ -699,6 +702,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
       }),
       kind: "land" as const,
       mode: "sequential" as const,
+      nativeArm: null,
       effect: landEffect(),
     };
     const reservedLand = reserveDeliveryOperation(
@@ -769,6 +773,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
       ...operationRequestWithoutMode(state),
       kind: "land" as const,
       mode: "sequential" as const,
+      nativeArm: null,
       before,
       requested: { ...before, target: null },
       effect: landEffect(),
@@ -920,6 +925,7 @@ describe("reconcileDeliveryOperation", () => {
         ...operationRequestWithoutMode(state),
         kind: "land" as const,
         mode: "sequential" as const,
+        nativeArm: null,
         effect: landEffect(),
       },
       { ...operationRequestWithoutMode(state), kind: "top-remedy" as const, effect: topRemedyEffect() },

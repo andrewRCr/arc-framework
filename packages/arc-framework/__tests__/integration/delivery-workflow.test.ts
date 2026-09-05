@@ -236,6 +236,9 @@ describe("packaged delivery workflow", () => {
     expect(recoverySection).toMatch(/provider-adoption[\s\S]*arc delivery refresh adopt/iu);
     expect(recoverySection).toMatch(/provider-refresh[\s\S]*arc delivery refresh execute/iu);
     expect(recoverySection).toMatch(
+      /prepared \/ preserved \/ delivery-native-land-submit[\s\S]*presentation[\s\S]*exact member\/head[\s\S]*consequence[\s\S]*integration-interlock[\s\S]*submitAction[\s\S]*unchanged/iu,
+    );
+    expect(recoverySection).toMatch(
       /planId[\s\S]*operationId[\s\S]*affectedDeliverableIds[\s\S]*operationKind[\s\S]*narrow `mode`/u,
     );
     expect(recoverySection).toMatch(/workflow prose infers neither a selector nor a[\s\S]*recovery policy/iu);
@@ -265,7 +268,9 @@ describe("packaged delivery workflow", () => {
     expect(nativeSubmit).toBeLessThan(nativeStatus);
     expect(nativeSection).toMatch(/exact member\/head set[\s\S]*residual race/iu);
     expect(nativeSection).toMatch(/ordinary polling[\s\S]*land-status/iu);
-    expect(nativeSection).toMatch(/restart or interruption[\s\S]*land-status/iu);
+    expect(nativeSection).toMatch(
+      /restart or interruption[\s\S]*delivery reconcile[\s\S]*prepared[\s\S]*same integration interlock[\s\S]*submitAction[\s\S]*unchanged/iu,
+    );
     expect(nativeSection).toMatch(/suffix reconciliation[\s\S]*reservation[\s\S]*land-status/iu);
     expect(nativeSection).toMatch(/terminal `failed`[\s\S]*exact `none-landed`[\s\S]*new\s+interlock/iu);
     expect(nativeSection).toMatch(/partial-landed[\s\S]*stop/iu);

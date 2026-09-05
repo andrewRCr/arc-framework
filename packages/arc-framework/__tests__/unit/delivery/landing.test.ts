@@ -9,6 +9,7 @@ import {
 } from "../../../src/lib/delivery/landing.js";
 import {
   attachDeliveryOperationEffectIdentity,
+  beginNativeDeliverySubmission,
   reserveDeliveryOperation,
 } from "../../../src/lib/delivery/operation.js";
 import type { DeliveryPositionFactsV1 } from "../../../src/lib/delivery/position.js";
@@ -680,6 +681,7 @@ describe("delivery landing", () => {
       operationId: "operation-applied-sequential",
       kind: "land",
       mode: "sequential",
+      nativeArm: null,
       affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 7,
       before,
@@ -801,6 +803,7 @@ describe("delivery landing", () => {
               ...common,
               kind: "land" as const,
               mode: entry.mode,
+              nativeArm: entry.mode === "native" ? "linked-atomic" as const : null,
               effect: {
                 providerId: "github", repository: "o/r", changeRequestId: "41",
                 headSha: "4".repeat(40), baseRef: "main", targetRef: "refs/heads/main",
@@ -826,9 +829,13 @@ describe("delivery landing", () => {
               : common;
       const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, request);
       if (reserved.status !== "reserved") throw new Error(`fixture must reserve ${entry.kind}`);
-      const attached = entry.kind === "land" && entry.mode === "native"
+      const submitting = entry.kind === "land" && entry.mode === "native"
+        ? beginNativeDeliverySubmission({ revision: 8, value: reserved.state }, operationId)
+        : null;
+      if (submitting?.status === "refused") throw new Error("fixture must begin native submission");
+      const attached = submitting?.status === "begun"
         ? attachDeliveryOperationEffectIdentity(
-            { revision: 8, value: reserved.state },
+            { revision: 9, value: submitting.state },
             operationId,
             { providerId: "github", effectId: "native-effect-1" },
           )
@@ -836,7 +843,7 @@ describe("delivery landing", () => {
       if (attached?.status === "refused") throw new Error("fixture must attach native effect identity");
       const current = attached === null
         ? { revision: 8, value: reserved.state }
-        : { revision: 9, value: attached.state };
+        : { revision: 10, value: attached.state };
       const writes: DeliveryStateV1[] = [];
       const hostAssigned = entry.kind === "publish" || entry.kind === "land" || entry.kind === "top-remedy";
       const result = await reconcileDeliveryExecution({
@@ -904,7 +911,7 @@ describe("delivery landing", () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
-  it("does not clear an identity-less native landing from a none-landed observation", async () => {
+  it("does not clear an identity-less submitting native landing from a none-landed observation", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
     const members = state.members.slice(0, -1);
@@ -913,6 +920,7 @@ describe("delivery landing", () => {
       operationId: "operation-native-without-identity",
       kind: "land",
       mode: "native",
+      nativeArm: "linked-atomic",
       affectedDeliverableIds: members.map((member) => member.deliverableId),
       expectedStateRevision: 7,
       before: snapshot,
@@ -929,14 +937,16 @@ describe("delivery landing", () => {
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture must reserve native landing");
+    const submitting = beginNativeDeliverySubmission({ revision: 8, value: reserved.state }, reserved.state.activeOperation!.operationId);
+    if (submitting.status === "refused") throw new Error("fixture must begin native submission");
     const publish = vi.fn(async (_planId, value: DeliveryStateV1) => ({
       status: "ok" as const,
-      value: { revision: 9, value },
+      value: { revision: 10, value },
     }));
 
     await expect(reconcileDeliveryExecution({
       planId: plan.planId,
-      current: { revision: 8, value: reserved.state },
+      current: { revision: 9, value: submitting.state },
       observation: {
         observe: async () => ({ status: "observed" as const, value: { outcome: "not-applied" as const } }),
       },
@@ -1109,6 +1119,7 @@ describe("delivery landing", () => {
       operationId: "operation-native-recovery",
       kind: "land",
       mode: "native",
+      nativeArm: "linked-atomic",
       affectedDeliverableIds: members.map((member) => member.deliverableId),
       expectedStateRevision: 7,
       before: snapshot,
@@ -1125,7 +1136,15 @@ describe("delivery landing", () => {
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture must reserve native landing");
-    const current = { revision: 8, value: reserved.state };
+    const submitting = beginNativeDeliverySubmission({ revision: 8, value: reserved.state }, reserved.state.activeOperation!.operationId);
+    if (submitting.status === "refused") throw new Error("fixture must begin native submission");
+    const attached = attachDeliveryOperationEffectIdentity(
+      { revision: 9, value: submitting.state },
+      reserved.state.activeOperation!.operationId,
+      { providerId: "github", effectId: "native-effect-1" },
+    );
+    if (attached.status === "refused") throw new Error("fixture must attach native effect identity");
+    const current = { revision: 10, value: attached.state };
     const cases = [
       { status: "refused" as const, reason: "native-effect-pending" as const },
       { status: "refused" as const, reason: "native-effect-ambiguous" as const },

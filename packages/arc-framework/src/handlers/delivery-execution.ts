@@ -545,6 +545,27 @@ const NativeStatusSchema = z.strictObject({
   request: NativeMergeRequestSchema,
   remote: z.string().min(1).default("origin"),
 });
+const NativePreparedRecoveryResultSchema = z.strictObject({
+  status: z.literal("prepared"),
+  transition: z.literal("preserved"),
+  action: z.literal("delivery-native-land-submit"),
+  presentation: z.strictObject({
+    operationId: z.string().min(1),
+    members: z.array(NativeLandingMemberSchema).min(1),
+    consequence: z.string().min(1),
+  }),
+  submitAction: z.strictObject({
+    command: z.literal("arc delivery native land-submit - --json"),
+    input: NativeSubmitSchema,
+  }),
+  recommendedActionText: z.string().min(1),
+});
+const NativeMemberNotReadyResultSchema = z.strictObject({
+  status: z.literal("blocked"),
+  reason: z.literal("member-not-ready"),
+  unreadyMembers: z.array(NativeLandingMemberSchema).min(1),
+  recommendedActionText: z.string().min(1),
+});
 const RefreshTriggerSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("landing-refused"),
@@ -1090,6 +1111,8 @@ const REVIEW_FIX_ROUTING_REQUIRED_TEXT = "Select the delivery member that owns t
 const ResultSchema = z.union([
   ReviewFixContinuationResultSchema,
   DeliveryRecoveryResultV1Schema,
+  NativePreparedRecoveryResultSchema,
+  NativeMemberNotReadyResultSchema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({
@@ -4518,7 +4541,10 @@ async function executeDeliveryCommand(
       const submit = NativeSubmitSchema.parse(parsed);
       const operation = current.value.activeOperation;
       const nativeResult = await submitReservedNativeDeliveryMerge({
-        planId: submit.planId, current, operationId: submit.operationId, request: submit.request,
+        planId: submit.planId,
+        current,
+        operationId: submit.operationId,
+        request: submit.request,
       }, {
         host, stateStore,
         reobserveSelection: async () => {
@@ -4584,8 +4610,8 @@ async function executeDeliveryCommand(
       }
       return settleAppliedNativeLanding(
         plan,
-        current,
-        { revision: current.revision, value: nativeResult.projected },
+        nativeResult.before,
+        { revision: nativeResult.before.revision, value: nativeResult.projected },
         submit.request.repository,
         operation.effect.targetRef,
         submit.remote,
@@ -4596,7 +4622,13 @@ async function executeDeliveryCommand(
     if (operation === null || operation.kind !== "land" || operation.mode !== "native") {
       return { status: "blocked", reason: "effect-identity-missing", recommendedActionText: "Restore the persisted native land reservation before polling." };
     }
-    const nativeResult = await reconcileReservedNativeDeliveryMerge({ planId: status.planId, current, request: status.request }, {
+    const nativeResult = await reconcileReservedNativeDeliveryMerge({
+      planId: status.planId,
+      current,
+      request: status.request,
+      treeRoot: cwd,
+      remote: status.remote,
+    }, {
       host, stateStore,
       observeEffect: () => observeNativeDeliveryEffect(
         host, current.value, status.request.repository, operation, exec, cwd, status.remote,
@@ -4605,8 +4637,8 @@ async function executeDeliveryCommand(
     if (nativeResult.status !== "applied") return nativeResult;
     return settleAppliedNativeLanding(
       plan,
-      current,
-      { revision: current.revision, value: nativeResult.projected },
+      nativeResult.before,
+      { revision: nativeResult.before.revision, value: nativeResult.projected },
       status.request.repository,
       operation.effect.targetRef,
       status.remote,
@@ -5208,6 +5240,8 @@ async function executeDeliveryCommand(
         planId: parsed.planId,
         current: currentState,
         request: nativeRequest,
+        treeRoot: cwd,
+        remote: parsed.remote,
       }, {
         host,
         stateStore,
@@ -5224,8 +5258,8 @@ async function executeDeliveryCommand(
       if (nativeResult.status !== "applied") return nativeResult;
       return settleAppliedNativeLanding(
         currentPlan,
-        currentState,
-        { revision: currentState.revision, value: nativeResult.projected },
+        nativeResult.before,
+        { revision: nativeResult.before.revision, value: nativeResult.projected },
         parsed.repository,
         activeOperation.effect.targetRef,
         parsed.remote,

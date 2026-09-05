@@ -870,3 +870,27 @@ existing selector-free correction driver so any owed exact terminal rebind prece
 continue` and `refused / rerun-status` still re-enter status directly because they create no new branch head. This is
 a route correction only: no new state, driver behavior, Candidate renewal, review authority, applicability judgment,
 convergence policy, or provider spend is introduced. Task 7.7.R.ae owns the workflow contract and focused regression.
+
+### Amendment 15 — prepared native landing recovery and bounded fan-out (2026-09-05)
+
+The first seven-member atomic landing preparation crossed the caller's 30-second execution window while serially
+rechecking each member. Its process continued and persisted operation `a36abfee-c91e-46c0-87e7-30fb54f521c6`, but
+the response was lost. A retry loaded the pre-reservation revision and later refused after the first process advanced
+state. Canonical reconciliation then treated the reservation's null provider identity as a possibly lost synchronous
+submission and returned `submission-before-persist-unresolved`. Fresh host inspection proved all seven exact heads
+still open, draft, green, and unmerged; session history proved `land-submit` had never been invoked. The conservative
+reducer was correct for a submitted effect, but the record could not represent the actual prepared-only state.
+
+Decided behavior: native reservations persist both their selected `linked-single | linked-atomic` arm and a
+`prepared | submitting` phase. A prepared reservation reconstructs the exact member/head set, consequence, and
+submit-ready action and returns to the same integration interlock without host-effect observation. The submit path
+does every read-only revalidation first, releases configured locks, then compare-and-set publishes `submitting`
+immediately before provider submission; a failed phase write performs no provider call. A submitting reservation
+without an identity retains the existing fail-closed recovery because the call may have crossed the boundary.
+
+Preparation fans independent readiness reads out concurrently and returns every unready member/head in canonical
+plan order. This directly removes the observed roughly three-minute seven-member serial wait and makes any refusal
+actionable in one result. It does not parallelize provider mutation, add a retry loop, weaken per-member readiness,
+or authorize landing. The current pre-release reservation is regenerated in the new shape from its exact selected
+action; no compatibility reader or migration surface is added. Task 9.1.R.n owns the focused test-first repair and
+the replayed live atomic preparation is its acceptance run before the integration interlock.

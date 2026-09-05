@@ -56,6 +56,7 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       ...reservationFields,
       kind: z.literal("land"),
       mode: z.enum(["sequential", "native"]),
+      nativeArm: z.enum(["linked-single", "linked-atomic"]).nullable(),
       effect: DeliveryLandEffectV1Schema,
     }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
@@ -423,6 +424,10 @@ export function reserveDeliveryOperation(
       }
     }
   }
+  if (parsedRequest.data.kind === "land"
+    && ((parsedRequest.data.mode === "native") !== (parsedRequest.data.nativeArm !== null))) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
   if (parsedRequest.data.kind === "rewrite" && parsedRequest.data.terminalAuthoringMovement !== undefined
     && ((parsedRequest.data.mode !== "provider-refresh" && parsedRequest.data.mode !== "provider-adoption")
       || !terminalAuthoringMovementMatchesState(
@@ -478,6 +483,13 @@ export function reserveDeliveryOperation(
         ? { effect: parsedRequest.data.effect }
         : {}),
       ...(parsedRequest.data.kind === "land" ? { effectIdentity: null } : {}),
+      ...(parsedRequest.data.kind === "land"
+        ? {
+            native: parsedRequest.data.nativeArm === null
+              ? null
+              : { arm: parsedRequest.data.nativeArm, phase: "prepared" as const },
+          }
+        : {}),
     },
   });
   if (!reserved.success) return { status: "refused", reason: "operation-invalid" };
@@ -487,6 +499,42 @@ export function reserveDeliveryOperation(
 export type AttachDeliveryOperationEffectIdentityResult =
   | { readonly status: "attached" | "already-attached"; readonly state: DeliveryStateV1 }
   | { readonly status: "refused"; readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "identity-invalid" | "identity-conflict" };
+
+export type BeginNativeDeliverySubmissionResult =
+  | { readonly status: "begun"; readonly state: DeliveryStateV1 }
+  | {
+      readonly status: "refused";
+      readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "already-submitting";
+    };
+
+/** Advance one exact prepared native reservation to submitting before provider access. */
+export function beginNativeDeliverySubmission(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+  operationId: string,
+): BeginNativeDeliverySubmissionResult {
+  const active = validateDeliveryActiveOperation(current);
+  if (active.status === "blocked") {
+    return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
+  }
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.native === null || active.operation.operationId !== operationId) {
+    return { status: "refused", reason: "wrong-operation" };
+  }
+  if (active.operation.native.phase !== "prepared" || active.operation.effectIdentity !== null) {
+    return { status: "refused", reason: "already-submitting" };
+  }
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...active.state,
+    activeOperation: {
+      ...active.operation,
+      stateRevision: current.revision,
+      native: { ...active.operation.native, phase: "submitting" },
+    },
+  });
+  return parsed.success
+    ? { status: "begun", state: parsed.data }
+    : { status: "refused", reason: "state-invalid" };
+}
 
 /** Attach one provider-assigned async identity to the existing land reservation. */
 export function attachDeliveryOperationEffectIdentity(
@@ -499,6 +547,7 @@ export function attachDeliveryOperationEffectIdentity(
     return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
   }
   if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.native?.phase !== "submitting"
     || active.operation.operationId !== operationId) {
     return { status: "refused", reason: "wrong-operation" };
   }

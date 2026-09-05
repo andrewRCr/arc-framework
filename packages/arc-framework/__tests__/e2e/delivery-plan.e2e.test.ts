@@ -493,6 +493,7 @@ describe("arc delivery", () => {
     await mkdir(fakeBin);
     await writeFile(fakeGh, [
       "#!/bin/sh",
+      "if [ \"${ARC_FAKE_FAIL_HOST_ACCESS:-0}\" = \"1\" ]; then echo 'unexpected host access' >&2; exit 97; fi",
       "if [ \"${ARC_FAKE_GH_MODE:-registered}\" = \"degrade\" ]; then",
       "  case \"$*\" in *unstack*) printf '{}\\n'; exit 0;; esac",
       "  if [ ! -f \"$ARC_FAKE_GH_COUNTER\" ]; then",
@@ -681,6 +682,9 @@ describe("arc delivery", () => {
     expect(JSON.parse(flattenedPrepare.stdout)).toMatchObject({
       status: "blocked",
       reason: "member-not-ready",
+      unreadyMembers: nativeMembers.map(({ deliverableId, changeRequestId, headSha }) => ({
+        deliverableId, changeRequestId, headSha,
+      })),
     });
 
     const unreviewed = await runArcWithStdin(
@@ -693,6 +697,9 @@ describe("arc delivery", () => {
     expect(JSON.parse(unreviewed.stdout)).toMatchObject({
       status: "blocked",
       reason: "member-not-ready",
+      unreadyMembers: nativeMembers.map(({ deliverableId, changeRequestId, headSha }) => ({
+        deliverableId, changeRequestId, headSha,
+      })),
     });
 
     const top = state.members.at(-1)!;
@@ -745,7 +752,20 @@ describe("arc delivery", () => {
       })),
     });
 
-    const submitRequest = {
+    const preparedStatePath = join(states, `${plan.planId}.json`);
+    const preparedState = await readFile(preparedStatePath, "utf8");
+    const recovered = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: plan.planId, repository: "owner/repo", remote: "origin" })}\n`,
+      { env: { ...env, ARC_FAKE_FAIL_HOST_ACCESS: "1" } },
+    );
+    expect(recovered.exitCode, `${recovered.stderr}\n${recovered.stdout}`).toBe(0);
+    const recoveredResult = JSON.parse(recovered.stdout) as {
+      status: string;
+      submitAction: { input: Record<string, unknown> };
+    };
+    const expectedSubmitRequest = {
       planId: plan.planId,
       operationId,
       request: {
@@ -756,7 +776,33 @@ describe("arc delivery", () => {
         mergeMethod: "merge",
       },
       treeRoot: repository,
+      remote: "origin",
     };
+    expect(recoveredResult).toEqual({
+      schemaVersion: 1,
+      command: "delivery reconcile",
+      status: "prepared",
+      transition: "preserved",
+      action: "delivery-native-land-submit",
+      presentation: {
+        operationId,
+        members: nativeMembers.map(({ deliverableId, changeRequestId, headSha }) => ({
+          deliverableId, changeRequestId, headSha,
+        })),
+        consequence:
+          "Atomically land the displayed complete non-terminal remainder. A residual race remains between final "
+          + "observation and the host prefix snapshot.",
+      },
+      submitAction: {
+        command: "arc delivery native land-submit - --json",
+        input: expectedSubmitRequest,
+      },
+      recommendedActionText:
+        "Present the preserved native landing consequence and exact member heads, then obtain integration approval "
+        + "before invoking the submit action unchanged.",
+    });
+    expect(await readFile(preparedStatePath, "utf8")).toBe(preparedState);
+    const submitRequest = recoveredResult.submitAction.input;
     const flattenedSubmit = await runArcWithStdin(
       ["delivery", "native", "land-submit", "-", "--json"],
       repository,
