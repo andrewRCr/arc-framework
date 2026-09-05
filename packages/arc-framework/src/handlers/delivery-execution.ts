@@ -2305,6 +2305,32 @@ async function executeDeliveryCommand(
         }
         return { status: "defer-acknowledgement" };
       }
+      let candidateSubjectDigest: string;
+      if (recordClass === "boundary-projection") {
+        const locus = await resolveReviewFixLocus();
+        if (locus === null || locus.name !== workUnitId) {
+          return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+        }
+        try {
+          const effectiveCandidate = await projectGitCandidateEffectiveTarget({
+            cwd,
+            name: locus.name,
+            baseBranch: locus.baseBranch,
+            record: currentCandidate,
+            exec,
+            rawExec: createRawGitExec(cwd),
+          });
+          if (effectiveCandidate.state !== "current"
+            || effectiveCandidate.candidateId !== currentBoundary.candidateId) {
+            return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+          }
+          candidateSubjectDigest = effectiveCandidate.recognizedTarget.subject.subjectDigest;
+        } catch {
+          return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+        }
+      } else {
+        candidateSubjectDigest = reduceCandidateDurableBaseline(currentCandidate).target.subject.subjectDigest;
+      }
       const records = reconstructDeliveryReviewFixExpectedRecords({
         recordClass,
         plan: planRead.value,
@@ -2313,6 +2339,7 @@ async function executeDeliveryCommand(
         currentCandidate,
         beforeBoundary,
         currentBoundary,
+        candidateSubjectDigest,
         candidateRecord: { path: candidatePath, content: currentCandidateContent },
         boundaryRecord: { path: boundaryPath, content: worktreeBoundaryContent },
       });
@@ -3188,7 +3215,7 @@ async function executeDeliveryCommand(
           ...(resultStatus === "already-acknowledged" ? { replayed: true } : {}),
         };
       },
-      carryBoundary: async ({ planId, stateRevision }) => {
+      carryBoundary: async ({ planId, stateRevision, candidateSubjectDigest }) => {
         const [planRead, stateRead] = await Promise.all([
           planStore.readCurrent(planId),
           stateStore.read(planId),
@@ -3205,14 +3232,35 @@ async function executeDeliveryCommand(
         if (candidate.record === null || boundary.boundary === null) {
           return { status: "refused" as const, reason: "boundary-carry-authority-unavailable" };
         }
-        const candidateBaseline = reduceCandidateDurableBaseline(candidate.record);
+        const locus = await resolveReviewFixLocus();
+        if (locus === null || locus.name !== planRead.value.workUnitId) {
+          return { status: "refused" as const, reason: "boundary-carry-position-moved" };
+        }
+        let effectiveCandidate;
+        try {
+          effectiveCandidate = await projectGitCandidateEffectiveTarget({
+            cwd,
+            name: locus.name,
+            baseBranch: locus.baseBranch,
+            record: candidate.record,
+            exec,
+            rawExec: createRawGitExec(cwd),
+          });
+        } catch {
+          return { status: "refused" as const, reason: "boundary-carry-position-moved" };
+        }
+        if (effectiveCandidate.state !== "current"
+          || effectiveCandidate.candidateId !== boundary.boundary.candidateId
+          || effectiveCandidate.recognizedTarget.subject.subjectDigest !== candidateSubjectDigest) {
+          return { status: "refused" as const, reason: "boundary-carry-position-moved" };
+        }
         const carried = carryDeliveryReviewFixPublicBoundary({
           plan: planRead.value,
           state: stateRead.value,
           boundary: boundary.boundary,
           candidateId: candidate.record.attestation.candidateId,
           sourceCandidateSubjectDigest: boundary.boundary.candidateSubjectDigest ?? "",
-          candidateSubjectDigest: candidateBaseline.target.subject.subjectDigest,
+          candidateSubjectDigest,
         });
         if (carried.status === "refused") return carried;
         const path = await writeSubmissionBoundary(cwd, carried.boundary, boundary.version);

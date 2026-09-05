@@ -939,6 +939,7 @@ describe("delivery review-fix continuation projection", () => {
         nextAction: "renew-public-continuation",
         planId: plan.planId,
         stateRevision: 10,
+        candidateSubjectDigest: `sha256:${"1".repeat(64)}`,
         attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] },
         recommendedActionText,
       },
@@ -946,6 +947,7 @@ describe("delivery review-fix continuation projection", () => {
       status: "boundary-carry-required",
       planId: plan.planId,
       stateRevision: 10,
+      candidateSubjectDigest: `sha256:${"1".repeat(64)}`,
       recommendedActionText,
     });
   });

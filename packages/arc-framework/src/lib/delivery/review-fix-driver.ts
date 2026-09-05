@@ -34,6 +34,7 @@ export type DeliveryReviewFixDriveStep<TAction extends DeliveryReviewFixDriveDis
       readonly status: "boundary-carry-required";
       readonly planId: string;
       readonly stateRevision: number;
+      readonly candidateSubjectDigest: string;
       readonly recommendedActionText?: string;
     }
   | ({ readonly status: Exclude<string, "dispatch"> } & Readonly<Record<string, unknown>>);
@@ -55,10 +56,12 @@ function isDeliveryReviewFixBoundaryCarryStep<TAction extends DeliveryReviewFixD
   readonly status: "boundary-carry-required";
   readonly planId: string;
   readonly stateRevision: number;
+  readonly candidateSubjectDigest: string;
 }> {
   return step.status === "boundary-carry-required"
     && "planId" in step && typeof step.planId === "string"
-    && "stateRevision" in step && typeof step.stateRevision === "number";
+    && "stateRevision" in step && typeof step.stateRevision === "number"
+    && "candidateSubjectDigest" in step && typeof step.candidateSubjectDigest === "string";
 }
 
 export type DeliveryReviewFixDriveEffect =
@@ -100,7 +103,11 @@ export interface DeliveryReviewFixDrivePorts<TAction extends DeliveryReviewFixDr
   execute(action: TAction, context: DeliveryReviewFixDriveExecuteContext): Promise<
     { readonly status: string; readonly replayed?: boolean } & Readonly<Record<string, unknown>>
   >;
-  carryBoundary?(input: { readonly planId: string; readonly stateRevision: number }): Promise<
+  carryBoundary?(input: {
+    readonly planId: string;
+    readonly stateRevision: number;
+    readonly candidateSubjectDigest: string;
+  }): Promise<
     | {
         readonly status: "carried";
         readonly path: string;
@@ -277,6 +284,7 @@ export async function driveDeliveryReviewFixContinuation<
           kind: "boundary-carry",
           planId: projected.step.planId,
           stateRevision: projected.step.stateRevision,
+          candidateSubjectDigest: projected.step.candidateSubjectDigest,
         },
         progress: projected.progress,
       });
@@ -306,6 +314,7 @@ export async function driveDeliveryReviewFixContinuation<
       const carried = await ports.carryBoundary({
         planId: projected.step.planId,
         stateRevision: projected.step.stateRevision,
+        candidateSubjectDigest: projected.step.candidateSubjectDigest,
       });
       if (carried.status === "refused") {
         return {

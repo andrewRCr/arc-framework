@@ -690,6 +690,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       status: "boundary-carry-required" as const,
       planId: entry.planId,
       stateRevision: entry.stateRevision,
+      candidateSubjectDigest: entry.candidateSubjectDigest,
       recommendedActionText: entry.recommendedActionText,
     };
   }

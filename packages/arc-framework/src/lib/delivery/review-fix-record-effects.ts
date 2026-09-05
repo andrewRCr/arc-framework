@@ -6,10 +6,7 @@ import { canonicalDigest, canonicalize, sortByCanonicalBytes } from "../kernel/i
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import { carryDeliveryReviewFixPublicBoundary } from "./review-fix.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
-import {
-  reduceCandidateDurableBaseline,
-  type CandidateManagedRecordV1,
-} from "../work-unit/candidate-attestation.js";
+import type { CandidateManagedRecordV1 } from "../work-unit/candidate-attestation.js";
 import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
 import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
 import type { IntegrationBoundaryLocus } from
@@ -61,6 +58,7 @@ export function reconstructDeliveryReviewFixExpectedRecords(input: {
   readonly currentCandidate: CandidateManagedRecordV1;
   readonly beforeBoundary: IntegrationBoundaryLocus;
   readonly currentBoundary: IntegrationBoundaryLocus;
+  readonly candidateSubjectDigest: string;
   readonly candidateRecord: {
     readonly path: string;
     readonly content: string;
@@ -77,14 +75,13 @@ export function reconstructDeliveryReviewFixExpectedRecords(input: {
     if (!isDeliveryReviewFixVerificationResponseAppend(beforeCandidate, currentCandidate)) return null;
   }
   if (canonicalize(input.beforeBoundary) === canonicalize(input.currentBoundary)) return null;
-  const baseline = reduceCandidateDurableBaseline(currentCandidate);
   const carried = carryDeliveryReviewFixPublicBoundary({
     plan: input.plan,
     state: input.state,
     boundary: input.beforeBoundary,
     candidateId: currentCandidate.attestation.candidateId,
     sourceCandidateSubjectDigest: input.beforeBoundary.candidateSubjectDigest ?? "",
-    candidateSubjectDigest: baseline.target.subject.subjectDigest,
+    candidateSubjectDigest: input.candidateSubjectDigest,
   });
   if (carried.status === "refused"
     || canonicalize(carried.boundary) !== canonicalize(input.currentBoundary)) {

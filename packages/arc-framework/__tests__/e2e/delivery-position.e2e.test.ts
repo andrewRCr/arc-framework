@@ -2077,19 +2077,41 @@ describe("arc delivery position", () => {
       revision: reviewedTerminal.coordinates.head,
       exec: createExecaGitExec(),
     });
+    const durableRevision = await git(fixture.repository, ["rev-parse", `${reviewedTerminalHead}^`]);
+    const durableTarget = await collectGitCandidateTarget({
+      cwd: fixture.repository,
+      name: fixture.plan.workUnitId,
+      baseBranch: "main",
+      baseRevision: highestLanded.coordinates.head,
+      revision: durableRevision,
+      exec: createExecaGitExec(),
+    });
+    expect(durableTarget.subject.subjectDigest).not.toBe(candidateTarget.subject.subjectDigest);
+    const durableSubject = durableTarget.subject;
+    const attestation = createCandidateAttestation({
+      workUnit: fixture.plan.workUnitId,
+      subject: durableSubject,
+      baseRevision: durableRevision,
+      attestedBy: "test-user",
+      attestedAt: "2026-09-05T18:00:00.000Z",
+      verificationEvidenceRef: "verification://settled-teardown",
+    });
     const candidate: CandidateManagedRecordV1 = {
       schemaVersion: 1,
       semanticsVersion: "candidate-attestation/v1",
-      attestation: createCandidateAttestation({
-        workUnit: fixture.plan.workUnitId,
-        subject: candidateTarget.subject,
-        baseRevision: candidateTarget.revision,
-        attestedBy: "test-user",
-        attestedAt: "2026-09-05T18:00:00.000Z",
-        verificationEvidenceRef: "verification://settled-teardown",
-      }),
-      subject: candidateTarget.subject,
-      transitions: [],
+      attestation,
+      subject: durableSubject,
+      transitions: [createCandidateVerificationResponseEvidence({
+        candidateId: attestation.candidateId,
+        oldTarget: { revision: durableRevision, subject: durableSubject },
+        newTarget: candidateTarget,
+        authorityRef: canonicalDigest({ continuation: "settled-teardown" }),
+        verifiedBy: "test-user",
+        verifiedAt: "2026-09-05T18:01:00.000Z",
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://settled-teardown"],
+        implementationChanged: true,
+      })],
       lineageAttestations: [],
     };
     await writeFile(join(activeDir, `meta-${fixture.plan.workUnitId}.md`), [
@@ -2134,7 +2156,7 @@ describe("arc delivery position", () => {
       workUnit: fixture.plan.workUnitId,
       branch,
       candidateId: candidate.attestation.candidateId,
-      candidateSubjectDigest: candidate.subject.subjectDigest,
+      candidateSubjectDigest: durableSubject.subjectDigest,
       reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
     });
@@ -2150,7 +2172,7 @@ describe("arc delivery position", () => {
       ...projectCorrectiveDeliveryStatusBoundary({
         workUnit: fixture.plan.workUnitId,
         candidateId: candidate.attestation.candidateId,
-        candidateSubjectDigest: candidate.subject.subjectDigest,
+        candidateSubjectDigest: durableSubject.subjectDigest,
         supersedesCandidateId: null,
         sourceBoundary,
         deliveryContinuation: publicContinuation.continuation,
@@ -2176,16 +2198,6 @@ describe("arc delivery position", () => {
     await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "record terminal review closure"]);
     await git(fixture.repository, ["push", "origin", `HEAD:refs/heads/${branch}`]);
-
-    const entry = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
-      fixture.repository,
-      `${JSON.stringify({ entryMode: "integrating" })}\n`,
-      { env: fixture.env },
-    );
-    expect(entry.exitCode, `${entry.stderr}\n${entry.stdout}`).toBe(0);
-    expect(JSON.parse(entry.stdout), entry.stdout).toMatchObject({ status: "resolve-delivery-status" });
-
     const completedDir = join(
       fixture.repository,
       ".arc",
@@ -2211,6 +2223,32 @@ describe("arc delivery position", () => {
     await git(fixture.repository, ["add", ".arc/active", ".arc/completed"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "archive terminal delivery"]);
     await git(fixture.repository, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+    const currentState = await fixture.states.read(fixture.plan.planId);
+    if (currentState.status !== "ok" || currentState.value === null) {
+      throw new Error("settled teardown state must remain readable before the revision-only carry");
+    }
+    const archiveHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+    const archiveTree = await git(fixture.repository, ["rev-parse", "HEAD^{tree}"]);
+    const reboundPublication = await fixture.states.publish(
+      fixture.plan.planId,
+      {
+        ...currentState.value.value,
+        members: currentState.value.value.members.map((member) => member.deliverableId === terminal.deliverableId
+          ? {
+              ...member,
+              coordinates: {
+                ...member.coordinates!,
+                head: archiveHead,
+                tree: archiveTree,
+              },
+            }
+          : member),
+      },
+      currentState.value.revision,
+    );
+    if (reboundPublication.status !== "ok") {
+      throw new Error("settled teardown terminal coordinates must rebind");
+    }
     await writeFile(
       join(fixture.repository, ".git", "info", "exclude"),
       "\n.arc/system/.internal/worktree-marker.json\n",
@@ -2237,7 +2275,26 @@ describe("arc delivery position", () => {
         },
       },
     });
-
+    const carriedBoundary = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      archivedCheckout,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(carriedBoundary.exitCode, `${carriedBoundary.stderr}\n${carriedBoundary.stdout}`).toBe(0);
+    expect(JSON.parse(carriedBoundary.stdout), carriedBoundary.stdout).toMatchObject({
+      status: "review-status-required",
+      effectLog: expect.arrayContaining([
+        expect.objectContaining({ kind: "boundary-carry" }),
+        expect.objectContaining({ kind: "commit", recordClass: "boundary-projection" }),
+        expect.objectContaining({ kind: "push" }),
+      ]),
+    });
+    const boundaryAfterCarry = JSON.parse(await readFile(
+      join(archivedCheckout, resolveSubmissionBoundaryPath(fixture.plan.workUnitId)),
+      "utf8",
+    )) as { candidateSubjectDigest: string };
+    expect(boundaryAfterCarry.candidateSubjectDigest).toBe(candidateTarget.subject.subjectDigest);
     const archivedStatus = await runArc(
       ["review", "status", "--work-unit", fixture.plan.workUnitId, "--json"],
       archivedCheckout,
@@ -2293,9 +2350,13 @@ describe("arc delivery position", () => {
       },
       nextAction: "teardown-member",
       selectedDeliverableId: highestLanded.deliverableId,
-      effectLog: [
-        { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
-      ],
+      effectLog: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "dispatch",
+          actionKind: "delivery-reconcile",
+          resultStatus: "rebound",
+        }),
+      ]),
     });
   });
 

@@ -223,6 +223,7 @@ describe("delivery review-fix driver", () => {
           status: "boundary-carry-required",
           planId: "plan-1",
           stateRevision: 8,
+          candidateSubjectDigest: `sha256:${"b".repeat(64)}`,
         },
         progress,
       })
@@ -230,12 +231,21 @@ describe("delivery review-fix driver", () => {
         step: { status: "review-status-required", nextAction: "respond-to-findings" },
         progress: { ...progress, boundaryVersion: "boundary-2" },
       });
-    const carryBoundary = vi.fn().mockResolvedValue({
-      status: "carried",
-      path: ".arc/active/integration-boundary.json",
-      candidateId: `sha256:${"a".repeat(64)}`,
-      stateRevision: 8,
-    });
+    const expectedDigest = `sha256:${"b".repeat(64)}`;
+    const carryBoundary = async (input: {
+      planId: string;
+      stateRevision: number;
+      candidateSubjectDigest: string;
+    }) => input.planId === "plan-1"
+        && input.stateRevision === 8
+        && input.candidateSubjectDigest === expectedDigest
+      ? {
+          status: "carried" as const,
+          path: ".arc/active/integration-boundary.json",
+          candidateId: `sha256:${"a".repeat(64)}`,
+          stateRevision: 8,
+        }
+      : { status: "refused" as const, reason: "unexpected-boundary-carry" };
 
     await expect(driveDeliveryReviewFixContinuation({
       project,
@@ -251,7 +261,65 @@ describe("delivery review-fix driver", () => {
         stateRevision: 8,
       }],
     });
-    expect(carryBoundary).toHaveBeenCalledWith({ planId: "plan-1", stateRevision: 8 });
+  });
+
+  it("does not conflate different effective Candidate subjects at one delivery position", async () => {
+    const firstDigest = `sha256:${"b".repeat(64)}`;
+    const secondDigest = `sha256:${"c".repeat(64)}`;
+    const project = vi.fn()
+      .mockResolvedValueOnce({
+        step: {
+          status: "boundary-carry-required",
+          planId: "plan-1",
+          stateRevision: 8,
+          candidateSubjectDigest: firstDigest,
+        },
+        progress,
+      })
+      .mockResolvedValueOnce({
+        step: {
+          status: "boundary-carry-required",
+          planId: "plan-1",
+          stateRevision: 8,
+          candidateSubjectDigest: secondDigest,
+        },
+        progress,
+      })
+      .mockResolvedValueOnce({
+        step: { status: "review-status-required", nextAction: "respond-to-findings" },
+        progress,
+      });
+    const expectedDigests = [firstDigest, secondDigest];
+    let carriedCount = 0;
+    const carryBoundary = async (input: {
+      planId: string;
+      stateRevision: number;
+      candidateSubjectDigest: string;
+    }) => input.planId === "plan-1"
+        && input.stateRevision === 8
+        && input.candidateSubjectDigest === expectedDigests[carriedCount]
+      ? {
+          status: "carried" as const,
+          path: ".arc/active/integration-boundary.json",
+          candidateId: `sha256:${"a".repeat(64)}`,
+          stateRevision: 8,
+          acknowledged: ++carriedCount,
+        }
+      : { status: "refused" as const, reason: "unexpected-boundary-carry" };
+
+    const result = await driveDeliveryReviewFixContinuation({
+      project,
+      execute: vi.fn(),
+      carryBoundary,
+    });
+
+    expect(result).toMatchObject({
+      status: "review-status-required",
+      effectLog: [
+        { kind: "boundary-carry", stateRevision: 8 },
+        { kind: "boundary-carry", stateRevision: 8 },
+      ],
+    });
   });
 
   it("settles machine-owned record commits and pushes before returning an attended stop", async () => {

@@ -4951,6 +4951,26 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           tests passed, with one intentional skip each. The live acceptance reached `teardown-member` for
           `review-fan-out` with no hosted request or provider spend.
 
+- _Forward correction (2026-09-05):_ The machine-owned same-Candidate carry replaced the recognized effective
+  Candidate subject with its older durable root, corrupting the public boundary and blocking the next integration
+  entry. Preserve the entry projector's exact subject through transport, mutation, and interrupted-effect recovery.
+
+    - `[x]` **9.1.R.p Preserve the effective Candidate subject across public boundary carry**
+
+        - _Goal:_ A same-Candidate public carry retains the exact effective subject already recognized by entry, and
+          refuses fresh drift instead of substituting the Candidate's durable root.
+
+        - _Outcome:_ Candidate renewal now transports the recognized effective subject through correction
+          projection and driver progress, revalidates it against a fresh Git-backed Candidate projection immediately
+          before mutation, and uses the same projection when reconstructing an interrupted boundary effect. The
+          archive-before-merge acceptance fixture deliberately separates the durable root from the effective subject.
+
+        - _Verification:_ A behavioral fail-first reconstruction proved the old record-effect path returned no valid
+          boundary for the effective subject. Focused entry, continuation, driver, record-effect, and production E2E
+          coverage passed. Fresh Tier 3 passed Markdown and ARC contract lint, TypeScript and shell lint, both
+          typechecks, the production build, and the complete matrix: 865 test files and 11,448 tests passed, with one
+          intentional skip each.
+
 ---
 
 ## Success Criteria

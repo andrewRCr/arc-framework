@@ -1118,3 +1118,21 @@ already joined by ARC's locus reader. The active identity must equal that comple
 ambiguous, non-completed, differently owned, or differently named loci retain refusal. The exact offer revalidation,
 boundary version check, record content, commit, push, and mechanical record-advance proof remain unchanged. This is
 archived closeout parity for one existing mutation, not general completed-WU edit authority.
+
+### Amendment 29 — boundary carry preserves the effective Candidate subject (2026-09-05)
+
+The Amendment 28 live continuation reached its machine-owned same-Candidate carry at Delivery State revision 466,
+then made the public boundary unusable. Immediately before the carry, commit `844cf3739` correctly bound Candidate
+`cc4bd5d6e` to effective subject `094d736e8`; the Candidate's durable root remained `457783a44`. The generic carry
+reduced the durable Candidate baseline and rewrote the boundary to `457783a44`, after which public entry refused the
+same Candidate for a subject mismatch. The defect was the assumption that Candidate identity makes its durable root
+the current public subject; an effective Candidate may instead be recognized through its exact transition history.
+
+Decided behavior: entry projects the exact recognized effective subject into every Candidate-renewal action. The
+correction continuation and driver transport that digest unchanged and make it part of the drive's progress identity.
+Immediately before mutation, the execution handler reprojects the current Candidate from its bound Git locus and
+requires the same Candidate identity and effective subject; drift refuses before staging. Interrupted-effect
+reconstruction uses that same current projection instead of the durable root. The production archive-before-merge
+case now carries a deliberately different durable root and effective subject through the composed driver, while a
+focused behavioral test proves the old reconstruction returns no valid boundary. This is an exact-subject repair to
+the existing carry contract, not a new record, standing authority, migration path, or generalized recovery rule.

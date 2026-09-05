@@ -2135,6 +2135,16 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   The fallback grants no general mutation authority over completed work units; it preserves the existing terminal
   review decision path after configured archive-before-merge closeout.
 
+- **D9.27 Same-Candidate public carry preserves the projected effective subject — amended 2026-09-05 after D9.26
+  live acceptance.** A `candidate-renewal-required` entry action carries the exact effective Candidate subject
+  recognized by the current Git projection, not the Candidate record's durable root. Correction projection and the
+  driver transport that digest unchanged, include it in progress identity, and reproject immediately before the
+  boundary mutation. Carry proceeds only when the Candidate remains current, its identity remains exact, and the
+  fresh effective subject equals the authorized digest. Recovery of a staged boundary effect derives the same
+  effective subject through the current projection rather than reconstructing it from the durable root. Any changed
+  or unprovable subject refuses without writing. This adds no authority, record, or compatibility branch; it keeps
+  one existing public continuation bound to the Candidate subject the entry seam already recognized.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

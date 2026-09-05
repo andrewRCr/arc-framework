@@ -484,6 +484,7 @@ describe("delivery entry inspection", () => {
       nextAction: "renew-public-continuation",
       planId: plan.planId,
       stateRevision: fixture.stateRevision + 1,
+      candidateSubjectDigest: `sha256:${"1".repeat(64)}`,
       attestationAction: {
         argv: ["arc", "attest", plan.workUnitId, "--json"],
       },
@@ -511,6 +512,7 @@ describe("delivery entry inspection", () => {
       nextAction: "renew-public-continuation",
       planId: plan.planId,
       stateRevision: fixture.stateRevision + 1,
+      candidateSubjectDigest: fixture.candidateSubjectDigest,
       attestationAction: {
         argv: ["arc", "attest", plan.workUnitId, "--json"],
       },
@@ -539,6 +541,7 @@ describe("delivery entry inspection", () => {
       nextAction: "renew-public-continuation",
       planId: plan.planId,
       stateRevision: fixture.stateRevision + 1,
+      candidateSubjectDigest: `sha256:${"1".repeat(64)}`,
       attestationAction: {
         argv: ["arc", "attest", plan.workUnitId, "--json"],
       },

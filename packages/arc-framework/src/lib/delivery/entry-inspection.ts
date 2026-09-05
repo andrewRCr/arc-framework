@@ -172,6 +172,7 @@ export type DeliveryEntryInspectionResult =
       readonly nextAction: "renew-public-continuation";
       readonly planId: string;
       readonly stateRevision: number;
+      readonly candidateSubjectDigest: string;
       readonly attestationAction: {
         readonly argv: readonly ["arc", "attest", string, "--json"];
       };
@@ -324,6 +325,7 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     nextAction: z.literal("renew-public-continuation"),
     planId: DeliveryPlanIdSchema,
     stateRevision: z.number().int().positive(),
+    candidateSubjectDigest: DeliveryCanonicalDigestSchema,
     attestationAction: z.strictObject({
       argv: z.tuple([z.literal("arc"), z.literal("attest"), SlugSchema, z.literal("--json")]),
     }),
@@ -892,6 +894,7 @@ export async function inspectDeliveryEntry(
           nextAction: "renew-public-continuation",
           planId: plan.planId,
           stateRevision: state.revision,
+          candidateSubjectDigest: candidate.value.subjectDigest,
           attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] },
           recommendedActionText:
             "Renew the exact public delivery continuation through corrective Candidate attestation.",
@@ -955,6 +958,7 @@ export async function inspectDeliveryEntry(
           nextAction: "renew-public-continuation",
           planId: plan.planId,
           stateRevision: state.revision,
+          candidateSubjectDigest: candidate.value.subjectDigest,
           attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] },
           recommendedActionText:
             "Renew the exact public delivery continuation through corrective Candidate attestation.",
@@ -984,6 +988,7 @@ export async function inspectDeliveryEntry(
             nextAction: "renew-public-continuation",
             planId: plan.planId,
             stateRevision: state.revision,
+            candidateSubjectDigest: candidate.value.subjectDigest,
             attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] },
             recommendedActionText:
               "Renew the exact public delivery continuation through corrective Candidate attestation.",
