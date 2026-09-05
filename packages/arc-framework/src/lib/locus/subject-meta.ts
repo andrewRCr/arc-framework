@@ -207,12 +207,6 @@ export async function projectCheckoutSubjectMeta(options: {
       candidateSubjectDigest,
     });
   }
-  const sessionType: SessionType | null = record.state === "Integrating" && integrationBoundary === null
-    ? null
-    : record.state === "Active" && integrationBoundary !== null
-      ? "prepublication"
-      : inferredSessionType;
-  const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
   const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
   const taskCursor = taskListPath === null
     ? null
@@ -224,9 +218,10 @@ export async function projectCheckoutSubjectMeta(options: {
         lstat: (path) => options.io.lstat(path),
       });
   let deliveryCorrection: DeliveryCorrectionProjection = { status: "none" };
-  if (sessionType === "integration"
+  if (inferredSessionType === "integration"
     && taskListPath !== null
-    && taskCursor?.status === "no-open-task") {
+    && taskCursor?.status === "no-open-task"
+    && (integrationBoundary !== null || requireExactDurableBoundary)) {
     try {
       deliveryCorrection = await options.io.projectDeliveryCorrection({
         cwd: options.cwd,
@@ -250,6 +245,18 @@ export async function projectCheckoutSubjectMeta(options: {
       };
     }
   }
+  const candidateVerificationWithoutBoundary = record.state === "Integrating"
+    && integrationBoundary === null
+    && requireExactDurableBoundary
+    && deliveryCorrection.status === "verification-required";
+  const sessionType: SessionType | null = record.state === "Integrating"
+    && integrationBoundary === null
+    && !candidateVerificationWithoutBoundary
+    ? null
+    : record.state === "Active" && integrationBoundary !== null
+      ? "prepublication"
+      : inferredSessionType;
+  const planningStage = resolvePlanningStage(record.currentWorkflow, sessionType);
   const workUnitStage = projectWorkUnitStage({
     sessionType,
     taskCursor,

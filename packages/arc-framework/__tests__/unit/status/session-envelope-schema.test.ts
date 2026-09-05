@@ -186,6 +186,24 @@ describe("session-init envelope schema", () => {
     setPath(verification, ["derivedLocusState", "value", "active", "context", "taskCursor"], closed);
     expectValid(verification);
 
+    const changedCandidateVerification = clone(verification);
+    setPath(changedCandidateVerification, ["active", "value", "integrationBoundary"], null);
+    setPath(
+      changedCandidateVerification,
+      ["derivedLocusState", "value", "active", "context", "integrationBoundary"],
+      null,
+    );
+    expectValid(changedCandidateVerification);
+
+    const boundarylessIntegration = clone(changedCandidateVerification);
+    setPath(boundarylessIntegration, ["active", "value", "currentWorkflow"], "integrate-work-unit");
+    setPath(
+      boundarylessIntegration,
+      ["derivedLocusState", "value", "active", "context", "workflow"],
+      "integrate-work-unit",
+    );
+    expectContractFailure(boundarylessIntegration, "active.value.integrationBoundary");
+
     const skippedTask = clone(taskWork);
     setPath(skippedTask, ["active", "value", "currentWorkflow"], "integrate-work-unit");
     setPath(

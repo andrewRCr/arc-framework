@@ -2083,6 +2083,15 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   `hosted-review-pending` delivery records remain a read-only normalization input; canonical writes use only the
   neutral status shape.
 
+- **D9.21 Changed-Candidate verification remains recoverable without reviving stale integration authority — amended
+  2026-09-05 after live compaction recovery.** When an Integrating Candidate is non-current and the stored boundary
+  no longer matches its durable Candidate subject, session projection normally remains fail-closed. One exact
+  exception applies when the delivery-entry reducer independently returns `candidate-verification-required` for a
+  structurally closed task list: the session remains `integration`, loads `verify-work-unit`, and carries no
+  integration boundary. This is workflow continuity, not boundary authority. Any other absent or mismatched boundary
+  remains unresolved, and the later attestation preflight still revalidates the exact public delivery continuation
+  before writing a new Candidate root or renewed boundary.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:

@@ -4872,6 +4872,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
                 exact hosted-request result claims review work; retain exact read-only normalization of the older
                 delivery-shaped hosted boundary.
 
+        - _Changed-Candidate recovery amendment (2026-09-05):_ The live closeout correctly routed to Candidate
+          verification, but the session reader discarded the integration frame because its boundary guard ran before
+          the delivery-entry reducer could identify that verified route.
+
+            27. Let a structurally closed, non-current Integrating Candidate project `verify-work-unit` only when
+                delivery entry independently returns `candidate-verification-required`; carry no integration
+                boundary and retain the ordinary mismatch refusal for every other state.
+            28. Prove the exact live seed and recovery audit select the originating checkout, integration session,
+                verification workflow, closed task cursor, and matching dirty path set without reconstructing or
+                reviving review authority.
+
 ---
 
 ## Success Criteria
