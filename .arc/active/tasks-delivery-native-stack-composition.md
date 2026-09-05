@@ -4141,20 +4141,15 @@ meta exists and that resolution shape is the exact defect the retired terminal a
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ The final full implementation tree passed Markdown and ARC contract lint, TypeScript and shell
-  lint, both typechecks, package build, aggregate self-review, diff hygiene, 864 test files, and 11,396 tests. The
-  later Member 8 correction amendments passed their focused unit, workflow-contract, real-CLI, and typecheck gates;
-  only task-list, meta, and Candidate-boundary records changed after their green target `c2a231b78`. Final closure
-  reran Markdown and ARC contract checks over that documentation-only delta rather than repeating the unchanged full
-  suite.
-- _Success criteria:_ 45 total: 42 met, three superseded, and none unresolved. Every member report resolves all of
-  its current criteria loci and boundary spans; the amended Member 7 and Member 8 reports carry correction-entry and
-  typed-authoring evidence into the complete union. Member 1's implementation-task workaround, Member 6's
-  external-only refresh clause, and Member 8's automatic checkout succession remain intentionally superseded by
-  D7.2b, D5.9, and fixed-origin D1.5. All six cross-member seams remain coherent through correction routing,
-  provider refresh, review conjunction, Candidate recovery, fixed-origin execution, and terminal integration.
+- _Quality gates:_ The final union at `ff86f1326` passed Markdown and ARC contract lint, TypeScript and shell lint,
+  both typechecks, package build, diff hygiene, 865 test files, and 11,429 tests, with one intentional skip each in
+  files and tests. The closing task-record delta then passed its applicable Markdown and ARC contract checks.
+- _Success criteria:_ 47 total: 44 met, three superseded, and none unresolved. All 45 previously recorded
+  digest-bound loci still match; the amended Member 1 and Member 4 reports supply the two added loci. Delivery State
+  revision 428 is an exact contiguous eight-member chain whose repaired cumulative boundaries and final union prove
+  independent gate readiness without successor-only masking.
 
 - _Forward amendment (2026-08-27):_ The D5.8-D5.10 corrections added Success Criteria 34 and 35 after this terminal
   report. Consume the updated Member 6 boundary report and revalidate the continuation's cross-member mutation
@@ -4692,15 +4687,17 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   initial publication did not require the workflow-owned gate outcome it bracketed. Reconcile the repaired member
   boundaries with the work-unit verification contract before any new review or CI spend.
 
-    - `[ ]` **9.1.R.m Revalidate independent member gate readiness at work-unit scope**
+    - `[x]` **9.1.R.m Revalidate independent member gate readiness at work-unit scope**
 
         - _Goal:_ Every current delivery member is independently gate-clean at its exact cumulative tree, initial
           publication mechanically refuses absent or stale evidence, and the final union remains unchanged except
           for the bounded admission repair and its tests/docs.
 
-        - Consume the amended Member 1, 3, and 4 boundary reports; prove the remaining members inherit the repaired
-          predecessors without successor-only masking; reconcile all criteria digests affected by this amendment;
-          and run the applicable final union gates before presenting review applicability and hosted-CI scheduling.
+        - _Outcome:_ The amended Member 1, 3, and 4 reports bind exact Tier 2 results to cumulative trees
+          `8bdf07dc7`, `4b88f29de`, and `e7ec11979`. The revision-428 chain is contiguous and every stored head
+          resolves to its stored tree, so Member 2 inherits the first repair and Members 5–8 inherit all three;
+          final-union Tier 3 proves no later regression. The 45 prior criterion digests remain exact, and the two
+          added loci close the union at 44 met, three superseded, and zero unresolved.
 
 ---
 
@@ -4726,7 +4723,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   work-unit-scope verifier remains terminal and unassigned. Canonical plan and authoring schemas, coverage,
   fingerprints, composition, handlers, and regenerated development records all consume that classification.
 
-- `[ ]` A member's criteria walk never substitutes for executable quality gates: its close-out still requires the
+- `[x]` A member's criteria walk never substitutes for executable quality gates: its close-out still requires the
   task-loop Tier 2 run, and initial publication separately requires a passed Tier 2 result for the exact filtered
   candidate tree so a later green union cannot mask an earlier broken boundary.
 
@@ -4762,7 +4759,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   with the complete presentation set before mutation, and an exact-request retry does not rewrite it. Content-neutral
   ancestry adoption proceeds only when a dedicated in-core containment result proves the top tree unchanged.
 
-- `[ ]` Initial publication consumes one ephemeral passed Tier 2 result for every candidate in plan order, bound to
+- `[x]` Initial publication consumes one ephemeral passed Tier 2 result for every candidate in plan order, bound to
   its exact deliverable ID, head, and tree and revalidated inside the fresh mutation window; missing, duplicate,
   failed, reordered, or stale evidence refuses before any ref push or host mutation, with no durable gate store.
 
