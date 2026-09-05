@@ -117,6 +117,12 @@ describe("hosted review fan-out workflow", () => {
     expect(section).toMatch(
       /review-hosted-request[\s\S]*review-local-prepare[\s\S]*terminusAction[\s\S]*optional Owner alternative[\s\S]*absent explicit acceptance[\s\S]*review action unchanged/iu,
     );
+    expect(section).toContain(
+      "When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first.",
+    );
+    expect(section).toMatch(
+      /Owner alternative first[\s\S]*Absent[\s\S]*explicit acceptance[\s\S]*selectionAction/iu,
+    );
     expect(section).toMatch(/terminus[\s\S]*never[\s\S]*(?:clean|converged)/iu);
     const deliveryResume = section.indexOf("`continue-hosted-review`");
     const singletonResume = section.indexOf("`continue-pre-publication-review`", deliveryResume);

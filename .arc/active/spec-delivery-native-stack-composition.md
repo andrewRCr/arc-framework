@@ -1682,6 +1682,16 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   retain precedence. The stored record remains unchanged; the proof composes its exact authority with mechanical
   record movement and creates no rewritten terminus, convergence inference, or generic head-movement escape.
 
+  **Applicability-preemption clarification (2026-09-04):** A non-conflicting
+  `resolve-review-applicability` result may carry the same submit-ready exact-member terminus offer when the current
+  member has at least one completed complete review pass. The explicit Owner terminus is the first attended
+  alternative: acceptance records authority for the exact current member head and completed-pass count, after which
+  the existing terminus discharge makes replayable historical applicability offers irrelevant. Absent acceptance,
+  the unchanged applicability selection remains executable. Blocked or conflicting applicability and every pending
+  finding, settlement, request, await, local continuation, stale-coordinate, zero-pass, and incremental-only guard
+  retain precedence. Acceptance classifies no residual as `covered` and adds no clean result, convergence inference,
+  later-pass supersession, standing grant, attempt chronology, or new record family.
+
 - **D8.14 Oversized delivery members compose with chunked local standard review — amended 2026-09-03 after the
   Member 7 hosted request exceeded both configured attention signals and the provider's file limit.** Before
   admitting hosted spend, work-unit status measures the exact first-outstanding member change set and invokes the

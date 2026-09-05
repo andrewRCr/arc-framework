@@ -2260,7 +2260,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3705,6 +3705,39 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 
         - _Scope boundary:_ No content attribution, member selection, heuristic route choice, new record, or review
           authority. Route execution remains D5.13's resumable procedure; this task governs only what entry answers.
+
+    - `[x]` **7.7.R.ad Let exact-head Owner terminus authority preempt applicability replay**
+
+        - _Goal:_ A first-outstanding delivery member with completed complete-review evidence may receive explicit
+          exact-current-head Owner terminus authority before historical applicability bookkeeping, while every
+          unresolved evidence choice remains available when that authority is not accepted.
+
+        - **Additional Context:** `notes-delivery-native-stack-composition.md` § Correction-cycle rescue — decision
+          record (2026-08-31), Amendment 13.
+
+        - Build `test-first` (one behavior at a time):
+            - `[x]` **7.7.R.ad.a Bind exact terminus authority to an applicability status**
+                - _Goal:_ A non-conflicting delivery applicability result carries both its unchanged Candidate
+                  selection and one submit-ready terminus offer for the exact current member when complete-pass
+                  evidence exists. Zero-pass, incremental-only, conflicting, and higher-priority intervention
+                  states preserve their existing behavior.
+                - _Outcome:_ Applicability status now admits the existing exact-member terminus binder without
+                  changing its Candidate selection. The shared complete-pass guard excludes zero-pass and
+                  incremental-only histories, while every non-applicability intervention remains ineligible.
+            - `[x]` **7.7.R.ad.b Put the terminal Owner decision first and prove durable discharge**
+                - _Goal:_ The integration workflow presents the terminus alternative before applicability; a
+                  production-shaped moved-head case accepts it, records no applicability claim, spends no provider
+                  pass, and advances beyond every replayable historical projection for that member.
+                - _Outcome:_ Both Framework workflow copies route the exact terminus first. A real-Git moved-target
+                  lifecycle accepts that current-head offer, leaves the Candidate record unchanged, preserves the
+                  review-operation snapshot, and advances directly to the next member.
+
+        - _Outcome:_ Exact-current-head Owner authority can now end one member's review before historical
+          applicability bookkeeping. Declining that authority preserves the original selection path, and accepting
+          it records no applicability evidence or convergence claim.
+
+        - _Scope boundary:_ No automatic attempt supersession, applicability inference, convergence policy, standing
+          grant, attempt chronology, new record family, or generalized workflow control loop.
 
 ## **Phase 8:** Record retirement and doctrine
 

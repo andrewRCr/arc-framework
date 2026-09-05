@@ -832,3 +832,27 @@ parent remains the old member and whose second parent remains the refreshed pred
 mechanical predecessor may instead be a single-parent commit. Reusing that predecessor requires its deterministic
 candidate ref, an exact tree equal to the three-way merge result under the original base, and ancestry from the
 current exact predecessor; only the attended resolution retains the exact two-parent requirement.
+
+### Amendment 13 — exact-head Owner terminus dominates applicability replay (2026-09-04)
+
+After all member review cycles had settled, Member 1 re-entry exposed another historical applicability offer at its
+current repaired head. The boundary retained an Owner terminus for an older head and the Candidate retained several
+earlier review attempts, so status correctly declined to carry the old exact-head authority forward. It then exposed
+only the next binary applicability selection, however, even after the Owner explicitly decided that no further
+review was required for the current head. Clearing every historical projection first would spend one attended
+decision, record commit, push, and status recomposition per residual without changing the Owner's terminal decision.
+
+Decided behavior: a non-conflicting `resolve-review-applicability` result may carry the same submit-ready exact-member
+Owner-terminus offer as an ordinary next-pass result when the member has at least one completed complete review pass.
+The workflow presents that terminus alternative first. Explicit acceptance revalidates and records authority for the
+exact current member head and completed-pass count; on re-entry, the existing terminus discharge suppresses every
+older replayable applicability projection for that member. If the Owner does not accept the terminus, the unchanged
+applicability selection remains executable. Blocked or conflicting applicability, pending findings or settlement,
+hosted request or await state, local continuation, zero-pass or incremental-only progress, and stale coordinates
+retain their existing precedence.
+
+This changes no applicability evidence: accepting the terminus does not classify an old residual as `covered`, and
+it makes no clean, convergence, evaluator-satisfaction, or pass-sufficiency claim. No automatic later-pass
+supersession, attempt chronology, new record, standing grant, generic workflow loop, or review-signal policy is
+added. The deeper review-evidence-liveness question remains routed to `review-orchestration-right-sizing`; this
+amendment only makes already-shipped Owner authority reachable before bookkeeping that its acceptance renders moot.

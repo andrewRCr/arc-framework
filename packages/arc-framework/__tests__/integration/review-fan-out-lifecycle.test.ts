@@ -1278,14 +1278,14 @@ async function awaitThroughProductionHandler(
 }
 
 describe("hosted review fan-out lifecycle", () => {
-  it("records one exact Owner terminus and durably advances to the next member without provider spend", async () => {
+  it("lets an exact-head Owner terminus preempt moved-target applicability without provider spend", async () => {
     const harness = await createHarness();
     await writeFile(
       join(harness.root, ".arc", "system", "arc-config.yml"),
       "branch:\n  base: main\nreview.standard_max_passes: 2\n",
       "utf8",
     );
-    const firstVehicle = member(harness.plan, 0, harness.oldFirst);
+    const priorFirstVehicle = member(harness.plan, 0, harness.oldFirst);
     const statusTarget = {
       repository,
       headRef: "delivery/delivery-plan-record/first",
@@ -1347,21 +1347,76 @@ describe("hosted review fan-out lifecycle", () => {
       noHostSettlementFindingIds: [finding.findingId],
       now: "2026-09-01T10:02:00.000Z",
     });
-    const continuation = await workUnitStatusThroughHandler(harness, statusTarget);
+    const changedBranch = "changed-delivery";
+    await git(harness.root, ["checkout", "-b", changedBranch, harness.baseHead]);
+    await writeFile(join(harness.root, "first.txt"), "changed first contribution\n", "utf8");
+    await git(harness.root, ["add", "first.txt"]);
+    await git(harness.root, ["commit", "-m", "changed first member"]);
+    const changedFirst = await git(harness.root, ["rev-parse", "HEAD"]);
+    const changedFirstTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
+    await git(harness.root, ["branch", "delivery/delivery-plan-record/changed-first", changedFirst]);
+    await writeFile(join(harness.root, "second.txt"), "current second contribution\n", "utf8");
+    await git(harness.root, ["add", "second.txt"]);
+    await git(harness.root, ["commit", "-m", "changed current second member"]);
+    const changedSecond = await git(harness.root, ["rev-parse", "HEAD"]);
+    const changedSecondTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
+    const changedState: DeliveryStateV1 = {
+      ...harness.state,
+      members: [
+        {
+          ...harness.state.members[0]!,
+          ref: "refs/heads/delivery/delivery-plan-record/changed-first",
+          coordinates: { base: harness.baseHead, head: changedFirst, tree: changedFirstTree },
+        },
+        {
+          ...harness.state.members[1]!,
+          ref: `refs/heads/${changedBranch}`,
+          coordinates: { base: changedFirst, head: changedSecond, tree: changedSecondTree },
+        },
+      ],
+    };
+    const changedPublished = await harness.states.publish(
+      harness.plan.planId,
+      changedState,
+      harness.stateRevision,
+    );
+    if (changedPublished.status !== "ok") throw new Error("expected changed delivery state");
+    harness.state = changedState;
+    harness.stateRevision = changedPublished.value.revision;
+    const currentCandidate = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
+    if (currentCandidate.version === null) throw new Error("expected current Candidate version");
+    const changedCandidate = await installCandidate(harness, changedSecond, currentCandidate.version);
+    await writeBoundary(harness, changedCandidate, changedBranch, "bound");
+    const firstVehicle = member(harness.plan, 0, changedFirst);
+    const currentStatusTarget = {
+      repository,
+      headRef: changedBranch,
+      headSha: changedSecond,
+    };
+    const continuation = await workUnitStatusThroughHandler(harness, currentStatusTarget);
     expect(continuation).toMatchObject({
       state: "review-required",
-      nextAction: "review-hosted-request",
+      nextAction: "resolve-review-applicability",
+      selectionAction: {
+        projection: {
+          selector: {
+            priorVehicle: priorFirstVehicle,
+            currentVehicle: firstVehicle,
+          },
+        },
+      },
       terminusAction: {
-        target: firstStatus.action.target,
+        target: { repository, pullRequest: 41, headSha: changedFirst },
         vehicle: firstVehicle,
         completedPasses: 1,
       },
     });
-    if (continuation.nextAction !== "review-hosted-request" || continuation.terminusAction === undefined) {
-      throw new Error("expected exact Owner terminus offer beside the next member pass");
+    if (continuation.nextAction !== "resolve-review-applicability" || continuation.terminusAction === undefined) {
+      throw new Error("expected exact Owner terminus offer beside moved-target applicability");
     }
     const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction);
     const reviewOperationsBeforeAcceptance = await harness.store.readOperationSnapshot();
+    const candidateBeforeAcceptance = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
     const output: string[] = [];
     const exitCodes: number[] = [];
 
@@ -1377,7 +1432,7 @@ describe("hosted review fan-out lifecycle", () => {
           readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(harness.root, workUnitId),
           readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
           readCurrentOffer: async () => {
-            const current = await workUnitStatusThroughHandler(harness, statusTarget);
+            const current = await workUnitStatusThroughHandler(harness, currentStatusTarget);
             return "terminusAction" in current ? current.terminusAction ?? null : null;
           },
           writeBoundary: async (boundary, expectedVersion) => ({
@@ -1403,12 +1458,15 @@ describe("hosted review fan-out lifecycle", () => {
     await expect(readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId)).resolves.toMatchObject({
       boundary: { deliveryReviewTermini: [{ vehicle: firstVehicle }] },
     });
-    await expect(workUnitStatusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+    await expect(readCandidateRecordVersioned(harness.root, harness.plan.workUnitId)).resolves.toEqual(
+      candidateBeforeAcceptance,
+    );
+    await expect(workUnitStatusThroughHandler(harness, currentStatusTarget)).resolves.toMatchObject({
       state: "review-required",
       nextAction: "review-hosted-request",
       action: {
-        target: { repository, pullRequest: 42, headSha: harness.priorSecond },
-        vehicle: member(harness.plan, 1, harness.priorSecond),
+        target: { repository, pullRequest: 42, headSha: changedSecond },
+        vehicle: member(harness.plan, 1, changedSecond),
       },
       routedObligation: {
         conjunction: { members: [{ state: "discharged" }, { state: "outstanding" }] },
