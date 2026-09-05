@@ -2611,6 +2611,10 @@ added.
     publicly reachable under the guards they already enforce, refuse with their existing typed reasons on a dirty
     locus, moved head or tree, stale state revision, or active operation, and introduce no record, locus lifecycle,
     ownership registry, or authority beyond the in-process dispatch (D9.9).
+51. After an exact delivery-member Owner terminus is committed and pushed on the terminal work-unit branch,
+    integration resumes through the existing selector-free correction driver. The driver may machine-rebind the
+    exact terminal coordinate before returning the first outstanding member; the route performs no Candidate
+    renewal, provider request, applicability inference, new durable state, or new review authority (D5.13, D8.13).
 
 ## Open Questions
 

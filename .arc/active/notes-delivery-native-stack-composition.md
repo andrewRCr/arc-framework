@@ -856,3 +856,17 @@ it makes no clean, convergence, evaluator-satisfaction, or pass-sufficiency clai
 supersession, attempt chronology, new record, standing grant, generic workflow loop, or review-signal policy is
 added. The deeper review-evidence-liveness question remains routed to `review-orchestration-right-sizing`; this
 amendment only makes already-shipped Owner authority reachable before bookkeeping that its acceptance renders moot.
+
+### Amendment 14 — committed Owner termini re-enter through terminal rebind (2026-09-05)
+
+The live Member 1 acceptance recorded and pushed exact-head Owner terminus authority, then followed the documented
+direct status re-entry. Status observed the advanced work-unit head before Delivery State carried that exact terminal
+coordinate and returned stale terminal coordinates instead of the next outstanding member. The existing selector-free
+correction driver then performed its machine-owned terminal rebind and immediately returned Member 3, proving the
+mechanism was already complete and the defect was the workflow route.
+
+Decided behavior: `recorded / commit-boundary` commits and pushes the exact terminus record, then resumes through the
+existing selector-free correction driver so any owed exact terminal rebind precedes hosted status. `exact-replay /
+continue` and `refused / rerun-status` still re-enter status directly because they create no new branch head. This is
+a route correction only: no new state, driver behavior, Candidate renewal, review authority, applicability judgment,
+convergence policy, or provider spend is introduced. Task 7.7.R.ae owns the workflow contract and focused regression.

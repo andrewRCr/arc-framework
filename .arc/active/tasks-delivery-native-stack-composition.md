@@ -2260,7 +2260,7 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
   or conflicting state stops. The earlier 7.6.d scenario began after reservation and binding, so Task 9.1's reopened
   verification adds the missing plan-present/state-absent vertical path.
 
-### `[x]` **7.7 Close delivery member 7** — validate criteria at member scope
+### `[ ]` **7.7 Close delivery member 7** — validate criteria at member scope
 
 - _Goal:_ Member 7's criteria group is walked at its own boundary over the member's bounded diff and the
   cumulative tree, with the evidence recorded as ordinary task completion.
@@ -3729,6 +3729,20 @@ vertical scenarios. Task 7.7 closes the member. The re-cut adds no task ID or de
 
         - _Scope boundary:_ No automatic attempt supersession, applicability inference, convergence policy, standing
           grant, attempt chronology, new record family, or generalized workflow control loop.
+
+    - `[ ]` **7.7.R.ae Re-enter a committed Owner terminus through terminal rebind**
+
+        - _Goal:_ After committing and pushing an exact delivery-member Owner terminus on the work-unit branch,
+          integration resumes through the existing selector-free correction driver so an owed terminal-coordinate
+          rebind completes before status selects the first outstanding member.
+
+        - _Note:_ The live Member 1 acceptance exposed the gap: direct status re-entry observed the advanced
+          work-unit head before Delivery State carried that exact terminal coordinate. The correction driver already
+          performed the machine-owned rebind and returned Member 3; this task corrects only the workflow route and
+          its executable contract test. Exact replay and refused stale offers retain direct status re-entry.
+
+        - _Scope boundary:_ No new state, authority, convergence rule, provider call, Candidate renewal, or generic
+          driver behavior.
 
 ## **Phase 8:** Record retirement and doctrine
 
