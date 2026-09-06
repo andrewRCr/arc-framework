@@ -1218,3 +1218,70 @@ native mutation. Its ordinary open-request retarget sibling remains one REST upd
 effect before mutation and reobserves afterward; GitHub owns atomic application of the combined request update, so
 ARC needs no durable subphase or new reconciliation state. This replaces D9.28's invalid API assumption while
 preserving D9.29's separation between host-effect settlement and any refreshed-head adoption.
+
+### Amendment 35 — GitHub requires closed retarget before reopen (2026-09-05)
+
+The D9.32 live mutation failed without changing PR #557. GitHub returned `UNPROCESSABLE` because its deleted Member 7
+base prevented the state change; supplying `baseRefName: main` in that same `updatePullRequest` input did not alter
+the validation order. The combined GraphQL shape therefore has the same semantic defect as the earlier combined REST
+PATCH, even though the schema admits both fields.
+
+The correct host sequence preserves D9.28's design but changes its first mechanism: resolve the bound pull request's
+node ID, submit a GraphQL base-only update while it remains closed, then submit a state-only reopen. The already-built
+operation classifier treats an interruption after the first mutation as exact not-applied state on the protected
+base, clears for retry, and the next invocation skips retarget. No additional durable phase is necessary.
+
+The same live retry also proved the integration checkpoint could not originate this operation after a correction
+advanced the Candidate: its terminal-rebind branch demanded an open request before returning any typed result. The
+checkpoint now recognizes only the same retained closed request at the state-bound head and returns the existing
+`reopen-and-retarget` remedy. The handler remains responsible for the append-only branch proof, deleted trigger,
+reservation, and fresh request validation, so projection adds reachability rather than mutation authority.
+
+### Amendment 36 — terminal retarget must precede predecessor deletion (2026-09-05)
+
+The direct D9.33 replay disproved its remaining API assumption: GitHub also rejects a base-only GraphQL mutation on a
+closed pull request. Together, the observed failures establish that neither ordering is available after deletion:
+reopen fails because the old base is gone, and retarget fails because the request is closed. The repair belongs at
+the destructive boundary rather than in a stronger post-delete adapter.
+
+Highest-member teardown now reserves first, retargets an exact open terminal request to the protected base, proves
+that result, and only then removes the predecessor ref. The ordinary operation already makes interruption between
+those effects recoverable: an exact still-present predecessor retains the teardown for retry, while exact absence
+settles it only with a fresh terminal observation. A terminal request already closed before deletion remains an
+attended `reopen-and-retarget`; the remedy reopens while the predecessor exists, retargets, and returns to teardown
+when its head stays exact. A host-refreshed terminal head first takes the existing rebind path. If the predecessor is
+already absent, ARC performs no impossible mutation and reports the exact retained ref/head that manual recovery must
+restore. This is the bounded manual-runbook fallback allowed by the rescue decision.
+
+The checkpoint projector correction remains necessary for the already-produced PR #557 state: it exposes the exact
+closed retained request rather than dead-ending on an open-request precondition. The live repair will restore Member
+7's recorded ref at its exact head, rerun that typed remedy, then let highest teardown remove the ref through the
+corrected order. No hosted review or provider refresh is part of this correction.
+
+### Amendment 37 — final checkpoint preserves settled Owner review authority (2026-09-05)
+
+The D9.34 recovery completed as designed. The missing Member 7 predecessor ref was restored at its exact recorded
+head, the existing remedy reopened PR #557 and retargeted it to `main`, terminal reconciliation rebound the current
+work-unit head, and highest-member teardown removed the restored ref only after the terminal request was safe. The
+request is now open on `main` and the delivery has reached its terminal checkpoint.
+
+That checkpoint nevertheless returned `member-review-outstanding`. This was not new review work: the boundary still
+contains the authenticated per-member Owner termini that ended review, and ordinary public review status already
+uses those records. Final checkpoint composition instead asked for one raw aggregate hosted discharge and never
+consulted the Owner termini or their existing mechanically proved terminal-head carry rule. It therefore discarded
+settled authority at the final reducer and falsely sent a post-review delivery back toward review.
+
+Decided behavior: the terminal checkpoint reduces each exact member using the same raw discharge, durable completed-
+pass count, Owner-terminus predicate, and proven terminal-record advance as ordinary review status. A terminus remains
+unable to bypass a pending response, await, local resume, blocked applicability decision, changed member, changed pass
+count, unavailable progress, or unproved movement. Public-continuation validation stays strict because review is
+already closed on this route; no new review request, convergence rule, or stored authority is introduced.
+
+The first rebuilt checkpoint proved the exact boundary of that correction. Members 1 and 3–7 were discharged by
+their current-head Owner termini despite replayable historical applicability, and Member 2 remained discharged by
+its raw clean evidence. Member 8 correctly stayed outstanding: its newest stored terminus predates later behavioral
+repair commits, those commits changed the Candidate subject, and no terminal-record equivalence proof applies. The
+Owner has explicitly ended review for the current terminal head, but that exact authority has not yet been written.
+After this fix is committed and the new Candidate applicability is settled, use the existing boundary-carry and
+terminus-accept path to serialize that already-made decision; do not weaken exact-head scope or invent a checkpoint
+authority path.

@@ -5071,6 +5071,47 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           combined mutation. All 18 adapter unit tests and all 18 production-shaped terminal-recovery E2E cases
           passed, along with focused ESLint, both typechecks, and ARC contract checks.
 
+- _Forward correction (2026-09-05):_ GitHub rejects a combined reopen-and-retarget when the closed request's old
+  base is deleted, and checkpoint composition cannot currently offer the remedy once the Candidate advances. Restore
+  the recoverable retarget-before-reopen sequence through supported host mutations and make its typed entry reachable.
+
+    - `[ ]` **9.1.R.v Complete the closed-terminal repair route**
+
+        - _Goal:_ A corrected Candidate whose terminal request is frozen on a deleted predecessor reaches and
+          completes the authorized repair through GitHub's supported semantics and ARC's existing recovery boundary.
+
+        - _Build `test-first` (one behavior at a time):_
+
+            1. Prove GitHub's combined mutation refusal is avoided by a base-only update followed by state-only
+               reopen, while an interruption leaves the already-recognized retryable halfway state.
+            2. Prove checkpoint composition returns the existing exact top remedy when the Candidate is ahead of
+               the same retained closed request instead of requiring an already-open request.
+            3. Rebuild the CLI and resume PR #557 through the live remedy, terminal rebind, and checkpoint without
+               hosted review or provider spend.
+
+            4. Prove the terminal checkpoint reduces each exact member through the same raw-discharge and Owner-
+               terminus predicate as public review status, then rerun PR #557 to its first genuine post-review
+               checkpoint result.
+
+        - _Forward amendment (2026-09-05):_ The live external-seam check also disproved behavior 1's base-only
+          mutation: GitHub permits neither retarget ordering after the predecessor ref is deleted. Complete the goal
+          by retargeting the exact open terminal request within highest-member teardown before ref deletion; preserve
+          an attended reopen for an already-closed request; and return exact restoration coordinates, with no host
+          mutation, when superseded ordering has already removed the ref. A successful attended remedy returns to
+          teardown when its head stays exact; a host-refreshed head uses the existing terminal-rebind checkpoint
+          path. Keep the checkpoint entry correction from behavior 2.
+
+        - _Forward amendment (2026-09-05):_ The repaired live route reopened PR #557 on `main`, rebound its exact
+          terminal coordinates, and completed highest-member teardown, but final checkpoint composition then read
+          only the raw hosted-review conjunction and ignored the already-authenticated member Owner termini. Apply
+          D9.35's parity correction without loosening public continuation exactness or re-entering review.
+
+        - _Acceptance continuation:_ The rebuilt checkpoint discharged every exact current-head Owner terminus and
+          Member 2's raw clean result, then correctly retained Member 8 because its stored terminus predates later
+          subject-changing repairs. Commit this correction, settle the new Candidate applicability, and serialize
+          the Owner's already-given no-further-review decision at the resulting exact terminal head through the
+          existing boundary-carry/status/terminus route before the final checkpoint.
+
 ---
 
 ## Success Criteria

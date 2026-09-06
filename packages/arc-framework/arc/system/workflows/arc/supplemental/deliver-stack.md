@@ -594,21 +594,27 @@ The request carries the position result's exact `selectedDeliverableId` plus the
 target, and remote locators — no position facts. The handler freshly reobserves position before teardown, making
 `teardown-member` idempotent after reconciliation; never select a member from prose or provider order.
 
-The CLI retains the exact member binding, deletes the proven remote branch, and, after the highest non-terminal
-member, immediately reobserves the top request. Follow only its returned `nextAction`:
+The CLI retains the exact member binding. For the highest non-terminal member, it first retargets an exact open
+terminal request to the protected base under the teardown reservation, proves that result, and only then deletes the
+proven member branch. Follow only its returned `nextAction`:
 
 - `continue` returns to the position read for the next member.
 - `terminal-checkpoint` enters the ordinary [`integrate-work-unit.md`][integrate-work-unit] workflow.
-- `retarget` or `reopen-and-retarget` surfaces the typed failure-only remedy and stops. Await explicit user direction
-  for that exact action; do not sequence or repair the request in workflow prose. After that explicit direction,
+- `blocked / top-remedy-required` means the exact terminal request was already closed while its predecessor still
+  exists. Surface its `reopen-and-retarget` remedy and stop. Await explicit user direction for that exact action;
+  do not sequence or repair the request in workflow prose. After that explicit direction,
   invoke the reserved mutation surface with the current plan ID and returned repository, protected base, and action:
 
 ```bash
 arc delivery top-remedy - --json
 ```
 
-The command freshly rederives the terminal position and exact remedy before reserving and mutating. Follow only its
-returned `terminal-checkpoint`; a refusal or blocked result stops with any persisted reservation intact.
+The command freshly rederives the terminal position and exact remedy before reserving and mutating. Follow
+`teardown-member` by invoking teardown again for its exact `selectedDeliverableId`; `terminal-checkpoint` returns to
+ordinary checkpoint composition when a host-refreshed terminal head first needs rebind. A
+`trigger-ref-restore-required` result means an earlier deletion already made GitHub's closed request immutable:
+surface its exact ref/head and stop for Owner approval before restoring only that missing ref, then rerun the same
+top remedy. Any other refusal or blocked result stops with any persisted reservation intact.
 
 ## Terminal handoff
 

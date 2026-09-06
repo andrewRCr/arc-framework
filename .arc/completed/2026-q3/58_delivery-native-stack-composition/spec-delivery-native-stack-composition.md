@@ -2198,6 +2198,41 @@ verify → adversarial-gap → remediate cycles, each opened by a clean primary 
   This corrects D9.28's host assumption without adding a durable phase, provider-independent transaction,
   compatibility path, or broader GraphQL adapter.
 
+- **D9.33 Closed terminal repair composes native retarget with reopen — amended 2026-09-05 after the D9.32 live
+  retry.** D9.32's combined mutation is superseded: GitHub validates the requested reopen against the deleted old
+  base before applying `baseRefName`, so it refuses without changing either field. The adapter instead resolves the
+  exact request node, changes only `baseRefName` through GraphQL while the request remains closed, then reopens it
+  through a second GraphQL mutation. D9.28's existing exact closed-on-old-base or closed-on-protected-base
+  reconciliation boundary makes interruption between those calls retryable, and a retry skips the already-applied
+  retarget. When the Candidate is append-only ahead of the frozen request, checkpoint composition returns this
+  exact target remedy from the retained closed binding instead of requiring the request to be open before it can
+  offer the operation that opens it; the top-remedy handler still proves D9.31's complete precondition before any
+  mutation. No new operation phase, durable field, provider-independent sequence, or head-adoption authority is
+  added.
+
+- **D9.34 Highest teardown preserves the terminal request before deleting its base — amended 2026-09-05 after the
+  D9.33 live retry.** D9.33's base-only mutation is also unsupported: GitHub refuses every base change on a closed
+  pull request, while reopening fails once that request's base ref is absent. The supported path therefore orders
+  the existing effects before the destructive boundary. Highest-member teardown reserves its exact operation,
+  retargets the still-open terminal request to the protected base, freshly proves the request is open on that base,
+  and only then deletes the predecessor ref. An already-closed terminal request stops before deletion on the existing
+  attended remedy. That remedy requires the predecessor ref at its retained exact head, reopens before retargeting,
+  and returns to highest teardown when the retained terminal head stays exact; a host-refreshed head first uses the
+  existing terminal-rebind checkpoint path. An absent ref returns its exact restoration coordinates without
+  attempting a host mutation. The retained closed-request checkpoint projection remains the typed entry for state
+  already produced by the superseded order. No new durable phase, provider-general transaction, automatic conflict
+  repair, or additional authority is introduced.
+
+- **D9.35 Terminal checkpoint honors exact member Owner termini — amended 2026-09-05 after the D9.34 live
+  recovery.** Final checkpoint composition reduces the delivery review conjunction through the same member-scoped
+  evidence used by public review status: each exact current target's raw discharge, durable complete-pass count,
+  authenticated Owner termini, and any mechanically proved terminal-record advance. A raw outstanding discharge is
+  satisfied only when the existing terminus predicate matches the exact member and pass count and finds no pending
+  response, await, local-resume, or blocked-applicability intervention. Changed members, different pass counts,
+  unavailable progress, and unproved terminal movement remain outstanding. This parity does not relax public
+  continuation binding, report a terminated member clean, reopen review, or add convergence policy; it prevents the
+  final checkpoint from discarding review authority the ordinary status route has already settled.
+
 ### D10 — Doctrine surfaces
 
 - **D10.1 A new integration strategy.** The posture is adopter-facing doctrine with no existing home:
@@ -2879,6 +2914,10 @@ added.
     result only across the selected member set, and concurrently reobserves each member's own request, head, and
     checks. It does not multiply the complete delivery-review projection by member count, and no shared result can
     replace exact per-member host readiness or authorize a landing (D9.11).
+54. The terminal checkpoint computes every delivery member's review discharge through the same exact Owner-terminus
+    predicate as public review status. It accepts authenticated exact-member, exact-pass termini and mechanically
+    proved terminal-record movement, preserves every pending intervention and unavailable-progress refusal, and does
+    not require a new review decision after the Owner has already ended the member review cycle (D9.35).
 
 ## Open Questions
 

@@ -1313,6 +1313,18 @@ const ResultSchema = z.union([
   RetainedOperationBlockSchema,
   z.strictObject({
     status: z.literal("blocked"),
+    reason: z.literal("top-remedy-required"),
+    nextAction: z.literal("reopen-and-retarget"),
+    top: DeliveryTopRemedyRefusalSchema,
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    reason: z.literal("trigger-ref-restore-required"),
+    recovery: z.strictObject({ ref: z.string().min(1), head: GitObjectIdSchema }),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
     reason: z.literal("content-conflict"),
     paths: z.array(z.string().min(1)).min(1),
     conflictPreparation: DeliveryTerminalConflictPreparationSchema,
@@ -1339,6 +1351,13 @@ const ResultSchema = z.union([
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
     nextAction: z.enum(["retarget", "reopen-and-retarget"]),
     top: DeliveryTopRemedyRefusalSchema,
+  }),
+  z.strictObject({
+    status: z.literal("remedied"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("teardown-member"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    top: DeliveryTopReadySchema,
   }),
   z.strictObject({
     status: z.literal("remedied"),
@@ -5522,7 +5541,9 @@ async function executeDeliveryCommand(
             if (triggerRef.status === "refused") {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
-            return request.status === "observed" && triggerRef.status === "absent"
+            const triggerExact = triggerRef.status === "absent"
+              || triggerRef.head === operation.effect.triggerHeadSha;
+            return request.status === "observed" && triggerExact
               ? {
                   status: "observed" as const,
                   value: classifyDeliveryTopRemedyObservation(

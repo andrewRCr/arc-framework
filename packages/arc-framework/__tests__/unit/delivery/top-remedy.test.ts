@@ -134,7 +134,7 @@ describe("delivery top remedy", () => {
           return { status: "submitted" as const };
         },
       },
-      observeTriggerRef: async () => ({ status: "absent" }),
+      observeTriggerRef: async () => ({ status: "observed", head: state.members.at(-2)!.coordinates!.head }),
       stateStore: {
         publish: async (_planId, value, revision) => {
           events.push(value.activeOperation === null ? "clear" : "reserve");
@@ -143,7 +143,8 @@ describe("delivery top remedy", () => {
       },
     });
     expect(result).toMatchObject({
-      status: "remedied", nextAction: "terminal-checkpoint", top: { status: "ready" },
+      status: "remedied", nextAction: "teardown-member", top: { status: "ready" },
+      selectedDeliverableId: state.members.at(-2)!.deliverableId,
       state: { value: { activeOperation: null } },
     });
     expect(events).toEqual(["read", "reserve", "mutate", "read", "clear"]);
@@ -169,7 +170,7 @@ describe("delivery top remedy", () => {
         }),
         applyTopRemedy: async () => ({ status: "submitted" }),
       },
-      observeTriggerRef: async () => ({ status: "absent" }),
+      observeTriggerRef: async () => ({ status: "observed", head: state.members.at(-2)!.coordinates!.head }),
       stateStore: {
         publish: async (_planId, value, revision) => ({
           status: "ok", value: { revision: revision + 1, value },
@@ -238,9 +239,8 @@ describe("delivery top remedy", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it("refuses before reservation while the highest landed ref is still present", async () => {
+  it("refuses before reservation when the restored highest ref is at the wrong head", async () => {
     const { plan, state, request, facts } = fixture();
-    const trigger = state.members.at(-2)!;
     const publish = vi.fn();
     const mutate = vi.fn(async () => ({ status: "submitted" as const }));
     const input = Object.assign({
@@ -256,18 +256,49 @@ describe("delivery top remedy", () => {
       },
       stateStore: { publish },
     }, {
-      observeTriggerRef: async () => ({ status: "observed" as const, head: trigger.coordinates!.head }),
+      observeTriggerRef: async () => ({ status: "observed" as const, head: "f".repeat(40) }),
     });
 
     await expect(applyDeliveryTopRemedy(input)).resolves.toEqual({
       status: "refused",
-      reason: "trigger-ref-present",
+      reason: "trigger-ref-mismatch",
     });
     expect(publish).not.toHaveBeenCalled();
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it("retains the reservation when the deleted trigger ref reappears before mutation", async () => {
+  it("returns exact manual restoration coordinates when the trigger ref is absent", async () => {
+    const { plan, state, request, facts } = fixture("closed");
+    const trigger = state.members.at(-2)!;
+    const publish = vi.fn();
+    const mutate = vi.fn(async () => ({ status: "submitted" as const }));
+    const result = await applyDeliveryTopRemedy({
+      plan,
+      current: { revision: 7, value: state },
+      facts,
+      action: "reopen-and-retarget",
+      repository: "owner/repo",
+      protectedBaseRef: "main",
+      host: {
+        readRequest: async () => ({ status: "observed", request }),
+        applyTopRemedy: mutate,
+      },
+      observeTriggerRef: async () => ({ status: "absent" }),
+      stateStore: { publish },
+    });
+
+    expect(result).toEqual({
+      status: "blocked",
+      reason: "trigger-ref-restore-required",
+      recovery: { ref: trigger.ref, head: trigger.coordinates!.head },
+      recommendedActionText:
+        `Restore ${trigger.ref} at ${trigger.coordinates!.head}, then rerun the exact terminal remedy.`,
+    });
+    expect(publish).not.toHaveBeenCalled();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("retains the reservation when the exact trigger ref disappears before mutation", async () => {
     const { plan, state, request, facts } = fixture();
     const trigger = state.members.at(-2)!;
     let observations = 0;
@@ -284,8 +315,8 @@ describe("delivery top remedy", () => {
         applyTopRemedy: mutate,
       },
       observeTriggerRef: async () => (++observations === 1
-        ? { status: "absent" }
-        : { status: "observed", head: trigger.coordinates!.head }),
+        ? { status: "observed", head: trigger.coordinates!.head }
+        : { status: "absent" }),
       stateStore: { publish: async (_planId, value, revision) => ({
         status: "ok", value: { revision: revision + 1, value },
       }) },
@@ -313,7 +344,9 @@ describe("delivery top remedy", () => {
         readRequest: async () => ({ status: "observed", request }),
         applyTopRemedy: async () => ({ status: "refused", reason: "unavailable" }),
       },
-      observeTriggerRef: async () => ({ status: "absent" }),
+      observeTriggerRef: async () => ({
+        status: "observed", head: state.members.at(-2)!.coordinates!.head,
+      }),
       stateStore: {
         publish: async (_planId, value, revision) => {
           published.push(value as typeof state);

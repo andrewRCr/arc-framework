@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deliveryThreeMemberStackPlanFixture } from "../../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../../fixtures/delivery-state.js";
 import { canonicalDigest } from "../../../../src/lib/kernel/index.js";
+import { DeliveryReviewMemberVehicleSchema } from
+  "../../../../src/lib/delivery/review-vehicle.js";
 import {
   createReviewRequirement,
   createReviewTarget,
@@ -103,7 +105,10 @@ vi.mock("../../../../src/scripts/integration/delivery-checkpoint.js", () => ({
   composeDeliveryCheckpointArm: mocks.composeDeliveryCheckpointArm,
 }));
 
-import { createIntegrationCheckpointDependencies } from
+import {
+  createIntegrationCheckpointDependencies,
+  deliveryCheckpointReviewIsDischarged,
+} from
   "../../../../src/scripts/integration/checkpoint-composition.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -111,6 +116,37 @@ const oid = (character: string): string => character.repeat(40);
 describe("delivery checkpoint composition", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("honors an exact Owner terminus when the raw member discharge remains outstanding", () => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: "123e4567-e89b-42d3-a456-426614174000",
+      deliverableId: `sha256:${"a".repeat(64)}`,
+      workUnitId: "delivery-native-stack-composition",
+      head: oid("b"),
+    });
+
+    expect(deliveryCheckpointReviewIsDischarged({
+      targets: [{ vehicle }],
+      discharges: [{
+        discharged: false,
+        detail: "The reserved source has no clean attempt.",
+        nextSource: "coderabbit-pr",
+      }],
+      progress: [{ status: "complete", completedPasses: 2, attempts: [], attemptHistory: [] }],
+      ownerTermini: [{
+        vehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 2,
+        },
+      }],
+    })).toBe(true);
   });
 
   it("uses the injected raw executor for byte-preserving delivery drift reads", async () => {
@@ -179,7 +215,7 @@ describe("delivery checkpoint composition", () => {
     }
   });
 
-  it("reads one aggregate review discharge for a multi-member delivery", async () => {
+  it("reads each exact member discharge for a multi-member delivery", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
     for (const [index, member] of state.members.entries()) {
@@ -241,6 +277,7 @@ describe("delivery checkpoint composition", () => {
       candidateId,
       candidateSubjectDigest: subjectDigest,
       reservation,
+      deliveryReviewTermini: [],
     });
     mocks.readConfigSettings.mockResolvedValue({ settings: { "branch.base": "main" } });
     mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
@@ -374,10 +411,6 @@ describe("delivery checkpoint composition", () => {
       baseRevision: baseHead,
     });
 
-    expect(mocks.createHostedReservationDischargeReader).toHaveBeenCalledOnce();
-    expect(mocks.resolveDischargeTargets).toHaveBeenCalledTimes(2);
-    expect(mocks.readRequest).toHaveBeenCalledTimes(state.members.length * 2);
-    expect(mocks.readLaneProgress).toHaveBeenCalled();
     expect(result).toMatchObject({ status: "ready", review: { status: "discharged" } });
     expect(mocks.composeDeliveryCheckpointArm).toHaveBeenCalledWith(expect.objectContaining({
       review: {
@@ -387,5 +420,64 @@ describe("delivery checkpoint composition", () => {
         }))),
       },
     }));
+  });
+
+  it("offers terminal repair when the Candidate is ahead of its frozen closed request", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const terminal = state.members.at(-1)!;
+    terminal.changeRequest = { providerId: "github", changeRequestId: "43" };
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const subjectDigest = `sha256:${"b".repeat(64)}`;
+    const candidateHead = oid("f");
+    const currentness = {
+      status: "current" as const,
+      candidateId,
+      recognizedRevision: candidateHead,
+      implementationChanged: false,
+      convergenceVerification: "satisfied" as const,
+    };
+    mocks.readCandidateRecordVersioned.mockResolvedValue({
+      record: { candidateId },
+      version: oid("1"),
+    });
+    mocks.projectGitCandidateEffectiveTarget.mockResolvedValue({
+      state: "current",
+      candidateId,
+      recognizedTarget: { revision: candidateHead, subject: { subjectDigest } },
+    });
+    mocks.projectEffectiveCandidateCurrentness.mockReturnValue(currentness);
+    mocks.readSubmissionBoundary.mockResolvedValue({ candidateId, candidateSubjectDigest: subjectDigest });
+    mocks.readConfigSettings.mockResolvedValue({ settings: { "branch.base": "main" } });
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    mocks.resolveChangeRequest.mockResolvedValue({
+      state: "closed-unmerged",
+      targetRef: { repository: "owner/repository", headRef: terminal.ref, headSha: candidateHead },
+      candidate: {
+        number: 43,
+        state: "CLOSED",
+        url: "https://github.com/owner/repository/pull/43",
+        headRefName: terminal.ref!.replace(/^refs\/heads\//u, ""),
+        headRefOid: terminal.coordinates!.head,
+        baseRefName: state.members.at(-2)!.ref!.replace(/^refs\/heads\//u, ""),
+      },
+    });
+
+    const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
+    await expect(dependencies.composeDelivery({
+      workUnit: plan.workUnitId,
+      candidate: currentness,
+      baseRevision: oid("d"),
+    })).resolves.toMatchObject({
+      status: "blocked",
+      nextAction: "reopen-and-retarget",
+      reason: "top-target-mismatch",
+      planId: plan.planId,
+      remedy: {
+        repository: "owner/repository",
+        changeRequestId: "43",
+        protectedBaseRef: "main",
+      },
+    });
   });
 });

@@ -9,7 +9,7 @@ import {
 } from "./operation.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
-import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
+import type { DeliveryPlanV1, DeliveryStateV1, DeliveryTopRemedyEffectV1 } from "./schema.js";
 import {
   assessDeliveryTerminalTop,
   type DeliveryTerminalTopResult,
@@ -57,10 +57,17 @@ export type TeardownLandedDeliveryMemberResult =
   | { readonly status: "refused"; readonly reason: string }
   | {
       readonly status: "blocked";
+      readonly reason: "top-remedy-required";
+      readonly nextAction: "reopen-and-retarget";
+      readonly top: Extract<DeliveryTerminalTopResult, { readonly reason: "top-target-mismatch" }>;
+    }
+  | {
+      readonly status: "blocked";
       readonly reason:
         | "delete-refused"
         | "request-mismatch"
         | "top-request-mismatch"
+        | "top-remedy-refused"
         | "ambiguous-result"
         | "state-conflict";
       readonly reservation: DeliveryRevisionedRecord<DeliveryStateV1>;
@@ -97,7 +104,12 @@ export async function teardownLandedDeliveryMember(input: {
   readonly deliverableId: string;
   readonly repository: string;
   readonly protectedTargetRef: string;
-  readonly host: Pick<DeliveryHostPort, "readRequest">;
+  readonly host: Pick<DeliveryHostPort, "readRequest"> & {
+    applyTopRemedy(effect: DeliveryTopRemedyEffectV1): Promise<{
+      readonly status: "submitted" | "refused";
+      readonly reason?: string;
+    }>;
+  };
   deleteLocalRef(input: { readonly ref: string; readonly expectedHead: string }): Promise<{
     readonly status: "deleted" | "adopted" | "refused";
   }>;
@@ -145,6 +157,58 @@ export async function teardownLandedDeliveryMember(input: {
     member,
   })) return { status: "refused", reason: "request-mismatch" };
 
+  const terminal = index === input.plan.members.length - 2
+    ? input.current.value.members.at(-1)
+    : undefined;
+  let topBeforeDeletion: Extract<DeliveryTerminalTopResult, { readonly status: "ready" }> | null = null;
+  let preDeleteRetarget: DeliveryTopRemedyEffectV1 | null = null;
+  if (terminal !== undefined) {
+    if (terminal.ref === null || terminal.changeRequest === null || terminal.coordinates === null) {
+      return { status: "refused", reason: "top-request-mismatch" };
+    }
+    const observedTop = await input.host.readRequest(input.repository, terminal.changeRequest);
+    if (observedTop.status !== "observed"
+      || observedTop.request.repository !== input.repository
+      || observedTop.request.headRepository !== input.repository
+      || canonicalize(observedTop.request.binding) !== canonicalize(terminal.changeRequest)
+      || observedTop.request.headRef !== branchName(terminal.ref)
+      || observedTop.request.headSha !== terminal.coordinates.head) {
+      return { status: "refused", reason: "top-request-mismatch" };
+    }
+    const topDecision = assessDeliveryTerminalTop({
+      terminal: true,
+      protectedBaseRef: input.protectedTargetRef,
+      publicationHead: terminal.coordinates.head,
+      request: observedTop.request,
+    });
+    if (topDecision.status === "ready") {
+      topBeforeDeletion = topDecision;
+    } else if (topDecision.status === "refused" && topDecision.reason === "top-target-mismatch") {
+      if (topDecision.remedy.nextAction !== "retarget") {
+        return {
+          status: "blocked",
+          reason: "top-remedy-required",
+          nextAction: "reopen-and-retarget",
+          top: topDecision,
+        };
+      }
+      preDeleteRetarget = {
+        providerId: terminal.changeRequest.providerId,
+        repository: input.repository,
+        changeRequestId: terminal.changeRequest.changeRequestId,
+        headRef: branchName(terminal.ref),
+        headSha: terminal.coordinates.head,
+        triggerRef: member.ref,
+        triggerHeadSha: member.coordinates.head,
+        fromBaseRef: observedTop.request.baseRef,
+        protectedBaseRef: topDecision.remedy.protectedBaseRef,
+        action: "retarget",
+      };
+    } else {
+      return { status: "refused", reason: "top-request-mismatch" };
+    }
+  }
+
   let persistedReservation: DeliveryRevisionedRecord<DeliveryStateV1>;
   if (input.current.value.activeOperation === null) {
     const reserved = reserveDeliveryOperation(input.current, input.plan, {
@@ -175,6 +239,35 @@ export async function teardownLandedDeliveryMember(input: {
     }
     persistedReservation = input.current;
   }
+  if (preDeleteRetarget !== null) {
+    if (terminal === undefined || terminal.ref === null
+      || terminal.changeRequest === null || terminal.coordinates === null) {
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation };
+    }
+    const retargeted = await input.host.applyTopRemedy(preDeleteRetarget);
+    if (retargeted.status !== "submitted") {
+      return { status: "blocked", reason: "top-remedy-refused", reservation: persistedReservation };
+    }
+    const refreshedTop = await input.host.readRequest(input.repository, terminal.changeRequest);
+    if (refreshedTop.status !== "observed"
+      || refreshedTop.request.repository !== input.repository
+      || refreshedTop.request.headRepository !== input.repository
+      || canonicalize(refreshedTop.request.binding) !== canonicalize(terminal.changeRequest)
+      || refreshedTop.request.headRef !== branchName(terminal.ref)
+      || refreshedTop.request.headSha !== terminal.coordinates.head) {
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation };
+    }
+    const topDecision = assessDeliveryTerminalTop({
+      terminal: true,
+      protectedBaseRef: input.protectedTargetRef,
+      publicationHead: terminal.coordinates.head,
+      request: refreshedTop.request,
+    });
+    if (topDecision.status !== "ready") {
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation };
+    }
+    topBeforeDeletion = topDecision;
+  }
   const localDeletion = await input.deleteLocalRef({ ref: member.ref, expectedHead: member.coordinates.head });
   if (localDeletion.status === "refused") {
     return { status: "blocked", reason: "delete-refused", reservation: persistedReservation };
@@ -196,7 +289,6 @@ export async function teardownLandedDeliveryMember(input: {
     readonly reason: "top-target-mismatch";
   }> | null = null;
   if (index === input.plan.members.length - 2) {
-    const terminal = input.current.value.members.at(-1);
     if (terminal?.changeRequest === null || terminal?.changeRequest === undefined
       || terminal.coordinates === null) {
       return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation };
@@ -216,6 +308,9 @@ export async function teardownLandedDeliveryMember(input: {
       return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation };
     }
     top = topDecision;
+    if (topBeforeDeletion?.status === "ready" && topDecision.status !== "ready") {
+      return { status: "blocked", reason: "top-request-mismatch", reservation: persistedReservation };
+    }
   }
   const accepted = acceptDeliveryOperationResult(persistedReservation, requested);
   if (accepted.status !== "applied") {

@@ -399,13 +399,13 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
         if (typeof nodeId !== "string" || nodeId === "") {
           return { status: "refused", reason: "malformed" };
         }
-        const mutation = "mutation($id:ID!,$base:String!){updatePullRequest(input:{pullRequestId:$id,"
-          + "state:OPEN,baseRefName:$base}){pullRequest{id}}}";
+        const reopen = "mutation($id:ID!){updatePullRequest(input:{pullRequestId:$id,"
+          + "state:OPEN}){pullRequest{id}}}";
         await this.runner.run([
-          "api", "graphql", "--raw-field", `query=${mutation}`,
-          "-F", `id=${nodeId}`, "-F", `base=${effect.protectedBaseRef}`,
+          "api", "graphql", "--raw-field", `query=${reopen}`, "-F", `id=${nodeId}`,
         ]);
-      } else if (effect.fromBaseRef !== effect.protectedBaseRef) {
+      }
+      if (effect.fromBaseRef !== effect.protectedBaseRef) {
         await this.runner.run([
           "api", requestPath, "--method", "PATCH", "-f", `base=${effect.protectedBaseRef}`,
         ]);

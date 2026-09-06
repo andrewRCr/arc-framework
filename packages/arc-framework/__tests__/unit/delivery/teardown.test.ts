@@ -34,7 +34,7 @@ describe("landed delivery teardown", () => {
     const result = await teardownLandedDeliveryMember({
       plan, current: { revision: 4, value: state }, facts, deliverableId: first.deliverableId,
       repository: "owner/repo", protectedTargetRef: "refs/heads/main",
-      host: { readRequest: async () => ({ status: "observed", request }) },
+      host: { readRequest: async () => ({ status: "observed", request }), applyTopRemedy: vi.fn() },
       deleteLocalRef: async () => {
         localPresent = false;
         return { status: "deleted" };
@@ -79,7 +79,7 @@ describe("landed delivery teardown", () => {
       deliverableId: first.deliverableId,
       repository: "owner/repo",
       protectedTargetRef: "refs/heads/main",
-      host: { readRequest: async () => ({ status: "observed", request }) },
+      host: { readRequest: async () => ({ status: "observed", request }), applyTopRemedy: vi.fn() },
       deleteLocalRef: async () => {
         localPresent = false;
         return { status: "deleted" };
@@ -102,7 +102,7 @@ describe("landed delivery teardown", () => {
     expect(writes).toHaveLength(1);
   });
 
-  it("resumes the exact highest member in a two-member stack through both top remedies", async () => {
+  it("retargets the open terminal request before deleting the highest member ref", async () => {
     const plan = deliveryPlanFixture();
     if (plan.members.length !== 2) throw new Error("fixture must contain two members");
     const original = deliveryStateFixture(plan);
@@ -123,54 +123,109 @@ describe("landed delivery teardown", () => {
       headRef: highest.ref!.replace("refs/heads/", ""), headSha: highest.coordinates!.head,
       baseRef: "main", state: "merged" as const, draft: false,
     };
-    for (const topCase of [
-      { state: "open" as const, nextAction: "retarget" as const },
-      { state: "closed" as const, nextAction: "reopen-and-retarget" as const },
-    ]) {
-      const snapshot = { target: state.target, members: [highest] };
-      const reserved = reserveDeliveryOperation({ revision: 4, value: state }, plan, {
-        operationId: `operation-${topCase.nextAction}`,
-        kind: "teardown",
-        mode: "member",
-        candidateHeads: [],
-        affectedDeliverableIds: [highest.deliverableId],
-        expectedStateRevision: 4,
-        before: snapshot,
-        requested: snapshot,
-      });
-      if (reserved.status !== "reserved") throw new Error("fixture must reserve teardown");
-      const writes: typeof state[] = [];
-      const result = await teardownLandedDeliveryMember({
-        plan,
-        current: { revision: 5, value: reserved.state },
-        facts,
-        deliverableId: highest.deliverableId,
-        repository: "owner/repo",
-        protectedTargetRef: "refs/heads/main",
-        host: { readRequest: async (_repository, binding) => binding.changeRequestId === "101"
+    let topRequest = {
+      binding: terminal.changeRequest!, repository: "owner/repo", headRepository: "owner/repo",
+      headRef: terminal.ref!.replace("refs/heads/", ""), headSha: terminal.coordinates!.head,
+      baseRef: highest.ref!.replace("refs/heads/", ""), state: "open" as const, draft: true,
+    };
+    const events: string[] = [];
+    const result = await teardownLandedDeliveryMember({
+      plan,
+      current: { revision: 4, value: state },
+      facts,
+      deliverableId: highest.deliverableId,
+      repository: "owner/repo",
+      protectedTargetRef: "refs/heads/main",
+      host: {
+        readRequest: async (_repository, binding) => binding.changeRequestId === "101"
           ? { status: "observed", request: memberRequest }
-          : {
-              status: "observed",
-              request: {
+          : { status: "observed", request: topRequest },
+        applyTopRemedy: async (effect) => {
+          events.push("retarget");
+          expect(effect).toMatchObject({
+            action: "retarget",
+            triggerRef: highest.ref,
+            triggerHeadSha: highest.coordinates!.head,
+            fromBaseRef: highest.ref!.replace("refs/heads/", ""),
+            protectedBaseRef: "main",
+          });
+          topRequest = { ...topRequest, baseRef: "main" };
+          return { status: "submitted" };
+        },
+      },
+      deleteLocalRef: async () => {
+        events.push("delete-local");
+        return { status: "deleted" };
+      },
+      deleteRemoteRef: async () => {
+        events.push("delete-remote");
+        return { status: "deleted" };
+      },
+      stateStore: { publish: async (_id, value, revision) => ({
+        status: "ok", value: { revision: revision + 1, value },
+      }) },
+    });
+    expect(result).toMatchObject({
+      status: "torn-down",
+      nextAction: "terminal-checkpoint",
+      top: { status: "ready", request: { baseRef: "main" } },
+    });
+    expect(events).toEqual(["retarget", "delete-local", "delete-remote"]);
+  });
+
+  it("stops before deleting when the terminal request is already closed", async () => {
+    const plan = deliveryPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const members = initial.members.map((member, index) => ({
+      ...member,
+      changeRequest: { providerId: "github", changeRequestId: String(101 + index) },
+    }));
+    const state = { ...initial, members };
+    const highest = members[0]!;
+    const terminal = members[1]!;
+    const facts = {
+      target: state.target,
+      members,
+      landedDeliverableIds: [highest.deliverableId],
+    };
+    const deleted = vi.fn();
+    const publish = vi.fn();
+    const result = await teardownLandedDeliveryMember({
+      plan,
+      current: { revision: 4, value: state },
+      facts,
+      deliverableId: highest.deliverableId,
+      repository: "owner/repo",
+      protectedTargetRef: "refs/heads/main",
+      host: {
+        readRequest: async (_repository, binding) => ({
+          status: "observed",
+          request: binding.changeRequestId === highest.changeRequest!.changeRequestId
+            ? {
+                binding: highest.changeRequest!, repository: "owner/repo", headRepository: "owner/repo",
+                headRef: highest.ref!.replace("refs/heads/", ""), headSha: highest.coordinates!.head,
+                baseRef: "main", state: "merged", draft: false,
+              }
+            : {
                 binding: terminal.changeRequest!, repository: "owner/repo", headRepository: "owner/repo",
                 headRef: terminal.ref!.replace("refs/heads/", ""), headSha: terminal.coordinates!.head,
-                baseRef: highest.ref!.replace("refs/heads/", ""), state: topCase.state, draft: true,
+                baseRef: highest.ref!.replace("refs/heads/", ""), state: "closed", draft: true,
               },
-            } },
-        deleteLocalRef: async () => ({ status: "deleted" }),
-        deleteRemoteRef: async () => ({ status: "deleted" }),
-        stateStore: { publish: async (_id, value, revision) => {
-          writes.push(value as typeof state);
-          return { status: "ok", value: { revision: revision + 1, value } };
-        } },
-      });
-      expect(result).toMatchObject({
-        status: "torn-down",
-        nextAction: topCase.nextAction,
-        top: { status: "refused", reason: "top-target-mismatch" },
-      });
-      expect(writes).toHaveLength(1);
-    }
+        }),
+        applyTopRemedy: vi.fn(),
+      },
+      deleteLocalRef: deleted,
+      deleteRemoteRef: deleted,
+      stateStore: { publish },
+    });
+    expect(result).toMatchObject({
+      status: "blocked",
+      reason: "top-remedy-required",
+      nextAction: "reopen-and-retarget",
+      top: { status: "refused", reason: "top-target-mismatch" },
+    });
+    expect(deleted).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
   });
 
   it("accepts the exact authored predecessor base for a landed stacked member", async () => {
@@ -209,7 +264,7 @@ describe("landed delivery teardown", () => {
               headRef: terminal.ref!.replace("refs/heads/", ""), headSha: terminal.coordinates!.head,
               baseRef: "main", state: "open" as const, draft: true,
             },
-          } },
+          }, applyTopRemedy: vi.fn() },
       deleteLocalRef: async () => ({ status: "deleted" }),
       deleteRemoteRef: async () => ({ status: "deleted" }),
       stateStore: { publish: async (_id, value, revision) => ({
@@ -232,13 +287,16 @@ describe("landed delivery teardown", () => {
       host: { readRequest: async () => ({
         status: "observed",
         request: { ...request, headSha: `${request.headSha.slice(0, -1)}0` },
-      }) },
+      }), applyTopRemedy: vi.fn() },
       deleteLocalRef: async () => ({ status: "adopted" }),
       deleteRemoteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
     await expect(teardownLandedDeliveryMember({
       ...common,
-      host: { readRequest: async () => ({ status: "observed", request: { ...request, state: "open" as const } }) },
+      host: {
+        readRequest: async () => ({ status: "observed", request: { ...request, state: "open" as const } }),
+        applyTopRemedy: vi.fn(),
+      },
       deleteLocalRef: async () => ({ status: "adopted" }),
       deleteRemoteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
@@ -247,13 +305,13 @@ describe("landed delivery teardown", () => {
       host: { readRequest: async () => ({
         status: "observed",
         request: { ...request, baseRef: "feat/unrelated" },
-      }) },
+      }), applyTopRemedy: vi.fn() },
       deleteLocalRef: async () => ({ status: "adopted" }),
       deleteRemoteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "request-mismatch" });
     await expect(teardownLandedDeliveryMember({
       ...common, deliverableId: state.members[1]!.deliverableId,
-      host: { readRequest: async () => ({ status: "observed", request }) },
+      host: { readRequest: async () => ({ status: "observed", request }), applyTopRemedy: vi.fn() },
       deleteLocalRef: async () => ({ status: "adopted" }),
       deleteRemoteRef: async () => ({ status: "adopted" }),
     })).resolves.toEqual({ status: "refused", reason: "member-not-landed" });
@@ -269,7 +327,7 @@ describe("landed delivery teardown", () => {
       repository: "owner/repo", protectedTargetRef: "refs/heads/main",
       host: { readRequest: async () => (++reads === 1
         ? { status: "observed", request }
-        : { status: "refused", reason: "unavailable" }) },
+        : { status: "refused", reason: "unavailable" }), applyTopRemedy: vi.fn() },
       deleteLocalRef: async () => ({ status: "adopted" }),
       deleteRemoteRef: async () => ({ status: "adopted" }),
       stateStore: { publish: async (_id, value, revision) => {
@@ -278,7 +336,7 @@ describe("landed delivery teardown", () => {
       } },
     });
     expect(result).toMatchObject({ status: "blocked", reason: "request-mismatch" });
-    if (result.status !== "blocked") return;
+    if (result.status !== "blocked" || result.reason === "top-remedy-required") return;
     expect(result.reservation.value.activeOperation?.kind).toBe("teardown");
     expect(published).toHaveLength(1);
   });
@@ -288,7 +346,7 @@ describe("landed delivery teardown", () => {
     const result = await teardownLandedDeliveryMember({
       plan, current: { revision: 4, value: state }, facts, deliverableId: first.deliverableId,
       repository: "owner/repo", protectedTargetRef: "refs/heads/main",
-      host: { readRequest: async () => ({ status: "observed", request }) },
+      host: { readRequest: async () => ({ status: "observed", request }), applyTopRemedy: vi.fn() },
       deleteLocalRef: async () => ({ status: "adopted" }),
       deleteRemoteRef: async () => ({ status: "refused" }),
       stateStore: { publish: async (_id, value, revision) => ({
@@ -296,7 +354,9 @@ describe("landed delivery teardown", () => {
       }) },
     });
     expect(result).toMatchObject({ status: "blocked", reason: "delete-refused" });
-    if (result.status === "blocked") expect(result.reservation.value.activeOperation?.kind).toBe("teardown");
+    if (result.status === "blocked" && result.reason !== "top-remedy-required") {
+      expect(result.reservation.value.activeOperation?.kind).toBe("teardown");
+    }
   });
 
   it("reobserves the top after highest-member deletion and reports automatic retarget", async () => {
@@ -337,7 +397,7 @@ describe("landed delivery teardown", () => {
           return { status: "observed", request: memberRequest };
         }
         return { status: "observed", request: topRequest };
-      } },
+      }, applyTopRemedy: vi.fn() },
       deleteLocalRef: async () => ({ status: "deleted" }),
       deleteRemoteRef: async () => ({ status: "deleted" }),
       stateStore: { publish: async (_id, value, revision) => ({

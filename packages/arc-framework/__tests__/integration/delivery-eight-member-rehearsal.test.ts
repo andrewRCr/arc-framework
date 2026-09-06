@@ -315,6 +315,10 @@ describe("eight-member delivery integration rehearsal", () => {
           },
         };
       },
+      applyTopRemedy: async () => {
+        terminalBaseRef = "main";
+        return { status: "submitted" as const };
+      },
     };
     for (const [index, member] of state.members.slice(0, -1).entries()) {
       const current = persisted;
@@ -340,7 +344,7 @@ describe("eight-member delivery integration rehearsal", () => {
         stateStore,
       });
       expect(teardown).toMatchObject(index === state.members.length - 2
-        ? { status: "torn-down", nextAction: "retarget" }
+        ? { status: "torn-down", nextAction: "terminal-checkpoint" }
         : { status: "torn-down", nextAction: "continue" });
     }
     expect({ localRefs: [...localRefs], remoteRefs: [...remoteRefs] })

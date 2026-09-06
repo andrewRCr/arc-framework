@@ -402,7 +402,7 @@ describe("GhDeliveryHostPort", () => {
       .resolves.toEqual({ status: "refused", reason: "unavailable" });
   });
 
-  it("reopens and retargets a closed terminal request in one GitHub mutation", async () => {
+  it("reopens a closed terminal request before retargeting it through supported GitHub mutations", async () => {
     for (const [action, fromBaseRef] of [
       ["retarget", "delivery/example/previous"],
       ["reopen-and-retarget", "delivery/example/previous"],
@@ -412,19 +412,20 @@ describe("GhDeliveryHostPort", () => {
         baseRef: fromBaseRef,
         state: action === "retarget" ? "open" : "closed",
       };
+      const mutations: string[] = [];
       const port = new GhDeliveryHostPort({ run: async (args) => {
         if (args[0] === "pr" && args[1] === "view") {
           return { stdout: JSON.stringify({ id: "PR_terminal" }), stderr: "" };
         }
         if (args[0] === "api" && args[1] === "graphql") {
           const query = args.find((arg) => arg.startsWith("query="));
-          if (query?.includes("updatePullRequest") !== true
-            || query.includes("state:OPEN") !== true
-            || query.includes("baseRefName:$base") !== true
-            || !args.includes("id=PR_terminal") || !args.includes("base=main")) {
-            throw new Error("invalid atomic pull-request mutation");
+          if (query?.includes("updatePullRequest") !== true || !args.includes("id=PR_terminal")) {
+            throw new Error("invalid pull-request mutation");
           }
-          request.baseRef = "main";
+          const changesBase = query.includes("baseRefName:$base");
+          const opens = query.includes("state:OPEN");
+          if (!opens || changesBase) throw new Error("invalid reopen mutation");
+          mutations.push("reopen");
           request.state = "open";
           return { stdout: JSON.stringify({ data: { updatePullRequest: { pullRequest: {
             baseRefName: request.baseRef,
@@ -440,6 +441,7 @@ describe("GhDeliveryHostPort", () => {
               422,
             );
           }
+          mutations.push("retarget");
           request.baseRef = "main";
           return { stdout: "{}", stderr: "" };
         }
@@ -462,6 +464,9 @@ describe("GhDeliveryHostPort", () => {
         action,
       })).resolves.toEqual({ status: "submitted" });
       expect(request).toEqual({ baseRef: "main", state: "open" });
+      expect(mutations).toEqual(action === "retarget"
+        ? ["retarget"]
+        : fromBaseRef === "main" ? ["reopen"] : ["reopen", "retarget"]);
     }
     const malformedCalls: string[][] = [];
     const malformedRunner: HostedProcessRunner = { run: async (args) => {

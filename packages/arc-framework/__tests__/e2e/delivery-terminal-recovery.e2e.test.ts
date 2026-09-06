@@ -1,7 +1,7 @@
 /** Built-CLI coverage for terminal deletion authority and interruption recovery. */
 
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -139,6 +139,7 @@ describe("delivery terminal recovery", () => {
     const fakeBin = join(repository, "fake-bin");
     const fakeGh = join(fakeBin, "gh");
     const mutationMarker = join(repository, "top-remedy-mutated");
+    const reopenMarker = join(repository, "top-remedy-reopened");
     const request = (
       number: number,
       member: number,
@@ -172,8 +173,9 @@ describe("delivery terminal recovery", () => {
       "    ;;",
       "  graphql)",
       "    case \"$*\" in",
-      "      *updatePullRequest*state:OPEN*baseRefName:*id=PR_terminal*base=main*)",
-      "        : > \"$ARC_FAKE_GH_MARKER\"",
+      "      *updatePullRequest*state:OPEN*baseRefName:*) exit 1 ;;",
+      "      *updatePullRequest*state:OPEN*id=PR_terminal*)",
+      "        : > \"$ARC_FAKE_GH_REOPEN_MARKER\"",
       "        printf '%s\\n' '{\"data\":{\"updatePullRequest\":{\"pullRequest\":{\"id\":\"PR_terminal\"}}}}'",
       "        ;;",
       "      *) exit 1 ;;",
@@ -188,7 +190,7 @@ describe("delivery terminal recovery", () => {
       "  repos/owner/repo/pulls/402)",
       "    case \"$*\" in",
       "      *--method*PATCH*) : > \"$ARC_FAKE_GH_MARKER\"; printf '{}\\n' ;;",
-      `      *) if [ -f "$ARC_FAKE_GH_MARKER" ]; then if [ "\${ARC_FAKE_REFRESHED_TOP:-0}" = "1" ]; then printf '%s\\n' '${request(402, 2, "f".repeat(40), "open", "main")}'; else printf '%s\\n' '${request(402, 2, terminalHead, "open", "main")}'; fi; elif [ "\${ARC_FAKE_TOP_CLOSED:-0}" = "1" ]; then printf '%s\\n' '${request(402, 2, terminalHead, "closed", "delivery/member-1", undefined, false)}'; else printf '%s\\n' '${request(402, 2, terminalHead, "open", "delivery/member-1")}'; fi ;;`,
+      `      *) if [ -f "$ARC_FAKE_GH_MARKER" ]; then if [ "\${ARC_FAKE_REFRESHED_TOP:-0}" = "1" ]; then printf '%s\\n' '${request(402, 2, "f".repeat(40), "open", "main")}'; else printf '%s\\n' '${request(402, 2, terminalHead, "open", "main")}'; fi; elif [ -f "$ARC_FAKE_GH_REOPEN_MARKER" ]; then printf '%s\\n' '${request(402, 2, terminalHead, "open", "delivery/member-1", undefined, false)}'; elif [ "\${ARC_FAKE_TOP_CLOSED:-0}" = "1" ]; then printf '%s\\n' '${request(402, 2, terminalHead, "closed", "delivery/member-1", undefined, false)}'; else printf '%s\\n' '${request(402, 2, terminalHead, "open", "delivery/member-1")}'; fi ;;`,
       "    esac",
       "    ;;",
       "  repos/owner/repo/git/ref/heads/main)",
@@ -215,6 +217,7 @@ describe("delivery terminal recovery", () => {
       env: {
         PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
         ARC_FAKE_GH_MARKER: mutationMarker,
+        ARC_FAKE_GH_REOPEN_MARKER: reopenMarker,
       },
     };
   }
@@ -453,31 +456,8 @@ describe("delivery terminal recovery", () => {
     };
   }
 
-  it("refuses the top remedy while its triggering member ref is still present", async () => {
+  it("applies the top remedy while its exact triggering member ref is present", async () => {
     const fixture = await installFixture({ triggerPresent: true, teardownReserved: false });
-    const result = await runArcWithStdin(
-      ["delivery", "top-remedy", "-", "--json"],
-      repository,
-      `${JSON.stringify({
-        planId: fixture.planId,
-        action: "retarget",
-        repository: "owner/repo",
-        protectedBaseRef: "main",
-        remote: "origin",
-      })}\n`,
-      { env: fixture.env },
-    );
-
-    expect(result.exitCode, result.stderr).toBe(1);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      command: "delivery top-remedy",
-      status: "refused",
-      reason: "trigger-ref-present",
-    });
-  });
-
-  it("applies the top remedy after proving the deleted trigger head locally", async () => {
-    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
     const result = await runArcWithStdin(
       ["delivery", "top-remedy", "-", "--json"],
       repository,
@@ -495,12 +475,40 @@ describe("delivery terminal recovery", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       command: "delivery top-remedy",
       status: "remedied",
-      nextAction: "terminal-checkpoint",
+      nextAction: "teardown-member",
     });
   });
 
-  it("settles a reopened top whose host view refreshes without adopting the new head", async () => {
+  it("returns exact restoration coordinates instead of mutating after trigger deletion", async () => {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    const result = await runArcWithStdin(
+      ["delivery", "top-remedy", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        planId: fixture.planId,
+        action: "retarget",
+        repository: "owner/repo",
+        protectedBaseRef: "main",
+        remote: "origin",
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery top-remedy",
+      status: "blocked",
+      reason: "trigger-ref-restore-required",
+      recovery: {
+        ref: "refs/heads/delivery/member-1",
+        head: fixture.triggerHead,
+      },
+    });
+    await expect(stat(fixture.mutationMarker)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("settles a reopened top whose host view refreshes without adopting the new head", async () => {
+    const fixture = await installFixture({ triggerPresent: true, teardownReserved: false });
     const before = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       value: DeliveryStateV1;
     };
@@ -588,11 +596,15 @@ describe("delivery terminal recovery", () => {
       })}\n`,
       { env: fixture.env },
     );
-    expect(remedy.exitCode, remedy.stderr).toBe(0);
+    expect(remedy.exitCode, remedy.stderr).toBe(1);
     expect(JSON.parse(remedy.stdout)).toMatchObject({
       command: "delivery top-remedy",
-      status: "remedied",
-      nextAction: "terminal-checkpoint",
+      status: "blocked",
+      reason: "trigger-ref-restore-required",
+      recovery: {
+        ref: "refs/heads/delivery/member-1",
+        head: fixture.triggerHead,
+      },
     });
   });
 
@@ -649,27 +661,10 @@ describe("delivery terminal recovery", () => {
     expect(JSON.parse(teardown.stdout)).toMatchObject({
       command: "delivery teardown",
       status: "torn-down",
-      nextAction: "retarget",
-    });
-
-    const remedy = await runArcWithStdin(
-      ["delivery", "top-remedy", "-", "--json"],
-      repository,
-      `${JSON.stringify({
-        planId: fixture.planId,
-        action: "retarget",
-        repository: "owner/repo",
-        protectedBaseRef: "main",
-        remote: "origin",
-      })}\n`,
-      { env: fixture.env },
-    );
-    expect(remedy.exitCode, remedy.stderr).toBe(0);
-    expect(JSON.parse(remedy.stdout)).toMatchObject({
-      command: "delivery top-remedy",
-      status: "remedied",
       nextAction: "terminal-checkpoint",
+      top: { status: "ready", request: { baseRef: "main", state: "open" } },
     });
+    await expect(stat(fixture.mutationMarker)).resolves.toBeDefined();
   });
 
   it("rebinds stale terminal coordinates to the independently settled current Candidate", async () => {
@@ -924,11 +919,11 @@ describe("delivery terminal recovery", () => {
       })}\n`,
       { env: fixture.env },
     );
-    expect(remedy.exitCode, remedy.stderr).toBe(0);
+    expect(remedy.exitCode, remedy.stderr).toBe(1);
     expect(JSON.parse(remedy.stdout)).toMatchObject({
       command: "delivery top-remedy",
-      status: "remedied",
-      nextAction: "terminal-checkpoint",
+      status: "blocked",
+      reason: "trigger-ref-restore-required",
     });
   });
 
@@ -1059,20 +1054,36 @@ describe("delivery terminal recovery", () => {
     expect(retained.value.activeOperation).toMatchObject({ kind: "teardown" });
   });
 
-  it.each([
-    ["reappears", true, "origin"],
-    ["is unavailable", false, "missing"],
-  ] as const)("retains an interrupted top-remedy reservation when its trigger ref %s", async (
-    _condition,
-    triggerPresent,
-    remoteName,
-  ) => {
-    const fixture = await installFixture({ triggerPresent, teardownReserved: false });
+  it("clears an unperformed top remedy when its exact trigger ref remains present", async () => {
+    const fixture = await installFixture({ triggerPresent: true, teardownReserved: false });
     await reserveInterruptedTopRemedy(fixture);
     const result = await runArcWithStdin(
       ["delivery", "reconcile", "-", "--json"],
       repository,
-      `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: remoteName })}\n`,
+      `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-top-remedy",
+    });
+    const cleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: DeliveryStateV1;
+    };
+    expect(cleared.value.activeOperation).toBeNull();
+  });
+
+  it("retains an interrupted top-remedy reservation when its trigger ref is unavailable", async () => {
+    const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
+    await reserveInterruptedTopRemedy(fixture);
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: fixture.planId, repository: "owner/repo", remote: "missing" })}\n`,
       { env: fixture.env },
     );
 
@@ -1081,9 +1092,7 @@ describe("delivery terminal recovery", () => {
       command: "delivery reconcile",
       status: "blocked",
     });
-    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
-    };
+    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as { value: DeliveryStateV1 };
     expect(retained.value.activeOperation).toMatchObject({ kind: "top-remedy" });
   });
 });

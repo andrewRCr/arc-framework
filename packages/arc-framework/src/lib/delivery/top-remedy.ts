@@ -25,7 +25,8 @@ export type ApplyDeliveryTopRemedyResult =
   | {
       readonly status: "remedied";
       readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
-      readonly nextAction: "terminal-checkpoint";
+      readonly nextAction: "teardown-member";
+      readonly selectedDeliverableId: string;
       readonly top: ReadyTop;
     }
   | {
@@ -35,6 +36,12 @@ export type ApplyDeliveryTopRemedyResult =
       readonly terminalHeadAction: "rebind-required";
     }
   | { readonly status: "refused"; readonly reason: string }
+  | {
+      readonly status: "blocked";
+      readonly reason: "trigger-ref-restore-required";
+      readonly recovery: { readonly ref: string; readonly head: string };
+      readonly recommendedActionText: string;
+    }
   | {
       readonly status: "blocked";
       readonly reason:
@@ -158,11 +165,18 @@ export async function applyDeliveryTopRemedy(input: {
     return { status: "refused", reason: "remedy-mismatch" };
   }
   const triggerObservation = await input.observeTriggerRef(trigger.ref);
-  if (triggerObservation.status === "observed") {
-    return { status: "refused", reason: "trigger-ref-present" };
+  if (triggerObservation.status === "absent") {
+    return {
+      status: "blocked",
+      reason: "trigger-ref-restore-required",
+      recovery: { ref: trigger.ref, head: trigger.coordinates.head },
+      recommendedActionText:
+        `Restore ${trigger.ref} at ${trigger.coordinates.head}, then rerun the exact terminal remedy.`,
+    };
   }
-  if (triggerObservation.status !== "absent") {
-    return { status: "refused", reason: "trigger-ref-unavailable" };
+  if (triggerObservation.status !== "observed"
+    || triggerObservation.head !== trigger.coordinates.head) {
+    return { status: "refused", reason: "trigger-ref-mismatch" };
   }
 
   const before: DeliveryOperationSnapshotV1 = {
@@ -200,7 +214,8 @@ export async function applyDeliveryTopRemedy(input: {
     input.plan.planId, reserved.state, input.current.revision,
   );
   if (persistedReservation.status !== "ok") return { status: "refused", reason: "state-conflict" };
-  if ((await input.observeTriggerRef(trigger.ref)).status !== "absent") {
+  const freshTrigger = await input.observeTriggerRef(trigger.ref);
+  if (freshTrigger.status !== "observed" || freshTrigger.head !== trigger.coordinates.head) {
     return {
       status: "blocked",
       reason: "trigger-ref-mismatch",
@@ -227,8 +242,12 @@ export async function applyDeliveryTopRemedy(input: {
     request: final.request,
   });
   const completion = terminalHeadMoved
-    ? { terminalHeadAction: "rebind-required" as const }
-    : top.status === "ready" ? { top } : null;
+    ? { nextAction: "terminal-checkpoint" as const, terminalHeadAction: "rebind-required" as const }
+    : top.status === "ready" ? {
+        nextAction: "teardown-member" as const,
+        selectedDeliverableId: trigger.deliverableId,
+        top,
+      } : null;
   if (completion === null) {
     return { status: "blocked", reason: "request-mismatch", reservation: persistedReservation.value };
   }
@@ -250,7 +269,6 @@ export async function applyDeliveryTopRemedy(input: {
   return {
     status: "remedied",
     state: persisted.value,
-    nextAction: "terminal-checkpoint",
     ...completion,
   };
 }

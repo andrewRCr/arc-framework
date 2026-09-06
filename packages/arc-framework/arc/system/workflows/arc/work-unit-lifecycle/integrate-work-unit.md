@@ -586,7 +586,10 @@ This reuses ordinary delivery reconciliation and adds no new operation.
 
 `blocked` with `retarget` or `reopen-and-retarget` renders the returned reason and remedy, then stops for explicit
 direction to apply that exact remedy. On direction, invoke `remedy.argv` with `remedy.stdin` unchanged.
-`remedied / terminal-checkpoint` restarts this step; every other result stops.
+`remedied / terminal-checkpoint` restarts this step. `remedied / teardown-member` returns to the delivery teardown
+path with its exact `selectedDeliverableId`. `blocked / trigger-ref-restore-required` renders its exact ref/head and
+stops for Owner approval before restoring only that missing ref, then reruns the same remedy. Every other result
+stops.
 
 `reconcile / reconcile-base` enters the base-merge arm with the checkpoint's validated safety facts.
 
