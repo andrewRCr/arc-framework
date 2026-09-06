@@ -46,6 +46,19 @@ export const ContinueHostedReviewActionSchema = z.strictObject({
     });
   }
 });
+export const ResolveDeliveryStatusActionSchema = z.strictObject({
+  kind: z.literal("resolve-delivery-status"),
+  workUnitId: SlugSchema,
+  ...ActionFields,
+}).superRefine((action, context) => {
+  if (action.command !== `arc review status --work-unit ${action.workUnitId} --json`) {
+    context.addIssue({
+      code: "custom",
+      path: ["command"],
+      message: "the delivery-status action must be self-contained for its work unit",
+    });
+  }
+});
 const LegacyContinueHostedReviewActionSchema = z.strictObject({
   kind: z.literal("continue-hosted-review"),
   command: z.literal("arc review status --target '{targetRef}' --json"),
@@ -67,7 +80,7 @@ export const ContinuePublicationActionSchema = z.strictObject({
 export const IntegrationBoundaryNextActionSchema = z.discriminatedUnion("kind", [
   RunSelfReviewActionSchema,
   ContinuePrePublicationActionSchema,
-  ContinueHostedReviewActionSchema,
+  ResolveDeliveryStatusActionSchema,
   RunConvergenceVerificationActionSchema,
   PublishCandidateActionSchema,
   ContinuePublicationActionSchema,
@@ -189,33 +202,43 @@ export const HostedReviewPendingBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
   mode: z.literal("integration-boundary"),
   locus: z.literal("hosted-review-pending"),
-  nextAction: z.union([
-    ContinuePrePublicationActionSchema,
-    ContinueHostedReviewActionSchema,
-  ]),
+  nextAction: ContinuePrePublicationActionSchema,
+  policy: z.null(),
+  reservation: StandardReviewReservationV1Schema,
+}).superRefine((boundary, context) => {
+  if (boundary.reservation.target.kind !== "pinned-head") {
+    context.addIssue({
+      code: "custom",
+      path: ["reservation", "target", "kind"],
+      message: "hosted-review-pending is reserved for a pinned singleton target",
+    });
+  }
+});
+export const DeliveryStatusRequiredBoundarySchema = z.strictObject({
+  ...BoundaryCommonShape,
+  mode: z.literal("integration-boundary"),
+  locus: z.literal("delivery-status-required"),
+  nextAction: ResolveDeliveryStatusActionSchema,
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema,
   deliveryContinuation: DeliveryPublicReviewContinuationV1Schema.optional(),
 }).superRefine((boundary, context) => {
-  const delivery = boundary.reservation.target.kind === "delivery";
-  if (delivery !== (boundary.nextAction.kind === "continue-hosted-review")) {
+  if (boundary.reservation.target.kind !== "delivery") {
     context.addIssue({
       code: "custom",
-      path: ["nextAction", "kind"],
-      message: "the hosted-review action must match the reservation target kind",
+      path: ["reservation", "target", "kind"],
+      message: "delivery status requires a delivery reservation",
     });
   }
-  if (boundary.nextAction.kind === "continue-hosted-review"
-    && boundary.nextAction.workUnitId !== boundary.workUnit) {
+  if (boundary.nextAction.workUnitId !== boundary.workUnit) {
     context.addIssue({
       code: "custom",
       path: ["nextAction", "workUnitId"],
-      message: "the hosted-review action must identify the boundary work unit",
+      message: "the delivery-status action must identify the boundary work unit",
     });
   }
   if (boundary.deliveryContinuation !== undefined
-    && (!delivery
-      || boundary.reservation.target.kind !== "delivery"
+    && (boundary.reservation.target.kind !== "delivery"
       || boundary.deliveryContinuation.planId !== boundary.reservation.target.planId)) {
     context.addIssue({
       code: "custom",
@@ -232,10 +255,38 @@ const LegacyHostedReviewPendingBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
   mode: z.literal("integration-boundary"),
   locus: z.literal("hosted-review-pending"),
-  nextAction: LegacyContinueHostedReviewActionSchema,
+  nextAction: z.union([
+    ContinueHostedReviewActionSchema,
+    LegacyContinueHostedReviewActionSchema,
+  ]),
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema,
   deliveryContinuation: DeliveryPublicReviewContinuationV1Schema.optional(),
+}).superRefine((boundary, context) => {
+  if (boundary.reservation.target.kind !== "delivery") {
+    context.addIssue({
+      code: "custom",
+      path: ["reservation", "target", "kind"],
+      message: "the legacy delivery continuation requires a delivery reservation",
+    });
+  }
+  if ("workUnitId" in boundary.nextAction
+    && boundary.nextAction.workUnitId !== boundary.workUnit) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextAction", "workUnitId"],
+      message: "the legacy delivery action must identify the boundary work unit",
+    });
+  }
+  if (boundary.deliveryContinuation !== undefined
+    && (boundary.reservation.target.kind !== "delivery"
+      || boundary.deliveryContinuation.planId !== boundary.reservation.target.planId)) {
+    context.addIssue({
+      code: "custom",
+      path: ["deliveryContinuation"],
+      message: "the legacy delivery continuation must match its reservation",
+    });
+  }
 });
 
 export const IntegrationBoundaryLocusSchema = z.union([
@@ -245,6 +296,7 @@ export const IntegrationBoundaryLocusSchema = z.union([
   CandidatePublishReadyBoundarySchema,
   PublicationPendingBoundarySchema,
   HostedReviewPendingBoundarySchema,
+  DeliveryStatusRequiredBoundarySchema,
 ]);
 export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSchema>;
 
@@ -254,12 +306,15 @@ export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBounda
   if (canonical.success) return canonical.data;
   const legacy = LegacyHostedReviewPendingBoundarySchema.safeParse(input);
   if (!legacy.success) return IntegrationBoundaryLocusSchema.parse(input);
-  return HostedReviewPendingBoundarySchema.parse({
+  return DeliveryStatusRequiredBoundarySchema.parse({
     ...legacy.data,
+    locus: "delivery-status-required",
     nextAction: {
       ...legacy.data.nextAction,
+      kind: "resolve-delivery-status",
       workUnitId: legacy.data.workUnit,
       command: `arc review status --work-unit ${legacy.data.workUnit} --json`,
+      interactionText: "Resolve the retained delivery status.",
     },
   });
 }
@@ -353,7 +408,8 @@ export function recoverPrePublicationBoundary(input: {
     || stored.candidateId !== candidateId
     || stored.candidateSubjectDigest !== candidateSubjectDigest
     || stored.locus === "publication-pending"
-    || stored.locus === "hosted-review-pending") return null;
+    || stored.locus === "hosted-review-pending"
+    || stored.locus === "delivery-status-required") return null;
   return stored;
 }
 
@@ -376,10 +432,14 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
     workUnit: value.workUnit,
     candidateId: value.candidateId,
     candidateSubjectDigest: value.candidateSubjectDigest,
-    locus: hosted ? "hosted-review-pending" : "publication-pending",
+    locus: deliveryHosted
+      ? "delivery-status-required"
+      : hosted
+        ? "hosted-review-pending"
+        : "publication-pending",
     nextAction: {
       kind: deliveryHosted
-        ? "continue-hosted-review"
+        ? "resolve-delivery-status"
         : hosted
           ? "continue-pre-publication-review"
           : "continue-publication",
@@ -389,7 +449,7 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
           ? `arc review pre-publication ${value.workUnit} --json`
         : `git push -u origin ${value.branch}`,
       interactionText: deliveryHosted
-        ? "Resume the retained delivery-member review conjunction."
+        ? "Resolve the retained delivery status."
         : hosted
           ? "Continue the reserved hosted standard review."
         : "Resume publication at the idempotent push, then resolve or open the change request.",
@@ -405,9 +465,9 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
  * Rebind one carried public delivery reservation to a renewed Candidate continuation.
  *
  * @param input - Renewed Candidate identity, exact source boundary, and current delivery binding.
- * @returns One hosted-review boundary carrying the unchanged public reservation.
+ * @returns One provider-neutral delivery-status boundary carrying the unchanged public reservation.
  */
-export function projectCorrectiveDeliveryReviewBoundary(input: {
+export function projectCorrectiveDeliveryStatusBoundary(input: {
   readonly workUnit: string;
   readonly candidateId: string;
   readonly candidateSubjectDigest: string;
@@ -424,7 +484,9 @@ export function projectCorrectiveDeliveryReviewBoundary(input: {
   const source = IntegrationBoundaryLocusSchema.parse(input.sourceBoundary);
   const continuation = DeliveryPublicReviewContinuationV1Schema.parse(input.deliveryContinuation);
   if (source.mode !== "integration-boundary"
-    || (source.locus !== "publication-pending" && source.locus !== "hosted-review-pending")
+    || (source.locus !== "publication-pending"
+      && source.locus !== "hosted-review-pending"
+      && source.locus !== "delivery-status-required")
     || source.workUnit !== workUnit
     || source.candidateSubjectDigest === null
     || (source.candidateId !== candidateId && source.candidateId !== supersedesCandidateId)
@@ -440,12 +502,12 @@ export function projectCorrectiveDeliveryReviewBoundary(input: {
     workUnit,
     candidateId,
     candidateSubjectDigest,
-    locus: "hosted-review-pending",
+    locus: "delivery-status-required",
     nextAction: {
-      kind: "continue-hosted-review",
+      kind: "resolve-delivery-status",
       workUnitId: workUnit,
       command: `arc review status --work-unit ${workUnit} --json`,
-      interactionText: "Resume the retained delivery-member review conjunction.",
+      interactionText: "Resolve the retained delivery status.",
     },
     policy: null,
     reservation: source.reservation,
@@ -468,7 +530,9 @@ export function recoverPublicationBoundary(input: {
     || stored.workUnit !== input.workUnit
     || stored.candidateId !== input.candidateId
     || stored.candidateSubjectDigest === null) return null;
-  if (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending") {
+  if (stored.locus === "publication-pending"
+    || stored.locus === "hosted-review-pending"
+    || stored.locus === "delivery-status-required") {
     // The Candidate record's latest response subject is authoritative for the current lineage.
     // Rebind the carried publication authority instead of treating that approved advance as stale.
     return IntegrationBoundaryLocusSchema.parse({

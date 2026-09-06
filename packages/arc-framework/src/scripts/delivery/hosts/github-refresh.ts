@@ -7,15 +7,15 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 
 import {
-  deriveDeliveryResolutionWorkspacePath,
-  observeDeliveryResolutionWorkspace,
-  removeDeliveryResolutionWorkspace,
-} from "../../../lib/delivery/conflict-resolution-workspace.js";
-import {
   deleteDeliveryRefreshCandidateRef,
   observeDeliveryRefreshCandidateRefs,
   rewriteDeliveryLocalRef,
 } from "../../../lib/delivery/git-materialization.js";
+import {
+  deriveDeliveryResolutionWorkspacePath,
+  observeDeliveryGateCheckout,
+  removeDeliveryGateCheckout,
+} from "../../../lib/delivery/residue-reaping.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import { normalizeGitRejection } from "../../../lib/git/process-error.js";
 import {
@@ -182,7 +182,11 @@ function mergeTreeOutput(value: string): { readonly tree: string; readonly paths
 }
 
 type ProviderHistoryCollisionRecovery =
-  | { readonly status: "recovered"; readonly members: DeliveryOperationSnapshotV1["members"] }
+  | {
+      readonly status: "recovered";
+      readonly members: DeliveryOperationSnapshotV1["members"];
+      readonly locallyResolvedDeliverableIds: readonly string[];
+    }
   | {
       readonly status: "blocked";
       readonly reason: "content-conflict";
@@ -271,7 +275,7 @@ async function resolutionWorkspaceProtectedCandidateRefs(input: {
     for (let index = 1; index < input.before.members.length; index += 1) {
       const member = input.before.members[index];
       const predecessor = input.before.members[index - 1];
-      if (member === undefined || predecessor === undefined || predecessor.coordinates === null) continue;
+      if (member === undefined || predecessor?.coordinates === null || predecessor === undefined) continue;
       const locator = await deriveResolutionWorkspace({
         git: input.git,
         checkoutCwd: input.checkoutCwd,
@@ -304,7 +308,7 @@ async function prepareResolutionWorkspace(input: {
 > {
   const locator = await deriveResolutionWorkspace(input);
   if (locator.status === "refused") return { status: "refused", reason: "locator-unavailable" };
-  const before = await observeDeliveryResolutionWorkspace({
+  const before = await observeDeliveryGateCheckout({
     exec: input.git,
     path: locator.path,
     pathExists,
@@ -323,7 +327,7 @@ async function prepareResolutionWorkspace(input: {
   } catch {
     return { status: "refused", reason: "create-failed" };
   }
-  const after = await observeDeliveryResolutionWorkspace({
+  const after = await observeDeliveryGateCheckout({
     exec: input.git,
     path: locator.path,
     pathExists,
@@ -344,7 +348,7 @@ async function adoptResolutionWorkspace(input: {
 }): Promise<ProviderHistoryConflictResolution> {
   const locator = await deriveResolutionWorkspace(input);
   if (locator.status === "refused") return { status: "refused" };
-  const workspace = await observeDeliveryResolutionWorkspace({
+  const workspace = await observeDeliveryGateCheckout({
     exec: input.git,
     path: locator.path,
     pathExists,
@@ -353,18 +357,9 @@ async function adoptResolutionWorkspace(input: {
   if (workspace.status === "refused") return { status: "refused" };
   if (workspace.head === input.oldHead) return { status: "pending" };
   const coordinates = await readCoordinates(input.git, locator.path, "HEAD");
-  let parentLine: string;
-  try {
-    parentLine = (await input.git(
-      "git",
-      ["rev-list", "--parents", "-n", "1", workspace.head],
-      { cwd: locator.path },
-    )).stdout.trim();
-  } catch {
-    return { status: "refused" };
-  }
-  if (coordinates?.head !== workspace.head
-    || parentLine !== `${workspace.head} ${input.oldHead} ${input.refreshedPredecessorHead}`) {
+  const parents = await readOrderedParents(input.git, locator.path, workspace.head);
+  if (coordinates?.head !== workspace.head || parents?.length !== 2
+    || parents[0] !== input.oldHead || parents[1] !== input.refreshedPredecessorHead) {
     return { status: "refused" };
   }
   const rebound = await rewriteDeliveryLocalRef({
@@ -374,7 +369,7 @@ async function adoptResolutionWorkspace(input: {
     requestedHead: workspace.head,
   });
   if (rebound.status === "refused") return { status: "refused" };
-  const removed = await removeDeliveryResolutionWorkspace({
+  const removed = await removeDeliveryGateCheckout({
     exec: input.git,
     path: locator.path,
     expectedHead: workspace.head,
@@ -394,14 +389,14 @@ async function cleanupPendingResolutionWorkspace(input: {
 }): Promise<boolean> {
   const locator = await deriveResolutionWorkspace(input);
   if (locator.status === "refused") return false;
-  const observed = await observeDeliveryResolutionWorkspace({
+  const observed = await observeDeliveryGateCheckout({
     exec: input.git,
     path: locator.path,
     pathExists,
   });
   if (observed.status === "absent") return true;
   if (observed.status !== "observed" || observed.head !== input.expectedHead) return false;
-  return (await removeDeliveryResolutionWorkspace({
+  return (await removeDeliveryGateCheckout({
     exec: input.git,
     path: locator.path,
     expectedHead: input.expectedHead,
@@ -409,44 +404,214 @@ async function cleanupPendingResolutionWorkspace(input: {
   })).status !== "refused";
 }
 
-async function anchorConflictPredecessor(input: {
-  readonly git: GitExec;
-  readonly isolatedCwd: string;
-  readonly checkoutCwd: string;
-  readonly plan: DeliveryPlanV1;
-  readonly before: DeliveryOperationSnapshotV1;
-  readonly conflict: Omit<DeliveryTerminalConflictPreparation, "workspace">;
-}): Promise<DeliveryProviderRefreshCandidate | null> {
-  const conflictIndex = input.before.members.findIndex(({ ref }) => ref === input.conflict.topRef);
-  if (conflictIndex < 0) throw new Error("conflict member unavailable");
-  const predecessorHead = input.conflict.parents.refreshedPredecessor;
-  const readable = await readCoordinates(input.git, input.checkoutCwd, predecessorHead);
-  if (conflictIndex === 0) {
-    if (readable?.head !== predecessorHead) throw new Error("conflict predecessor unavailable");
+async function readOrderedParents(
+  git: GitExec,
+  cwd: string,
+  head: string,
+): Promise<readonly string[] | null> {
+  try {
+    const fields = (await git("git", ["rev-list", "--parents", "-n", "1", head], { cwd }))
+      .stdout.trim().split(" ");
+    return fields[0] === head ? fields.slice(1) : null;
+  } catch {
     return null;
   }
-  const predecessor = input.before.members[conflictIndex - 1];
-  if (predecessor?.ref === null || predecessor?.ref === undefined) {
-    throw new Error("conflict predecessor unavailable");
+}
+
+async function exactMechanicalTree(input: {
+  readonly git: GitExec;
+  readonly cwd: string;
+  readonly member: DeliveryOperationSnapshotV1["members"][number];
+  readonly predecessorHead: string;
+}): Promise<string | null> {
+  if (input.member.coordinates === null) return null;
+  const mergeArgs = [
+    "merge-tree", "--write-tree", "--merge-base", input.member.coordinates.base,
+    "--name-only", "-z", "--no-messages", input.member.coordinates.head, input.predecessorHead,
+  ];
+  try {
+    const merged = mergeTreeOutput((await input.git("git", mergeArgs, { cwd: input.cwd })).stdout);
+    return merged !== null && merged.paths.length === 0 ? merged.tree : null;
+  } catch {
+    return null;
   }
-  const localPredecessor = await readCoordinates(input.git, input.checkoutCwd, predecessor.ref);
-  if (localPredecessor?.head === predecessorHead) return null;
-  const candidate = deliveryProviderRefreshCandidateFor({
-    plan: input.plan,
-    deliverableId: predecessor.deliverableId,
-    head: predecessorHead,
-  });
-  if (candidate === null) throw new Error("conflict predecessor unavailable");
-  const isolatedPredecessor = await readCoordinates(input.git, input.isolatedCwd, predecessor.ref);
-  if (isolatedPredecessor?.head !== predecessorHead) throw new Error("conflict predecessor unavailable");
-  await input.git("git", [
-    "fetch", "--no-tags", input.isolatedCwd, `${predecessor.ref}:${candidate.ref}`,
-  ], { cwd: input.checkoutCwd });
-  const imported = await readCoordinates(input.git, input.checkoutCwd, candidate.ref);
-  if (imported?.head !== predecessorHead || imported.tree !== isolatedPredecessor.tree) {
-    throw new Error("conflict predecessor import mismatch");
+}
+
+async function conflictCandidateReuse(input: {
+  readonly git: GitExec;
+  readonly cwd: string;
+  readonly plan: DeliveryPlanV1;
+  readonly before: DeliveryOperationSnapshotV1;
+}): Promise<{
+  readonly retained: readonly DeliveryProviderRefreshCandidate[];
+  readonly reusable: readonly DeliveryProviderRefreshCandidate[];
+}> {
+  const retained: DeliveryProviderRefreshCandidate[] = [];
+  const reusable = new Map<string, DeliveryProviderRefreshCandidate>();
+  for (let index = 1; index < input.before.members.length; index += 1) {
+    const member = input.before.members[index];
+    const predecessor = input.before.members[index - 1];
+    if (member?.ref === null || member?.ref === undefined || member.coordinates === null
+      || predecessor === undefined) continue;
+    const local = await readCoordinates(input.git, input.cwd, member.ref);
+    if (local === null) continue;
+    let resolutionHead = local.head;
+    if (resolutionHead === member.coordinates.head) {
+      const locator = await deriveResolutionWorkspace({
+        git: input.git,
+        checkoutCwd: input.cwd,
+        plan: input.plan,
+        deliverableId: member.deliverableId,
+      });
+      if (locator.status === "refused") continue;
+      const workspace = await observeDeliveryGateCheckout({
+        exec: input.git,
+        path: locator.path,
+        pathExists,
+      });
+      if (workspace.status !== "observed" || workspace.head === member.coordinates.head) continue;
+      resolutionHead = workspace.head;
+    }
+    const parents = await readOrderedParents(input.git, input.cwd, resolutionHead);
+    if (parents?.length !== 2 || parents[0] !== member.coordinates.head || parents[1] === undefined) continue;
+    const candidate = deliveryProviderRefreshCandidateFor({
+      plan: input.plan,
+      deliverableId: predecessor.deliverableId,
+      head: parents[1],
+    });
+    if (candidate === null) continue;
+    const predecessorIndex = index - 1;
+    const predecessorPredecessorHead = predecessorIndex === 0
+      ? input.before.target?.coordinates?.head
+      : input.before.members[predecessorIndex - 1]?.coordinates?.head;
+    const [directCandidate, directTree, directAncestry] = predecessorPredecessorHead === undefined
+      ? [null, null, false] as const
+      : await Promise.all([
+          readCoordinates(input.git, input.cwd, candidate.ref),
+          exactMechanicalTree({
+            git: input.git,
+            cwd: input.cwd,
+            member: predecessor,
+            predecessorHead: predecessorPredecessorHead,
+          }),
+          isAncestor(input.git, input.cwd, predecessorPredecessorHead, candidate.head),
+        ]);
+    if (directCandidate?.head === candidate.head && directTree !== null
+      && directCandidate.tree === directTree && directAncestry) {
+      retained.push(candidate);
+      reusable.set(candidate.deliverableId, candidate);
+      continue;
+    }
+    const chain: DeliveryProviderRefreshCandidate[] = [];
+    let chainIndex = index - 1;
+    let chainHead = candidate.head;
+    let valid = true;
+    while (chainIndex >= 0) {
+      const chainMember = input.before.members[chainIndex];
+      if (chainMember?.coordinates === null || chainMember?.coordinates === undefined) {
+        valid = false;
+        break;
+      }
+      const chainCandidate = deliveryProviderRefreshCandidateFor({
+        plan: input.plan,
+        deliverableId: chainMember.deliverableId,
+        head: chainHead,
+      });
+      const [coordinates, chainParents] = await Promise.all([
+        readCoordinates(input.git, input.cwd, chainHead),
+        readOrderedParents(input.git, input.cwd, chainHead),
+      ]);
+      if (chainCandidate === null || coordinates?.head !== chainHead || chainParents?.length !== 2
+        || chainParents[0] !== chainMember.coordinates.head || chainParents[1] === undefined) {
+        valid = false;
+        break;
+      }
+      chain.push(chainCandidate);
+      if (chainIndex === 0) break;
+      const earlier = input.before.members[chainIndex - 1];
+      if (earlier?.coordinates === null || earlier?.coordinates === undefined || earlier.ref === null) {
+        valid = false;
+        break;
+      }
+      const localEarlier = await readCoordinates(input.git, input.cwd, earlier.ref);
+      if (chainParents[1] === earlier.coordinates.head || localEarlier?.head === chainParents[1]) break;
+      chainHead = chainParents[1];
+      chainIndex -= 1;
+    }
+    if (!valid || chain.some(({ deliverableId, head }) => {
+      const existing = reusable.get(deliverableId);
+      return existing !== undefined && existing.head !== head;
+    })) continue;
+    retained.push(candidate);
+    for (const chainCandidate of chain) reusable.set(chainCandidate.deliverableId, chainCandidate);
   }
-  return candidate;
+  return { retained, reusable: [...reusable.values()] };
+}
+
+async function ensureConflictCandidateAnchors(input: {
+  readonly git: GitExec;
+  readonly cwd: string;
+  readonly candidates: readonly DeliveryProviderRefreshCandidate[];
+}): Promise<boolean> {
+  for (const candidate of input.candidates) {
+    const current = await readCoordinates(input.git, input.cwd, candidate.ref);
+    if (current?.head === candidate.head) continue;
+    if (current !== null) return false;
+    try {
+      await input.git("git", [
+        "update-ref", "-m", "delivery conflict predecessor anchor",
+        candidate.ref, candidate.head, "0".repeat(candidate.head.length),
+      ], { cwd: input.cwd });
+    } catch {
+      const raced = await readCoordinates(input.git, input.cwd, candidate.ref);
+      if (raced?.head !== candidate.head) return false;
+    }
+    const installed = await readCoordinates(input.git, input.cwd, candidate.ref);
+    const object = await readCoordinates(input.git, input.cwd, candidate.head);
+    if (installed?.head !== candidate.head || object?.head !== candidate.head
+      || installed.tree !== object.tree) return false;
+  }
+  return true;
+}
+
+async function normalizeProviderHistoryConflictResolutions(input: {
+  readonly git: GitExec;
+  readonly cwd: string;
+  readonly before: DeliveryOperationSnapshotV1;
+  readonly targetHead: string;
+  readonly members: DeliveryOperationSnapshotV1["members"];
+}): Promise<{
+  readonly members: DeliveryOperationSnapshotV1["members"];
+  readonly locallyResolvedDeliverableIds: readonly string[];
+} | null> {
+  const normalized: DeliveryOperationSnapshotV1["members"][number][] = [];
+  const locallyResolvedDeliverableIds: string[] = [];
+  for (const [index, member] of input.members.entries()) {
+    const beforeMember = input.before.members[index];
+    const expectedBase = index === 0 ? input.targetHead : normalized[index - 1]?.coordinates?.head;
+    if (beforeMember === undefined || member.coordinates === null || expectedBase === undefined) return null;
+    if (member.coordinates.base === expectedBase) {
+      normalized.push(member);
+      continue;
+    }
+    if (beforeMember.ref === null || beforeMember.coordinates === null) return null;
+    const resolution = await readProviderHistoryConflictResolution({
+      git: input.git,
+      cwd: input.cwd,
+      ref: beforeMember.ref,
+      oldHead: beforeMember.coordinates.head,
+      oldTree: beforeMember.coordinates.tree,
+      refreshedPredecessorHead: expectedBase,
+    });
+    if (resolution.status !== "accepted"
+      || resolution.head !== member.coordinates.head || resolution.tree !== member.coordinates.tree) return null;
+    normalized.push({
+      ...member,
+      coordinates: { ...member.coordinates, base: expectedBase },
+    });
+    locallyResolvedDeliverableIds.push(member.deliverableId);
+  }
+  return { members: normalized, locallyResolvedDeliverableIds };
 }
 
 async function absorbProviderHistoryCollision(input: {
@@ -457,6 +622,7 @@ async function absorbProviderHistoryCollision(input: {
   readonly before: DeliveryOperationSnapshotV1;
   readonly selectedIndex: number;
   readonly targetHead: string;
+  readonly reusableCandidates: readonly DeliveryProviderRefreshCandidate[];
 }): Promise<ProviderHistoryCollisionRecovery> {
   try {
     await input.git("git", ["rebase", "--abort"], { cwd: input.cwd });
@@ -468,6 +634,7 @@ async function absorbProviderHistoryCollision(input: {
     };
   }
   const members: DeliveryOperationSnapshotV1["members"][number][] = [];
+  const locallyResolvedDeliverableIds: string[] = [];
   for (const [index, beforeMember] of input.before.members.entries()) {
     if (beforeMember.ref === null || beforeMember.coordinates === null) {
       return { status: "refused", reason: "scope-mismatch" };
@@ -481,6 +648,36 @@ async function absorbProviderHistoryCollision(input: {
         return { status: "refused", reason: "scope-mismatch" };
       }
     } else if (coordinates.head !== beforeMember.coordinates.head) {
+      const reusable = input.reusableCandidates.find(({ deliverableId }) => (
+        deliverableId === beforeMember.deliverableId
+      ));
+      if (reusable !== undefined && reusable.head !== coordinates.head) {
+        const mergedTree = await exactMechanicalTree({
+          git: input.git,
+          cwd: input.cwd,
+          member: beforeMember,
+          predecessorHead,
+        });
+        if (mergedTree !== null) {
+          const [local, isolated, predecessorContained] = await Promise.all([
+            readCoordinates(input.git, input.resolutionCwd, reusable.ref),
+            readCoordinates(input.git, input.cwd, reusable.head),
+            isAncestor(input.git, input.cwd, predecessorHead, reusable.head),
+          ]);
+          if (local?.head === reusable.head && local.tree === mergedTree
+            && isolated?.head === reusable.head && isolated.tree === mergedTree
+            && predecessorContained) {
+            await input.git("git", [
+              "update-ref", "-m", "delivery retained predecessor reuse",
+              beforeMember.ref, reusable.head, coordinates.head,
+            ], { cwd: input.cwd });
+            coordinates = await readCoordinates(input.git, input.cwd, beforeMember.ref);
+            if (coordinates?.head !== reusable.head || coordinates.tree !== mergedTree) {
+              return { status: "refused", reason: "workspace-unavailable" };
+            }
+          }
+        }
+      }
       if (!await isAncestor(input.git, input.cwd, predecessorHead, coordinates.head)) {
         return { status: "refused", reason: "scope-mismatch" };
       }
@@ -570,6 +767,7 @@ async function absorbProviderHistoryCollision(input: {
               ...beforeMember,
               coordinates: { base: predecessorHead, head: resolution.head, tree: resolution.tree },
             });
+            locallyResolvedDeliverableIds.push(beforeMember.deliverableId);
             continue;
           }
           return {
@@ -589,14 +787,33 @@ async function absorbProviderHistoryCollision(input: {
       if (merged === null || merged.paths.length > 0) {
         return { status: "refused", reason: "workspace-unavailable" };
       }
-      const { stdout: commitOut } = await input.git("git", [
-        "commit-tree", merged.tree,
-        "-p", beforeMember.coordinates.head,
-        "-p", predecessorHead,
-        "-m", "Absorb refreshed delivery predecessor",
-      ], { cwd: input.cwd });
-      const commit = commitOut.trim();
-      if (!objectId.test(commit)) return { status: "refused", reason: "workspace-unavailable" };
+      const reusable = input.reusableCandidates.find(({ deliverableId }) => (
+        deliverableId === beforeMember.deliverableId
+      ));
+      let commit: string;
+      if (reusable === undefined) {
+        const { stdout: commitOut } = await input.git("git", [
+          "commit-tree", merged.tree,
+          "-p", beforeMember.coordinates.head,
+          "-p", predecessorHead,
+          "-m", "Absorb refreshed delivery predecessor",
+        ], { cwd: input.cwd });
+        commit = commitOut.trim();
+        if (!objectId.test(commit)) return { status: "refused", reason: "workspace-unavailable" };
+      } else {
+        const [local, isolated, parents] = await Promise.all([
+          readCoordinates(input.git, input.resolutionCwd, reusable.head),
+          readCoordinates(input.git, input.cwd, reusable.head),
+          readOrderedParents(input.git, input.cwd, reusable.head),
+        ]);
+        if (local?.head !== reusable.head || local.tree !== merged.tree
+          || isolated?.head !== reusable.head || isolated.tree !== merged.tree
+          || parents?.length !== 2 || parents[0] !== beforeMember.coordinates.head
+          || parents[1] !== predecessorHead) {
+          return { status: "refused", reason: "conflict-resolution-mismatch" };
+        }
+        commit = reusable.head;
+      }
       await input.git("git", ["read-tree", "--reset", "-u", merged.tree], { cwd: input.cwd });
       await input.git("git", [
         "update-ref", "-m", "delivery predecessor absorption",
@@ -619,7 +836,47 @@ async function absorbProviderHistoryCollision(input: {
       coordinates: { base: predecessorHead, head: coordinates.head, tree: coordinates.tree },
     });
   }
-  return { status: "recovered", members };
+  return { status: "recovered", members, locallyResolvedDeliverableIds };
+}
+
+async function anchorConflictPredecessor(input: {
+  readonly git: GitExec;
+  readonly isolatedCwd: string;
+  readonly checkoutCwd: string;
+  readonly plan: DeliveryPlanV1;
+  readonly before: DeliveryOperationSnapshotV1;
+  readonly conflict: Omit<DeliveryTerminalConflictPreparation, "workspace">;
+}): Promise<DeliveryProviderRefreshCandidate | null> {
+  const conflictIndex = input.before.members.findIndex(({ ref }) => ref === input.conflict.topRef);
+  if (conflictIndex < 0) throw new Error("conflict member unavailable");
+  const predecessorHead = input.conflict.parents.refreshedPredecessor;
+  const readable = await readCoordinates(input.git, input.checkoutCwd, predecessorHead);
+  if (conflictIndex === 0) {
+    if (readable?.head !== predecessorHead) throw new Error("conflict predecessor unavailable");
+    return null;
+  }
+  const predecessor = input.before.members[conflictIndex - 1];
+  if (predecessor?.ref === null || predecessor?.ref === undefined) {
+    throw new Error("conflict predecessor unavailable");
+  }
+  const localPredecessor = await readCoordinates(input.git, input.checkoutCwd, predecessor.ref);
+  if (localPredecessor?.head === predecessorHead) return null;
+  const candidate = deliveryProviderRefreshCandidateFor({
+    plan: input.plan,
+    deliverableId: predecessor.deliverableId,
+    head: predecessorHead,
+  });
+  if (candidate === null) throw new Error("conflict predecessor unavailable");
+  const isolatedPredecessor = await readCoordinates(input.git, input.isolatedCwd, predecessor.ref);
+  if (isolatedPredecessor?.head !== predecessorHead) throw new Error("conflict predecessor unavailable");
+  await input.git("git", [
+    "fetch", "--no-tags", input.isolatedCwd, `${predecessor.ref}:${candidate.ref}`,
+  ], { cwd: input.checkoutCwd });
+  const imported = await readCoordinates(input.git, input.checkoutCwd, candidate.ref);
+  if (imported?.head !== predecessorHead || imported.tree !== isolatedPredecessor.tree) {
+    throw new Error("conflict predecessor import mismatch");
+  }
+  return candidate;
 }
 
 function providerFailureDetail(error: DeliveryProviderProcessError): string {
@@ -743,7 +1000,6 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
     readonly before: DeliveryOperationSnapshotV1;
   }): Promise<DeliveryProviderRefreshPreparationResult> {
     const registration = nativeInput(input.repository, input.before);
-    if (registration === null) return { status: "refused", reason: "invalid-input" };
     let stale: readonly DeliveryProviderRefreshCandidate[];
     try {
       const observedCandidates = await observeCandidateRefs(
@@ -758,6 +1014,17 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
     } catch {
       return { status: "refused", reason: "candidate-observation-unavailable" };
     }
+    if (registration === null) {
+      return (await this.cleanup(stale)).status === "cleaned"
+        ? { status: "refused", reason: "invalid-input" }
+        : { status: "refused", reason: "candidate-cleanup-required" };
+    }
+    const conflictReuse = await conflictCandidateReuse({
+      git: this.options.git,
+      cwd: this.options.checkoutPath,
+      plan: input.plan,
+      before: input.before,
+    });
     const workspaceProtectedCandidateRefs = await resolutionWorkspaceProtectedCandidateRefs({
       git: this.options.git,
       checkoutCwd: this.options.checkoutPath,
@@ -767,25 +1034,42 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
     if (workspaceProtectedCandidateRefs === null) {
       return { status: "refused", reason: "resolution-workspace-observation-unavailable" };
     }
-    if ((await this.cleanup(stale.filter(({ ref }) => !workspaceProtectedCandidateRefs.has(ref)))).status
-      === "refused") {
+    const reusableRefHeads = new Map(conflictReuse.retained.map(({ ref, head }) => [ref, head]));
+    if ((await this.cleanup(stale.filter(({ ref, head }) => (
+      reusableRefHeads.get(ref) !== head && !workspaceProtectedCandidateRefs.has(ref)
+    )))).status === "refused") {
       return { status: "refused", reason: "candidate-cleanup-required" };
     }
+    if (!await ensureConflictCandidateAnchors({
+      git: this.options.git,
+      cwd: this.options.checkoutPath,
+      candidates: conflictReuse.retained,
+    })) {
+      const cleaned = await this.cleanup(conflictReuse.retained);
+      return cleaned.status === "cleaned"
+        ? { status: "refused", reason: "candidate-observation-unavailable" }
+        : { status: "refused", reason: "candidate-cleanup-required" };
+    }
+    const refuseBeforeWorkspace = async (reason: string): Promise<DeliveryProviderRefreshPreparationResult> => (
+      (await this.cleanup(conflictReuse.retained)).status === "cleaned"
+        ? { status: "refused", reason }
+        : { status: "refused", reason: "candidate-cleanup-required" }
+    );
     try {
       await this.options.gh.run(["stack", "--version"], { cwd: this.options.checkoutPath });
     } catch {
-      return { status: "refused", reason: "unsupported" };
+      return await refuseBeforeWorkspace("unsupported");
     }
     const observed = await observeDeliveryNativeStack(registration, this.options.nativeStack);
     if (observed.status !== "registered") {
-      return { status: "refused", reason: `presentation-${observed.status}` };
+      return await refuseBeforeWorkspace(`presentation-${observed.status}`);
     }
 
     let temporaryPath: string;
     try {
       temporaryPath = await this.temporaryDirectories.create();
     } catch {
-      return { status: "refused", reason: "workspace-unavailable" };
+      return await refuseBeforeWorkspace("workspace-unavailable");
     }
     let result: DeliveryProviderRefreshPreparationResult;
     let retainedConflictCandidate: DeliveryProviderRefreshCandidate | null = null;
@@ -852,6 +1136,7 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
               before: input.before,
               selectedIndex: input.scope.kind === "dependent-suffix" ? selectedIndex : -1,
               targetHead: localTarget.head,
+              reusableCandidates: conflictReuse.reusable,
             });
           }
           if (collisionRecovery !== null && collisionRecovery.status !== "recovered") {
@@ -921,7 +1206,7 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
                   }
                   const coordinates = await readCoordinates(this.options.git, temporaryPath, branch.head);
                   const expectedBase = index === 0 ? refreshedTarget?.head : afterView.branches[index - 1]?.head;
-                  if (coordinates === null || expectedBase === undefined || branch.base !== expectedBase
+                  if (coordinates === null || expectedBase === undefined
                     || (input.scope.kind === "dependent-suffix" && index <= selectedIndex
                       && branch.head !== beforeMember.coordinates?.head)) {
                     requestedMembers.length = 0;
@@ -936,15 +1221,33 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
                 }
               }
             }
+            const normalizedMembers = refreshedTarget === null
+              ? null
+              : await normalizeProviderHistoryConflictResolutions({
+                  git: this.options.git,
+                  cwd: this.options.checkoutPath,
+                  before: input.before,
+                  targetHead: refreshedTarget.head,
+                  members: requestedMembers,
+                });
+            const locallyResolvedDeliverableIds = normalizedMembers === null
+              ? []
+              : input.before.members
+                  .map(({ deliverableId }) => deliverableId)
+                  .filter((deliverableId) => (
+                    collisionRecovery?.status === "recovered"
+                    && collisionRecovery.locallyResolvedDeliverableIds.includes(deliverableId)
+                  ) || normalizedMembers.locallyResolvedDeliverableIds.includes(deliverableId));
             if (refreshedTarget === null
               || refreshedTarget.head !== localTarget.head || refreshedTarget.tree !== localTarget.tree) {
               result = { status: "refused", reason: "malformed-result" };
-            } else if (requestedMembers.length !== input.before.members.length) {
+            } else if (normalizedMembers === null
+              || normalizedMembers.members.length !== input.before.members.length) {
               result = { status: "refused", reason: "scope-mismatch" };
             } else {
               const snapshot: DeliveryOperationSnapshotV1 = {
                 target: { ref: targetRef, coordinates: refreshedTarget },
-                members: requestedMembers,
+                members: normalizedMembers.members,
               };
               const candidateResult = deriveDeliveryProviderRefreshCandidates({
                 plan: input.plan,
@@ -974,6 +1277,9 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
                   status: "prepared",
                   observation: { snapshot, targetMovement },
                   candidates: candidateResult.candidates,
+                  ...(locallyResolvedDeliverableIds.length === 0
+                    ? {}
+                    : { locallyResolvedDeliverableIds }),
                 };
               }
             }
@@ -996,7 +1302,10 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
     } catch {
       workspaceCleaned = false;
     }
-    if (!workspaceCleaned) result = { status: "refused", reason: "workspace-cleanup-required" };
+    if (!workspaceCleaned) {
+      result = { status: "refused", reason: "workspace-cleanup-required" };
+      retainedConflictCandidate = null;
+    }
     if (result.status === "refused") {
       let residue: readonly DeliveryProviderRefreshCandidate[];
       try {

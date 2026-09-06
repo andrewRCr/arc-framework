@@ -127,7 +127,7 @@ describe("local review actor authority", () => {
     )).rejects.toThrow(/delivery-state-unavailable/u);
   });
 
-  it("yields a member vehicle when the named head belongs to the control locus's work unit", async () => {
+  it("yields a member vehicle when the named head belongs to the originating locus's work unit", async () => {
     const memberLookup = lookupOf({ status: "resolved", member: binding() });
 
     await expect(resolveLocalReviewAuthority(

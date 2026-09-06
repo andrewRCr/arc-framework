@@ -1,6 +1,7 @@
 /** Production composition for exact-target review status. */
 
 import { readConfigSettings } from "../../lib/config/status-reader.js";
+import type { DeliveryHostPort } from "../../lib/delivery/host.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
@@ -18,10 +19,13 @@ import {
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { validateDeliveryPublicReviewContinuation } from
   "../../lib/delivery/public-review-continuation.js";
-import type { DeliveryHostPort } from "../../lib/delivery/host.js";
-import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
-import { projectGitDeliveryTerminalCoordinateAdvance } from
+import { validateDeliveryActiveOperation } from "../../lib/delivery/operation.js";
+import {
+  projectGitDeliveryTerminalCoordinateAdvance,
+  projectGitDeliveryTerminalRecordAdvance,
+} from
   "../../lib/delivery/public-review-continuation-git.js";
+import { sameDeliveryReviewMemberIdentity } from "../../lib/delivery/review-vehicle.js";
 import {
   resolveAcceptableDeliveryBaseRefs,
   type DeliveryDischargeTargetLookup,
@@ -38,6 +42,7 @@ import {
   type ChangeRequestTargetRef,
 } from "./change-request.js";
 import { createGhChangeRequestResolutionPort } from "./hosts/github/change-request.js";
+import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import { aggregateChecks } from "./checks-await.js";
 import { createGhRequiredChecksPort } from "./hosts/github/checks-await.js";
 import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lookup.js";
@@ -63,6 +68,7 @@ import {
   composeSingletonReviewObligation,
   isDeliveryReviewMemberDischargedByOwnerTerminus,
   resolveReviewStatus,
+  type DeliveryReviewOwnerTerminusAdvance,
   type ReviewStatusObservation,
   type ReviewStatusPort,
   type ReviewStatusResult,
@@ -213,6 +219,10 @@ export async function readRoutedObligation(
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
   options: {
     readonly remote?: string;
+    readonly preparedNativeLanding?: {
+      readonly planId: string;
+      readonly operationId: string;
+    };
     readonly captureTerminalAdvance?: (
       advance: { readonly stateHead: string; readonly currentHead: string },
     ) => void;
@@ -248,23 +258,68 @@ export async function readRoutedObligation(
       : undefined;
     let effective: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>>;
     let terminalAdvance: { readonly stateHead: string; readonly currentHead: string } | undefined;
+    let preparedTerminal: { readonly deliverableId: string; readonly stateHead: string } | undefined;
     if (correctiveContinuation !== undefined) {
+      const delivery = await memberLookup.resolveTerminalRecords(workUnit);
+      if (delivery.status !== "resolved") {
+        return { state: "blocked", detail: "The public delivery continuation is unavailable." };
+      }
+      const preparedScope = options.preparedNativeLanding;
+      let continuationState = delivery.state;
+      let continuationStateRevision = delivery.stateRevision;
+      let preparedTerminalHead: string | undefined;
+      if (preparedScope !== undefined) {
+        const active = validateDeliveryActiveOperation({
+          revision: delivery.stateRevision,
+          value: delivery.state,
+        });
+        if (delivery.plan.planId !== preparedScope.planId
+          || active.status !== "valid"
+          || active.operation.operationId !== preparedScope.operationId
+          || active.operation.kind !== "land"
+          || active.operation.mode !== "native"
+          || active.operation.native?.phase !== "prepared"
+          || active.operation.effectIdentity !== null) {
+          return { state: "blocked", detail: "The prepared native landing review scope is not current." };
+        }
+        continuationState = { ...active.state, activeOperation: null };
+        continuationStateRevision = active.operation.stateRevision;
+        const terminal = continuationState.members.at(-1);
+        preparedTerminalHead = terminal?.coordinates?.head;
+        if (terminal === undefined || preparedTerminalHead === undefined
+          || active.operation.affectedDeliverableIds.includes(terminal.deliverableId)) {
+          return { state: "blocked", detail: "The prepared native landing has no terminal Candidate coordinate." };
+        }
+        preparedTerminal = { deliverableId: terminal.deliverableId, stateHead: preparedTerminalHead };
+      }
+      const historicalTarget = preparedTerminalHead === undefined
+        ? undefined
+        : {
+            revision: preparedTerminalHead,
+            currentBase: await resolveGitCandidateTargetBase({
+              cwd,
+              revision: preparedTerminalHead,
+              baseBranch,
+              ...(currentBaseRevision === undefined ? {} : { baseRevision: currentBaseRevision }),
+              exec,
+            }),
+          };
       effective = await projectGitCandidateEffectiveTarget({
         cwd,
         name: workUnit,
         baseBranch,
-        ...(currentBaseRevision === undefined ? {} : { baseRevision: currentBaseRevision }),
+        ...(historicalTarget === undefined && currentBaseRevision !== undefined
+          ? { baseRevision: currentBaseRevision }
+          : {}),
         record,
         exec,
         rawExec: createRawGitExec(cwd),
+        ...(historicalTarget === undefined ? {} : { target: historicalTarget }),
       });
       if (effective.state !== "current") {
         return { state: "blocked", detail: "The owning work-unit Candidate is not current." };
       }
-      const delivery = await memberLookup.resolveTerminalRecords(workUnit);
-      const terminalCoordinates = delivery.status === "resolved"
-        ? delivery.state.members.at(-1)?.coordinates ?? undefined
-        : undefined;
+      const terminalCoordinates = continuationState.members.at(-1)?.coordinates ?? undefined;
       const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
         cwd,
         exec,
@@ -273,12 +328,11 @@ export async function readRoutedObligation(
         baseBranch,
         ...(terminalCoordinates === undefined ? {} : { terminalCoordinates }),
       });
-      if (delivery.status !== "resolved"
-        || validateDeliveryPublicReviewContinuation({
+      if (validateDeliveryPublicReviewContinuation({
           continuation: correctiveContinuation,
           plan: delivery.plan,
-          state: delivery.state,
-          stateRevision: delivery.stateRevision,
+          state: continuationState,
+          stateRevision: continuationStateRevision,
           ...(terminalCoordinateAdvance === undefined ? {} : { terminalCoordinateAdvance }),
         }).status !== "current") {
         return { state: "blocked", detail: "The public delivery continuation is not current." };
@@ -351,6 +405,7 @@ export async function readRoutedObligation(
         delivery: memberLookup,
         host,
         ...(terminalAdvance === undefined ? {} : { terminalAdvance }),
+        ...(preparedTerminal === undefined ? {} : { preparedTerminal }),
       });
       if (resolution.status !== "resolved" || resolution.kind !== "delivery") {
         return { state: "blocked", detail: "The retained delivery-member review targets are unavailable." };
@@ -374,6 +429,29 @@ export async function readRoutedObligation(
       if (deliveryTargets.length !== resolution.targets.length) {
         return { state: "blocked", detail: "The retained delivery-member review selectors are unavailable." };
       }
+      const terminalTarget = deliveryTargets.at(-1);
+      const ownerTerminusAdvances: DeliveryReviewOwnerTerminusAdvance[] = terminalTarget === undefined
+        || terminalTarget.position !== terminalTarget.memberCount
+        ? []
+        : (await Promise.all(boundary.deliveryReviewTermini.map(async (record) => {
+            if (!sameDeliveryReviewMemberIdentity(record.vehicle, terminalTarget.vehicle)
+              || record.vehicle.head === terminalTarget.vehicle.head) return [];
+            const proof = await projectGitDeliveryTerminalRecordAdvance({
+              cwd,
+              exec,
+              workUnitId: workUnit,
+              baseBranch,
+              priorHead: record.vehicle.head,
+              currentHead: terminalTarget.vehicle.head,
+            });
+            return proof === undefined
+              ? []
+              : [{
+                  priorVehicle: record.vehicle,
+                  currentVehicle: terminalTarget.vehicle,
+                  proof,
+                }];
+          }))).flat();
       const discharges = await Promise.all(deliveryTargets.map((memberTarget) => readDischarge({
         reservation,
         baseRevision: memberTarget.baseRevision,
@@ -432,6 +510,7 @@ export async function readRoutedObligation(
             target: memberTarget,
             discharge,
             ownerTermini: boundary.deliveryReviewTermini,
+            ownerTerminusAdvances,
           }));
       });
       const firstOutstanding = discharges[firstOutstandingIndex];
@@ -497,6 +576,7 @@ export async function readRoutedObligation(
           candidateId: record.attestation.candidateId,
         },
         ownerTermini: boundary.deliveryReviewTermini,
+        ownerTerminusAdvances,
       });
     }
     const discharge = await readDischarge({
@@ -524,11 +604,20 @@ export async function readRoutedObligation(
 
 /** Bind GitHub, publication-boundary, and Git base reads to the status reducer. */
 export function createReviewStatusPort(
-  input: { cwd: string; exec: GitExec; remote?: string },
+  input: {
+    cwd: string;
+    exec: GitExec;
+    remote?: string;
+    preparedNativeLanding?: {
+      readonly planId: string;
+      readonly operationId: string;
+    };
+  },
   precomputed?: {
     readonly target: ChangeRequestTargetRef;
     readonly pullRequest: number;
     readonly routedObligation: RoutedReviewObligation;
+    readonly deliveryLookupHeadSha: string;
   },
 ): ReviewStatusPort {
   return {
@@ -540,12 +629,19 @@ export function createReviewStatusPort(
         const baseRef = (await readConfigSettings(input.cwd)).settings["branch.base"];
         const refs = await changeRequestPort.readHeadRef(target.headRef);
         const actualHeadSha = refs.remote ?? refs.local ?? target.headSha;
+        const matchesPrecomputedTarget = precomputed !== undefined
+          && precomputed.target.repository.toLowerCase() === target.repository.toLowerCase()
+          && precomputed.target.headRef === target.headRef
+          && precomputed.target.headSha === target.headSha;
         const resolution = await resolveChangeRequest(
           {
             headRef: target.headRef,
             headSha: target.headSha,
             baseRef,
-            acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(memberLookup, target.headSha),
+            acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(
+              memberLookup,
+              matchesPrecomputedTarget ? precomputed.deliveryLookupHeadSha : target.headSha,
+            ),
           },
           changeRequestPort,
         );
@@ -569,11 +665,7 @@ export function createReviewStatusPort(
             ...base,
           };
         }
-        const matchesPrecomputed = precomputed !== undefined
-          && precomputed.target.repository.toLowerCase() === target.repository.toLowerCase()
-          && precomputed.target.headRef === target.headRef
-          && precomputed.target.headSha === target.headSha;
-        const routedObligation = matchesPrecomputed
+        const routedObligation = matchesPrecomputedTarget
           ? resolution.candidate.number === precomputed.pullRequest
             ? precomputed.routedObligation
             : {
@@ -594,7 +686,12 @@ export function createReviewStatusPort(
                     ...(coverage === undefined ? {} : { coverage }),
                   },
               undefined,
-              { remote },
+              {
+                remote,
+                ...(input.preparedNativeLanding === undefined
+                  ? {}
+                  : { preparedNativeLanding: input.preparedNativeLanding }),
+              },
             );
         const checksPort = createGhRequiredChecksPort(hostedGhRunner);
         const signal = new AbortController().signal;
@@ -623,7 +720,7 @@ export function createReviewStatusPort(
  * Select the exact current member target, carrying only a previously validated terminal advance.
  *
  * @param input - Durable state, routed conjunction, and optional validated terminal movement.
- * @returns The exact selected status target, or null when durable coordinates cannot justify it.
+ * @returns The exact selected target plus its state-backed member lookup head, or null when unjustified.
  */
 export function selectDeliveryReviewStatusTarget(input: {
   readonly anchor: ChangeRequestTargetRef;
@@ -640,12 +737,20 @@ export function selectDeliveryReviewStatusTarget(input: {
     readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   };
   readonly terminalAdvance?: { readonly stateHead: string; readonly currentHead: string };
-}): { readonly target: ChangeRequestTargetRef; readonly pullRequest: number } | null {
+}): {
+  readonly target: ChangeRequestTargetRef;
+  readonly pullRequest: number;
+  readonly deliveryLookupHeadSha: string;
+} | null {
   if (!input.outstanding) {
     const headSha = input.terminalAdvance?.stateHead === input.anchor.headSha
       ? input.terminalAdvance.currentHead
       : input.anchor.headSha;
-    return { target: { ...input.anchor, headSha }, pullRequest: input.terminalPullRequest };
+    return {
+      target: { ...input.anchor, headSha },
+      pullRequest: input.terminalPullRequest,
+      deliveryLookupHeadSha: input.anchor.headSha,
+    };
   }
   const selected = input.firstOutstanding;
   const selectedState = selected === undefined
@@ -666,10 +771,11 @@ export function selectDeliveryReviewStatusTarget(input: {
       headSha: selected.target.headSha,
     },
     pullRequest: selected.target.pullRequest,
+    deliveryLookupHeadSha: selectedState.coordinates.head,
   };
 }
 
-/** Resolve the live stacked-delivery review action without reconstructing a member target. */
+/** Resolve live stacked-delivery status without reconstructing a member target. */
 export async function resolveReviewStatusForWorkUnit(input: {
   readonly cwd: string;
   readonly exec: GitExec;
@@ -682,14 +788,13 @@ export async function resolveReviewStatusForWorkUnit(input: {
   const workUnitId = SlugSchema.parse(input.workUnitId);
   const versionedBoundary = await readSubmissionBoundaryVersioned(input.cwd, workUnitId);
   const boundary = versionedBoundary.boundary;
-  if (boundary?.locus !== "hosted-review-pending"
-    || boundary.nextAction.kind !== "continue-hosted-review"
+  if (boundary?.locus !== "delivery-status-required"
     || boundary.nextAction.workUnitId !== workUnitId
     || boundary.reservation.target.kind !== "delivery"
     || boundary.reservation.target.workUnitId !== workUnitId
     || boundary.candidateSubjectDigest === null
     || versionedBoundary.version === null) {
-    throw new Error("The work unit has no self-contained hosted delivery-review continuation.");
+    throw new Error("The work unit has no self-contained delivery status action.");
   }
   const memberLookup = new RepositoryDeliveryMemberLookup(input);
   const delivery = await memberLookup.resolveTerminalRecords(workUnitId);
@@ -763,6 +868,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     target: selectedTarget,
     pullRequest: selectedPullRequest,
     routedObligation: routed,
+    deliveryLookupHeadSha: selection.deliveryLookupHeadSha,
   }));
   return bindDeliveryReviewTerminusOffer(result, {
     workUnitId,

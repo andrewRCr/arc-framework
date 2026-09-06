@@ -845,7 +845,7 @@ describe("local attest command", () => {
 
     it("re-resolves the persisted member vehicle from the head its target pins", async () => {
       const records = fixture(memberVehicle);
-      // The control locus resolves its own work unit unless a member head is named,
+      // The originating locus resolves its own work unit unless a member head is named,
       // so a resolution that never receives the selector derives the wrong vehicle.
       const resolveAuthority = vi.fn(async (
         _evaluatorIdentity: string,
@@ -869,7 +869,7 @@ describe("local attest command", () => {
 
     it("names no member for a work-unit operation whose head is itself delivery-bound", async () => {
       const records = fixture();
-      // A terminal member's pull request is opened from the control branch, so that
+      // A terminal member's pull request is opened from the work-unit branch, so that
       // head resolves to a member — an unconditional supply would adopt it here.
       const resolveAuthority = vi.fn(async (
         _evaluatorIdentity: string,

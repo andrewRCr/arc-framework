@@ -892,9 +892,48 @@ async function acceptDeliveryReviewTerminus(
 ): Promise<DeliveryReviewTerminusAcceptanceResult> {
   const exec = createGitExec(interaction?.subprocess);
   const ownerDependencies = createPrePublicationCompositionDependencies({ cwd: root, exec });
+  const readOwnerAuthority = async (workUnitId: string) => {
+    const direct = await ownerDependencies.readOwnerTerminusAuthority(workUnitId);
+    if (direct.status === "authorized") return direct;
+    try {
+      const [{ settings }, identity] = await Promise.all([
+        readConfigSettings(root),
+        resolveUserIdentity(exec),
+      ]);
+      const frame = await runDerivedLocusStateProbe({
+        cwd: root,
+        identity,
+        baseBranch: settings["branch.base"],
+        exec,
+      });
+      const row = frame.entering.kind === "selected" ? frame.entering.row : null;
+      const completed = row?.kind === "work-unit"
+        && row.lifecycleLocation === "completed"
+        && row.subject.kind === "work-unit"
+        && row.subject.key === workUnitId
+        && row.context !== null
+        && frame.active?.checkoutPath === row.checkout.path
+        && frame.active.subject.key === workUnitId
+        ? row.context
+        : null;
+      if (completed === null) return direct;
+      if (completed.owner === null) {
+        return { status: "refused" as const, reason: "The completed Work Unit has no Owner." };
+      }
+      if (completed.owner !== identity) {
+        return {
+          status: "refused" as const,
+          reason: "The active identity does not match the completed Work Unit Owner.",
+        };
+      }
+      return { status: "authorized" as const, ownerIdentity: completed.owner };
+    } catch {
+      return direct;
+    }
+  };
   const result = await resolveDeliveryReviewTerminusAcceptance(request, {
     readBoundary: (workUnitId) => readSubmissionBoundaryVersioned(root, workUnitId),
-    readOwnerAuthority: (workUnitId) => ownerDependencies.readOwnerTerminusAuthority(workUnitId),
+    readOwnerAuthority,
     readCurrentOffer: async (workUnitId) => {
       const status = await resolveReviewStatusForWorkUnit({
         cwd: root,

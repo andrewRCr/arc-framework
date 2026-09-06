@@ -54,7 +54,7 @@ const meta: MetaRecord = MetaRecordSchema.parse({
   completed: null,
 });
 
-// The control locus resolves to its work unit. Pinned here because the reader
+// The originating locus resolves to its work unit. Pinned here because the reader
 // takes the active ARC identity from ambient Git config, which no temporary
 // repository owns; everything below it — the delivery read, the derivation, and
 // the adapters that join them — runs for real.
@@ -133,7 +133,7 @@ function state(
 }
 
 /**
- * A control locus mid-stack: two members landed, a successor written on top, and
+ * An originating locus mid-stack: two members landed, a successor written on top, and
  * an uncommitted edit — the state that is normal while member work continues.
  */
 async function boundStack(): Promise<Stack> {
@@ -282,9 +282,9 @@ describe("local review delivery binding at its composition root", () => {
       }),
       member: null,
     });
-    // The control locus is dirty, which is what an ordinary derivation refuses —
+    // The originating locus is dirty, which is what an ordinary derivation refuses —
     // and what a forgotten selector therefore runs into rather than silently
-    // reviewing the control branch in the member's place.
+    // reviewing the work-unit branch in the member's place.
     await expect(prepare.deriveTarget(REPOSITORY_ID))
       .rejects.toMatchObject({ code: "invalid-input", reason: "dirty-worktree" });
   });

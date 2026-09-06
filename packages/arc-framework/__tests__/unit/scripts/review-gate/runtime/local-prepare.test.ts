@@ -409,7 +409,7 @@ describe("local review preparation request", () => {
         },
       });
       // The carrier's snapshot is built from that same target, so a request bound
-      // to it carries the member's coordinates rather than the control branch's.
+      // to it carries the member's coordinates rather than the work-unit branch's.
       expect(state?.kind === "local-review" && state.request.targetId)
         .toBe(context.memberTarget.targetId);
     });
@@ -501,7 +501,7 @@ describe("local review preparation request", () => {
           { ...request, memberHeadObjectId: context.memberTarget.headSha },
           context.dependencies,
         );
-        // A forgotten selector reviews the control branch rather than the member,
+        // A forgotten selector reviews the work-unit branch rather than the member,
         // which admits as its own operation instead of colliding with the member's.
         await expect(prepareLocalReview(request, context.dependencies))
           .resolves.toMatchObject({ state: "ready" });

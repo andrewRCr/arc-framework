@@ -6,6 +6,8 @@ import {
   validateDeliveryPublicReviewContinuation,
 } from
   "../../../src/lib/delivery/public-review-continuation.js";
+import { deliveryTerminalRecordAdvanceIsRepresented } from
+  "../../../src/lib/delivery/public-review-continuation-git.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
@@ -27,6 +29,24 @@ function publicState(): DeliveryStateV1 {
 }
 
 describe("delivery public review continuation", () => {
+  it("distinguishes represented record movement from substantive or non-ancestral movement", () => {
+    expect(deliveryTerminalRecordAdvanceIsRepresented({
+      ancestry: "ancestor",
+      priorSubjectDigest: `sha256:${"a".repeat(64)}`,
+      currentSubjectDigest: `sha256:${"a".repeat(64)}`,
+    })).toBe(true);
+    expect(deliveryTerminalRecordAdvanceIsRepresented({
+      ancestry: "ancestor",
+      priorSubjectDigest: `sha256:${"a".repeat(64)}`,
+      currentSubjectDigest: `sha256:${"b".repeat(64)}`,
+    })).toBe(false);
+    expect(deliveryTerminalRecordAdvanceIsRepresented({
+      ancestry: "not-ancestor",
+      priorSubjectDigest: `sha256:${"a".repeat(64)}`,
+      currentSubjectDigest: `sha256:${"a".repeat(64)}`,
+    })).toBe(false);
+  });
+
   it("binds one continuation to the exact coherent plan, state, and complete member evidence", () => {
     const state = publicState();
     const result = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision: 7 });
@@ -102,6 +122,24 @@ describe("delivery public review continuation", () => {
       terminalCoordinateAdvance: {
         priorHead: state.members.at(-1)!.coordinates!.head,
         priorTree: state.members.at(-1)!.coordinates!.tree,
+        currentHead,
+        currentTree: "e".repeat(40),
+        proof: "subject-equality",
+      },
+    })).toEqual({ status: "current" });
+
+    expect(validateDeliveryPublicReviewContinuation({
+      continuation: projected.continuation,
+      plan,
+      state: advanced,
+      stateRevision: 8,
+      terminalCoordinateAdvance: {
+        priorHead: "1".repeat(40),
+        priorTree: "2".repeat(40),
+        alternatePriorCoordinates: [{
+          head: state.members.at(-1)!.coordinates!.head,
+          tree: state.members.at(-1)!.coordinates!.tree,
+        }],
         currentHead,
         currentTree: "e".repeat(40),
         proof: "subject-equality",

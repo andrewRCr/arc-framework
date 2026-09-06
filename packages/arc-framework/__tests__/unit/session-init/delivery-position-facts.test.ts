@@ -515,6 +515,7 @@ describe("session-init delivery position facts", () => {
       operationId: "land-1",
       kind: "land",
       mode: "sequential",
+      nativeArm: null,
       affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 5,
       before: landBefore,
@@ -729,11 +730,13 @@ describe("session-init delivery position facts", () => {
         changeRequest: { providerId: "github", changeRequestId: String(401 + index) },
       })),
     };
-    const member = state.members[0]!;
+    const member = state.members[1]!;
     const before = { target: state.target, members: [member] };
     const reserved = reserveDeliveryOperation({ revision: 7, value: state }, plan, {
       operationId: "teardown-1",
       kind: "teardown",
+      mode: "member",
+      candidateHeads: [],
       affectedDeliverableIds: [member.deliverableId],
       expectedStateRevision: 7,
       before,
@@ -753,8 +756,12 @@ describe("session-init delivery position facts", () => {
           headRepository: "owner/repository",
           headRef: requestedMember.ref!.replace(/^refs\/heads\//u, ""),
           headSha: requestedMember.coordinates!.head,
-          baseRef: state.target!.ref.replace(/^refs\/heads\//u, ""),
-          state: changeRequestId === "401" ? "merged" as const : "open" as const,
+          baseRef: requestedMember.deliverableId === state.members[0]!.deliverableId
+            ? state.target!.ref.replace(/^refs\/heads\//u, "")
+            : state.members[state.members.indexOf(requestedMember) - 1]!.ref!.replace(/^refs\/heads\//u, ""),
+          state: changeRequestId === "401" || changeRequestId === "402"
+            ? "merged" as const
+            : "open" as const,
           draft: true,
         },
       };

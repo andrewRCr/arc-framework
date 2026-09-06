@@ -38,7 +38,7 @@ function memberTarget(headSha: string) {
 }
 
 describe("DeliveryBindingLookup", () => {
-  it("resolves a coherent control-branch plan binding", async () => {
+  it("resolves a coherent work-unit plan binding", async () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);
     const lookup = new DeliveryBindingLookup({

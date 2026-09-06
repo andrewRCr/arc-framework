@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { assessDeliveryLandingReviewReadiness } from
+import {
+  assessDeliveryLandingReviewReadiness,
+  createDeliveryLandingSetReviewReadiness,
+} from
   "../../../../src/scripts/review-gate/delivery-landing-readiness.js";
 import { RoutedReviewObligationSchema, type ReviewStatusObservation, type ReviewStatusPort } from
   "../../../../src/scripts/review-gate/status.js";
@@ -23,6 +26,31 @@ function observation(
     routedObligation: RoutedReviewObligationSchema.parse({
       state: "settled",
       detail: "Every retained delivery-member review is discharged.",
+      conjunction: {
+        kind: "delivery",
+        status: "discharged",
+        members: [{
+          position: 1,
+          memberCount: 1,
+          chunkKey: "member-1",
+          title: "Member 1",
+          target: { repository: target.repository, pullRequest: 41, headSha: head },
+          vehicle: {
+            kind: "delivery-member",
+            planId: "123e4567-e89b-42d3-a456-426614174000",
+            deliverableId: `sha256:${"1".repeat(64)}`,
+            workUnitId: "delivery-test",
+            head,
+          },
+          state: "discharged",
+          detail: "The exact member review is discharged.",
+          progress: {
+            completedPasses: 1,
+            passCeiling: 2,
+            attempts: [],
+          },
+        }],
+      },
     }),
     currentBaseOid: "b".repeat(40),
     baseContained: false,
@@ -31,6 +59,34 @@ function observation(
 }
 
 describe("delivery landing review readiness", () => {
+  it("shares one delivery-review conjunction across independent exact member reads", async () => {
+    const secondTarget = {
+      repository: target.repository,
+      headRef: "delivery/member-2",
+      headSha: "c".repeat(40),
+    };
+    let sharedReadCount = 0;
+    const sharedStatus: ReviewStatusPort = {
+      observe: async (selected) => observation({
+        actualHeadSha: selected.headSha,
+        routedObligation: sharedReadCount++ === 0
+          ? observation().routedObligation
+          : { state: "blocked", detail: "The delivery reduction was repeated." },
+      }),
+    };
+    const readiness = createDeliveryLandingSetReviewReadiness(
+      target,
+      sharedStatus,
+      (selected, routedObligation) => port(observation({
+        actualHeadSha: selected.headSha,
+        routedObligation,
+      })),
+    );
+
+    await expect(Promise.all([readiness(target), readiness(secondTarget)]))
+      .resolves.toEqual([{ status: "ready" }, { status: "ready" }]);
+  });
+
   it.each(["green", "not-required"] as const)(
     "admits a settled exact head with %s checks",
     async (requiredChecks) => {

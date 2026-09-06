@@ -29,6 +29,7 @@
     "reference/strategies/arc/strategy-concurrent-work.md",
     "reference/strategies/arc/strategy-configurability-architecture.md",
     "reference/strategies/arc/strategy-file-classification.md",
+    "reference/strategies/arc/strategy-integration.md",
     "reference/strategies/arc/strategy-interlock-release-wrappers.md",
     "reference/strategies/arc/strategy-quality-gates.md",
     "reference/strategies/arc/strategy-session-operations.md",

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../../src/lib/change-facts.js";
-import { proveGitDeliveryContribution } from "../../../src/lib/delivery/git-contribution-proof.js";
+import {
+  proveGitDeliveryContribution,
+  proveGitDeliveryProviderRefreshContribution,
+} from "../../../src/lib/delivery/git-contribution-proof.js";
 
 const oid = (digit: string): string => digit.repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -167,6 +170,56 @@ describe("Git delivery contribution proof", () => {
     await expect(proveGitDeliveryContribution({ exec, ...coordinates })).resolves.toEqual({
       status: "accepted",
       proof: "mechanical-reapply",
+    });
+  });
+
+  it("retains a contained provider-refresh predecessor as the explicit merge base", async () => {
+    const exec: RawGitExec = async (args) => {
+      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") return result(`${oid("9")}\n`);
+      if (args[0] === "rev-parse") {
+        const value = verifiedCoordinateOutput(args);
+        if (value !== null) return result(`${value}\n`);
+      }
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor") return result("");
+      if (args[0] === "merge-tree" && !args.includes("--name-only")) return result(`${oid("a")}\n`);
+      if (args[0] === "merge-tree") {
+        const baseIndex = args.indexOf("--merge-base");
+        return baseIndex >= 0 && args[baseIndex + 1] === coordinates.before.predecessor.head
+          ? result(`${coordinates.after.member.tree}\0`)
+          : result(`${oid("b")}\0`);
+      }
+      if (args[0] === "diff") return result("unexpected.txt\0");
+      throw new Error(`unexpected Git call: ${args.join(" ")}`);
+    };
+
+    await expect(proveGitDeliveryProviderRefreshContribution({ exec, ...coordinates })).resolves.toEqual({
+      status: "accepted",
+      proof: "mechanical-reapply",
+    });
+  });
+
+  it.each([
+    ["missing", null],
+    ["ambiguous", `${oid("a")}\n${oid("b")}\n`],
+  ])("refuses a %s provider-refresh fork boundary", async (_label, boundaryOutput) => {
+    const exec: RawGitExec = async (args) => {
+      if (args[0] === "rev-parse") {
+        const value = verifiedCoordinateOutput(args);
+        if (value !== null) return result(`${value}\n`);
+      }
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+        throw Object.assign(new Error("not ancestor"), { exitCode: 1 });
+      }
+      if (args[0] === "merge-base" && args[1] === "--all") {
+        if (boundaryOutput !== null) return result(boundaryOutput);
+        throw Object.assign(new Error("no merge base"), { exitCode: 1 });
+      }
+      throw new Error(`unexpected Git call: ${args.join(" ")}`);
+    };
+
+    await expect(proveGitDeliveryProviderRefreshContribution({ exec, ...coordinates })).resolves.toEqual({
+      status: "refused",
+      reason: "contribution-endpoints-unverified",
     });
   });
 });

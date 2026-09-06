@@ -27,7 +27,17 @@ import {
 } from "../../lib/work-unit/git-candidate-effective-target.js";
 import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
-import { classifyDeliveryTerminalDrift } from "../../lib/delivery/terminal-integration.js";
+import { projectGitDeliveryTerminalRecordAdvance } from
+  "../../lib/delivery/public-review-continuation-git.js";
+import {
+  sameDeliveryReviewMemberIdentity,
+  type DeliveryReviewMemberVehicle,
+} from "../../lib/delivery/review-vehicle.js";
+import {
+  assessDeliveryTerminalTop,
+  classifyDeliveryTerminalDrift,
+} from "../../lib/delivery/terminal-integration.js";
+import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
@@ -40,7 +50,10 @@ import { GitObjectIdSchema } from "../review-gate/core/gate-contract-v2-schema.j
 import { resolveAcceptableDeliveryBaseRefs } from
   "../review-gate/core/delivery-member-lookup.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
+import { resolveRepositoryIdentity } from "../review-gate/hosts/local/git-common-state.js";
 import { createGitTreeReadFs } from "../review-gate/hosts/local/git-tree-fs.js";
+import { LocalReviewOperationStateStore } from
+  "../review-gate/hosts/local/operation-state-store.js";
 import { RepositoryDeliveryMemberLookup } from
   "../review-gate/hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "../review-gate/hosted/gh-process.js";
@@ -51,7 +64,18 @@ import {
 import {
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
+  type HostedReservationDischarge,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
+import type { DeliveryReviewMemberTerminus } from
+  "../review-gate/policy/review-terminus.js";
+import {
+  projectHostedReservationPolicyProgress,
+  type HostedReservationPolicyProgress,
+} from "../review-gate/policy/hosted-reservation-admission.js";
+import {
+  isDeliveryReviewMemberDischargedByOwnerTerminus,
+  type DeliveryReviewOwnerTerminusAdvance,
+} from "../review-gate/status.js";
 import { projectPublicationBoundary } from "../review-gate/policy/integration-boundary-locus.js";
 import {
   CheckpointReadyCompositionSchema,
@@ -73,6 +97,34 @@ interface CachedCandidate {
   recordVersion: string;
   effective: CandidateEffectiveTargetProjection;
   currentness: CandidateEffectiveCurrentnessProjection;
+}
+
+/**
+ * Decide whether every exact delivery target has terminal checkpoint review evidence.
+ *
+ * @param input - Exact targets, raw discharges, policy progress, and retained Owner termini.
+ * @returns Whether every member is discharged by raw evidence or an exact applicable Owner terminus.
+ */
+export function deliveryCheckpointReviewIsDischarged(input: {
+  readonly targets: readonly { readonly vehicle: DeliveryReviewMemberVehicle }[];
+  readonly discharges: readonly HostedReservationDischarge[];
+  readonly progress: readonly HostedReservationPolicyProgress[];
+  readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  readonly ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
+}): boolean {
+  return input.targets.length === input.discharges.length
+    && input.targets.length === input.progress.length
+    && input.targets.every((target, index) => {
+      const discharge = input.discharges[index];
+      const progress = input.progress[index];
+      if (discharge === undefined || progress?.status !== "complete") return false;
+      return discharge.discharged || isDeliveryReviewMemberDischargedByOwnerTerminus({
+        target,
+        discharge: { ...discharge, completedPasses: progress.completedPasses },
+        ownerTermini: input.ownerTermini,
+        ownerTerminusAdvances: input.ownerTerminusAdvances,
+      });
+    });
 }
 
 /**
@@ -474,7 +526,8 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The current Candidate publication subject is unavailable.");
       }
       const publicLocus = publicationBoundary?.locus === "publication-pending"
-        || publicationBoundary?.locus === "hosted-review-pending";
+        || publicationBoundary?.locus === "hosted-review-pending"
+        || publicationBoundary?.locus === "delivery-status-required";
       return publicationBoundary !== null
         && publicLocus
         && publicationBoundary.candidateId === value.effective.candidateId
@@ -523,6 +576,33 @@ export function createIntegrationCheckpointDependencies(input: {
         }, changeRequestPort);
         if (currentTop.state !== "open"
           || String(currentTop.candidate.number) !== terminal.changeRequest.changeRequestId) {
+          if (currentTop.state === "closed-unmerged"
+            && String(currentTop.candidate.number) === terminal.changeRequest.changeRequestId
+            && currentTop.candidate.headRefName === branchName(terminal.ref)
+            && currentTop.candidate.headRefOid === terminal.coordinates.head) {
+            const top = assessDeliveryTerminalTop({
+              terminal: true,
+              protectedBaseRef: configuredBase,
+              publicationHead: terminal.coordinates.head,
+              request: {
+                binding: terminal.changeRequest,
+                repository: currentTop.targetRef.repository,
+                headRef: currentTop.candidate.headRefName,
+                headSha: currentTop.candidate.headRefOid,
+                baseRef: currentTop.candidate.baseRefName,
+                state: "closed",
+              },
+            });
+            if (top.status === "refused" && top.reason === "top-target-mismatch") {
+              return {
+                status: "blocked",
+                nextAction: top.remedy.nextAction,
+                reason: top.reason,
+                planId: records.plan.planId,
+                remedy: top.remedy,
+              };
+            }
+          }
           throw new Error("The current delivery top request does not match its retained binding.");
         }
         return {
@@ -597,28 +677,76 @@ export function createIntegrationCheckpointDependencies(input: {
         || targetResolution.targets.length !== members.length) {
         throw new Error("The delivery member review targets are unavailable.");
       }
+      const deliveryTargets = targetResolution.targets.map((target) => {
+        if (target.vehicle === undefined) {
+          throw new Error("The delivery member review selectors are unavailable.");
+        }
+        return { ...target, vehicle: target.vehicle };
+      });
       const reviewTargets = members.map((member, index) => {
-        const target = targetResolution.targets[index];
+        const target = deliveryTargets[index];
         if (target === undefined || member.changeRequest === null || member.coordinates === null
-          || target.pullRequest !== Number(member.changeRequest.changeRequestId)) {
+          || target.pullRequest !== Number(member.changeRequest.changeRequestId)
+          || target.headSha !== member.coordinates.head) {
           throw new Error(`Delivery member ${member.deliverableId} has a mismatched review target.`);
         }
         return {
           deliverableId: member.deliverableId,
           providerId: member.changeRequest.providerId,
           changeRequestId: member.changeRequest.changeRequestId,
-          head: target.headSha,
+          head: member.coordinates.head,
         };
       });
-      const firstTarget = targetResolution.targets[0];
-      if (firstTarget === undefined) throw new Error("The delivery member review targets are unavailable.");
-      const discharge = await readHostedReservationDischarge({
-        workUnitId: workUnit,
+      const terminalTarget = deliveryTargets.at(-1);
+      const ownerTerminusAdvances: DeliveryReviewOwnerTerminusAdvance[] = terminalTarget === undefined
+        || terminalTarget.position !== terminalTarget.memberCount
+        ? []
+        : (await Promise.all(publicationBoundary.deliveryReviewTermini.map(async (record) => {
+            if (!sameDeliveryReviewMemberIdentity(record.vehicle, terminalTarget.vehicle)
+              || record.vehicle.head === terminalTarget.vehicle.head) return [];
+            const proof = await projectGitDeliveryTerminalRecordAdvance({
+              cwd: input.cwd,
+              exec: input.exec,
+              workUnitId: workUnit,
+              baseBranch: configuredBase,
+              priorHead: record.vehicle.head,
+              currentHead: terminalTarget.vehicle.head,
+            });
+            return proof === undefined
+              ? []
+              : [{
+                  priorVehicle: record.vehicle,
+                  currentVehicle: terminalTarget.vehicle,
+                  proof,
+                }];
+          }))).flat();
+      const discharges = await Promise.all(deliveryTargets.map((target) => readHostedReservationDischarge({
         reservation: publicationBoundary.reservation,
-        baseRevision: firstTarget.baseRevision,
-        approvedHead: firstTarget.headSha,
-        changeRequest: { repository: firstTarget.repository, pullRequest: firstTarget.pullRequest },
+        baseRevision: target.baseRevision,
+        approvedHead: target.headSha,
+        changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
+        vehicle: target.vehicle,
         candidate: value.record,
+      })));
+      const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+      const operationSnapshot = await new LocalReviewOperationStateStore(publisher).readOperationSnapshot();
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const progress = deliveryTargets.map((target) => projectHostedReservationPolicyProgress({
+        snapshot: operationSnapshot,
+        repositoryId,
+        target: {
+          repository: target.repository,
+          pullRequest: target.pullRequest,
+          headSha: target.headSha,
+        },
+        vehicle: target.vehicle,
+      }));
+      const reviewDischarged = deliveryCheckpointReviewIsDischarged({
+        targets: deliveryTargets,
+        discharges,
+        progress,
+        ownerTermini: publicationBoundary.deliveryReviewTermini,
+        ownerTerminusAdvances,
       });
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
       const mergeBase = await resolveGitCandidateTargetBase({
@@ -643,7 +771,7 @@ export function createIntegrationCheckpointDependencies(input: {
         publication: { candidateId: publicationBoundary.candidateId, head: currentness.recognizedRevision },
         top,
         review: {
-          status: discharge.discharged ? "discharged" : "outstanding",
+          status: reviewDischarged ? "discharged" : "outstanding",
           targets: reviewTargets,
         },
         readCandidateCoordinate: (head) => readCoordinate(input.exec, input.cwd, head),
@@ -681,7 +809,8 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The durable publication boundary belongs to a different Candidate subject.");
       }
       if (publicationBoundary.locus !== "publication-pending"
-        && publicationBoundary.locus !== "hosted-review-pending") {
+        && publicationBoundary.locus !== "hosted-review-pending"
+        && publicationBoundary.locus !== "delivery-status-required") {
         throw new Error("The durable publication boundary has not entered public integration.");
       }
       const configuredBase = (await settings()).settings["branch.base"];
@@ -713,7 +842,6 @@ export function createIntegrationCheckpointDependencies(input: {
             detail: `Every derived delivery-member review is discharged (${delivery.checks.targets.length} checked).`,
           }
         : await readHostedReservationDischarge({
-            workUnitId: workUnit,
             reservation: publicationBoundary.reservation,
             baseRevision: value.record.attestation.baseRevision,
             approvedHead: currentness.recognizedRevision,

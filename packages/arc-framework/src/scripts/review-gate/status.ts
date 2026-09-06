@@ -5,9 +5,12 @@ import { z } from "zod";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import {
   DeliveryReviewMemberVehicleSchema,
+  sameDeliveryReviewMemberIdentity,
   sameDeliveryReviewMemberVehicle,
   type DeliveryReviewMemberVehicle,
 } from "../../lib/delivery/review-vehicle.js";
+import type { DeliveryTerminalCoordinateAdvanceProof } from
+  "../../lib/delivery/public-review-continuation.js";
 import { ChangeRequestTargetRefSchema } from "./change-request.js";
 import {
   SpineRemedySchema,
@@ -233,12 +236,6 @@ export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
     state: z.literal("review-required"),
     detail: z.string().min(1),
-    scope: z.literal("singleton"),
-    selectionAction: ReviewApplicabilitySelectionActionSchema,
-  }),
-  z.strictObject({
-    state: z.literal("review-required"),
-    detail: z.string().min(1),
     conjunction: DeliveryReviewConjunctionSchema.refine(
       (conjunction) => conjunction.status === "outstanding",
       "delivery local review requires an outstanding conjunction",
@@ -248,11 +245,23 @@ export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
     state: z.literal("review-required"),
     detail: z.string().min(1),
+    scope: z.literal("singleton"),
+    localResumeAction: DeliveryLocalResumeActionSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
     conjunction: DeliveryReviewConjunctionSchema.refine(
       (conjunction) => conjunction.status === "outstanding",
       "delivery local review resume requires an outstanding conjunction",
     ),
     localResumeAction: DeliveryLocalResumeActionSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    scope: z.literal("singleton"),
+    selectionAction: ReviewApplicabilitySelectionActionSchema,
   }),
   z.strictObject({
     state: z.literal("review-required"),
@@ -333,6 +342,14 @@ interface ReviewDischargeIntervention {
   readonly applicabilityAuthority?: "decision-required" | "blocked";
   readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
   readonly awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
+  readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+}
+
+/** Git-proved mechanical movement from one exact stored terminus vehicle to its current terminal target. */
+export interface DeliveryReviewOwnerTerminusAdvance {
+  readonly priorVehicle: DeliveryReviewMemberVehicle;
+  readonly currentVehicle: DeliveryReviewMemberVehicle;
+  readonly proof: DeliveryTerminalCoordinateAdvanceProof;
 }
 
 /**
@@ -354,10 +371,18 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
     readonly completedPasses: number;
   };
   readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  readonly ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): boolean {
-  const terminus = input.ownerTermini?.find((record) => (
-    sameDeliveryReviewMemberVehicle(record.vehicle, input.target.vehicle)
-  ));
+  const terminus = input.ownerTermini?.find((record) => {
+    if (sameDeliveryReviewMemberVehicle(record.vehicle, input.target.vehicle)) return true;
+    return input.ownerTerminusAdvances?.some((advance) => (
+      sameDeliveryReviewMemberVehicle(record.vehicle, advance.priorVehicle)
+      && sameDeliveryReviewMemberVehicle(input.target.vehicle, advance.currentVehicle)
+      && sameDeliveryReviewMemberIdentity(advance.priorVehicle, advance.currentVehicle)
+      && advance.proof.priorHead === advance.priorVehicle.head
+      && advance.proof.currentHead === advance.currentVehicle.head
+    )) ?? false;
+  });
   const replayedApplicability = input.discharge.applicability?.state === "decision-required"
     && input.discharge.applicabilityAuthority !== "blocked";
   const hasPendingIntervention = input.discharge.responsePlan !== undefined
@@ -446,6 +471,14 @@ function composeReviewDischargeIntervention(
       awaitAction: discharge.awaitAction,
     });
   }
+  if (discharge.localResumeAction !== undefined) {
+    return RoutedReviewObligationSchema.parse({
+      state: "review-required",
+      detail: discharge.detail,
+      ...subject,
+      localResumeAction: discharge.localResumeAction,
+    });
+  }
   return null;
 }
 
@@ -509,6 +542,7 @@ export function composeDeliveryReviewObligation(input: {
   requestCoverage?: HostedReviewCoverage;
   requestInvocation?: { readonly mode: "force"; readonly sourceId: string };
   ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): RoutedReviewObligation {
   if (input.targets.length === 0 || input.targets.length !== input.discharges.length) {
     return {
@@ -522,6 +556,7 @@ export function composeDeliveryReviewObligation(input: {
       target,
       discharge,
       ownerTermini: input.ownerTermini,
+      ownerTerminusAdvances: input.ownerTerminusAdvances,
     })) return discharge;
     return {
       ...discharge,
@@ -570,14 +605,6 @@ export function composeDeliveryReviewObligation(input: {
       { kind: "delivery", status: "outstanding", members },
     );
     if (intervention !== null) return intervention;
-  }
-  if (discharge?.localResumeAction !== undefined) {
-    return RoutedReviewObligationSchema.parse({
-      state: "review-required",
-      detail: discharge.detail,
-      conjunction: { kind: "delivery", status: "outstanding", members },
-      localResumeAction: discharge.localResumeAction,
-    });
   }
   if (discharge?.requestAdmission?.state === "approval-required") {
     return RoutedReviewObligationSchema.parse({
@@ -802,6 +829,7 @@ const ReviewStatusBaseMovedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("base-moved"),
   nextAction: z.literal("rerun-checkpoint"),
+  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
 });
 const ReviewStatusBlockedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -886,10 +914,11 @@ export function bindDeliveryReviewTerminusOffer(
   },
 ): ReviewStatusResult {
   const isCeiling = result.nextAction === "obtain-ceiling-override";
+  const isBaseMoved = result.state === "base-moved";
   const isEligibleContinuation = result.nextAction === "review-hosted-request"
     || result.nextAction === "review-local-prepare"
     || result.nextAction === "resolve-review-applicability";
-  if (!isCeiling && !isEligibleContinuation) return result;
+  if (!isCeiling && !isBaseMoved && !isEligibleContinuation) return result;
   const member = result.deliveryCursor?.currentMember;
   if (member === undefined || member === null) {
     if (isCeiling) {

@@ -389,6 +389,28 @@ describe("review status", () => {
     });
   });
 
+  it("routes retained ordinary local findings through the exact operation", async () => {
+    const localResumeAction = { schemaVersion: 1 as const, operationId: "local-review/prior" };
+    const obligation = composeSingletonReviewObligation({
+      discharge: {
+        discharged: false,
+        detail: "The ordinary standard source has retained findings.",
+        localResumeAction,
+      },
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 2 }),
+        candidateId: canonicalDigest({ candidate: 2 }),
+      },
+    });
+
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-local-resume",
+      action: localResumeAction,
+    });
+  });
+
   it("returns the complete hosted request selected for the first outstanding delivery member", async () => {
     await expect(resolveReviewStatus({ target }, port({
       routedObligation: {
@@ -566,6 +588,50 @@ describe("review status", () => {
         target: hostedAction.target,
         vehicle: memberVehicle,
         completedPasses: 2,
+      },
+    });
+  });
+
+  it("retains the exact member terminus offer while base movement awaits checkpoint", async () => {
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The member remains eligible for another hosted pass.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: readyAdmission("coderabbit-pr"),
+        completedPasses: 1,
+        attemptHistory: [{
+          updatedAt: "2026-09-02T12:00:00.000Z",
+          headSha: memberVehicle.head,
+          sourceId: "coderabbit-pr",
+          outcome: "settled-findings",
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          findingCount: 1,
+          settledFindingCount: 1,
+        }],
+      })],
+    });
+    const status = await resolveReviewStatus({ target }, port({
+      routedObligation: obligation,
+      baseContained: false,
+    }));
+
+    expect(bindDeliveryReviewTerminusOffer(status, {
+      workUnitId: "example",
+      expectedBoundaryVersion: `sha256:${"b".repeat(64)}`,
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: `sha256:${"d".repeat(64)}`,
+    })).toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      terminusAction: {
+        kind: "delivery-member-owner-terminus",
+        workUnitId: "example",
+        target: hostedAction.target,
+        vehicle: memberVehicle,
+        completedPasses: 1,
       },
     });
   });
@@ -1088,6 +1154,47 @@ describe("review status", () => {
       state: "review-required",
       action: { target: hostedAction.target, vehicle: memberVehicle },
       conjunction: { members: [{ state: "outstanding" }] },
+    });
+  });
+
+  it("applies a final-member Owner terminus across a proved record-only head advance", () => {
+    const priorVehicle = DeliveryReviewMemberVehicleSchema.parse({ ...memberVehicle, head: oid("9") });
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The moved member requires review.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: readyAdmission("coderabbit-pr"),
+        completedPasses: 2,
+      })],
+      ownerTermini: [{
+        vehicle: priorVehicle,
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "andrew",
+          completedPasses: 2,
+        },
+      }],
+      ownerTerminusAdvances: [{
+        priorVehicle,
+        currentVehicle: memberVehicle,
+        proof: {
+          priorHead: priorVehicle.head,
+          priorTree: oid("8"),
+          currentHead: memberVehicle.head,
+          currentTree: oid("7"),
+          proof: "subject-equality",
+        },
+      }],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "settled",
+      conjunction: { members: [{ state: "discharged" }] },
     });
   });
 

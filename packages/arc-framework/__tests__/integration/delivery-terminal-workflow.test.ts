@@ -21,8 +21,9 @@ describe("delivery terminal integration handoff", () => {
     const merge = packaged.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
     const resume = packaged.indexOf("**Skip the merge when the PR is already merged**");
     const close = packaged.indexOf("arc user close {name}", merge);
-    const teardown = packaged.indexOf("arc teardown <wu-name>", close);
-    for (const position of [checkpoint, interlock, merge, resume, close, teardown]) {
+    const deliveryCloseout = packaged.indexOf("arc delivery closeout - --json", close);
+    const teardown = packaged.indexOf("arc teardown <wu-name>", deliveryCloseout);
+    for (const position of [checkpoint, interlock, merge, resume, close, deliveryCloseout, teardown]) {
       expect(position).toBeGreaterThan(-1);
     }
     expect(checkpoint).toBeLessThan(interlock);
@@ -30,7 +31,14 @@ describe("delivery terminal integration handoff", () => {
     expect(merge).toBeLessThan(resume);
     expect(merge).toBeLessThan(close);
     expect(resume).toBeLessThan(close);
-    expect(close).toBeLessThan(teardown);
+    expect(close).toBeLessThan(deliveryCloseout);
+    expect(packaged.slice(close, teardown)).toContain(
+      '{"workUnitId":"{name}","repository":"{repositoryRef}","remote":"origin"}',
+    );
+    expect(packaged.slice(deliveryCloseout, teardown)).toMatch(
+      /closed-out[\s\S]*recommendedActionText[\s\S]*blocked[\s\S]*recommendedActionText/iu,
+    );
+    expect(deliveryCloseout).toBeLessThan(teardown);
     const terminalRemedy = packaged.indexOf("`retarget` or `reopen-and-retarget`");
     const remedyInvocation = packaged.indexOf("remedy.argv", terminalRemedy);
     expect(packaged).not.toContain("`verify-terminal-member`");
@@ -90,7 +98,9 @@ describe("delivery terminal integration handoff", () => {
     expect(packaged).toMatch(
       /`candidate-verification-required`[\s\S]*verification closeout[\s\S]*no[\s\S]*attestation or review action/iu,
     );
-    expect(packaged).toMatch(/`canonicalize-provisional`[\s\S]*`validate-canonical`[\s\S]*`resume-bound`/u);
+    expect(packaged).toMatch(
+      /`canonicalize-provisional`[\s\S]*`validate-canonical`[\s\S]*`continue-publication`[\s\S]*`resume-bound`/u,
+    );
     expect(packaged).toContain("supplemental/deliver-stack.md");
     expect(packaged).toMatch(/`refused`[\s\S]*stop/iu);
   });

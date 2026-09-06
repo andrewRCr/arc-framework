@@ -11,7 +11,14 @@ import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-s
 import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { createGitExec } from "../../src/lib/io-context.js";
-import { projectPublicationBoundary } from
+import { projectDeliveryPublicReviewContinuation } from
+  "../../src/lib/delivery/public-review-continuation.js";
+import {
+  createStandardReviewReservation,
+  IntegrationBoundaryLocusSchema,
+  projectCorrectiveDeliveryStatusBoundary,
+  projectPublicationBoundary,
+} from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 import {
@@ -77,7 +84,7 @@ describe("arc delivery", () => {
     for (const command of [
       ["eligibility", "prepare"], ["eligibility", "close"], ["publish"],
       ["position"], ["land", "prepare"], ["land", "apply"], ["reconcile"], ["rewrite"], ["rematerialize"],
-      ["teardown"], ["top-remedy"],
+      ["teardown"], ["top-remedy"], ["closeout"],
     ]) {
       const help = await runArc(["delivery", ...command, "--help"], repository);
       expect(help.exitCode, help.stderr).toBe(0);
@@ -110,6 +117,116 @@ describe("arc delivery", () => {
         },
       },
     });
+  });
+
+  it("reaps refs and retires records through the destructive closeout verb", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const closeoutWorkUnitId = "renamed-delivery-plan-record";
+    const transitions = join(repository, ".arc", "system", ".internal", "transitions");
+    await mkdir(transitions, { recursive: true });
+    await writeFile(join(transitions, `${plan.workUnitId}.json`), `${JSON.stringify({
+      schemaVersion: 1,
+      origin: plan.workUnitId,
+      kind: "rename",
+      successors: [closeoutWorkUnitId],
+      edges: [],
+    })}\n`);
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "-m", "record closeout rename"]);
+    const head = await git(repository, ["rev-parse", "HEAD"]);
+    const tree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
+    const initial = deliveryStateFixture(plan);
+    const state = {
+      ...initial,
+      target: { ref: "refs/heads/main", coordinates: { head, tree } },
+      members: initial.members.map((member, index) => ({
+        ...member,
+        ref: index === initial.members.length - 1
+          ? "refs/heads/main"
+          : `refs/heads/delivery/${plan.workUnitId}/${plan.members[index]!.chunkKey}`,
+        changeRequest: index === initial.members.length - 1
+          ? { providerId: "github", changeRequestId: "401" }
+          : null,
+        coordinates: { base: head, head, tree },
+      })),
+    };
+    const nonterminalRefs = state.members.slice(0, -1).map((member) => member.ref);
+    for (const ref of nonterminalRefs) await git(repository, ["update-ref", ref, head]);
+    const staleRefreshCandidate =
+      `refs/arc/delivery-refresh-candidates/${plan.planId}/retired-member`;
+    await git(repository, ["update-ref", staleRefreshCandidate, head]);
+    const origin = join(repository, "origin.git");
+    await git(repository, ["init", "--bare", origin]);
+    await git(repository, ["remote", "add", "origin", origin]);
+    await git(repository, ["push", "origin", ...nonterminalRefs.map((ref) => `${head}:${ref}`)]);
+
+    const common = await gitCommonDir(repository);
+    const planPath = join(common, "arc", "delivery", "plans", `${plan.planId}.json`);
+    const statePath = join(common, "arc", "delivery", "state", `${plan.planId}.json`);
+    await mkdir(resolve(planPath, ".."), { recursive: true });
+    await mkdir(resolve(statePath, ".."), { recursive: true });
+    await writeFile(planPath, `${JSON.stringify(plan)}\n`);
+    await writeFile(statePath, `${JSON.stringify({
+      schemaVersion: 1,
+      semanticsVersion: "delivery-state-store/v1",
+      planId: plan.planId,
+      revision: 7,
+      value: state,
+    })}\n`);
+    await writeFile(join(repository, "delivery-closeout.json"), `${JSON.stringify({
+      workUnitId: closeoutWorkUnitId,
+      repository: "owner/repo",
+      remote: "origin",
+    })}\n`);
+
+    const fakeBin = join(repository, "fake-closeout-bin");
+    const fakeGh = join(fakeBin, "gh");
+    await mkdir(fakeBin);
+    await writeFile(fakeGh, [
+      "#!/bin/sh",
+      "case \"$2\" in",
+      "  repos/owner/repo/pulls/401)",
+      `    printf '%s\\n' '${JSON.stringify({
+        number: 401,
+        state: "closed",
+        merged: true,
+        draft: false,
+        head: { ref: "main", sha: head, repo: { full_name: "owner/repo" } },
+        base: { ref: "main", repo: { full_name: "owner/repo" } },
+        merge_commit_sha: head,
+      })}'`,
+      "    ;;",
+      "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
+      "esac",
+      "",
+    ].join("\n"));
+    await chmod(fakeGh, 0o755);
+    const env = { PATH: `${fakeBin}:${process.env.PATH ?? ""}` };
+
+    const closed = await runArc([
+      "delivery", "closeout", "delivery-closeout.json", "--json",
+    ], repository, { env });
+    expect(closed.exitCode, closed.stderr).toBe(0);
+    expect(JSON.parse(closed.stdout)).toMatchObject({
+      command: "delivery closeout",
+      status: "closed-out",
+      workUnitId: closeoutWorkUnitId,
+      planIds: [plan.planId],
+    });
+    await expect(readFile(planPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(statePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    for (const ref of nonterminalRefs) {
+      await expect(git(repository, ["rev-parse", "--verify", ref])).rejects.toBeDefined();
+      expect(await git(repository, ["ls-remote", "--refs", "origin", ref])).toBe("");
+    }
+    await expect(git(repository, ["rev-parse", "--verify", staleRefreshCandidate])).rejects.toBeDefined();
+    expect(await git(repository, ["rev-parse", "--verify", "refs/heads/main"])).toBe(head);
+
+    const replay = await runArc([
+      "delivery", "closeout", "delivery-closeout.json", "--json",
+    ], repository, { env });
+    expect(replay.exitCode, replay.stderr).toBe(0);
+    expect(JSON.parse(replay.stdout)).toMatchObject({ status: "closed-out", planIds: [] });
   });
 
   it.skipIf(process.platform === "win32")(
@@ -234,7 +351,7 @@ describe("arc delivery", () => {
       (workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? [],
     );
     expect(invocationsByWorkflow[0]?.length).toBeGreaterThan(0);
-    expect(invocationsByWorkflow[1]).toEqual([]);
+    expect(invocationsByWorkflow[1]).toEqual(["arc delivery closeout - --json"]);
     const invocations = invocationsByWorkflow.flat();
     for (const invocation of invocations) {
       const args = invocation.split(" ").slice(1);
@@ -293,6 +410,15 @@ describe("arc delivery", () => {
       baseRef: index === 0 ? "main" : state.members[index - 1]!.ref!.replace(/^refs\/heads\//u, ""),
       headRepository: "owner/repo",
     }));
+    const highestNativeMember = state.members.at(-2)!;
+    const landedTargetHead = await git(repository, [
+      "commit-tree", highestNativeMember.coordinates!.tree,
+      "-p", baseHead,
+      "-p", highestNativeMember.coordinates!.head,
+      "-m", "native stack merge",
+    ]);
+    const landedTargetTree = state.members.at(-2)!.coordinates!.tree;
+    await git(repository, ["update-ref", "refs/heads/native-landing-result", landedTargetHead]);
     await git(repository, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
     await git(repository, ["config", `url.file://${repository}/.insteadOf`, "https://github.com/owner/repo.git"]);
     await git(repository, ["fetch", "origin", "main"]);
@@ -336,6 +462,33 @@ describe("arc delivery", () => {
       head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
       base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
     }));
+    const landedRequestResponses = nativeMembers.map((member) => JSON.stringify({
+      number: Number(member.changeRequestId),
+      state: "closed",
+      merged: true,
+      draft: false,
+      head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
+      base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
+      merge_commit_sha: landedTargetHead,
+    }));
+    const divergentLandedRequestResponses = nativeMembers.map((member, index) => JSON.stringify({
+      number: Number(member.changeRequestId),
+      state: "closed",
+      merged: true,
+      draft: false,
+      head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
+      base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
+      merge_commit_sha: index === 0 ? member.headSha : landedTargetHead,
+    }));
+    const settledRequestResponses = nativeMembers.map((member) => JSON.stringify({
+      number: Number(member.changeRequestId),
+      state: "closed",
+      merged: true,
+      draft: false,
+      head: { ref: member.headRef, sha: member.headSha, repo: { full_name: "owner/repo" } },
+      base: { ref: member.baseRef, repo: { full_name: "owner/repo" } },
+      merge_commit_sha: landedTargetHead,
+    }));
     const terminal = state.members.at(-1)!;
     const terminalRequestResponse = JSON.stringify({
       number: Number(terminal.changeRequest!.changeRequestId),
@@ -351,6 +504,18 @@ describe("arc delivery", () => {
         ref: nativeMembers.at(-1)!.headRef,
         repo: { full_name: "owner/repo" },
       },
+    });
+    const settledTerminalRequestResponse = JSON.stringify({
+      number: Number(terminal.changeRequest!.changeRequestId),
+      state: "open",
+      merged: false,
+      draft: false,
+      head: {
+        ref: terminal.ref!.replace(/^refs\/heads\//u, ""),
+        sha: terminal.coordinates!.head,
+        repo: { full_name: "owner/repo" },
+      },
+      base: { ref: "main", repo: { full_name: "owner/repo" } },
     });
     const listResponses = nativeMembers.map((member) => JSON.stringify([{
       number: Number(member.changeRequestId),
@@ -383,6 +548,7 @@ describe("arc delivery", () => {
     await mkdir(fakeBin);
     await writeFile(fakeGh, [
       "#!/bin/sh",
+      "if [ \"${ARC_FAKE_FAIL_HOST_ACCESS:-0}\" = \"1\" ]; then echo 'unexpected host access' >&2; exit 97; fi",
       "if [ \"${ARC_FAKE_GH_MODE:-registered}\" = \"degrade\" ]; then",
       "  case \"$*\" in *unstack*) printf '{}\\n'; exit 0;; esac",
       "  if [ ! -f \"$ARC_FAKE_GH_COUNTER\" ]; then",
@@ -411,10 +577,13 @@ describe("arc delivery", () => {
       "    printf '%s\\n' '{\"protection\":null}'",
       "    ;;",
       "  repos/owner/repo/git/ref/heads/main)",
-      `    printf '%s\\n' '{"object":{"sha":"${baseHead}"}}'`,
+      `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '{"object":{"sha":"${landedTargetHead}"}}'; else printf '%s\\n' '{"object":{"sha":"${baseHead}"}}'; fi`,
       "    ;;",
       `  repos/owner/repo/git/commits/${baseHead})`,
       `    printf '%s\\n' '{"tree":{"sha":"${baseTree}"}}'`,
+      "    ;;",
+      `  repos/owner/repo/git/commits/${landedTargetHead})`,
+      `    printf '%s\\n' '{"tree":{"sha":"${landedTargetTree}"}}'`,
       "    ;;",
       "  repos/owner/repo/stacks)",
       "    if [ \"${ARC_FAKE_GH_MODE:-registered}\" = \"unsupported\" ]; then echo 'HTTP 404' >&2; exit 1; fi",
@@ -422,14 +591,17 @@ describe("arc delivery", () => {
       "    ;;",
       ...nativeMembers.flatMap((member, index) => [
         `  repos/owner/repo/pulls/${member.changeRequestId})`,
-        `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedRequestResponses[index]}'; else printf '%s\\n' '${requestResponses[index]}'; fi`,
+        `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "flattened" ]; then printf '%s\\n' '${flattenedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "landed" ]; then printf '%s\\n' '${landedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "divergent-landed" ]; then printf '%s\\n' '${divergentLandedRequestResponses[index]}'; elif [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '${settledRequestResponses[index]}'; else printf '%s\\n' '${requestResponses[index]}'; fi`,
         "    ;;",
       ]),
       `  repos/owner/repo/pulls/${terminal.changeRequest!.changeRequestId})`,
-      `    printf '%s\\n' '${terminalRequestResponse}'`,
+      `    if [ "\${ARC_FAKE_GH_MODE:-registered}" = "settled" ]; then printf '%s\\n' '${settledTerminalRequestResponse}'; elif [ -n "\${ARC_FAKE_TERMINAL_HEAD:-}" ]; then printf '%s\\n' '${terminalRequestResponse}' | sed "s/${terminal.coordinates!.head}/$ARC_FAKE_TERMINAL_HEAD/"; else printf '%s\\n' '${terminalRequestResponse}'; fi`,
       "    ;;",
       `  repos/owner/repo/pulls/${nativeMembers.at(-1)!.changeRequestId}/merge-async)`,
       `    printf '%s\\n' '${mergeResponse}'`,
+      "    ;;",
+      `  repos/owner/repo/pulls/${nativeMembers.at(-1)!.changeRequestId}/merge-async/native-effect-1)`,
+      `    printf '%s\\n' '{"status":"merged"}'`,
       "    ;;",
       "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
       "esac",
@@ -571,6 +743,9 @@ describe("arc delivery", () => {
     expect(JSON.parse(flattenedPrepare.stdout)).toMatchObject({
       status: "blocked",
       reason: "member-not-ready",
+      unreadyMembers: nativeMembers.map(({ deliverableId, changeRequestId, headSha }) => ({
+        deliverableId, changeRequestId, headSha,
+      })),
     });
 
     const unreviewed = await runArcWithStdin(
@@ -583,6 +758,9 @@ describe("arc delivery", () => {
     expect(JSON.parse(unreviewed.stdout)).toMatchObject({
       status: "blocked",
       reason: "member-not-ready",
+      unreadyMembers: nativeMembers.map(({ deliverableId, changeRequestId, headSha }) => ({
+        deliverableId, changeRequestId, headSha,
+      })),
     });
 
     const top = state.members.at(-1)!;
@@ -611,13 +789,65 @@ describe("arc delivery", () => {
       lineageAttestations: [],
     };
     await writeCandidateRecord(repository, plan.workUnitId, candidate, null);
-    await writeSubmissionBoundary(repository, projectPublicationBoundary({
+    const reservation = createStandardReviewReservation({
+      candidateId: candidate.attestation.candidateId,
+      sourceId: "coderabbit-pr",
+      target: {
+        kind: "delivery",
+        repository: "owner/repo",
+        workUnitId: plan.workUnitId,
+        planId: plan.planId,
+      },
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const sourceBoundary = projectPublicationBoundary({
       workUnit: plan.workUnitId,
       branch: topBranch,
       candidateId: candidate.attestation.candidateId,
       candidateSubjectDigest: candidate.subject.subjectDigest,
-      reservation: null,
+      reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 44 },
+    });
+    const continuation = projectDeliveryPublicReviewContinuation({
+      plan,
+      state,
+      stateRevision: 1,
+    });
+    if (continuation.status !== "projected") throw new Error("delivery continuation must project");
+    const correctiveBoundary = projectCorrectiveDeliveryStatusBoundary({
+      workUnit: plan.workUnitId,
+      candidateId: candidate.attestation.candidateId,
+      candidateSubjectDigest: candidate.subject.subjectDigest,
+      supersedesCandidateId: null,
+      sourceBoundary,
+      deliveryContinuation: continuation.continuation,
+    });
+    await writeSubmissionBoundary(repository, IntegrationBoundaryLocusSchema.parse({
+      ...correctiveBoundary,
+      deliveryReviewTermini: state.members.map((member) => ({
+        vehicle: {
+          kind: "delivery-member",
+          planId: plan.planId,
+          deliverableId: member.deliverableId,
+          workUnitId: plan.workUnitId,
+          head: member.coordinates!.head,
+        },
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "test-user",
+          completedPasses: 0,
+        },
+      })),
     }), null);
 
     const prepared = await runArcWithStdin(
@@ -634,8 +864,42 @@ describe("arc delivery", () => {
         deliverableId, changeRequestId, headSha,
       })),
     });
+    const ordinaryPreparedStatus = await runArc(
+      [
+        "review", "status",
+        "--target", JSON.stringify({
+          repository: "owner/repo",
+          headRef: state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
+          headSha: nativeMembers[0]!.headSha,
+        }),
+        "--json",
+      ],
+      repository,
+      { env },
+    );
+    expect(ordinaryPreparedStatus.exitCode, ordinaryPreparedStatus.stderr).toBe(0);
+    expect(JSON.parse(ordinaryPreparedStatus.stdout)).toMatchObject({
+      state: "blocked",
+      routedObligation: {
+        state: "blocked",
+        detail: "The public delivery continuation is not current.",
+      },
+    });
 
-    const submitRequest = {
+    const preparedStatePath = join(states, `${plan.planId}.json`);
+    const preparedState = await readFile(preparedStatePath, "utf8");
+    const recovered = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: plan.planId, repository: "owner/repo", remote: "origin" })}\n`,
+      { env: { ...env, ARC_FAKE_FAIL_HOST_ACCESS: "1" } },
+    );
+    expect(recovered.exitCode, `${recovered.stderr}\n${recovered.stdout}`).toBe(0);
+    const recoveredResult = JSON.parse(recovered.stdout) as {
+      status: string;
+      submitAction: { input: Record<string, unknown> };
+    };
+    const expectedSubmitRequest = {
       planId: plan.planId,
       operationId,
       request: {
@@ -646,7 +910,33 @@ describe("arc delivery", () => {
         mergeMethod: "merge",
       },
       treeRoot: repository,
+      remote: "origin",
     };
+    expect(recoveredResult).toEqual({
+      schemaVersion: 1,
+      command: "delivery reconcile",
+      status: "prepared",
+      transition: "preserved",
+      action: "delivery-native-land-submit",
+      presentation: {
+        operationId,
+        members: nativeMembers.map(({ deliverableId, changeRequestId, headSha }) => ({
+          deliverableId, changeRequestId, headSha,
+        })),
+        consequence:
+          "Atomically land the displayed complete non-terminal remainder. A residual race remains between final "
+          + "observation and the host prefix snapshot.",
+      },
+      submitAction: {
+        command: "arc delivery native land-submit - --json",
+        input: expectedSubmitRequest,
+      },
+      recommendedActionText:
+        "Present the preserved native landing consequence and exact member heads, then obtain integration approval "
+        + "before invoking the submit action unchanged.",
+    });
+    expect(await readFile(preparedStatePath, "utf8")).toBe(preparedState);
+    const submitRequest = recoveredResult.submitAction.input;
     const flattenedSubmit = await runArcWithStdin(
       ["delivery", "native", "land-submit", "-", "--json"],
       repository,
@@ -659,16 +949,82 @@ describe("arc delivery", () => {
       reason: "native-stack-moved",
     });
 
+    await writeFile(join(repository, "terminal-residual.txt"), "post-prepare correction\n");
+    await git(repository, ["add", "terminal-residual.txt"]);
+    await git(repository, ["commit", "-m", "post-prepare correction"]);
+    const terminalCorrectionHead = await git(repository, ["rev-parse", "HEAD"]);
+
     const submitted = await runArcWithStdin(
       ["delivery", "native", "land-submit", "-", "--json"],
       repository,
       `${JSON.stringify(submitRequest)}\n`,
-      { env },
+      { env: { ...env, ARC_FAKE_TERMINAL_HEAD: terminalCorrectionHead } },
     );
     expect(submitted.exitCode, submitted.stderr).toBe(0);
     expect(JSON.parse(submitted.stdout)).toMatchObject({
       status: "pending",
       effectIdentity: "native-effect-1",
+    });
+    await git(repository, ["reset", "--hard", top.coordinates!.head]);
+
+    const divergentLanding = await runArcWithStdin(
+      ["delivery", "native", "land-status", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: plan.planId, request: expectedSubmitRequest.request, remote: "origin" })}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "divergent-landed" } },
+    );
+    expect(divergentLanding.exitCode, divergentLanding.stderr).toBe(1);
+    expect(JSON.parse(divergentLanding.stdout)).toMatchObject({
+      status: "blocked",
+      reason: "ambiguous-result",
+    });
+
+    await git(repository, ["update-ref", "refs/heads/main", landedTargetHead]);
+    const landed = await runArcWithStdin(
+      ["delivery", "native", "land-status", "-", "--json"],
+      repository,
+      `${JSON.stringify({ planId: plan.planId, request: expectedSubmitRequest.request, remote: "origin" })}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "landed" } },
+    );
+    expect(landed.exitCode, `${landed.stderr}\n${landed.stdout}`).toBe(0);
+    expect(JSON.parse(landed.stdout)).toMatchObject({
+      status: "applied",
+      state: { value: { target: { coordinates: { head: landedTargetHead } }, activeOperation: null } },
+    });
+
+    const positionInput = { planId: plan.planId, repository: "owner/repo", remote: "origin" };
+    const terminalPosition = await runArcWithStdin(
+      ["delivery", "position", "-", "--json"],
+      repository,
+      `${JSON.stringify(positionInput)}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "settled" } },
+    );
+    expect(terminalPosition.exitCode, `${terminalPosition.stderr}\n${terminalPosition.stdout}`).toBe(0);
+    const terminalPositionResult = JSON.parse(terminalPosition.stdout) as {
+      status: string;
+      selectedDeliverableId: string;
+    };
+    expect(terminalPositionResult).toMatchObject({
+      status: "position",
+      nextAction: "teardown-member",
+      selectedDeliverableId: state.members.at(-2)!.deliverableId,
+    });
+
+    const terminalHandoff = await runArcWithStdin(
+      ["delivery", "teardown", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        ...positionInput,
+        deliverableId: terminalPositionResult.selectedDeliverableId,
+        protectedTargetRef: "refs/heads/main",
+      })}\n`,
+      { env: { ...env, ARC_FAKE_GH_MODE: "settled" } },
+    );
+    expect(terminalHandoff.exitCode, `${terminalHandoff.stderr}\n${terminalHandoff.stdout}`).toBe(0);
+    expect(JSON.parse(terminalHandoff.stdout)).toMatchObject({
+      status: "torn-down",
+      nextAction: "terminal-checkpoint",
+      top: { status: "ready" },
     });
 
     const degraded = await runArcWithStdin(
@@ -679,7 +1035,7 @@ describe("arc delivery", () => {
     );
     expect(degraded.exitCode, degraded.stderr).toBe(0);
     expect(JSON.parse(degraded.stdout)).toMatchObject({ status: "unlinked" });
-  });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("validates design input before writing task-derived authoring state", async () => {
     await installTaskFixture(repository);
@@ -1038,10 +1394,13 @@ describe("arc delivery", () => {
       expect(JSON.parse(compose.stdout)).toMatchObject({
         status: "refused",
         reason: "coverage-refused",
-        issues: [{
-          kind: "member-task-order",
-          memberIndices: run.members.map((_, index) => index),
-        }],
+        issues: [
+          {
+            kind: "member-task-order",
+            memberIndices: run.members.map((_, index) => index),
+          },
+          { kind: "member-verification-task-unbound", taskIds: ["1.1"] },
+        ],
       });
     },
   );
@@ -1203,8 +1562,8 @@ describe("arc delivery", () => {
       "",
     ].join("\n");
     const twoPhaseTasks = onePhaseTasks.replace(
-      "### `[ ]` **1.2 Implement the companion**",
-      `${phaseHeading}### \`[ ]\` **1.2 Implement the companion**`,
+      "### `[ ]` **1.2 Implement the companion** — validate criteria at member scope",
+      `${phaseHeading}### \`[ ]\` **1.2 Implement the companion** — validate criteria at member scope`,
     );
     await writeFile(taskListPath, twoPhaseTasks);
     const author = await runArc([
@@ -1308,7 +1667,7 @@ describe("arc delivery", () => {
     expect(verification.exitCode).toBe(1);
     expect(JSON.parse(verification.stdout)).toMatchObject({
       status: "refused",
-      reason: "verification-task-ineligible",
+      reason: "work-unit-verification-task-ineligible",
     });
   });
 
@@ -1337,8 +1696,14 @@ describe("arc delivery", () => {
       design: { artifacts: [{ artifactId: "spec.md", revisionDigest: DIGEST }], elements: [] },
       tasks: {
         inventoryDigest: DIGEST,
-        implementation: [{ taskId: "1.1", semanticDigest: DIGEST }],
-        verificationTaskId: "2.1",
+        parents: [
+          { taskId: "1.1", semanticDigest: DIGEST, role: { kind: "implementation" } },
+          {
+            taskId: "2.1",
+            semanticDigest: null,
+            role: { kind: "verification", scope: "work-unit" },
+          },
+        ],
       },
       source: {
         entry: "from-tasks",
@@ -1401,12 +1766,12 @@ async function installTaskFixture(repository: string, includeSecondTask = false)
     "",
     "## **Phase alpha:** Implementation",
     "",
-    "### `[ ]` **1.1 Implement the contract**",
+    "### `[ ]` **1.1 Implement the contract** — validate criteria at member scope",
     "",
     "- _Goal:_ Implement the delivery contract.",
     "",
     ...(includeSecondTask ? [
-      "### `[ ]` **1.2 Implement the companion**",
+      "### `[ ]` **1.2 Implement the companion** — validate criteria at member scope",
       "",
       "- _Goal:_ Implement the companion behavior.",
       "",

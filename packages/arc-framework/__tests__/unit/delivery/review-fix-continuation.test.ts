@@ -146,6 +146,8 @@ function deliveryDispositionRecord(input: {
   });
 }
 
+const openTaskDerivation = { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" } as const;
+
 function correctionEntry(): DeliveryEntryInspectionResult {
   return {
     status: "correction-routing-required",
@@ -154,6 +156,7 @@ function correctionEntry(): DeliveryEntryInspectionResult {
     stateRevision: 3,
     selectedDeliverableId,
     entryMode: "execution",
+    derivedFrom: openTaskDerivation,
     recommendedActionText,
   };
 }
@@ -484,26 +487,44 @@ describe("delivery review-fix continuation projection", () => {
     });
     const response = settled.deliveryMemberFixResponse;
     if (response === null) throw new Error("settled local response fixture must retain verification evidence");
+    const terminalVerificationTarget = {
+      head: response.newTarget.headSha,
+      tree: response.newTarget.headTree,
+    };
 
     expect(selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
       workUnitId: plan.workUnitId,
       planId: plan.planId,
       selectedDeliverableId,
-      target: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      selectedMemberTarget: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      target: terminalVerificationTarget,
       records: [settled],
     })).toEqual({
       status: "selected",
+      operationId: "local-operation-settled",
       verification: {
         applicability: "focused",
-        target: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+        target: terminalVerificationTarget,
         tier1: {
           outcome: "passed",
           provenance: "exact-tree-reuse",
-          targetTree: response.newTarget.headTree,
+          targetTree: terminalVerificationTarget.tree,
           coveredInputs: "unchanged",
         },
         verificationEvidenceRefs: ["verification://focused-fix"],
       },
+    });
+
+    expect(selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
+      workUnitId: plan.workUnitId,
+      planId: plan.planId,
+      selectedDeliverableId,
+      selectedMemberTarget: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      target: { head: "d".repeat(40), tree: "e".repeat(40) },
+      records: [settled],
+    })).toEqual({
+      status: "settlement-only",
+      operationId: "local-operation-settled",
     });
 
     const prior = {
@@ -517,7 +538,8 @@ describe("delivery review-fix continuation projection", () => {
       workUnitId: plan.workUnitId,
       planId: plan.planId,
       selectedDeliverableId,
-      target: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      selectedMemberTarget: { head: response.newTarget.headSha, tree: response.newTarget.headTree },
+      target: terminalVerificationTarget,
       records: [prior, settled],
     })).toMatchObject({ status: "selected" });
   });
@@ -570,13 +592,16 @@ describe("delivery review-fix continuation projection", () => {
       recommendedActionText,
     };
 
-    expect(projectDeliveryReviewFixContinuation({ request, entry })).toMatchObject({
+    const verificationStop = projectDeliveryReviewFixContinuation({ request, entry });
+    expect(verificationStop).toMatchObject({
       status: "verification-required",
       verification: {
         target: continuation.verification.target,
         tier1Reuse: { targetTree: continuation.verification.target.tree },
       },
+      resumeAction: { input: { repository: request.repository, remote: request.remote } },
     });
+    expect(verificationStop).not.toHaveProperty("acknowledgementInput");
     const verification = {
       applicability: "focused" as const,
       target: continuation.verification.target,
@@ -607,14 +632,20 @@ describe("delivery review-fix continuation projection", () => {
     ["provider-refresh", "delivery-refresh-execute"],
     ["provider-adoption", "delivery-refresh-adopt"],
   ] as const)("resumes a persisted %s operation through %s", (mode, actionKind) => {
-    expect(projectDeliveryReviewFixContinuation({
+    const state = activeState(mode);
+    const result = projectDeliveryReviewFixContinuation({
       request,
       entry: resumeEntry(),
-      state: activeState(mode),
-    })).toMatchObject({
+      state,
+    });
+    expect(result).toMatchObject({
       status: "dispatch",
       action: { kind: actionKind, input: { planId: plan.planId } },
     });
+    if ((mode === "provider-refresh" || mode === "provider-adoption") && result.status === "dispatch") {
+      expect(result.action).toMatchObject({ input: { operationId: state.value.activeOperation?.operationId } });
+      expect(result.action).not.toHaveProperty("input.scope");
+    }
   });
 
   it.each([
@@ -655,6 +686,7 @@ describe("delivery review-fix continuation projection", () => {
     });
     expect(result).toMatchObject({ status });
     if (actionKind !== undefined) expect(result).toMatchObject({ action: { kind: actionKind } });
+    if (status === "authoring-required") expect(result).toMatchObject({ derivedFrom: openTaskDerivation });
   });
 
   it("refuses terminal authoring until the exact top locus is observed", () => {
@@ -667,6 +699,34 @@ describe("delivery review-fix continuation projection", () => {
     })).toEqual({
       status: "refused",
       reason: "review-fix-authoring-readiness-unavailable",
+    });
+  });
+
+  it("reconciles a ready terminal authoring head before continuing", () => {
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      route: route("terminal-authoring"),
+      authoring: {
+        status: "ready",
+        kind: "top",
+        ref: "refs/heads/feat/example",
+        checkoutPath: "/repo",
+        head: "a".repeat(40),
+        tree: "b".repeat(40),
+      },
+    })).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-reconcile",
+        input: {
+          planId: plan.planId,
+          repository: request.repository,
+          remote: request.remote,
+          continuation: "read-position",
+          reviewFixSelectedDeliverableId: selectedDeliverableId,
+        },
+      },
     });
   });
 
@@ -720,11 +780,38 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
-  it("advances a published selected correction into provider refresh", () => {
+  it("resumes a published selected correction without re-planning", () => {
     expect(projectDeliveryReviewFixContinuation({
       request,
       entry: correctionEntry(),
-      route: route("provider-refresh"),
+      state: pendingSelectedRefreshState(),
+      activeBranch: "feat/example",
+    })).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-refresh-execute",
+        input: {
+          planId: plan.planId,
+          scope: { kind: "dependent-suffix", selectedDeliverableId },
+        },
+      },
+    });
+  });
+
+  it("finishes an earlier published correction before planning a later member task", () => {
+    const laterMember = plan.members[1];
+    if (laterMember === undefined) throw new Error("continuation fixture requires a later member");
+    const laterEntry = correctionEntry();
+    if (laterEntry.status !== "correction-routing-required") {
+      throw new Error("continuation fixture requires a correction route");
+    }
+
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: {
+        ...laterEntry,
+        selectedDeliverableId: laterMember.deliverableId,
+      },
       state: pendingSelectedRefreshState(),
       activeBranch: "feat/example",
     })).toMatchObject({
@@ -767,7 +854,7 @@ describe("delivery review-fix continuation projection", () => {
     const operation = activeState("provider-refresh").value.activeOperation;
     if (operation === null) throw new Error("continuation fixture requires an active refresh operation");
 
-    expect(projectDeliveryReviewFixContinuation({
+    const result = projectDeliveryReviewFixContinuation({
       request,
       entry: correctionEntry(),
       route: route("provider-refresh"),
@@ -776,11 +863,17 @@ describe("delivery review-fix continuation projection", () => {
         value: { ...pending.value, activeOperation: operation },
       },
       activeBranch: "feat/example",
-    })).toMatchObject({
-      status: "dispatch",
-      action: {
-        kind: "delivery-refresh-execute",
-        input: { operationId: operation.operationId },
+    });
+    expect(result).toMatchObject({ status: "dispatch", action: { kind: "delivery-refresh-execute" } });
+    if (result.status !== "dispatch") throw new Error("retained refresh must dispatch");
+    expect(result.action).toEqual({
+      kind: "delivery-refresh-execute",
+      argv: ["arc", "delivery", "refresh", "execute", "-", "--json"],
+      input: {
+        planId: plan.planId,
+        repository: request.repository,
+        remote: request.remote,
+        operationId: operation.operationId,
       },
     });
   });
@@ -804,7 +897,7 @@ describe("delivery review-fix continuation projection", () => {
 
   it.each([
     ["continue-publication", "publication"],
-    ["continue-hosted-review", "hosted-review"],
+    ["resolve-delivery-status", "delivery-status"],
   ] as const)("preserves the %s authority boundary", (status, authority) => {
     const entry = status === "continue-publication"
         ? {
@@ -821,11 +914,11 @@ describe("delivery review-fix continuation projection", () => {
           }
         : {
             status,
-            nextAction: "continue-hosted-review" as const,
+            nextAction: "resolve-delivery-status" as const,
             planId: plan.planId,
             stateRevision: 10,
-            hostedReviewAction: {
-              kind: "continue-hosted-review" as const,
+            deliveryStatusAction: {
+              kind: "resolve-delivery-status" as const,
               workUnitId: plan.workUnitId,
               command: `arc review status --work-unit ${plan.workUnitId} --json`,
               interactionText: recommendedActionText,
@@ -846,6 +939,7 @@ describe("delivery review-fix continuation projection", () => {
         nextAction: "renew-public-continuation",
         planId: plan.planId,
         stateRevision: 10,
+        candidateSubjectDigest: `sha256:${"1".repeat(64)}`,
         attestationAction: { argv: ["arc", "attest", plan.workUnitId, "--json"] },
         recommendedActionText,
       },
@@ -853,6 +947,7 @@ describe("delivery review-fix continuation projection", () => {
       status: "boundary-carry-required",
       planId: plan.planId,
       stateRevision: 10,
+      candidateSubjectDigest: `sha256:${"1".repeat(64)}`,
       recommendedActionText,
     });
   });
@@ -860,7 +955,7 @@ describe("delivery review-fix continuation projection", () => {
   it.each([
     "candidate-renewal-required",
     "candidate-verification-required",
-    "continue-hosted-review",
+    "resolve-delivery-status",
   ] as const)("preserves a proven pending response through %s", (status) => {
     expect(pendingDeliveryReviewFixCanResumeFromIntegrationStatus(status)).toBe(true);
   });

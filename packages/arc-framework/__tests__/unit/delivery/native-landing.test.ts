@@ -12,6 +12,7 @@ import {
 } from "../../../src/lib/delivery/native-landing.js";
 import {
   attachDeliveryOperationEffectIdentity,
+  beginNativeDeliverySubmission,
   reserveDeliveryOperation,
 } from "../../../src/lib/delivery/operation.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
@@ -202,6 +203,38 @@ describe("native delivery landing", () => {
       .resolves.toMatchObject({ status: "blocked", reason: "member-not-ready" });
   });
 
+  it("starts all readiness checks together and reports every refusal in selected order", async () => {
+    const chainPlan = deliveryFourMemberStackPlanFixture();
+    const selected = chainPlan.members.slice(0, -1).map((member, index) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: String(41 + index),
+      headSha: String(index + 1).repeat(40),
+    }));
+    const started: string[] = [];
+    const settle = new Map<string, (result: { readonly status: "ready" | "refused" }) => void>();
+    const preparing = prepareNativeDeliveryLanding(
+      { arm: "linked-atomic", members: selected },
+      {
+        readiness: (member) => {
+          started.push(member.deliverableId);
+          return new Promise((resolve) => settle.set(member.deliverableId, resolve));
+        },
+      },
+    );
+
+    await Promise.resolve();
+    expect(started).toEqual(selected.map((member) => member.deliverableId));
+    settle.get(selected[2]!.deliverableId)?.({ status: "refused" });
+    settle.get(selected[1]!.deliverableId)?.({ status: "ready" });
+    settle.get(selected[0]!.deliverableId)?.({ status: "refused" });
+
+    await expect(preparing).resolves.toMatchObject({
+      status: "blocked",
+      reason: "member-not-ready",
+      unreadyMembers: [selected[0], selected[2]],
+    });
+  });
+
   it("re-derives the exact plan-ordered landing set from fresh position facts before reservation", async () => {
     const state = deliveryStateFixture(plan);
     const facts = {
@@ -331,7 +364,15 @@ describe("native delivery landing", () => {
     })).resolves.toMatchObject({
       status: "prepared",
       members: selectedMembers,
-      state: { value: { activeOperation: { effect: { mergePolicy: mergePolicy("owner/repo") } } } },
+      state: {
+        value: {
+          activeOperation: {
+            mode: "native",
+            native: { arm: "linked-atomic", phase: "prepared" },
+            effect: { mergePolicy: mergePolicy("owner/repo") },
+          },
+        },
+      },
     });
 
     await expect(reserveNativeDeliveryLanding({
@@ -358,7 +399,8 @@ describe("native delivery landing", () => {
       baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
+      operationId: "operation-1", kind: "land", mode: "native", nativeArm: "linked-atomic",
+      affectedDeliverableIds: ids,
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
@@ -385,17 +427,24 @@ describe("native delivery landing", () => {
       host: policyMovedHost,
       stateStore,
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
-      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      revalidateSet: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
       revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "refused" }),
       observeEffect: vi.fn(),
     })).resolves.toMatchObject({ status: "blocked", reason: "merge-policy-moved" });
     expect(policyMovedHost.submitNativeMerge).not.toHaveBeenCalled();
 
+    let setAdmissionAvailable = true;
     const submitted = await submitReservedNativeDeliveryMerge({ planId: plan.planId, current: record, operationId: "operation-1", request }, {
       host, stateStore,
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
-      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      revalidateSet: vi.fn(async (members) => {
+        if (!setAdmissionAvailable || members.length !== ids.length) {
+          return { status: "refused" as const };
+        }
+        setAdmissionAvailable = false;
+        return { status: "ready" as const };
+      }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
       revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn(),
@@ -404,16 +453,124 @@ describe("native delivery landing", () => {
     expect(record.value.activeOperation).toMatchObject({ effectIdentity: { providerId: "github", effectId: "uuid-1" } });
 
     const reconciled = await reconcileReservedNativeDeliveryMerge({
-      planId: plan.planId, current: record, request,
+      planId: plan.planId, current: record, request, treeRoot: "/repo", remote: "origin",
     }, { host, stateStore, observeEffect: vi.fn().mockResolvedValue({ outcome: "all-landed", snapshot }) });
     expect(reconciled).toMatchObject({
       status: "applied",
       projected: { activeOperation: null },
     });
-    expect(stateStore.publish).toHaveBeenCalledOnce();
+    expect(stateStore.publish).toHaveBeenCalledTimes(2);
     expect(record.value.activeOperation).toMatchObject({
       effectIdentity: { providerId: "github", effectId: "uuid-1" },
     });
+  });
+
+  it("publishes submitting before host access and never replays a submission whose identity was lost", async () => {
+    const state = deliveryStateFixture(plan);
+    const members = state.members.slice(0, -1);
+    const snapshot = { target: state.target, members };
+    const effect = {
+      providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
+      mergePolicy: mergePolicy("o/r"),
+    } as const;
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "operation-1", kind: "land", mode: "native", nativeArm: "linked-atomic",
+      affectedDeliverableIds: members.map((member) => member.deliverableId),
+      expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const preparedRecord = { revision: 2, value: reserved.state };
+    let record = preparedRecord;
+    let submittingRecord: typeof record | null = null;
+    const stateStore = { publish: vi.fn(async (_id, value, expectedRevision) => {
+      if (expectedRevision !== record.revision) {
+        return { status: "refused" as const, reason: "version-conflict" as const };
+      }
+      record = { revision: record.revision + 1, value };
+      if (value.activeOperation?.kind === "land"
+        && value.activeOperation.native?.phase === "submitting"
+        && value.activeOperation.effectIdentity === null) submittingRecord = record;
+      return { status: "ok" as const, value: record };
+    }) };
+    const request = {
+      repository: "o/r", topChangeRequestId: "42", topHeadSha: "b".repeat(40),
+      mergeAction: "direct_merge" as const, mergeMethod: "merge" as const,
+    };
+    const host = {
+      submitNativeMerge: vi.fn(async () => {
+        expect(record.value.activeOperation).toMatchObject({
+          native: { arm: "linked-atomic", phase: "submitting" },
+          effectIdentity: null,
+        });
+        return { status: "submitted" as const, effectIdentity: "uuid-1" };
+      }),
+      observeNativeMerge: vi.fn(),
+    };
+    const dependencies = {
+      host,
+      stateStore,
+      reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
+      revalidateSet: vi.fn().mockResolvedValue({ status: "ready" }),
+      releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
+      revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
+      observeEffect: vi.fn(),
+    };
+
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId, current: record, operationId: "operation-1", request,
+    }, dependencies)).resolves.toMatchObject({ status: "pending", effectIdentity: "uuid-1" });
+    expect(record).toMatchObject({
+      revision: 4,
+      value: { activeOperation: { native: { phase: "submitting" }, effectIdentity: { effectId: "uuid-1" } } },
+    });
+    if (submittingRecord === null) throw new Error("submitting phase was not persisted");
+    const replayHost = { submitNativeMerge: vi.fn(), observeNativeMerge: vi.fn() };
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId,
+      current: submittingRecord,
+      operationId: "operation-1",
+      request,
+    }, { ...dependencies, host: replayHost })).resolves.toMatchObject({
+      status: "blocked",
+      reason: "submission-before-persist-unresolved",
+    });
+    expect(replayHost.submitNativeMerge).not.toHaveBeenCalled();
+
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId,
+      current: record,
+      operationId: "operation-1",
+      request,
+    }, { ...dependencies, host: replayHost })).resolves.toMatchObject({
+      status: "pending",
+      effectIdentity: "uuid-1",
+    });
+    expect(replayHost.submitNativeMerge).not.toHaveBeenCalled();
+
+    const conflictHost = { submitNativeMerge: vi.fn(), observeNativeMerge: vi.fn() };
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId,
+      current: preparedRecord,
+      operationId: "operation-1",
+      request,
+    }, {
+      ...dependencies,
+      host: conflictHost,
+      stateStore: { publish: vi.fn().mockResolvedValue({ status: "refused", reason: "version-conflict" }) },
+    })).resolves.toMatchObject({ status: "blocked", reason: "state-conflict" });
+    expect(conflictHost.submitNativeMerge).not.toHaveBeenCalled();
+
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId,
+      current: { revision: 3, value: preparedRecord.value },
+      operationId: "operation-1",
+      request,
+    }, { ...dependencies, host: conflictHost })).resolves.toMatchObject({
+      status: "blocked",
+      reason: "operation-stale",
+    });
+    expect(conflictHost.submitNativeMerge).not.toHaveBeenCalled();
   });
 
   it("does not submit a sequential reservation through native landing", async () => {
@@ -425,7 +582,7 @@ describe("native delivery landing", () => {
       baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", mode: "sequential",
+      operationId: "operation-1", kind: "land", mode: "sequential", nativeArm: null,
       affectedDeliverableIds: [member.deliverableId], expectedStateRevision: 1,
       before: snapshot, requested: snapshot, effect,
     });
@@ -446,7 +603,7 @@ describe("native delivery landing", () => {
       host,
       stateStore: { publish: vi.fn() },
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
-      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      revalidateSet: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
       revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn(),
@@ -463,7 +620,7 @@ describe("native delivery landing", () => {
       baseRef: "main", targetRef: "refs/heads/main", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", mode: "native",
+      operationId: "operation-1", kind: "land", mode: "native", nativeArm: "linked-atomic",
       affectedDeliverableIds: members.map((member) => member.deliverableId),
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
@@ -478,7 +635,7 @@ describe("native delivery landing", () => {
       observeNativeMerge: vi.fn(),
     };
     const reobserveSelection = vi.fn();
-    const revalidate = vi.fn();
+    const revalidateSet = vi.fn();
     const releaseLock = vi.fn();
     const revalidateMergePolicy = vi.fn();
     const observeEffect = vi.fn();
@@ -486,18 +643,18 @@ describe("native delivery landing", () => {
     await expect(submitReservedNativeDeliveryMerge({
       planId: plan.planId, current, operationId: "operation-1", request,
     }, {
-      host, stateStore: { publish: vi.fn() }, reobserveSelection, revalidate, releaseLock,
+      host, stateStore: { publish: vi.fn() }, reobserveSelection, revalidateSet, releaseLock,
       revalidateMergePolicy, observeEffect,
     })).resolves.toMatchObject({ status: "blocked", reason: "protected-target-mismatch" });
     await expect(reconcileReservedNativeDeliveryMerge({
-      planId: plan.planId, current, request,
+      planId: plan.planId, current, request, treeRoot: "/repo", remote: "origin",
     }, {
       host, stateStore: { publish: vi.fn() }, observeEffect,
     })).resolves.toMatchObject({ status: "blocked", reason: "protected-target-mismatch" });
     expect(host.submitNativeMerge).not.toHaveBeenCalled();
     expect(host.observeNativeMerge).not.toHaveBeenCalled();
     expect(reobserveSelection).not.toHaveBeenCalled();
-    expect(revalidate).not.toHaveBeenCalled();
+    expect(revalidateSet).not.toHaveBeenCalled();
     expect(releaseLock).not.toHaveBeenCalled();
     expect(revalidateMergePolicy).not.toHaveBeenCalled();
     expect(observeEffect).not.toHaveBeenCalled();
@@ -512,15 +669,18 @@ describe("native delivery landing", () => {
       baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
+      operationId: "operation-1", kind: "land", mode: "native", nativeArm: "linked-atomic",
+      affectedDeliverableIds: ids,
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const submitting = beginNativeDeliverySubmission({ revision: 2, value: reserved.state }, "operation-1");
+    if (submitting.status === "refused") throw new Error("fixture submission transition failed");
     const attached = attachDeliveryOperationEffectIdentity(
-      { revision: 2, value: reserved.state }, "operation-1", { providerId: "github", effectId: "uuid-1" },
+      { revision: 3, value: submitting.state }, "operation-1", { providerId: "github", effectId: "uuid-1" },
     );
     if (attached.status === "refused") throw new Error("fixture identity attachment failed");
-    const record = { revision: 3, value: attached.state };
+    const record = { revision: 4, value: attached.state };
     const stateStore = { publish: vi.fn() };
     const request = {
       repository: "o/r", topChangeRequestId: "42", topHeadSha: "b".repeat(40),
@@ -532,32 +692,38 @@ describe("native delivery landing", () => {
     };
 
     await expect(reconcileReservedNativeDeliveryMerge(
-      { planId: plan.planId, current: record, request },
+      { planId: plan.planId, current: record, request, treeRoot: "/repo", remote: "origin" },
       { host, stateStore, observeEffect: vi.fn() },
     )).resolves.toMatchObject({ status: "pending" });
     await expect(reconcileReservedNativeDeliveryMerge(
-      { planId: plan.planId, current: record, request: { ...request, repository: "other/repo" } },
+      {
+        planId: plan.planId,
+        current: record,
+        request: { ...request, repository: "other/repo" },
+        treeRoot: "/repo",
+        remote: "origin",
+      },
       { host, stateStore, observeEffect: vi.fn() },
     )).resolves.toMatchObject({ status: "blocked", reason: "reservation-mismatch" });
     host.observeNativeMerge.mockResolvedValue({ status: "merged" });
     await expect(reconcileReservedNativeDeliveryMerge(
-      { planId: plan.planId, current: record, request },
+      { planId: plan.planId, current: record, request, treeRoot: "/repo", remote: "origin" },
       { host, stateStore, observeEffect: vi.fn().mockResolvedValue({ outcome: "none-landed" }) },
     )).resolves.toMatchObject({ status: "blocked", reason: "ambiguous-result" });
     await expect(reconcileReservedNativeDeliveryMerge(
-      { planId: plan.planId, current: record, request },
+      { planId: plan.planId, current: record, request, treeRoot: "/repo", remote: "origin" },
       { host, stateStore, observeEffect: vi.fn().mockResolvedValue({ outcome: "partial-landed", affectedDeliverableIds: [ids[0]] }) },
     )).resolves.toMatchObject({ status: "blocked", reason: "partial-landed" });
     host.observeNativeMerge.mockResolvedValue({ status: "refused", reason: "unavailable" });
     await expect(reconcileReservedNativeDeliveryMerge(
-      { planId: plan.planId, current: record, request },
+      { planId: plan.planId, current: record, request, treeRoot: "/repo", remote: "origin" },
       { host, stateStore, observeEffect: vi.fn() },
     )).resolves.toMatchObject({ status: "blocked", reason: "unavailable" });
     expect(stateStore.publish).not.toHaveBeenCalled();
 
     host.observeNativeMerge.mockResolvedValue({ status: "failed" });
     await expect(reconcileReservedNativeDeliveryMerge(
-      { planId: plan.planId, current: record, request },
+      { planId: plan.planId, current: record, request, treeRoot: "/repo", remote: "origin" },
       { host, stateStore, observeEffect: vi.fn().mockResolvedValue({ outcome: "all-landed", snapshot }) },
     )).resolves.toMatchObject({ status: "blocked", reason: "ambiguous-result" });
     expect(stateStore.publish).not.toHaveBeenCalled();
@@ -572,18 +738,21 @@ describe("native delivery landing", () => {
       baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: ids,
+      operationId: "operation-1", kind: "land", mode: "native", nativeArm: "linked-atomic",
+      affectedDeliverableIds: ids,
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const submitting = beginNativeDeliverySubmission({ revision: 2, value: reserved.state }, "operation-1");
+    if (submitting.status === "refused") throw new Error("fixture submission transition failed");
     const attached = attachDeliveryOperationEffectIdentity(
-      { revision: 2, value: reserved.state }, "operation-1", { providerId: "github", effectId: "uuid-1" },
+      { revision: 3, value: submitting.state }, "operation-1", { providerId: "github", effectId: "uuid-1" },
     );
     if (attached.status === "refused") throw new Error("fixture identity attachment failed");
-    const record = { revision: 3, value: attached.state };
+    const record = { revision: 4, value: attached.state };
     const stateStore = { publish: vi.fn(async (_id, value) => ({
       status: "ok" as const,
-      value: { revision: 4, value },
+      value: { revision: 5, value },
     })) };
     const request = {
       repository: "o/r", topChangeRequestId: "42", topHeadSha: "b".repeat(40),
@@ -595,7 +764,7 @@ describe("native delivery landing", () => {
     };
 
     await expect(reconcileReservedNativeDeliveryMerge(
-      { planId: plan.planId, current: record, request },
+      { planId: plan.planId, current: record, request, treeRoot: "/repo", remote: "origin" },
       { host, stateStore, observeEffect: vi.fn().mockResolvedValue({ outcome: "none-landed" }) },
     )).resolves.toEqual({
       status: "retryable",
@@ -627,7 +796,7 @@ describe("native delivery landing", () => {
       baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
-      operationId: "operation-1", kind: "land", mode: "native",
+      operationId: "operation-1", kind: "land", mode: "native", nativeArm: "linked-atomic",
       affectedDeliverableIds: members.map((member) => member.deliverableId),
       expectedStateRevision: 1, before: snapshot, requested: snapshot, effect,
     });
@@ -647,7 +816,7 @@ describe("native delivery landing", () => {
       },
       stateStore,
       reobserveSelection: vi.fn().mockResolvedValue({ status: "exact" }),
-      revalidate: vi.fn().mockResolvedValue({ status: "ready" }),
+      revalidateSet: vi.fn().mockResolvedValue({ status: "ready" }),
       releaseLock: vi.fn().mockResolvedValue({ status: "released" }),
       revalidateMergePolicy: vi.fn().mockResolvedValue({ status: "exact" }),
       observeEffect: vi.fn().mockResolvedValue({ outcome: "all-landed", snapshot }),
@@ -658,13 +827,13 @@ describe("native delivery landing", () => {
       status: "applied",
       projected: { activeOperation: null },
     });
-    expect(stateStore.publish).not.toHaveBeenCalled();
+    expect(stateStore.publish).toHaveBeenCalledOnce();
 
     dependencies.observeEffect.mockResolvedValue({ outcome: "none-landed" });
     await expect(submitReservedNativeDeliveryMerge({
       planId: plan.planId, current, operationId: "operation-1", request,
     }, dependencies)).resolves.toMatchObject({ status: "blocked", reason: "submission-before-persist-unresolved" });
-    expect(stateStore.publish).not.toHaveBeenCalled();
+    expect(stateStore.publish).toHaveBeenCalledTimes(2);
   });
 
   it("publishes an atomic native landing only at final settlement", async () => {
@@ -675,6 +844,7 @@ describe("native delivery landing", () => {
       operationId: "operation-1",
       kind: "land",
       mode: "native",
+      nativeArm: "linked-atomic",
       affectedDeliverableIds: members.map((member) => member.deliverableId),
       expectedStateRevision: 1,
       before: snapshot,
@@ -705,8 +875,10 @@ describe("native delivery landing", () => {
       observeRequest: vi.fn(),
       observeRef: vi.fn(),
       proveContribution: vi.fn(),
+      observeMemberRefCheckouts: vi.fn(),
       absorbTop: vi.fn(),
       publishTop: vi.fn(),
+      rewriteLocalRef: vi.fn(),
       stateStore,
     })).resolves.toMatchObject({
       status: "applied",
@@ -731,6 +903,7 @@ describe("native delivery landing", () => {
       operationId: "operation-1",
       kind: "land",
       mode: "native",
+      nativeArm: "linked-atomic",
       affectedDeliverableIds: members.map((member) => member.deliverableId),
       expectedStateRevision: 1,
       before: snapshot,
@@ -751,10 +924,14 @@ describe("native delivery landing", () => {
       observeNativeMerge: vi.fn(),
     };
 
+    const submitting = beginNativeDeliverySubmission({ revision: 2, value: reserved.state }, "operation-1");
+    if (submitting.status === "refused") throw new Error("fixture submission transition failed");
     await expect(reconcileReservedNativeDeliveryMerge({
       planId: plan.planId,
-      current: { revision: 2, value: reserved.state },
+      current: { revision: 3, value: submitting.state },
       request,
+      treeRoot: "/repo",
+      remote: "origin",
     }, {
       host,
       stateStore: { publish: vi.fn() },
@@ -764,6 +941,90 @@ describe("native delivery landing", () => {
       projected: { activeOperation: null },
     });
     expect(host.observeNativeMerge).not.toHaveBeenCalled();
+  });
+
+  it("recovers a prepared reservation as the exact submit-ready attended action without host access", async () => {
+    const initial = deliveryStateFixture(plan);
+    const state = {
+      ...initial,
+      members: initial.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+    const members = state.members.slice(0, -1);
+    const snapshot = { target: state.target, members };
+    const last = members.at(-1)!;
+    const request = {
+      repository: "o/r",
+      topChangeRequestId: last.changeRequest!.changeRequestId,
+      topHeadSha: last.coordinates!.head,
+      mergeAction: "direct_merge" as const,
+      mergeMethod: "merge" as const,
+    };
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "operation-1",
+      kind: "land",
+      mode: "native",
+      nativeArm: "linked-atomic",
+      affectedDeliverableIds: members.map((member) => member.deliverableId),
+      expectedStateRevision: 1,
+      before: snapshot,
+      requested: snapshot,
+      effect: {
+        providerId: "github",
+        repository: request.repository,
+        changeRequestId: request.topChangeRequestId,
+        headSha: request.topHeadSha,
+        baseRef: "delivery-target",
+        targetRef: "refs/heads/delivery-target",
+        strategy: "merge",
+        mergePolicy: mergePolicy("o/r"),
+      },
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const host = { submitNativeMerge: vi.fn(), observeNativeMerge: vi.fn() };
+    const observeEffect = vi.fn();
+    const stateStore = { publish: vi.fn() };
+
+    await expect(reconcileReservedNativeDeliveryMerge({
+      planId: plan.planId,
+      current: { revision: 2, value: reserved.state },
+      request,
+      treeRoot: "/repo",
+      remote: "origin",
+    }, { host, stateStore, observeEffect })).resolves.toEqual({
+      status: "prepared",
+      transition: "preserved",
+      action: "delivery-native-land-submit",
+      presentation: {
+        operationId: "operation-1",
+        members: members.map((member) => ({
+          deliverableId: member.deliverableId,
+          changeRequestId: member.changeRequest!.changeRequestId,
+          headSha: member.coordinates!.head,
+        })),
+        consequence:
+          "Atomically land the displayed complete non-terminal remainder. A residual race remains between final "
+          + "observation and the host prefix snapshot.",
+      },
+      submitAction: {
+        command: "arc delivery native land-submit - --json",
+        input: {
+          planId: plan.planId,
+          operationId: "operation-1",
+          request,
+          treeRoot: "/repo",
+          remote: "origin",
+        },
+      },
+      recommendedActionText:
+        "Present the preserved native landing consequence and exact member heads, then obtain integration approval "
+        + "before invoking the submit action unchanged.",
+    });
+    expect(host.observeNativeMerge).not.toHaveBeenCalled();
+    expect(observeEffect).not.toHaveBeenCalled();
+    expect(stateStore.publish).not.toHaveBeenCalled();
   });
 
   it("adopts one externally retargeted singleton through proof and a direct CAS", async () => {
@@ -788,7 +1049,8 @@ describe("native delivery landing", () => {
       baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge", mergePolicy: mergePolicy("o/r"),
     } as const;
     const reserved = reserveDeliveryOperation({ revision: 1, value: bound }, plan, {
-      operationId: "operation-1", kind: "land", mode: "native", affectedDeliverableIds: [first.deliverableId],
+      operationId: "operation-1", kind: "land", mode: "native", nativeArm: "linked-single",
+      affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 1, before: beforeSnapshot, requested: beforeSnapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
@@ -822,12 +1084,14 @@ describe("native delivery landing", () => {
       } }),
       observeRef: vi.fn().mockResolvedValue(moved),
       proveContribution: proof,
+      observeMemberRefCheckouts: vi.fn().mockResolvedValue({ status: "observed", checkouts: [] }),
       absorbTop: vi.fn().mockResolvedValue({
         status: "absorbed",
         head: "c".repeat(40),
         tree: "f".repeat(40),
       }),
       publishTop: vi.fn().mockResolvedValue({ status: "published" }),
+      rewriteLocalRef: vi.fn().mockResolvedValue({ status: "rewritten" }),
       stateStore,
     })).resolves.toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
     expect(proof).toHaveBeenCalledOnce();
@@ -856,6 +1120,7 @@ describe("native delivery landing", () => {
       operationId: "operation-1",
       kind: "land",
       mode: "native",
+      nativeArm: "linked-single",
       affectedDeliverableIds: [first.deliverableId],
       expectedStateRevision: 1,
       before: beforeSnapshot,
@@ -914,6 +1179,9 @@ describe("native delivery landing", () => {
     const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
     let topPublished = false;
     let publishCount = 0;
+    const localHeads = new Map(bound.members.slice(1, -1).map((member) => [
+      member.ref!, member.coordinates!.head,
+    ]));
 
     const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
       observeRequest,
@@ -928,6 +1196,7 @@ describe("native delivery landing", () => {
           ? { status: "accepted" as const, proof: "mechanical-reapply" as const }
           : { status: "refused" as const, reason: "contribution-diverged" as const, paths: ["unexpected"] };
       },
+      observeMemberRefCheckouts: async () => ({ status: "observed", checkouts: [] }),
       absorbTop: async (input) => provedHeads.size === 2
         && input.top.head === bound.members[3]!.coordinates!.head
         && input.highestMember.head === "c".repeat(40)
@@ -941,6 +1210,13 @@ describe("native delivery landing", () => {
         }
         topPublished = true;
         return { status: "published" as const };
+      },
+      rewriteLocalRef: async ({ ref, beforeHead, requestedHead }) => {
+        const current = localHeads.get(ref);
+        if (current === requestedHead) return { status: "adopted" as const };
+        if (current !== beforeHead) return { status: "refused" as const };
+        localHeads.set(ref, requestedHead);
+        return { status: "rewritten" as const };
       },
       stateStore: { publish: async (_id, value, expectedRevision) => {
         publishCount += 1;
@@ -966,6 +1242,35 @@ describe("native delivery landing", () => {
       },
     });
     expect(publishCount).toBe(1);
+    expect([...localHeads.values()]).toEqual(["a".repeat(40), "c".repeat(40)]);
+
+    const rewriteLocalRef = vi.fn();
+    const absorbTop = vi.fn();
+    const publishTop = vi.fn();
+    const publishState = vi.fn();
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      observeMemberRefCheckouts: async (refs) => ({
+        status: "observed",
+        checkouts: [{ ref: refs[0]!, path: "/tmp/checked-out-member" }],
+      }),
+      absorbTop,
+      publishTop,
+      rewriteLocalRef,
+      stateStore: { publish: publishState },
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "member-ref-checked-out",
+      paths: ["/tmp/checked-out-member"],
+      recommendedActionText:
+        "Keep the reservation and release the listed member-ref checkouts before retrying settlement.",
+    });
+    expect(rewriteLocalRef).not.toHaveBeenCalled();
+    expect(absorbTop).not.toHaveBeenCalled();
+    expect(publishTop).not.toHaveBeenCalled();
+    expect(publishState).not.toHaveBeenCalled();
 
     await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
       observeRequest,
@@ -977,8 +1282,10 @@ describe("native delivery landing", () => {
             paths: ["src/conflict.ts"],
           }
         : { status: "accepted", proof: "mechanical-reapply" },
+      observeMemberRefCheckouts: async () => ({ status: "observed", checkouts: [] }),
       absorbTop: async () => { throw new Error("rejected suffix reached top absorption"); },
       publishTop: async () => { throw new Error("rejected suffix reached top publication"); },
+      rewriteLocalRef: async () => { throw new Error("rejected suffix reached local ref rewrite"); },
       stateStore: {
         publish: async () => { throw new Error("rejected suffix reached state publication"); },
       },

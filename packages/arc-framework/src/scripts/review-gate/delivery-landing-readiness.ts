@@ -1,7 +1,7 @@
 /** Delivery landing admission over existing exact-target review authority. */
 
 import type { ChangeRequestTargetRef } from "./change-request.js";
-import type { ReviewStatusPort } from "./status.js";
+import type { RoutedReviewObligation, ReviewStatusPort } from "./status.js";
 
 export type DeliveryLandingReviewReadiness =
   | { readonly status: "ready" }
@@ -40,4 +40,35 @@ export async function assessDeliveryLandingReviewReadiness(
     return { status: "refused", reason: "checks-not-green" };
   }
   return { status: "ready" };
+}
+
+/**
+ * Build exact member readiness over one shared routed delivery-review observation.
+ *
+ * @param anchor - Exact selected member used to reduce the delivery-wide review obligation once.
+ * @param sharedStatus - Full status port that derives the routed delivery-review conjunction.
+ * @param memberStatus - Factory binding the shared conjunction to one member's fresh host and check reads.
+ * @returns A member-readiness reader that shares only the routed obligation across its selected set.
+ */
+export function createDeliveryLandingSetReviewReadiness(
+  anchor: ChangeRequestTargetRef,
+  sharedStatus: ReviewStatusPort,
+  memberStatus: (
+    target: ChangeRequestTargetRef,
+    routedObligation: RoutedReviewObligation,
+  ) => ReviewStatusPort,
+): (target: ChangeRequestTargetRef) => Promise<DeliveryLandingReviewReadiness> {
+  let sharedObservation: ReturnType<ReviewStatusPort["observe"]> | undefined;
+  return async (target) => {
+    try {
+      sharedObservation ??= sharedStatus.observe(anchor);
+      const observation = await sharedObservation;
+      return await assessDeliveryLandingReviewReadiness(
+        target,
+        memberStatus(target, observation.routedObligation),
+      );
+    } catch {
+      return { status: "refused", reason: "status-unavailable" };
+    }
+  };
 }

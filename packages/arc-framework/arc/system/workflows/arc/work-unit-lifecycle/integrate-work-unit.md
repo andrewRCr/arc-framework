@@ -53,8 +53,8 @@ and a later session or machine re-enters here. Resolve the current state with
 [`prepare-work-unit.md`](prepare-work-unit.md); `integrating` resumes this workflow; `shipped` can be an
 already-swept candidate whose PR or post-merge tail remains incomplete.
 
-On interruption, re-enter hosted review only through the public typed protocol. Resume an operation with its
-self-contained handle; never reconstruct review state from workflow prose or narrative meta fields.
+On interruption, re-enter delivery status only through the public typed protocol. Resume an operation with its
+self-contained handle; never reconstruct status from workflow prose or narrative meta fields.
 
 When the status result is `integrating`, classify delivery intent before resolving a singleton change request or
 performing any push:
@@ -64,7 +64,8 @@ printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect --input
 ```
 
 Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.
-`continue-hosted-review` resumes at Step 2's public hosted-review iteration with its exact `hostedReviewAction`;
+`resolve-delivery-status` resumes at Step 2's provider-neutral delivery-status reduction with its exact
+`deliveryStatusAction`; only a downstream explicit review action represents review work;
 do not resolve a singleton change request or enter delivery publication / position reconciliation.
 `review-fix-verification-required` invokes `arc delivery review-fix continue - --json` with only the repository and
 remote identities, then follows the resumable correction procedure in `deliver-stack.md`; do not enter whole-WU
@@ -173,12 +174,12 @@ already settled or was a typed no-op before submission; do not invent a post-PR 
 must match the current Candidate and carries the ordered sources and exact obligation. Dispatch only on
 `integrationBoundary.nextAction.kind`:
 
-- `continue-hosted-review` requires a delivery reservation. Execute `integrationBoundary.nextAction.command`. The
+- `resolve-delivery-status` requires a delivery reservation. Execute `integrationBoundary.nextAction.command`. The
   WU-scoped public status reducer joins the current delivery
   bindings and durable review progress, selects the first outstanding retained member, observes that member's exact
   change request and checks, and returns a top-level `deliveryCursor`, the complete supporting conjunction, and the
-  existing driver's next action. Do not invoke Frontline, generic
-  prepublication, private source selection, or a whole-work-unit fallback.
+  existing driver's next action. Only an exact `review-hosted-request` result authorizes provider work. Do not invoke
+  Frontline, generic prepublication, private source selection, or a whole-work-unit fallback.
 - `continue-pre-publication-review` remains the ordinary singleton continuation. Invoke
   `integrationBoundary.nextAction.command` and continue only from `ready / hosted-request`; the returned policy
   preserves the reservation without rerunning chunking or source ordering and supplies `policy.payload.sourceId`
@@ -189,7 +190,7 @@ Every other boundary action stops. Dispatch only on `nextAction` from the status
 
 Throughout this iteration, **re-enter status** means preserve the same status scope: execute the WU-scoped boundary
 command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
-judgment option before `--json`; never narrow a delivery continuation to an agent-reconstructed member target.
+judgment option before `--json`; never narrow a delivery-status action to an agent-reconstructed member target.
 
 `obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
 `terminusAction.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
@@ -585,7 +586,10 @@ This reuses ordinary delivery reconciliation and adds no new operation.
 
 `blocked` with `retarget` or `reopen-and-retarget` renders the returned reason and remedy, then stops for explicit
 direction to apply that exact remedy. On direction, invoke `remedy.argv` with `remedy.stdin` unchanged.
-`remedied / terminal-checkpoint` restarts this step; every other result stops.
+`remedied / terminal-checkpoint` restarts this step. `remedied / teardown-member` returns to the delivery teardown
+path with its exact `selectedDeliverableId`. `blocked / trigger-ref-restore-required` renders its exact ref/head and
+stops for Owner approval before restoring only that missing ref, then reruns the same remedy. Every other result
+stops.
 
 `reconcile / reconcile-base` enters the base-merge arm with the checkpoint's validated safety facts.
 
@@ -653,6 +657,20 @@ arc user close {name}
 This is an **individually re-runnable** step, not just the tail of a synchronous merge: on the resume path it is
 the owning caller of `arc user close` — a merge that landed while no session attended it has no other closer.
 `arc user close` no-ops when the subdir is already retired, so a re-run is safe.
+
+Invoke delivery closeout with the exact current change-request repository bound as `repositoryRef` in Step 1:
+
+```json
+{"workUnitId":"{name}","repository":"{repositoryRef}","remote":"origin"}
+```
+
+```bash
+arc delivery closeout - --json
+```
+
+`closed-out` renders `recommendedActionText` and continues. `blocked` renders `recommendedActionText` and stops;
+every other typed result stops. The call is idempotent and returns `closed-out` with no plan IDs for an ordinary
+non-delivery work unit.
 
 ### 11) Post-merge worktree cleanup
 

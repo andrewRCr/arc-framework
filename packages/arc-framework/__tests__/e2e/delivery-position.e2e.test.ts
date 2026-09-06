@@ -1,7 +1,7 @@
 /** Built-CLI coverage for fresh public delivery-position observation. */
 
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -15,11 +15,14 @@ import {
 import { reserveDeliveryOperation } from "../../src/lib/delivery/operation.js";
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { deriveDeliveryProviderRefreshSubject } from "../../src/lib/delivery/provider-refresh-observation.js";
+import { projectDeliveryPublicReviewContinuation } from
+  "../../src/lib/delivery/public-review-continuation.js";
 import { deriveDeliveryResidueLocators } from "../../src/lib/delivery/residue-reaping.js";
 import { advanceDeliveryReviewFixResponse } from "../../src/lib/delivery/review-fix.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
+import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
@@ -39,8 +42,11 @@ import {
   resolveSubmissionBoundaryPath,
   writeSubmissionBoundary,
 } from "../../src/lib/work-unit/submission-boundary-store.js";
-import { projectPublicationBoundary } from
-  "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  IntegrationBoundaryLocusSchema,
+  projectCorrectiveDeliveryStatusBoundary,
+  projectPublicationBoundary,
+} from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import type { DeliveryLocalReviewAdmission } from
   "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { ApprovedDispositionRecordSchema } from
@@ -72,6 +78,7 @@ import { LocalReviewOperationStateStore } from
 import { HostedRequestHandleSchema } from
   "../../src/scripts/review-gate/hosted/request.js";
 import {
+  laneProgressOperationId,
   recordHostedPendingRequest,
   recordLaneAttempt,
   settleHostedAttemptFinding,
@@ -107,21 +114,36 @@ type ActiveOperationScenario =
   | "native"
   | "provider-refresh-partial"
   | "landed-prefix"
+  | "landed-nonterminal"
   | "registered-current"
   | "terminal-authoring"
   | "registered-terminal-authoring"
   | "registered-local-terminal-authoring"
+  | "registered-current"
   | "selected-change-settled"
   | "selected-change-external-refresh"
   | "selected-change-terminal-authoring-before"
   | "selected-change-terminal-authoring-applied";
 
-async function positionFixture(activeOperation?: ActiveOperationScenario) {
+async function positionFixture(
+  activeOperation?: ActiveOperationScenario,
+  options: { reviewChunkingThresholdLines?: number; memberTwoLineCount?: number } = {},
+) {
   const repository = await createTempRepo("arc-delivery-position-");
   const remote = await mkdtemp(join(tmpdir(), "arc-delivery-position-remote-"));
   roots.push(repository, remote);
   const initialized = await runArc(["init", "--yes", "--name", "delivery-position"], repository);
   expect(initialized.exitCode, initialized.stderr).toBe(0);
+  if (options.reviewChunkingThresholdLines !== undefined) {
+    const configPath = join(repository, ".arc", "system", "arc-config.yml");
+    const initialConfig = await readFile(configPath, "utf8");
+    const configured = initialConfig.replace(
+      /^changeset\.advisory_threshold_lines:.*$/mu,
+      `changeset.advisory_threshold_lines: ${options.reviewChunkingThresholdLines}`,
+    );
+    expect(configured).not.toBe(initialConfig);
+    await writeFile(configPath, configured, "utf8");
+  }
   const localArcBin = join(repository, "node_modules", ".bin");
   const localArc = join(localArcBin, "arc");
   await mkdir(localArcBin, { recursive: true });
@@ -145,7 +167,15 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
   await git(repository, ["commit", "-m", "member one"]);
   const firstHead = await git(repository, ["rev-parse", "HEAD"]);
   const firstTree = await git(repository, ["rev-parse", "HEAD^{tree}"]);
-  await writeFile(join(repository, "member-two.txt"), "member two\n");
+  await writeFile(
+    join(repository, "member-two.txt"),
+    options.memberTwoLineCount === undefined
+      ? "member two\n"
+      : `${Array.from(
+          { length: options.memberTwoLineCount },
+          (_, index) => `member two ${index + 1}`,
+        ).join("\n")}\n`,
+  );
   await git(repository, ["add", "member-two.txt"]);
   await git(repository, ["commit", "-m", "member two"]);
   const secondHead = await git(repository, ["rev-parse", "HEAD"]);
@@ -190,7 +220,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     ? refreshedSecondAfterSelected
     : activeOperation === "registered-local-terminal-authoring"
       ? selectedSecondHead
-      : secondHead;
+    : secondHead;
   const terminalAuthoring = activeOperation === "terminal-authoring"
     || activeOperation === "registered-terminal-authoring"
     || activeOperation === "registered-local-terminal-authoring"
@@ -204,7 +234,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     : thirdHead;
   await git(repository, [
     "push", "origin",
-    `${targetHead}:refs/heads/main`,
+    `${activeOperation === "landed-nonterminal" ? secondHead : targetHead}:refs/heads/main`,
     `${publishedFirstHead}:refs/heads/${firstBranch}`,
     `${publishedSecondHead}:refs/heads/${secondBranch}`,
     `${publishedThirdHead}:refs/heads/member-3`,
@@ -253,7 +283,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
       {
         deliverableId: plan.members[2]!.deliverableId,
         ref: "refs/heads/member-3",
-        changeRequest: terminalAuthoring || registeredCurrent
+        changeRequest: terminalAuthoring || registeredCurrent || activeOperation === "landed-nonterminal"
           ? { providerId: "github", changeRequestId: "403" }
           : null,
         coordinates: { base: secondHead, head: thirdHead, tree: thirdTree },
@@ -293,6 +323,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
       operationId: "interrupted-native-position-operation",
       kind: "land",
       mode: "native",
+      nativeArm: "linked-atomic",
       affectedDeliverableIds: members.map(({ deliverableId }) => deliverableId),
       expectedStateRevision: 1,
       before: snapshot,
@@ -467,7 +498,7 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     "  printf '%s\\n' '{\"nameWithOwner\":\"owner/repo\"}'; exit 0",
     "fi",
     "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ]; then",
-    activeOperation === "registered-current"
+    activeOperation === "registered-current" || activeOperation === "landed-nonterminal"
       ? [
         "  case \"$*\" in",
         `    *"--head ${firstBranch}"*) printf '${registeredFirstReviewTarget}\\n' `
@@ -489,32 +520,54 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     "  printf '%s\\n' '[[]]'; exit 0",
     "fi",
     "if [ \"${ARC_FAKE_TARGET_UNAVAILABLE:-0}\" = \"1\" ]; then exit 1; fi",
+    "if [ \"${ARC_FAKE_CLOSEOUT:-0}\" = \"1\" ]; then",
+    "  case \"$2\" in",
+    "    repos/owner/repo/pulls/403)",
+    `      printf '%s\\n' '${request(403, "member-3", thirdHead, "main", "merged")}'`,
+    "      exit 0",
+    "      ;;",
+    "    *) echo \"unexpected closeout gh invocation: $*\" >&2; exit 1 ;;",
+    "  esac",
+    "fi",
     "case \"$2\" in",
     "  repos/owner/repo/git/ref/heads/main)",
-    `    printf '%s\\n' '${JSON.stringify({ object: { sha: targetHead } })}'`,
+    "    printf '{\"object\":{\"sha\":\"%s\"}}\\n' \"$(remote_head 'main')\"",
     "    ;;",
     `  repos/owner/repo/git/commits/${targetHead})`,
     `    printf '%s\\n' '${JSON.stringify({ tree: { sha: targetTree } })}'`,
     "    ;;",
+    `  repos/owner/repo/git/commits/${secondHead})`,
+    `    printf '%s\\n' '${JSON.stringify({ tree: { sha: secondTree } })}'`,
+    "    ;;",
     "  repos/owner/repo/branches/main|"
       + "repos/owner/repo/branches/delivery%2Fmember-1|"
-      + "repos/owner/repo/branches/delivery%2Fmember-2)",
+      + "repos/owner/repo/branches/delivery%2Fmember-2|"
+      + "repos/owner/repo/branches/member-1|"
+      + "repos/owner/repo/branches/member-2|"
+      + "repos/owner/repo/branches/member-3)",
     "    printf '%s\\n' '{}';;",
     "  repos/owner/repo/pulls/401)",
-    activeOperation === "landed-prefix"
+    activeOperation === "landed-prefix" || activeOperation === "landed-nonterminal"
       ? `    printf '%s\\n' '${request(401, firstBranch, publishedFirstHead, "main", "merged")}'`
       : `    printf '${request(401, firstBranch, "%s", "main")}\\n' "$(remote_head '${firstBranch}')"`,
     "    ;;",
     "  repos/owner/repo/pulls/402)",
-    `    printf '${request(
-      402,
-      secondBranch,
-      "%s",
-      activeOperation === "landed-prefix" ? "main" : firstBranch,
-    )}\\n' "$(remote_head '${secondBranch}')"`,
+    activeOperation === "landed-nonterminal"
+      ? `    printf '%s\\n' '${request(402, secondBranch, publishedSecondHead, firstBranch, "merged")}'`
+      : `    printf '${request(
+        402,
+        secondBranch,
+        "%s",
+        activeOperation === "landed-prefix" ? "main" : firstBranch,
+      )}\\n' "$(remote_head '${secondBranch}')"`,
     "    ;;",
     "  repos/owner/repo/pulls/403)",
-    `    printf '${request(403, "member-3", "%s", secondBranch)}\\n' "$(remote_head 'member-3')"`,
+    "    if [ -n \"${ARC_FAKE_TERMINAL_REF:-}\" ]; then",
+    `      printf '${request(403, "%s", "%s", secondBranch)}\\n' `
+      + `"$ARC_FAKE_TERMINAL_REF" "$(remote_head "$ARC_FAKE_TERMINAL_REF")"`,
+    "    else",
+    `      printf '${request(403, "member-3", "%s", secondBranch)}\\n' "$(remote_head 'member-3')"`,
+    "    fi",
     "    ;;",
     "  repos/owner/repo/stacks)",
     activeOperation === "registered-terminal-authoring"
@@ -535,6 +588,22 @@ async function positionFixture(activeOperation?: ActiveOperationScenario) {
     .split(delimiter)
     .filter((entry) => !entry.replaceAll("\\", "/").endsWith("/node_modules/.bin"))
     .join(delimiter);
+  const fakeGit = join(fakeBin, "git");
+  await writeFile(fakeGit, [
+    "#!/bin/sh",
+    "if [ \"${ARC_FAKE_SMALL_REVIEW_NUMSTAT:-0}\" = \"1\" ]; then",
+    "  for argument in \"$@\"; do",
+    "    if [ \"$argument\" = \"--numstat\" ]; then",
+    "      printf '1\\t0\\tmember-three.txt\\0'",
+    "      exit 0",
+    "    fi",
+    "  done",
+    "fi",
+    `export PATH=${quoteShellArgument(fixturePath)}`,
+    "exec git \"$@\"",
+    "",
+  ].join("\n"));
+  await chmod(fakeGit, 0o755);
   return {
     repository,
     plan,
@@ -999,8 +1068,8 @@ describe("arc delivery position", () => {
         },
       }],
     }, 0);
-    await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
-      ApprovedDispositionRecordSchema.parse({
+    const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+    const pendingResponseRecord = ApprovedDispositionRecordSchema.parse({
         schemaVersion: 1,
         semanticsVersion: "review-advisory/v1",
         repositoryId: "repo-1",
@@ -1022,8 +1091,32 @@ describe("arc delivery position", () => {
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
-      }),
-    );
+    });
+    const historicalResponse = advanceDeliveryReviewFixResponse({
+      record: {
+        ...pendingResponseRecord,
+        operationId: "operation-response-loss-historical",
+        source: {
+          kind: "hosted",
+          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fhistorical:hosted%2F1",
+        },
+      },
+      oldTarget,
+      hostedTarget: { repository: "owner/repo", pullRequest: 400, headSha: oldTarget.headSha },
+      currentHead: reviewedMember.coordinates.head,
+      currentTree: reviewedMember.coordinates.tree,
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://historical-member-fix"],
+      verifiedAt: "2026-08-31T11:00:00Z",
+    });
+    if (historicalResponse.status === "refused") throw new Error(historicalResponse.reason);
+    await dispositionStore.appendDispositionRecord(historicalResponse.record);
+    await dispositionStore.appendDispositionRecord(pendingResponseRecord);
+    expect((await dispositionStore.listDispositionRecords()).filter((record) => (
+      record.deliveryMember?.planId === fixture.plan.planId
+      && record.deliveryMember.deliverableId === selectedDeliverableId
+      && record.fixAuthorization !== null
+    ))).toHaveLength(2);
     const discardedSettlement = await runArcWithStdin(
       ["delivery", "refresh", "adopt", "-", "--json"],
       fixture.repository,
@@ -1087,6 +1180,21 @@ describe("arc delivery position", () => {
       reason: "pending-review-fix-verification",
     });
     expect(await readFile(pendingHostLog, "utf8")).toBe("");
+    await unlink(pendingHostLog);
+    const topState = await fixture.states.read(fixture.plan.planId);
+    if (topState.status !== "ok" || topState.value === null) {
+      throw new Error("pending review-fix state must remain readable");
+    }
+    expect(await fixture.states.publish(fixture.plan.planId, {
+      ...topState.value.value,
+      members: topState.value.value.members.map((member, index, members) => (
+        index === members.length - 1 ? { ...member, ref: `refs/heads/${workUnitBranch}` } : member
+      )),
+      pendingReviewFixVerification: {
+        selectedDeliverableId,
+        memberDeliverableIds: [selectedDeliverableId],
+      },
+    }, topState.value.revision)).toMatchObject({ status: "ok" });
 
     const candidateTarget = await collectGitCandidateTarget({
       cwd: fixture.repository,
@@ -1217,7 +1325,10 @@ describe("arc delivery position", () => {
       status: "review-fix-verification-required",
       nextAction: "verify-review-fix",
       selectedDeliverableId,
-      verification: { memberDeliverableIds: [selectedDeliverableId], tier1Required: true },
+      verification: {
+        memberDeliverableIds: [selectedDeliverableId],
+        tier1Required: true,
+      },
     });
 
     const controlled = await runArcWithStdin(
@@ -1240,11 +1351,77 @@ describe("arc delivery position", () => {
           coveredInputs: "unchanged",
         },
       },
-      acknowledgementInput: continuation.acknowledgementInput,
       resumeAction: {
         argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+        input: { repository: "owner/repo", remote: "origin" },
       },
     });
+    expect(JSON.parse(controlled.stdout)).not.toHaveProperty("acknowledgementInput");
+
+    await git(fixture.repository, ["push", "-u", "origin", workUnitBranch]);
+    await writeFile(join(fixture.repository, "rescue-follow-up.txt"), "newer rescue authoring\n");
+    await git(fixture.repository, ["add", "rescue-follow-up.txt"]);
+    await git(fixture.repository, ["commit", "-m", "newer rescue authoring"]);
+    const reboundHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+    expect(reboundHead).not.toBe(continuation.verification.target.head);
+
+    const unpublishedControlled = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
+    );
+    expect(
+      unpublishedControlled.exitCode,
+      `${unpublishedControlled.stderr}\n${unpublishedControlled.stdout}`,
+    ).toBe(0);
+    expect(JSON.parse(unpublishedControlled.stdout), unpublishedControlled.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "authoring-required",
+      route: "terminal-authoring",
+      selectedDeliverableId,
+      nextAction: "author-correction",
+      authoring: { kind: "top", ref: `refs/heads/${workUnitBranch}`, checkoutPath: fixture.repository },
+      recommendedActionText: expect.stringMatching(/commit.*push/iu),
+      effectLog: [],
+    });
+
+    await git(fixture.repository, ["push", "origin", workUnitBranch]);
+    const preRebindState = await fixture.states.read(fixture.plan.planId);
+    if (preRebindState.status !== "ok" || preRebindState.value === null) {
+      throw new Error("pre-rebind delivery state must remain readable");
+    }
+    const preRebindTerminal = preRebindState.value.value.members.at(-1);
+    expect(preRebindTerminal?.ref).toBe(`refs/heads/${workUnitBranch}`);
+    expect(preRebindTerminal?.coordinates?.head).toBe(continuation.verification.target.head);
+
+    const reboundControlled = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
+    );
+    expect(reboundControlled.exitCode, `${reboundControlled.stderr}\n${reboundControlled.stdout}`).toBe(0);
+    const reboundContinuation = JSON.parse(reboundControlled.stdout) as typeof continuation;
+    expect(reboundContinuation, reboundControlled.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "verification-required",
+      selectedDeliverableId,
+      verification: {
+        memberDeliverableIds: [selectedDeliverableId, fixture.plan.members.at(-1)!.deliverableId],
+        target: { head: reboundHead },
+      },
+    });
+    expect(reboundContinuation.verification.target).not.toEqual(continuation.verification.target);
+    const reboundEntry = await runArcWithStdin(
+      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ entryMode: "integrating" })}\n`,
+      { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
+    );
+    expect(reboundEntry.exitCode, `${reboundEntry.stderr}\n${reboundEntry.stdout}`).toBe(0);
+    const reboundAcknowledgementInput = (JSON.parse(reboundEntry.stdout) as typeof continuation)
+      .acknowledgementInput;
 
     await writeFile(taskListPath, taskList.replace("### `[ ]` **1.1", "### `[x]` **1.1"));
     const locus = await runArc(["locus", "--json"], fixture.repository, { env: fixture.env });
@@ -1260,14 +1437,14 @@ describe("arc delivery position", () => {
     });
     await git(fixture.repository, ["add", "-A"]);
     const acknowledgementRequest = {
-      ...continuation.acknowledgementInput,
+      ...reboundAcknowledgementInput,
       verification: {
         applicability: "focused",
-        target: continuation.verification.target,
+        target: reboundContinuation.verification.target,
         tier1: {
           outcome: "passed",
           provenance: "rerun",
-          targetTree: continuation.verification.target.tree,
+          targetTree: reboundContinuation.verification.target.tree,
         },
         verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
       },
@@ -1314,7 +1491,7 @@ describe("arc delivery position", () => {
     expect(JSON.parse(resumed.stdout), resumed.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "acknowledged",
-      nextAction: "continue-hosted-review",
+      nextAction: "resolve-delivery-status",
       boundaryCarry: { candidateId: candidate.attestation.candidateId },
     });
     const replayed = await runArcWithStdin(
@@ -1327,7 +1504,7 @@ describe("arc delivery position", () => {
     expect(JSON.parse(replayed.stdout), replayed.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "already-acknowledged",
-      nextAction: "continue-hosted-review",
+      nextAction: "resolve-delivery-status",
       boundaryCarry: { candidateId: candidate.attestation.candidateId },
     });
 
@@ -1343,6 +1520,7 @@ describe("arc delivery position", () => {
     const acknowledgedCandidate = await readCandidateRecord(fixture.repository, fixture.plan.workUnitId);
     expect(acknowledgedCandidate?.transitions.at(-1)).toMatchObject({
       transitionKind: "verification-response",
+      newTarget: { revision: reboundContinuation.verification.target.head },
     });
 
     const recoveredEntry = await runArcWithStdin(
@@ -1353,8 +1531,8 @@ describe("arc delivery position", () => {
     );
     expect(recoveredEntry.exitCode, `${recoveredEntry.stderr}\n${recoveredEntry.stdout}`).toBe(0);
     expect(JSON.parse(recoveredEntry.stdout)).toMatchObject({
-      status: "continue-hosted-review",
-      nextAction: "continue-hosted-review",
+      status: "resolve-delivery-status",
+      nextAction: "resolve-delivery-status",
     });
 
     const session = await runArc(["status", "--session-init", "--json"], fixture.repository, {
@@ -1680,6 +1858,16 @@ describe("arc delivery position", () => {
       status: "ok",
       value: { value: { pendingReviewFixVerification: null } },
     });
+    await expect(operationStore.readOperation(laneProgressOperationId({
+      lane: "standard",
+      repositoryId: oldTarget.repositoryId,
+      headSha: oldTarget.headSha,
+    }))).resolves.toMatchObject({
+      state: {
+        kind: "lane-progress",
+        attempts: [{ attemptId: operation.operationId, outcome: "settled-findings" }],
+      },
+    });
   });
 
   it("composes fresh facts and returns the exact clean position", async () => {
@@ -1751,6 +1939,427 @@ describe("arc delivery position", () => {
     });
   });
 
+  it("returns settled review to the highest landed teardown after terminal rebind", async () => {
+    const fixture = await positionFixture("landed-nonterminal");
+    const stateRead = await fixture.states.read(fixture.plan.planId);
+    if (stateRead.status !== "ok" || stateRead.value === null) {
+      throw new Error("settled teardown delivery state must be readable");
+    }
+    let state = stateRead.value.value;
+    let stateRevision = stateRead.value.revision;
+    const terminal = state.members.at(-1);
+    const highestLanded = state.members.at(-2);
+    if (terminal?.coordinates === null || terminal?.coordinates === undefined || terminal.ref === null
+      || highestLanded?.coordinates === null || highestLanded?.coordinates === undefined) {
+      throw new Error("settled teardown fixture must retain exact terminal and landed coordinates");
+    }
+    const branch = terminal.ref.replace(/^refs\/heads\//u, "");
+    await git(fixture.repository, ["checkout", "-B", branch, terminal.coordinates.head]);
+    await git(fixture.repository, ["branch", "-f", "main", highestLanded.coordinates.head]);
+    const activeDir = join(fixture.repository, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(join(activeDir, `tasks-${fixture.plan.workUnitId}.md`), [
+      `# Task List: ${fixture.plan.workUnitId}`,
+      "",
+      renderDeliveryPlanSection(fixture.plan),
+      "## **Phase 1:** Members",
+      "",
+      "### `[x]` **1.1 Close delivery**",
+      "",
+    ].join("\n"));
+    await git(fixture.repository, ["add", join(".arc", "active", `tasks-${fixture.plan.workUnitId}.md`)]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "install closed delivery task"]);
+    const reviewedTerminalHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+    const reviewedTerminalTree = await git(fixture.repository, ["rev-parse", "HEAD^{tree}"]);
+    state = {
+      ...state,
+      target: {
+        ...state.target!,
+        coordinates: {
+          head: highestLanded.coordinates.head,
+          tree: highestLanded.coordinates.tree,
+        },
+      },
+      members: state.members.map((member) => member.deliverableId === terminal.deliverableId
+        ? {
+            ...member,
+            coordinates: {
+              ...member.coordinates!,
+              head: reviewedTerminalHead,
+              tree: reviewedTerminalTree,
+            },
+          }
+        : member),
+    };
+    const statePublication = await fixture.states.publish(fixture.plan.planId, state, stateRevision);
+    if (statePublication.status !== "ok") throw new Error("reviewed terminal state must publish");
+    stateRevision = statePublication.value.revision;
+    const reviewedTerminal = state.members.at(-1);
+    if (reviewedTerminal?.coordinates === null || reviewedTerminal?.coordinates === undefined) {
+      throw new Error("reviewed terminal coordinates must remain bound");
+    }
+    const reviewPublisher = new RepositoryGitCommonStatePublisher(createExecaGitExec(), fixture.repository);
+    const reviewStore = new LocalReviewOperationStateStore(reviewPublisher);
+    const repositoryId = await resolveRepositoryIdentity(reviewPublisher);
+    for (const [index, member] of state.members.entries()) {
+      if (member.coordinates === null || member.changeRequest === null) {
+        throw new Error("settled teardown review member must be fully bound");
+      }
+      const pullRequest = Number(member.changeRequest.changeRequestId);
+      const reviewTarget = createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "delivery-member",
+        repositoryId,
+        baseRef: "main",
+        diffBaseSha: member.coordinates.base,
+        diffBaseTree: await git(fixture.repository, ["rev-parse", `${member.coordinates.base}^{tree}`]),
+        headSha: member.coordinates.head,
+        headTree: member.coordinates.tree,
+      });
+      const requirement = createReviewRequirement({
+        target: reviewTarget,
+        projection: {
+          obligation: "required",
+          reasons: ["sensitive-change-set"],
+          rubricVersion: "standard-review/v1",
+          rubricDigest: canonicalDigest({ rubric: "standard" }),
+          retrigger: "full-final",
+          count: 1,
+        },
+        acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+        initialAdmission: "checkpoint",
+      });
+      if (requirement === null || !Number.isSafeInteger(pullRequest)) {
+        throw new Error("settled teardown review requirement must derive");
+      }
+      await reviewStore.publishOperation({
+        schemaVersion: 1,
+        semanticsVersion: "review-operation/v1",
+        operationId: `lane-progress/settled-teardown-${index + 1}`,
+        updatedAt: `2026-09-05T18:0${index}:00.000Z`,
+        kind: "lane-progress",
+        lane: "standard",
+        repositoryId,
+        changeRequestId: `pull/${pullRequest}`,
+        headSha: member.coordinates.head,
+        completedPasses: 1,
+        attempts: [{
+          attemptId: `settled-teardown-${index + 1}`,
+          sourceId: "codex-pr",
+          outcome: "clean",
+          hosted: {
+            target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
+            requestedCoverage: "complete",
+            effectiveCoverage: "complete",
+            vehicle: {
+              kind: "delivery-member",
+              planId: fixture.plan.planId,
+              deliverableId: member.deliverableId,
+              workUnitId: fixture.plan.workUnitId,
+              head: member.coordinates.head,
+            },
+            reviewTarget,
+            requirement,
+            actorIdentity: "host-actor-1",
+            findings: [],
+            dispositionSetId: null,
+            settledFindingIds: [],
+          },
+        }],
+      }, 0);
+    }
+    const candidateTarget = await collectGitCandidateTarget({
+      cwd: fixture.repository,
+      name: fixture.plan.workUnitId,
+      baseBranch: "main",
+      baseRevision: highestLanded.coordinates.head,
+      revision: reviewedTerminal.coordinates.head,
+      exec: createExecaGitExec(),
+    });
+    const durableRevision = await git(fixture.repository, ["rev-parse", `${reviewedTerminalHead}^`]);
+    const durableTarget = await collectGitCandidateTarget({
+      cwd: fixture.repository,
+      name: fixture.plan.workUnitId,
+      baseBranch: "main",
+      baseRevision: highestLanded.coordinates.head,
+      revision: durableRevision,
+      exec: createExecaGitExec(),
+    });
+    expect(durableTarget.subject.subjectDigest).not.toBe(candidateTarget.subject.subjectDigest);
+    const durableSubject = durableTarget.subject;
+    const attestation = createCandidateAttestation({
+      workUnit: fixture.plan.workUnitId,
+      subject: durableSubject,
+      baseRevision: durableRevision,
+      attestedBy: "test-user",
+      attestedAt: "2026-09-05T18:00:00.000Z",
+      verificationEvidenceRef: "verification://settled-teardown",
+    });
+    const candidate: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation,
+      subject: durableSubject,
+      transitions: [createCandidateVerificationResponseEvidence({
+        candidateId: attestation.candidateId,
+        oldTarget: { revision: durableRevision, subject: durableSubject },
+        newTarget: candidateTarget,
+        authorityRef: canonicalDigest({ continuation: "settled-teardown" }),
+        verifiedBy: "test-user",
+        verifiedAt: "2026-09-05T18:01:00.000Z",
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://settled-teardown"],
+        implementationChanged: true,
+      })],
+      lineageAttestations: [],
+    };
+    await writeFile(join(activeDir, `meta-${fixture.plan.workUnitId}.md`), [
+      `# Metadata: ${fixture.plan.workUnitId}`,
+      "",
+      "- **State:** Integrating",
+      "- **Owner:** test-user",
+      `- **Branch:** ${branch}`,
+      "- **Class:** Heavy",
+      "- **Priority:** P1",
+      "- **Origin:** [internal]",
+      `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
+      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
+      "- **Current Workflow:** `integrate-work-unit`",
+      "- **Last Completed:** Task 1.1 — Close delivery",
+      "- **Next Task:** [none]",
+      "- **Next Action:** Resume delivery closeout",
+      "",
+    ].join("\n"));
+    await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
+    const reservation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "standard-review-reservation/v1" as const,
+      reservationId: canonicalDigest({ reservation: "settled-teardown" }),
+      sources: ["codex-pr"],
+      target: {
+        kind: "delivery" as const,
+        repository: "owner/repo",
+        workUnitId: fixture.plan.workUnitId,
+        planId: fixture.plan.planId,
+      },
+      obligation: {
+        obligation: "required" as const,
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        retrigger: "full-final" as const,
+        count: 1,
+      },
+    };
+    const sourceBoundary = projectPublicationBoundary({
+      workUnit: fixture.plan.workUnitId,
+      branch,
+      candidateId: candidate.attestation.candidateId,
+      candidateSubjectDigest: durableSubject.subjectDigest,
+      reservation,
+      changeRequest: { repository: "owner/repo", pullRequest: 403 },
+    });
+    const publicContinuation = projectDeliveryPublicReviewContinuation({
+      plan: fixture.plan,
+      state,
+      stateRevision,
+    });
+    if (publicContinuation.status !== "projected") {
+      throw new Error(`settled teardown delivery continuation must project: ${JSON.stringify(publicContinuation)}`);
+    }
+    await writeSubmissionBoundary(fixture.repository, IntegrationBoundaryLocusSchema.parse({
+      ...projectCorrectiveDeliveryStatusBoundary({
+        workUnit: fixture.plan.workUnitId,
+        candidateId: candidate.attestation.candidateId,
+        candidateSubjectDigest: durableSubject.subjectDigest,
+        supersedesCandidateId: null,
+        sourceBoundary,
+        deliveryContinuation: publicContinuation.continuation,
+      }),
+      deliveryReviewTermini: state.members.slice(0, -1).map((member) => ({
+        vehicle: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: member.deliverableId,
+          workUnitId: fixture.plan.workUnitId,
+          head: member.coordinates!.head,
+        },
+        terminus: {
+          schemaVersion: 1,
+          semanticsVersion: "review-terminus/v1",
+          kind: "owner-accepted",
+          lane: "standard",
+          acceptedBy: "test-user",
+          completedPasses: 1,
+        },
+      })),
+    }), null);
+    await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "record terminal review closure"]);
+    await git(fixture.repository, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+    const completedDir = join(
+      fixture.repository,
+      ".arc",
+      "completed",
+      "2026-q3",
+      `01_${fixture.plan.workUnitId}`,
+    );
+    await mkdir(completedDir, { recursive: true });
+    const activeMetaPath = join(activeDir, `meta-${fixture.plan.workUnitId}.md`);
+    const shippedMeta = (await readFile(activeMetaPath, "utf8"))
+      .replace("- **State:** Integrating", "- **State:** Shipped")
+      .replace(`- **Branch:** ${branch}`, "- **Branch:** [none]")
+      .replace("- **Current Workflow:** `integrate-work-unit`", "- **Current Workflow:** [none]");
+    await writeFile(activeMetaPath, shippedMeta);
+    await rename(
+      activeMetaPath,
+      join(completedDir, `meta-${fixture.plan.workUnitId}.md`),
+    );
+    await rename(
+      join(activeDir, `tasks-${fixture.plan.workUnitId}.md`),
+      join(completedDir, `tasks-${fixture.plan.workUnitId}.md`),
+    );
+    await git(fixture.repository, ["add", ".arc/active", ".arc/completed"]);
+    await git(fixture.repository, ["commit", "--no-verify", "-m", "archive terminal delivery"]);
+    await git(fixture.repository, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+    const currentState = await fixture.states.read(fixture.plan.planId);
+    if (currentState.status !== "ok" || currentState.value === null) {
+      throw new Error("settled teardown state must remain readable before the revision-only carry");
+    }
+    const archiveHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+    const archiveTree = await git(fixture.repository, ["rev-parse", "HEAD^{tree}"]);
+    const reboundPublication = await fixture.states.publish(
+      fixture.plan.planId,
+      {
+        ...currentState.value.value,
+        members: currentState.value.value.members.map((member) => member.deliverableId === terminal.deliverableId
+          ? {
+              ...member,
+              coordinates: {
+                ...member.coordinates!,
+                head: archiveHead,
+                tree: archiveTree,
+              },
+            }
+          : member),
+      },
+      currentState.value.revision,
+    );
+    if (reboundPublication.status !== "ok") {
+      throw new Error("settled teardown terminal coordinates must rebind");
+    }
+    await writeFile(
+      join(fixture.repository, ".git", "info", "exclude"),
+      "\n.arc/system/.internal/worktree-marker.json\n",
+      { flag: "a" },
+    );
+    const worktreeParent = await mkdtemp(join(tmpdir(), "arc-delivery-position-archived-"));
+    const archivedCheckout = join(worktreeParent, "worktree");
+    roots.push(worktreeParent);
+    await git(fixture.repository, ["switch", "--detach"]);
+    await git(fixture.repository, ["worktree", "add", archivedCheckout, branch]);
+    await writeWorktreeOwnershipMarker(archivedCheckout, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: fixture.plan.workUnitId },
+      spawningIdentity: "test-user",
+      now: Date.parse("2026-09-05T18:30:00.000Z"),
+    });
+    const archivedLocus = await runArc(["locus", "--json"], archivedCheckout, { env: fixture.env });
+    expect(archivedLocus.exitCode, `${archivedLocus.stderr}\n${archivedLocus.stdout}`).toBe(0);
+    expect(JSON.parse(archivedLocus.stdout), archivedLocus.stdout).toMatchObject({
+      entering: {
+        kind: "selected",
+        row: {
+          subject: { kind: "work-unit", key: fixture.plan.workUnitId },
+        },
+      },
+    });
+    const carriedBoundary = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      archivedCheckout,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+    expect(carriedBoundary.exitCode, `${carriedBoundary.stderr}\n${carriedBoundary.stdout}`).toBe(0);
+    expect(JSON.parse(carriedBoundary.stdout), carriedBoundary.stdout).toMatchObject({
+      status: "review-status-required",
+      effectLog: expect.arrayContaining([
+        expect.objectContaining({ kind: "boundary-carry" }),
+        expect.objectContaining({ kind: "commit", recordClass: "boundary-projection" }),
+        expect.objectContaining({ kind: "push" }),
+      ]),
+    });
+    const boundaryAfterCarry = JSON.parse(await readFile(
+      join(archivedCheckout, resolveSubmissionBoundaryPath(fixture.plan.workUnitId)),
+      "utf8",
+    )) as { candidateSubjectDigest: string };
+    expect(boundaryAfterCarry.candidateSubjectDigest).toBe(candidateTarget.subject.subjectDigest);
+    const archivedStatus = await runArc(
+      ["review", "status", "--work-unit", fixture.plan.workUnitId, "--json"],
+      archivedCheckout,
+      { env: fixture.env },
+    );
+    expect(archivedStatus.exitCode, `${archivedStatus.stderr}\n${archivedStatus.stdout}`).toBe(0);
+    const archivedStatusOutput = JSON.parse(archivedStatus.stdout) as {
+      terminusAction?: unknown;
+    };
+    expect(archivedStatusOutput).toMatchObject({
+      nextAction: "resolve-review-applicability",
+      terminusAction: {
+        workUnitId: fixture.plan.workUnitId,
+        target: { headSha: expect.any(String) },
+        completedPasses: 1,
+      },
+    });
+    const acceptedTerminus = await runArcWithStdin(
+      ["review", "terminus", "accept", "-"],
+      archivedCheckout,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        offer: archivedStatusOutput.terminusAction,
+        judgment: { mode: "owner-accepted" },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(acceptedTerminus.exitCode, `${acceptedTerminus.stderr}\n${acceptedTerminus.stdout}`).toBe(0);
+    expect(JSON.parse(acceptedTerminus.stdout), acceptedTerminus.stdout).toMatchObject({
+      state: "recorded",
+      nextAction: "commit-boundary",
+    });
+    await git(archivedCheckout, [
+      "commit", "--no-verify", "-m", "chore(delivery): accept terminal review terminus",
+    ]);
+    await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+
+    const result = await runArcWithStdin(
+      ["delivery", "review-fix", "continue", "-", "--json"],
+      archivedCheckout,
+      `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout), result.stdout).toMatchObject({
+      command: "delivery review-fix continue",
+      status: "position",
+      position: {
+        landedPrefix: state.members.slice(0, -1).map(({ deliverableId }) => deliverableId),
+        firstUnlanded: terminal.deliverableId,
+        boundSuffix: [terminal.deliverableId],
+      },
+      nextAction: "teardown-member",
+      selectedDeliverableId: highestLanded.deliverableId,
+      effectLog: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "dispatch",
+          actionKind: "delivery-reconcile",
+          resultStatus: "rebound",
+        }),
+      ]),
+    });
+  });
+
   it("routes review-fix planning through an append-only terminal authoring advance", async () => {
     const fixture = await positionFixture("terminal-authoring");
     const position = await runArcWithStdin(
@@ -1765,6 +2374,7 @@ describe("arc delivery position", () => {
       status: "refused",
       reason: "review-fix-routing-required",
       nextAction: "plan-review-fix",
+      entryMode: "integrating",
       recommendedActionText: "Select the delivery member that owns the approved correction, then run "
         + "`arc delivery review-fix plan` before authoring or publishing replacement content.",
     });
@@ -1853,26 +2463,6 @@ describe("arc delivery position", () => {
   it("settles a dependent refresh onto local-only terminal authoring with the remote publication lease", async () => {
     const fixture = await positionFixture("registered-local-terminal-authoring");
     const selectedDeliverableId = fixture.plan.members[1]!.deliverableId;
-    const reviewFix = await runArcWithStdin(
-      ["delivery", "review-fix", "plan", "-", "--json"],
-      fixture.repository,
-      `${JSON.stringify({
-        planId: fixture.plan.planId,
-        selectedDeliverableId,
-        repository: "owner/repo",
-        remote: "origin",
-        entryMode: "execution",
-      })}\n`,
-      { env: fixture.env },
-    );
-    expect(reviewFix.exitCode, `${reviewFix.stderr}\n${reviewFix.stdout}`).toBe(0);
-    expect(JSON.parse(reviewFix.stdout)).toMatchObject({
-      command: "delivery review-fix plan",
-      status: "planned",
-      route: "provider-refresh",
-      selectedDeliverableId,
-    });
-
     const refresh = await runArcWithStdin(
       ["delivery", "refresh", "execute", "-", "--json"],
       fixture.repository,
@@ -1916,7 +2506,10 @@ describe("arc delivery position", () => {
   });
 
   it("drives a registered review correction through superseded verification to hosted review", async () => {
-    const fixture = await positionFixture("registered-current");
+    const fixture = await positionFixture("registered-current", {
+      reviewChunkingThresholdLines: 2,
+      memberTwoLineCount: 2,
+    });
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const current = await fixture.states.read(fixture.plan.planId);
     const selectedMember = current.status === "ok"
@@ -2239,13 +2832,6 @@ describe("arc delivery position", () => {
     expect(superseded.exitCode, `${superseded.stderr}\n${superseded.stdout}`).toBe(0);
     const supersedingVerificationStop = JSON.parse(superseded.stdout) as {
       verification: { target: { head: string; tree: string } };
-      acknowledgementInput: {
-        planId: string;
-        selectedDeliverableId: string;
-        memberDeliverableIds: string[];
-        expectedStateRevision: number;
-        continuationDigest: string;
-      };
     };
     expect(supersedingVerificationStop, superseded.stdout).toMatchObject({
       command: "delivery review-fix continue",
@@ -2260,6 +2846,22 @@ describe("arc delivery position", () => {
     });
     expect(supersedingVerificationStop.verification.target.head)
       .not.toBe(verificationStop.verification.target.head);
+    const supersedingEntry = await runArcWithStdin(
+      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      fixture.repository,
+      `${JSON.stringify({ entryMode: "integrating" })}\n`,
+      { env: fixture.env },
+    );
+    expect(supersedingEntry.exitCode, `${supersedingEntry.stderr}\n${supersedingEntry.stdout}`).toBe(0);
+    const supersedingAcknowledgementInput = (JSON.parse(supersedingEntry.stdout) as {
+      acknowledgementInput: {
+        planId: string;
+        selectedDeliverableId: string;
+        memberDeliverableIds: string[];
+        expectedStateRevision: number;
+        continuationDigest: string;
+      };
+    }).acknowledgementInput;
     expect(await git(fixture.repository, ["rev-parse", locator.candidateRef])).toBe(revisedCorrectionHead);
     await writeFile(join(
       fixture.repository,
@@ -2278,7 +2880,7 @@ describe("arc delivery position", () => {
     await git(fixture.repository, ["add", ".arc/active"]);
 
     const acknowledgementRequest = {
-      ...supersedingVerificationStop.acknowledgementInput,
+      ...supersedingAcknowledgementInput,
       verification: {
         applicability: "focused",
         target: supersedingVerificationStop.verification.target,
@@ -2309,7 +2911,7 @@ describe("arc delivery position", () => {
       candidateId: pendingCandidate.attestation.candidateId,
       oldTarget: pendingBaseline.target,
       newTarget: pendingCurrentTarget,
-      authorityRef: supersedingVerificationStop.acknowledgementInput.continuationDigest,
+      authorityRef: supersedingAcknowledgementInput.continuationDigest,
       verifiedBy: "test-user",
       verifiedAt: "2026-09-03T13:55:00.000Z",
       applicability: "focused",
@@ -2406,7 +3008,7 @@ describe("arc delivery position", () => {
     expect(acknowledgedOutput, acknowledged.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "acknowledged",
-      nextAction: "continue-hosted-review",
+      nextAction: "resolve-delivery-status",
       recordEffects: expect.arrayContaining([
         { path: resolveCandidateRecordRelativePath(fixture.plan.workUnitId), digest: expect.any(String) },
         { path: resolveSubmissionBoundaryPath(fixture.plan.workUnitId), digest: expect.any(String) },
@@ -2537,15 +3139,32 @@ describe("arc delivery position", () => {
     expect(replayedAcknowledgementOutput, replayedAcknowledgement.stdout).toMatchObject({
       command: "delivery review-fix acknowledge",
       status: "already-acknowledged",
-      nextAction: "continue-hosted-review",
+      nextAction: "resolve-delivery-status",
       recordEffects: expect.arrayContaining([
         { path: resolveCandidateRecordRelativePath(fixture.plan.workUnitId), digest: expect.any(String) },
         { path: resolveSubmissionBoundaryPath(fixture.plan.workUnitId), digest: expect.any(String) },
       ]),
     });
 
-    const reviewStatusHostLog = join(fixture.repository, "review-status-host.log");
+    await git(fixture.repository, [
+      "commit",
+      "--only",
+      "--no-verify",
+      "-m",
+      "close correction task",
+      "--",
+      ".arc/active/tasks-delivery-plan-record.md",
+    ]);
+
+    const reviewStatusHostRoot = await mkdtemp(join(tmpdir(), "arc-review-status-host-"));
+    roots.push(reviewStatusHostRoot);
+    const reviewStatusHostLog = join(reviewStatusHostRoot, "review-status-host.log");
     await writeFile(reviewStatusHostLog, "");
+    const statusBeforeResume = await git(fixture.repository, ["status", "--short"]);
+    expect(statusBeforeResume.split("\n")).toEqual([
+      "M  .arc/system/.internal/candidates/delivery-plan-record.boundary.json",
+      "M  .arc/system/.internal/candidates/delivery-plan-record.json",
+    ]);
     const resumed = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
@@ -2937,15 +3556,6 @@ describe("arc delivery position", () => {
       ...retainedAttemptIds.map((attemptId) => `operation-${attemptId}`),
     ]);
 
-    const configPath = join(fixture.repository, ".arc", "system", "arc-config.yml");
-    const initialConfig = await readFile(configPath, "utf8");
-    const oversizedConfig = initialConfig.replace(
-      /^changeset\.advisory_threshold_lines:.*$/mu,
-      "changeset.advisory_threshold_lines: 1",
-    );
-    expect(oversizedConfig).not.toBe(initialConfig);
-    await writeFile(configPath, oversizedConfig, "utf8");
-
     const continuedAfterBatch = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
@@ -3067,12 +3677,11 @@ describe("arc delivery position", () => {
       nextAction: "reduce",
     });
 
-    await writeFile(configPath, initialConfig, "utf8");
     const continuedAfterLocal = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
-      { env: fixture.env },
+      { env: { ...fixture.env, ARC_FAKE_SMALL_REVIEW_NUMSTAT: "1" } },
     );
     expect(continuedAfterLocal.exitCode, `${continuedAfterLocal.stderr}\n${continuedAfterLocal.stdout}`).toBe(0);
     const afterLocal = JSON.parse(continuedAfterLocal.stdout) as {

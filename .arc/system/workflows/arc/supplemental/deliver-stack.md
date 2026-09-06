@@ -67,6 +67,13 @@ detached gate path. Do not leave ordinary local branches or branched worktrees f
 them as work-unit loci or cleanup residue. The private refs are identity-free locators only and grant no delivery
 authority.
 
+The write half of that locus is typed too, so a correction interrupted between authoring and its gate replay
+completes without hand-writing a ref in the ARC-owned namespace. `arc delivery authoring rematerialize - --json`
+prepares the exact private ref and detached gate pair at the current public member;
+`arc delivery authoring rebind - --json` binds a clean detached authoring head to its candidate ref. Both take the
+exact inputs the correction continuation dispatches in-process and refuse with the executor's own typed reason on a
+dirty locus, a moved head or tree, a stale state revision, or an active operation.
+
 ```bash
 arc delivery eligibility prepare - --json
 ```
@@ -146,7 +153,14 @@ the request.
 Follow the typed result. `applied / teardown-member` takes the returned `selectedDeliverableId` and immediately
 invokes `arc delivery teardown` with the existing plan, repository, protected-target, and remote locators before any
 ordinary position read. `applied / read-position` returns to `arc delivery position`; any other `applied` result
-follows its returned `nextAction`. A `retryable` result dispatches only one of these exact
+follows its returned `nextAction`. A `prepared / preserved / delivery-native-land-submit` result re-presents the
+returned `presentation`: render its exact member/head set and consequence verbatim.
+
+> [!IMPORTANT]
+> `integration-interlock`: Stop after prepared native landing recovery. Surface the exact recovered member/head set
+> and consequence; await approval before proceeding to the returned native submission.
+
+After approval, invoke the returned `submitAction` unchanged. A `retryable` result dispatches only one of these exact
 `transition / action / selector` arms:
 
 - `retryable / cleared / delivery-publish` with `operationKind: materialize` reruns
@@ -354,13 +368,17 @@ arc delivery native land-status - --json
 ```
 
 For ordinary polling after submission, use `land-status`. `pending` retains the reservation and polls the same
-persisted effect identity again. After a restart or interruption, invoke `land-status` with the same exact request;
-it also recovers a synchronous merged result whose effect identity was never assigned. The general recovery verb
-delegates an active native reservation to that same status-and-settlement path:
+persisted effect identity again. After a restart or interruption, invoke the general recovery verb with only the
+plan, repository, and remote locators:
 
 ```bash
 arc delivery reconcile - --json
 ```
+
+A recovered `prepared` reservation makes no provider observation: it re-presents the exact member/head set and
+consequence behind the same integration interlock, then invokes its returned `submitAction` unchanged after approval.
+A recovered `submitting` reservation never resubmits: a persisted identity returns to polling, while a missing
+identity is resolved only from exact all/partial/none/ambiguous effect facts.
 
 Only a `retryable` / `cleared` / `delivery-native-land-select` result, returned after a persisted terminal `failed`
 effect and exact `none-landed` observation, returns to preparation and a new interlock. `pending`, `partial-landed`,
@@ -521,13 +539,16 @@ selector reconstructed in prose.
 - `dispatch / dispatch` invokes `action.argv` with `action.input` unchanged, then re-enters this continuation
   without an interlock. The typed action may publish the selected correction, rematerialize the exact suffix, resume
   provider refresh/adoption, reconcile a persisted operation, or acknowledge completed scoped verification.
-- `authoring-required / author-terminal` returns to the calling task loop for the named terminal member. Author and
-  run ordinary project gates on the work-unit branch, then invoke `resumeAction`; do not publish a member ref.
+- `authoring-required / author-correction` returns to the calling task loop for the named authoring locus. Its
+  `derivedFrom` names the canonical fact that selected the member and route — the open task, the pending approved
+  review response, or the pending verification being superseded. Render `recommendedActionText` verbatim, author
+  only in the returned `authoring` locus, run ordinary project gates there, then invoke `resumeAction`. Do not
+  reconstruct or invoke a lower-level delivery mutation.
 - `verification-required / verify-review-fix` enters the scoped verification section below. After the correction
   task closes, invoke `resumeAction` with only the returned verification result added to its input.
-- `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or hosted
-  review action. Candidate renewal requires `unchanged` before re-entry. A hosted-review action resumes the retained
-  member review directly.
+- `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or delivery
+  status action. Candidate renewal requires `unchanged` before re-entry. A delivery-status action resumes the
+  provider-neutral retained-member reducer directly; only its exact hosted-request result authorizes provider work.
 - `idle / continue-work-unit` returns to the current non-delivery task. Every `refused` or downstream
   conflict/authority stop renders its typed reason and retains the durable continuation for retry.
 
@@ -557,11 +578,11 @@ member-criteria and Tier 1 results, and records Tier 1 as passed with `provenanc
 tree. This is verification evidence for the exact correction delta, not a review verdict or signal-convergence
 decision.
 
-Every settlement result carries `acknowledgementInput`. Retain every field of that locator unchanged and return it
-plus the `verificationResult` to the calling task loop. After ordinary correction-task closure, pass the result to
-the continuation's `resumeAction`; the controller composes the exact acknowledgment and re-enters Candidate renewal.
-Do not acknowledge before task closure. These actions ride the same finding-disposition approval; do not add an
-interlock.
+The verification stop offers one resubmission shape: its `resumeAction`. Return the `verificationResult` to the
+calling task loop; after ordinary correction-task closure, invoke `resumeAction` with only `verification` added to
+its input. The controller derives the exact acknowledgment locator from canonical state itself and re-enters
+Candidate renewal; no acknowledgement input is echoed for the caller to retain. Do not acknowledge before task
+closure. These actions ride the same finding-disposition approval; do not add an interlock.
 
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:
 
@@ -573,21 +594,27 @@ The request carries the position result's exact `selectedDeliverableId` plus the
 target, and remote locators — no position facts. The handler freshly reobserves position before teardown, making
 `teardown-member` idempotent after reconciliation; never select a member from prose or provider order.
 
-The CLI retains the exact member binding, deletes the proven remote branch, and, after the highest non-terminal
-member, immediately reobserves the top request. Follow only its returned `nextAction`:
+The CLI retains the exact member binding. For the highest non-terminal member, it first retargets an exact open
+terminal request to the protected base under the teardown reservation, proves that result, and only then deletes the
+proven member branch. Follow only its returned `nextAction`:
 
 - `continue` returns to the position read for the next member.
 - `terminal-checkpoint` enters the ordinary [`integrate-work-unit.md`][integrate-work-unit] workflow.
-- `retarget` or `reopen-and-retarget` surfaces the typed failure-only remedy and stops. Await explicit user direction
-  for that exact action; do not sequence or repair the request in workflow prose. After that explicit direction,
+- `blocked / top-remedy-required` means the exact terminal request was already closed while its predecessor still
+  exists. Surface its `reopen-and-retarget` remedy and stop. Await explicit user direction for that exact action;
+  do not sequence or repair the request in workflow prose. After that explicit direction,
   invoke the reserved mutation surface with the current plan ID and returned repository, protected base, and action:
 
 ```bash
 arc delivery top-remedy - --json
 ```
 
-The command freshly rederives the terminal position and exact remedy before reserving and mutating. Follow only its
-returned `terminal-checkpoint`; a refusal or blocked result stops with any persisted reservation intact.
+The command freshly rederives the terminal position and exact remedy before reserving and mutating. Follow
+`teardown-member` by invoking teardown again for its exact `selectedDeliverableId`; `terminal-checkpoint` returns to
+ordinary checkpoint composition when a host-refreshed terminal head first needs rebind. A
+`trigger-ref-restore-required` result means an earlier deletion already made GitHub's closed request immutable:
+surface its exact ref/head and stop for Owner approval before restoring only that missing ref, then rerun the same
+top remedy. Any other refusal or blocked result stops with any persisted reservation intact.
 
 ## Terminal handoff
 

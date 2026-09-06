@@ -47,17 +47,26 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, membe
     {
       taskId: "1.1",
       semanticDigest: taskDigest,
+      role: { kind: "verification" as const, scope: "member" },
     },
     ...(memberCount === 2 ? [{
       taskId: "2.1",
       semanticDigest: taskDigest,
+      role: { kind: "verification" as const, scope: "member" },
     }] : []),
   ];
   const workUnitVerificationTaskId = memberCount === 1 ? "2.1" : "3.1";
+  const parents = [
+    ...memberParents,
+    {
+      taskId: workUnitVerificationTaskId,
+      semanticDigest: null,
+      role: { kind: "verification" as const, scope: "work-unit" },
+    },
+  ];
   const taskInventory = {
-    inventoryDigest: canonicalDigest(memberParents),
-    implementation: memberParents,
-    verificationTaskId: workUnitVerificationTaskId,
+    inventoryDigest: canonicalDigest(parents),
+    parents,
   } as const;
   const designInventory = {
     artifacts: [{ artifactId: "spec.md", revisionDigest: canonicalDigest({ spec: 1 }) }],
@@ -115,10 +124,7 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, membe
       semanticsVersion: "delivery-plan/v1",
       workUnitId: "delivery-plan-record",
       design: { artifacts: [{ artifactId: "spec.md" }], elements: [] },
-      tasks: {
-        implementation: memberParents.map(({ taskId }) => ({ taskId })),
-        verificationTaskId: workUnitVerificationTaskId,
-      },
+      tasks: { parents: parents.map(({ taskId, role }) => ({ taskId, role })) },
       entry: "from-tasks",
       projection: slots.projection,
       members: slots.members.map((member, index) => ({
@@ -244,6 +250,15 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
     this.current = plan;
     return { status: "ok" as const, value: { currentDigest: plan.planDigest as CanonicalDigest } };
   }
+
+  async removeCurrent(planId: string, expectedCurrentDigest: CanonicalDigest) {
+    if (this.current === null) return { status: "ok" as const, value: { removed: false } };
+    if (this.current.planId !== planId || this.current.planDigest !== expectedCurrentDigest) {
+      return { status: "refused" as const, reason: "version-conflict" as const };
+    }
+    this.current = null;
+    return { status: "ok" as const, value: { removed: true } };
+  }
 }
 
 class MemoryStateStore implements DeliveryStateStore<DeliveryStateV1> {
@@ -282,6 +297,15 @@ class MemoryStateStore implements DeliveryStateStore<DeliveryStateV1> {
     }
     this.current = { revision: expectedRevision + 1, value };
     return { status: "ok" as const, value: this.current };
+  }
+
+  async remove(planId: string, expectedRevision: number) {
+    if (this.current === null) return { status: "ok" as const, value: { removed: false } };
+    if (this.current.value.planId !== planId || this.current.revision !== expectedRevision) {
+      return { status: "refused" as const, reason: "version-conflict" as const };
+    }
+    this.current = null;
+    return { status: "ok" as const, value: { removed: true } };
   }
 
   async resolveMember() {

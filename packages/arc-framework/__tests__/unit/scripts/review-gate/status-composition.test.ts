@@ -68,7 +68,7 @@ describe("review status composition", () => {
     })).resolves.toBeUndefined();
   });
 
-  it("carries a validated terminal advance into terminal-first and all-discharged status targets", () => {
+  it("carries a validated terminal advance without losing the state-backed member lookup", () => {
     const stateHead = "a".repeat(40);
     const currentHead = "b".repeat(40);
     const terminalDeliverableId = "member-terminal";
@@ -94,6 +94,7 @@ describe("review status composition", () => {
     })).toEqual({
       target: { repository: "owner/repo", headRef: "feat/top", headSha: currentHead },
       pullRequest: 42,
+      deliveryLookupHeadSha: stateHead,
     });
     expect(selectDeliveryReviewStatusTarget({
       ...common,
@@ -101,6 +102,7 @@ describe("review status composition", () => {
     })).toEqual({
       target: { repository: "owner/repo", headRef: "feat/top", headSha: currentHead },
       pullRequest: 42,
+      deliveryLookupHeadSha: stateHead,
     });
   });
 });

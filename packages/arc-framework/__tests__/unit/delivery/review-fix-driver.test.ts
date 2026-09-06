@@ -172,14 +172,14 @@ describe("delivery review-fix driver", () => {
         progress,
       })
       .mockResolvedValueOnce({
-        step: { status: "authority-required", authority: "hosted-review" },
+        step: { status: "authority-required", authority: "delivery-status" },
         progress: { ...progress, stateRevision: 8 },
       });
     const execute = vi.fn().mockResolvedValue({ status: "already-acknowledged", replayed: true });
 
     await expect(driveDeliveryReviewFixContinuation({ project, execute })).resolves.toEqual({
       status: "authority-required",
-      authority: "hosted-review",
+      authority: "delivery-status",
       effectLog: [{
         kind: "no-op-replay",
         actionKind: "delivery-review-fix-acknowledge",
@@ -223,6 +223,7 @@ describe("delivery review-fix driver", () => {
           status: "boundary-carry-required",
           planId: "plan-1",
           stateRevision: 8,
+          candidateSubjectDigest: `sha256:${"b".repeat(64)}`,
         },
         progress,
       })
@@ -230,12 +231,21 @@ describe("delivery review-fix driver", () => {
         step: { status: "review-status-required", nextAction: "respond-to-findings" },
         progress: { ...progress, boundaryVersion: "boundary-2" },
       });
-    const carryBoundary = vi.fn().mockResolvedValue({
-      status: "carried",
-      path: ".arc/active/integration-boundary.json",
-      candidateId: `sha256:${"a".repeat(64)}`,
-      stateRevision: 8,
-    });
+    const expectedDigest = `sha256:${"b".repeat(64)}`;
+    const carryBoundary = async (input: {
+      planId: string;
+      stateRevision: number;
+      candidateSubjectDigest: string;
+    }) => input.planId === "plan-1"
+        && input.stateRevision === 8
+        && input.candidateSubjectDigest === expectedDigest
+      ? {
+          status: "carried" as const,
+          path: ".arc/active/integration-boundary.json",
+          candidateId: `sha256:${"a".repeat(64)}`,
+          stateRevision: 8,
+        }
+      : { status: "refused" as const, reason: "unexpected-boundary-carry" };
 
     await expect(driveDeliveryReviewFixContinuation({
       project,
@@ -251,7 +261,65 @@ describe("delivery review-fix driver", () => {
         stateRevision: 8,
       }],
     });
-    expect(carryBoundary).toHaveBeenCalledWith({ planId: "plan-1", stateRevision: 8 });
+  });
+
+  it("does not conflate different effective Candidate subjects at one delivery position", async () => {
+    const firstDigest = `sha256:${"b".repeat(64)}`;
+    const secondDigest = `sha256:${"c".repeat(64)}`;
+    const project = vi.fn()
+      .mockResolvedValueOnce({
+        step: {
+          status: "boundary-carry-required",
+          planId: "plan-1",
+          stateRevision: 8,
+          candidateSubjectDigest: firstDigest,
+        },
+        progress,
+      })
+      .mockResolvedValueOnce({
+        step: {
+          status: "boundary-carry-required",
+          planId: "plan-1",
+          stateRevision: 8,
+          candidateSubjectDigest: secondDigest,
+        },
+        progress,
+      })
+      .mockResolvedValueOnce({
+        step: { status: "review-status-required", nextAction: "respond-to-findings" },
+        progress,
+      });
+    const expectedDigests = [firstDigest, secondDigest];
+    let carriedCount = 0;
+    const carryBoundary = async (input: {
+      planId: string;
+      stateRevision: number;
+      candidateSubjectDigest: string;
+    }) => input.planId === "plan-1"
+        && input.stateRevision === 8
+        && input.candidateSubjectDigest === expectedDigests[carriedCount]
+      ? {
+          status: "carried" as const,
+          path: ".arc/active/integration-boundary.json",
+          candidateId: `sha256:${"a".repeat(64)}`,
+          stateRevision: 8,
+          acknowledged: ++carriedCount,
+        }
+      : { status: "refused" as const, reason: "unexpected-boundary-carry" };
+
+    const result = await driveDeliveryReviewFixContinuation({
+      project,
+      execute: vi.fn(),
+      carryBoundary,
+    });
+
+    expect(result).toMatchObject({
+      status: "review-status-required",
+      effectLog: [
+        { kind: "boundary-carry", stateRevision: 8 },
+        { kind: "boundary-carry", stateRevision: 8 },
+      ],
+    });
   });
 
   it("settles machine-owned record commits and pushes before returning an attended stop", async () => {
@@ -292,6 +360,90 @@ describe("delivery review-fix driver", () => {
       ],
     });
     expect(project).toHaveBeenCalledOnce();
+  });
+
+  it("forwards the head of its own settled record commit to the reconcile it dispatches next", async () => {
+    const recordHead = "3".repeat(40);
+    const reconcile: DeliveryReviewFixDriveDispatchAction = {
+      kind: "delivery-reconcile",
+      input: { planId: "plan-1", repository: "owner/repo", remote: "origin" },
+    };
+    const calls: string[] = [];
+    const settleRecordEffects = vi.fn()
+      .mockImplementationOnce(async () => {
+        calls.push("settle:settled");
+        return {
+          status: "settled",
+          effects: [
+            { kind: "commit", recordClass: "candidate-boundary-projection", head: recordHead },
+            {
+              kind: "push",
+              ref: "refs/heads/feat/example",
+              beforeHead: "2".repeat(40),
+              afterHead: recordHead,
+            },
+          ],
+        };
+      })
+      .mockImplementation(async () => {
+        calls.push("settle:idle");
+        return { status: "idle", effects: [] };
+      });
+    const project = vi.fn()
+      .mockImplementationOnce(async () => {
+        calls.push("project");
+        return {
+          step: { status: "dispatch", action: reconcile, recommendedActionText: "Reconcile." },
+          progress,
+        };
+      })
+      .mockImplementationOnce(async () => {
+        calls.push("project");
+        return {
+          step: { status: "review-status-required", nextAction: "rerun-checkpoint" },
+          progress: { ...progress, stateRevision: 8 },
+        };
+      });
+    const execute = vi.fn(async (action: DeliveryReviewFixDriveDispatchAction) => {
+      calls.push(`execute:${action.kind}`);
+      return { status: "rebound" };
+    });
+
+    await expect(driveDeliveryReviewFixContinuation({
+      project,
+      execute,
+      settleRecordEffects,
+    })).resolves.toMatchObject({ status: "review-status-required", nextAction: "rerun-checkpoint" });
+    expect(calls).toEqual([
+      "settle:settled",
+      "settle:idle",
+      "project",
+      "execute:delivery-reconcile",
+      "settle:idle",
+      "project",
+    ]);
+    expect(execute).toHaveBeenCalledWith(reconcile, { settledRecordEffectHead: recordHead });
+  });
+
+  it("dispatches with no settled record head before any record commit of its own", async () => {
+    const publish: DeliveryReviewFixDriveDispatchAction = { kind: "delivery-review-fix-publish" };
+    const project = vi.fn()
+      .mockResolvedValueOnce({
+        step: { status: "dispatch", action: publish, recommendedActionText: "Publish." },
+        progress,
+      })
+      .mockResolvedValueOnce({
+        step: { status: "authoring-required", nextAction: "author-correction" },
+        progress: { ...progress, stateRevision: 8 },
+      });
+    const execute = vi.fn().mockResolvedValue({ status: "published" });
+
+    await driveDeliveryReviewFixContinuation({
+      project,
+      execute,
+      settleRecordEffects: vi.fn().mockResolvedValue({ status: "idle", effects: [] }),
+    });
+    expect(execute).toHaveBeenCalledWith(publish, { settledRecordEffectHead: null });
   });
 
   it("returns the exact replay remedy when staged acknowledgement authority cannot be proved", async () => {

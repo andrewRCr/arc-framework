@@ -6,12 +6,15 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../../../lib/delivery/host.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
-import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
-import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
+import type {
+  DeliveryDischargeTargetBinding,
+  DeliveryDischargeTargetLookup,
+} from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from
   "../hosts/local/disposition-record-store.js";
@@ -217,6 +220,11 @@ export async function resolveHostedReservationTargets(input: {
     readonly stateHead: string;
     readonly currentHead: string;
   };
+  /** Historical terminal target retained while an exact prepared native operation lands only earlier members. */
+  readonly preparedTerminal?: {
+    readonly deliverableId: string;
+    readonly stateHead: string;
+  };
 }): Promise<HostedReservationTargetResolution> {
   try {
     const marker = input.reservation?.target;
@@ -237,9 +245,14 @@ export async function resolveHostedReservationTargets(input: {
     if (resolved.status !== "resolved" || resolved.targets.length === 0) {
       return { status: "unavailable", targets: [] };
     }
-    const targets: HostedReservationTarget[] = [];
+    const observedTargets: Array<{
+      readonly binding: DeliveryDischargeTargetBinding;
+      readonly index: number;
+      readonly pullRequest: number;
+      readonly request: DeliveryHostChangeRequest;
+      readonly targetHead: string;
+    }> = [];
     const requestIds = new Set<string>();
-    let landedBaseRevision = input.singleton.baseRevision;
     for (const [index, binding] of resolved.targets.entries()) {
       if (marker?.kind === "delivery"
         && (binding.planId !== marker.planId || binding.workUnitId !== marker.workUnitId)) {
@@ -265,20 +278,43 @@ export async function resolveHostedReservationTargets(input: {
         && index === resolved.targets.length - 1
         && binding.head === input.terminalAdvance.stateHead
         && request.headSha === input.terminalAdvance.currentHead;
+      const representedPreparedTerminal = input.preparedTerminal !== undefined
+        && binding.position === binding.memberCount
+        && index === resolved.targets.length - 1
+        && binding.deliverableId === input.preparedTerminal.deliverableId
+        && binding.head === input.preparedTerminal.stateHead
+        && request.state === "open";
       if (request.binding.providerId !== binding.providerId
         || request.binding.changeRequestId !== binding.changeRequestId
         || request.repository.toLowerCase() !== input.singleton.repository.toLowerCase()
         || request.headRepository.toLowerCase() !== input.singleton.repository.toLowerCase()
         || request.state === "closed"
         || (expectedHeadRef !== null && request.headRef !== expectedHeadRef)
-        || (request.state === "open" && request.headSha !== binding.head && !representedTerminalAdvance)) {
+        || (request.state === "open" && request.headSha !== binding.head
+          && !representedTerminalAdvance && !representedPreparedTerminal)) {
         return { status: "unavailable", targets: [] };
       }
+      const targetHead = representedPreparedTerminal ? binding.head : request.headSha;
+      observedTargets.push({ binding, index, pullRequest, request, targetHead });
+    }
+    const retainedAuthoredMergedChain = observedTargets
+      .filter(({ request }) => request.state === "merged")
+      .every(({ binding, index, request }) => {
+        const priorBinding = resolved.targets[index - 1];
+        return request.headSha === binding.head
+          && (priorBinding === undefined || binding.base === priorBinding.head);
+      });
+    const targets: HostedReservationTarget[] = [];
+    let landedBaseRevision = input.singleton.baseRevision;
+    for (const { binding, pullRequest, request, targetHead } of observedTargets) {
+      const retainsAuthoredCoordinates = request.state === "merged" && retainedAuthoredMergedChain;
       targets.push({
         repository: input.singleton.repository,
         pullRequest,
-        headSha: request.headSha,
-        baseRevision: request.state === "open" ? binding.base : landedBaseRevision,
+        headSha: targetHead,
+        baseRevision: request.state === "open" || retainsAuthoredCoordinates
+          ? binding.base
+          : landedBaseRevision,
         position: binding.position,
         memberCount: binding.memberCount,
         chunkKey: binding.chunkKey,
@@ -288,10 +324,10 @@ export async function resolveHostedReservationTargets(input: {
           planId: binding.planId,
           deliverableId: binding.deliverableId,
           workUnitId: binding.workUnitId,
-          head: request.headSha,
+          head: targetHead,
         }),
       });
-      landedBaseRevision = request.headSha;
+      landedBaseRevision = targetHead;
     }
     return { status: "resolved", kind: "delivery", targets };
   } catch {
@@ -813,7 +849,11 @@ export function createHostedReservationDischargeReader(input: {
   return async ({ workUnitId, ...target }) => {
     if (workUnitId === undefined) return readTarget(target);
     if (input.delivery === undefined || input.host === undefined) {
-      return { discharged: false, detail: "The retained delivery-member review targets are unavailable.", nextSource: null };
+      return {
+        discharged: false,
+        detail: "The retained delivery-member review targets are unavailable.",
+        nextSource: null,
+      };
     }
     if (target.reservation === null || target.changeRequest === null) return readTarget(target);
     const resolution = await resolveHostedReservationTargets({
@@ -828,7 +868,11 @@ export function createHostedReservationDischargeReader(input: {
       host: input.host,
     });
     if (resolution.status === "unavailable") {
-      return { discharged: false, detail: "The reserved hosted-review targets are unavailable.", nextSource: null };
+      return {
+        discharged: false,
+        detail: "The reserved hosted-review targets are unavailable.",
+        nextSource: null,
+      };
     }
     const discharges = await Promise.all(resolution.targets.map((resolvedTarget) => readTarget({
       reservation: target.reservation,
@@ -845,7 +889,11 @@ export function createHostedReservationDischargeReader(input: {
       const index = discharges.findIndex(({ discharged }) => !discharged);
       const discharge = discharges[index];
       if (discharge === undefined) {
-        return { discharged: false, detail: "The reserved hosted-review target is unavailable.", nextSource: null };
+        return {
+          discharged: false,
+          detail: "The reserved hosted-review target is unavailable.",
+          nextSource: null,
+        };
       }
       return resolution.kind === "delivery"
         ? { ...discharge, detail: `Delivery member ${index + 1}: ${discharge.detail}` }
@@ -860,6 +908,10 @@ export function createHostedReservationDischargeReader(input: {
         }
       : details.length === 1
         ? { discharged: true, detail: details[0] ?? "Hosted review discharged.", nextSource: null }
-        : { discharged: false, detail: "The reserved hosted-review target is unavailable.", nextSource: null };
+        : {
+            discharged: false,
+            detail: "The reserved hosted-review target is unavailable.",
+            nextSource: null,
+          };
   };
 }

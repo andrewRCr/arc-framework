@@ -235,11 +235,20 @@ const CandidatePublicationCheckpointResultSchema = z.strictObject({
   state: z.literal("candidate-publication-required"),
   nextAction: z.literal("resume-pre-publication"),
   payload: z.strictObject({
-    attestArgv: z.tuple([
-      z.literal("arc"),
-      z.literal("attest"),
-      SlugSchema,
-      z.literal("--json"),
+    attestArgv: z.union([
+      z.tuple([
+        z.literal("arc"),
+        z.literal("attest"),
+        SlugSchema,
+        z.literal("--json"),
+      ]),
+      z.tuple([
+        z.literal("arc"),
+        z.literal("attest"),
+        SlugSchema,
+        z.literal("--new-root"),
+        z.literal("--json"),
+      ]),
     ]),
     recommendedActionText: z.string().min(1),
   }),
@@ -778,7 +787,12 @@ export async function checkpointIntegration(
         state: "candidate-publication-required",
         nextAction: "resume-pre-publication",
         payload: {
-          attestArgv: [...attestArgv(request.workUnit), "--json"],
+          attestArgv: [
+            ...(lifecycle.state === "shipped"
+              ? attestNewRootArgv(request.workUnit)
+              : attestArgv(request.workUnit)),
+            "--json",
+          ],
           recommendedActionText:
             "Refresh the recognized Candidate boundary, settle ordinary pre-publication review, then rerun checkpoint.",
         },

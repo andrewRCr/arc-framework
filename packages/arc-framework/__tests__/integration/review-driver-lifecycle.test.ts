@@ -70,7 +70,7 @@ describe("lifecycle review driver", () => {
     const workflow = await readFile(resolve(packageArc, integrateWorkflow), "utf8");
 
     expect(workflow).toContain("integrationBoundary.nextAction.command");
-    expect(workflow).toContain("`continue-hosted-review`");
+    expect(workflow).toContain("`resolve-delivery-status`");
     expect(workflow).toContain("selects the first outstanding retained member");
   });
 

@@ -190,7 +190,7 @@ describe("packaged delivery workflow", () => {
     expect(correctionTail).toMatch(/request carries only[\s\S]*repository and remote identities/iu);
     expect(correctionTail).toMatch(/dispatch \/ dispatch[\s\S]*action\.argv[\s\S]*action\.input[\s\S]*re-enters/iu);
     expect(correctionTail).toMatch(
-      /authoring-required \/ author-terminal[\s\S]*verification-required \/ verify-review-fix[\s\S]*authority-required \/ dispatch-authority-action[\s\S]*idle \/ continue-work-unit/iu,
+      /authoring-required \/ author-correction[\s\S]*verification-required \/ verify-review-fix[\s\S]*authority-required \/ dispatch-authority-action[\s\S]*idle \/ continue-work-unit/iu,
     );
     expect(correctionTail).toMatch(/does not create an orchestration record/iu);
     expect(correctionTail).toMatch(
@@ -198,7 +198,8 @@ describe("packaged delivery workflow", () => {
     );
     expect(correctionTail).toMatch(/memberDeliverableIds[\s\S]*contribution-equivalent[\s\S]*re-verifies nothing/iu);
     expect(correctionTail).toMatch(/tier1Reuse[\s\S]*existing passed result[\s\S]*targetTree/iu);
-    expect(correctionTail).toMatch(/acknowledgementInput[\s\S]*verificationResult[\s\S]*resumeAction/iu);
+    expect(correctionTail).toMatch(/one resubmission shape[\s\S]*resumeAction[\s\S]*verificationResult/iu);
+    expect(correctionTail).toMatch(/derivedFrom[\s\S]*open task[\s\S]*pending approved\s+review response/iu);
     expect(correctionTail).toMatch(/same finding-disposition approval/iu);
     expect(correctionTail).not.toContain("`integration-interlock`");
     const reviewStart = packaged.indexOf("## Review and land the current member");
@@ -235,6 +236,9 @@ describe("packaged delivery workflow", () => {
     expect(recoverySection).toMatch(/provider-adoption[\s\S]*arc delivery refresh adopt/iu);
     expect(recoverySection).toMatch(/provider-refresh[\s\S]*arc delivery refresh execute/iu);
     expect(recoverySection).toMatch(
+      /prepared \/ preserved \/ delivery-native-land-submit[\s\S]*presentation[\s\S]*exact member\/head[\s\S]*consequence[\s\S]*integration-interlock[\s\S]*submitAction[\s\S]*unchanged/iu,
+    );
+    expect(recoverySection).toMatch(
       /planId[\s\S]*operationId[\s\S]*affectedDeliverableIds[\s\S]*operationKind[\s\S]*narrow `mode`/u,
     );
     expect(recoverySection).toMatch(/workflow prose infers neither a selector nor a[\s\S]*recovery policy/iu);
@@ -264,7 +268,9 @@ describe("packaged delivery workflow", () => {
     expect(nativeSubmit).toBeLessThan(nativeStatus);
     expect(nativeSection).toMatch(/exact member\/head set[\s\S]*residual race/iu);
     expect(nativeSection).toMatch(/ordinary polling[\s\S]*land-status/iu);
-    expect(nativeSection).toMatch(/restart or interruption[\s\S]*land-status/iu);
+    expect(nativeSection).toMatch(
+      /restart or interruption[\s\S]*delivery reconcile[\s\S]*prepared[\s\S]*same integration interlock[\s\S]*submitAction[\s\S]*unchanged/iu,
+    );
     expect(nativeSection).toMatch(/suffix reconciliation[\s\S]*reservation[\s\S]*land-status/iu);
     expect(nativeSection).toMatch(/terminal `failed`[\s\S]*exact `none-landed`[\s\S]*new\s+interlock/iu);
     expect(nativeSection).toMatch(/partial-landed[\s\S]*stop/iu);

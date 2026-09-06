@@ -616,6 +616,62 @@ describe("checkout subject active-extension seam", () => {
     });
   });
 
+  it("recovers changed-Candidate verification without reviving a mismatched boundary", async () => {
+    resolverInputs.length = 0;
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const changedSubjectBoundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: `sha256:${"9".repeat(64)}`,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(changedSubjectBoundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: {
+        ...options.io,
+        projectCandidateTarget: projectCandidateApplicabilityDecision,
+        projectDeliveryCorrection: async () => ({ status: "verification-required" as const }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "verify-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: null,
+    });
+    expect(resolverInputs.at(-1)).toMatchObject({
+      sessionType: "integration",
+      workUnitStage: "verification-closeout",
+    });
+  });
+
   it("keeps Active prepublication strict while Candidate applicability awaits authority", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");

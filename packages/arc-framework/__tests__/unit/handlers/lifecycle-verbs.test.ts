@@ -1499,11 +1499,28 @@ describe("handleAttest", () => {
     expect(mockRunAttest).not.toHaveBeenCalled();
   });
 
-  it("version-writes one renewed public hosted-member boundary while preserving Integrating", async () => {
+  it.each(["Integrating", "Shipped"] as const)("preserves public delivery authority while %s", async (lifecycle) => {
     const sourceCandidateId = `sha256:${"a".repeat(64)}`;
     const candidateId = `sha256:${"b".repeat(64)}`;
     const subjectDigest = `sha256:${"c".repeat(64)}`;
     const planId = "11111111-1111-4111-8111-111111111111";
+    const memberTerminus = {
+      vehicle: {
+        kind: "delivery-member" as const,
+        planId,
+        deliverableId: `sha256:${"f".repeat(64)}`,
+        workUnitId: "foo",
+        head: "a".repeat(40),
+      },
+      terminus: {
+        schemaVersion: 1 as const,
+        semanticsVersion: "review-terminus/v1" as const,
+        kind: "owner-accepted" as const,
+        lane: "standard" as const,
+        acceptedBy: "andrew",
+        completedPasses: 2,
+      },
+    };
     const reservation = createStandardReviewReservation({
       candidateId: sourceCandidateId,
       sourceId: "codex-pr",
@@ -1522,14 +1539,17 @@ describe("handleAttest", () => {
         count: 1,
       },
     });
-    const source = projectPublicationBoundary({
-      workUnit: "foo",
-      branch: "feat/foo",
-      candidateId: sourceCandidateId,
-      candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
-      reservation,
-      changeRequest: null,
-    });
+    const source = {
+      ...projectPublicationBoundary({
+        workUnit: "foo",
+        branch: "feat/foo",
+        candidateId: sourceCandidateId,
+        candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+        reservation,
+        changeRequest: null,
+      }),
+      deliveryReviewTermini: [memberTerminus],
+    };
     const deliveryContinuation = {
       schemaVersion: 1 as const,
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
@@ -1542,10 +1562,10 @@ describe("handleAttest", () => {
     };
     mockParseMetaRecord.mockReturnValue({
       branch: "feat/foo",
-      state: "Integrating",
+      state: lifecycle,
       taskList: "tasks-foo.md",
-      currentWorkflow: "integrate-work-unit",
-      nextAction: "resume integration review",
+      currentWorkflow: lifecycle === "Integrating" ? "integrate-work-unit" : "[none]",
+      nextAction: lifecycle === "Integrating" ? "resume integration review" : "[none]",
       lastCompleted: null,
       nextTask: null,
     });
@@ -1590,18 +1610,19 @@ describe("handleAttest", () => {
 
     expect(persistedBoundary).toMatchObject({
       mode: "integration-boundary",
-      locus: "hosted-review-pending",
+      locus: "delivery-status-required",
       workUnit: "foo",
       candidateId,
       candidateSubjectDigest: subjectDigest,
       reservation,
       deliveryContinuation,
-      nextAction: expect.objectContaining({ kind: "continue-hosted-review" }),
+      deliveryReviewTermini: [memberTerminus],
+      nextAction: expect.objectContaining({ kind: "resolve-delivery-status" }),
     });
-    expect(mockParseMetaRecord.mock.results.at(-1)?.value).toMatchObject({ state: "Integrating" });
+    expect(mockParseMetaRecord.mock.results.at(-1)?.value).toMatchObject({ state: lifecycle });
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
       status: "attested",
-      locus: { locus: "hosted-review-pending", candidateId },
+      locus: { locus: "delivery-status-required", candidateId },
     });
   });
 
@@ -1715,7 +1736,7 @@ describe("handleAttest", () => {
     await handleAttest("foo", { json: true, newRoot: true });
 
     expect(persistedBoundary).toMatchObject({
-      locus: "hosted-review-pending",
+      locus: "delivery-status-required",
       candidateId,
       candidateSubjectDigest: subjectDigest,
       reservation,
@@ -1724,7 +1745,7 @@ describe("handleAttest", () => {
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
       status: "attested",
       operation: "re-root",
-      locus: { locus: "hosted-review-pending", candidateId },
+      locus: { locus: "delivery-status-required", candidateId },
     });
   });
 
@@ -1845,7 +1866,30 @@ describe("handleAttest", () => {
     });
     expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
       status: "attested",
-      locus: { locus: "hosted-review-pending", candidateId },
+      locus: { locus: "delivery-status-required", candidateId },
+    });
+  });
+
+  it("forwards the exact Candidate and subject selectors on a bound re-root", async () => {
+    const expectedCandidate = `sha256:${"a".repeat(64)}`;
+    const expectedSubject = `sha256:${"b".repeat(64)}`;
+
+    await handleAttest("foo", {
+      json: true,
+      newRoot: true,
+      expectedCandidate,
+      expectedSubject,
+    });
+
+    expect(mockRunAttest).toHaveBeenCalledTimes(1);
+    expect(mockRunAttest.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: {
+        candidateId: expectedCandidate,
+        subjectDigest: expectedSubject,
+      },
     });
   });
 

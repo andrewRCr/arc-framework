@@ -58,7 +58,7 @@ export class LocalReviewAuthorityError extends Error {
  * Authenticate one named member against the work unit resolved at this checkout.
  *
  * @param headObjectId - The member's exact head object id, as named by the operator.
- * @param workUnitIdentity - The work unit the control locus resolves to.
+ * @param workUnitIdentity - The work unit the originating locus resolves to.
  * @param lookup - Delivery read, or `undefined` where none is bound.
  * @returns The authenticated member binding.
  */

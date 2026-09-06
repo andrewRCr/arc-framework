@@ -1,5 +1,11 @@
 /** Entry-sensitive task coverage validation for delivery plans. */
 
+import {
+  isDeliveryTaskAssignable,
+  isWorkUnitVerificationTask,
+  type DeliveryTaskRole,
+} from "./task-inventory.js";
+
 /** Authored delivery-plan entry point. */
 export type DeliveryPlanEntry = "from-tasks" | "from-branch";
 
@@ -7,23 +13,27 @@ export type DeliveryPlanEntry = "from-tasks" | "from-branch";
 export interface DeliveryTaskCoverageInput {
   readonly entry: DeliveryPlanEntry;
   readonly predecessorEntry: DeliveryPlanEntry | null;
-  readonly implementationTaskIds: readonly string[];
-  readonly verificationTaskId: string;
+  readonly tasks: readonly {
+    readonly taskId: string;
+    readonly role: DeliveryTaskRole;
+  }[];
   readonly memberTaskIds: readonly (readonly string[])[];
 }
 
 /** One non-blocking coverage observation. */
 export interface DeliveryTaskCoverageAdvisory {
-  readonly kind: "uncovered-implementation-task";
+  readonly kind: "uncovered-assignable-task";
   readonly taskId: string;
 }
 
 /** One blocking task-coverage defect. */
 export type DeliveryTaskCoverageIssue =
-  | { readonly kind: "uncovered-implementation-task"; readonly taskId: string }
+  | { readonly kind: "uncovered-assignable-task"; readonly taskId: string }
   | { readonly kind: "unknown-task-reference"; readonly taskId: string; readonly memberIndex: number }
-  | { readonly kind: "verification-task-assigned"; readonly memberIndex: number }
+  | { readonly kind: "work-unit-verification-task-assigned"; readonly memberIndex: number }
   | { readonly kind: "member-task-order"; readonly memberIndices: readonly number[] }
+  | { readonly kind: "member-verification-task-boundary"; readonly memberIndices: readonly number[] }
+  | { readonly kind: "member-verification-task-unbound"; readonly taskIds: readonly string[] }
   | { readonly kind: "entry-changed" };
 
 /** Result of entry-sensitive task coverage validation. */
@@ -40,31 +50,38 @@ export type DeliveryTaskCoverageResult =
 export function validateDeliveryTaskCoverage(
   input: DeliveryTaskCoverageInput,
 ): DeliveryTaskCoverageResult {
+  const assignableTaskIds = input.tasks
+    .filter(isDeliveryTaskAssignable)
+    .map((task) => task.taskId);
+  const workUnitVerificationTaskIds = new Set(input.tasks
+    .filter(isWorkUnitVerificationTask)
+    .map((task) => task.taskId));
   const assignedTaskIds = new Set(input.memberTaskIds.flat());
-  const uncovered = input.implementationTaskIds.filter((taskId) => !assignedTaskIds.has(taskId));
+  const uncovered = assignableTaskIds.filter((taskId) => !assignedTaskIds.has(taskId));
   const issues: DeliveryTaskCoverageIssue[] = [];
   if (input.predecessorEntry !== null && input.predecessorEntry !== input.entry) {
     issues.push({ kind: "entry-changed" });
   }
-  const knownTaskIds = new Set([
-    ...input.implementationTaskIds,
-    input.verificationTaskId,
-  ]);
+  const knownTaskIds = new Set(input.tasks.map((task) => task.taskId));
   for (const [memberIndex, taskIds] of input.memberTaskIds.entries()) {
     for (const taskId of new Set(taskIds)) {
       if (!knownTaskIds.has(taskId)) {
         issues.push({ kind: "unknown-task-reference", taskId, memberIndex });
       }
     }
-    if (taskIds.includes(input.verificationTaskId)) {
-      issues.push({ kind: "verification-task-assigned", memberIndex });
+    if (taskIds.some((taskId) => workUnitVerificationTaskIds.has(taskId))) {
+      issues.push({ kind: "work-unit-verification-task-assigned", memberIndex });
     }
   }
   const memberTaskOrder = findMemberTaskOrderIssue(input);
   if (memberTaskOrder !== null) issues.push(memberTaskOrder);
+  const memberVerificationTaskBoundary = findMemberVerificationTaskBoundaryIssue(input);
+  if (memberVerificationTaskBoundary !== null) issues.push(memberVerificationTaskBoundary);
+  const memberVerificationTaskUnbound = findMemberVerificationTaskUnboundIssue(input);
+  if (memberVerificationTaskUnbound !== null) issues.push(memberVerificationTaskUnbound);
   if (input.entry === "from-tasks") {
     issues.push(...uncovered.map((taskId) => ({
-      kind: "uncovered-implementation-task" as const,
+      kind: "uncovered-assignable-task" as const,
       taskId,
     })));
   }
@@ -76,15 +93,94 @@ export function validateDeliveryTaskCoverage(
   }
   return {
     status: "valid",
-    advisories: uncovered.map((taskId) => ({ kind: "uncovered-implementation-task", taskId })),
+    advisories: uncovered.map((taskId) => ({ kind: "uncovered-assignable-task", taskId })),
   };
+}
+
+function findMemberVerificationTaskBoundaryIssue(
+  input: DeliveryTaskCoverageInput,
+): Extract<DeliveryTaskCoverageIssue, {
+  readonly kind: "member-verification-task-boundary";
+}> | null {
+  const taskById = new Map(input.tasks.map((task, position) => [task.taskId, { ...task, position }]));
+  const verifierOwners = new Map<string, number[]>();
+  for (const [memberIndex, taskIds] of input.memberTaskIds.entries()) {
+    for (const taskId of new Set(taskIds)) {
+      const task = taskById.get(taskId);
+      if (task?.role.kind === "verification" && task.role.scope === "member") {
+        verifierOwners.set(taskId, [...(verifierOwners.get(taskId) ?? []), memberIndex]);
+      }
+    }
+  }
+  const offendingMemberIndices = input.memberTaskIds.flatMap((taskIds, memberIndex) => {
+    const verifierTaskIds = [...new Set(taskIds)].filter((taskId) => {
+      const task = taskById.get(taskId);
+      return task?.role.kind === "verification" && task.role.scope === "member";
+    });
+    const finalTask = findFinalAssignableTask(taskIds, taskById);
+    if (finalTask === undefined) return [];
+    const verifierTaskId = verifierTaskIds[0];
+    return verifierTaskIds.length === 1
+      && verifierTaskId === finalTask.taskId
+      && verifierOwners.get(verifierTaskId)?.length === 1
+      ? [] : [memberIndex];
+  });
+
+  if (offendingMemberIndices.length === 0) return null;
+  return {
+    kind: "member-verification-task-boundary",
+    memberIndices: offendingMemberIndices,
+  };
+}
+
+function findMemberVerificationTaskUnboundIssue(
+  input: DeliveryTaskCoverageInput,
+): Extract<DeliveryTaskCoverageIssue, {
+  readonly kind: "member-verification-task-unbound";
+}> | null {
+  const taskById = new Map(input.tasks.map((task, position) => [task.taskId, { ...task, position }]));
+  const memberBoundaryTaskIds = new Set(input.memberTaskIds.flatMap((taskIds) => {
+    const finalTask = findFinalAssignableTask(taskIds, taskById);
+    return finalTask === undefined ? [] : [finalTask.taskId];
+  }));
+  const unboundTaskIds = input.tasks.flatMap((task) => (
+    task.role.kind === "verification"
+      && task.role.scope === "member"
+      && !memberBoundaryTaskIds.has(task.taskId)
+      ? [task.taskId]
+      : []
+  ));
+
+  if (unboundTaskIds.length === 0) return null;
+  return {
+    kind: "member-verification-task-unbound",
+    taskIds: unboundTaskIds,
+  };
+}
+
+function findFinalAssignableTask(
+  taskIds: readonly string[],
+  taskById: ReadonlyMap<string, DeliveryTaskCoverageInput["tasks"][number] & {
+    readonly position: number;
+  }>,
+) {
+  return [...new Set(taskIds)]
+    .flatMap((taskId) => {
+      const task = taskById.get(taskId);
+      return task !== undefined && isDeliveryTaskAssignable(task) ? [task] : [];
+    })
+    .sort((left, right) => left.position - right.position)
+    .at(-1);
 }
 
 function findMemberTaskOrderIssue(
   input: DeliveryTaskCoverageInput,
 ): Extract<DeliveryTaskCoverageIssue, { readonly kind: "member-task-order" }> | null {
+  const assignableTaskIds = input.tasks
+    .filter(isDeliveryTaskAssignable)
+    .map((task) => task.taskId);
   const positionByTaskId = new Map(
-    input.implementationTaskIds.map((taskId, position) => [taskId, position]),
+    assignableTaskIds.map((taskId, position) => [taskId, position]),
   );
   const positionsByMember = input.memberTaskIds.map((taskIds) => [...new Set(taskIds)]
     .flatMap((taskId) => {
@@ -121,7 +217,7 @@ function findMemberTaskOrderIssue(
   }
 
   const memberTaskSets = input.memberTaskIds.map((taskIds) => new Set(taskIds));
-  for (const taskId of input.implementationTaskIds) {
+  for (const taskId of assignableTaskIds) {
     const owners = memberTaskSets.flatMap((taskIds, memberIndex) => taskIds.has(taskId) ? [memberIndex] : []);
     const firstOwner = owners[0];
     const lastOwner = owners.at(-1);

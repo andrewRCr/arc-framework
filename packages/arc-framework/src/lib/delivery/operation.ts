@@ -7,6 +7,7 @@ import { validateDeliveryPlanRecord } from "./plan.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
   DeliveryCanonicalDigestSchema,
+  DeliveryCandidateCleanupHeadV1Schema,
   DeliveryLandEffectV1Schema,
   DeliveryHostEffectIdentityV1Schema,
   DeliveryOperationCommonV1Schema,
@@ -39,7 +40,15 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
     }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
-    .extend({ ...reservationFields, kind: z.literal("teardown") }),
+    .extend({
+      ...reservationFields,
+      kind: z.literal("teardown"),
+      mode: z.enum(["member", "closeout-residue"]),
+      candidateHeads: z.array(DeliveryCandidateCleanupHeadV1Schema).refine(
+        (heads) => new Set(heads.map(({ deliverableId }) => deliverableId)).size === heads.length,
+        "candidate cleanup heads must be distinct",
+      ),
+    }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
     .extend({ ...reservationFields, kind: z.literal("publish"), effect: DeliveryPublishEffectV1Schema }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
@@ -47,6 +56,7 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       ...reservationFields,
       kind: z.literal("land"),
       mode: z.enum(["sequential", "native"]),
+      nativeArm: z.enum(["linked-single", "linked-atomic"]).nullable(),
       effect: DeliveryLandEffectV1Schema,
     }),
   DeliveryOperationCommonV1Schema.omit({ stateRevision: true, boundPlanDigest: true })
@@ -259,6 +269,17 @@ export function validateDeliveryActiveOperation(
     || canonicalize(operation.requested.members.map((member) => member.deliverableId)) !== affectedBytes) {
     return { status: "blocked", reason: "state-invalid" };
   }
+  if (operation.kind === "teardown") {
+    const candidateIds = operation.candidateHeads.map(({ deliverableId }) => deliverableId);
+    const allStateIds = parsedState.data.members.map(({ deliverableId }) => deliverableId);
+    if ((operation.mode === "member"
+      && (operation.affectedDeliverableIds.length !== 1 || candidateIds.length !== 0))
+      || (operation.mode === "closeout-residue"
+        && (canonicalize(operation.affectedDeliverableIds) !== canonicalize(allStateIds)
+          || canonicalize(candidateIds) !== canonicalize(allStateIds)))) {
+      return { status: "blocked", reason: "state-invalid" };
+    }
+  }
   if (operation.kind === "rewrite" && operation.terminalAuthoringMovement !== undefined
     && ((operation.mode !== "provider-refresh" && operation.mode !== "provider-adoption")
       || !terminalAuthoringMovementMatchesState(parsedState.data, operation.terminalAuthoringMovement))) {
@@ -389,6 +410,24 @@ export function reserveDeliveryOperation(
     || canonicalize(parsedRequest.data.requested.members.map((member) => member.deliverableId)) !== affectedBytes) {
     return { status: "refused", reason: "member-sequence-invalid" };
   }
+  if (parsedRequest.data.kind === "teardown") {
+    const candidateIds = parsedRequest.data.candidateHeads.map(({ deliverableId }) => deliverableId);
+    if (parsedRequest.data.mode === "member") {
+      if (parsedRequest.data.affectedDeliverableIds.length !== 1 || candidateIds.length !== 0) {
+        return { status: "refused", reason: "operation-invalid" };
+      }
+    } else {
+      const allIds = plan.members.map(({ deliverableId }) => deliverableId);
+      if (canonicalize(parsedRequest.data.affectedDeliverableIds) !== canonicalize(allIds)
+        || canonicalize(candidateIds) !== canonicalize(allIds)) {
+        return { status: "refused", reason: "operation-invalid" };
+      }
+    }
+  }
+  if (parsedRequest.data.kind === "land"
+    && ((parsedRequest.data.mode === "native") !== (parsedRequest.data.nativeArm !== null))) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
   if (parsedRequest.data.kind === "rewrite" && parsedRequest.data.terminalAuthoringMovement !== undefined
     && ((parsedRequest.data.mode !== "provider-refresh" && parsedRequest.data.mode !== "provider-adoption")
       || !terminalAuthoringMovementMatchesState(
@@ -421,6 +460,7 @@ export function reserveDeliveryOperation(
       before: parsedRequest.data.before,
       requested: parsedRequest.data.requested,
       ...(parsedRequest.data.kind === "rewrite" || parsedRequest.data.kind === "land"
+        || parsedRequest.data.kind === "teardown"
         ? { mode: parsedRequest.data.mode }
         : {}),
       ...(parsedRequest.data.kind === "rewrite"
@@ -435,11 +475,21 @@ export function reserveDeliveryOperation(
         && parsedRequest.data.reviewFixVerificationDeliverableIds !== undefined
         ? { reviewFixVerificationDeliverableIds: parsedRequest.data.reviewFixVerificationDeliverableIds }
         : {}),
+      ...(parsedRequest.data.kind === "teardown"
+        ? { candidateHeads: parsedRequest.data.candidateHeads }
+        : {}),
       ...(parsedRequest.data.kind === "publish" || parsedRequest.data.kind === "land"
         || parsedRequest.data.kind === "top-remedy"
         ? { effect: parsedRequest.data.effect }
         : {}),
       ...(parsedRequest.data.kind === "land" ? { effectIdentity: null } : {}),
+      ...(parsedRequest.data.kind === "land"
+        ? {
+            native: parsedRequest.data.nativeArm === null
+              ? null
+              : { arm: parsedRequest.data.nativeArm, phase: "prepared" as const },
+          }
+        : {}),
     },
   });
   if (!reserved.success) return { status: "refused", reason: "operation-invalid" };
@@ -449,6 +499,42 @@ export function reserveDeliveryOperation(
 export type AttachDeliveryOperationEffectIdentityResult =
   | { readonly status: "attached" | "already-attached"; readonly state: DeliveryStateV1 }
   | { readonly status: "refused"; readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "identity-invalid" | "identity-conflict" };
+
+export type BeginNativeDeliverySubmissionResult =
+  | { readonly status: "begun"; readonly state: DeliveryStateV1 }
+  | {
+      readonly status: "refused";
+      readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "already-submitting";
+    };
+
+/** Advance one exact prepared native reservation to submitting before provider access. */
+export function beginNativeDeliverySubmission(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+  operationId: string,
+): BeginNativeDeliverySubmissionResult {
+  const active = validateDeliveryActiveOperation(current);
+  if (active.status === "blocked") {
+    return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
+  }
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.native === null || active.operation.operationId !== operationId) {
+    return { status: "refused", reason: "wrong-operation" };
+  }
+  if (active.operation.native.phase !== "prepared" || active.operation.effectIdentity !== null) {
+    return { status: "refused", reason: "already-submitting" };
+  }
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...active.state,
+    activeOperation: {
+      ...active.operation,
+      stateRevision: current.revision,
+      native: { ...active.operation.native, phase: "submitting" },
+    },
+  });
+  return parsed.success
+    ? { status: "begun", state: parsed.data }
+    : { status: "refused", reason: "state-invalid" };
+}
 
 /** Attach one provider-assigned async identity to the existing land reservation. */
 export function attachDeliveryOperationEffectIdentity(
@@ -461,6 +547,7 @@ export function attachDeliveryOperationEffectIdentity(
     return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
   }
   if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.native?.phase !== "submitting"
     || active.operation.operationId !== operationId) {
     return { status: "refused", reason: "wrong-operation" };
   }

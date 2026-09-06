@@ -34,6 +34,7 @@ export type DeliveryReviewFixDriveStep<TAction extends DeliveryReviewFixDriveDis
       readonly status: "boundary-carry-required";
       readonly planId: string;
       readonly stateRevision: number;
+      readonly candidateSubjectDigest: string;
       readonly recommendedActionText?: string;
     }
   | ({ readonly status: Exclude<string, "dispatch"> } & Readonly<Record<string, unknown>>);
@@ -55,10 +56,12 @@ function isDeliveryReviewFixBoundaryCarryStep<TAction extends DeliveryReviewFixD
   readonly status: "boundary-carry-required";
   readonly planId: string;
   readonly stateRevision: number;
+  readonly candidateSubjectDigest: string;
 }> {
   return step.status === "boundary-carry-required"
     && "planId" in step && typeof step.planId === "string"
-    && "stateRevision" in step && typeof step.stateRevision === "number";
+    && "stateRevision" in step && typeof step.stateRevision === "number"
+    && "candidateSubjectDigest" in step && typeof step.candidateSubjectDigest === "string";
 }
 
 export type DeliveryReviewFixDriveEffect =
@@ -86,15 +89,25 @@ export type DeliveryReviewFixDriveEffect =
       readonly afterHead: string;
     };
 
+/** Facts the driver established itself and hands to every dispatched action. */
+export interface DeliveryReviewFixDriveExecuteContext {
+  /** Head of the machine-owned record commit this drive settled most recently; `null` before any. */
+  readonly settledRecordEffectHead: string | null;
+}
+
 export interface DeliveryReviewFixDrivePorts<TAction extends DeliveryReviewFixDriveDispatchAction> {
   project(): Promise<{
     readonly step: DeliveryReviewFixDriveStep<TAction>;
     readonly progress: DeliveryReviewFixDriveProgress;
   }>;
-  execute(action: TAction): Promise<
+  execute(action: TAction, context: DeliveryReviewFixDriveExecuteContext): Promise<
     { readonly status: string; readonly replayed?: boolean } & Readonly<Record<string, unknown>>
   >;
-  carryBoundary?(input: { readonly planId: string; readonly stateRevision: number }): Promise<
+  carryBoundary?(input: {
+    readonly planId: string;
+    readonly stateRevision: number;
+    readonly candidateSubjectDigest: string;
+  }): Promise<
     | {
         readonly status: "carried";
         readonly path: string;
@@ -211,6 +224,7 @@ export async function driveDeliveryReviewFixContinuation<
 >(ports: DeliveryReviewFixDrivePorts<TAction>): Promise<Readonly<Record<string, unknown>>> {
   const effectLog: DeliveryReviewFixDriveEffect[] = [];
   const visited = new Set<string>();
+  let settledRecordEffectHead: string | null = null;
   let steps = 0;
   for (;;) {
     steps += 1;
@@ -241,6 +255,9 @@ export async function driveDeliveryReviewFixContinuation<
         };
       }
       effectLog.push(...settlement.effects);
+      for (const effect of settlement.effects) {
+        if (effect.kind === "commit") settledRecordEffectHead = effect.head;
+      }
       if (settlement.status === "settled") {
         const fingerprint = canonicalize({
           action: { kind: "record-settlement", effects: settlement.effects },
@@ -267,6 +284,7 @@ export async function driveDeliveryReviewFixContinuation<
           kind: "boundary-carry",
           planId: projected.step.planId,
           stateRevision: projected.step.stateRevision,
+          candidateSubjectDigest: projected.step.candidateSubjectDigest,
         },
         progress: projected.progress,
       });
@@ -296,6 +314,7 @@ export async function driveDeliveryReviewFixContinuation<
       const carried = await ports.carryBoundary({
         planId: projected.step.planId,
         stateRevision: projected.step.stateRevision,
+        candidateSubjectDigest: projected.step.candidateSubjectDigest,
       });
       if (carried.status === "refused") {
         return {
@@ -336,7 +355,7 @@ export async function driveDeliveryReviewFixContinuation<
       };
     }
     visited.add(fingerprint);
-    const result = await ports.execute(projected.step.action);
+    const result = await ports.execute(projected.step.action, { settledRecordEffectHead });
     effectLog.push({
       kind: result.replayed === true ? "no-op-replay" : "dispatch",
       actionKind: projected.step.action.kind,

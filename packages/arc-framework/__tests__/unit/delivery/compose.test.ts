@@ -73,22 +73,28 @@ describe("delivery composition checks", () => {
     ];
     expect(validateDeliveryCompositionCoverage({
       entry: "from-tasks",
-      implementationTaskIds: ["1.1", "1.2", "1.3"],
-      verificationTaskId: "2.1",
+      tasks: [
+        { taskId: "1.1", role: { kind: "verification" as const, scope: "member" } },
+        { taskId: "1.2", role: { kind: "implementation" as const } },
+        { taskId: "1.3", role: { kind: "verification" as const, scope: "member" } },
+      ],
       members,
     })).toEqual({
       status: "refused",
-      issues: [{ kind: "uncovered-implementation-task", taskId: "1.2" }],
+      issues: [{ kind: "uncovered-assignable-task", taskId: "1.2" }],
     });
     expect(validateDeliveryCompositionCoverage({
       entry: "from-branch",
-      implementationTaskIds: ["1.1", "1.2", "1.3"],
-      verificationTaskId: "2.1",
+      tasks: [
+        { taskId: "1.1", role: { kind: "verification" as const, scope: "member" } },
+        { taskId: "1.2", role: { kind: "implementation" as const } },
+        { taskId: "1.3", role: { kind: "verification" as const, scope: "member" } },
+      ],
       members,
     })).toEqual({
       status: "valid",
       advisories: [{
-        kind: "uncovered-implementation-task",
+        kind: "uncovered-assignable-task",
         taskId: "1.2",
         adjacentMemberChunkKey: "first",
       }],
@@ -98,8 +104,10 @@ describe("delivery composition checks", () => {
   it("accepts fully covered authored tasks without advisories", () => {
     expect(validateDeliveryCompositionCoverage({
       entry: "from-tasks",
-      implementationTaskIds: ["1.1", "1.2"],
-      verificationTaskId: "2.1",
+      tasks: ["1.1", "1.2"].map((taskId) => ({
+        taskId,
+        role: { kind: "verification" as const, scope: "member" },
+      })),
       members: [
         { chunkKey: "first", taskIds: ["1.1"] },
         { chunkKey: "second", taskIds: ["1.2"] },
@@ -107,11 +115,27 @@ describe("delivery composition checks", () => {
     })).toEqual({ status: "valid", advisories: [] });
   });
 
+  it("refuses an adjacent pair that shares one closing member verifier", () => {
+    expect(validateDeliveryCompositionCoverage({
+      entry: "from-tasks",
+      tasks: [
+        { taskId: "1.1", role: { kind: "implementation" as const } },
+        { taskId: "1.2", role: { kind: "verification" as const, scope: "member" } },
+      ],
+      members: [
+        { chunkKey: "first", taskIds: ["1.1", "1.2"] },
+        { chunkKey: "second", taskIds: ["1.2"] },
+      ],
+    })).toEqual({
+      status: "refused",
+      issues: [{ kind: "member-verification-task-boundary", memberIndices: [0, 1] }],
+    });
+  });
+
   it("refuses a member with no closing task even when all tasks are covered elsewhere", () => {
     expect(validateDeliveryCompositionCoverage({
       entry: "from-branch",
-      implementationTaskIds: ["1.1"],
-      verificationTaskId: "2.1",
+      tasks: [{ taskId: "1.1", role: { kind: "verification", scope: "member" } }],
       members: [
         { chunkKey: "attributed", taskIds: ["1.1"] },
         { chunkKey: "review-fixes", taskIds: [] },

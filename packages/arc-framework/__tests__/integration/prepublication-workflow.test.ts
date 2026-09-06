@@ -126,6 +126,9 @@ describe("prepublication workflow boundary", () => {
       expect(verification).toContain("At least one executable check fails");
       expect(verification).toContain("Present-tense architecture and completion claims distinguish");
       expect(verification).toContain("Every deferred part of original intent");
+      expect(verification).toContain("member-scope verification tasks");
+      expect(verification).toContain("sole terminal work-unit verification task");
+      expect(verification).not.toContain("without becoming additional verification tasks");
       expect(taskLoop).toContain("    - validate-criteria");
       expect(taskLoop).not.toContain("    - adversarial-review");
       expect(validateCriteria).toContain("arc:\n  methods:\n    - adversarial-review");
@@ -159,6 +162,11 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop.slice(unresolvedBranch, resolvedBranch)).not.toContain("Mark the task `[x]`");
       expect(validateCriteria).toMatch(/do not re-derive member\s+criteria/u);
       expect(validateCriteria).toMatch(/walk the seam group\s+and union coherence/u);
+      expect(validateCriteria).toMatch(
+        /criteria-slice:[\s\S]*?span:[\s\S]*?diff:[\s\S]*?reachability:[\s\S]*?boundary-order-deviation:[\s\S]*?criteria:[\s\S]*?- locus:[\s\S]*?criterion-digest:/u,
+      );
+      expect(validateCriteria).not.toContain("- text:");
+      expect(validateCriteria).toMatch(/criterion digest[\s\S]*?(?:insertion|reorder)[\s\S]*?unresolved/u);
     }
   });
 
@@ -197,10 +205,14 @@ describe("prepublication workflow boundary", () => {
       const selfReview = verification.indexOf("execute it against the local aggregate diff");
       const tierThree = verification.indexOf("Run the full quality gate suite");
       const attest = verification.indexOf("arc attest {name} --json");
+      const reRoot = verification.indexOf("`blocked / establish-new-root`");
       expect(cleanup).toBeGreaterThan(-1);
       expect(selfReview).toBeGreaterThan(cleanup);
       expect(tierThree).toBeGreaterThan(selfReview);
       expect(attest).toBeGreaterThan(tierThree);
+      expect(reRoot).toBeGreaterThan(attest);
+      expect(verification).toContain("execute its exact `continuation.argv`");
+      expect(verification).toContain("`attested / re-root`");
       expect(preparation).not.toContain("execute it against the local aggregate diff");
       expect(integration).not.toContain("After settlement, clean the WU content");
 

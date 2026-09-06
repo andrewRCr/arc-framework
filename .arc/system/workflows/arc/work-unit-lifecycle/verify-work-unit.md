@@ -13,8 +13,9 @@ arc:
 # Workflow: Verify Completion
 
 Every task list ends with a verification phase containing a single task that points here. Delivery-member closing
-tasks may fire criteria validation at member scope without becoming additional verification tasks or loading this
-workflow. The terminal task description is intentionally thin — this workflow is the authoritative protocol.
+tasks fire criteria validation as member-scope verification tasks without loading this workflow. They remain distinct
+from the sole terminal work-unit verification task. The terminal task description is intentionally thin — this
+workflow is the authoritative protocol.
 Complete the first two steps below, mark the single verification task `[x]` with completion notes covering what
 was verified (see [Completion Notes](#completion-notes)), stage every verified reviewable edit, then complete Step 3.
 
@@ -90,8 +91,7 @@ original text preserves intent; annotations capture reality.
 
 **Key convention:** Success criteria are only marked during this verification phase, not
 during implementation. Implementation tasks get checked as work progresses; success criteria
-get checked when the implementer steps back and validates outcomes against the upstream design
-artifact.
+get checked when the implementer validates the scoped criteria against implementation evidence.
 
 Before closing the criteria pass, verify delivery integrity:
 
@@ -110,6 +110,12 @@ open, missing, unbound, unreadable, or malformed task list refuses before Candid
 refuses while verified reviewable content is absent from the staged subject, naming what is missing. The managed
 record and meta projection it writes are staged with it, so they ride the verification commit. A repeated invocation
 over the same subject is a no-op.
+
+Dispatch only on the typed result. `attested` and `unchanged` continue to Candidate preparation. At this exact
+closeout point, `blocked / establish-new-root` follows freshly completed Steps 1 and 2 plus structural task-list
+closure: execute its exact `continuation.argv`, then require `attested / re-root` before continuing. A missing or
+malformed continuation, any other action or result, or a blocked result reached without fresh full verification
+stops; never infer or reconstruct a re-root command from prose.
 
 ## Completion Notes
 

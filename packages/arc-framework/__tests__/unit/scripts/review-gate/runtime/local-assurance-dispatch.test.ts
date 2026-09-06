@@ -110,7 +110,7 @@ function compose() {
 }
 
 describe("local review assurance dispatch", () => {
-  it("composes work-unit assurance from the control locus's meta for a member", async () => {
+  it("composes work-unit assurance from the originating locus's meta for a member", async () => {
     live.meta = meta();
     const composed = await compose().composeAssurance(authority(memberVehicle));
 
@@ -187,7 +187,7 @@ describe("local review assurance dispatch", () => {
     )).resolves.not.toBe(published.guidance.guidanceDigest);
   });
 
-  it("resolves respond's actors from the control locus without naming a member", async () => {
+  it("resolves respond's actors from the originating locus without naming a member", async () => {
     // Respond consumes only the author and runtime identities, and the delivery
     // read is what a selector would reach — an exec fake proves neither ran.
     const respond = createRespondDependencies({ exec: vi.fn() as never, cwd: "/repo" });

@@ -9,6 +9,7 @@ import {
   DeliveryCanonicalDigestSchema,
   DeliveryOpaqueIdSchema,
   DeliveryPlanIdSchema,
+  DeliveryTaskInventoryParentV1Schema,
 } from "./schema.js";
 
 const DistinctOpaqueSequenceSchema = z.array(DeliveryOpaqueIdSchema).refine(
@@ -43,11 +44,7 @@ export const DeliveryAuthoringDesignInventorySchema = z.strictObject({
 /** Runtime authority for the progress-insensitive parent-task inventory. */
 export const DeliveryAuthoringTaskInventorySchema = z.strictObject({
   inventoryDigest: DeliveryCanonicalDigestSchema,
-  implementation: z.array(z.strictObject({
-    taskId: ParentTaskIdSchema,
-    semanticDigest: DeliveryCanonicalDigestSchema,
-  })),
-  verificationTaskId: ParentTaskIdSchema,
+  parents: z.array(DeliveryTaskInventoryParentV1Schema),
 });
 
 const DeliveryAuthoringSnapshotV1ObjectSchema = z.strictObject({
@@ -144,10 +141,7 @@ export function createDeliveryAuthoringSnapshot(
     identityOrder: {
       designArtifactIds: design.artifacts.map((artifact) => artifact.artifactId),
       designElementIds: design.elements.map((element) => element.elementId),
-      taskIds: [
-        ...tasks.implementation.map((task) => task.taskId),
-        tasks.verificationTaskId,
-      ],
+      taskIds: tasks.parents.map((task) => task.taskId),
       sourceIds: input.source.identitySequence,
     },
   });

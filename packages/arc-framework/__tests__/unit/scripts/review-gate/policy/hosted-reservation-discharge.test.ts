@@ -2,10 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { DeliveryHostPort } from
+  "../../../../../src/lib/delivery/host.js";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
-import type { DeliveryHostPort } from "../../../../../src/lib/delivery/host.js";
 import type { GitExec } from "../../../../../src/lib/git/index.js";
 import {
   createReviewRequirement,
@@ -27,6 +28,34 @@ const PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
 const MEMBER_ONE = `sha256:${"3".repeat(64)}`;
 const MEMBER_TWO = `sha256:${"4".repeat(64)}`;
 const target = (headSha: string) => ({ repository: "arc-framework/example", pullRequest: 42, headSha });
+
+function deliveryHost(
+  requests: Readonly<Record<string, {
+    readonly headSha: string;
+    readonly headRef?: string;
+    readonly state?: "open" | "merged";
+  }>>,
+): Pick<DeliveryHostPort, "readRequest"> {
+  return {
+    readRequest: async (repository, binding) => {
+      const request = requests[binding.changeRequestId];
+      if (request === undefined) return { status: "absent" };
+      return {
+        status: "observed",
+        request: {
+          binding,
+          repository,
+          headRepository: repository,
+          headRef: request.headRef ?? `member-${binding.changeRequestId}`,
+          headSha: request.headSha,
+          baseRef: "main",
+          state: request.state ?? "open",
+          draft: false,
+        },
+      };
+    },
+  };
+}
 const delegatedAdmission = (
   vehicle: ReturnType<typeof DeliveryReviewMemberVehicleSchema.parse>,
 ) => ({
@@ -70,34 +99,6 @@ function unresolvedApplicability(
   });
   if (projection.state !== "decision-required") throw new Error("expected unresolved applicability");
   return projection;
-}
-
-function deliveryHost(
-  requests: Readonly<Record<string, {
-    readonly headSha: string;
-    readonly headRef?: string;
-    readonly state?: "open" | "merged";
-  }>>,
-): Pick<DeliveryHostPort, "readRequest"> {
-  return {
-    readRequest: async (repository, binding) => {
-      const request = requests[binding.changeRequestId];
-      if (request === undefined) return { status: "absent" };
-      return {
-        status: "observed",
-        request: {
-          binding,
-          repository,
-          headRepository: repository,
-          headRef: request.headRef ?? `member-${binding.changeRequestId}`,
-          headSha: request.headSha,
-          baseRef: "main",
-          state: request.state ?? "open",
-          draft: false,
-        },
-      };
-    },
-  };
 }
 
 function attempt(
@@ -339,12 +340,14 @@ describe("hosted reservation discharge", () => {
           status: "resolved",
           targets: [
             {
-              planId: PLAN_ID, deliverableId: MEMBER_ONE, workUnitId: "delivery", ref: null,
+              planId: PLAN_ID, deliverableId: MEMBER_ONE,
+              workUnitId: "delivery", ref: null,
               providerId: "github", changeRequestId: "41", base: oid("8"), head: oid("9"),
               position: 1, memberCount: 2, chunkKey: "member-1", title: "Member 1",
             },
             {
-              planId: PLAN_ID, deliverableId: MEMBER_TWO, workUnitId: "delivery", ref: null,
+              planId: PLAN_ID, deliverableId: MEMBER_TWO,
+              workUnitId: "delivery", ref: null,
               providerId: "github", changeRequestId: "42", base: oid("9"), head: oid("f"),
               position: 2, memberCount: 2, chunkKey: "member-2", title: "Member 2",
             },
@@ -355,33 +358,103 @@ describe("hosted reservation discharge", () => {
         "41": { headSha: oid("a"), state: "merged" },
         "42": { headSha: oid("b"), state: "merged" },
       }),
-    })).resolves.toEqual({
+    })).resolves.toMatchObject({
       status: "resolved",
       kind: "delivery",
       targets: [
-        {
-          repository: "arc-framework/example", pullRequest: 41,
-          baseRevision: oid("0"), headSha: oid("a"),
-          position: 1, memberCount: 2, chunkKey: "member-1", title: "Member 1",
-          vehicle: {
-            kind: "delivery-member", planId: PLAN_ID, deliverableId: MEMBER_ONE,
-            workUnitId: "delivery", head: oid("a"),
-          },
-        },
-        {
-          repository: "arc-framework/example", pullRequest: 42,
-          baseRevision: oid("a"), headSha: oid("b"),
-          position: 2, memberCount: 2, chunkKey: "member-2", title: "Member 2",
-          vehicle: {
-            kind: "delivery-member", planId: PLAN_ID, deliverableId: MEMBER_TWO,
-            workUnitId: "delivery", head: oid("b"),
-          },
-        },
+        { pullRequest: 41, baseRevision: oid("0"), headSha: oid("a") },
+        { pullRequest: 42, baseRevision: oid("a"), headSha: oid("b") },
       ],
     });
   });
 
-  it("fails closed when the retained request does not match its open member head", async () => {
+  it("preserves retained authored member spans after one aggregate landing advances the Candidate base", async () => {
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      singleton: { ...target(oid("f")), baseRevision: oid("d") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_ONE,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("a"),
+              position: 1, memberCount: 2, chunkKey: "member-1", title: "Member 1",
+            },
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_TWO,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "42", base: oid("a"), head: oid("b"),
+              position: 2, memberCount: 2, chunkKey: "member-2", title: "Member 2",
+            },
+          ],
+        }),
+      },
+      host: deliveryHost({
+        "41": { headSha: oid("a"), state: "merged" },
+        "42": { headSha: oid("b"), state: "merged" },
+      }),
+    })).resolves.toMatchObject({
+      status: "resolved",
+      kind: "delivery",
+      targets: [
+        { pullRequest: 41, baseRevision: oid("0"), headSha: oid("a") },
+        { pullRequest: 42, baseRevision: oid("a"), headSha: oid("b") },
+      ],
+    });
+  });
+
+  it("keeps sequential reconstruction when only a merged prefix retains authored coordinates", async () => {
+    await expect(resolveHostedReservationTargets({
+      workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      singleton: { ...target(oid("f")), baseRevision: oid("d") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved",
+          targets: [
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_ONE,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("a"),
+              position: 1, memberCount: 2, chunkKey: "member-1", title: "Member 1",
+            },
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_TWO,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "42", base: oid("a"), head: oid("b"),
+              position: 2, memberCount: 2, chunkKey: "member-2", title: "Member 2",
+            },
+          ],
+        }),
+      },
+      host: deliveryHost({
+        "41": { headSha: oid("a"), state: "merged" },
+        "42": { headSha: oid("c"), state: "merged" },
+      }),
+    })).resolves.toMatchObject({
+      status: "resolved",
+      kind: "delivery",
+      targets: [
+        { pullRequest: 41, baseRevision: oid("d"), headSha: oid("a") },
+        { pullRequest: 42, baseRevision: oid("a"), headSha: oid("c") },
+      ],
+    });
+  });
+
+  it("fails closed when a retained request does not match its open member head", async () => {
     await expect(resolveHostedReservationTargets({
       workUnitId: "delivery",
       reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
@@ -395,7 +468,8 @@ describe("hosted reservation discharge", () => {
         resolveDischargeTargets: async () => ({
           status: "resolved",
           targets: [{
-            planId: PLAN_ID, deliverableId: MEMBER_ONE, workUnitId: "delivery", ref: null,
+            planId: PLAN_ID, deliverableId: MEMBER_ONE,
+            workUnitId: "delivery", ref: null,
             providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("a"),
             position: 1, memberCount: 1, chunkKey: "member-1", title: "Member 1",
           }],
@@ -470,6 +544,59 @@ describe("hosted reservation discharge", () => {
         }),
       },
       host: deliveryHost({ "42": { headSha: oid("d") } }),
+    })).resolves.toEqual({ status: "unavailable", targets: [] });
+  });
+
+  it("retains the prepared terminal review target while its open request advances", async () => {
+    const input = {
+      workUnitId: "delivery",
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"], {
+        kind: "delivery" as const,
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      singleton: { ...target(oid("9")), baseRevision: oid("0") },
+      delivery: {
+        resolveDischargeTargets: async () => ({
+          status: "resolved" as const,
+          targets: [
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_ONE,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "41", base: oid("0"), head: oid("9"),
+              position: 1, memberCount: 2, chunkKey: "member-1", title: "Member 1",
+            },
+            {
+              planId: PLAN_ID, deliverableId: MEMBER_TWO,
+              workUnitId: "delivery", ref: null,
+              providerId: "github", changeRequestId: "42", base: oid("9"), head: oid("a"),
+              position: 2, memberCount: 2, chunkKey: "member-2", title: "Member 2",
+            },
+          ],
+        }),
+      },
+      host: deliveryHost({
+        "41": { headSha: oid("9") },
+        "42": { headSha: oid("c") },
+      }),
+    };
+
+    await expect(resolveHostedReservationTargets({
+      ...input,
+      preparedTerminal: { deliverableId: MEMBER_TWO, stateHead: oid("a") },
+    })).resolves.toMatchObject({
+      status: "resolved",
+      kind: "delivery",
+      targets: [
+        { headSha: oid("9"), vehicle: { head: oid("9") } },
+        { headSha: oid("a"), vehicle: { head: oid("a") } },
+      ],
+    });
+
+    await expect(resolveHostedReservationTargets({
+      ...input,
+      preparedTerminal: { deliverableId: MEMBER_ONE, stateHead: oid("a") },
     })).resolves.toEqual({ status: "unavailable", targets: [] });
   });
 

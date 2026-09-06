@@ -123,6 +123,24 @@ describe("repository delivery state store", () => {
     });
   });
 
+  it("removes only the exact state revision and adopts prior exact removal", async () => {
+    const records = await stateStore();
+    const current = state();
+    await records.store.publish(PLAN_ID, current, 0);
+
+    await expect(records.store.remove(PLAN_ID, 2))
+      .resolves.toEqual({ status: "refused", reason: "version-conflict" });
+    await expect(records.store.read(PLAN_ID)).resolves.toEqual({
+      status: "ok",
+      value: { revision: 1, value: current },
+    });
+
+    await expect(records.store.remove(PLAN_ID, 1))
+      .resolves.toEqual({ status: "ok", value: { removed: true } });
+    await expect(records.store.remove(PLAN_ID, 1))
+      .resolves.toEqual({ status: "ok", value: { removed: false } });
+  });
+
   it("refuses malformed records and addressed-plan identity mismatches", async () => {
     const records = await stateStore();
 

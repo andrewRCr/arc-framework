@@ -4,7 +4,7 @@ import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";
 import type { CandidateEffectiveCurrentProjection } from
   "../work-unit/candidate-effective-target.js";
-import { readAncestry } from "../work-unit/git-decomposition-object-readers.js";
+import { readAncestry, readCommit } from "../work-unit/git-decomposition-object-readers.js";
 import {
   collectGitCandidateTarget,
   resolveGitCandidateBaseRevision,
@@ -138,16 +138,36 @@ export async function projectGitDeliveryTerminalCoordinateAdvance(input: {
     return stateAdvance;
   }
   if (await readAncestry(localExec, priorHead, currentHead) !== "ancestor") return undefined;
-  const [priorTree, currentTree] = await Promise.all([
+  const [priorTree, currentTree, currentCommit] = await Promise.all([
     localExec("git", ["rev-parse", `${priorHead}^{tree}`]),
     localExec("git", ["rev-parse", `${currentHead}^{tree}`]),
+    readCommit(localExec, currentHead),
   ]);
   const resolvedPriorTree = priorTree.stdout.trim();
   const resolvedCurrentTree = currentTree.stdout.trim();
   if (!isGitObjectId(resolvedPriorTree) || !isGitObjectId(resolvedCurrentTree)) return undefined;
+  const immediateParent = currentCommit?.parents.length === 1
+    ? currentCommit.parents[0]
+    : undefined;
+  const immediateAdvance = immediateParent === undefined || immediateParent === priorHead
+    ? undefined
+    : await projectGitDeliveryTerminalRecordAdvance({
+        cwd: input.cwd,
+        exec: input.exec,
+        workUnitId: input.workUnitId,
+        baseBranch: input.baseBranch,
+        priorHead: immediateParent,
+        currentHead,
+      });
   return {
     priorHead,
     priorTree: resolvedPriorTree,
+    ...(immediateAdvance === undefined ? {} : {
+      alternatePriorCoordinates: [{
+        head: immediateAdvance.priorHead,
+        tree: immediateAdvance.priorTree,
+      }],
+    }),
     currentHead,
     currentTree: resolvedCurrentTree,
     proof: input.candidate.recognition.kind === "machine"

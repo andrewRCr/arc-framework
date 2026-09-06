@@ -881,6 +881,7 @@ function worktreeValue(value: SessionInitEnvelopeValue): Record<string, unknown>
 function phaseAcceptsBoundary(
   sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
   boundary: z.infer<typeof IntegrationBoundaryLocusSchema> | null,
+  workflow: string | null,
   completedRecovery = false,
 ): boolean {
   const candidateLoci = [
@@ -895,11 +896,14 @@ function phaseAcceptsBoundary(
   if (sessionType === "integration") {
     return completedRecovery
       ? boundary === null
-      : boundary !== null && [
-        ...candidateLoci,
-        "publication-pending",
-        "hosted-review-pending",
-      ].includes(boundary.locus);
+      : boundary === null
+        ? workflow === "verify-work-unit"
+        : [
+            ...candidateLoci,
+            "publication-pending",
+            "hosted-review-pending",
+            "delivery-status-required",
+          ].includes(boundary.locus);
   }
   return boundary === null;
 }
@@ -943,6 +947,7 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     if (!phaseAcceptsBoundary(
       activeSession.sessionType,
       activeSession.integrationBoundary,
+      activeSession.currentWorkflow,
       completedIntegrationRecovery,
     )) {
       context.addIssue({
@@ -971,6 +976,7 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     if (!phaseAcceptsBoundary(
       derivedContext.sessionType,
       derivedContext.integrationBoundary,
+      derivedContext.workflow,
       completedIntegrationRecovery,
     )) {
       context.addIssue({

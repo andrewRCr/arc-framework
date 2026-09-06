@@ -99,7 +99,7 @@ export async function projectIntegrationCorrectionRecovery(
 
   if (candidate === "verification-to-public") {
     const boundary = exact.context.integrationBoundary;
-    if (boundary?.locus !== "hosted-review-pending"
+    if (boundary?.locus !== "delivery-status-required"
       || boundary.workUnit !== exact.workUnit
       || boundary.reservation.target.kind !== "delivery"
       || boundary.reservation.target.workUnitId !== exact.workUnit
@@ -107,7 +107,7 @@ export async function projectIntegrationCorrectionRecovery(
       || boundary.deliveryContinuation.planId !== boundary.reservation.target.planId) {
       return {
         status: "refused",
-        message: "verification did not resolve to the exact Candidate-bound delivery continuation",
+        message: "verification did not resolve to the exact Candidate-bound delivery status",
       };
     }
     const projectedLoadSet = replaceWorkflow(input.seed.loadSet, VERIFY_WORKFLOW, INTEGRATE_WORKFLOW);

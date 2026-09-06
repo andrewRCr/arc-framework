@@ -67,7 +67,15 @@ export type DurableDeliveryReviewFixResponseReplay =
 
 export type DurableLocalDeliveryReviewFixAcknowledgementReplay =
   | { readonly status: "none" }
-  | { readonly status: "selected"; readonly verification: VerificationResult }
+  | {
+      readonly status: "settlement-only";
+      readonly operationId: string;
+    }
+  | {
+      readonly status: "selected";
+      readonly operationId: string;
+      readonly verification: VerificationResult;
+    }
   | {
       readonly status: "refused";
       readonly reason:
@@ -147,15 +155,16 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
 }
 
 /**
- * Recover exact verification from a durable local response written before acknowledgement finished.
+ * Recover exact verification or settlement from a durable local response written before acknowledgement finished.
  *
  * @param input - Pending member target and durable disposition records.
- * @returns Exact reusable verification, no match, or a typed ambiguity/refusal.
+ * @returns Exact reusable verification, settlement-only authority, no match, or a typed ambiguity/refusal.
  */
 export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: {
   readonly workUnitId: string;
   readonly planId: string;
   readonly selectedDeliverableId: string;
+  readonly selectedMemberTarget: { readonly head: string; readonly tree: string };
   readonly target: { readonly head: string; readonly tree: string };
   readonly records: readonly ApprovedDispositionRecord[];
 }): DurableLocalDeliveryReviewFixAcknowledgementReplay {
@@ -167,8 +176,8 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
       && record.source.kind === "attested-local"
       && response !== null
       && response.newTarget.kind === "delivery-member"
-      && response.newTarget.headSha === input.target.head
-      && response.newTarget.headTree === input.target.tree;
+      && response.newTarget.headSha === input.selectedMemberTarget.head
+      && response.newTarget.headTree === input.selectedMemberTarget.tree;
   });
   if (candidates.length > 1) {
     return { status: "refused", reason: "review-fix-acknowledgement-replay-ambiguous" };
@@ -181,8 +190,13 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
     || response.fixConsumption.verificationRefs.length === 0) {
     return { status: "refused", reason: "review-fix-acknowledgement-replay-invalid" };
   }
+  if (input.target.head !== response.newTarget.headSha
+    || input.target.tree !== response.newTarget.headTree) {
+    return { status: "settlement-only", operationId: selected.operationId };
+  }
   return {
     status: "selected",
+    operationId: selected.operationId,
     verification: {
       applicability: response.applicability,
       target: input.target,
@@ -293,7 +307,7 @@ export function pendingDeliveryReviewFixCanResumeFromIntegrationStatus(
   return status === "candidate-renewal-required"
     || status === "candidate-verification-required"
     || status === "correction-routing-required"
-    || status === "continue-hosted-review";
+    || status === "resolve-delivery-status";
 }
 
 type VerificationResult = {
@@ -443,11 +457,14 @@ function projectPendingSelectedRefresh(input: {
       planId: input.planId,
       repository: input.request.repository,
       remote: input.request.remote,
-      scope: {
-        kind: "dependent-suffix" as const,
-        selectedDeliverableId: input.selectedDeliverableId,
-      },
-      ...(operation === null ? {} : { operationId: operation.operationId }),
+      ...(operation === null
+        ? {
+            scope: {
+              kind: "dependent-suffix" as const,
+              selectedDeliverableId: input.selectedDeliverableId,
+            },
+          }
+        : { operationId: operation.operationId }),
     },
   }, "Execute the exact provider refresh, then invoke this continuation again.");
 }
@@ -465,7 +482,6 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
         nextAction: "verify-review-fix" as const,
         selectedDeliverableId: entry.selectedDeliverableId,
         verification: entry.verification,
-        acknowledgementInput: entry.acknowledgementInput,
         resumeAction: resumeAction(request),
         recommendedActionText: entry.recommendedActionText,
       };
@@ -485,7 +501,8 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     return { status: "refused" as const, reason: "verification-continuation-not-pending" };
   }
 
-  if (entry.status === "candidate-verification-required" && input.state !== undefined) {
+  if ((entry.status === "candidate-verification-required" || entry.status === "correction-routing-required")
+    && input.state !== undefined) {
     const selectedDeliverableId = findExactPendingSelectedRefresh(input.state.value);
     if (selectedDeliverableId !== null) {
       return projectPendingSelectedRefresh({
@@ -515,7 +532,6 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
           planId: entry.planId,
           repository: request.repository,
           remote: request.remote,
-          scope: { kind: "dependent-suffix" as const, selectedDeliverableId },
           operationId: operation.operationId,
         },
       }, "Resume the exact persisted provider refresh, then invoke this continuation again.");
@@ -531,7 +547,6 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
           planId: entry.planId,
           repository: request.repository,
           remote: request.remote,
-          scope: { kind: "dependent-suffix" as const, selectedDeliverableId },
           operationId: operation.operationId,
         },
       }, "Resume the exact persisted provider adoption, then invoke this continuation again.");
@@ -550,6 +565,15 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
   }
 
   if (entry.status === "correction-routing-required") {
+    if (input.state !== undefined
+      && hasExactPendingSelectedRefresh(input.state.value, entry.selectedDeliverableId)) {
+      return projectPendingSelectedRefresh({
+        request,
+        planId: entry.planId,
+        selectedDeliverableId: entry.selectedDeliverableId,
+        state: input.state,
+      });
+    }
     const route = input.route;
     if (route === undefined || route.status === "refused") {
       return route ?? { status: "refused" as const, reason: "review-fix-route-unavailable" };
@@ -579,6 +603,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
         status: "authoring-required" as const,
         route: route.route,
         selectedDeliverableId: route.selectedDeliverableId,
+        derivedFrom: entry.derivedFrom,
         nextAction: "author-correction" as const,
         authoring: {
           kind: input.authoring.kind,
@@ -597,6 +622,19 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       };
     };
     if (route.route === "terminal-authoring") {
+      if (input.authoring?.status === "ready") {
+        return dispatch({
+          kind: "delivery-reconcile" as const,
+          argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+          input: {
+            planId: entry.planId,
+            repository: request.repository,
+            remote: request.remote,
+            continuation: "read-position" as const,
+            reviewFixSelectedDeliverableId: entry.selectedDeliverableId,
+          },
+        }, "Rebind the exact terminal correction, then invoke this continuation again.");
+      }
       return authoringStop();
     }
     if (route.route === "terminal-rebind") {
@@ -652,6 +690,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       status: "boundary-carry-required" as const,
       planId: entry.planId,
       stateRevision: entry.stateRevision,
+      candidateSubjectDigest: entry.candidateSubjectDigest,
       recommendedActionText: entry.recommendedActionText,
     };
   }
@@ -664,12 +703,12 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       recommendedActionText: entry.recommendedActionText,
     };
   }
-  if (entry.status === "continue-hosted-review") {
+  if (entry.status === "resolve-delivery-status") {
     return {
       status: "authority-required" as const,
-      authority: "hosted-review" as const,
+      authority: "delivery-status" as const,
       nextAction: "dispatch-authority-action" as const,
-      action: { kind: "hosted-review" as const, action: entry.hostedReviewAction },
+      action: { kind: "delivery-status" as const, action: entry.deliveryStatusAction },
       recommendedActionText: entry.recommendedActionText,
     };
   }

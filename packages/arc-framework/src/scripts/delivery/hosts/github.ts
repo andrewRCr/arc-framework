@@ -390,11 +390,26 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
       return { status: "refused", reason: "malformed" };
     }
     try {
-      await this.runner.run([
-        "api", `repos/${effect.repository}/pulls/${effect.changeRequestId}`,
-        "--method", "PATCH", "-f", `base=${effect.protectedBaseRef}`,
-        ...(effect.action === "reopen-and-retarget" ? ["-f", "state=open"] : []),
-      ]);
+      const requestPath = `repos/${effect.repository}/pulls/${effect.changeRequestId}`;
+      if (effect.action === "reopen-and-retarget") {
+        const identityResult = await this.runner.run([
+          "pr", "view", effect.changeRequestId, "--repo", effect.repository, "--json", "id",
+        ]);
+        const nodeId = record(parse(identityResult.stdout))?.id;
+        if (typeof nodeId !== "string" || nodeId === "") {
+          return { status: "refused", reason: "malformed" };
+        }
+        const reopen = "mutation($id:ID!){updatePullRequest(input:{pullRequestId:$id,"
+          + "state:OPEN}){pullRequest{id}}}";
+        await this.runner.run([
+          "api", "graphql", "--raw-field", `query=${reopen}`, "-F", `id=${nodeId}`,
+        ]);
+      }
+      if (effect.fromBaseRef !== effect.protectedBaseRef) {
+        await this.runner.run([
+          "api", requestPath, "--method", "PATCH", "-f", `base=${effect.protectedBaseRef}`,
+        ]);
+      }
       return { status: "submitted" };
     } catch (error) {
       return {

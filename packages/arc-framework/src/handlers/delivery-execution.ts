@@ -1,6 +1,6 @@
 /** Strict CLI composition for delivery execution services. */
 
-import { access, mkdir, readdir, readFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { z } from "zod";
@@ -33,20 +33,28 @@ import {
 } from "../lib/delivery/git-lifecycle-contribution.js";
 import { CurrentDeliveryLifecycleContributionPathSource } from "../lib/delivery/lifecycle-contribution.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
-import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
+import {
+  proveGitDeliveryContribution,
+  proveGitDeliveryProviderRefreshContribution,
+} from "../lib/delivery/git-contribution-proof.js";
 import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-result.js";
 import {
   deleteDeliveryRemoteRef,
+  deleteDeliveryLocalRef,
+  deleteDeliveryCandidateRef,
+  deleteDeliveryRefreshCandidateRef,
+  observeDeliveryLocalRef,
   observeDeliveryMemberRefCheckouts,
+  observeDeliveryRefreshCandidateRefs,
   observeDeliveryRemoteRef,
   publishDeliveryMemberRef,
   publishDeliveryTopRef,
   rebindDeliveryCandidateRef,
-  observeDeliveryLocalRef,
   rewriteDeliveryLocalRef,
   rewriteDeliveryMemberRef,
-  rewriteDeliveryRemoteRef,
 } from "../lib/delivery/git-materialization.js";
+import { closeoutCompletedDelivery } from "../lib/delivery/closeout.js";
+import { GitDeliveryRenameTransitionSource } from "../lib/delivery/plan-resolution.js";
 import {
   bindInitialDeliveryRef,
   bindInitialDeliveryRequest,
@@ -69,7 +77,13 @@ import {
   routeDeliveryPosition,
 } from "../lib/delivery/position.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
-import { deriveDeliveryResidueLocators } from "../lib/delivery/residue-reaping.js";
+import { inspectRepositoryDeliveryEntry as inspectRepositoryDeliveryEntryAt } from
+  "../lib/delivery/repository-entry.js";
+import {
+  deriveDeliveryResidueLocators,
+  observeDeliveryGateCheckout,
+  removeDeliveryGateCheckout,
+} from "../lib/delivery/residue-reaping.js";
 import {
   DeliveryCanonicalDigestSchema,
   DeliveryChangeRequestV1Schema,
@@ -154,6 +168,7 @@ import { createDeliveryReviewFixReleaseEffectPorts } from
 import {
   inspectDeliveryPlanLocus,
   type DeliveryEntryInspectionResult,
+  DeliveryCorrectionDerivationSchema,
 } from "../lib/delivery/entry-inspection.js";
 import { validateDeliveryStateAgainstPlan } from "../lib/delivery/state.js";
 import {
@@ -161,6 +176,7 @@ import {
   executeFreshDeliverySuffixRematerialization,
 } from "../lib/delivery/suffix-rematerialization.js";
 import {
+  deliveryTeardownAcceptedBaseRefs,
   matchesDeliveryTeardownRequest,
   teardownLandedDeliveryMember,
 } from "../lib/delivery/teardown.js";
@@ -205,6 +221,7 @@ import {
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
 import { resolveTaskListPath } from "../commands/active/status.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import {
   readCandidateRecord,
@@ -243,7 +260,10 @@ import { deliveryProviderGhRunner } from "../scripts/delivery/provider-process.j
 import { releaseMergeLock } from "../scripts/review-gate/merge-lock.js";
 import { evaluateReviewReadiness } from "../scripts/review-gate/readiness.js";
 import { MergeMethodSchema, resolveMergeMethod } from "../scripts/review-gate/merge-method.js";
-import { assessDeliveryLandingReviewReadiness } from
+import {
+  assessDeliveryLandingReviewReadiness,
+  createDeliveryLandingSetReviewReadiness,
+} from
   "../scripts/review-gate/delivery-landing-readiness.js";
 import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/github/merge-method.js";
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
@@ -274,7 +294,7 @@ import { defaultMergeLockPort } from "./review.js";
 import { resolveCandidateMutationOwner } from "./candidate-mutation-owner.js";
 import { inspectActiveRepositoryDeliveryEntry } from "./delivery-entry.js";
 import { requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
-import { ContinueHostedReviewActionSchema, ContinuePublicationActionSchema } from
+import { ResolveDeliveryStatusActionSchema, ContinuePublicationActionSchema } from
   "../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -292,8 +312,19 @@ const ReviewFixVerificationSchema = z.strictObject({
     coveredInputs: z.literal("unchanged"),
   }),
 });
-const ReviewFixAuthoringRebindSchema = z.strictObject({
+const ReviewFixAuthoringAuthoritySchema = z.strictObject({
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+  derivedFrom: DeliveryCorrectionDerivationSchema,
+  route: z.literal("provider-refresh"),
+  affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+  requiredAncestorHeads: z.array(GitObjectIdSchema).min(1),
+  requiredFindingPaths: z.array(z.string().min(1)),
+});
+const ReviewFixAuthoringRebindSchema = ReviewFixAuthoringAuthoritySchema.extend({
   planId: DeliveryPlanIdSchema,
+  selectedDeliverableId: DeliveryCanonicalDigestSchema,
+  expectedStateRevision: z.number().int().positive(),
   ref: RefSchema,
   checkoutPath: z.string().min(1),
   beforeHead: GitObjectIdSchema,
@@ -301,10 +332,9 @@ const ReviewFixAuthoringRebindSchema = z.strictObject({
   requestedHead: GitObjectIdSchema,
   requestedTree: GitObjectIdSchema,
   publishedHead: GitObjectIdSchema,
-  requiredAncestorHeads: z.array(GitObjectIdSchema),
-  requiredFindingPaths: z.array(z.string().min(1)).optional(),
+  publishedTree: GitObjectIdSchema,
 });
-const ReviewFixAuthoringRematerializeSchema = z.strictObject({
+const ReviewFixAuthoringRematerializeSchema = ReviewFixAuthoringAuthoritySchema.extend({
   planId: DeliveryPlanIdSchema,
   selectedDeliverableId: DeliveryCanonicalDigestSchema,
   expectedStateRevision: z.number().int().positive(),
@@ -379,6 +409,11 @@ const PositionSchema = z.strictObject({
   remote: z.string().min(1).default("origin"),
 });
 const AuthoringLocateSchema = z.strictObject({ planId: DeliveryPlanIdSchema });
+const CloseoutSchema = z.strictObject({
+  workUnitId: SlugSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+});
 const ReconcileSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
@@ -517,6 +552,27 @@ const NativeStatusSchema = z.strictObject({
   request: NativeMergeRequestSchema,
   remote: z.string().min(1).default("origin"),
 });
+const NativePreparedRecoveryResultSchema = z.strictObject({
+  status: z.literal("prepared"),
+  transition: z.literal("preserved"),
+  action: z.literal("delivery-native-land-submit"),
+  presentation: z.strictObject({
+    operationId: z.string().min(1),
+    members: z.array(NativeLandingMemberSchema).min(1),
+    consequence: z.string().min(1),
+  }),
+  submitAction: z.strictObject({
+    command: z.literal("arc delivery native land-submit - --json"),
+    input: NativeSubmitSchema,
+  }),
+  recommendedActionText: z.string().min(1),
+});
+const NativeMemberNotReadyResultSchema = z.strictObject({
+  status: z.literal("blocked"),
+  reason: z.literal("member-not-ready"),
+  unreadyMembers: z.array(NativeLandingMemberSchema).min(1),
+  recommendedActionText: z.string().min(1),
+});
 const RefreshTriggerSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("landing-refused"),
@@ -636,6 +692,9 @@ const ReviewFixContinueSchema = z.strictObject({
 
 const RequestSchemas = {
   "authoring-locate": AuthoringLocateSchema,
+  "authoring-rematerialize": ReviewFixAuthoringRematerializeSchema,
+  "authoring-rebind": ReviewFixAuthoringRebindSchema,
+  closeout: CloseoutSchema,
   "eligibility-prepare": PrepareSchema,
   "eligibility-close": CloseSchema,
   publish: PublishSchema,
@@ -716,6 +775,13 @@ const DeliveryTopRemedyRefusalSchema = z.strictObject({
     protectedBaseRef: z.string().min(1),
   }),
 });
+const DeliveryCloseoutBlockedSchema = z.strictObject({
+  status: z.literal("blocked"),
+  reason: z.string().min(1),
+  planId: DeliveryPlanIdSchema.optional(),
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  recommendedActionText: z.string().min(1),
+});
 const OperationalStateAccessRefusalSchema = z.strictObject({
   status: z.literal("refused"),
   reason: z.enum(["operational-state-not-readable", "operational-state-not-writable"]),
@@ -727,6 +793,7 @@ const ReviewFixRoutingRequiredRefusalSchema = z.strictObject({
   status: z.literal("refused"),
   reason: z.literal("review-fix-routing-required"),
   nextAction: z.literal("plan-review-fix"),
+  entryMode: z.literal("integrating"),
   recommendedActionText: z.string().min(1),
 });
 const RetainedOperationBlockSchema = z.strictObject({
@@ -808,8 +875,8 @@ const ReviewFixContinuationAuthorityActionSchema = z.discriminatedUnion("kind", 
     argv: z.tuple([z.literal("arc"), z.literal("attest"), SlugSchema, z.literal("--json")]),
   }),
   z.strictObject({
-    kind: z.literal("hosted-review"),
-    action: ContinueHostedReviewActionSchema,
+    kind: z.literal("delivery-status"),
+    action: ResolveDeliveryStatusActionSchema,
   }),
   z.strictObject({
     kind: z.literal("publication"),
@@ -890,6 +957,7 @@ const ReviewFixRouteResultSchema = z.discriminatedUnion("route", [
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
     nextAction: z.literal("author-terminal"),
+    publicationRequired: z.literal(true).optional(),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -921,7 +989,6 @@ const ReviewFixContinuationResultSchema = z.union([
     nextAction: z.literal("verify-review-fix"),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     verification: ReviewFixVerificationSchema,
-    acknowledgementInput: ReviewFixAcknowledgementInputSchema,
     resumeAction: ReviewFixContinuationResumeActionSchema,
     recommendedActionText: z.string().min(1),
     ...ReviewFixDriveEffectLogField,
@@ -930,6 +997,7 @@ const ReviewFixContinuationResultSchema = z.union([
     status: z.literal("authoring-required"),
     route: z.enum(["provider-refresh", "rematerialize", "terminal-authoring"]),
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    derivedFrom: DeliveryCorrectionDerivationSchema,
     nextAction: z.enum(["author-terminal", "author-correction"]),
     authoring: z.strictObject({
       kind: z.enum(["candidate", "top"]),
@@ -958,7 +1026,7 @@ const ReviewFixContinuationResultSchema = z.union([
   }),
   z.strictObject({
     status: z.literal("authority-required"),
-    authority: z.enum(["candidate-renewal", "hosted-review", "publication"]),
+    authority: z.enum(["candidate-renewal", "delivery-status", "publication"]),
     nextAction: z.literal("dispatch-authority-action"),
     action: ReviewFixContinuationAuthorityActionSchema,
     recommendedActionText: z.string().min(1),
@@ -1050,8 +1118,16 @@ const REVIEW_FIX_ROUTING_REQUIRED_TEXT = "Select the delivery member that owns t
 const ResultSchema = z.union([
   ReviewFixContinuationResultSchema,
   DeliveryRecoveryResultV1Schema,
+  NativePreparedRecoveryResultSchema,
+  NativeMemberNotReadyResultSchema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
+  z.strictObject({
+    status: z.literal("closed-out"),
+    workUnitId: SlugSchema,
+    planIds: z.array(DeliveryPlanIdSchema),
+    recommendedActionText: z.string().min(1),
+  }),
   z.strictObject({
     status: z.literal("located"),
     planId: DeliveryPlanIdSchema,
@@ -1061,6 +1137,10 @@ const ResultSchema = z.union([
       gatePath: z.string().min(1),
     })),
   }),
+  z.strictObject({ status: z.literal("rematerialized") }),
+  z.strictObject({ status: z.literal("already-rematerialized"), replayed: z.literal(true) }),
+  z.strictObject({ status: z.literal("rebound") }),
+  z.strictObject({ status: z.literal("already-rebound"), replayed: z.literal(true) }),
   z.strictObject({ status: z.literal("materialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({
@@ -1071,7 +1151,7 @@ const ResultSchema = z.union([
       verificationId: DeliveryCanonicalDigestSchema,
       recordPath: z.string().min(1),
     }),
-    nextAction: z.literal("continue-hosted-review"),
+    nextAction: z.literal("resolve-delivery-status"),
     boundaryCarry: z.strictObject({
       path: z.string().min(1),
       candidateId: DeliveryCanonicalDigestSchema,
@@ -1096,7 +1176,7 @@ const ResultSchema = z.union([
   z.strictObject({
     status: z.literal("rebound"),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
-    nextAction: z.literal("rerun-checkpoint"),
+    nextAction: z.enum(["rerun-checkpoint", "read-position"]),
   }),
   z.strictObject({
     status: z.literal("rebound"),
@@ -1113,6 +1193,7 @@ const ResultSchema = z.union([
     selectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
     plannedSuffix: z.array(DeliveryCanonicalDigestSchema).optional(),
     recommendedActionText: z.string().min(1).optional(),
+    ...ReviewFixDriveEffectLogField,
   }),
   z.strictObject({
     status: z.literal("applied"),
@@ -1207,6 +1288,7 @@ const ResultSchema = z.union([
     selectedDeliverableId: DeliveryCanonicalDigestSchema,
     affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
     nextAction: z.literal("author-terminal"),
+    publicationRequired: z.literal(true).optional(),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -1227,12 +1309,20 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("blocked"), guidance: z.string().min(1) }),
   BlockedContributionRefusalSchema,
   z.strictObject({ status: z.literal("blocked"), reason: z.string().min(1), guidance: z.string().min(1) }),
+  DeliveryCloseoutBlockedSchema,
+  RetainedOperationBlockSchema,
   z.strictObject({
     status: z.literal("blocked"),
-    reason: z.string().min(1),
+    reason: z.literal("top-remedy-required"),
+    nextAction: z.literal("reopen-and-retarget"),
+    top: DeliveryTopRemedyRefusalSchema,
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    reason: z.literal("trigger-ref-restore-required"),
+    recovery: z.strictObject({ ref: z.string().min(1), head: GitObjectIdSchema }),
     recommendedActionText: z.string().min(1),
   }),
-  RetainedOperationBlockSchema,
   z.strictObject({
     status: z.literal("blocked"),
     reason: z.literal("content-conflict"),
@@ -1265,8 +1355,21 @@ const ResultSchema = z.union([
   z.strictObject({
     status: z.literal("remedied"),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("teardown-member"),
+    selectedDeliverableId: DeliveryCanonicalDigestSchema,
+    top: DeliveryTopReadySchema,
+  }),
+  z.strictObject({
+    status: z.literal("remedied"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
     nextAction: z.literal("terminal-checkpoint"),
     top: DeliveryTopReadySchema,
+  }),
+  z.strictObject({
+    status: z.literal("remedied"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    nextAction: z.literal("terminal-checkpoint"),
+    terminalHeadAction: z.literal("rebind-required"),
   }),
   z.strictObject({ status: z.literal("registered"), stackNumber: z.number().int().positive() }),
   z.strictObject({ status: z.literal("unregistered") }),
@@ -1532,8 +1635,11 @@ async function observeNativeDeliveryEffect(
   cwd: string,
   remote: string,
 ): Promise<DeliveryNativeEffectFacts> {
-  const merged: string[] = [];
-  const landedResults: Array<NonNullable<Awaited<ReturnType<typeof observeGitDeliveryLandingResult>>>> = [];
+  const merged: Array<{
+    readonly deliverableId: string;
+    readonly mergeCommitSha: string;
+    readonly coordinates: { readonly base: string; readonly head: string; readonly tree: string };
+  }> = [];
   for (const [index, entry] of operation.before.members.entries()) {
     const member = state.members.find((candidate) => candidate.deliverableId === entry.deliverableId);
     const prior = operation.before.members[index - 1];
@@ -1565,11 +1671,46 @@ async function observeNativeDeliveryEffect(
       if (observed.request.mergeCommitSha === null || observed.request.mergeCommitSha === undefined) {
         return { outcome: "ambiguous" };
       }
+      merged.push({
+        deliverableId: entry.deliverableId,
+        mergeCommitSha: observed.request.mergeCommitSha,
+        coordinates: entry.coordinates,
+      });
+    }
+  }
+  if (merged.length === 0) return { outcome: "none-landed" };
+  if (merged.length !== operation.before.members.length) {
+    return { outcome: "partial-landed", affectedDeliverableIds: merged.map(({ deliverableId }) => deliverableId) };
+  }
+  const targetBefore = operation.before.target?.coordinates;
+  if (targetBefore === null || targetBefore === undefined) {
+    return { outcome: "ambiguous" };
+  }
+  const landedResults: Array<NonNullable<Awaited<ReturnType<typeof observeGitDeliveryLandingResult>>>> = [];
+  if (operation.native?.arm === "linked-atomic" && merged.length > 1) {
+    const commonMergeCommit = merged[0]?.mergeCommitSha;
+    const highest = merged.at(-1);
+    if (commonMergeCommit === undefined || highest === undefined
+      || merged.some(({ mergeCommitSha }) => mergeCommitSha !== commonMergeCommit)) {
+      return { outcome: "ambiguous" };
+    }
+    const aggregateResult = await observeGitDeliveryLandingResult({
+      exec,
+      cwd,
+      remote,
+      resultHead: commonMergeCommit,
+      strategy: "merge",
+      beforeMember: highest.coordinates,
+    });
+    if (aggregateResult === null) return { outcome: "ambiguous" };
+    landedResults.push(aggregateResult);
+  } else {
+    for (const entry of merged) {
       const landedResult = await observeGitDeliveryLandingResult({
         exec,
         cwd,
         remote,
-        resultHead: observed.request.mergeCommitSha,
+        resultHead: entry.mergeCommitSha,
         strategy: "merge",
         beforeMember: entry.coordinates,
       });
@@ -1578,20 +1719,12 @@ async function observeNativeDeliveryEffect(
       if (previous !== undefined && landedResult.predecessor.head !== previous.member.head) {
         return { outcome: "ambiguous" };
       }
-      merged.push(entry.deliverableId);
       landedResults.push(landedResult);
     }
   }
-  if (merged.length === 0) return { outcome: "none-landed" };
-  if (merged.length !== operation.before.members.length) {
-    return { outcome: "partial-landed", affectedDeliverableIds: merged };
-  }
-  const targetBefore = operation.before.target?.coordinates;
   const firstResult = landedResults[0];
   const finalResult = landedResults.at(-1);
-  if (targetBefore === null || targetBefore === undefined || firstResult === undefined || finalResult === undefined) {
-    return { outcome: "ambiguous" };
-  }
+  if (firstResult === undefined || finalResult === undefined) return { outcome: "ambiguous" };
   const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
     ...options,
     cwd,
@@ -1651,6 +1784,7 @@ async function executeDeliveryCommand(
   command: DeliveryExecutionCommand,
   request: unknown,
   interaction?: InteractionContext,
+  internalContext?: { readonly settledRecordEffectHead: string | null },
 ): Promise<unknown> {
   let nativeLinkRequest: z.infer<typeof NativeLinkSchema> | null = null;
   if (command === "native-link") {
@@ -1663,6 +1797,288 @@ async function executeDeliveryCommand(
   const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
+  const revalidateAuthoringAuthority = async (
+    expected: z.infer<typeof ReviewFixAuthoringAuthoritySchema> & {
+      readonly planId: string;
+      readonly selectedDeliverableId: string;
+      readonly expectedStateRevision: number;
+    },
+    state: DeliveryStateV1,
+  ): Promise<{ readonly status: "current" } | { readonly status: "moved" }> => {
+    let currentDerivation: z.infer<typeof DeliveryCorrectionDerivationSchema> | undefined;
+    let requiredFindingPaths: readonly string[] = [];
+    try {
+      const entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction);
+      if (expected.derivedFrom.kind === "open-task") {
+        if (entry.status !== "correction-routing-required"
+          || entry.planId !== expected.planId
+          || entry.stateRevision !== expected.expectedStateRevision
+          || entry.selectedDeliverableId !== expected.selectedDeliverableId
+          || canonicalize(entry.derivedFrom) !== canonicalize(expected.derivedFrom)) {
+          return { status: "moved" };
+        }
+        currentDerivation = entry.derivedFrom;
+      } else if (expected.derivedFrom.kind === "pending-verification") {
+        if (entry.status !== "review-fix-verification-required"
+          || entry.planId !== expected.planId
+          || entry.stateRevision !== expected.expectedStateRevision
+          || entry.selectedDeliverableId !== expected.selectedDeliverableId
+          || entry.acknowledgementInput.continuationDigest
+            !== expected.derivedFrom.continuationDigest) {
+          return { status: "moved" };
+        }
+        currentDerivation = expected.derivedFrom;
+      } else {
+        if (entry.status !== "not-applicable") return { status: "moved" };
+        const records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
+        const selection = selectPendingDeliveryReviewFixAuthority({
+          workUnitId: state.workUnitId,
+          records,
+        });
+        if (selection.status !== "selected"
+          || selection.planId !== expected.planId
+          || selection.selectedDeliverableId !== expected.selectedDeliverableId
+          || selection.reviewedHead !== expected.derivedFrom.reviewedHead
+          || selection.dispositionSetId !== expected.derivedFrom.dispositionSetId
+          || !pendingDeliveryReviewFixAuthorityIsCurrent({
+            selectedDeliverableId: selection.selectedDeliverableId,
+            reviewedHead: selection.reviewedHead,
+            state,
+          })) {
+          return { status: "moved" };
+        }
+        currentDerivation = expected.derivedFrom;
+        requiredFindingPaths = selection.authorizedFindingLoci
+          .map(reviewFixFindingPath)
+          .filter((path): path is string => path !== null);
+      }
+    } catch {
+      return { status: "moved" };
+    }
+    if (canonicalize(currentDerivation) !== canonicalize(expected.derivedFrom)) {
+      return { status: "moved" };
+    }
+
+    const planned = ReviewFixRouteResultSchema.safeParse(await executeDeliveryCommand(
+      "review-fix-plan",
+      {
+        planId: expected.planId,
+        selectedDeliverableId: expected.selectedDeliverableId,
+        repository: expected.repository,
+        remote: expected.remote,
+        entryMode: "integrating",
+      },
+      interaction,
+    ));
+    if (!planned.success || planned.data.route !== "provider-refresh"
+      || planned.data.selectedDeliverableId !== expected.selectedDeliverableId
+      || canonicalize(planned.data.affectedDeliverableIds)
+        !== canonicalize(expected.affectedDeliverableIds)
+      || canonicalize(planned.data.candidateRequirements.requiredAncestorHeads)
+        !== canonicalize(expected.requiredAncestorHeads)) {
+      return { status: "moved" };
+    }
+
+    const canonicalPaths = (paths: readonly string[]) =>
+      sortByCanonicalBytes([...new Set(paths)]);
+    return canonicalize(canonicalPaths(requiredFindingPaths))
+      === canonicalize(canonicalPaths(expected.requiredFindingPaths))
+      ? { status: "current" }
+      : { status: "moved" };
+  };
+  const executeAuthoringRebind = async (input: unknown) => {
+    const reboundInput = ReviewFixAuthoringRebindSchema.safeParse(input);
+    if (!reboundInput.success) return { status: "refused" as const, reason: "authoring-rebind-invalid" };
+    const expected = reboundInput.data;
+    const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
+      planStore.readCurrent(expected.planId),
+      stateStore.read(expected.planId),
+      resolveActiveWu({ cwd }),
+      resolveGitCommonDir(exec, cwd),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null
+      || stateRead.value.revision !== expected.expectedStateRevision
+      || stateRead.value.value.activeOperation !== null
+      || active.status !== "resolved" || active.name !== planRead.value.workUnitId
+      || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
+      return { status: "refused" as const, reason: "authoring-rebind-authority-moved" };
+    }
+    if ((await revalidateAuthoringAuthority(expected, stateRead.value.value)).status !== "current") {
+      return { status: "refused" as const, reason: "authoring-rebind-authority-moved" };
+    }
+    const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
+    const locators = locatorResult.status === "derived"
+      ? locatorResult.locators.filter(
+          ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
+        )
+      : [];
+    const stateMembers = stateRead.value.value.members.filter(
+      ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
+    );
+    const locator = locators[0];
+    const member = stateMembers[0];
+    if (locators.length !== 1 || stateMembers.length !== 1 || locator === undefined || member === undefined
+      || locator.candidateRef !== expected.ref || resolve(locator.gatePath) !== resolve(expected.checkoutPath)
+      || member.coordinates === null || member.ref === null
+      || member.coordinates.head !== expected.publishedHead
+      || member.coordinates.tree !== expected.publishedTree) {
+      return { status: "refused" as const, reason: "authoring-rebind-coordinate-mismatch" };
+    }
+    const [gate, observedRef, publicCoordinates] = await Promise.all([
+      observeDeliveryReviewFixCandidateGate({ exec, path: expected.checkoutPath, pathExists }),
+      observeDeliveryEligibilityRef(exec, expected.ref),
+      observeDeliveryEligibilityRef(exec, member.ref),
+    ]);
+    if (gate.status === "refused") {
+      return {
+        status: "refused" as const,
+        reason: gate.reason === "dirty" ? "authoring-locus-dirty" : `authoring-rebind-${gate.reason}`,
+      };
+    }
+    if (gate.status !== "observed" || observedRef === null || publicCoordinates === null) {
+      return { status: "refused" as const, reason: "authoring-rebind-unavailable" };
+    }
+    if (publicCoordinates.head !== expected.publishedHead
+      || publicCoordinates.tree !== expected.publishedTree) {
+      return { status: "refused" as const, reason: "authoring-rebind-public-moved" };
+    }
+    const replayed = observedRef.head === expected.requestedHead
+      && observedRef.tree === expected.requestedTree;
+    if (gate.head !== expected.requestedHead || gate.tree !== expected.requestedTree
+      || (!replayed && (observedRef.head !== expected.beforeHead || observedRef.tree !== expected.beforeTree))) {
+      return { status: "refused" as const, reason: "authoring-rebind-moved" };
+    }
+    if (expected.beforeHead === expected.requestedHead
+      || await readAncestry(exec, expected.beforeHead, expected.requestedHead) !== "ancestor") {
+      return { status: "refused" as const, reason: "authoring-rebind-not-descendant" };
+    }
+    for (const ancestor of expected.requiredAncestorHeads) {
+      if (await readAncestry(exec, ancestor, expected.requestedHead) !== "ancestor") {
+        return { status: "refused" as const, reason: "authoring-rebind-ancestor-mismatch" };
+      }
+    }
+    if (expected.requiredFindingPaths.length > 0) {
+      const authoredPaths = (await exec(
+        "git",
+        ["diff", "--name-only", "-z", expected.publishedHead, expected.requestedHead, "--"],
+        { cwd: expected.checkoutPath, objectAccess: "local-only" },
+      )).stdout.split("\0").filter((path) => path !== "");
+      if (!expected.requiredFindingPaths.some((path) => authoredPaths.includes(path))) {
+        return { status: "refused" as const, reason: "authoring-rebind-finding-path-missing" };
+      }
+    }
+    if (replayed) return { status: "already-rebound" as const, replayed: true };
+    const rebound = await rebindDeliveryCandidateRef({
+      exec,
+      ref: expected.ref,
+      beforeHead: expected.beforeHead,
+      requestedHead: expected.requestedHead,
+    });
+    if (rebound.status === "refused") {
+      return { status: "refused" as const, reason: `authoring-rebind-${rebound.reason}` };
+    }
+    return rebound.status === "adopted"
+      ? { status: "already-rebound" as const, replayed: true }
+      : { status: "rebound" as const };
+  };
+  const executeAuthoringRematerialize = async (input: unknown) => {
+    const rematerializeInput = ReviewFixAuthoringRematerializeSchema.safeParse(input);
+    if (!rematerializeInput.success) {
+      return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
+    }
+    const expected = rematerializeInput.data;
+    if ((expected.beforeHead === null) !== (expected.beforeTree === null)) {
+      return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
+    }
+    const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
+      planStore.readCurrent(expected.planId),
+      stateStore.read(expected.planId),
+      resolveActiveWu({ cwd }),
+      resolveGitCommonDir(exec, cwd),
+    ]);
+    if (planRead.status !== "ok" || planRead.value === null
+      || stateRead.status !== "ok" || stateRead.value === null
+      || stateRead.value.revision !== expected.expectedStateRevision
+      || stateRead.value.value.activeOperation !== null
+      || active.status !== "resolved" || active.name !== planRead.value.workUnitId
+      || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
+      return { status: "refused" as const, reason: "authoring-rematerialize-authority-moved" };
+    }
+    if ((await revalidateAuthoringAuthority(expected, stateRead.value.value)).status !== "current") {
+      return { status: "refused" as const, reason: "authoring-rematerialize-authority-moved" };
+    }
+    const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
+    const locators = locatorResult.status === "derived"
+      ? locatorResult.locators.filter(
+          ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
+        )
+      : [];
+    const stateMembers = stateRead.value.value.members.filter(
+      ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
+    );
+    const locator = locators[0];
+    const member = stateMembers[0];
+    if (locators.length !== 1 || stateMembers.length !== 1 || locator === undefined || member === undefined
+      || locator.candidateRef !== expected.ref || resolve(locator.gatePath) !== resolve(expected.checkoutPath)
+      || member.coordinates === null || member.ref === null
+      || member.coordinates.head !== expected.requestedHead
+      || member.coordinates.tree !== expected.requestedTree) {
+      return { status: "refused" as const, reason: "authoring-rematerialize-coordinate-mismatch" };
+    }
+    const publicCoordinates = await observeDeliveryEligibilityRef(exec, member.ref);
+    if (publicCoordinates?.head !== expected.requestedHead
+      || publicCoordinates.tree !== expected.requestedTree) {
+      return { status: "refused" as const, reason: "authoring-rematerialize-public-moved" };
+    }
+    const observeCandidate = async () => {
+      const local = await observeDeliveryLocalRef(exec, expected.ref);
+      if (local.status === "refused") {
+        return { status: "refused" as const, reason: local.reason };
+      }
+      if (local.status === "absent") return { status: "absent" as const };
+      const coordinates = await observeDeliveryEligibilityRef(exec, expected.ref);
+      return coordinates === null || coordinates.head !== local.head
+        ? { status: "refused" as const, reason: "coordinate-unavailable" }
+        : { status: "observed" as const, ...coordinates };
+    };
+    return prepareDeliveryReviewFixCandidateGate({
+      before: expected.beforeHead === null || expected.beforeTree === null
+        ? { head: expected.requestedHead, tree: expected.requestedTree }
+        : { head: expected.beforeHead, tree: expected.beforeTree },
+      current: { head: expected.requestedHead, tree: expected.requestedTree },
+    }, {
+      observeGate: () => observeDeliveryReviewFixCandidateGate({
+        exec,
+        path: expected.checkoutPath,
+        pathExists,
+      }),
+      observeCandidate,
+      rewriteCandidate: ({ beforeHead, requestedHead }) => rebindDeliveryCandidateRef({
+        exec,
+        ref: expected.ref,
+        beforeHead,
+        requestedHead,
+      }),
+      resetGate: ({ beforeHead, requestedHead }) => resetDeliveryReviewFixCandidateGate({
+        exec,
+        path: expected.checkoutPath,
+        beforeHead,
+        requestedHead,
+      }),
+      createPair: (coordinates) => createDeliveryReviewFixCandidatePair({
+        exec,
+        ref: expected.ref,
+        path: expected.checkoutPath,
+        coordinates,
+        ensureParent: async (path) => {
+          await mkdir(dirname(path), { recursive: true });
+        },
+      }),
+    });
+  };
+  if (command === "authoring-rematerialize") return executeAuthoringRematerialize(request);
+  if (command === "authoring-rebind") return executeAuthoringRebind(request);
   const readExpectedRecordEffects = async (
     paths: readonly string[],
   ): Promise<readonly DeliveryReviewFixExpectedRecord[]> => Promise.all(
@@ -1671,25 +2087,69 @@ async function executeDeliveryCommand(
       digest: deliveryReviewFixRecordDigest(await readFile(resolve(cwd, path), "utf8")),
     })),
   );
-  if (command === "authoring-locate") {
-    const parsed = AuthoringLocateSchema.parse(request);
-    const planRead = await planStore.readCurrent(parsed.planId);
-    if (planRead.status !== "ok" || planRead.value === null) {
-      return { status: "refused", reason: "delivery-plan-unavailable" };
-    }
-    const locators = deriveDeliveryResidueLocators(
-      planRead.value,
-      await resolveGitCommonDir(exec, cwd),
-    );
-    return locators.status === "derived"
-      ? { status: "located", planId: parsed.planId, locators: locators.locators }
-      : { status: "refused", reason: locators.reason };
-  }
   if (command === "review-fix-continue") {
     const parsed = ReviewFixContinueSchema.parse(request);
     let projectionRequest: z.infer<typeof ReviewFixContinueSchema> = parsed;
     let expectedRecordEffects: readonly DeliveryReviewFixExpectedRecord[] = parsed.recordEffects ?? [];
     let settledRecordEffectHead: string | null = null;
+    type DeliveryReviewFixWorkUnitLocus = {
+      readonly name: string;
+      readonly path: string;
+      readonly branch: string | null;
+      readonly baseBranch: string;
+    };
+    let reviewFixLocusPromise: Promise<DeliveryReviewFixWorkUnitLocus | null> | null = null;
+    const resolveReviewFixLocus = (): Promise<DeliveryReviewFixWorkUnitLocus | null> => {
+      reviewFixLocusPromise ??= (async () => {
+        const [{ settings }, active] = await Promise.all([
+          readConfigSettings(cwd),
+          resolveActiveWu({ cwd }),
+        ]);
+        if (active.status === "resolved" && active.name !== "") {
+          return { ...active, baseBranch: settings["branch.base"] };
+        }
+        const owner = await resolveCandidateMutationOwner({ cwd, exec });
+        if (owner.status !== "owned") return null;
+        const index = await buildLifecycleIndex({
+          cwd,
+          fs: {
+            readdir: (path) => readdir(path, { withFileTypes: true }),
+            readFile: (path) => readFile(path, "utf8"),
+          },
+        });
+        const completed = index.get(owner.workUnit);
+        if (completed?.location !== "completed") return null;
+        const branch = await exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], {
+          cwd,
+          objectAccess: "local-only",
+        }).then(({ stdout }) => stdout.trim(), () => null);
+        return {
+          name: owner.workUnit,
+          path: completed.path,
+          branch,
+          baseBranch: settings["branch.base"],
+        };
+      })();
+      return reviewFixLocusPromise;
+    };
+    const inspectReviewFixRepositoryEntry = async (
+      entryMode: "execution" | "integrating",
+    ): Promise<DeliveryEntryInspectionResult> => {
+      const locus = await resolveReviewFixLocus();
+      if (locus === null) throw new Error("Delivery review-fix work unit unavailable");
+      const meta = parseMetaFile(await readFile(resolve(cwd, locus.path), "utf8"));
+      const taskListPath = meta.taskList === null || meta.taskList === "[none]"
+        ? null
+        : resolveTaskListPath(locus.path, meta.taskList);
+      if (taskListPath === null) throw new Error("Delivery review-fix task list unavailable");
+      return inspectRepositoryDeliveryEntryAt({
+        cwd,
+        taskListPath,
+        request: { workUnitId: SlugSchema.parse(locus.name), entryMode },
+        baseBranch: locus.baseBranch,
+        exec,
+      });
+    };
     const captureExpectedRecordEffects = async (paths: readonly string[]): Promise<void> => {
       expectedRecordEffects = await readExpectedRecordEffects(paths);
     };
@@ -1840,7 +2300,7 @@ async function executeDeliveryCommand(
       }
       if (beforeCandidate === null || currentCandidate === null
         || beforeBoundary.workUnit !== workUnitId || currentBoundary.workUnit !== workUnitId
-        || currentBoundary.locus !== "hosted-review-pending"
+        || currentBoundary.locus !== "delivery-status-required"
         || currentBoundary.reservation.target.kind !== "delivery") {
         return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
       }
@@ -1870,6 +2330,32 @@ async function executeDeliveryCommand(
         }
         return { status: "defer-acknowledgement" };
       }
+      let candidateSubjectDigest: string;
+      if (recordClass === "boundary-projection") {
+        const locus = await resolveReviewFixLocus();
+        if (locus === null || locus.name !== workUnitId) {
+          return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+        }
+        try {
+          const effectiveCandidate = await projectGitCandidateEffectiveTarget({
+            cwd,
+            name: locus.name,
+            baseBranch: locus.baseBranch,
+            record: currentCandidate,
+            exec,
+            rawExec: createRawGitExec(cwd),
+          });
+          if (effectiveCandidate.state !== "current"
+            || effectiveCandidate.candidateId !== currentBoundary.candidateId) {
+            return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+          }
+          candidateSubjectDigest = effectiveCandidate.recognizedTarget.subject.subjectDigest;
+        } catch {
+          return { status: "refused", reason: "record-effect-recovery-unprovable", paths: effectPaths };
+        }
+      } else {
+        candidateSubjectDigest = reduceCandidateDurableBaseline(currentCandidate).target.subject.subjectDigest;
+      }
       const records = reconstructDeliveryReviewFixExpectedRecords({
         recordClass,
         plan: planRead.value,
@@ -1878,6 +2364,7 @@ async function executeDeliveryCommand(
         currentCandidate,
         beforeBoundary,
         currentBoundary,
+        candidateSubjectDigest,
         candidateRecord: { path: candidatePath, content: currentCandidateContent },
         boundaryRecord: { path: boundaryPath, content: worktreeBoundaryContent },
       });
@@ -1911,27 +2398,80 @@ async function executeDeliveryCommand(
         readonly projectionDigest: string;
         readonly residualDigest: string;
       } | undefined;
-      const projectTerminalRecordRebind = async (planId: string) => {
-        const [currentPlan, currentState, active] = await Promise.all([
+      const projectTerminalRecordRebind = async (
+        planId: string,
+        reviewFixSelectedDeliverableId?: string,
+        authoringEntry?: DeliveryCorrectionRoutingEntry,
+      ) => {
+        const [currentPlan, currentState, locus] = await Promise.all([
           planStore.readCurrent(planId),
           stateStore.read(planId),
-          resolveActiveWu({ cwd }),
+          resolveReviewFixLocus(),
         ]);
         if (currentPlan.status !== "ok" || currentPlan.value === null
           || currentState.status !== "ok" || currentState.value === null
-          || active.status !== "resolved" || active.branch === null) {
+          || locus === null || locus.branch === null) {
           return { status: "refused" as const, reason: "delivery-unavailable" };
         }
         const terminal = currentState.value.value.members.at(-1);
-        if (terminal?.ref !== `refs/heads/${active.branch}` || terminal.coordinates === null) {
+        if (terminal?.ref !== `refs/heads/${locus.branch}`
+          || terminal.coordinates === null
+          || terminal.changeRequest === null) {
           return { status: "not-required" as const };
         }
-        const terminalRef = await observeDeliveryEligibilityRef(exec, terminal.ref);
-        if (terminalRef === null) {
+        const terminalCheckout = await inspectDeliveryAuthoringCheckout(exec, cwd);
+        if (terminalCheckout === null) {
           return { status: "refused" as const, reason: "terminal-rebind-unavailable" };
         }
-        if (terminalRef.head === terminal.coordinates.head) {
+        if (terminalCheckout.trackedDirty) {
+          return { status: "refused" as const, reason: "authoring-locus-dirty" };
+        }
+        if (terminalCheckout.head === terminal.coordinates.head) {
           return { status: "not-required" as const };
+        }
+        const observedTop = await new GhDeliveryHostPort(hostedGhRunner).readRequest(
+          parsed.repository,
+          terminal.changeRequest,
+        );
+        if (observedTop.status !== "observed") {
+          return { status: "refused" as const, reason: "top-request-unavailable" };
+        }
+        if (observedTop.request.repository !== parsed.repository
+          || observedTop.request.headRepository !== parsed.repository
+          || observedTop.request.headRef !== locus.branch
+          || observedTop.request.state !== "open") {
+          return { status: "refused" as const, reason: "terminal-publication-moved" };
+        }
+        if (observedTop.request.headSha === terminal.coordinates.head) {
+          if (authoringEntry === undefined
+            || reviewFixSelectedDeliverableId !== authoringEntry.selectedDeliverableId) {
+            return { status: "refused" as const, reason: "terminal-publication-required" };
+          }
+          return projectDeliveryReviewFixContinuation({
+            request: projectionRequest,
+            entry: authoringEntry,
+            state: currentState.value,
+            activeBranch: locus.branch,
+            route: {
+              status: "planned" as const,
+              route: "terminal-authoring" as const,
+              selectedDeliverableId: authoringEntry.selectedDeliverableId,
+              affectedDeliverableIds: [authoringEntry.selectedDeliverableId],
+              nextAction: "author-terminal" as const,
+              recommendedActionText:
+                "Verify and commit the approved correction on the exact terminal work-unit branch, push that "
+                + "branch, then resume; no delivery member rewrite is required.",
+            },
+            authoring: {
+              status: "authoring-required" as const,
+              kind: "top" as const,
+              ref: terminal.ref,
+              checkoutPath: cwd,
+            },
+          });
+        }
+        if (observedTop.request.headSha !== terminalCheckout.head) {
+          return { status: "refused" as const, reason: "terminal-publication-moved" };
         }
         return {
           status: "dispatch" as const,
@@ -1943,10 +2483,13 @@ async function executeDeliveryCommand(
               repository: parsed.repository,
               remote: parsed.remote,
               continuation: "read-position" as const,
+              ...(reviewFixSelectedDeliverableId === undefined
+                ? {}
+                : { reviewFixSelectedDeliverableId }),
             },
           },
           recommendedActionText:
-            "Rebind the machine-owned terminal record advance before recomposing hosted review status.",
+            "Rebind the machine-owned terminal record advance before resolving delivery status.",
         };
       };
       const prepareCorrection = async (correctionEntry: DeliveryCorrectionRoutingEntry) => {
@@ -1967,14 +2510,14 @@ async function executeDeliveryCommand(
             result: { status: "refused" as const, reason: "review-fix-route-unavailable" },
           };
         }
-        const [stateRead, active, currentPlanRead] = await Promise.all([
+        const [stateRead, locus, currentPlanRead] = await Promise.all([
           stateStore.read(correctionEntry.planId),
-          resolveActiveWu({ cwd }),
+          resolveReviewFixLocus(),
           planStore.readCurrent(correctionEntry.planId),
         ]);
         let authoring;
         if (stateRead.status === "ok" && stateRead.value !== null
-          && active.status === "resolved" && active.branch !== null
+          && locus !== null && locus.branch !== null
           && currentPlanRead.status === "ok" && currentPlanRead.value !== null
           && (planned.data.route === "provider-refresh"
             || planned.data.route === "rematerialize"
@@ -1998,7 +2541,7 @@ async function executeDeliveryCommand(
               : undefined;
             const ref = candidateRoute
               ? candidateLocator?.candidateRef ?? ""
-              : `refs/heads/${active.branch}`;
+              : `refs/heads/${locus.branch}`;
             const checkoutPath = candidateRoute ? candidateLocator?.gatePath ?? "" : cwd;
             if (ref !== "" && checkoutPath !== "") {
               const [checkout, observedRef, candidateGate] = await Promise.all([
@@ -2039,7 +2582,7 @@ async function executeDeliveryCommand(
                   )).stdout.split("\0").filter((path) => path !== "");
               const requiredFindingPaths = approvedDispositionSet?.authorizedFindingLoci
                 .map(reviewFixFindingPath)
-                .filter((path): path is string => path !== null);
+                .filter((path): path is string => path !== null) ?? [];
               const ancestry = observed === null
                 ? []
                 : await Promise.all(requiredAncestorHeads.map(async (ancestor: string) => ({
@@ -2057,7 +2600,14 @@ async function executeDeliveryCommand(
                     action: {
                       kind: "delivery-review-fix-authoring-rebind" as const,
                       input: {
+                        repository: parsed.repository,
+                        remote: parsed.remote,
+                        derivedFrom: correctionEntry.derivedFrom,
+                        route: "provider-refresh" as const,
+                        affectedDeliverableIds: planned.data.affectedDeliverableIds,
                         planId: correctionEntry.planId,
+                        selectedDeliverableId: correctionEntry.selectedDeliverableId,
+                        expectedStateRevision: stateRead.value.revision,
                         ref,
                         checkoutPath,
                         beforeHead: observedRef.head,
@@ -2065,8 +2615,9 @@ async function executeDeliveryCommand(
                         requestedHead: observed.head,
                         requestedTree: observed.tree,
                         publishedHead: selected.coordinates.head,
+                        publishedTree: selected.coordinates.tree,
                         requiredAncestorHeads,
-                        ...(requiredFindingPaths === undefined ? {} : { requiredFindingPaths }),
+                        requiredFindingPaths,
                       },
                     },
                     recommendedActionText:
@@ -2074,16 +2625,20 @@ async function executeDeliveryCommand(
                   },
                 };
               }
-              authoring = classifyDeliveryReviewFixAuthoringReadiness({
+              const readiness = classifyDeliveryReviewFixAuthoringReadiness({
                 locus: { kind: candidateRoute ? "candidate" : "top", ref, checkoutPath },
                 publishedHead: candidateRoute ? selected.coordinates.head : terminalHead,
                 observed,
                 refCoordinates: observedRef,
                 ...(authoredPaths === undefined ? {} : { authoredPaths }),
-                ...(requiredFindingPaths === undefined ? {} : { requiredFindingPaths }),
+                requiredFindingPaths,
                 requiredAncestorHeads,
                 ancestry,
               });
+              authoring = planned.data.route === "terminal-authoring"
+                && planned.data.publicationRequired === true && readiness.status === "ready"
+                ? { status: "authoring-required" as const, kind: "top" as const, ref, checkoutPath }
+                : readiness;
               if (candidateRoute && authoring.status === "authoring-required") {
                 const gateAbsent = candidateGate?.status === "absent";
                 const refAbsent = observedRef === null;
@@ -2105,6 +2660,11 @@ async function executeDeliveryCommand(
                       action: {
                         kind: "delivery-review-fix-authoring-rematerialize" as const,
                         input: {
+                          repository: parsed.repository,
+                          remote: parsed.remote,
+                          derivedFrom: correctionEntry.derivedFrom,
+                          route: "provider-refresh" as const,
+                          affectedDeliverableIds: planned.data.affectedDeliverableIds,
                           planId: correctionEntry.planId,
                           selectedDeliverableId: correctionEntry.selectedDeliverableId,
                           expectedStateRevision: stateRead.value.revision,
@@ -2114,6 +2674,8 @@ async function executeDeliveryCommand(
                           beforeTree: observedRef?.tree ?? null,
                           requestedHead: selected.coordinates.head,
                           requestedTree: selected.coordinates.tree,
+                          requiredAncestorHeads,
+                          requiredFindingPaths,
                         },
                       },
                       recommendedActionText:
@@ -2128,27 +2690,44 @@ async function executeDeliveryCommand(
         return {
           status: "prepared" as const,
           authoring,
+          publicationRequired: planned.data.route === "terminal-authoring"
+            && planned.data.publicationRequired === true,
           result: projectDeliveryReviewFixContinuation({
             request: projectionRequest,
             entry: correctionEntry,
             route: planned.data,
             ...(stateRead.status === "ok" && stateRead.value !== null ? { state: stateRead.value } : {}),
-            ...(active.status === "resolved" && active.branch !== null ? { activeBranch: active.branch } : {}),
+            ...(locus === null || locus.branch === null ? {} : { activeBranch: locus.branch }),
             ...(authoring === undefined ? {} : { authoring }),
             ...(approvedDispositionSet === undefined ? {} : { approvedDispositionSet }),
             ...(approvedFix === undefined ? {} : { approvedFix }),
           }),
         };
       };
-      const applyDurableLocalAcknowledgementReplay = (
+      const applyDurableLocalAcknowledgementReplay = async (
         workUnitId: string,
         pending: Extract<DeliveryEntryInspectionResult, { readonly status: "review-fix-verification-required" }>,
         records: Parameters<typeof selectDurableLocalDeliveryReviewFixAcknowledgementReplay>[0]["records"],
       ) => {
+        const stateRead = await stateStore.read(pending.planId);
+        const selectedMembers = stateRead.status === "ok" && stateRead.value !== null
+          ? stateRead.value.value.members.filter(
+              ({ deliverableId }) => deliverableId === pending.selectedDeliverableId,
+            )
+          : [];
+        const selected = selectedMembers[0];
+        if (selectedMembers.length !== 1 || selected?.coordinates === null
+          || selected?.coordinates === undefined) {
+          return { status: "refused" as const, reason: "review-fix-acknowledgement-replay-invalid" as const };
+        }
         const replay = selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
           workUnitId,
           planId: pending.planId,
           selectedDeliverableId: pending.selectedDeliverableId,
+          selectedMemberTarget: {
+            head: selected.coordinates.head,
+            tree: selected.coordinates.tree,
+          },
           target: pending.verification.target,
           records,
         });
@@ -2164,10 +2743,10 @@ async function executeDeliveryCommand(
         }
         return replay.status === "refused" ? replay : null;
       };
-      let entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "execution" }, interaction);
+      let entry = await inspectReviewFixRepositoryEntry("execution");
       if (entry.status === "review-fix-verification-required") {
-        const active = await resolveActiveWu({ cwd });
-        if (active.status !== "resolved") {
+        const locus = await resolveReviewFixLocus();
+        if (locus === null) {
           return { status: "refused", reason: "active-work-unit-unavailable" };
         }
         let dispositionRecords;
@@ -2176,18 +2755,18 @@ async function executeDeliveryCommand(
         } catch {
           return { status: "refused", reason: "review-fix-response-unavailable" };
         }
-        const refused = applyDurableLocalAcknowledgementReplay(active.name, entry, dispositionRecords);
+        const refused = await applyDurableLocalAcknowledgementReplay(locus.name, entry, dispositionRecords);
         if (refused !== null) return refused;
       }
     if (entry.status === "not-applicable") {
-      const active = await resolveActiveWu({ cwd });
-      if (active.status !== "resolved") {
+      const locus = await resolveReviewFixLocus();
+      if (locus === null) {
         return { status: "refused", reason: "active-work-unit-unavailable" };
       }
-      const meta = parseMetaFile(await readFile(resolve(cwd, active.path), "utf8"));
+      const meta = parseMetaFile(await readFile(resolve(cwd, locus.path), "utf8"));
       const taskListPath = meta.taskList === null || meta.taskList === "[none]"
         ? null
-        : resolveTaskListPath(active.path, meta.taskList);
+        : resolveTaskListPath(locus.path, meta.taskList);
       if (taskListPath === null) return { status: "refused", reason: "task-list-unavailable" };
       const taskList = await readFile(resolve(cwd, taskListPath), "utf8");
       const cursor = resolveTaskListCursor(taskList);
@@ -2207,7 +2786,7 @@ async function executeDeliveryCommand(
         return { status: "refused", reason: "review-fix-response-unavailable" };
       }
       const selection = selectPendingDeliveryReviewFixAuthority({
-        workUnitId: active.name,
+        workUnitId: locus.name,
         records: dispositionRecords,
       });
       if (selection.status === "refused") return selection;
@@ -2228,8 +2807,8 @@ async function executeDeliveryCommand(
         ]);
         if (planRead.status !== "ok" || planRead.value === null
           || stateRead.status !== "ok" || stateRead.value === null
-          || planRead.value.workUnitId !== active.name
-          || stateRead.value.value.workUnitId !== active.name
+          || planRead.value.workUnitId !== locus.name
+          || stateRead.value.value.workUnitId !== locus.name
           || inspectDeliveryPlanLocus(taskList, planRead.value).status !== "canonical"
           || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
           return { status: "refused", reason: "review-fix-response-stale" };
@@ -2280,7 +2859,7 @@ async function executeDeliveryCommand(
             || attempt.hosted.reviewTarget.headSha !== selection.reviewedHead
             || attempt.hosted.vehicle?.planId !== selection.planId
             || attempt.hosted.vehicle.deliverableId !== selection.selectedDeliverableId
-            || attempt.hosted.vehicle.workUnitId !== active.name) {
+            || attempt.hosted.vehicle.workUnitId !== locus.name) {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
           const currentVehicle = { ...attempt.hosted.vehicle, head: selectedHead };
@@ -2322,10 +2901,7 @@ async function executeDeliveryCommand(
           if (!mechanicallyPreserved && !requiresCurrentReviewAuthority) {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
-          const integratingEntry = await inspectActiveRepositoryDeliveryEntry(
-            { entryMode: "integrating" },
-            interaction,
-          );
+          const integratingEntry = await inspectReviewFixRepositoryEntry("integrating");
           if (applicability.state === "applicable"
             && applicability.contributionChanged === false
             && applicability.proof !== "head-unchanged") {
@@ -2339,7 +2915,7 @@ async function executeDeliveryCommand(
           }
           const mayResume = mechanicallyPreserved
             ? pendingDeliveryReviewFixCanResumeFromIntegrationStatus(integratingEntry.status)
-            : integratingEntry.status === "continue-hosted-review";
+            : integratingEntry.status === "resolve-delivery-status";
           if (!mayResume) {
             return { status: "refused", reason: "review-fix-response-stale" };
           }
@@ -2352,14 +2928,19 @@ async function executeDeliveryCommand(
             stateRevision: stateRead.value.revision,
             selectedDeliverableId: selection.selectedDeliverableId,
             entryMode: "execution",
+            derivedFrom: {
+              kind: "pending-review-response",
+              reviewedHead: selection.reviewedHead,
+              dispositionSetId: selection.dispositionSetId,
+            },
             recommendedActionText:
               "Plan the approved correction for the delivery member bound by the pending review response.",
           };
         }
       } else {
-        entry = await inspectActiveRepositoryDeliveryEntry({ entryMode: "integrating" }, interaction);
+        entry = await inspectReviewFixRepositoryEntry("integrating");
         if (entry.status === "review-fix-verification-required") {
-          const refused = applyDurableLocalAcknowledgementReplay(active.name, entry, dispositionRecords);
+          const refused = await applyDurableLocalAcknowledgementReplay(locus.name, entry, dispositionRecords);
           if (refused !== null) return refused;
         }
       }
@@ -2375,6 +2956,10 @@ async function executeDeliveryCommand(
           stateRevision: entry.stateRevision,
           selectedDeliverableId: entry.selectedDeliverableId,
           entryMode: "execution",
+          derivedFrom: {
+            kind: "pending-verification",
+            continuationDigest: entry.acknowledgementInput.continuationDigest,
+          },
           recommendedActionText:
             "Supersede the pending verification with the newer exact correction authoring.",
         };
@@ -2383,10 +2968,21 @@ async function executeDeliveryCommand(
           entry = correctionEntry;
           preparedCorrection = prepared;
         } else if (prepared.status === "prepared"
+          && "publicationRequired" in prepared && prepared.publicationRequired === true
+          && prepared.result.status === "authoring-required") {
+          return prepared.result;
+        } else if (prepared.status === "prepared"
           && prepared.result.status === "dispatch"
           && "kind" in prepared.result.action
           && prepared.result.action.kind === "delivery-review-fix-authoring-rebind") {
           return prepared.result;
+        } else {
+          const terminalRebind = await projectTerminalRecordRebind(
+            entry.planId,
+            entry.selectedDeliverableId,
+            correctionEntry,
+          );
+          if (terminalRebind.status !== "not-required") return terminalRebind;
         }
       }
 
@@ -2412,6 +3008,17 @@ async function executeDeliveryCommand(
       }
 
       if (entry.status === "correction-routing-required") {
+        const stateRead = await stateStore.read(entry.planId);
+        if (stateRead.status === "ok" && stateRead.value !== null) {
+          const resumed = projectDeliveryReviewFixContinuation({
+            request: projectionRequest,
+            entry,
+            state: stateRead.value,
+          });
+          if (resumed.status === "dispatch") {
+            return resumed;
+          }
+        }
         const prepared = preparedCorrection ?? await prepareCorrection(entry);
         return prepared.result;
       }
@@ -2421,10 +3028,10 @@ async function executeDeliveryCommand(
         if (terminalRebind.status !== "not-required") return terminalRebind;
       }
       const continuation = projectDeliveryReviewFixContinuation({ request: projectionRequest, entry });
-      if (continuation.status !== "authority-required" || continuation.authority !== "hosted-review") {
+      if (continuation.status !== "authority-required" || continuation.authority !== "delivery-status") {
         return continuation;
       }
-      if (entry.status !== "continue-hosted-review") {
+      if (entry.status !== "resolve-delivery-status") {
         return { status: "refused" as const, reason: "review-status-entry-mismatch" };
       }
       const terminalRebind = await projectTerminalRecordRebind(entry.planId);
@@ -2436,6 +3043,19 @@ async function executeDeliveryCommand(
           workUnitId: continuation.action.action.workUnitId,
           remote: parsed.remote,
         });
+        const settledDeliveryConjunction = reviewStatus.routedObligation.state === "settled"
+          && "conjunction" in reviewStatus.routedObligation
+          && reviewStatus.routedObligation.conjunction.status === "discharged"
+          && reviewStatus.deliveryCursor?.status === "discharged";
+        if (settledDeliveryConjunction) {
+          const positioned = await executeDeliveryCommand("position", {
+            planId: entry.planId,
+            repository: parsed.repository,
+            remote: parsed.remote,
+          }, interaction);
+          const parsedPosition = ResultSchema.safeParse(positioned);
+          return parsedPosition.success ? parsedPosition.data : invalidServiceResult(positioned);
+        }
         if (reviewStatus.nextAction === "respond-to-findings") {
           let records;
           try {
@@ -2500,14 +3120,14 @@ async function executeDeliveryCommand(
           reviewStatus,
           ...(authorityPreservation === undefined ? {} : { authorityPreservation }),
           recommendedActionText:
-            "Continue from the exact composed hosted-review status without re-deriving a member or pass.",
+            "Continue from the exact composed delivery status without re-deriving a member or pass.",
         };
       } catch {
         return {
           status: "refused" as const,
           reason: "review-status-unavailable",
           recommendedActionText:
-            "Restore the self-contained hosted delivery-review continuation before retrying the correction.",
+            "Restore the self-contained delivery status before retrying the correction.",
         };
       }
     };
@@ -2523,12 +3143,12 @@ async function executeDeliveryCommand(
         ? actionInput.planId
         : null;
       const planId = directPlanId ?? actionPlanId;
-      const [stateRead, active] = await Promise.all([
+      const [stateRead, locus] = await Promise.all([
         planId === null ? Promise.resolve(null) : stateStore.read(planId),
-        resolveActiveWu({ cwd }),
+        resolveReviewFixLocus(),
       ]);
-      const boundary = active.status === "resolved"
-        ? await readSubmissionBoundaryVersioned(cwd, active.name)
+      const boundary = locus !== null
+        ? await readSubmissionBoundaryVersioned(cwd, locus.name)
         : { boundary: null, version: null };
       const state = stateRead?.status === "ok" ? stateRead.value : null;
       return {
@@ -2544,148 +3164,6 @@ async function executeDeliveryCommand(
                 coordinates === null ? [] : [coordinates.head]),
             ],
       };
-    };
-    const executeAuthoringRebind = async (input: unknown) => {
-      const reboundInput = ReviewFixAuthoringRebindSchema.safeParse(input);
-      if (!reboundInput.success) return { status: "refused" as const, reason: "authoring-rebind-invalid" };
-      const expected = reboundInput.data;
-      const [checkout, observedRef] = await Promise.all([
-        inspectDeliveryAuthoringCheckout(exec, expected.checkoutPath),
-        observeDeliveryEligibilityRef(exec, expected.ref),
-      ]);
-      if (checkout === null || observedRef === null) {
-        return { status: "refused" as const, reason: "authoring-rebind-unavailable" };
-      }
-      if (checkout.trackedDirty) {
-        return { status: "refused" as const, reason: "authoring-locus-dirty" };
-      }
-      if (checkout.head !== expected.requestedHead || checkout.tree !== expected.requestedTree
-        || observedRef.head !== expected.beforeHead || observedRef.tree !== expected.beforeTree) {
-        return { status: "refused" as const, reason: "authoring-rebind-moved" };
-      }
-      if (expected.beforeHead === expected.requestedHead
-        || await readAncestry(exec, expected.beforeHead, expected.requestedHead) !== "ancestor") {
-        return { status: "refused" as const, reason: "authoring-rebind-not-descendant" };
-      }
-      for (const ancestor of expected.requiredAncestorHeads) {
-        if (await readAncestry(exec, ancestor, expected.requestedHead) !== "ancestor") {
-          return { status: "refused" as const, reason: "authoring-rebind-ancestor-mismatch" };
-        }
-      }
-      if (expected.requiredFindingPaths !== undefined && expected.requiredFindingPaths.length > 0) {
-        const authoredPaths = (await exec(
-          "git",
-          ["diff", "--name-only", "-z", expected.publishedHead, expected.requestedHead, "--"],
-          { cwd: expected.checkoutPath, objectAccess: "local-only" },
-        )).stdout.split("\0").filter((path) => path !== "");
-        if (!expected.requiredFindingPaths.some((path) => authoredPaths.includes(path))) {
-          return { status: "refused" as const, reason: "authoring-rebind-finding-path-missing" };
-        }
-      }
-      const rebound = await rebindDeliveryCandidateRef({
-        exec,
-        ref: expected.ref,
-        beforeHead: expected.beforeHead,
-        requestedHead: expected.requestedHead,
-      });
-      if (rebound.status === "refused") {
-        return { status: "refused" as const, reason: `authoring-rebind-${rebound.reason}` };
-      }
-      return rebound.status === "adopted"
-        ? { status: "already-rebound" as const, replayed: true }
-        : { status: "rebound" as const };
-    };
-    const executeAuthoringRematerialize = async (input: unknown) => {
-      const rematerializeInput = ReviewFixAuthoringRematerializeSchema.safeParse(input);
-      if (!rematerializeInput.success) {
-        return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
-      }
-      const expected = rematerializeInput.data;
-      if ((expected.beforeHead === null) !== (expected.beforeTree === null)) {
-        return { status: "refused" as const, reason: "authoring-rematerialize-invalid" };
-      }
-      const [planRead, stateRead, active, gitCommonDir] = await Promise.all([
-        planStore.readCurrent(expected.planId),
-        stateStore.read(expected.planId),
-        resolveActiveWu({ cwd }),
-        resolveGitCommonDir(exec, cwd),
-      ]);
-      if (planRead.status !== "ok" || planRead.value === null
-        || stateRead.status !== "ok" || stateRead.value === null
-        || stateRead.value.revision !== expected.expectedStateRevision
-        || stateRead.value.value.activeOperation !== null
-        || active.status !== "resolved" || active.name !== planRead.value.workUnitId
-        || validateDeliveryStateAgainstPlan(stateRead.value.value, planRead.value).status !== "valid") {
-        return { status: "refused" as const, reason: "authoring-rematerialize-authority-moved" };
-      }
-      const locatorResult = deriveDeliveryResidueLocators(planRead.value, gitCommonDir);
-      const locators = locatorResult.status === "derived"
-        ? locatorResult.locators.filter(
-            ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
-          )
-        : [];
-      const stateMembers = stateRead.value.value.members.filter(
-        ({ deliverableId }) => deliverableId === expected.selectedDeliverableId,
-      );
-      const locator = locators[0];
-      const member = stateMembers[0];
-      if (locators.length !== 1 || stateMembers.length !== 1 || locator === undefined || member === undefined
-        || locator.candidateRef !== expected.ref || resolve(locator.gatePath) !== resolve(expected.checkoutPath)
-        || member.coordinates === null || member.ref === null
-        || member.coordinates.head !== expected.requestedHead
-        || member.coordinates.tree !== expected.requestedTree) {
-        return { status: "refused" as const, reason: "authoring-rematerialize-coordinate-mismatch" };
-      }
-      const publicCoordinates = await observeDeliveryEligibilityRef(exec, member.ref);
-      if (publicCoordinates?.head !== expected.requestedHead
-        || publicCoordinates.tree !== expected.requestedTree) {
-        return { status: "refused" as const, reason: "authoring-rematerialize-public-moved" };
-      }
-      const observeCandidate = async () => {
-        const local = await observeDeliveryLocalRef(exec, expected.ref);
-        if (local.status === "refused") {
-          return { status: "refused" as const, reason: local.reason };
-        }
-        if (local.status === "absent") return { status: "absent" as const };
-        const coordinates = await observeDeliveryEligibilityRef(exec, expected.ref);
-        return coordinates === null || coordinates.head !== local.head
-          ? { status: "refused" as const, reason: "coordinate-unavailable" }
-          : { status: "observed" as const, ...coordinates };
-      };
-      return prepareDeliveryReviewFixCandidateGate({
-        before: expected.beforeHead === null || expected.beforeTree === null
-          ? { head: expected.requestedHead, tree: expected.requestedTree }
-          : { head: expected.beforeHead, tree: expected.beforeTree },
-        current: { head: expected.requestedHead, tree: expected.requestedTree },
-      }, {
-        observeGate: () => observeDeliveryReviewFixCandidateGate({
-          exec,
-          path: expected.checkoutPath,
-          pathExists,
-        }),
-        observeCandidate,
-        rewriteCandidate: ({ beforeHead, requestedHead }) => rebindDeliveryCandidateRef({
-          exec,
-          ref: expected.ref,
-          beforeHead,
-          requestedHead,
-        }),
-        resetGate: ({ beforeHead, requestedHead }) => resetDeliveryReviewFixCandidateGate({
-          exec,
-          path: expected.checkoutPath,
-          beforeHead,
-          requestedHead,
-        }),
-        createPair: (coordinates) => createDeliveryReviewFixCandidatePair({
-          exec,
-          ref: expected.ref,
-          path: expected.checkoutPath,
-          coordinates,
-          ensureParent: async (path) => {
-            await mkdir(dirname(path), { recursive: true });
-          },
-        }),
-      });
     };
     type DeliveryReviewFixServiceActionKind = Exclude<
       DeliveryReviewFixDriveDispatchAction["kind"],
@@ -2707,7 +3185,7 @@ async function executeDeliveryCommand(
         const step = await project() as DeliveryReviewFixDriveStep<DeliveryReviewFixDriveDispatchAction>;
         return { step, progress: await observeProgress(step) };
       },
-      execute: async (action) => {
+      execute: async (action, context) => {
         let result;
         if (action.kind === "delivery-review-fix-authoring-rematerialize") {
           result = await executeAuthoringRematerialize(action.input);
@@ -2730,7 +3208,12 @@ async function executeDeliveryCommand(
             };
           }
         } else {
-          result = await executeDeliveryCommand(commands[action.kind], action.input, interaction);
+          result = await executeDeliveryCommand(
+            commands[action.kind],
+            action.input,
+            interaction,
+            { settledRecordEffectHead: context.settledRecordEffectHead },
+          );
         }
         if (typeof result !== "object" || result === null || !("status" in result)
           || typeof result.status !== "string") {
@@ -2757,7 +3240,7 @@ async function executeDeliveryCommand(
           ...(resultStatus === "already-acknowledged" ? { replayed: true } : {}),
         };
       },
-      carryBoundary: async ({ planId, stateRevision }) => {
+      carryBoundary: async ({ planId, stateRevision, candidateSubjectDigest }) => {
         const [planRead, stateRead] = await Promise.all([
           planStore.readCurrent(planId),
           stateStore.read(planId),
@@ -2774,14 +3257,35 @@ async function executeDeliveryCommand(
         if (candidate.record === null || boundary.boundary === null) {
           return { status: "refused" as const, reason: "boundary-carry-authority-unavailable" };
         }
-        const candidateBaseline = reduceCandidateDurableBaseline(candidate.record);
+        const locus = await resolveReviewFixLocus();
+        if (locus === null || locus.name !== planRead.value.workUnitId) {
+          return { status: "refused" as const, reason: "boundary-carry-position-moved" };
+        }
+        let effectiveCandidate;
+        try {
+          effectiveCandidate = await projectGitCandidateEffectiveTarget({
+            cwd,
+            name: locus.name,
+            baseBranch: locus.baseBranch,
+            record: candidate.record,
+            exec,
+            rawExec: createRawGitExec(cwd),
+          });
+        } catch {
+          return { status: "refused" as const, reason: "boundary-carry-position-moved" };
+        }
+        if (effectiveCandidate.state !== "current"
+          || effectiveCandidate.candidateId !== boundary.boundary.candidateId
+          || effectiveCandidate.recognizedTarget.subject.subjectDigest !== candidateSubjectDigest) {
+          return { status: "refused" as const, reason: "boundary-carry-position-moved" };
+        }
         const carried = carryDeliveryReviewFixPublicBoundary({
           plan: planRead.value,
           state: stateRead.value,
           boundary: boundary.boundary,
           candidateId: candidate.record.attestation.candidateId,
           sourceCandidateSubjectDigest: boundary.boundary.candidateSubjectDigest ?? "",
-          candidateSubjectDigest: candidateBaseline.target.subject.subjectDigest,
+          candidateSubjectDigest,
         });
         if (carried.status === "refused") return carried;
         const path = await writeSubmissionBoundary(cwd, carried.boundary, boundary.version);
@@ -2795,12 +3299,12 @@ async function executeDeliveryCommand(
         };
       },
       settleRecordEffects: async () => {
-        const active = await resolveActiveWu({ cwd });
-        if (active.status !== "resolved") {
+        const locus = await resolveReviewFixLocus();
+        if (locus === null) {
           return { status: "refused" as const, reason: "record-effect-work-unit-unavailable" };
         }
         if (expectedRecordEffects.length === 0) {
-          const reconstructed = await reconstructExpectedRecordEffects(active.name);
+          const reconstructed = await reconstructExpectedRecordEffects(locus.name);
           if (reconstructed.status === "refused") return reconstructed;
           if (reconstructed.status === "defer-acknowledgement") {
             return { status: "idle" as const, effects: [] };
@@ -2809,8 +3313,8 @@ async function executeDeliveryCommand(
         }
         const identity = await resolveUserIdentity(exec);
         const settlement = await settleDeliveryReviewFixRecordEffects({
-          workUnitId: active.name,
-          context: `meta-${active.name}.md (integration)`,
+          workUnitId: locus.name,
+          context: `meta-${locus.name}.md (integration)`,
           expectedRecords: expectedRecordEffects,
           ports: createDeliveryReviewFixReleaseEffectPorts({
             cwd,
@@ -2822,7 +3326,6 @@ async function executeDeliveryCommand(
         });
         if (settlement.status !== "refused") {
           expectedRecordEffects = [];
-          settledRecordEffectHead = null;
           for (const effect of settlement.effects) {
             if (effect.kind === "commit") settledRecordEffectHead = effect.head;
           }
@@ -2857,6 +3360,38 @@ async function executeDeliveryCommand(
       const verifiedAt = new Date().toISOString();
       const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
       const dispositionRecords = await dispositionStore.listDispositionRecords();
+      const validateLocalResponse = async (record: (typeof dispositionRecords)[number]) => {
+        const responseMember = record.deliveryMember;
+        if (record.source.kind !== "attested-local" || responseMember === null) return null;
+        let sourceReference;
+        try {
+          sourceReference = parseReviewSourceReference(record.source.receiptRef, "attested-local");
+        } catch {
+          return null;
+        }
+        const operation = await new LocalReviewOperationStateStore(publisher)
+          .readOperation(sourceReference.operationId);
+        const admission = operation.state?.kind === "local-review"
+          ? operation.state.deliveryAdmission
+          : undefined;
+        if (operation.state?.kind !== "local-review"
+          || operation.state.operationId !== record.operationId
+          || sourceReference.operationId !== record.operationId
+          || operation.state.repositoryId !== record.repositoryId
+          || admission === undefined
+          || canonicalize(admission.vehicle) !== canonicalize(responseMember)
+          || operation.state.target.kind !== "delivery-member"
+          || operation.state.target.targetId !== record.approvedDisposition.dispositionSet.targetId
+          || operation.state.target.headSha !== responseMember.head) return null;
+        return {
+          oldTarget: operation.state.target,
+          settlement: {
+            repositoryId: operation.state.repositoryId,
+            headSha: operation.state.target.headSha,
+            attemptId: operation.state.operationId,
+          },
+        };
+      };
       let responseAdvance: Exclude<
         ReturnType<typeof advanceDeliveryReviewFixResponse>,
         { readonly status: "refused" }
@@ -2866,34 +3401,69 @@ async function executeDeliveryCommand(
         readonly headSha: string;
         readonly attemptId: string;
       } | null = null;
+      let verification = parsed.verification;
+      const selectedIndex = stateRead.value.value.members.findIndex(
+        ({ deliverableId }) => deliverableId === parsed.selectedDeliverableId,
+      );
+      const selectedMember = stateRead.value.value.members[selectedIndex];
+      const expectedBaseRef = selectedIndex === 0
+        ? stateRead.value.value.target?.ref
+        : stateRead.value.value.members[selectedIndex - 1]?.ref;
+      const expectedBaseName = expectedBaseRef?.startsWith("refs/heads/") === true
+        ? expectedBaseRef.slice("refs/heads/".length)
+        : null;
+      if (selectedMember?.coordinates === null || selectedMember?.coordinates === undefined
+        || selectedMember.ref === null || selectedMember.changeRequest === null
+        || expectedBaseName === null) {
+        return { status: "refused", reason: "review-fix-response-invalid" };
+      }
+      const durableLocalReplay = selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
+        workUnitId,
+        planId: parsed.planId,
+        selectedDeliverableId: parsed.selectedDeliverableId,
+        selectedMemberTarget: {
+          head: selectedMember.coordinates.head,
+          tree: selectedMember.coordinates.tree,
+        },
+        target: parsed.verification.target,
+        records: dispositionRecords,
+      });
+      if (durableLocalReplay.status === "refused") return durableLocalReplay;
       const matchingResponseRecords = dispositionRecords.filter((record) => (
         record.deliveryMember?.planId === parsed.planId
         && record.deliveryMember.deliverableId === parsed.selectedDeliverableId
         && record.deliveryMember.workUnitId === workUnitId
         && record.fixAuthorization !== null
+        && record.deliveryMemberFixResponse === null
       ));
       if (matchingResponseRecords.length > 1) {
         return { status: "refused", reason: "review-fix-response-ambiguous" };
       }
       const responseRecord = matchingResponseRecords[0];
+      if (durableLocalReplay.status === "selected" || durableLocalReplay.status === "settlement-only") {
+        if (responseRecord !== undefined) {
+          return { status: "refused", reason: "review-fix-response-ambiguous" };
+        }
+        const replayRecords = dispositionRecords.filter((record) => (
+          record.operationId === durableLocalReplay.operationId
+          && record.deliveryMemberFixResponse !== null
+        ));
+        const replayRecord = replayRecords.length === 1 ? replayRecords[0] : undefined;
+        const validated = replayRecord === undefined ? null : await validateLocalResponse(replayRecord);
+        if (validated === null) {
+          return { status: "refused", reason: "review-fix-response-invalid" };
+        }
+        localResponseSettlement = validated.settlement;
+        if (durableLocalReplay.status === "selected") {
+          verification = {
+            ...durableLocalReplay.verification,
+            verificationEvidenceRefs: [...durableLocalReplay.verification.verificationEvidenceRefs],
+          };
+        }
+      }
       if (responseRecord !== undefined) {
         const responseMember = responseRecord.deliveryMember;
         if (responseRecord.source.kind === "frontline" || responseMember === null) {
-          return { status: "refused", reason: "review-fix-response-invalid" };
-        }
-        const selectedIndex = stateRead.value.value.members.findIndex(
-          ({ deliverableId }) => deliverableId === parsed.selectedDeliverableId,
-        );
-        const selectedMember = stateRead.value.value.members[selectedIndex];
-        const expectedBaseRef = selectedIndex === 0
-          ? stateRead.value.value.target?.ref
-          : stateRead.value.value.members[selectedIndex - 1]?.ref;
-        const expectedBaseName = expectedBaseRef?.startsWith("refs/heads/") === true
-          ? expectedBaseRef.slice("refs/heads/".length)
-          : null;
-        if (selectedMember?.coordinates === null || selectedMember?.coordinates === undefined
-          || selectedMember.ref === null || selectedMember.changeRequest === null
-          || expectedBaseName === null) {
           return { status: "refused", reason: "review-fix-response-invalid" };
         }
         let oldTarget;
@@ -2935,34 +3505,10 @@ async function executeDeliveryCommand(
           oldTarget = attempt.hosted.reviewTarget;
           hostedTarget = attempt.hosted.target;
         } else {
-          let sourceReference;
-          try {
-            sourceReference = parseReviewSourceReference(responseRecord.source.receiptRef, "attested-local");
-          } catch {
-            return { status: "refused", reason: "review-fix-response-invalid" };
-          }
-          const operation = await new LocalReviewOperationStateStore(publisher)
-            .readOperation(sourceReference.operationId);
-          const admission = operation.state?.kind === "local-review"
-            ? operation.state.deliveryAdmission
-            : undefined;
-          if (operation.state?.kind !== "local-review"
-            || operation.state.operationId !== responseRecord.operationId
-            || sourceReference.operationId !== responseRecord.operationId
-            || admission === undefined
-            || canonicalize(admission.vehicle) !== canonicalize(responseMember)
-            || operation.state.target.kind !== "delivery-member"
-            || operation.state.target.targetId
-              !== responseRecord.approvedDisposition.dispositionSet.targetId
-            || operation.state.target.headSha !== responseMember.head) {
-            return { status: "refused", reason: "review-fix-response-invalid" };
-          }
-          oldTarget = operation.state.target;
-          localResponseSettlement = {
-            repositoryId: operation.state.repositoryId,
-            headSha: operation.state.target.headSha,
-            attemptId: operation.state.operationId,
-          };
+          const validated = await validateLocalResponse(responseRecord);
+          if (validated === null) return { status: "refused", reason: "review-fix-response-invalid" };
+          oldTarget = validated.oldTarget;
+          localResponseSettlement = validated.settlement;
         }
         const advanced = advanceDeliveryReviewFixResponse({
           record: responseRecord,
@@ -2970,8 +3516,8 @@ async function executeDeliveryCommand(
           hostedTarget,
           currentHead: selectedMember.coordinates.head,
           currentTree: selectedMember.coordinates.tree,
-          applicability: parsed.verification.applicability,
-          verificationEvidenceRefs: parsed.verification.verificationEvidenceRefs,
+          applicability: verification.applicability,
+          verificationEvidenceRefs: verification.verificationEvidenceRefs,
           verifiedAt,
         });
         if (advanced.status === "refused") return advanced;
@@ -3030,8 +3576,8 @@ async function executeDeliveryCommand(
         currentTarget,
         verifiedBy: actor,
         verifiedAt,
-        applicability: parsed.verification.applicability,
-        verificationEvidenceRefs: parsed.verification.verificationEvidenceRefs,
+        applicability: verification.applicability,
+        verificationEvidenceRefs: verification.verificationEvidenceRefs,
       });
       if (recorded.status === "refused") return recorded;
       const acknowledgementProjection = projectDeliveryReviewFixVerificationAcknowledgement({
@@ -3098,7 +3644,7 @@ async function executeDeliveryCommand(
           verificationId: recorded.transition.verificationId,
           recordPath,
         },
-        nextAction: "continue-hosted-review" as const,
+        nextAction: "resolve-delivery-status" as const,
         boundaryCarry: {
           path: boundaryPath,
           candidateId: carried.candidateId,
@@ -3109,6 +3655,62 @@ async function executeDeliveryCommand(
     } catch {
       return { status: "refused", reason: "candidate-verification-unavailable" };
     }
+  }
+  if (command === "authoring-locate") {
+    const parsed = AuthoringLocateSchema.parse(request);
+    const planRead = await planStore.readCurrent(parsed.planId);
+    if (planRead.status !== "ok" || planRead.value === null) {
+      return { status: "refused", reason: "delivery-plan-unavailable" };
+    }
+    const locators = deriveDeliveryResidueLocators(
+      planRead.value,
+      await resolveGitCommonDir(exec, cwd),
+    );
+    return locators.status === "derived"
+      ? { status: "located", planId: parsed.planId, locators: locators.locators }
+      : { status: "refused", reason: locators.reason };
+  }
+  if (command === "closeout") {
+    const parsed = CloseoutSchema.parse(request);
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"].trim();
+    const pathExists = async (path: string): Promise<boolean> => {
+      try {
+        await stat(path);
+        return true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        throw error;
+      }
+    };
+    return closeoutCompletedDelivery(parsed, {
+      planStore,
+      stateStore,
+      gitCommonDir: await resolveGitCommonDir(exec, cwd),
+      renameAuthority: baseBranch === ""
+        ? { status: "unestablished" }
+        : { status: "established", ref: `refs/heads/${baseBranch}` },
+      renameTransitionSource: new GitDeliveryRenameTransitionSource(createRawGitExec(cwd)),
+      residue: {
+        observeRefreshCandidates: (planId) => observeDeliveryRefreshCandidateRefs(exec, planId),
+        observeCandidate: (ref) => observeDeliveryLocalRef(exec, ref),
+        observeGate: (path) => observeDeliveryGateCheckout({ exec, path, pathExists }),
+        deleteCandidate: (input) => deleteDeliveryCandidateRef({ exec, ...input }),
+        deleteRefreshCandidate: (input) => deleteDeliveryRefreshCandidateRef({ exec, ...input }),
+        removeGate: (input) => removeDeliveryGateCheckout({ exec, pathExists, ...input }),
+        deleteLocalMember: (input) => deleteDeliveryLocalRef({ exec, ...input }),
+        deleteRemoteMember: (input) => deleteDeliveryRemoteRef({
+          exec,
+          remote: parsed.remote,
+          ...input,
+        }),
+      },
+      retirement: {
+        observeLocalRef: (ref) => observeDeliveryLocalRef(exec, ref),
+        observeRemoteRef: (ref) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
+        readTerminalRequest: (repository, binding) => host.readRequest(repository, binding),
+      },
+    });
   }
   const settleAppliedNativeLanding = (
     plan: z.infer<typeof DeliveryPlanV1Schema>,
@@ -3140,8 +3742,10 @@ async function executeDeliveryCommand(
         return observed?.head === remoteRef.head ? observed : null;
       },
       proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
+      observeMemberRefCheckouts: (refs) => observeDeliveryMemberRefCheckouts(exec, refs),
       absorbTop: (input) => absorbGitDeliveryChain({ exec: rawExec, ...input }),
       publishTop: (input) => publishDeliveryTopRef({ exec, remote, ...input }),
+      rewriteLocalRef: (input) => rewriteDeliveryLocalRef({ exec, ...input }),
       stateStore,
     });
   };
@@ -3190,7 +3794,7 @@ async function executeDeliveryCommand(
     current: { readonly revision: number; readonly value: z.infer<typeof DeliveryStateV1Schema> },
     repository: string,
     remote: string,
-    mode: "exact" | "review-fix" | "review-fix-local" | "refresh-adopt"
+    mode: "exact" | "terminal-remedy" | "review-fix" | "review-fix-local" | "refresh-adopt"
       | "review-fix-adopt" | "review-fix-local-adopt" = "exact",
   ) => {
     const host = new GhDeliveryHostPort(hostedGhRunner);
@@ -3294,8 +3898,10 @@ async function executeDeliveryCommand(
         ...endpoints,
       }),
     }, {
-      ...(mode === "review-fix" || mode === "review-fix-local"
-        || mode === "review-fix-adopt" || mode === "review-fix-local-adopt"
+      ...(mode === "terminal-remedy"
+        ? { terminalAuthoringMovement: "allow-append-only-frozen-request" as const }
+        : mode === "review-fix" || mode === "review-fix-local"
+          || mode === "review-fix-adopt" || mode === "review-fix-local-adopt"
         ? { terminalAuthoringMovement: "allow-append-only" as const }
         : {}),
       ...(mode === "refresh-adopt" || mode === "review-fix-adopt" || mode === "review-fix-local-adopt"
@@ -3373,7 +3979,7 @@ async function executeDeliveryCommand(
     if (beforePredecessor === null || afterPredecessor === null) {
       return { status: "refused" as const, reason: "contribution-endpoints-unverified" as const };
     }
-    return proveGitDeliveryContribution({
+    return proveGitDeliveryProviderRefreshContribution({
       exec: createRawGitExec(cwd),
       before: {
         predecessor: beforePredecessor,
@@ -3482,7 +4088,7 @@ async function executeDeliveryCommand(
       parsed.remote,
       parsed.selectedDeliverableId,
       command === "review-fix-plan"
-        && ReviewFixPlanSchema.parse(parsed).entryMode === "execution",
+        && plan.members.at(-1)?.deliverableId === parsed.selectedDeliverableId,
     );
     if (authority.status === "refused") {
       return {
@@ -3693,13 +4299,13 @@ async function executeDeliveryCommand(
         : derived.subject.affectedDeliverableIds[0];
       const reviewFixAuthority = planRequest.mechanics === undefined
         && refreshSelectedDeliverableId !== undefined
-          ? await observeReviewFixAuthority(
-              plan,
-              current,
-              planRequest.repository,
-              planRequest.remote,
-              refreshSelectedDeliverableId,
-            )
+        ? await observeReviewFixAuthority(
+            plan,
+            current,
+            planRequest.repository,
+            planRequest.remote,
+            refreshSelectedDeliverableId,
+          )
         : null;
       return planDeliverySuffixRefresh({
         plan,
@@ -4052,8 +4658,8 @@ async function executeDeliveryCommand(
     const plan = planRead.value;
     const current = stateRead.value;
     const host = new GhDeliveryHostPort(hostedGhRunner);
-    const reviewStatus = createReviewStatusPort({ cwd, exec });
     if (command === "native-land-prepare") {
+      const reviewStatus = createReviewStatusPort({ cwd, exec });
       const prepare = NativePrepareSchema.parse(parsed);
       const expectedChain = deriveNativeDeliveryMemberChain({
         state: current.value,
@@ -4084,6 +4690,29 @@ async function executeDeliveryCommand(
           recommendedActionText: "Restore fresh delivery position before preparing a native landing.",
         };
       }
+      const anchor = expectedChain.members[0];
+      if (anchor === undefined) {
+        return {
+          status: "blocked",
+          reason: "member-set-mismatch",
+          recommendedActionText: "Refresh the exact plan-ordered member bindings before preparing again.",
+        };
+      }
+      const reviewReadiness = createDeliveryLandingSetReviewReadiness({
+        repository: prepare.repository,
+        headRef: anchor.headRef,
+        headSha: anchor.headSha,
+      }, reviewStatus, (target, routedObligation) => {
+        const expected = expectedChain.members.find((candidate) => candidate.headRef === target.headRef
+          && candidate.headSha === target.headSha);
+        if (expected === undefined) throw new Error("selected native landing member is unavailable");
+        return createReviewStatusPort({ cwd, exec }, {
+          target,
+          pullRequest: Number(expected.changeRequestId),
+          routedObligation,
+          deliveryLookupHeadSha: expected.headSha,
+        });
+      });
       return reserveNativeDeliveryLanding({
         plan, current, operationId: prepare.operationId, facts: observed.facts,
         selection: prepare.selection, repository: prepare.repository, baseRef: prepare.baseRef,
@@ -4104,19 +4733,31 @@ async function executeDeliveryCommand(
             || observed.request.baseRef !== expected.baseRef) {
             return { status: "refused" as const };
           }
-          return assessDeliveryLandingReviewReadiness({
+          return reviewReadiness({
             repository: prepare.repository,
             headRef: expected.headRef,
             headSha: expected.headSha,
-          }, reviewStatus);
+          });
         }, stateStore,
       });
     }
     if (command === "native-land-submit") {
       const submit = NativeSubmitSchema.parse(parsed);
       const operation = current.value.activeOperation;
+      const reviewStatusInput = {
+        cwd,
+        exec,
+        preparedNativeLanding: {
+          planId: submit.planId,
+          operationId: submit.operationId,
+        },
+      };
+      const reviewStatus = createReviewStatusPort(reviewStatusInput);
       const nativeResult = await submitReservedNativeDeliveryMerge({
-        planId: submit.planId, current, operationId: submit.operationId, request: submit.request,
+        planId: submit.planId,
+        current,
+        operationId: submit.operationId,
+        request: submit.request,
       }, {
         host, stateStore,
         reobserveSelection: async () => {
@@ -4139,20 +4780,51 @@ async function executeDeliveryCommand(
           }, host);
           return { status: observation.status === "registered" ? "exact" as const : "refused" as const };
         },
-        revalidate: async (deliverableId, headSha) => {
-          const member = current.value.members.find((candidate) => candidate.deliverableId === deliverableId);
-          if (member?.changeRequest === null || member?.changeRequest === undefined) return { status: "refused" as const };
-          const observed = await host.readRequest(submit.request.repository, member.changeRequest);
-          if (observed.status !== "observed" || observed.request.state !== "open"
-            || observed.request.repository !== submit.request.repository
-            || observed.request.headRepository !== submit.request.repository
-            || observed.request.headRef !== member.ref?.replace(/^refs\/heads\//u, "")
-            || observed.request.headSha !== headSha) return { status: "refused" as const };
-          return assessDeliveryLandingReviewReadiness({
+        revalidateSet: async (members) => {
+          const anchor = members[0];
+          if (anchor?.ref === null || anchor === undefined || anchor.changeRequest === null
+            || anchor.coordinates === null) return { status: "refused" as const };
+          const reviewReadiness = createDeliveryLandingSetReviewReadiness({
             repository: submit.request.repository,
-            headRef: observed.request.headRef,
-            headSha,
-          }, reviewStatus);
+            headRef: anchor.ref.replace(/^refs\/heads\//u, ""),
+            headSha: anchor.coordinates.head,
+          }, reviewStatus, (target, routedObligation) => {
+            const expected = members.find((candidate) => candidate.ref !== null
+              && candidate.coordinates !== null
+              && candidate.ref.replace(/^refs\/heads\//u, "") === target.headRef
+              && candidate.coordinates.head === target.headSha);
+            const pullRequest = Number(expected?.changeRequest?.changeRequestId);
+            if (expected === undefined || !Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
+              throw new Error("reserved native landing member is unavailable");
+            }
+            return createReviewStatusPort(reviewStatusInput, {
+              target,
+              pullRequest,
+              routedObligation,
+              deliveryLookupHeadSha: target.headSha,
+            });
+          });
+          const revalidated = await Promise.all(members.map(async (member) => {
+            if (member.ref === null || member.changeRequest === null || member.coordinates === null) {
+              return { status: "refused" as const };
+            }
+            const observed = await host.readRequest(submit.request.repository, member.changeRequest);
+            if (observed.status !== "observed" || observed.request.state !== "open"
+              || observed.request.repository !== submit.request.repository
+              || observed.request.headRepository !== submit.request.repository
+              || observed.request.binding.providerId !== member.changeRequest.providerId
+              || observed.request.binding.changeRequestId !== member.changeRequest.changeRequestId
+              || observed.request.headRef !== member.ref.replace(/^refs\/heads\//u, "")
+              || observed.request.headSha !== member.coordinates.head) return { status: "refused" as const };
+            return reviewReadiness({
+              repository: submit.request.repository,
+              headRef: observed.request.headRef,
+              headSha: member.coordinates.head,
+            });
+          }));
+          return revalidated.every(({ status }) => status === "ready")
+            ? { status: "ready" as const }
+            : { status: "refused" as const };
         },
         releaseLock: async (deliverableId) => {
           const member = current.value.members.find((candidate) => candidate.deliverableId === deliverableId);
@@ -4182,8 +4854,8 @@ async function executeDeliveryCommand(
       }
       return settleAppliedNativeLanding(
         plan,
-        current,
-        { revision: current.revision, value: nativeResult.projected },
+        nativeResult.before,
+        { revision: nativeResult.before.revision, value: nativeResult.projected },
         submit.request.repository,
         operation.effect.targetRef,
         submit.remote,
@@ -4194,7 +4866,13 @@ async function executeDeliveryCommand(
     if (operation === null || operation.kind !== "land" || operation.mode !== "native") {
       return { status: "blocked", reason: "effect-identity-missing", recommendedActionText: "Restore the persisted native land reservation before polling." };
     }
-    const nativeResult = await reconcileReservedNativeDeliveryMerge({ planId: status.planId, current, request: status.request }, {
+    const nativeResult = await reconcileReservedNativeDeliveryMerge({
+      planId: status.planId,
+      current,
+      request: status.request,
+      treeRoot: cwd,
+      remote: status.remote,
+    }, {
       host, stateStore,
       observeEffect: () => observeNativeDeliveryEffect(
         host, current.value, status.request.repository, operation, exec, cwd, status.remote,
@@ -4203,8 +4881,8 @@ async function executeDeliveryCommand(
     if (nativeResult.status !== "applied") return nativeResult;
     return settleAppliedNativeLanding(
       plan,
-      current,
-      { revision: current.revision, value: nativeResult.projected },
+      nativeResult.before,
+      { revision: nativeResult.before.revision, value: nativeResult.projected },
       status.request.repository,
       operation.effect.targetRef,
       status.remote,
@@ -4398,6 +5076,7 @@ async function executeDeliveryCommand(
         status: "refused",
         reason: "review-fix-routing-required",
         nextAction: "plan-review-fix",
+        entryMode: "integrating",
         recommendedActionText: REVIEW_FIX_ROUTING_REQUIRED_TEXT,
       };
     }
@@ -4598,7 +5277,11 @@ async function executeDeliveryCommand(
           candidate = effective;
           candidateTargetRevision = effective.recognizedTarget.revision;
         } else {
-          if (parsed.reviewFixSelectedDeliverableId !== terminal.deliverableId
+          const pendingVerification = currentState.value.pendingReviewFixVerification;
+          const matchingPendingVerification = pendingVerification !== null
+            && pendingVerification.selectedDeliverableId === parsed.reviewFixSelectedDeliverableId;
+          if ((parsed.reviewFixSelectedDeliverableId !== terminal.deliverableId
+              && !matchingPendingVerification)
             || effective.state === "staged-change" || effective.state === "rerun-checkpoint") {
             return { status: "refused", reason: "candidate-not-current" };
           }
@@ -4607,6 +5290,30 @@ async function executeDeliveryCommand(
           if (baselineCurrentness.status !== "current"
             || baselineCurrentness.convergenceVerification !== "satisfied") {
             return { status: "refused", reason: "candidate-baseline-unverified" };
+          }
+          const retainedHead = terminal.coordinates.head;
+          const retainedTerminalTarget = await (async () => {
+            if (baseline.target.revision === retainedHead) {
+              return { revision: retainedHead, baselineRelation: "exact" as const };
+            }
+            if (await readAncestry(localExec, baseline.target.revision, retainedHead) !== "ancestor") return null;
+            if (matchingPendingVerification) {
+              return { revision: retainedHead, baselineRelation: "ancestor" as const };
+            }
+            const retainedTarget = await collectGitCandidateTarget({
+              cwd,
+              name: currentPlan.workUnitId,
+              baseBranch,
+              baseRevision,
+              revision: retainedHead,
+              exec,
+            });
+            return retainedTarget.subject.subjectDigest === baseline.target.subject.subjectDigest
+              ? { revision: retainedHead, baselineRelation: "equivalent" as const }
+              : null;
+          })();
+          if (retainedTerminalTarget === null) {
+            return { status: "refused", reason: "candidate-not-current" };
           }
           const head = await observeDeliveryEligibilityRef(localExec, "HEAD");
           if (head === null || head.head === terminal.coordinates.head
@@ -4636,6 +5343,11 @@ async function executeDeliveryCommand(
             || projectedTarget.subjectDigest !== currentTarget.subject.subjectDigest) {
             return { status: "refused", reason: "candidate-not-current" };
           }
+          const memberDeliverableIds = matchingPendingVerification
+            ? pendingVerification.memberDeliverableIds.includes(terminal.deliverableId)
+              ? pendingVerification.memberDeliverableIds
+              : [...pendingVerification.memberDeliverableIds, terminal.deliverableId]
+            : [parsed.reviewFixSelectedDeliverableId];
           candidate = {
             schemaVersion: 1,
             mode: "candidate-effective-target",
@@ -4644,6 +5356,8 @@ async function executeDeliveryCommand(
             durableBaselineTarget: baseline.target,
             currentTarget,
             selectedDeliverableId: parsed.reviewFixSelectedDeliverableId,
+            memberDeliverableIds,
+            retainedTerminalTarget,
             convergenceVerification: "satisfied",
           };
           candidateTargetRevision = currentTarget.revision;
@@ -4679,13 +5393,17 @@ async function executeDeliveryCommand(
           candidate,
           publication: {
             settled: boundary.locus === "publication-pending"
-              || boundary.locus === "hosted-review-pending",
+              || boundary.locus === "hosted-review-pending"
+              || boundary.locus === "delivery-status-required",
             candidateId: boundary.candidateId,
             candidateSubjectDigest: boundary.candidateSubjectDigest,
           },
           repository: parsed.repository,
           request: observedTop.request,
           coordinates: { base, head: coordinates.head, tree: coordinates.tree },
+          ...(internalContext?.settledRecordEffectHead == null
+            ? {}
+            : { settledRecordEffectHead: internalContext.settledRecordEffectHead }),
         });
         if (projected.status === "refused") return projected;
         const published = await stateStore.publish(
@@ -4767,6 +5485,8 @@ async function executeDeliveryCommand(
         planId: parsed.planId,
         current: currentState,
         request: nativeRequest,
+        treeRoot: cwd,
+        remote: parsed.remote,
       }, {
         host,
         stateStore,
@@ -4783,8 +5503,8 @@ async function executeDeliveryCommand(
       if (nativeResult.status !== "applied") return nativeResult;
       return settleAppliedNativeLanding(
         currentPlan,
-        currentState,
-        { revision: currentState.revision, value: nativeResult.projected },
+        nativeResult.before,
+        { revision: nativeResult.before.revision, value: nativeResult.projected },
         parsed.repository,
         activeOperation.effect.targetRef,
         parsed.remote,
@@ -4821,7 +5541,9 @@ async function executeDeliveryCommand(
             if (triggerRef.status === "refused") {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
-            return request.status === "observed" && triggerRef.status === "absent"
+            const triggerExact = triggerRef.status === "absent"
+              || triggerRef.head === operation.effect.triggerHeadSha;
+            return request.status === "observed" && triggerExact
               ? {
                   status: "observed" as const,
                   value: classifyDeliveryTopRemedyObservation(
@@ -4845,10 +5567,19 @@ async function executeDeliveryCommand(
             if (ref.status === "refused" || request.status !== "observed" || targetRef === undefined) {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
+            const acceptedBaseRefs = deliveryTeardownAcceptedBaseRefs({
+              plan: currentPlan,
+              state: currentState.value,
+              deliverableId: before.deliverableId,
+              protectedTargetRef: targetRef,
+            });
+            if (acceptedBaseRefs === null) {
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
+            }
             const exactRequest = matchesDeliveryTeardownRequest({
                 request: request.request,
                 repository: parsed.repository,
-                protectedTargetRef: targetRef,
+                acceptedBaseRefs,
                 member: before,
             });
             if (!exactRequest) {
@@ -5124,7 +5855,7 @@ async function executeDeliveryCommand(
             });
             return { status: checked.status };
           },
-          rewriteRef: (effect) => rewriteDeliveryRemoteRef({ exec, remote: parsed.remote, ...effect }),
+          rewriteRef: (effect) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...effect }),
           observeResult: async () => {
             const observed = await observeDeliveryRemoteRef(exec, parsed.remote, memberRef);
             return observed.status === "observed" && observed.head === requestedCoordinates.head
@@ -5182,7 +5913,7 @@ async function executeDeliveryCommand(
         });
         return { status: checked.status };
       },
-      rewriteRef: (input) => rewriteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
+      rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...input }),
       observeResult: async () => {
         const member = parsed.requested.members[0];
         const observed = await observeDeliveryEligibilityRef(exec, parsed.candidateRef);
@@ -5205,7 +5936,13 @@ async function executeDeliveryCommand(
       || stateRead.status !== "ok" || stateRead.value === null) {
       return { status: "refused", reason: "delivery-unavailable" };
     }
-    const observed = await observePosition(planRead.value, stateRead.value, parsed.repository, parsed.remote);
+    const observed = await observePosition(
+      planRead.value,
+      stateRead.value,
+      parsed.repository,
+      parsed.remote,
+      "terminal-remedy",
+    );
     if (observed.status !== "observed") return { status: "refused", reason: "position-unavailable" };
     return applyDeliveryTopRemedy({
       plan: planRead.value,
@@ -5236,7 +5973,8 @@ async function executeDeliveryCommand(
     repository: parsed.repository,
     protectedTargetRef: parsed.protectedTargetRef,
     host: new GhDeliveryHostPort(hostedGhRunner),
-    deleteRef: (input) => deleteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
+    deleteLocalRef: (input) => deleteDeliveryLocalRef({ exec, ...input }),
+    deleteRemoteRef: (input) => deleteDeliveryRemoteRef({ exec, remote: parsed.remote, ...input }),
     stateStore,
   });
 }

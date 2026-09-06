@@ -43,6 +43,7 @@ describe("delivery entry handler", () => {
       planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
       selectedDeliverableId: `sha256:${"b".repeat(64)}`,
       entryMode: "execution",
+      derivedFrom: { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" },
       recommendedActionText: "Plan correction.",
     },
     {
@@ -56,10 +57,10 @@ describe("delivery entry handler", () => {
       recommendedActionText: "Resume publication.",
     },
     {
-      status: "continue-hosted-review", nextAction: "continue-hosted-review",
+      status: "resolve-delivery-status", nextAction: "resolve-delivery-status",
       planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
-      hostedReviewAction: {
-        kind: "continue-hosted-review",
+      deliveryStatusAction: {
+        kind: "resolve-delivery-status",
         workUnitId: "example",
         command: "arc review status --work-unit example --json",
         interactionText: "Resume hosted member review.",

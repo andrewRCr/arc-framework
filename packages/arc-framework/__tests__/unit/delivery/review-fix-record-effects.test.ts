@@ -22,7 +22,7 @@ import {
   type CandidateManagedRecordV1,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 import {
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
@@ -69,6 +69,7 @@ describe("delivery review-fix record effects", () => {
       transitions: [],
       lineageAttestations: [],
     };
+    const effectiveSubjectDigest = `sha256:${"9".repeat(64)}`;
     const reservation = {
       schemaVersion: 1 as const,
       semanticsVersion: "standard-review-reservation/v1" as const,
@@ -93,14 +94,14 @@ describe("delivery review-fix record effects", () => {
       workUnit: plan.workUnitId,
       branch: "feat/example",
       candidateId: candidate.attestation.candidateId,
-      candidateSubjectDigest: candidate.subject.subjectDigest,
+      candidateSubjectDigest: effectiveSubjectDigest,
       reservation,
       changeRequest: null,
     });
-    const beforeBoundary = projectCorrectiveDeliveryReviewBoundary({
+    const beforeBoundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId: candidate.attestation.candidateId,
-      candidateSubjectDigest: candidate.subject.subjectDigest,
+      candidateSubjectDigest: effectiveSubjectDigest,
       supersedesCandidateId: null,
       sourceBoundary: publication,
       deliveryContinuation: beforeContinuation.continuation,
@@ -110,8 +111,8 @@ describe("delivery review-fix record effects", () => {
       state: { revision: 10, value: state },
       boundary: beforeBoundary,
       candidateId: candidate.attestation.candidateId,
-      sourceCandidateSubjectDigest: candidate.subject.subjectDigest,
-      candidateSubjectDigest: candidate.subject.subjectDigest,
+      sourceCandidateSubjectDigest: effectiveSubjectDigest,
+      candidateSubjectDigest: effectiveSubjectDigest,
     });
     if (carried.status !== "carried") throw new Error("fixture boundary must carry");
     const candidateContent = canonicalize(candidate);
@@ -125,6 +126,7 @@ describe("delivery review-fix record effects", () => {
         currentCandidate: candidate,
         beforeBoundary,
         currentBoundary,
+        candidateSubjectDigest: effectiveSubjectDigest,
         candidateRecord: { path: candidatePath, content: candidateContent },
         boundaryRecord: { path: boundaryPath, content: boundaryContent },
       })

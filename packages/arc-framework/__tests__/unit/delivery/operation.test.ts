@@ -27,7 +27,7 @@ type SnapshotOperationRequest = Extract<DeliveryOperationReservationRequestV1, {
 type SnapshotOperationOverrides = {
   readonly operationId?: string;
   readonly kind?: SnapshotOperationRequest["kind"];
-  readonly mode?: "review-fix" | "selected-change" | "provider-adoption" | "provider-refresh";
+  readonly mode?: "review-fix" | "selected-change" | "provider-adoption" | "provider-refresh" | "member" | "closeout-residue";
   readonly affectedDeliverableIds?: string[];
   readonly expectedStateRevision?: number;
   readonly before?: DeliveryOperationSnapshotV1;
@@ -79,21 +79,24 @@ function operationRequest(
     requested,
   };
   const kind = overrides.kind ?? "rewrite";
-  return kind === "rewrite"
-    ? {
-        ...common,
-        kind,
-        mode: overrides.mode === "provider-adoption" || overrides.mode === "provider-refresh"
-          || overrides.mode === "selected-change"
-          ? overrides.mode
-          : "review-fix",
-        ...(overrides.reviewFixSelectedDeliverableId === undefined
-          ? {}
-          : { reviewFixSelectedDeliverableId: overrides.reviewFixSelectedDeliverableId }),
-        ...(overrides.reviewFixVerificationDeliverableIds === undefined
-          ? {}
-          : { reviewFixVerificationDeliverableIds: overrides.reviewFixVerificationDeliverableIds }),
-      }
+  if (kind === "rewrite") {
+    const mode = overrides.mode;
+    return {
+      ...common,
+      kind,
+      mode: mode === "provider-adoption" || mode === "provider-refresh" || mode === "selected-change"
+        ? mode
+        : "review-fix",
+      ...(overrides.reviewFixSelectedDeliverableId === undefined
+        ? {}
+        : { reviewFixSelectedDeliverableId: overrides.reviewFixSelectedDeliverableId }),
+      ...(overrides.reviewFixVerificationDeliverableIds === undefined
+        ? {}
+        : { reviewFixVerificationDeliverableIds: overrides.reviewFixVerificationDeliverableIds }),
+    };
+  }
+  return kind === "teardown"
+    ? { ...common, kind, mode: "member", candidateHeads: [] }
     : { ...common, kind };
 }
 
@@ -212,7 +215,10 @@ describe("reserveDeliveryOperation", () => {
           activeOperation: {
             operationId: request.operationId,
             kind,
-            ...(request.kind === "rewrite" ? { mode: request.mode } : {}),
+            ...(request.kind === "rewrite" || request.kind === "teardown"
+              ? { mode: request.mode }
+              : {}),
+            ...(request.kind === "teardown" ? { candidateHeads: request.candidateHeads } : {}),
             affectedDeliverableIds: request.affectedDeliverableIds,
             stateRevision: STATE_REVISION,
             boundPlanDigest: plan.planDigest,
@@ -229,6 +235,7 @@ describe("reserveDeliveryOperation", () => {
         ...operationRequestWithoutMode(state),
         kind: "land" as const,
         mode: "sequential" as const,
+        nativeArm: null,
         effect: landEffect(),
       },
       { ...operationRequestWithoutMode(state), kind: "top-remedy" as const, effect: topRemedyEffect() },
@@ -256,6 +263,7 @@ describe("reserveDeliveryOperation", () => {
       ...operationRequestWithoutMode(state),
       kind: "land" as const,
       mode: "sequential" as const,
+      nativeArm: null,
       effect: landEffect(),
     };
     const topRemedy = {
@@ -297,7 +305,7 @@ describe("reserveDeliveryOperation", () => {
     expect(reserveDeliveryOperation(
       { revision: STATE_REVISION, value: state },
       plan,
-      { ...land, mode: "sequential" },
+      { ...land, mode: "sequential", nativeArm: null },
     )).toMatchObject({
       status: "reserved",
       state: { activeOperation: { kind: "land", mode: "sequential" } },
@@ -311,6 +319,52 @@ describe("reserveDeliveryOperation", () => {
       { revision: STATE_REVISION, value: state },
       plan,
       land,
+    )).toEqual({ status: "refused", reason: "operation-invalid" });
+
+    const teardown = operationRequest(state, { kind: "teardown" });
+    if (teardown.kind !== "teardown") throw new Error("fixture must create teardown");
+    const { mode: teardownMode, candidateHeads, ...teardownWithoutMode } = teardown;
+    void teardownMode;
+    void candidateHeads;
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      teardown,
+    )).toMatchObject({
+      status: "reserved",
+      state: { activeOperation: { kind: "teardown", mode: "member", candidateHeads: [] } },
+    });
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      teardownWithoutMode,
+    )).toEqual({ status: "refused", reason: "operation-invalid" });
+
+    const allIds = state.members.map((member) => member.deliverableId);
+    const allMembers = stateSnapshot(state, allIds);
+    const closeout = {
+      ...teardown,
+      mode: "closeout-residue" as const,
+      affectedDeliverableIds: allIds,
+      before: allMembers,
+      requested: allMembers,
+      candidateHeads: allIds.map((deliverableId, index) => ({
+        deliverableId,
+        head: index === 0 ? "d".repeat(40) : null,
+      })),
+    };
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      closeout,
+    )).toMatchObject({
+      status: "reserved",
+      state: { activeOperation: { kind: "teardown", mode: "closeout-residue" } },
+    });
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      { ...closeout, candidateHeads: closeout.candidateHeads.slice(0, -1) },
     )).toEqual({ status: "refused", reason: "operation-invalid" });
   });
 
@@ -508,6 +562,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
       ...current.value.activeOperation!,
       kind: "land" as const,
       mode: "native" as const,
+      native: { arm: "linked-single" as const, phase: "submitting" as const },
       effect: landEffect(),
       effectIdentity: null,
     };
@@ -517,7 +572,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
       ...record,
       value: {
         ...record.value,
-        activeOperation: { ...land, mode: "sequential" },
+        activeOperation: { ...land, mode: "sequential", native: null },
       },
     }, request.operationId, identity)).toEqual({ status: "refused", reason: "wrong-operation" });
     const attached = attachDeliveryOperationEffectIdentity(record, request.operationId, identity);
@@ -647,6 +702,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
       }),
       kind: "land" as const,
       mode: "sequential" as const,
+      nativeArm: null,
       effect: landEffect(),
     };
     const reservedLand = reserveDeliveryOperation(
@@ -678,6 +734,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
     const teardownBefore = stateSnapshot(landed.state, request.affectedDeliverableIds);
     const teardownRequest = operationRequest(landed.state, {
       kind: "teardown",
+      mode: "member",
       expectedStateRevision: STATE_REVISION + 2,
       before: teardownBefore,
       requested: {
@@ -716,6 +773,7 @@ describe("delivery operation pre- and post-mutation comparison", () => {
       ...operationRequestWithoutMode(state),
       kind: "land" as const,
       mode: "sequential" as const,
+      nativeArm: null,
       before,
       requested: { ...before, target: null },
       effect: landEffect(),
@@ -791,6 +849,7 @@ describe("reconcileDeliveryOperation", () => {
     const before = stateSnapshot(state, [state.members[0]!.deliverableId]);
     const request = operationRequest(state, {
       kind: "teardown",
+      mode: "member",
       before,
       requested: before,
     });
@@ -866,6 +925,7 @@ describe("reconcileDeliveryOperation", () => {
         ...operationRequestWithoutMode(state),
         kind: "land" as const,
         mode: "sequential" as const,
+        nativeArm: null,
         effect: landEffect(),
       },
       { ...operationRequestWithoutMode(state), kind: "top-remedy" as const, effect: topRemedyEffect() },

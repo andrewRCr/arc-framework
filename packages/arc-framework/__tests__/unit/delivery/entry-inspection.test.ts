@@ -15,7 +15,7 @@ import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js
 import { projectDeliveryPublicReviewContinuation } from
   "../../../src/lib/delivery/public-review-continuation.js";
 import {
-  projectCorrectiveDeliveryReviewBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
@@ -154,7 +154,7 @@ function publicContinuationFixture() {
     },
     changeRequest: null,
   });
-  const boundary = projectCorrectiveDeliveryReviewBoundary({
+  const boundary = projectCorrectiveDeliveryStatusBoundary({
     workUnit: plan.workUnitId,
     candidateId,
     candidateSubjectDigest,
@@ -162,8 +162,8 @@ function publicContinuationFixture() {
     sourceBoundary: source,
     deliveryContinuation: continuation.continuation,
   });
-  if (boundary.locus !== "hosted-review-pending") {
-    throw new Error("fixture boundary must resume hosted review");
+  if (boundary.locus !== "delivery-status-required") {
+    throw new Error("fixture boundary must resume delivery review");
   }
   return { state, stateRevision, candidateId, candidateSubjectDigest, boundary };
 }
@@ -412,7 +412,7 @@ describe("delivery entry inspection", () => {
       },
       changeRequest: null,
     });
-    const boundary = projectCorrectiveDeliveryReviewBoundary({
+    const boundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId,
       candidateSubjectDigest,
@@ -432,11 +432,11 @@ describe("delivery entry inspection", () => {
       integrationBoundary: boundary,
       candidate: { candidateId, subjectDigest: candidateSubjectDigest },
     }))).resolves.toMatchObject({
-      status: "continue-hosted-review",
-      nextAction: "continue-hosted-review",
+      status: "resolve-delivery-status",
+      nextAction: "resolve-delivery-status",
       planId: plan.planId,
       stateRevision,
-      hostedReviewAction: boundary.nextAction,
+      deliveryStatusAction: boundary.nextAction,
     });
   });
 
@@ -484,6 +484,7 @@ describe("delivery entry inspection", () => {
       nextAction: "renew-public-continuation",
       planId: plan.planId,
       stateRevision: fixture.stateRevision + 1,
+      candidateSubjectDigest: `sha256:${"1".repeat(64)}`,
       attestationAction: {
         argv: ["arc", "attest", plan.workUnitId, "--json"],
       },
@@ -511,13 +512,43 @@ describe("delivery entry inspection", () => {
       nextAction: "renew-public-continuation",
       planId: plan.planId,
       stateRevision: fixture.stateRevision + 1,
+      candidateSubjectDigest: fixture.candidateSubjectDigest,
       attestationAction: {
         argv: ["arc", "attest", plan.workUnitId, "--json"],
       },
     });
   });
 
-  it("preserves hosted review across a proven same-Candidate terminal record advance", async () => {
+  it("routes a stale same-Candidate continuation to renewal before subject-digest refusal", async () => {
+    const fixture = publicContinuationFixture();
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: plan.workUnitId,
+      entryMode: "integrating",
+    }, dependencies({
+      taskList: `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`,
+      resolvedPlan: plan,
+      state: fixture.state,
+      stateRevision: fixture.stateRevision + 1,
+      integrationBoundary: fixture.boundary,
+      candidate: {
+        candidateId: fixture.candidateId,
+        subjectDigest: `sha256:${"1".repeat(64)}`,
+        verificationResponseCurrent: true,
+      },
+    }))).resolves.toMatchObject({
+      status: "candidate-renewal-required",
+      nextAction: "renew-public-continuation",
+      planId: plan.planId,
+      stateRevision: fixture.stateRevision + 1,
+      candidateSubjectDigest: `sha256:${"1".repeat(64)}`,
+      attestationAction: {
+        argv: ["arc", "attest", plan.workUnitId, "--json"],
+      },
+    });
+  });
+
+  it("preserves delivery status across a proven same-Candidate terminal record advance", async () => {
     const fixture = publicContinuationFixture();
     const priorHead = fixture.state.members.at(-1)!.coordinates!.head;
     const currentHead = "f".repeat(40);
@@ -551,8 +582,8 @@ describe("delivery entry inspection", () => {
       workUnitId: plan.workUnitId,
       entryMode: "integrating",
     }, inspectionDependencies)).resolves.toMatchObject({
-      status: "continue-hosted-review",
-      nextAction: "continue-hosted-review",
+      status: "resolve-delivery-status",
+      nextAction: "resolve-delivery-status",
       planId: plan.planId,
       stateRevision: fixture.stateRevision + 1,
     });
@@ -576,13 +607,15 @@ describe("delivery entry inspection", () => {
       nextAction: "verify-work-unit",
       planId: plan.planId,
       stateRevision: fixture.stateRevision,
+      recommendedActionText:
+        "Complete Candidate verification closeout before resolving the retained delivery status.",
     });
   });
 
   it.each([
     ["different current Candidate", { candidateId: `sha256:${"0".repeat(64)}`, stateRevision: 7 }],
     ["non-forward state revision", { candidateId: `sha256:${"b".repeat(64)}`, stateRevision: 6 }],
-  ])("refuses a corrective hosted continuation with %s", async (_name, stale) => {
+  ])("refuses corrective delivery status with %s", async (_name, stale) => {
     const fixture = publicContinuationFixture();
 
     await expect(inspectDeliveryEntry({
@@ -688,6 +721,7 @@ describe("delivery entry inspection", () => {
         stateRevision: 3,
         selectedDeliverableId: plan.members[0]?.deliverableId,
         entryMode: "execution",
+        derivedFrom: { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" },
       });
   });
 
@@ -965,6 +999,58 @@ describe("selectOutstandingNonTerminalDeliveryMember", () => {
     })).toBeNull();
   });
 
+  it("does not treat retained landed-member bindings as outstanding review", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+    const state = bind(threeMemberPlan, [0, 1, 2]);
+    const highestNonTerminal = state.members.at(-2);
+    const target = state.target;
+    if (
+      highestNonTerminal?.coordinates === null
+      || highestNonTerminal?.coordinates === undefined
+      || target === null
+    ) {
+      throw new Error("fixture target and highest non-terminal member must be materialized");
+    }
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: {
+        ...state,
+        target: {
+          ...target,
+          coordinates: {
+            head: "f".repeat(40),
+            tree: highestNonTerminal.coordinates.tree,
+          },
+        },
+      },
+    })).toBeNull();
+  });
+
+  it("selects the first bound member above the landed target prefix", () => {
+    const threeMemberPlan = deliveryThreeMemberStackPlanFixture();
+    const state = bind(threeMemberPlan, [0, 1, 2]);
+    const first = state.members[0];
+    const target = state.target;
+    if (first?.coordinates === null || first?.coordinates === undefined || target === null) {
+      throw new Error("fixture target and first member must be materialized");
+    }
+
+    expect(selectOutstandingNonTerminalDeliveryMember({
+      plan: threeMemberPlan,
+      state: {
+        ...state,
+        target: {
+          ...target,
+          coordinates: { head: "f".repeat(40), tree: first.coordinates.tree },
+        },
+      },
+    })).toEqual({
+      deliverableId: threeMemberPlan.members[1]?.deliverableId,
+      changeRequest: { providerId: "github", changeRequestId: "102" },
+    });
+  });
+
   it("selects nothing from a terminal-only plan whose single member is bound", () => {
     const singleMemberPlan = deliverySingleMemberStackPlanFixture();
 
@@ -1065,6 +1151,36 @@ describe("inspectDeliveryEntry — non-current Candidate classification", () => 
 
     await expect(integratingEntry({
       state: terminalOnly,
+      candidateTerminalDelta: carriesNonLifecycle,
+    })).resolves.toMatchObject({
+      status: "candidate-verification-required",
+      nextAction: "verify-work-unit",
+    });
+  });
+
+  it("retains verification closeout after every non-terminal member landed", async () => {
+    const fixture = publicContinuationFixture();
+    const highestNonTerminal = fixture.state.members.at(-2);
+    const target = fixture.state.target;
+    if (
+      highestNonTerminal?.coordinates === null
+      || highestNonTerminal?.coordinates === undefined
+      || target === null
+    ) {
+      throw new Error("fixture target and highest non-terminal member must be materialized");
+    }
+
+    await expect(integratingEntry({
+      state: {
+        ...fixture.state,
+        target: {
+          ...target,
+          coordinates: {
+            head: "f".repeat(40),
+            tree: highestNonTerminal.coordinates.tree,
+          },
+        },
+      },
       candidateTerminalDelta: carriesNonLifecycle,
     })).resolves.toMatchObject({
       status: "candidate-verification-required",

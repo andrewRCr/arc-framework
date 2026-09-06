@@ -176,6 +176,7 @@ describe("parseWorkflowFrontmatter", () => {
     expect(out.methods).toEqual([]);
     expect(out.extensions).toEqual([]);
   });
+
   it.each([
     ["a non-mapping arc declaration", "arc: []", '"arc" must be a mapping'],
     ["a non-array methods declaration", "arc:\n  methods: alpha", "arc.methods must be an array"],
@@ -354,6 +355,21 @@ describe("audit", () => {
     const result = await audit(methods, extensions, workflows);
     expect(result.diagnostics).toContain(
       'Workflow "one.md" declares unknown method "missing" in arc.methods.',
+    );
+  });
+
+  it("rejects unknown workflow arc fields even when every method remains reachable", async () => {
+    const methods = writeMethodsDir(["alpha"]);
+    const extensions = writeExtensionsDir([]);
+    const workflows = join(tmp, "workflows");
+    mkdirSync(workflows, { recursive: true });
+    writeWorkflow("workflows/good.md", ["alpha"], []);
+    writeFile("workflows/typo.md", "---\narc:\n  method: [alpha]\n---\n");
+
+    const result = await audit(methods, extensions, workflows);
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics).toContain(
+      'Workflow "typo.md" has malformed frontmatter: unknown workflow `arc` frontmatter field `method`',
     );
   });
 

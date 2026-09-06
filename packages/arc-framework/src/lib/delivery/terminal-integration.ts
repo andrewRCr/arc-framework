@@ -1,5 +1,6 @@
 /** Terminal delivery claim composition for the integration checkpoint. */
 
+import { canonicalize } from "../kernel/index.js";
 import type {
   CandidateCurrentnessProjection,
   CandidateLineageTarget,
@@ -21,7 +22,6 @@ import type {
   DeliveryStateV1,
 } from "./schema.js";
 import { DeliveryMemberCoordinatesV1Schema, DeliveryStateV1Schema } from "./schema.js";
-import { installDeliveryReviewFixVerification } from "./review-fix-verification.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
 
 export interface DeliveryTerminalLanding {
@@ -116,6 +116,16 @@ export interface DeliveryTerminalReviewFixCandidate {
   readonly durableBaselineTarget: CandidateLineageTarget;
   readonly currentTarget: CandidateLineageTarget;
   readonly selectedDeliverableId: string;
+  readonly memberDeliverableIds: readonly string[];
+  /**
+   * The terminal head the state retains and how it relates to the durable baseline: the same revision
+   * (`exact`), an unverified descendant whose verification is still pending (`ancestor`), or a descendant whose
+   * Candidate subject digest equals the baseline's, such as a settled record commit (`equivalent`).
+   */
+  readonly retainedTerminalTarget: {
+    readonly revision: string;
+    readonly baselineRelation: "exact" | "ancestor" | "equivalent";
+  };
   readonly convergenceVerification: "satisfied";
 }
 
@@ -156,6 +166,7 @@ export function rebindDeliveryTerminalCoordinates(input: {
   readonly repository: string;
   readonly request: DeliveryTerminalRebindTopObservation;
   readonly coordinates: DeliveryMemberCoordinatesV1;
+  readonly settledRecordEffectHead?: string;
 }): DeliveryTerminalCoordinateRebindResult {
   if (input.candidate.state !== "current" && input.candidate.state !== "review-fix") {
     return { status: "refused", reason: "candidate-not-current" };
@@ -185,7 +196,7 @@ export function rebindDeliveryTerminalCoordinates(input: {
   if (validated.state.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
   }
-  if (validated.state.pendingReviewFixVerification !== null) {
+  if (!reviewFix && validated.state.pendingReviewFixVerification !== null) {
     return { status: "refused", reason: "pending-review-fix-verification" };
   }
   const terminalIndex = validated.state.members.length - 1;
@@ -195,11 +206,31 @@ export function rebindDeliveryTerminalCoordinates(input: {
     || terminal.coordinates === null || target === null) {
     return { status: "refused", reason: "terminal-binding-missing" };
   }
-  if (reviewFix && input.candidate.selectedDeliverableId !== terminal.deliverableId) {
-    return { status: "refused", reason: "candidate-coordinate-mismatch" };
+  const pending = validated.state.pendingReviewFixVerification;
+  if (reviewFix) {
+    const expectedMemberDeliverableIds = pending === null
+      ? [input.candidate.selectedDeliverableId]
+      : pending.memberDeliverableIds.includes(terminal.deliverableId)
+        ? pending.memberDeliverableIds
+        : [...pending.memberDeliverableIds, terminal.deliverableId];
+    const samePendingScope = pending !== null
+      && pending.selectedDeliverableId === input.candidate.selectedDeliverableId
+      && canonicalize(expectedMemberDeliverableIds)
+        === canonicalize(input.candidate.memberDeliverableIds);
+    if (!input.candidate.memberDeliverableIds.includes(terminal.deliverableId)
+      || (pending === null && input.candidate.selectedDeliverableId !== terminal.deliverableId)
+      || (pending !== null && !samePendingScope)) {
+      return { status: "refused", reason: "candidate-coordinate-mismatch" };
+    }
   }
-  if (reviewFix && durableBaseline.data.revision !== terminal.coordinates.head) {
-    return { status: "refused", reason: "candidate-not-current" };
+  if (reviewFix) {
+    const retained = input.candidate.retainedTerminalTarget;
+    if (retained.revision !== terminal.coordinates.head
+      || (retained.baselineRelation === "exact"
+        && durableBaseline.data.revision !== retained.revision)
+      || (retained.baselineRelation === "ancestor" && pending === null)) {
+      return { status: "refused", reason: "candidate-not-current" };
+    }
   }
   const coordinates = DeliveryMemberCoordinatesV1Schema.safeParse(input.coordinates);
   if (!coordinates.success
@@ -233,18 +264,27 @@ export function rebindDeliveryTerminalCoordinates(input: {
   };
   const parsedRebound = DeliveryStateV1Schema.safeParse(rebound);
   if (!parsedRebound.success) return { status: "refused", reason: "state-mismatch" };
-  const state = reviewFix
-    ? installDeliveryReviewFixVerification({
-        state: parsedRebound.data,
-        selectedDeliverableId: input.candidate.selectedDeliverableId,
-        memberDeliverableIds: [input.candidate.selectedDeliverableId],
+  const settledRecordMovement = reviewFix
+    && input.settledRecordEffectHead !== undefined
+    && input.settledRecordEffectHead === coordinates.data.head;
+  const renewVerification = reviewFix && !settledRecordMovement;
+  const reboundWithVerification = renewVerification
+    ? DeliveryStateV1Schema.safeParse({
+        ...parsedRebound.data,
+        pendingReviewFixVerification: {
+          selectedDeliverableId: input.candidate.selectedDeliverableId,
+          memberDeliverableIds: input.candidate.memberDeliverableIds,
+        },
       })
+    : null;
+  const state = renewVerification
+    ? reboundWithVerification?.success === true ? reboundWithVerification.data : null
     : parsedRebound.data;
   if (state === null) return { status: "refused", reason: "state-mismatch" };
   return {
     status: "rebound",
     state,
-    nextAction: reviewFix ? "verify-review-fix" : "rerun-checkpoint",
+    nextAction: renewVerification ? "verify-review-fix" : "rerun-checkpoint",
   };
 }
 

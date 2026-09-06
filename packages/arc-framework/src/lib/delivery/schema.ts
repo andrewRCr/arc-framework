@@ -22,6 +22,40 @@ export const DeliveryArtifactBasenameSchema = z.string().min(1).refine(
   "must be a safe basename",
 );
 
+/** Semantic role assigned to one ordered parent task in a delivery inventory. */
+export const DeliveryTaskRoleV1Schema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("implementation") }),
+  z.strictObject({
+    kind: z.literal("verification"),
+    scope: NonEmptyTextSchema,
+  }),
+]);
+export type DeliveryTaskRoleV1 = z.infer<typeof DeliveryTaskRoleV1Schema>;
+
+/** Canonical parent task with its role-sensitive semantic digest. */
+export const DeliveryTaskInventoryParentV1Schema = z.strictObject({
+  taskId: ParentTaskIdSchema,
+  semanticDigest: DeliveryCanonicalDigestSchema.nullable(),
+  role: DeliveryTaskRoleV1Schema,
+}).superRefine((task, context) => {
+  const isWorkUnitVerification = task.role.kind === "verification"
+    && task.role.scope === "work-unit";
+  if (isWorkUnitVerification !== (task.semanticDigest === null)) {
+    context.addIssue({
+      code: "custom",
+      message: isWorkUnitVerification
+        ? "work-unit verification tasks must not carry a semantic digest"
+        : "assignable tasks must carry a semantic digest",
+      path: ["semanticDigest"],
+    });
+  }
+});
+
+const DeliveryPlanAuthoringTaskParentV1Schema = z.strictObject({
+  taskId: ParentTaskIdSchema,
+  role: DeliveryTaskRoleV1Schema,
+});
+
 const AuthoredDeliveryPlanMemberShape = {
   chunkKey: SlugSchema,
   title: NonEmptyTextSchema,
@@ -77,11 +111,7 @@ export const DeliveryPlanV1Schema = z.strictObject({
   }),
   tasks: z.strictObject({
     inventoryDigest: DeliveryCanonicalDigestSchema,
-    implementation: z.array(z.strictObject({
-      taskId: ParentTaskIdSchema,
-      semanticDigest: DeliveryCanonicalDigestSchema,
-    })),
-    verificationTaskId: ParentTaskIdSchema,
+    parents: z.array(DeliveryTaskInventoryParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
   projection: z.discriminatedUnion("kind", [
@@ -105,8 +135,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
     elements: z.array(z.strictObject({ elementId: DeliveryOpaqueIdSchema })),
   }),
   tasks: z.strictObject({
-    implementation: z.array(z.strictObject({ taskId: ParentTaskIdSchema })),
-    verificationTaskId: ParentTaskIdSchema,
+    parents: z.array(DeliveryPlanAuthoringTaskParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
   projection: z.discriminatedUnion("kind", [
@@ -158,7 +187,7 @@ export const DeliveryMemberCoordinatesV1Schema = z.strictObject({
 });
 export type DeliveryMemberCoordinatesV1 = z.infer<typeof DeliveryMemberCoordinatesV1Schema>;
 
-/** Proven append-only terminal movement retained as a provider-refresh lease baseline. */
+/** Proven append-only terminal movement retained as a refresh-settlement lease baseline. */
 export const DeliveryTerminalAuthoringMovementV1Schema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
   before: DeliveryMemberCoordinatesV1Schema,
@@ -272,6 +301,13 @@ export const DeliveryHostEffectIdentityV1Schema = z.strictObject({
 });
 export type DeliveryHostEffectIdentityV1 = z.infer<typeof DeliveryHostEffectIdentityV1Schema>;
 
+/** Transient exact candidate head retained only while closeout residue is being reaped. */
+export const DeliveryCandidateCleanupHeadV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  head: DeliveryGitObjectIdSchema.nullable(),
+});
+export type DeliveryCandidateCleanupHeadV1 = z.infer<typeof DeliveryCandidateCleanupHeadV1Schema>;
+
 /** One crash-recoverable reservation for an external delivery mutation. */
 export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   DeliveryOperationCommonV1Schema.extend({
@@ -286,6 +322,11 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("teardown"),
+    mode: z.enum(["member", "closeout-residue"]),
+    candidateHeads: z.array(DeliveryCandidateCleanupHeadV1Schema).refine(
+      (heads) => new Set(heads.map(({ deliverableId }) => deliverableId)).size === heads.length,
+      "candidate cleanup heads must be distinct",
+    ),
   }),
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("publish"),
@@ -294,6 +335,10 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
   DeliveryOperationCommonV1Schema.extend({
     kind: z.literal("land"),
     mode: z.enum(["sequential", "native"]),
+    native: z.strictObject({
+      arm: z.enum(["linked-single", "linked-atomic"]),
+      phase: z.enum(["prepared", "submitting"]),
+    }).nullable(),
     effect: DeliveryLandEffectV1Schema,
     effectIdentity: DeliveryHostEffectIdentityV1Schema.nullable(),
   }),
@@ -344,6 +389,24 @@ export const DeliveryStateV1Schema = z.strictObject({
   activeOperation: DeliveryActiveOperationV1Schema.nullable(),
   pendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.nullable(),
 }).superRefine((state, context) => {
+  const landing = state.activeOperation?.kind === "land" ? state.activeOperation : null;
+  if (landing !== null) {
+    const nativeMode = landing.mode === "native";
+    if (nativeMode !== (landing.native !== null)) {
+      context.addIssue({
+        code: "custom",
+        path: ["activeOperation", "native"],
+        message: "native landing metadata must exist exactly for native landing mode",
+      });
+    }
+    if ((!nativeMode || landing.native?.phase === "prepared") && landing.effectIdentity !== null) {
+      context.addIssue({
+        code: "custom",
+        path: ["activeOperation", "effectIdentity"],
+        message: "an effect identity requires a submitting native landing",
+      });
+    }
+  }
   if (state.pendingReviewFixVerification === null) return;
   const selectedIndex = state.members.findIndex(
     ({ deliverableId }) => deliverableId === state.pendingReviewFixVerification?.selectedDeliverableId,
