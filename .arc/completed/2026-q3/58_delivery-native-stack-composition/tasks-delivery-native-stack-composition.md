@@ -5075,7 +5075,7 @@ meta exists and that resolution shape is the exact defect the retired terminal a
   base is deleted, and checkpoint composition cannot currently offer the remedy once the Candidate advances. Restore
   the recoverable retarget-before-reopen sequence through supported host mutations and make its typed entry reachable.
 
-    - `[ ]` **9.1.R.v Complete the closed-terminal repair route**
+    - `[x]` **9.1.R.v Complete the closed-terminal repair route**
 
         - _Goal:_ A corrected Candidate whose terminal request is frozen on a deleted predecessor reaches and
           completes the authorized repair through GitHub's supported semantics and ARC's existing recovery boundary.
@@ -5111,6 +5111,16 @@ meta exists and that resolution shape is the exact defect the retired terminal a
           subject-changing repairs. Commit this correction, settle the new Candidate applicability, and serialize
           the Owner's already-given no-further-review decision at the resulting exact terminal head through the
           existing boundary-carry/status/terminus route before the final checkpoint.
+
+        - _Outcome:_ The live route restored and reopened PR #557 on the protected base, rebound the refreshed
+          terminal head, completed highest-member teardown, and reduced checkpoint review through the same exact
+          raw-discharge plus Owner-terminus predicate as public status. The final Member 8 decision recorded at its
+          exact head and survived the machine-owned Candidate boundary carry without provider spend.
+
+        - _Verification:_ Focused terminal-recovery and checkpoint tests, both typechecks, targeted lint, the fast
+          production build, and pre-commit checks passed. The live checkpoint reached `ready` at
+          `4ccf291b132da87935cdb6928a76fe4599d4e85f`, with all eight member-review obligations discharged and only
+          exact-head required checks pending.
 
 ---
 
