@@ -4,8 +4,8 @@
 
 - **Purpose:** Make a retirement cut provable and expressible end to end: conservation covers every origin artifact
   whose content retirement removes, the authored cut map can state a dependency the author already knows, and every
-  refusal from every decompose mode names its failed invariant, its differing evidence, and the one command that
-  advances from it.
+  refusal from every decompose mode names its failed invariant and the one command that advances from it, while
+  actionable comparisons expose differing evidence when the refusal boundary owns both operands.
 
 ---
 
@@ -51,8 +51,8 @@ recovery branch, or authority.
    validated against the live and completed work-unit sets and written through the existing meta mutator.
 5. Emit one remedy contract — invariant, verbatim text, executable argv — from every refusal of all six modes,
    composed at the command boundary, inside one typed refusal envelope on stdout.
-6. Carry both sides of a comparison as typed evidence on every refusal that compares recorded evidence against a
-   live read.
+6. Carry both sides of a comparison as typed evidence when the refusal-producing boundary owns both bounded
+   operands; keep one-sided failures and transient verifier races locus-only.
 
 ## Non-Goals
 
@@ -94,8 +94,12 @@ and optional `stdin`. `--preflight`, `--finish`, and `--advance-base` gain remed
 converge on the shared shape. The argv is the re-attempt or the corrective verb — `--preflight` after drift,
 `--execute <map>` after a map edit, `arc teardown --branch <candidate>` after a stranded full-protection candidate,
 `git push` after `source-unpublished` — never a verb that pretends to author missing work. `spineRemedy()` composes
-the text from the invariant and correction; argv strings come from `decompose-command-renderer.ts`, whose unused
-`renderV3DecomposeAdvanceBaseCommand` gains its first consumer.
+the text from the invariant and correction. Structured argv builders in `decompose-command-renderer.ts` own the
+opaque operand arrays for preflight, execute, extract, finish preview, finish apply, and base advancement. Existing
+display renderers consume those builders when prose still needs a command string; remedy composition receives the
+argv directly and never reconstructs it by parsing rendered shell text. The refusal mapper accepts the closed invoked
+mode context — origin, cut-map path and apply authority where applicable — plus typed recovery facts, so it can choose
+the exact retry or cleanup command without granting recovery authority to a pure result.
 
 **Composed at the command boundary.** Remedies map from the stable refusal codes where each mode's result is
 rendered — the two command wrappers `executeGitV3DecomposeCommand` and `executeGitV3ExtractionCommand` in
@@ -137,15 +141,19 @@ evidence?: { expected: <json>, actual: <json> }
 remedy: SpineRemedy
 ```
 
-`--execute` and `--extract` extend the core with their existing typed `stage` and `recovery` fields; the other modes
-emit the core alone. `--preflight`'s `rejected` status literal converges to `refused`; its stdout carries the envelope
-instead of nothing. The decompose envelope keeps `refused` rather than composing the handler's existing
+Operation-returned `--execute` and `--extract` refusals extend the core with their existing typed `stage` and
+`recovery` fields; the other modes emit the core alone. A handler-caught `unexpected-error` has no operation result
+from which either fact can truthfully be derived, so every mode uses one explicit core-only `unexpected-error` arm;
+the execute/extract boundary schemas are strict unions of that arm and their stage-bearing operation-refusal arm.
+`--preflight`'s `rejected` status literal converges to `refused`; its stdout carries the envelope instead of nothing.
+The decompose envelope keeps `refused` rather than composing the handler's existing
 `LifecycleCommandRefusalSchema` (`status: "rejected"`, used by publish and attest): four of the five decompose results
 already use `refused`, the finish schema is the model, and unifying the literal across unrelated verbs is not this work
 unit's concern. Two paths stay outside the envelope by decision: operand-schema failure and "not an ARC project" precede
-mode selection and remain text on stderr. An error thrown inside a mode converts at the boundary to the envelope with
-code `unexpected-error`, the message as locus, and the re-attempt of the invoked mode as remedy — the one named
-exception to remedy specificity, excluded from the exhaustiveness test by name. A refusal envelope is not a partial
+mode selection and remain text on stderr. An error thrown inside a mode converts at the boundary to the core-only
+envelope with code `unexpected-error`, the message as locus, and the re-attempt of the invoked mode as remedy — the
+one named exception to remedy specificity, excluded from the exhaustiveness test by name. It never fabricates a
+stage, recovery fact, or report. A refusal envelope is not a partial
 starter map. The following is recorded as a forward amendment of `spec-decompose-transform-integrity.md` § D2 ("It emits
 only canonical starter-map JSON on stdout; diagnostics and warnings use stderr. Refusal exits nonzero and emits no
 partial JSON."): on success, preflight's stdout is the starter map alone; on refusal, preflight's stdout is one refusal
@@ -154,12 +162,19 @@ once, replacing the preflight arm's "a refusal emits no partial map" and the fin
 sentence true for every mode, and its refusal-handling rule surfaces status, remedy, **and evidence** unchanged, so the
 human sees the expected-versus-actual pair without asking.
 
-**Differing evidence on comparison refusals.** A refusal carries `evidence` when both of its sides are
-observations of repository state or recorded machine evidence taken at two times or two places — a recorded fact
-against a live read, or two live reads that must agree. A refusal that checks the map's or plan's internal
+**Differing evidence on comparison refusals.** A refusal carries `evidence` when both bounded sides reach the
+refusal-producing boundary as observations of repository state or recorded machine evidence — a recorded fact
+against a live read, or two owned live reads that must agree. A refusal that checks the map's or plan's internal
 consistency — identity, ordering, cardinality, projection agreement between two composers of the same input —
-carries a locus only; its two sides are not operator-actionable facts. `expected` is the recorded or earlier side;
-`actual` is the live or later side. The admitted set, enumerated from the refusal sites:
+carries a locus only; its two sides are not operator-actionable facts. A transient verifier that returns only a
+mismatch locus also stays locus-only rather than widening a shared recovery interface solely for reporting.
+`expected` is the recorded or earlier side;
+`actual` is the live or later side. One shared strict evidence schema requires exactly `expected` and `actual`, each
+validated as JSON. Producers project observations into bounded canonical facts before returning them: bytes become
+`{ contentDigest, byteLength }`, absence becomes `{ kind: "absent" }`, unordered sets become canonically sorted arrays,
+and object, mode, or path state uses the smallest closed record that preserves the compared operand. Runtime values
+such as `Uint8Array`, `Error`, `Map`, and `Set` never enter the envelope; arbitrary error detail remains a locus. The
+admitted set, enumerated from the refusal sites:
 
 - `decompose-v3-preflight.ts` (map rebind): `source-logical-branch`, `source-ref`, `source-head`, `result-ref`,
   `result-head`, `planning-profile`, `preflight-id`, `source-artifact-inventory`, `source-units`, `incoming-edges`,
@@ -171,9 +186,8 @@ carries a locus only; its two sides are not operator-actionable facts. `expected
 - `decompose-v3-conservation.ts`: `incoming-edge-set-changed`, `outgoing-edge-set-changed`, `stale-dependent`.
 - `git-decompose-v3-repository-plan.ts`: `source-ref-moved`, `result-ref-moved`.
 - `decompose-v3-thinning.ts`: `source-object`, `source-mode`, `source-bytes`, `source-unit`.
-- `decompose-v3-finish-operation.ts`: `apply-authority`, `source-index-preimage`, `source-worktree-preimage`,
-  `source-preimage-raced`.
-- `git-decompose-v3-finish.ts`: `map:origin`, `base-ref-mismatch`, `source-ref-moved`, `destination-object-kind`,
+- `decompose-v3-finish-operation.ts`: `source-index-preimage`, `source-worktree-preimage`.
+- `git-decompose-v3-finish.ts`: `apply-authority`, `map:origin`, `base-ref-mismatch`, `source-ref-moved`, `destination-object-kind`,
   `destination-mode`, `destination-bytes`, `destination-meta`, `dependency-claim`, `roadmap-current-render`,
   `source-raced`, `base-raced`, and `topology-claim` at the comparison sites described below.
 - `git-decompose-v3-operation.ts`: `source-unpublished`, `partial-projection-drift`, `repository-plan-drift` (plan
@@ -181,7 +195,7 @@ carries a locus only; its two sides are not operator-actionable facts. `expected
 - `decompose-result-occupation.ts`: `base-moved`, `candidate-head-mismatch`, `marker-mismatch`.
 - `git-decompose-transition-base-advancement.ts`: `changed-paths`, `path-state`, `transition-record`,
   `candidate-registration-mismatch`, `candidate-marker-mismatch`, `base-not-descendant`, `binding-raced`,
-  `base-acquired-incoming-dependency`.
+  `base-acquired-incoming-dependency`, `dependency-recipient-drift`.
 - `decompose-v3-retirement-delta.ts`: `unexpected-object-kind`, `unexpected-mode`, `predecessor-changed`,
   `backlog-predecessor-changed`.
 - `decompose-v3-materializer.ts`: `final-blob-mismatch`.
@@ -202,16 +216,17 @@ widen to carry `locus` and `evidence` so the thread reaches the envelope in ever
 `machine-identity`, `machine-order`, `authoring-*`,
 `*-cardinality`, `destination-coverage`, `*-projection-mismatch`, `managed-path-set-mismatch`,
 `contributor-prestate-discontinuity`, `roadmap-plan-identity-mismatch`, `post-*-revalidation-failed`,
-`incomplete-profile-artifacts`, `source-range`, the `duplicate-*` and `wrong-structural-identity` families — carry
-a locus only.
+`incomplete-profile-artifacts`, `source-range`, `source-preimage-raced`, the `duplicate-*` and
+`wrong-structural-identity` families — carry a locus only.
 
 **Refusals gain the locus they lack, and one code per remedy.** The two locus-less refusals in
 `composeRepositoryPlan` — `content:profile-scaffold-failed` and `content:target-projection-failed` — each cover
 several causes whose corrections differ, so a remedy keyed by code alone would misstate most of them. They split
 by cause, each carrying the member slug and artifact path as locus: `scaffold-source-meta-incomplete` (the origin
 meta lacks owner, priority, or origin), `scaffold-source-missing` (the design, tasks, or notes source the scaffold
-copies is not a regular file in the source tree), and `scaffold-title-missing` (the source is not UTF-8 or does not
-open with a title line); `existing-home-unresolvable` (an existing-home destination's path cannot be resolved or is
+copies is not a regular file in the source tree), `scaffold-source-invalid-encoding` (an unscanned Active-origin
+task or notes source is not UTF-8), and `scaffold-title-missing` (a valid UTF-8 source does not open with a title
+line); `existing-home-unresolvable` (an existing-home destination's path cannot be resolved or is
 not a regular file), `target-artifact-absent` (the allocation's target artifact is absent from the projected
 post-scaffold tree), and `target-locator-unresolved` (the target locator does not resolve against the projected
 bytes). The unknown-destination branch is already refused upstream by conservation and stays internal.
@@ -227,8 +242,10 @@ regardless of their storage placement. In today's tracked tier, discovery uses `
 resolved WU directory, plus the existing paired-spec names. The matcher admits valid `<prefix>-<origin>.md`
 companions rather than a fixed prefix list; meta, spec, tasks, draft, and notes are the ordinary families. Supplemental
 research or analysis documents belong to this set only when their name and location match, not merely because they
-support the WU. This naming/location rule binds the current storage implementation; it is not the future backend's
-definition of artifact ownership. The three-tree retirement delta remains the current version-bound mutation proof.
+support the WU. Both source and predecessor discovery explicitly exclude the same-name `cohort-<origin>.md` basename,
+which the open matcher also accepts, without narrowing the shared matcher used by relocation. This naming/location
+rule binds the current storage implementation; it is not the future backend's definition of artifact ownership. The
+three-tree retirement delta remains the current version-bound mutation proof.
 
 **Floor — refuse on uncovered retirement content.** In `composeRepositoryPlan`'s retirement arm, before the retirement
 delta is planned, every Markdown member of `currentPreflight.sourceArtifactInventory` other than the meta must either
@@ -258,14 +275,18 @@ disposal, so no new disposition kind is needed. The following particulars settle
   current storage binding; conservation consumes their resolved inventories without rediscovering paths.
 
 - **The scan is keyed on source kind.** `sourceUnits(artifacts, profile)` in `decompose-v3-preflight.ts` gains
-  the resolved `machine.source.kind`, which `createV3DecomposePreflight` resolves before it scans. Under
-  `started-planning` and `backlog-stub` the scan admits every inventoried Markdown member other than the meta;
-  under `active-origin` it admits the profile's design names alone, so an Active origin's companions are never
-  scanned and never become source units. The single scan function stays the only unit source; every production
-  consumer — preflight, execute revalidation, extract, repository-plan composition, and finish's own preflight
-  rebuild — routes through `createV3DecomposePreflight` and inherits the widened set with no call-site change.
+  the resolved `machine.source.kind` and exact source-meta path, both of which `createV3DecomposePreflight` resolves
+  before it scans. The exact meta path is excluded first under every source kind. Under `started-planning` and
+  `backlog-stub` the scan admits every remaining inventoried Markdown member; under `active-origin` it admits the
+  profile's design names alone, so an Active origin's companions are never scanned and never become source units.
+  The single scan function stays the only unit source; every production consumer — preflight, execute revalidation,
+  extract, repository-plan composition, and finish's own preflight rebuild — routes through
+  `createV3DecomposePreflight` and inherits the widened set with no call-site change.
   The exported `deriveV3DecomposeSourceFacts`, which calls the scanner without resolving a source kind and has
   test-only callers, is retired; its tests move to `createV3DecomposePreflight`.
+  A non-UTF-8 Markdown member selected for scanning fails here before starter-map authoring as `source-scan`, with
+  the exact source path as locus and a remedy to convert that file to UTF-8 and rerun preflight. The separate
+  Active-origin scaffold rule below covers companions deliberately excluded from this scan.
 - **Task lists scan at phase granularity.** `scanV3DecomposeContent(basename, bytes)` selects the scanner's
   existing H2-only boundary mode — `markdownBoundaries(content, allLevels = false)`, unreachable today — for
   `tasks-*` basenames, inside the one function every consumer calls, so scan, target-locator resolution, thinning,
@@ -285,7 +306,11 @@ disposal, so no new disposition kind is needed. The following particulars settle
   source opens with a title line; a notes companion without one refuses `scaffold-title-missing` at plan time
   with the member and path as locus and a remedy naming the fix — add the title line, then re-preflight — and a
   notes target whose origin has no notes companion refuses `scaffold-source-missing`, rather than recreating the
-  no-remedy gap the scaffold closes. The member meta records no notes pointer; none exists.
+  no-remedy gap the scaffold closes. An Active origin does not scan companions, but a design-unit allocation can
+  still target a provisional task or notes artifact and make its origin companion a scaffold source. If that source
+  is not UTF-8, repository planning refuses `scaffold-source-invalid-encoding` with the member and source path plus
+  conversion-and-re-preflight guidance; it never mislabels the failure as a missing title. The member meta records
+  no notes pointer; none exists.
   The scaffold reaches the result report through the existing path — a `destinations` entry with
   `contributorKind: "provisional-notes"` and `artifactRole: "notes"`, beside the task scaffold's
   `provisional-task` — so the agent authoring the result sees it as a reported destination, never discovers it on
@@ -320,6 +345,16 @@ design scope, which tasks are not. Two rules, one per source kind:
   never touches companion bytes. Allocation
   exactness is kept: the author fills each companion allocation, a small set under phase granularity.
 
+**Finish authority after source progress.** Before `proveGitV3ExtractionDestinations()` accepts either refreshed
+authority or fallback to the original map, one private pure classifier compares the current source group with the
+original authenticated thinning plan. Companion paths are no-op thinning entries, so their path, object kind, mode,
+and bytes must remain exactly at the common before/after state; an addition, removal, move, rename, mode change, or
+byte change refuses `source:source-units`, even when locator identity and refresh would otherwise remain stable.
+Non-companion paths may use refresh under its existing unit rules. Fallback is admitted only when every changed
+non-companion path is exactly a before or after state from the original thinning plan, which preserves exact partial
+prior thinning and already-finished recovery without authenticating arbitrary drift. Unrelated paths outside the
+source group do not participate.
+
 **Recorded amendment and accepted residual.** The sentence in `spec-decompose-extraction.md` § Additive result leg
 that "the origin's task list is never a source unit" narrows, by forward amendment recorded here, to Active
 origins. For a started-Planning origin under extraction, companions are retained-only source units, and a
@@ -336,15 +371,22 @@ exact transform-delta proof that `--advance-base` relies on, so the map must car
 
 - **Schema.** `CompletedAuthoringSchema` gains `externalEdges: { from: <slug>, to: <slug> }[]`, canonically ordered
   by `(from, to)`, unique. `from` is a `new-member` slug or an `existing-home` work-unit slug declared in the map;
-  `to` is any slug. The starter map carries it as a whole-field author slot like `internalEdges`; an empty array is
-  a complete closed value. Starter maps stay author-slot only; the CLI suggests nothing.
-- **Completed-slug set.** The repository plan already reads the result-base tree in full with no pathspec and drops
-  every meta outside the active, planned, and provisional tiers in `readTreeMetas`. The plan lifts the slugs of
-  `meta-<slug>.md` entries under `.arc/completed/` from that same result-base tree — a filename read, no blob
-  parse — and passes them to conservation as a new input `completedSlugs`, distinct from `workUnits` and from the
-  machine incoming-edge set. The preflight snapshot, its three-tier pathspec, its per-branch spawns, and the
-  preflight identity stay untouched, so completed dependents never enter the incoming-edge set that lifecycle
-  resolution treats as immutable, and `--advance-base` recomposes from the tree it already reads.
+  `to` is any slug. The starter map carries `{ status: "author" }` as a whole-field slot like `internalEdges`; an
+  explicit empty array is a complete closed value in the authored map. Starter maps stay author-slot only; the CLI
+  suggests nothing. The new field leaves machine and `preflightId` identity unchanged, while `v3CutMapDigest()` and
+  downstream plan identity cover the full authored value. Existing dependency-edge identities keep their preimages.
+- **Completed-slug set.** The repository plan already reads the result-base tree in full with no pathspec.
+  `completed-index.ts` owns completed-target eligibility through a pure wrapper that delegates semantic path
+  recognition to `identifyWorkUnitArtifactPath()`, the inverse-layout authority, then accepts only a completed
+  placement whose artifact kind is `meta`. The plan applies that wrapper to regular-blob entries in the already-read
+  result-base tree, without parsing their bytes or issuing another Git read, and passes the resulting slugs to
+  conservation as `completedSlugs`, distinct from `workUnits` and from the machine incoming-edge set. The existing
+  loose filesystem/ref archive readers in `completed-index.ts` remain intentionally separate, resilient compatibility
+  readers; the new exact eligibility policy does not duplicate or tighten them. The preflight snapshot, its
+  three-tier pathspec, its per-branch spawns, and the preflight identity stay untouched, so completed dependents never
+  enter the incoming-edge set that lifecycle resolution treats as immutable, and `--advance-base` recomposes from
+  the tree it already reads. A future storage adapter supplies the same normalized eligibility set without exposing
+  its layout to conservation.
 - **Live-target set.** Pass `resultBaseLiveSlugs`, derived from the already-read `baseMetas`, to conservation as
   a separate eligibility input. Existing `workUnits` enumerates `sourceMetas` and uses `baseMetas` only for writable
   paths; it stays source-bound for incoming-edge conservation and recipient validation. It must not decide whether
@@ -363,12 +405,31 @@ exact transform-delta proof that `--advance-base` relies on, so the map must car
 - **Write.** Each edge becomes one dependency contribution of a new kind `external` beside `internal` and
   `outgoing` — `V3ValidatedDependencyEdit.kind` widens accordingly, and its `edgeId` is
   `canonicalDigest({ schemaVersion: 3, kind: "external", from, to })`, disjoint from internal identities by the
-  `kind` segment — appended to the recipient's `Depends On` through the existing `dependencies()` path in the
-  repository plan — `setMetaBulletFields` on the `identifier-list` slot — so it lifts to managed records unchanged
-  and renders in the staged ROADMAP through the existing seam, which shows unsatisfied edges only. The transition
-  record is unchanged: it records incoming-edge dispositions, and an external edge is outgoing from a member.
-- **Proof boundary.** Internal-edge and incoming-disposition validation stay as they are; neither proof is
-  overloaded to imply an external edge was created by the cut.
+  `kind` segment. Conservation continues to derive the exact add/remove intent from source-bound facts. The
+  repository plan rebases that delta onto the recipient's current pinned result-base `Depends On` value at each
+  contribution, preserving unrelated additions or removals instead of replacing the complete slot with
+  source-derived `afterTargets`; an edit whose delta leaves the pinned sequence unchanged refuses
+  `unchanged-dependency-slot`. The contribution's `before` and `after` states record that actual pinned sequence and
+  flow through the existing `dependencies()` path — `setMetaBulletFields` on the `identifier-list` slot — so the edit
+  lifts to managed records unchanged and renders in the staged ROADMAP through the existing seam, which shows
+  unsatisfied edges only. The transition record is unchanged: it records incoming-edge dispositions, and an external
+  edge is outgoing from a member.
+- **Declared-destination routing.** `internalEdges` is the representation for a dependency between any two declared
+  dependency-capable destinations. Conservation therefore uses the same new-member plus live existing-home work-unit
+  endpoint set the decoder already accepts, instead of narrowing both endpoints to new members. Incoming-disposition
+  validation stays source-bound, and outgoing dispositions still redistribute only prerequisites present in the
+  machine inventory. The external-edge redundancy rule and workflow guidance now route every declared-destination
+  case to a representation conservation accepts.
+- **Finish proof.** Destination finish validates the complete composed mutation for a recipient carrying dependency
+  contributors. Its separate incoming-edge claim runs only for an incoming dependent with no dependency mutation in
+  the plan; it never recomputes a touched recipient from the incoming disposition alone and thereby drops an internal,
+  outgoing, or external contribution from the expected set.
+- **Advancement conflict boundary.** Initial composition rebases dependency deltas onto its pinned result base. After
+  a full-protection candidate is committed, a dependency-bearing recipient that changes on a later base is a
+  version conflict: advancement refuses `dependency-recipient-drift` with the previous and current dependency sets as
+  evidence before merge mutation, and directs candidate cleanup followed by fresh preflight. Target lifecycle changes
+  that do not alter the recipient remain admissible. Advancement keeps one current repository-plan recomposition and
+  does not replay dependency transforms across historical bases.
 
 Two earlier leans were withdrawn under review. Refusing a shipped target needed the completed tier for the one
 purpose of refusing, contradicted the transform's own outgoing path, and opened an advance-base race. Widening the
@@ -385,7 +446,8 @@ needs was already read.
   D3 third. No material new evidence arrived at spec time; the outcome stands.
 - **`classify-work-unit`: `Heavy`, confirmed.** Derivation fires on the conservation policy and the external-edge
   semantics; scale fires on the refusal surface. Nothing is invented; every mechanism composes existing primitives.
-- **`assess-design-proportionality`: `proportionate` at spec time.** Every surviving mechanism traces: the floor
+- **`assess-design-proportionality`: `proportionate` after task-generation review.** Every surviving mechanism traces:
+  the floor
   to the data-loss consequence; companion inventory to the same invariant by composition of the existing scanner
   and dispositions; the H2-only selection to an existing scanner mode; the notes scaffold to the existing task
   scaffold and the presence guarantee target resolution needs; the role-closed destination test to the locus-less
@@ -393,8 +455,12 @@ needs was already read.
   spec's invariant, chosen over a declared tag and a starter prefill; the completed-slug set to a tree already
   read, under the pinned-ref contract the cohort forbids weakening; external edges to the exact transform-delta
   constraint; the remedy contract to the missing-remedy defect by composition of an existing schema; and the
-  evidence admission rule to bounding an additive field to refusals whose sides an operator can act on. Rigor
-  concentrates on the deletion path; advisory refusals get lighter treatment.
+  evidence admission rule to bounding an additive field to refusals whose sides an operator can act on. Two more
+  elaborate corrections were rejected at task-generation close: a transient source-race observation does not widen
+  the shared recovery interface solely to populate diagnostics, and a recipient changed after candidate creation
+  refuses as version drift instead of adding historical dependency replay. Rigor concentrates on the deletion and
+  authoritative-write paths; retryable diagnostics use their existing locus when extra plumbing would not change the
+  corrective action.
 
 ## Alternatives & Rationale
 
@@ -494,20 +560,25 @@ operator can act on, and threading them would double the refusal surface for no 
 - **Size posture (spec-close recalibration).** Medium–Large, unchanged from the draft. Against the draft the
   surface gained the role-closed destination test, the two scaffold-refusal loci, and the evidence admission rule
   with its enumerated set, and it shed nothing. `Class` stays `Heavy`. Recalibrate again at task-generation close.
-- **Testing.** Unit: the source-kind-keyed scan (three kinds × companion presence), the H2-only selection for
-  `tasks-*` including setext-H2 and header-preamble cases, the notes scaffold and its title-line refusal with locus,
+- **Testing.** Unit: the source-kind-keyed scan (three kinds × companion presence), including an invalid-UTF-8
+  companion's path-bearing `source-scan` refusal, the H2-only selection for `tasks-*` including setext-H2 and
+  header-preamble cases, the notes scaffold and its missing, invalid-encoding, and title-line refusals with loci,
   the role-closed destination test, the floor over inventory minus scanned (observable refusal before inventory,
   invariant assertion after), the decode rule under both shapes, external-edge resolution against
   result-base live and completed sets with the redundant and unknown refusals, the remedy mapping's
   source-enumerated exhaustiveness and composed-code coverage, arbitrary caught Git/read error normalization,
   the envelope schema per mode, evidence presence at every admitted comparison site and absence on excluded ones
-  (including both `topology-claim` variants), and the notes scaffold's `provisional-notes` report entry.
+  (including both `topology-claim` variants), the locus-only transient preimage race, the core-only all-mode
+  `unexpected-error` arm, and the notes scaffold's `provisional-notes` report entry.
   Integration: repository-plan composition with a notes companion targeted at a member, an external edge landing in
-  a scaffolded member meta and rendering through the ROADMAP seam, and `--advance-base` recomposing with a target
-  that shipped between execute and advance. Also cover a target added to the result base after the origin fork,
+  a scaffolded member meta and rendering through the ROADMAP seam, source/result-base dependency divergence that
+  preserves unrelated pinned-base targets while rebasing the authored delta, and `--advance-base` recomposing with a
+  target that shipped between execute and advance. A later change to the recipient's dependency prestate instead
+  refuses advancement before mutation. Also cover a target added to the result base after the origin fork,
   and a valid nonstandard companion relocated from backlog to active: its predecessor retires without a rider,
-  while an unrelated file remains subject to the rider guard. E2E: each mode's refusal path emits one envelope
-  on stdout with exit 1, including a caught arbitrary preflight read failure.
+  while an unrelated file remains subject to the rider guard. Extraction finish covers byte-only and mode-only
+  companion drift through both authority-selection arms. E2E: each mode's refusal path emits one envelope on stdout
+  with exit 1, including a caught arbitrary preflight read failure.
   Per the cohort's soft coordination, a rehearsal on a copy of a real origin carrying a notes companion is the
   evidence floor.
 - **Workflow and doctrine surfaces — the agent's only carrier.** Starter maps are author-slot only, so the map
@@ -519,15 +590,21 @@ operator can act on, and threading them would double the refusal surface for no 
   belongs in `internalEdges` or an outgoing disposition instead. Its author-the-result step names `provisional-task` and
   `provisional-notes` entries as whole retitled copies of the origin's companions to prune before the distribution
   interlock; allocated content from other companions must be transferred from the reported source to an admissible
-  destination during that authoring step. Its refusal rule surfaces status, remedy, and evidence.
+  destination during that authoring step. Its refusal rule surfaces status, remedy, evidence, and any optional report.
+  Each delivery member updates both workflow copies before its member-scope validation: the refusal envelope lands
+  with the refusal member, companion authoring and retention with the companion member, and external-edge guidance
+  with the external-edge member. The last member proves cumulative parity rather than supplying earlier members'
+  missing operator contract.
   `assess-boundary-fit.md` and `strategy-work-organization.md` are unchanged, since neither carries the task-list
   invariant. Package-project sync applies to every methodology edit.
 - **Storage evolution self-check.** Against Principles 1–3, 5–6, and 8–9 of
   `strategy-storage-evolution.md`: logical artifact membership and dependency facts are independent of a code
   repository, branch, or tracked Markdown projection. Naming, directory discovery, completed-meta filename reads,
   and pinned Git trees remain inside the current storage binding; pure validation consumes resolved inventories
-  and eligibility sets, and workflow prose consumes CLI results. Dependency writes use the existing record
-  mutator and version-bound transform checks. A future materialized store must supply complete group membership,
+  and eligibility sets, and workflow prose consumes CLI results. Dependency writes use the existing record mutator
+  and rebase an exact validated add/remove delta onto the pinned result-base record, so unrelated current targets are
+  preserved and an already-satisfied delta refuses rather than overwriting stale state. A future materialized store
+  must supply complete group membership,
   authoritative dependency eligibility, and version-checked mutations across its placements; this WU neither
   implements that adapter nor treats code-repository absence as logical absence outside the tracked tier. The
   one-commit/history rationale above requires reassessment at that migration. No new storage flag, branch-derived
@@ -553,19 +630,27 @@ operator can act on, and threading them would double the refusal surface for no 
   backlog-stub origin — task-list phases, notes sections, and any other `<prefix>-<origin>.md` member other than
   the meta — appears in the starter map and must be allocated or dropped before execute accepts the map; a notes
   unit targeted at a member lands in a scaffolded provisional notes artifact.
+- A non-UTF-8 inventoried Markdown companion refuses preflight as `source-scan` with the source path and conversion
+  remedy before a starter map exists; `scaffold-title-missing` is reserved for a valid UTF-8 scaffold source without
+  a title line.
 - An Active origin's starter map lists no companion units. Under a started-Planning origin taking the extraction
   shape, a companion unit carrying any disposition other than `retained-origin` is the typed decode issue
-  `companion-disposition`, and finish leaves companion bytes unchanged.
+  `companion-disposition`, and finish leaves companion bytes unchanged. Finish rejects path, object, mode, or byte
+  drift in a companion before accepting refreshed or fallback authority while retaining exact partial prior thinning.
 - A notes companion without a title line refuses `scaffold-title-missing` at plan time with the member and path as
   locus and a remedy naming the fix; a notes target with no origin notes companion refuses
-  `scaffold-source-missing`; every split scaffold and projection code carries member and path, and
+  `scaffold-source-missing`; an unscanned Active-origin scaffold source with invalid UTF-8 refuses
+  `scaffold-source-invalid-encoding`; every split scaffold and projection code carries member and path, and
   `profile-scaffold-failed` and `target-projection-failed` no longer exist.
 - A target at `meta-<member>.md` refuses at conservation as `incompatible-allocation-locator`.
 - A completed map can declare an external dependency edge; the scaffolded member meta or existing-home meta carries
   it in `Depends On`, and the staged ROADMAP renders it through the existing seam while it is unsatisfied. A `to`
   found in neither the live list nor the completed set refuses `unknown-external-target`; a completed target is
   admitted as a landed edge and survives a target shipping between execute and advance-base; a `to` that is a
-  declared destination refuses `redundant-external-edge`.
+  declared destination refuses `redundant-external-edge`. An existing-home write applies only its validated edge
+  delta to the pinned result-base target list, preserving unrelated source/result-base divergence and refusing an
+  already-satisfied edge state as `unchanged-dependency-slot`. Internal edges accept every dependency-capable declared
+  destination endpoint admitted by the decoder.
 - Every refusal from all six modes carries a `SpineRemedy` with an invariant, verbatim text, and an argv; no
   decompose result carries a string remedy; no refusal code literal enumerated from source resolves to the generic
   fallback remedy.
@@ -575,15 +660,21 @@ operator can act on, and threading them would double the refusal surface for no 
   from the workflow and the emitted results without reading schema or module source.
 - A refusing invocation of any mode emits exactly one typed envelope on stdout and exits nonzero, including an
   error thrown inside the mode; `--preflight`'s success stdout remains the starter map alone; an `--advance-base`
-  refusal carries the composing plan refusal's locus.
+  refusal carries the composing plan refusal's locus. A handler-caught `unexpected-error` uses the core-only arm and
+  never invents execute/extract stage, recovery, or report fields.
 - Every code in D1's evidence set carries `expected` and `actual`; every code outside it carries no `evidence`
-  field.
+  field. Initial finish preimage and apply-authority comparisons carry evidence from their owning boundary;
+  `source-preimage-raced` remains locus-only.
+- Extraction finish accepts a composed recipient carrying both an incoming disposition and an external edge, using
+  the plan's complete dependency mutation rather than re-deriving a partial expected list.
+- Base advancement accepts target lifecycle changes, but a post-candidate change to a dependency-bearing recipient
+  refuses `dependency-recipient-drift` with evidence before mutation and without historical full-tree recomposition.
 - The preflight snapshot's pathspec and per-branch spawn count are unchanged, and the `preflightId` preimage keeps its
   closed field set; only the widened `sourceUnits` values change under it.
 - `spec-decompose-transform-integrity.md`, `spec-decompose-extraction.md`, and the transition-record schema are
   unedited; the two forward amendments are recorded in this spec alone.
 
-**Amended 2026-09-07 — pass-two corrections and storage-forward-compatibility clarification:**
+**Amended 2026-09-07 — task-generation corrections and forward-compatibility clarifications:**
 
 - Companion coverage includes every valid artifact admitted by the current group matcher, with its paired-spec
   exception, in both source and predecessor discovery. A nonstandard companion relocated from backlog to active
@@ -598,6 +689,61 @@ operator can act on, and threading them would double the refusal surface for no 
   expected and observed topology; its missing, undecodable, or malformed-only branches carry locus alone.
 - Workflow authoring guidance covers manual transfer of allocated companions that no scaffold copies. Discovery
   and Git-history safeguards remain explicit current-storage bindings, without new storage or provider machinery.
+- `strategy-procedure-evolution.md` Principle 5 cannot be exercised because its owner, `workflow-eval-harness`, is
+  unstarted. Workflow-contract and E2E tests prove required instruction presence, package/project parity, and typed
+  command behavior; they do not prove stochastic agent behavior. This work unit adds no substitute eval or claim
+  that the unavailable gate ran; the eventual harness owns backfilling that coverage.
+- Operation-returned execute and extract refusal envelopes preserve their existing optional `report` in addition to
+  `stage` and `recovery`. Plan-owned runtime schemas for the existing mutation and contributor shapes compose the
+  exported `V3PathStateSchema`; their TypeScript types and a strict report schema in
+  `decompose-v3-result-report.ts` derive from that one authority. The command boundary never drops a report produced
+  after materialization, and workflow refusal handling surfaces it unchanged when present. A handler-caught
+  `unexpected-error` instead uses the strict core-only arm because no operation stage, recovery, or report exists.
+- `GitDecomposeTransitionBaseAdvancementResult` remains an operation result with stable `reason` plus optional
+  `locus` and `evidence`. The command-boundary mapper in `handleDecompose()` adds `SpineRemedy` from the selected
+  mode's origin and exact cut-map path. This supersedes the earlier sentence requiring remedy on the operation result
+  itself and keeps invocation-only context out of advancement authority.
+- Runtime diagnostics never become reason codes. Transition-record, rollback/restoration, and advancement-apply
+  failures use stable codes with variable detail in `locus`; the source-totality test rejects unapproved nonliteral
+  outward reason producers. After mode selection, one handler exception boundary converts a thrown failure from any
+  of the six modes to core-only `unexpected-error` with that mode's exact retry argv.
+- The Phase 1 floor proof includes base-advancement recomposition while the refusal is still reachable: an uncovered
+  companion produces the nested conservation refusal, exact path, and re-preflight remedy before candidate or base
+  mutation.
+- Extraction finish distinguishes authored source drift from prior thinning before it accepts either refreshed or
+  fallback authority. Every companion must remain at its identical planned before/after path, object, mode, and byte
+  state. Fallback to the original map is allowed only when every changed non-companion source artifact is exactly a
+  planned before/after state, including a valid subset of already-applied thinning. A new, moved, removed, renamed,
+  mode-changed, or byte-changed companion returns the existing `source:source-units` reauthoring refusal; unrelated
+  non-group changes remain admissible.
+- External-edge validation rejects the retiring origin as `retiring-origin-target` at the authored `to` locus while
+  preserving the authenticated origin as eligible under extraction. Declared-destination redundancy is checked before
+  self-edge classification, so an external `{ from, to: from }` refuses as `redundant-external-edge`; no second
+  external self-dependency code is introduced.
+- Production coverage carries an extraction edge to the surviving origin through extract, landing, finish preview,
+  apply, and repeat. Adapter-level call assertions also hold completed-target discovery to the three existing full-tree
+  roles per repository-plan composition and the same single recomposition during base advancement, with no completed
+  pathspec query or per-target object read.
+- Invalid UTF-8 Markdown is a source-scan failure before map authoring, with the source path and conversion remedy;
+  title-specific scaffold refusal begins only after a valid UTF-8 source can reach repository planning. An Active
+  companion skipped by scanning but later selected as a target-driven scaffold source instead refuses
+  `scaffold-source-invalid-encoding` at repository planning.
+- Completed-target eligibility in `completed-index.ts` delegates semantic recognition to
+  `identifyWorkUnitArtifactPath()`. Existing loose archive evidence readers keep their compatibility behavior and do
+  not become a second exact layout authority.
+- Dependency contributors apply their validated edge deltas to the pinned result-base recipient sequence, preserving
+  unrelated target changes and refusing an already-satisfied edge state. Source-bound conservation facts remain
+  unchanged.
+- Package and project workflow guidance lands cumulatively with the delivery member that introduces each public
+  behavior, so every member-scope validation sees a complete operator contract for its reachable tree.
+- Finish evidence is produced where bounded operands already coexist: initial index/worktree preimages and apply
+  authority carry expected/actual facts, while the transient verification race remains locus-only and does not widen
+  `V3PartialRecoveryIO`.
+- Conservation admits internal edges across the decoder's complete dependency-capable destination set. Extraction
+  finish trusts the complete plan mutation for a dependency-touched incoming recipient and uses its incoming-only
+  proof only for untouched recipients.
+- Base advancement treats a later dependency-recipient change as explicit version drift with evidence and cleanup
+  guidance. It preserves the single current recomposition instead of introducing historical dependency replay.
 
 ## Open Questions
 
