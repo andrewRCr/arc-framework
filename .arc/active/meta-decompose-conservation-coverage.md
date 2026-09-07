@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** Reconciled base into the planning branch
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** draft-design — re-synthesize the draft against the merged base; first verify the cohort
+  doc's rewritten contract claims hold against the shipped transform
 
 - **PR URL:** [none]
 - **Completed:** [none]
