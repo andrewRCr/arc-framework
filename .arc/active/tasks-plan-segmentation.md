@@ -250,37 +250,26 @@ together, not a resequencing to fix.
 _Purpose:_ the formatting strategy, the template, and the brief carry the grammar, the verification family, and
 the vocabulary an author or agent meets without the task-generation stage open.
 
-### `[ ]` **5.1 Phase-preamble grammar and the verification family — D1, D4, D5, D8**
+### `[x]` **5.1 Phase-preamble grammar and the verification family — D1, D4, D5, D8**
 
 - _Goal:_ the formatting strategy is the definition of record for segments — the preamble grammar and spacing, the
   three modes, the segment verifier's heading and position, and the evidence-sink rule — so the stage can point at
   it rather than restate it.
 
-- _Approach:_ the verification family reads as one section: segment, member, and work-unit boundaries side by
-  side, with the two suffix-marked rows sharing the same trailing-suffix shape. The strategy's own member example
-  carries the suffix inside the bold, which is not the shape the inventory matches, and is corrected here.
+    - `[x]` **5.1.a Admit both preamble lines, with their position and spacing**
+        - the phase-preamble rule now defines both structural lines, their grammar, ordered placement and blank-line
+          spacing, while excluding structural pointers and lines from the prose cap
 
-- _Shape:_ the modes, the preamble grammar, and the verifier's position are one concern and belong in a section
-  of their own, between the format-elements reference and the test-first structure, with the phase-preamble and
-  verification-phase sections pointing into it. The document opens with a numbered contents list that no check
-  validates, so a new section that misses it drifts silently.
+    - `[x]` **5.1.b Add the segment verifier beside the member one, and correct the member example**
+        - the verification guidance now places `slice` and `replication` close-outs beside member verification,
+          fixes both suffixes outside the bold title, and defines their coincident ordering
 
-- _Note:_ a verifier's completion is an ordinary outcome — the scenario executed and its result. It is not a
-  criteria report and never hosts corrective work.
+    - `[x]` **5.1.c State the evidence-sink rule and the segment definition of record**
+        - a contents-indexed section now defines segment identity, modes, recorded grammar, the three verification
+          boundaries, closing-task position, and the ordinary-outcome evidence sink
 
-- _Note:_ the preamble's soft line cap predates the two structural lines and is already tight against them —
-  Phases 1 and 4 of this list measure thirteen preamble lines against a cap of about twelve. The reconciliation
-  below is what keeps every segmented plan from quietly violating a shipped convention.
-
-    - `[ ]` **5.1.a Admit both preamble lines, with their position and spacing**
-        - reconcile the preamble's soft line cap in the same edit: the delivery-member pointer and the two
-          structural lines do not count toward it. The cap exists to keep rationale prose out of a preamble, and
-          these lines are structure
-
-    - `[ ]` **5.1.b Add the segment verifier beside the member one, and correct the member example**
-
-    - `[ ]` **5.1.c State the evidence-sink rule and the segment definition of record**
-        - add the new section to the contents list in the same edit
+- _Outcome:_ the formatting strategy now provides one definition of record for authored segments and their
+  execution-time evidence, with the existing phase-preamble and verification sections pointing into it.
 
 ### `[ ]` **5.2 Template preamble and verifier shapes — D4, D5, D12**
 
