@@ -271,13 +271,13 @@ the vocabulary an author or agent meets without the task-generation stage open.
 - _Outcome:_ the formatting strategy now provides one definition of record for authored segments and their
   execution-time evidence, with the existing phase-preamble and verification sections pointing into it.
 
-### `[ ]` **5.2 Template preamble and verifier shapes — D4, D5, D12**
+### `[x]` **5.2 Template preamble and verifier shapes — D4, D5, D12**
 
 - _Goal:_ the shipped skeleton shows the segmented shape an author copies from, so the template and the strategy
   cannot drift into contradicting each other.
 
-- _Note:_ the template is itself a scanned path, but its task-list example lives inside a fenced block that the
-  structural scanner skips — so nothing validates these examples. Check them against the strategy by hand.
+- _Outcome:_ the skeleton now shows a valid single-phase `slice` preamble and the exact segment/member trailing
+  suffixes, while keeping segment verifiers out of the terminal phase and optional for the single-segment case.
 
 ### `[ ]` **5.3 Segment vocabulary entry in the agent brief — D11**
 
