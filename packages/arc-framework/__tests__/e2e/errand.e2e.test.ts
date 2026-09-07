@@ -682,9 +682,18 @@ describe("arc errand close", () => {
 
   it("completes a clean full-protection Errand that has no tracked change", async () => {
     const slug = "operational-only";
+    const offeredTitle = "Run the next queued Errand";
     await setFullProtection(tmpDir);
     await git(tmpDir, ["add", "-A"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(
+      join(inboxDir, "USER-INBOX.md"),
+      `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${offeredTitle}**\n\n`
+        + "- _Disposition:_ `execute-bound`\n\n---\n",
+      "utf-8",
+    );
     const remoteDir = await createBareRemote(tmpDir, slug);
     try {
       const result = await runArcAnchoredSequence([
@@ -698,6 +707,7 @@ describe("arc errand close", () => {
         outcome: "applied",
         operation: "errand-close",
         recommendedPromptText: expect.stringContaining("without a tracked change"),
+        nextOffer: { kind: "errand", key: offeredTitle, parentCheckoutPath: null },
       });
       expect((await git(tmpDir, ["symbolic-ref", "--quiet", "--short", "HEAD"])).trim()).toBe("main");
       expect((await git(tmpDir, ["branch", "--list", `chore/${slug}`])).trim()).toBe("");
@@ -737,12 +747,21 @@ describe("arc errand close", () => {
 
   it("closes a pushed partial Errand and releases its primary occupancy", async () => {
     const remoteDir = `${tmpDir}-remote.git`;
+    const offeredTitle = "Run the next partial-mode Errand";
     await execFileAsync("git", ["init", "--bare", remoteDir]);
     try {
       await git(tmpDir, ["add", "-A"]);
       await git(tmpDir, ["commit", "--no-verify", "-m", "track initialized project"]);
       await git(tmpDir, ["remote", "add", "origin", remoteDir]);
       await git(tmpDir, ["push", "-u", "origin", "main"]);
+      const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+      await mkdir(inboxDir, { recursive: true });
+      await writeFile(
+        join(inboxDir, "USER-INBOX.md"),
+        `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${offeredTitle}**\n\n`
+          + "- _Disposition:_ `execute-bound`\n\n---\n",
+        "utf-8",
+      );
       const result = await runArcAnchoredSequence([
         { command: [process.execPath, CLI_PATH, "errand", "open", "direct-fix", "--json"] },
         { command: ["git", "commit", "--allow-empty", "--no-verify", "-m", "fix direct"] },
@@ -759,6 +778,7 @@ describe("arc errand close", () => {
         generation: expect.stringMatching(/^sha256:/u),
         checkoutPath: tmpDir,
         settlement: { kind: "capture", disposition: "absent", originEntry: null },
+        nextOffer: { kind: "errand", key: offeredTitle, parentCheckoutPath: null },
       });
       expect(settled).not.toHaveProperty("recordId");
       expect(settled).not.toHaveProperty("leaseId");
