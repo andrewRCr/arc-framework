@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-errand-review-terminus",
+  "claimId": "dce1a0a4bb3933ba009915d2fda83922",
+  "createdAt": "2026-09-07T21:33:12.715Z",
+  "updatedAt": "2026-09-07T21:33:12.715Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the exact Errand review terminus concern to its planned work-unit home",
+  "branch": "chore/route-errand-review-terminus",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
