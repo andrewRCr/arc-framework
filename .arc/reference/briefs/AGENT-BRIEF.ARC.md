@@ -57,6 +57,13 @@ Precise meanings — assume the technical sense.
   coverage, and a seam review preserve local and cross-chunk review. Delivery vocabulary is reserved compatibly:
   a **deliverable** is a chunk given an independent merge boundary (`deliverable ⊂ chunk`), and a **stack** is a
   dependency ordering over a set of deliverables. Projects that never separate merge topology need only `chunk`.
+- **Segment:** A contiguous run of one or more task-plan phases that closes on one stated kind of progress. It is a
+  task-plan boundary, never a delivery member. A `spike` runs before a design exists to de-risk inputs and cannot
+  falsify the design; a segment executes against a settled design and can. A `chunk` remains a review boundary, and
+  a `deliverable` remains a chunk with an independent merge boundary. Every segment carries one mode:
+    - **`slice`** — closes on a thin end-to-end capability that can be exercised.
+    - **`layer`** — closes on a complete, settled substrate layer.
+    - **`replication`** — closes when an enumerated transformation surface is exhausted and batch-verified.
 - **Errand:** Off-WU wrapper for a single _self-evident_ concern — below the spec-worthiness floor (no design
   worth recording, no durable plan a correct execution must navigate). Always **atomic** (below); no meta or
   WU lifecycle. A transient identity may preserve exact pause/review re-entry without becoming a durable plan.

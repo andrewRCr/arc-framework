@@ -279,14 +279,13 @@ the vocabulary an author or agent meets without the task-generation stage open.
 - _Outcome:_ the skeleton now shows a valid single-phase `slice` preamble and the exact segment/member trailing
   suffixes, while keeping segment verifiers out of the terminal phase and optional for the single-segment case.
 
-### `[ ]` **5.3 Segment vocabulary entry in the agent brief — D11**
+### `[x]` **5.3 Segment vocabulary entry in the agent brief — D11**
 
 - _Goal:_ an agent that meets `segment` as a code-visible scope in a delivery record can resolve the term without
   a task list open, and cannot confuse it with a spike, a chunk, a deliverable, or a delivery member.
 
-- _Shape:_ one entry nesting the three modes, the way the chunk entry nests deliverable and stack. Boundaries
-  stated: a spike runs before a design exists and cannot falsify it; a chunk is a review boundary; a deliverable
-  is a chunk with an independent merge boundary; a segment is a task-plan boundary and never a delivery member.
+- _Outcome:_ the brief now defines a segment as a task-plan boundary, nests its three modes, and distinguishes it
+  from planning spikes, review chunks, independently merged deliverables, and delivery members.
 
 ## **Phase 6:** Execution-time surfaces and the self-hosting exercise
 
