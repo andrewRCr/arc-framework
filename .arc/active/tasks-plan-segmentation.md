@@ -55,43 +55,16 @@ already refuses a last phase not titled `Verification` and segmentation adds no 
 module and concern here because the segment is a `layer`; the behavior-path grouping a `slice` wants would cut
 across the diagnostic family for no gain.
 
-### `[ ]` **1.1 Segment model and preamble-line resolution — D4, D6, D8, D12**
+### `[x]` **1.1 Segment model and preamble-line resolution — D4, D6, D8, D12**
 
 - _Goal:_ a task list's phase preambles and stub bullets resolve into an ordered list of segments carrying mode,
   span, and closing phase, plus the retiring-phase references its tasks make — and a list with neither a preamble
   `_Mode:_` line nor a segment-suffixed parent resolves to no segments and no diagnostics, so every list authored
   before the contract stays outside it.
 
-- _Shape:_ new module `packages/arc-framework/src/lib/task-list/segmentation.ts`, exporting the mode, phase,
-  segment, retiring-reference, diagnostic, and result shapes; `scanTaskListSegmentation`; and
-  `hasSegmentVerifierSuffix` / `hasMemberVerifierSuffix`. Preamble and detail-bullet lines arrive as `content`
-  events; a parent heading's trailing role suffix does not, because the parent grammar captures the bold title alone
-  — so a suffix is read from the raw line a `parent` event points at, as the delivery task inventory already reads
-  the member suffix.
-
-- _Note:_ malformed structural input returns no partial segments or retiring-phase references; it produces one
-  `task-list-malformed` diagnostic at the scanner's error line. This universal branch runs before segmentation
-  presence detection, so both lint sites refuse malformed selected task lists whether or not they carry a Delivery
-  Plan or a valid `_Mode:_` line.
-
-- **Additional Context:** `notes-plan-segmentation.md` § Segmentation scan interface defines every exported name,
-  signature, field, diagnostic body, and line locus consumed across tasks.
-
-    Build `test-first` (one behavior at a time):
-
-    - a `_Mode:_` line carrying a closed-set token opens a segment on its phase
-    - `through Phase N` extends the span; without it the segment is single-phase
-    - `_Exit criterion:_` binds to the phase that closes its segment
-    - a `_Retired in:_` detail bullet resolves the phase it names, wherever in a task body it sits
-    - a trailing segment or member role suffix is matched on the parent's raw heading line
-    - a suffix written inside the bold title does not match
-    - neither a preamble `_Mode:_` line nor a segment-suffixed parent anywhere: no segments, no diagnostics
-    - either presence alone opts the list into the contract
-    - `_Mode:_` and `_Exit criterion:_` before a phase, after its first parent, or under a later section are inert
-      and cannot opt in, open, or close a segment
-    - preamble labels inside a fenced block are inert
-    - malformed structural input returns empty segments and retiring-phase references plus one
-      `task-list-malformed` diagnostic without throwing
+- _Outcome:_ `segmentation.ts` now resolves single- and multi-phase segment records, closing criteria, retiring-phase
+  references, and exact verifier suffixes from structural events and raw parent headings. Compatibility lists remain
+  outside the contract, misplaced or fenced declarations stay inert, and malformed structure returns no partial data.
 
 ### `[ ]` **1.2 Declaration diagnostics — D6**
 
