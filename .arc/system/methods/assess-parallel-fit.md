@@ -56,8 +56,8 @@ Read the candidate's domain against the in-flight set and map the overlap to a p
   WU touch the same code or document surface, or a shared piece of load-bearing infrastructure. The work can still
   proceed, but the overlap is a real integration cost — weigh sequencing the two over running them at once.
 - **Foreign-owned overlap → coordinate.** The overlapping surface belongs to another owner's in-flight WU (see
-  § Self/foreign asymmetry). Resolve the contention with that owner before proceeding — you cannot unilaterally
-  reorder work you don't own.
+  § Self/foreign asymmetry). Reordering their work is not yours to do; starting your own is, so raise the
+  contention with that owner first — the posture this read recommends, not a gate it enforces.
 
 ### Evidence-tiering ladder
 
@@ -81,8 +81,9 @@ Every WU is single-owner, so overlap on a shared surface reduces to one question
 
 - **Self-overlap → reorder freely.** The candidate overlaps your own in-flight WU. You own both, so sequence them
   in whatever order suits; there is no coordination cost beyond your own attention.
-- **Foreign-overlap → coordinate.** The overlapping WU belongs to another owner. Resolve the contention with that
-  owner before proceeding — you cannot unilaterally reorder work you don't own.
+- **Foreign-overlap → coordinate.** The overlapping WU belongs to another owner. Two acts sit here and only one
+  is yours: you cannot unilaterally reorder work you don't own, while starting your own work against the shared
+  surface commits nobody. Raise the contention with that owner first — advisory, per § Proportionality guard.
 
 In a single-owner-per-WU model this asymmetry is the whole judgment on a shared surface: the rubric's "shared" and
 "foreign-owned" rows are the same overlap read through the owner lens.

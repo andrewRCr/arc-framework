@@ -56,10 +56,6 @@ function deriveExpectedMutators(
   from: LifecyclePosition | null,
   to: LifecyclePosition | null,
 ): MutatorSpec {
-  if (verb === "materialize") {
-    return { reconcileWorktree: "spawn" };
-  }
-
   const ef = expectedEncoding(from);
   const et = expectedEncoding(to);
   const spec: MutatorSpec = {};
@@ -111,17 +107,19 @@ function deriveExpectedMutators(
     // Worktree — present iff the location is `active`.
     const fromWorktree = ef?.dirTier === "active";
     const toWorktree = et?.dirTier === "active";
-    if (!fromWorktree && toWorktree) spec.reconcileWorktree = "spawn";
-    else if (fromWorktree && !toWorktree) spec.reconcileWorktree = "teardown";
+    if (!fromWorktree && toWorktree) spec.reconcileWorkUnitWorktree = "spawn";
+    else if (fromWorktree && !toWorktree) spec.reconcileWorkUnitWorktree = "teardown";
   }
 
   // Phase — written only between two existing positions whose phase differs
   // (a scaffold establishes the State fresh; a remove deletes it).
   if (ef !== null && et !== null && ef.metaState !== et.metaState) spec.setPhase = true;
 
-  // Current Workflow is only meaningful in planning. Activation exits planning,
-  // and the completed sink must not retain a stale workflow pointer.
+  // Activation exits planning, publication projects its live workflow, and the
+  // completed sink must not retain a stale workflow pointer.
   if (verb === "activate" || et?.dirTier === "completed") spec.clearCurrentWorkflowField = true;
+  if (verb === "publish") spec.setCurrentWorkflowField = "integrate-work-unit";
+  if (verb === "reopen") spec.setCurrentWorkflowField = "prepare-work-unit";
 
   return spec;
 }
@@ -131,9 +129,12 @@ function normalizeMutators(spec: MutatorSpec): MutatorSpec {
   const out: MutatorSpec = {};
   if (spec.artifacts !== undefined) out.artifacts = spec.artifacts;
   if (spec.reconcileBranch !== undefined) out.reconcileBranch = spec.reconcileBranch;
-  if (spec.reconcileWorktree !== undefined) out.reconcileWorktree = spec.reconcileWorktree;
+  if (spec.reconcileWorkUnitWorktree !== undefined) out.reconcileWorkUnitWorktree = spec.reconcileWorkUnitWorktree;
   if (spec.setPhase !== undefined) out.setPhase = spec.setPhase;
   if (spec.clearBranchField !== undefined) out.clearBranchField = spec.clearBranchField;
+  if (spec.setCurrentWorkflowField !== undefined) {
+    out.setCurrentWorkflowField = spec.setCurrentWorkflowField;
+  }
   if (spec.clearCurrentWorkflowField !== undefined) out.clearCurrentWorkflowField = spec.clearCurrentWorkflowField;
   return out;
 }
@@ -203,7 +204,7 @@ describe("lifecycle transition table — encoding consistency", () => {
 
   it("guards every worktree-teardown edge with worktree-clean", () => {
     for (const edge of TRANSITIONS) {
-      if (edge.encodingUpdates.reconcileWorktree !== "teardown") continue;
+      if (edge.encodingUpdates.reconcileWorkUnitWorktree !== "teardown") continue;
       expect(
         edge.guards.includes("worktree-clean"),
         `${edge.verb}(${posKey(edge.from)}→${posKey(edge.to)}) tears down a worktree without the worktree-clean guard`,
@@ -256,9 +257,15 @@ function synthBranchInputs(edge: TransitionRecord): TransitionInputs {
   else if (e.reconcileBranch === "delete") inputs.branchOp = { mutation: "delete", branch: fromBranch };
   else if (e.reconcileBranch === "create") inputs.branchOp = { mutation: "create" };
 
-  if (e.reconcileWorktree === "spawn") {
-    inputs.worktreeOp = { mutation: "spawn", inPlace: true, branch: toBranch, createBranch: true };
-  } else if (e.reconcileWorktree === "teardown") {
+  if (e.reconcileWorkUnitWorktree === "spawn") {
+    inputs.worktreeOp = {
+      mutation: "spawn",
+      inPlace: true,
+      branch: toBranch,
+      wuName: "demo",
+      createBranch: true,
+    };
+  } else if (e.reconcileWorkUnitWorktree === "teardown") {
     inputs.worktreeOp = { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" };
   }
 
@@ -280,7 +287,7 @@ function expectedBranchField(edge: TransitionRecord): string | null {
   if (e.clearBranchField) return NONE_BRANCH;
   if (e.reconcileBranch === "delete") return NONE_BRANCH;
   if (e.reconcileBranch === "rename") return categoryBranch(branchCategory(edge.to));
-  if (e.reconcileWorktree === "spawn") return categoryBranch(branchCategory(edge.to));
+  if (e.reconcileWorkUnitWorktree === "spawn") return categoryBranch(branchCategory(edge.to));
   return null;
 }
 

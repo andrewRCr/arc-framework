@@ -245,9 +245,10 @@ inline guidance for each section (Context, Decision, Consequences with Positive/
 
 ## Amending Accepted ADRs
 
-An accepted ADR's **decision is final** — the Context, Decision, and original Consequences sections represent the
-point-in-time record and should not be rewritten. However, strict "never touch the file" immutability creates
-practical friction (typos persist, broken links accumulate, implementation learnings have nowhere to go).
+An accepted ADR's **decision is final** · `[invariant]` — the Context, Decision, and original Consequences sections
+represent the point-in-time record and should not be rewritten. However, strict "never touch the file"
+immutability creates practical friction (typos persist, broken links accumulate, implementation learnings have
+nowhere to go).
 
 ARC uses a three-tier model that preserves the spirit of immutability while accommodating real-world needs:
 

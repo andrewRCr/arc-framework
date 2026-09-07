@@ -36,6 +36,23 @@ export interface ReviewOperationStateStore {
   ): Promise<{ version: number }>;
 }
 
+/** One strictly parsed record from an atomic operation-namespace snapshot. */
+export interface ReviewOperationStateSnapshotRecord {
+  readonly version: number;
+  readonly state: ReviewOperationState;
+}
+
+/** Complete-or-typed-unavailable read of every operation record at one instant. */
+export type ReviewOperationStateSnapshot =
+  | { readonly status: "complete"; readonly records: readonly ReviewOperationStateSnapshotRecord[] }
+  | { readonly status: "incomplete"; readonly reason: string }
+  | { readonly status: "unavailable"; readonly reason: string };
+
+/** Read-only enumeration boundary, separate from keyed operation mutation. */
+export interface ReviewOperationStateSnapshotIndex {
+  readOperationSnapshot(): Promise<ReviewOperationStateSnapshot>;
+}
+
 /** Path-agnostic immutable source storage for local review materializations. */
 export interface LocalReviewSourceStore {
   readSource(sourceRef: string): Promise<LocalReviewSource | null>;
@@ -46,6 +63,18 @@ export interface LocalReviewSourceStore {
 export interface ApprovedDispositionRecordStore {
   readDispositionRecord(operationId: string): Promise<ApprovedDispositionRecord | null>;
   appendDispositionRecord(record: ApprovedDispositionRecord): Promise<{ dispositionRecordRef: string }>;
+}
+
+/**
+ * Enumeration boundary for consumers holding a disposition-set identity rather than an operation.
+ *
+ * Separate from the keyed store because lineage settlement and cursorless delivery correction begin
+ * from durable response authority rather than an operation identity. Enumeration returns only readable
+ * records; each consumer must fail when required identity or uniqueness cannot be established. Keyed
+ * reads remain strict for exact-record callers.
+ */
+export interface ApprovedDispositionRecordIndex {
+  listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]>;
 }
 
 /** Version-checked durable frontline outcome storage. */

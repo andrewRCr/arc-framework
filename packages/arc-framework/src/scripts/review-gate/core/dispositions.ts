@@ -7,6 +7,7 @@ import {
   DispositionSetStateSchema,
   DispositionSetPreimageSchema,
   DispositionSetSchema,
+  DispositionReportItemSchema,
   ProposedDispositionSetSchema,
   type ApprovedDispositionSet,
   type DispositionApproval,
@@ -14,6 +15,9 @@ import {
   type DispositionSet,
   type DispositionSetState,
   type ProposedDispositionSet,
+  effectiveDispositionSeverity,
+  reviewerDispositionNit,
+  reviewerDispositionSeverity,
 } from "./disposition-records.js";
 import {
   PACKAGE_DEFAULT_SEVERITY_GATING_POLICY,
@@ -21,18 +25,32 @@ import {
   type SeverityGatingPolicy,
 } from "./severity-gating-policy.js";
 
-type DispositionReportProposalItem = Omit<DispositionReportItem, "gating"> & {
-  gating?: DispositionReportItem["gating"];
-};
+type WithOptionalGating<T> = T extends unknown
+  ? Omit<T, "gating"> & { gating?: DispositionReportItem["gating"] }
+  : never;
+type DispositionReportProposalItem = WithOptionalGating<DispositionReportItem>;
+
+function effectiveGatingNit(finding: DispositionReportProposalItem): true | undefined {
+  return finding.sourceVerification === "not-supported"
+    ? reviewerDispositionNit(finding)
+    : finding.nit;
+}
 
 function normalizedFindings(
   findings: readonly DispositionReportProposalItem[],
   policy: SeverityGatingPolicy,
 ): DispositionReportItem[] {
-  const normalized = findings.map((finding) => ({
-    ...finding,
-    gating: resolveFindingGating(finding, policy),
-  }));
+  const normalized = findings.map((finding) => DispositionReportItemSchema.parse({
+      ...finding,
+      gating: resolveFindingGating({
+        severity: "severity" in finding
+          ? finding.severity
+          : "arcSeverity" in finding
+            ? finding.arcSeverity
+            : finding.reviewerSeverity,
+        ...(effectiveGatingNit(finding) === true ? { nit: true as const } : {}),
+      }, policy),
+    }));
   const unique = new Map(normalized.map((finding) => [finding.findingId, finding]));
   if (unique.size !== findings.length) throw new Error("duplicate disposition finding identity");
   return sortByCanonicalBytes([...unique.values()]);
@@ -64,7 +82,9 @@ export function validateDispositionSet(input: unknown): DispositionSet {
   const set = DispositionSetSchema.parse(input);
   const { dispositionSetId, ...fields } = set;
   const retainedPolicy = {
-    minorGating: fields.findings.find((finding) => finding.severity === "minor" && finding.nit !== true)?.gating
+    minorGating: fields.findings.find((finding) =>
+      (effectiveDispositionSeverity(finding) ?? reviewerDispositionSeverity(finding)) === "minor"
+        && effectiveGatingNit(finding) !== true)?.gating
       ?? PACKAGE_DEFAULT_SEVERITY_GATING_POLICY.minorGating,
   };
   if (canonicalize(fields.findings) !== canonicalize(normalizedFindings(fields.findings, retainedPolicy))) {

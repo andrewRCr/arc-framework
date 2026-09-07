@@ -29,7 +29,10 @@ import {
 } from "../../src/commands/user.js";
 import type { UserIOContext } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
-import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
+import type {
+  WorktreeSnapshotAnalysisResult,
+  WorktreeSyncStatusResult,
+} from "../../src/lib/git/worktree-sync.js";
 import {
   NO_COMPARABLE_SOURCE_COMMIT,
   projectManifest,
@@ -2969,9 +2972,21 @@ describe("buildLoadSummary", () => {
 
 describe("buildUserStatusResult worktree qualifier", () => {
   function withWorktree(
-    worktree: WorktreeSyncStatusResult | undefined,
+    worktree: WorktreeSnapshotAnalysisResult | WorktreeSyncStatusResult | undefined,
     overrides: Partial<Parameters<typeof buildUserStatusResult>[0]> = {},
   ) {
+    const qualifiedWorktree = worktree === undefined || "remoteEvidence" in worktree
+      ? worktree
+      : worktree.state === "remote-unavailable"
+        ? worktree.failureReason === undefined
+          ? { ...worktree, remoteEvidence: "pending-fetch" as const }
+          : { ...worktree, remoteEvidence: "unreachable" as const, failureReason: worktree.failureReason }
+        : {
+            ...worktree,
+            remoteEvidence: ["skipped", "no-upstream", "detached-head", "no-remote"].includes(worktree.state)
+              ? "not-applicable" as const
+              : "exact" as const,
+          };
     return buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -2982,7 +2997,7 @@ describe("buildUserStatusResult worktree qualifier", () => {
       ancestorDistance: 0,
       backupFiles: [],
       remoteIdentities: [],
-      worktree,
+      worktree: qualifiedWorktree,
       ...overrides,
     });
   }
@@ -3055,6 +3070,36 @@ describe("buildUserStatusResult worktree qualifier", () => {
     );
   });
 
+  it("surfaces pending advertised evidence without inventing a relation", () => {
+    const result = withWorktree({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "pending-fetch",
+    });
+
+    expect(result.detailLines).toContain(
+      "The advertised worktree commit is not available locally; run an explicit sync before relying on its relation.",
+    );
+  });
+
+  it.each([
+    ["network", "Worktree remote network access failed; retry or use `--offline` to report local worktree refs only."],
+    ["auth", "Worktree remote authentication failed; restore access before trusting remote worktree state."],
+  ] as const)("surfaces typed %s evidence", (failureReason, message) => {
+    const result = withWorktree({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      remoteEvidence: "unreachable",
+      failureReason,
+    });
+
+    expect(result.detailLines).toContain(message);
+  });
+
   it("substitutes an offline note when --offline is set with remote_sync enabled", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
@@ -3104,6 +3149,7 @@ describe("runUserStatus worktree probe orchestration", () => {
   function makeIO(execImpl: (cmd: string, args: string[]) => Promise<{ stdout: string; stderr: string }>) {
     return {
       exec: execImpl,
+      execInput: async () => `${"d".repeat(40)} missing\n`,
       readDir: async () => [],
       readFile: async () => "",
       writeFile: async () => {},
@@ -3127,6 +3173,12 @@ describe("runUserStatus worktree probe orchestration", () => {
       if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "@{upstream}") {
         return { stdout: "origin/main\n", stderr: "" };
       }
+      if (args[0] === "remote") {
+        return { stdout: "origin\n", stderr: "" };
+      }
+      if (args[0] === "for-each-ref") {
+        return { stdout: "origin/main\n", stderr: "" };
+      }
       if (args[0] === "fetch") {
         return { stdout: "", stderr: "" };
       }
@@ -3146,27 +3198,34 @@ describe("runUserStatus worktree probe orchestration", () => {
         throw new Error("ref not found");
       }
       if (args[0] === "ls-remote") {
+        if (args[1] === "--heads") {
+          return { stdout: `${"d".repeat(40)}\trefs/heads/main\n`, stderr: "" };
+        }
         return { stdout: "", stderr: "" };
       }
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     };
   }
 
-  it("invokes the worktree probe when remote_sync is enabled and not offline", async () => {
+  it("uses passive pending evidence when remote_sync is enabled and not offline", async () => {
     const calls: Array<{ cmd: string; args: string[] }> = [];
     const io = makeIO(fakeNoNotesExec(calls));
 
-    await runUserStatus({
+    const result = await runUserStatus({
       cwd: "/repo",
       io,
       identity: "andrew",
       remoteSyncEnabled: true,
     });
 
-    expect(calls.some((c) => c.args[0] === "fetch")).toBe(true);
+    expect(calls.some((c) => c.args[0] === "fetch" && c.args[2] === "main")).toBe(false);
+    expect(result.worktree).toMatchObject({
+      state: "remote-unavailable",
+      remoteEvidence: "pending-fetch",
+    });
   });
 
-  it("runs the worktree fetch without suppressing note-history status reads", async () => {
+  it("runs the exact worktree read without suppressing note-history status reads", async () => {
     const calls: Array<{ cmd: string; args: string[] }> = [];
     const io = makeIO(fakeNoNotesExec(calls));
 
@@ -3177,12 +3236,12 @@ describe("runUserStatus worktree probe orchestration", () => {
       remoteSyncEnabled: true,
     });
 
-    const worktreeFetchIndex = calls.findIndex((c) =>
-      c.args[0] === "fetch" && c.args[1] === "origin" && c.args[2] === "main",
+    const worktreeReadIndex = calls.findIndex((c) =>
+      c.args[0] === "ls-remote" && c.args[1] === "--heads",
     );
     const firstNotesListIndex = calls.findIndex((c) => c.args[0] === "notes");
 
-    expect(worktreeFetchIndex).toBeGreaterThanOrEqual(0);
+    expect(worktreeReadIndex).toBeGreaterThanOrEqual(0);
     expect(firstNotesListIndex).toBeGreaterThanOrEqual(0);
   });
 
@@ -3198,7 +3257,7 @@ describe("runUserStatus worktree probe orchestration", () => {
       remoteSyncEnabled: true,
     });
 
-    expect(calls.some((c) => c.args[0] === "fetch")).toBe(false);
+    expect(calls.some((c) => c.args[0] === "ls-remote" && c.args[1] === "--heads")).toBe(false);
   });
 
   it("does not invoke the worktree probe when remote_sync is disabled", async () => {
@@ -3212,7 +3271,7 @@ describe("runUserStatus worktree probe orchestration", () => {
       remoteSyncEnabled: false,
     });
 
-    expect(calls.some((c) => c.args[0] === "fetch")).toBe(false);
+    expect(calls.some((c) => c.args[0] === "ls-remote" && c.args[1] === "--heads")).toBe(false);
   });
 
   it("threads local notes ref absence into detailLines as the first-use hint", async () => {
@@ -3449,6 +3508,7 @@ describe("runUserStatus bounded notes-ref fetch", () => {
     Promise<{ stdout: string; stderr: string }>) {
     return {
       exec: execImpl,
+      execInput: async () => `${remoteHash} missing\n`,
       readDir: async () => [],
       readFile: async () => "",
       writeFile: async () => {},
@@ -3469,6 +3529,8 @@ describe("runUserStatus bounded notes-ref fetch", () => {
       if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "@{upstream}") {
         return { stdout: "origin/main\n", stderr: "" };
       }
+      if (args[0] === "remote") return { stdout: "origin\n", stderr: "" };
+      if (args[0] === "for-each-ref") return { stdout: "origin/main\n", stderr: "" };
       if (args[0] === "rev-list" && args.includes("--count")) {
         return { stdout: "0\t0\n", stderr: "" };
       }
@@ -3479,6 +3541,9 @@ describe("runUserStatus bounded notes-ref fetch", () => {
         return { stdout: `${localHash}\n`, stderr: "" };
       }
       if (args[0] === "ls-remote") {
+        if (args[1] === "--heads") {
+          return { stdout: `${remoteHash}\trefs/heads/main\n`, stderr: "" };
+        }
         return { stdout: `${remoteHash}\t${notesRef}\n`, stderr: "" };
       }
       if (
@@ -3498,10 +3563,6 @@ describe("runUserStatus bounded notes-ref fetch", () => {
         if (fetchBehavior === "generic-error") {
           throw new Error("network down");
         }
-        return { stdout: "", stderr: "" };
-      }
-      if (args[0] === "fetch") {
-        // Worktree-probe fetch — ignore for this suite.
         return { stdout: "", stderr: "" };
       }
       // Temp-ref read after a successful fetch — return the remote hash so

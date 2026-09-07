@@ -7,6 +7,66 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Bind local review targets to the current protected-base identity**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-08-20).
+- _Concern:_ local review accepted a stale local `main` as authoritative and prepared a 178-commit target for a
+  one-commit Errand. Derive or verify the base against the current protected-base identity, while retaining an
+  explicit provenance-bearing historical-SHA arm and returning the established base identity in the envelope.
+
+### `[ ]` **Make local dispositions round-trip through public response re-entry**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-08-20).
+- _Concern:_ the emitted local source reference contains a runtime-only field rejected by `review respond`, and the
+  clean-tree/attestation ordering can destroy the reviewed Candidate lineage before response settlement.
+- _Fold-in:_ make emitted references directly acceptable at the public boundary and expose one typed next action
+  that preserves the reviewed Candidate while composing response, cleanliness, and re-attestation safely.
+
+### `[ ]` **Make review-verb judgment inputs durable and status inputs derivable**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-08-20).
+- _Concern:_ prepublication routing/self-review facts disappear across reinvocation, while `review status` requires
+  an opaque target reference derivable from the same head flags its caller already holds.
+- _Fold-in:_ persist judgment inputs by Candidate/subject identity, invalidate them on exact movement, move rejected
+  fact diagnostics into JSON, and add a head-flag derivation arm for status.
+
+### `[ ]` **Expose a review-owned per-requirement qualification projection**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-07-28);
+  captured during `chunked-delivery` draft-design forward-compatibility pass.
+- _Concern:_ Terminal delivery assurance must know whether each review requirement is merge-admissible without
+  reconstructing the target → requirement → request → receipt chain. `ForwardGateProjection` exposes one complete
+  singleton chain; deferred assurance groups may project several requirements from one receipt. Coupling delivery
+  to raw receipt cardinality would force a rewrite when groups land.
+- _Fold-in:_ public `RequirementQualificationProjection` over caller-held target/requirement facts — closed
+  `qualified | nonblocking | blocked | stale` outcomes preserving required-vs-recommended policy, plus exact
+  reasoned routing for the exempt case. Group planning stays in `chunked-delivery`.
+
+### `[ ]` **Bind delivery assurance subjects into exact-target review requirements**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-07-28);
+  captured during `chunked-delivery` draft-design assurance-record pass.
+- _Concern:_ Cross-deliverable seam coverage without assurance groups needs the ordinary review requirement to
+  name what it covered. Scheduling a seam on its latest incident deliverable is not evidence.
+- _Fold-in:_ public `ReviewCoverageBinding` derivation binding exact target, plan revision, member/seam subjects,
+  incident generations, and reviewer-guidance digest into requirement identity. Named seams are required assurance
+  dimensions (cannot route exempt). Not `chunk-scope-binding` partial-scope algebra or multi-target assurance
+  groups.
+
+### `[ ]` **Bound hosted-review result transport and retain concluded outcomes**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-09-07);
+  captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ large hosted results can exceed the command transport boundary, while a concluded provider outcome
+  can become unreachable after the transient response channel closes.
+- _Fold-in:_ expose a bounded durable result reference and retrieval contract tied to the exact request and target.
+  Continuation-input readiness is extracted as an immediate Errand; this item owns the durable transport design.
+
 ## Reachable Request Contracts
 
 Fourteen review verbs take `<file | ->` with help text reading only "Versioned JSON request file" — no schema, no

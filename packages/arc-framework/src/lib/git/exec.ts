@@ -36,6 +36,10 @@ export interface GitExecOptions {
   indexFile?: string;
   /** Per-invocation terminal, presenter, and ambient-stdin policy. */
   interaction?: InteractionContext["subprocess"];
+  /** Pin process diagnostics to the stable C locale for bounded classification. */
+  diagnosticLocale?: "stable";
+  /** Forbid Git from lazily fetching missing objects during passive inspection. */
+  objectAccess?: "local-only";
 }
 
 /** Plain-Promise, argument-array Git execution seam. */
@@ -50,9 +54,14 @@ export type GitExec = (
  * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that
  * reads its payload from stdin (`hash-object --stdin`, `mktree`) — which
  * captured-output {@link GitExec} cannot provide. Production wires an
- * execa stdin adapter without shell interpolation.
+ * execa stdin adapter without shell interpolation. Callers may pin the
+ * repository when the ambient process directory is unavailable or unsafe.
  */
-export type GitExecInput = (args: string[], input: string) => Promise<string>;
+export type GitExecInput = (
+  args: string[],
+  input: string,
+  options?: Pick<GitExecOptions, "cwd" | "objectAccess">,
+) => Promise<string>;
 
 /** One Git index transaction staged through the repository's index lock. */
 export interface GitIndexTransaction {
@@ -221,7 +230,10 @@ export async function boundedFetch(
     controller.abort();
   }, timeoutMs);
   try {
-    await exec("git", ["fetch", "origin", ref], { signal: controller.signal });
+    await exec("git", ["fetch", "origin", ref], {
+      signal: controller.signal,
+      diagnosticLocale: "stable",
+    });
     return { outcome: "ok" };
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args: ["fetch", "origin", ref] });
@@ -241,13 +253,18 @@ export async function boundedGitInvocation(
   exec: GitExec,
   args: string[],
   timeoutMs: number,
+  options?: Pick<GitExecOptions, "cwd">,
 ): Promise<BoundedFetchResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort();
   }, timeoutMs);
   try {
-    await exec("git", args, { signal: controller.signal });
+    await exec("git", args, {
+      ...options,
+      signal: controller.signal,
+      diagnosticLocale: "stable",
+    });
     return { outcome: "ok" };
   } catch (err) {
     const error = normalizeGitRejection(err, { command: "git", args });
@@ -368,7 +385,9 @@ export async function gitMergeFile(
     const error = normalizeGitRejection(err, {
       command: "git", args: ["merge-file", "-p", current, base, other],
     });
-    if (error.exitCode === 1) return { content: error.stdout, hasConflicts: true };
+    if (error.exitCode !== undefined && error.exitCode >= 1 && error.exitCode <= 127) {
+      return { content: error.stdout, hasConflicts: true };
+    }
     throw error;
   }
 }

@@ -5,6 +5,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - assess-boundary-fit
     - assess-design-proportionality
     - test-first
     - task-audit
@@ -25,10 +26,12 @@ branch (`plan/<name>`) — verify you're still on it (created via [init-work-uni
 protection (the default), it may run directly on the base branch.
 
 Before starting, read the spec thoroughly. If the spec has pre-activation metadata (`**State:**` and/or
-`**Related Work:**` fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
-confirm with the user before proceeding — generating tasks against unresolved dependencies produces a plan that
-can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md` Step 4), not here —
-leave the fields in place during task generation.
+`**Related Work:**` fields), check whether dependencies are resolved. Those fields record state at authoring
+time, so resolve each named blocker against live work-unit state (`arc status <slug>`) rather than reading the
+recorded value — a shipped dependency still listed as blocking is the common case. Stop and confirm with the
+user only on a blocker that is genuinely still open — generating tasks against unresolved dependencies produces
+a plan that can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md`
+Step 4), not here — leave the fields in place during task generation.
 
 **Stage pointer** — no entry write: reaching generate-tasks always passes through `create-spec`, whose finalization
 already advanced `Current Workflow` here.
@@ -204,6 +207,30 @@ On approval, amend `spec-{name}.md`, discard the superseded provisional skeleton
 the Class ratchet still prevents demotion. On decline, leave both artifacts unchanged and return control without
 treating the result as `proportionate`.
 
+### Assess boundary fit from concrete task-scale evidence
+
+Run [`assess-boundary-fit`][arc-methods-abf] against the provisional skeleton: this is the first concrete
+task-scale evidence and is independent of the scale/derivation depth valve. A derivation gap returns to design;
+orthogonal concerns route a complete cut-map to `decompose-work-unit`; a cohesive concern with separable delivery
+surfaces selects `stays one WU + delivery-plan candidate`. Record the selected outcome and evidence basis in
+existing draft or spec decision prose.
+
+For the delivery candidate, add exactly one unmarked provisional `## Delivery Plan` locus before Phase 1. It
+records the current member/seam intent for review but does not create canonical delivery state, publish or bind a
+plan, or mutate an external projection. Rebuild or remove the locus if the skeleton changes; do not put canonical
+sentinels around provisional prose. A recorded unchanged outcome remains silent under the method's sticky posture.
+
+Use the provisional coverage to emit the delivery-aware task shape:
+
+- Open each affected phase preamble with one `**Delivery member:**` pointer carrying the ordinal and backticked chunk
+  key per member represented there, before `_Purpose:_`. The pointer orients the reader; coverage remains assignment
+  authority.
+- End each member's task range with a member-scope verification parent assigned to that member and carrying the exact
+  `— validate criteria at member scope` suffix. Its Goal is the member-scope criteria walk through
+  `validate-criteria`; it stays distinct from the sole terminal work-unit verification task and adds no phase.
+- Group Success Criteria beneath the member headings, followed by `### Cross-member seams`. Assign each criterion
+  to the earliest boundary that can see its evidence; criteria with no visible member boundary go to the seam group.
+
 → **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
 discipline above) before continuing.
 
@@ -373,8 +400,8 @@ pre-save checklist and bundles the commit.
 - [ ] Header is the single `**Design:**` chain-of-authority pointer (bare spec filename) — no
       `Purpose` / `Branch` / `Base Branch` on `tasks-*` (Purpose lives on the spec, branch on `meta-*`).
 - [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
-- [ ] Phase preambles open with `_Purpose:_` line (italic); optional `_Design decisions:_` block
-      links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
+- [ ] Phase preambles open with any delivery-member pointers when a Delivery Plan is present, then `_Purpose:_`
+      (italic); optional `_Design decisions:_` links to `notes-{name}.md`; soft cap ~12 lines per preamble
 - [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
       [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
@@ -398,6 +425,9 @@ pre-save checklist and bundles the commit.
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
 - [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
+- [ ] Delivery member ranges, when present, end in member-scope verification parents assigned through coverage and
+      carrying the exact `— validate criteria at member scope` suffix; they add no phase and stay distinct from the
+      sole terminal work-unit verification task
 - [ ] All "carry as context" findings from the grounding audit are durably captured (inline `_Note:_` or
       cross-reference to `notes-{name}.md` companion file)
 - [ ] Task bodies read as a coherent forward artifact — no audit / correction / "pending" / amendment
@@ -407,7 +437,8 @@ pre-save checklist and bundles the commit.
       register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` / companions)
       that would survive verbatim execution into the target. See [strategy-task-list-formatting § Instruction
       Audience][task-list-formatting]
-- [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
+- [ ] Success Criteria section at bottom with root-indent checkboxes; a Delivery Plan groups them by member and
+      cross-member seams, while a single-deliverable work unit keeps the flat form (marked only at verification)
 
 **Destination path** (referenced by **Structural decomposition**'s file creation) — co-locate with the
 work unit's existing artifacts (lifecycle position first; `pm.mode` only when nothing is on disk yet):
@@ -423,14 +454,6 @@ work unit's existing artifacts (lifecycle position first; `pm.mode` only when no
    `mkdir -p .arc/active/`).
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
-
-**Update planning-state meta file** — only when `.arc/active/meta-{name}.md` exists with `**State:**
-Planning` (planning-branch sessions); skip otherwise (no meta exists pre-init under non-planning-branch
-flows). When it applies, persist the deterministic finalize facts — `arc finalize generate-tasks
---class <Class>` writes the resolved `**Class:**` (live from the entry read), the derived `**Task List:**`
-(`tasks-{name}.md`), and the terminal `**Next Action:**` (`Task list finalized — ready to activate`) through the
-field model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel;
-`activate` clears `Current Workflow`. The write rides this ceremony commit.
 
 The finalization boundary also carries an advisory adversarial fire-point — the audit rubric run from fresh
 context over the finished suite (the per-phase gates above audited each phase as authored; this pass attacks
@@ -451,15 +474,41 @@ adversarial-review:
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
+### Canonicalize active delivery authoring
+
+Run this only for a selected delivery-plan candidate in an active Planning flow, after all grounding,
+adversarial folds, and suite coherence have settled. Incubating authoring remains provisional: keep its unmarked
+section and resolve any meta outside the active locus at a later attended delivery-authoring entry.
+
+For active authoring, obtain the generated strict contract with
+`arc delivery plan inventory schema --json`, then supply one caller-authored inventory containing the exact
+form-owned design elements and revision digests. Do not infer author-judgment elements or copy schema/hashing
+mechanics into this workflow. Create the transient map with
+`arc delivery plan from-tasks --task-list .arc/active/tasks-{name}.md --design-inventory <json-path> --json`,
+fill only the author slots, and run `arc delivery compose --json`.
+
+Composition publishes the canonical plan record first, then delegates the exact sentinel-owned projection bytes
+to the delivery renderer and removes transient authoring state. Review the rendered identity, coverage, seam, and
+acceptance shape as source; schema and author slots do not prescribe table layout. The canonical plan remains
+replaceable prebinding intent: it authorizes no ref, change request, state binding, or external projection mutation.
+Later candidate eligibility still owns materialization.
+
+If the task or design inventory drifted, run `arc delivery plan abandon --json` and recreate from current inputs.
+Never patch the machine-owned snapshot or publish stale authoring state.
+
+**Post-settle coherence re-read** (always-on, in-context): after renderer replacement and any adversarial folds,
+re-fire the Final suite-coherence pass over the settled task list. The final pass's folds are otherwise never
+re-attacked.
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
 > await direction before the meta update and commit.
 
-Bundle the task list with the planning-state meta update (above).
-
-**Post-settle coherence re-read** (always-on, in-context): when folds landed after the Final suite-coherence
-pass — adversarial-pass findings, review amendments — re-fire that pass over the settled task list as the last
-step before the commit below. The final pass's folds are otherwise never re-attacked.
+**Update planning-state meta file** — only after approval, and only when `.arc/active/meta-{name}.md` exists with
+`**State:** Planning` (planning-branch sessions); skip otherwise. Run `arc finalize generate-tasks --class <Class>`
+to write the resolved `**Class:**`, derived `**Task List:**`, and terminal `**Next Action:**` through the field
+model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel; `activate`
+clears `Current Workflow`. Bundle this write with the task list in the ceremony commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -500,6 +549,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [arc-methods-rpd]: ../../methods/resolve-planning-depth.md
 [arc-methods-adp]: ../../methods/assess-design-proportionality.md
 [arc-methods-cwu]: ../../methods/classify-work-unit.md
+[arc-methods-abf]: ../../methods/assess-boundary-fit.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [task-audit]: ../../methods/task-audit.md

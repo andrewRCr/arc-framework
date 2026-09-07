@@ -7,7 +7,7 @@
  * verb).
  *
  * {@link runCreateNew} is the explicit create-new path: it cuts an isolated
- * worktree on a new `plan/<name>` branch via the `reconcile-worktree.spawn` leg
+ * worktree on a new `plan/<name>` branch via the `reconcile-work-unit-worktree.spawn` leg
  * (ARC mints it, so the ownership marker lands), then scaffolds the Planning meta
  * + SESSION-NOTES. It is what the `arc-session` skill reaches for when starting
  * fresh work.
@@ -32,7 +32,6 @@ import { parseSpecInput } from "../lib/active/spec-input-parser.js";
 import { validateMetaFieldBlockShape, type MetaFieldName } from "../lib/active/meta-reader.js";
 import {
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
-  PLANNING_WORKFLOWS,
 } from "../lib/active/current-workflow-consistency.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
@@ -57,15 +56,19 @@ import {
   type TransitionOutcome,
 } from "../lib/work-unit/lifecycle-executor.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
-  type ReconcileWorktreeOp,
-  type ReconcileWorktreeResult,
-} from "../lib/work-unit/mutators/reconcile-worktree.js";
+  nodeReconcileWorkUnitWorktreeFs,
+  reconcileWorkUnitWorktree,
+} from "../lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
+import type {
+  GitGraduationTransactionResult,
+} from "../lib/work-unit/git-graduation-transaction.js";
+import type {
+  ValidatedGraduationTransaction,
+} from "../lib/work-unit/validated-graduation-transaction.js";
 
 /**
  * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
@@ -150,9 +153,6 @@ export function resolveStartDispatch(
   }
 }
 
-/** The flat `active/` tier a graduated WU lands in. */
-const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });
-
 function projectActiveMetaPath(slugValue: string) {
   return resolveArcPath({
     kind: "work-unit-artifact",
@@ -209,7 +209,8 @@ export function buildStartSessionNotesSeed(params: StartSessionNotesSeedParams):
 ## Completed Work
 
 - ${action}
-- Branch \`${params.branch}\` is checked out here and \`${metaFile}\` is the active project pointer.
+- Branch \`${params.branch}\` is checked out here.
+- \`${metaFile}\` is the active project pointer.
 
 ## Remaining Work Before Returning to Task List
 
@@ -239,6 +240,8 @@ interface GraduateBaseParams {
   writeClass?: boolean;
   /** Optional mini-handoff seed for the user workspace open side-effect. */
   sessionNotesSeed?: string;
+  /** Read-only producer that closes every graduation choice before mutation. */
+  prepareTransaction(): Promise<GitGraduationTransactionResult>;
 }
 
 /** Spawn-path `graduate` (the default) — cuts `plan/<name>` in a fresh worktree. */
@@ -312,6 +315,11 @@ export function buildCreateNewCeremonyCommitMessage(name: string): string {
 export type GraduateResult =
   | { status: "rejected"; reason: string }
   | {
+      status: "graduation-recovery-required";
+      reason: string;
+      residue: import("../lib/work-unit/atomic-graduation.js").GraduationRecoveryResidue;
+    }
+  | {
       status: "graduated";
       outcome: TransitionOutcome;
       metaPath: string;
@@ -330,7 +338,7 @@ export type GraduateResult =
  * Run the `graduate` arm of `start` (`init` Path A): relocate a backlog stub's
  * artifact set into `active/` and bring up its `plan/<name>` branch, dispatched
  * through {@link executeTransition} as the `start` verb. The branch comes up via
- * the `reconcile-worktree` spawn leg in one of two placement modes: a fresh
+ * the `reconcile-work-unit-worktree` spawn leg in one of two placement modes: a fresh
  * worktree (default), or — under the `--here` opt-out (`inPlace`) — a `git
  * checkout -b` in the current checkout, no spawn. The `reconcile-branch` create
  * leg stays inert either way (the worktree leg owns branch birth). The executor
@@ -356,75 +364,34 @@ export async function runGraduate(
   );
   if (preflight !== null) return { status: "rejected", reason: preflight };
 
-  if (!params.inPlace) {
-    return runGraduateSpawn(ctx, params, branch);
-  }
-
-  return runGraduateThroughExecutor(
-    ctx,
-    params,
-    branch,
-    { mutation: "spawn", inPlace: true, branch, createBranch: true },
-  );
-}
-
-async function runGraduateSpawn(
-  ctx: ExecuteTransitionContext,
-  params: GraduateSpawnParams,
-  branch: string,
-): Promise<GraduateResult> {
-  if (ctx.withCwd === undefined) {
-    return {
-      status: "rejected",
-      reason: "graduate spawn requires an executor context that can re-bind to the spawned worktree.",
-    };
-  }
-
-  let spawnResult: ReconcileWorktreeResult;
+  let transaction: ValidatedGraduationTransaction;
   try {
-    spawnResult = await ctx.reconcileWorktree({
-      mutation: "spawn",
-      branch,
-      base: params.baseBranch,
-      locationTemplate: params.locationTemplate,
-      repo: params.repo,
-      wuName: params.name,
-      spawningIdentity: params.spawningIdentity,
-      postCreateScript: params.postCreateScript,
-      primaryWorktreePath: params.primaryWorktreePath,
-      registeredHarnessDirs: params.registeredHarnessDirs,
-    });
+    const prepared = await params.prepareTransaction();
+    if (prepared.status !== "ready") {
+      const detail = prepared.detail === undefined ? "" : ` ${prepared.detail}`;
+      return {
+        status: "rejected",
+        reason: `\`start\` graduation preflight refused at \`${prepared.locus}\` (${prepared.reason}).${detail}`,
+      };
+    }
+    transaction = prepared.transaction;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { status: "rejected", reason: `could not spawn the worktree: ${message}` };
-  }
-  if (spawnResult.mutation !== "spawn") {
-    return { status: "rejected", reason: "could not spawn the worktree: unexpected teardown result from spawn leg" };
+    return { status: "rejected", reason: `could not prepare graduation before mutation: ${message}` };
   }
 
-  const targetCtx = ctx.withCwd(spawnResult.worktreePath);
-  const result = await runGraduateThroughExecutor(
-    targetCtx,
-    {
-      ...params,
-      sessionNotesSeed:
-        params.sessionNotesSeed
+  return runGraduateThroughExecutor(ctx, {
+    ...params,
+    sessionNotesSeed: params.inPlace
+      ? params.sessionNotesSeed
+      : params.sessionNotesSeed
         ?? buildStartSessionNotesSeed({
           wuName: params.name,
           branch,
           kind: "graduate",
           commit: START_CEREMONY_PENDING_COMMIT,
         }),
-    },
-    branch,
-    { mutation: "spawn", inPlace: true, branch, createBranch: true, deferCheckout: true },
-  );
-  if (result.status !== "graduated") return result;
-  return {
-    ...result,
-    worktreePath: spawnResult.worktreePath,
-    ...(spawnResult.postCreateNotice === undefined ? {} : { postCreateNotice: spawnResult.postCreateNotice }),
-  };
+  }, branch, transaction);
 }
 
 async function preflightGraduate(
@@ -473,51 +440,37 @@ async function runGraduateThroughExecutor(
   ctx: ExecuteTransitionContext,
   params: GraduateBaseParams,
   branch: string,
-  worktreeOp: ReconcileWorktreeOp,
+  transaction: ValidatedGraduationTransaction,
 ): Promise<GraduateResult> {
   const inputs: TransitionInputs = {
-    toDir: ACTIVE_DIR,
-    branchOp: { mutation: "create" },
-    worktreeOp,
+    graduationTransaction: transaction,
     class: params.cls,
+    materializesCurrentCheckout: transaction.occupation.mode === "in-place",
     sessionNotesSeed: params.sessionNotesSeed,
   };
 
   const outcome = await executeTransition(ctx, { verb: "start", slug: params.name, inputs });
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-
-  // Heal the relocated meta against the code field model — a stub minted before a
-  // field existed graduates missing it; reconcile inserts each absent bullet at its
-  // declared default. Warn-and-backfill: the count surfaces as a ceremony notice.
-  const metaPath = projectActiveMetaPath(params.name);
-  const backfilled =
-    (await ctx.reconcileMeta?.(metaPath, { "Current Workflow": PLANNING_WORKFLOWS[0] })) ?? [];
-  // Persist a caller-supplied Class the stub's meta lacked — the same core-table
-  // seam the planning-finalize ceremonies write through. The guard validated the
-  // value upstream; a missing seam is an internal wiring error, not operator-facing.
-  if (params.writeClass === true) {
-    if (ctx.writeClassField === undefined) {
-      return {
-        status: "rejected",
-        reason: "`start --class` requires the executor's Class-write seam (internal wiring error).",
-      };
-    }
-    await ctx.writeClassField(metaPath, params.cls);
+  if (outcome.status === "graduation-recovery-required") {
+    return {
+      status: "graduation-recovery-required",
+      reason: outcome.message,
+      residue: outcome.residue,
+    };
   }
-  // Set the planning-entry stage pointer explicitly, mirroring the fresh scaffold.
-  // The backfill above only *inserts* absent bullets, but every stub-minted meta
-  // already carries a present `Current Workflow: [none]`, so it can't advance the
-  // sentinel — this dedicated write overwrites it. Runs after the backfill so the
-  // bullet is guaranteed present (the write is fail-loud on an absent field), and
-  // is idempotent with the absent-meta case (both target the planning-entry stage).
-  await ctx.writeCurrentWorkflowField(metaPath, PLANNING_WORKFLOWS[0]);
-  await ctx.writeSoftFields(metaPath, { "Next Action": BEGIN_CURRENT_WORKFLOW_SENTINEL });
-  await ctx.stageMeta?.(metaPath);
-  const notice =
-    backfilled.length > 0
-      ? `Backfilled ${backfilled.length} meta field(s) against the code field model: ${backfilled.join(", ")}.`
-      : null;
-  return { status: "graduated", outcome, metaPath, branch, backfilled, notice };
+  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+  const metaPath = projectActiveMetaPath(params.name);
+  const worktreePath = transaction.occupation.operation.worktreePath;
+  const postCreateNotice = outcome.advisories.find((advisory) => advisory.includes("worktree.post_create"));
+  return {
+    status: "graduated",
+    outcome,
+    metaPath,
+    branch,
+    backfilled: [...transaction.reconciliation.backfilled],
+    notice: transaction.reconciliation.notice,
+    ...(transaction.occupation.mode === "spawned" ? { worktreePath } : {}),
+    ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
+  };
 }
 
 /** Inputs for {@link runColdStart} — the ambient context the handler resolves. */
@@ -686,25 +639,12 @@ export async function runColdStart(
       design,
     });
   } catch (err) {
-    // Roll an auto-cut back so a scaffold failure leaves no dangling state — return
-    // the worktree to the protected base, delete the half-cut branch, and remove the
-    // meta the scaffold may have written before it threw. `git switch` leaves
-    // untracked files in place, so a lingering `.arc/active/meta-<name>.md` would
-    // read as a phantom active WU on the next `arc start`. Best-effort: the
-    // scaffold-failure refusal is the primary signal.
-    if (cutFromBase !== undefined) {
-      // Scoped pathspec — removes only the orphaned meta, never other untracked
-      // work. The SESSION-NOTES seed is gitignored (per-WU subdir) and benign: it
-      // doesn't drive active-WU detection and reconciles on the next user load.
-      const orphanMeta = projectActiveMetaPath(wuName);
-      try {
-        await ctx.io.exec("git", ["switch", cutFromBase], { cwd: params.worktreePath });
-        await ctx.io.exec("git", ["branch", "-D", branch], { cwd: params.worktreePath });
-        await ctx.io.exec("git", ["clean", "-f", "--", orphanMeta], { cwd: params.worktreePath });
-      } catch {
-        // Leave the partial state; the refusal below tells the caller to inspect.
-      }
-    }
+    await rollbackColdStart(ctx, {
+      worktreePath: params.worktreePath,
+      wuName,
+      branch,
+      cutFromBase,
+    });
     // Surface a scaffolding failure as a refusal so the no-throw contract holds
     // end to end (symmetric with runCreateNew's spawn guard).
     const message = err instanceof Error ? err.message : String(err);
@@ -712,6 +652,34 @@ export async function runColdStart(
   }
 
   return { ok: true, value: { worktreePath: params.worktreePath, branch, wuName, origin, design, passthrough, cutFromBase } };
+}
+
+async function rollbackColdStart(
+  ctx: SpawnWorktreeContext,
+  options: {
+    worktreePath: string;
+    wuName: string;
+    branch: string;
+    cutFromBase: string | undefined;
+  },
+): Promise<void> {
+  if (options.cutFromBase !== undefined) {
+    try {
+      await ctx.io.exec("git", ["switch", options.cutFromBase], { cwd: options.worktreePath });
+      await ctx.io.exec("git", ["branch", "-D", options.branch], { cwd: options.worktreePath });
+    } catch {
+      // Best-effort rollback; the primary refusal still directs inspection.
+    }
+  }
+  try {
+    await ctx.io.exec(
+      "git",
+      ["clean", "-f", "--", projectActiveMetaPath(options.wuName)],
+      { cwd: options.worktreePath },
+    );
+  } catch {
+    // Best-effort rollback; the primary refusal still directs inspection.
+  }
 }
 
 /** Inputs for {@link runCreateNew} — the ambient context the handler resolves. */
@@ -745,7 +713,7 @@ export type CreateNewOutcome =
 
 /**
  * Spawn an isolated worktree on a new `plan/<name>` branch for a brand-new work
- * unit, recomposed on the lifecycle bundle legs: the `reconcile-worktree.spawn`
+ * unit, recomposed on the lifecycle bundle legs: the `reconcile-work-unit-worktree.spawn`
  * leg cuts the branch + worktree and writes the ownership marker (ARC mints this
  * one), then the `scaffold` + user-workspace legs (via {@link
  * scaffoldIntoWorktree}, `createdByArc: false` so the spawn's marker is kept) write
@@ -794,8 +762,12 @@ export async function runCreateNew(
   let worktreePath: string;
   let postCreateNotice: string | undefined;
   try {
-    const spawnResult = await reconcileWorktree(
-      { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); }, fs: nodeReconcileWorktreeFs },
+    const spawnResult = await reconcileWorkUnitWorktree(
+      {
+        exec: ctx.io.exec,
+        chdir: (dir) => { process.chdir(dir); },
+        fs: nodeReconcileWorkUnitWorktreeFs,
+      },
       {
         mutation: "spawn",
         branch,

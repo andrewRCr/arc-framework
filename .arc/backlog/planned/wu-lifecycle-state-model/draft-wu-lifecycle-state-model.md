@@ -16,6 +16,64 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Qualify dependency edges with the lifecycle boundary they gate**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-22);
+  captured during `decomposition-doctrine` re-grounding.
+- _Concern:_ unqualified `Depends On` means blocks-start, leaving implement-time and integrate-time ordering in
+  unchecked prose that readily goes stale. The inverse also fails: recording a true later-boundary dependency as
+  today's edge falsely blocks planning.
+- _Fold-in:_ evaluate lifecycle-qualified degrees such as required-to-plan, required-to-implement, and
+  required-to-integrate against this WU's state axes. Preserve today's unqualified blocks-start reading as the
+  default, enforce each degree at its owning ceremony, and keep later-boundary session orientation advisory.
+
+### `[ ]` **Prevent local-ref residue from outranking an archived Shipped record**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-20); confirmed by teardown on 2026-08-15.
+- _Concern:_ readiness composition merges local-ref oracle candidates with tree records so a lingering
+  `feat/<slug>` ref can emit Active over an authoritative `completed/` meta reading Shipped. ROADMAP regeneration
+  then resurrects shipped work and discharged dependency edges.
+- _Evidence:_ deleting the lingering branch immediately restored the correct Shipped result; delivery candidate
+  refs and temporary worktrees were inert to status. Their separate cleanup-driver gap is already owned by
+  `delivery-native-stack-composition`.
+- _Fold-in:_ make completed-and-Shipped tree evidence outrank generic local-ref candidates while surfacing the ref
+  as cleanup residue. Preserve legitimate in-flight authority and verify the dependency-discharge consumer.
+
+### `[ ]` **Model draft-first review as a three-tier audience transition**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
+- _Concern:_ the current private-Candidate/publication model assumes private versus public, but draft locking adds a visible,
+  review-suppressed middle state. Treat release rather than PR creation as the public transition when locked;
+  `merge.lock: none` collapses the two events naturally.
+
+### `[ ]` **Give parked work units a lifecycle contract consumed by integration gates**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
+- _Concern:_ lane classification, merge-lock readiness, and teardown each mis-handle a parked WU because they infer
+  a shipped/abandoned binary despite a valid `park-planning` receipt. Define parked state on the model's axes and
+  make these gates consume it rather than infer from branch topology.
+
+### `[ ]` **Re-aim the retired locus-generation coordination pointer**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-10).
+- _Concern:_ the draft coordinates exact-generation mutation and locked cleanup with the killed
+  `locus-generation-binding` WU. Re-evaluate whether the surviving identity-ref CAS owns the concern; re-aim or
+  remove the pointer without weakening fail-closed missing/ambiguous-subject behavior.
+
+### `[ ]` **Recognize the archived-but-not-torn-down work unit as a proved terminal frame**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `session-locus-model` closeout recovery.
+- _Concern:_ the supported integration cadence archives the active meta before merge and physical teardown. An
+  interruption in that interval leaves a valid durable role whose active-subject projection is
+  `subject-unresolved`, even when a unique same-slug completed subject, exact checkout/head, and open change request
+  prove the monotonic terminal transition.
+- _Fold-in:_ extend the existing pending-teardown terminal-condition decision to cover this pre-merge interval and
+  define the state/projection authority recovery consumes. Coordinate exact-generation mutation and locked cleanup
+  with `locus-generation-binding`; keep arbitrary missing or ambiguous subjects fail-closed.
+- _Verification:_ cover archive-before-merge restart, merge-before-teardown, partial teardown, retained-control
+  finalization, and missing/ambiguous completed-subject negatives in reader, session-init, and recovery tests.
+
 ### `[ ]` **`decomposition-hardening` rename-move marker is an operational projection to re-vocabulary later**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during
@@ -406,6 +464,11 @@
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
 
+- _Forward amendment (2026-08-19):_ The transition descriptions below are historical input, not the current
+  boundary contract. `arc attest` runs after verification and establishes the private Candidate/prepublication
+  locus; `arc publish` ends private preparation and starts public integration before the first push and change
+  request. Keep Candidate on the attested artifact/projection axis when integrating this item.
+
 - _Observation:_ the core reform names planning-completion as an attested artifact-axis signal that `State`
   flattens into the scheduling axis, with the missing primitive being its projection to an observable field
   (`Ready`). The identical shape exists at the other end of the lifecycle and is not captured. Verification
@@ -427,18 +490,35 @@
 
 - _Approach:_ treat `Candidate` as the tail-end peer of `Ready` on the same attested artifact axis, so the reform
   lands one projection primitive with two instances rather than solving readiness and then rediscovering the shape.
-  The two transitions the vocabulary then supports are **propose** (implementation clears, enter verification and
-  local review — private) and **submit** (verification and local review clear, open the pull request — public).
+  The two transitions the vocabulary then supports are **attest** (implementation clears, enter verification and
+  local review — private) and **publish** (verification and local review clear, open the pull request — public).
 
 - _Related — a live inconsistency the tail state would resolve:_ `integrate-work-unit` Step 1 states that
   "the `Integrating` state covers PR open through review-response," but fires the transition at Step 1 while the
   pull request opens at Step 3, with the local self-review preflight in between. So a work unit is `Integrating`
-  through a window where nothing is public. `review-protocol-alignment` concern 9 proposes moving that fire point
-  to the PR-open boundary and renaming the command to `arc submit` — deliberately minting **no** state and not
-  re-keying `Integrating`, per the `project-state-integrity` axis contract recorded in this WU's buffer. That
+  through a window where nothing is public. The lifecycle command is now `arc publish`; its owning boundary work
+  moves that fire point to the publication-step head while deliberately minting **no** state and not re-keying
+  `Integrating`, per the `project-state-integrity` axis contract recorded in this WU's buffer. That
   change shrinks `Integrating` to the public phase, which is the carve-out a `Candidate` state would make anyway,
   so the two compose rather than collide.
 
-- _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the naming of the
-  `arc integrate` verb, which turned out to be misnamed because it names a phase's content rather than a
-  scheduling act, unlike every sibling transition verb.
+- _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the scheduling
+  verb now named `arc publish`, distinct from the `arc integrate` procedure namespace.
+
+### `[ ]` **Prevent withdrawn singleton Candidates from reviving without a new public boundary**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-09-07);
+  captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ a withdrawn one-member delivery Candidate can be rediscovered from surviving topology and treated as
+  publishable again even though its public boundary was explicitly retired.
+- _Fold-in:_ model withdrawal as a lifecycle fact that prevents implicit revival; require a new authorized public
+  boundary to create a successor Candidate while preserving the historical record.
+
+### `[ ]` **Own the code-written `Current Workflow` boundary**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-09-07);
+  captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ a pre-commit validator can immediately reject internal inconsistency, but the durable question is
+  which lifecycle transitions may write `Current Workflow` and how that projection composes with canonical state.
+- _Fold-in:_ define the authoritative write boundary and derivation rules here; keep handoff from becoming an
+  unrestricted repair writer and treat the validator Errand as an interim guard.

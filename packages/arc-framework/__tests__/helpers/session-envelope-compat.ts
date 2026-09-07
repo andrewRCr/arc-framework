@@ -6,8 +6,7 @@
  * without importing Vitest or production modules.
  */
 
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
@@ -17,6 +16,20 @@ import {
   removeGitBackedDir,
   runArcNoTty,
 } from "../e2e/helpers.js";
+
+// Placeholders are path-shaped rather than angle-bracket tokens because normalized
+// envelopes are replayed through schema validation, and several normalized values land
+// in fields that must parse as absolute paths. A token that cannot parse would fail the
+// replay ahead of whatever the assertion actually targets.
+
+/** Stable placeholder for the primary repository root. */
+export const PRIMARY_TOKEN = "/redacted/primary";
+/** Stable placeholder for the directory holding linked worktrees. */
+export const WORKTREE_PARENT_TOKEN = "/redacted/worktree-parent";
+/** Stable placeholder for the linked worktree root. */
+export const WORKTREE_TOKEN = "/redacted/worktree";
+/** Stable placeholder for the bare remote repository. */
+export const REMOTE_TOKEN = "/redacted/remote";
 
 /** Successful session-init assembly arms plus the identity error/omission arm. */
 export type SessionEnvelopeFixtureKind =
@@ -62,7 +75,10 @@ const META = (name: string, fields: {
   `- **Cohort:** ${fields.cohort ?? "[none]"}`,
   "- **Depends On:** [none]",
   `- **Task List:** ${fields.taskList ?? "[none]"}`,
-  "- **Current Workflow:** [none]",
+  "- **Candidate:** [none]",
+  fields.state === "Integrating"
+    ? "- **Current Workflow:** `integrate-work-unit`"
+    : "- **Current Workflow:** [none]",
   "- **Last Completed:** [none]",
   fields.taskList === undefined
     ? "- **Next Task:** [none]"
@@ -149,34 +165,98 @@ async function createBaseFixture(): Promise<MutableFixture> {
   return {
     repo,
     ownedPaths: [repo],
-    roots: [[repo, "<PRIMARY>"]],
+    roots: [[repo, PRIMARY_TOKEN]],
   };
 }
 
+/**
+ * Create a fixture-owned directory whose path extends the primary repository path.
+ *
+ * Roster rows sort on their checkout path, so siblings drawn from independently
+ * randomized temp roots order nondeterministically against the primary and a captured
+ * envelope would lock whichever order that run happened to produce. Extending the
+ * primary path makes it a strict prefix of every sibling, fixing their relative order.
+ *
+ * @param state - Fixture under construction; gains ownership of the new directory
+ * @param suffix - Role-naming suffix appended to the primary repository path
+ * @returns Absolute path to the created directory
+ */
+async function createSiblingRoot(state: MutableFixture, suffix: string): Promise<string> {
+  const path = `${state.repo}${suffix}`;
+  await mkdir(path, { recursive: true });
+  state.ownedPaths.push(path);
+  return path;
+}
+
 async function setupOrientFixture(state: MutableFixture): Promise<void> {
-  const worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-envelope-wt-"));
-  state.ownedPaths.push(worktreeParent);
-  state.roots.push([worktreeParent, "<WORKTREE_PARENT>"]);
+  const worktreeParent = await createSiblingRoot(state, "-wt");
+  state.roots.push([worktreeParent, WORKTREE_PARENT_TOKEN]);
   const linked = join(worktreeParent, "heavy-widget");
-  state.roots.push([linked, "<WORKTREE>"]);
+  state.roots.push([linked, WORKTREE_TOKEN]);
 
   await git(state.repo, ["branch", "feat/heavy-widget"]);
   await git(state.repo, ["worktree", "add", linked, "feat/heavy-widget"]);
   await writeActiveFixture(linked, "heavy-widget", {
-    state: "Integrating",
+    state: "Active",
     branch: "feat/heavy-widget",
     workClass: "Heavy",
+    taskList: "tasks-heavy-widget.md",
   });
-  await git(linked, ["add", ".arc/active/meta-heavy-widget.md"]);
+  await writeFile(
+    join(linked, ".arc", "active", "tasks-heavy-widget.md"),
+    TASKS.replace("`[ ]`", "`[x]`"),
+  );
+  await git(linked, ["add", ".arc/active"]);
   await git(linked, ["commit", "-m", "feat: add in-flight fixture"]);
+
+  const attested = await runArcNoTty(["attest", "heavy-widget", "--json"], linked);
+  if (attested.exitCode !== 0) {
+    throw new Error(`arc attest failed: ${attested.stderr || attested.stdout}`);
+  }
+  const metaPath = join(linked, ".arc", "active", "meta-heavy-widget.md");
+  const boundaryPath = join(
+    linked,
+    ".arc",
+    "system",
+    ".internal",
+    "candidates",
+    "heavy-widget.boundary.json",
+  );
+  const candidateBoundary = JSON.parse(await readFile(boundaryPath, "utf8")) as {
+    candidateId: string;
+    candidateSubjectDigest: string;
+  };
+  const attestedMeta = await readFile(metaPath, "utf8");
+  await writeFile(
+    metaPath,
+    attestedMeta
+      .replace("- **State:** Active", "- **State:** Integrating")
+      .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+  );
+  await writeFile(boundaryPath, `${JSON.stringify({
+    schemaVersion: 1,
+    mode: "integration-boundary",
+    workUnit: "heavy-widget",
+    candidateId: candidateBoundary.candidateId,
+    candidateSubjectDigest: candidateBoundary.candidateSubjectDigest,
+    locus: "publication-pending",
+    nextAction: {
+      kind: "continue-publication",
+      command: "git push -u origin feat/heavy-widget",
+      interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
+    },
+    policy: null,
+    reservation: null,
+  })}\n`);
+  await git(linked, ["add", ".arc"]);
+  await git(linked, ["commit", "-m", "chore: publish fixture"]);
 }
 
 async function setupActiveResumeFixture(state: MutableFixture): Promise<string> {
-  const worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-envelope-wt-"));
-  state.ownedPaths.push(worktreeParent);
-  state.roots.push([worktreeParent, "<WORKTREE_PARENT>"]);
+  const worktreeParent = await createSiblingRoot(state, "-wt");
+  state.roots.push([worktreeParent, WORKTREE_PARENT_TOKEN]);
   const linked = join(worktreeParent, "active-widget");
-  state.roots.push([linked, "<WORKTREE>"]);
+  state.roots.push([linked, WORKTREE_TOKEN]);
 
   await git(state.repo, ["branch", "feat/active-widget"]);
   await git(state.repo, ["worktree", "add", linked, "feat/active-widget"]);
@@ -194,11 +274,10 @@ async function setupActiveResumeFixture(state: MutableFixture): Promise<string> 
 }
 
 async function setupCurrentHuskFixture(state: MutableFixture): Promise<string> {
-  const worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-envelope-wt-"));
-  state.ownedPaths.push(worktreeParent);
-  state.roots.push([worktreeParent, "<WORKTREE_PARENT>"]);
+  const worktreeParent = await createSiblingRoot(state, "-wt");
+  state.roots.push([worktreeParent, WORKTREE_PARENT_TOKEN]);
   const linked = join(worktreeParent, "current-husk");
-  state.roots.push([linked, "<WORKTREE>"]);
+  state.roots.push([linked, WORKTREE_TOKEN]);
 
   await git(state.repo, ["branch", "feat/current-husk"]);
   await git(state.repo, ["worktree", "add", linked, "feat/current-husk"]);
@@ -223,18 +302,16 @@ async function setupCurrentHuskFixture(state: MutableFixture): Promise<string> {
 }
 
 async function setupBranchGoneFixture(state: MutableFixture): Promise<string> {
-  const remote = await mkdtemp(join(tmpdir(), "arc-session-envelope-remote-"));
-  state.ownedPaths.push(remote);
-  state.roots.push([remote, "<REMOTE>"]);
+  const remote = await createSiblingRoot(state, "-remote");
+  state.roots.push([remote, REMOTE_TOKEN]);
   await git(remote, ["init", "--bare", "--initial-branch=main"]);
   await git(state.repo, ["remote", "add", "origin", remote]);
   await git(state.repo, ["push", "-u", "origin", "main"]);
 
-  const worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-envelope-wt-"));
-  state.ownedPaths.push(worktreeParent);
-  state.roots.push([worktreeParent, "<WORKTREE_PARENT>"]);
+  const worktreeParent = await createSiblingRoot(state, "-wt");
+  state.roots.push([worktreeParent, WORKTREE_PARENT_TOKEN]);
   const linked = join(worktreeParent, "gone-widget");
-  state.roots.push([linked, "<WORKTREE>"]);
+  state.roots.push([linked, WORKTREE_TOKEN]);
 
   await git(state.repo, ["branch", "feat/gone-widget"]);
   await git(state.repo, ["worktree", "add", linked, "feat/gone-widget"]);
@@ -285,6 +362,7 @@ export function normalizeSessionEnvelope(
       [path.replaceAll("\\", "/"), token] as const,
     ]);
   const oids = new Map<string, string>();
+  const digests = new Map<string, string>();
   const timestamps = new Map<string, string>();
   const dates = new Map<string, string>();
 
@@ -294,6 +372,14 @@ export function normalizeSessionEnvelope(
     const token = `<${label}_${map.size + 1}>`;
     map.set(value, token);
     return token;
+  };
+
+  const digestFor = (value: string): string => {
+    const current = digests.get(value);
+    if (current !== undefined) return current;
+    const digest = `sha256:${(digests.size + 1).toString(16).padStart(64, "0")}`;
+    digests.set(value, digest);
+    return digest;
   };
 
   const degradedCommandWarningPrefixes = [
@@ -309,6 +395,7 @@ export function normalizeSessionEnvelope(
     if (typeof value === "string") {
       let next = value;
       for (const [root, token] of roots) next = next.replaceAll(root, token);
+      next = next.replace(/sha256:[0-9a-f]{64}/gu, digestFor);
       next = next.replace(/\b[0-9a-f]{40}\b/gu, (oid) => tokenFor(oids, oid, "OID"));
       next = next.replace(
         /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z\b/gu,
@@ -316,6 +403,13 @@ export function normalizeSessionEnvelope(
       );
       next = next.replace(/\b\d{4}-\d{2}-\d{2}\b/gu, (date) => tokenFor(dates, date, "DATE"));
       if (key === "machineId") return "<MACHINE_ID>";
+      if (next.startsWith("Unrecognized process boundary:")) {
+        return "Unrecognized process boundary: <PROCESS_BOUNDARY>";
+      }
+      next = next.replace(
+        /Unrecognized process boundary: .*$/u,
+        "Unrecognized process boundary: <PROCESS_BOUNDARY>",
+      );
       return normalizeDegradedCommandWarning(next);
     }
     if (Array.isArray(value)) {

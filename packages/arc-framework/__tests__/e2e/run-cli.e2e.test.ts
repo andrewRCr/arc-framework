@@ -7,6 +7,10 @@
  * helper.
  */
 
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, it, expect } from "vitest";
 
 import { runCli } from "../helpers/run-cli.js";
@@ -25,5 +29,61 @@ describe("runCli", () => {
     expect(result.stdout).toContain("--fetch");
     expect(result.stdout).toContain("upgrade the local-default query");
     expect(result.stdout).toMatch(/skip the live-default network\s+read/u);
+  });
+
+  it("documents directly composable hosted-review and merge-lock JSON inputs", async () => {
+    const hostedRequest = await runCli(["review", "hosted", "request", "--help"]);
+    const hostedAwait = await runCli(["review", "hosted", "await", "--help"]);
+    const terminus = await runCli(["review", "terminus", "accept", "--help"]);
+    const lockResolve = await runCli(["merge", "lock", "resolve", "--help"]);
+    const lockRelease = await runCli(["merge", "lock", "release", "--help"]);
+
+    for (const result of [hostedRequest, hostedAwait, terminus, lockResolve, lockRelease]) {
+      expect(result.exitCode).toBe(0);
+    }
+    expect(hostedRequest.stdout).toContain("emitted action unchanged");
+    expect(hostedAwait.stdout).toContain("emitted action unchanged");
+    expect(terminus.stdout).toContain('"judgment":{"mode":"owner-accepted"}');
+    expect(lockResolve.stdout).toContain('{"schemaVersion":1,"treeRoot":"/absolute/checkout"}');
+    expect(lockRelease.stdout).toContain('"vehicle":{"kind":"errand","slug":"example"}');
+  });
+
+  it("reserves bare integrate for procedures and points publication scheduling to publish", async () => {
+    const result = await runCli(["integrate"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("`arc integrate` is a procedure namespace");
+    expect(result.stderr).toContain("use `arc publish` to schedule publication");
+    expect(result.stderr).toContain("Available subcommands:");
+    expect(result.stderr).toContain("arc integrate checkpoint");
+  });
+
+  it("requires machine mode and emits typed missing-project refusals for integration mutators", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "arc-integration-cli-outside-"));
+    const oid = "a".repeat(40);
+    const checkpoint = `checkpoint-v1:${oid}:sha256:${"b".repeat(64)}`;
+    try {
+      for (const args of [
+        ["integrate", "checkpoint", "example", "--json"],
+        ["integrate", "merge", "example", "--checkpoint", checkpoint, "--json"],
+        ["base", "merge", "--expected-base", oid, "--expected-head", oid, "--json"],
+      ]) {
+        const result = await runCli(args, { cwd });
+        expect(result.exitCode).toBe(1);
+        expect(JSON.parse(result.stdout)).toMatchObject({ state: "blocked", nextAction: "stop" });
+      }
+
+      for (const args of [
+        ["integrate", "checkpoint", "example"],
+        ["integrate", "merge", "example", "--checkpoint", checkpoint],
+        ["base", "merge", "--expected-base", oid, "--expected-head", oid],
+      ]) {
+        const result = await runCli(args, { cwd });
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stderr).toContain("required option '--json'");
+      }
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   });
 });

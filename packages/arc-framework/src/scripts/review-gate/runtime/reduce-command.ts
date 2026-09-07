@@ -11,6 +11,12 @@ import {
   type FrontlineOutcomeRecord,
   type ReviewReductionProjection,
 } from "../core/advisory-records.js";
+import {
+  dispositionSetMatchesSourceContext,
+  reviewerDispositionNit,
+  reviewerDispositionSeverity,
+  type DispositionSourceContext,
+} from "../core/disposition-records.js";
 import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
   ReviewIdentifierSchema,
@@ -95,23 +101,23 @@ function validateDisposition(input: {
   targetId: string;
   findings: Array<{ findingId: string; locus: string; severity: string; nit?: boolean }>;
   sourceIdentity: string;
-  policyVersion?: string;
-  rubricVersion?: string;
-  rubricDigest?: string;
+  dispositionContext: DispositionSourceContext;
 }): void {
   const record = ApprovedDispositionRecordSchema.parse(input.record);
   const set = record.approvedDisposition.dispositionSet;
   const expectedSource = canonicalize(input.source);
   const actualSource = canonicalize(record.source);
   const sourceFindings = findingsIdentity(input.findings);
-  const dispositionFindings = findingsIdentity(set.findings);
+  const dispositionFindings = findingsIdentity(set.findings.map((finding) => ({
+    ...finding,
+    severity: reviewerDispositionSeverity(finding),
+    nit: reviewerDispositionNit(finding),
+  })));
   if (record.operationId !== input.operationId
     || record.repositoryId !== input.repositoryId
     || actualSource !== expectedSource
     || set.targetId !== input.targetId
-    || (input.policyVersion !== undefined && set.policyVersion !== input.policyVersion)
-    || (input.rubricVersion !== undefined && set.rubricVersion !== input.rubricVersion)
-    || (input.rubricDigest !== undefined && set.rubricDigest !== input.rubricDigest)
+    || !dispositionSetMatchesSourceContext(set, input.dispositionContext)
     || canonicalize(dispositionFindings) !== canonicalize(sourceFindings)
     || !set.findings.every((finding) => finding.sourceIdentity === input.sourceIdentity)) {
     throw new ReduceCommandError("approved disposition snapshot mismatch");
@@ -279,9 +285,12 @@ async function reduceLocal(
     targetId: state.targetId,
     findings: receipt.findings,
     sourceIdentity: state.request.evaluatorIdentity,
-    policyVersion: state.policyVersion,
-    rubricVersion: state.requirement.rubricVersion,
-    rubricDigest: state.requirement.rubricDigest,
+    dispositionContext: {
+      kind: "rubric",
+      policyVersion: state.policyVersion,
+      rubricVersion: state.requirement.rubricVersion,
+      rubricDigest: state.requirement.rubricDigest,
+    },
   });
   const plan = responsePlan({ target: state.target, findings: receipt.findings, disposition });
   if (plan.state !== "ready-to-close" && plan.state !== "ready-to-fix") {
@@ -391,6 +400,15 @@ async function reduceFrontline(
       targetId: outcome.target.targetId,
       findings: outcome.findings,
       sourceIdentity: record.sourceIdentity,
+      dispositionContext: {
+        kind: "frontline",
+        policyVersion: state.policyVersion,
+        frontlineBinding: {
+          operationId: state.operationId,
+          sourceBindingId: state.sourceBindingId,
+          outcomeDigest: record.outcomeDigest,
+        },
+      },
     });
     const projected = projection({ ...base, state: "advisory-complete", nextAction: "none" });
     return ReduceEnvelopeSchema.parse({

@@ -29,11 +29,32 @@ export {
 } from "./schema.js";
 
 export {
+  InboxMutationConflictError,
+  hasExecuteBoundDisposition,
+  inboxEntrySourceDigest,
+  listExecuteBoundInboxEntries,
+  markInboxEntriesExecuteBoundInOrder,
+  inspectInboxEntry,
   listInboxEntryTitles,
+  mutateInboxEntries,
   removeInboxEntry,
+  removeInspectedInboxEntry,
   requireLiveInboxTitle,
+  type InboxEntryMutation,
+  type InboxMutationConflictCode,
+  type InboxEntryMutationOutcome,
+  type InspectedInboxEntry,
+  type ExecuteBoundInboxEntry,
+  type ExecuteBoundInboxListing,
+  type MutateInboxEntriesResult,
   type RemoveInboxEntryResult,
 } from "./inbox-writer.js";
+
+export {
+  resolveExecutionNextOffer,
+  type ExecutionNextOffer,
+  type ExecutionOfferResolution,
+} from "./execution-offer.js";
 
 export {
   listAnnotatedNoteCommits,

@@ -1,19 +1,32 @@
 /**
  * Exact-head, vehicle-aware lifecycle readiness over a caller-supplied tree.
  *
- * The checker reads only lifecycle products beneath the supplied root. It does
- * not infer state from the caller's checkout, Git refs, or fail-soft indexes.
+ * The checker reads lifecycle products beneath the supplied root. It does not
+ * infer state from the caller's checkout, Git refs, or fail-soft indexes.
+ *
+ * A `delivery-member` vehicle adds one further authority source, outside that
+ * root: the delivery lookup its caller supplies, which reads the Git-common
+ * delivery state of the repository the caller's composition root resolved.
+ * Delivery state is repository-common rather than a tree product, so the
+ * binding cannot come from the request. Nothing else here reads outside the
+ * supplied root.
+ *
+ * The supplied checkout belongs to the attended operator. This reader checks
+ * lifecycle completeness; it does not impose symlink, containment, or
+ * duplicate-entry forensics on that checkout.
+ *
+ * That read is not side-effect-free. The underlying snapshot creates its
+ * namespace directory and takes an advisory lock, so evaluating a member writes
+ * inside the Git common directory. A sandbox denying those writes degrades the
+ * member arm to `delivery-state-unavailable`, which is the fail-closed outcome
+ * rather than a new failure mode — but the module's inspection-only posture
+ * would misdescribe it if left unsaid.
  *
  * @module
  */
 
-import {
-  lstat,
-  readFile,
-  readdir,
-  realpath,
-} from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -21,15 +34,24 @@ import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js";
+import type { DeliveryMemberLookup } from "./core/delivery-member-lookup.js";
+import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
-const RepositorySchema = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u);
-const ShaSchema = z.string().regex(/^[a-f0-9]{40}$/u);
+const RepositorySchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u)
+  .refine(
+    (repository) => repository.split("/").every((segment) => /[^.]/u.test(segment)),
+    "repository segments must not consist only of dots",
+  );
+const PlanIdSchema = z.uuid();
+const DeliverableIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
 export const ReviewTargetSchema = z.strictObject({
   repository: RepositorySchema,
   pullRequest: z.number().int().positive(),
-  headSha: ShaSchema,
+  headSha: GitObjectIdSchema,
 });
 
 export const LivePullRequestSchema = z.strictObject({
@@ -37,7 +59,7 @@ export const LivePullRequestSchema = z.strictObject({
   number: z.number().int().positive(),
   state: z.enum(["open", "closed"]),
   headBranch: z.string().min(1),
-  headSha: ShaSchema,
+  headSha: GitObjectIdSchema,
 });
 
 export const ReviewTreeRootSchema = z.string().min(1).refine(isAbsolute, "treeRoot must be absolute");
@@ -51,6 +73,12 @@ export const ReviewVehicleSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("errand"),
     slug: SlugSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("delivery-member"),
+    planId: PlanIdSchema,
+    deliverableId: DeliverableIdSchema,
+    workUnitSlug: SlugSchema,
   }),
 ]);
 
@@ -103,7 +131,6 @@ export type ReviewReadinessEnvelope = z.infer<typeof ReviewReadinessEnvelopeSche
 export interface ReviewReadinessStat {
   isFile(): boolean;
   isDirectory(): boolean;
-  isSymbolicLink(): boolean;
 }
 
 /** Minimal directory-entry shape used by the readiness filesystem boundary. */
@@ -112,10 +139,9 @@ export interface ReviewReadinessDirEntry {
   isDirectory(): boolean;
 }
 
-/** Filesystem boundary for inspecting an untrusted worktree as data. */
+/** Filesystem boundary for reading lifecycle products from an operator checkout. */
 export interface ReviewReadinessFs {
-  lstat(path: string): Promise<ReviewReadinessStat>;
-  realpath(path: string): Promise<string>;
+  stat(path: string): Promise<ReviewReadinessStat>;
   readFile(path: string): Promise<string>;
   readdir(path: string): Promise<ReviewReadinessDirEntry[]>;
 }
@@ -123,11 +149,20 @@ export interface ReviewReadinessFs {
 /** Injectable boundaries for the readiness checker. */
 export interface ReviewReadinessDependencies {
   fs: ReviewReadinessFs;
+  /**
+   * Delivery read backing `delivery-member` authentication.
+   *
+   * No repository root reaches this module through its request, so the port has
+   * no sound default and is supplied by each composition root from its own
+   * resolved root. It is consequently optional here, and the member arm fails
+   * closed as `delivery-state-unavailable` when it is absent. The `work-unit`
+   * and `errand` arms never consult it.
+   */
+  deliveryMemberLookup?: DeliveryMemberLookup;
 }
 
 const DEFAULT_FS: ReviewReadinessFs = {
-  lstat,
-  realpath,
+  stat,
   readFile: (path) => readFile(path, "utf8"),
   readdir: (path) => readdir(path, { withFileTypes: true }),
 };
@@ -186,26 +221,17 @@ function ready(request: ReviewReadinessRequest): ReviewReadinessEnvelope {
   });
 }
 
-function isInside(root: string, candidate: string): boolean {
-  const rel = relative(root, candidate);
-  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
-}
-
 async function resolveRoot(
   requestedRoot: string,
   fs: ReviewReadinessFs,
 ): Promise<{ root?: string; fact?: ReviewReadinessFact }> {
   try {
     const requested = resolve(requestedRoot);
-    const stat = await fs.lstat(requested);
-    if (stat.isSymbolicLink()) {
-      return { fact: fact("symlinked-root", requestedRoot, "The supplied tree root must not be a symbolic link.") };
-    }
-    if (!stat.isDirectory()) {
+    const rootStat = await fs.stat(requested);
+    if (!rootStat.isDirectory()) {
       return { fact: fact("non-directory-root", requestedRoot, "The supplied tree root is not a directory.") };
     }
-    const root = await fs.realpath(requested);
-    return { root };
+    return { root: requested };
   } catch {
     return { fact: fact("missing-root", requestedRoot, "The supplied tree root is missing or unreadable.") };
   }
@@ -217,25 +243,13 @@ async function readRegularFile(
   fs: ReviewReadinessFs,
 ): Promise<ReadResult> {
   const candidate = resolve(root, relativePath);
-  if (!isInside(root, candidate)) {
-    return {
-      path: relativePath,
-      fact: fact("escaping-artifact", relativePath, "The required artifact path escapes the supplied tree."),
-    };
-  }
   let stat: ReviewReadinessStat;
   try {
-    stat = await fs.lstat(candidate);
+    stat = await fs.stat(candidate);
   } catch {
     return {
       path: relativePath,
       fact: fact("missing-artifact", relativePath, "The required artifact is missing."),
-    };
-  }
-  if (stat.isSymbolicLink()) {
-    return {
-      path: relativePath,
-      fact: fact("symlinked-artifact", relativePath, "The required artifact is a symbolic link."),
     };
   }
   if (!stat.isFile()) {
@@ -245,13 +259,6 @@ async function readRegularFile(
     };
   }
   try {
-    const canonical = await fs.realpath(candidate);
-    if (!isInside(root, canonical)) {
-      return {
-        path: relativePath,
-        fact: fact("escaping-artifact", relativePath, "The required artifact resolves outside the supplied tree."),
-      };
-    }
     return { path: relativePath, content: await fs.readFile(candidate) };
   } catch {
     return {
@@ -267,22 +274,10 @@ async function readDirectory(
   fs: ReviewReadinessFs,
 ): Promise<{ entries?: ReviewReadinessDirEntry[]; fact?: ReviewReadinessFact }> {
   const candidate = resolve(root, relativePath);
-  if (!isInside(root, candidate)) {
-    return { fact: fact("escaping-artifact", relativePath, "The required directory escapes the supplied tree.") };
-  }
   try {
-    const stat = await fs.lstat(candidate);
-    if (stat.isSymbolicLink()) {
-      return { fact: fact("symlinked-artifact", relativePath, "The required directory is a symbolic link.") };
-    }
-    if (!stat.isDirectory()) {
+    const directoryStat = await fs.stat(candidate);
+    if (!directoryStat.isDirectory()) {
       return { fact: fact("non-regular-artifact", relativePath, "The required path is not a directory.") };
-    }
-    const canonical = await fs.realpath(candidate);
-    if (!isInside(root, canonical)) {
-      return {
-        fact: fact("escaping-artifact", relativePath, "The required directory resolves outside the supplied tree."),
-      };
     }
     return { entries: await fs.readdir(candidate) };
   } catch (error) {
@@ -310,7 +305,10 @@ function identityFacts(request: ReviewReadinessRequest): ReviewReadinessFact[] {
   if (request.target.headSha !== request.pullRequest.headSha) {
     facts.push(fact("stale-head", "target.headSha", "The requested SHA is not the pull request's exact live head."));
   }
-  if (branchToWorkUnitSlug(request.pullRequest.headBranch) !== request.vehicle.slug) {
+  if (
+    request.vehicle.kind !== "delivery-member"
+    && branchToWorkUnitSlug(request.pullRequest.headBranch) !== request.vehicle.slug
+  ) {
     facts.push(fact(
       "vehicle-branch-mismatch",
       "pullRequest.headBranch",
@@ -462,6 +460,78 @@ function releaseNotesFacts(content: string, path: string): ReviewReadinessFact[]
   return [];
 }
 
+/**
+ * Collect the lifecycle-artifact facts a work-unit meta owes before merge: Completion
+ * Notes are required, and a Release Notes Entry is validated whenever one is present.
+ *
+ * @param content - The work-unit meta's full text.
+ * @param path - The meta's path, reported on each fact.
+ * @returns One fact per unmet obligation; empty when the artifacts are satisfied.
+ */
+export function lifecycleArtifactFacts(content: string, path: string): ReviewReadinessFact[] {
+  return [...completionFacts(content, path), ...releaseNotesFacts(content, path)];
+}
+
+async function evaluateDeliveryMember(
+  request: ReviewReadinessRequest & {
+    vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
+  },
+  lookup: DeliveryMemberLookup | undefined,
+): Promise<ReviewReadinessFact[]> {
+  if (lookup === undefined) {
+    return [fact(
+      "delivery-state-unavailable",
+      "pullRequest.headSha",
+      "Delivery state is unavailable, so the member could not be authenticated.",
+    )];
+  }
+  const resolution = await lookup.resolveMemberByHead(request.pullRequest.headSha);
+  if (resolution.status === "unavailable") {
+    return [fact(
+      "delivery-state-unavailable",
+      "pullRequest.headSha",
+      "Delivery state is unavailable, so the member could not be authenticated.",
+    )];
+  }
+  if (resolution.status === "unbound") {
+    return [fact(
+      "delivery-member-unbound",
+      "pullRequest.headSha",
+      "The pull request's exact live head is bound to no delivery member.",
+    )];
+  }
+  const facts: ReviewReadinessFact[] = [];
+  if (resolution.member.planId.toLowerCase() !== request.vehicle.planId.toLowerCase()) {
+    facts.push(fact(
+      "delivery-member-mismatch",
+      "vehicle.planId",
+      "The head's owning plan does not match the asserted plan.",
+    ));
+  }
+  if (resolution.member.deliverableId !== request.vehicle.deliverableId) {
+    facts.push(fact(
+      "delivery-member-mismatch",
+      "vehicle.deliverableId",
+      "The head's delivery member does not match the asserted deliverable.",
+    ));
+  }
+  if (resolution.member.workUnitId !== request.vehicle.workUnitSlug) {
+    facts.push(fact(
+      "delivery-member-mismatch",
+      "vehicle.workUnitSlug",
+      "The head's owning work unit does not match the asserted work unit.",
+    ));
+  }
+  if (resolution.member.isFinalMember) {
+    facts.push(fact(
+      "delivery-member-terminal",
+      "vehicle.deliverableId",
+      "The plan's final member reviews under its work unit's own vehicle.",
+    ));
+  }
+  return facts;
+}
+
 async function evaluateManualWorkUnit(
   request: ReviewReadinessRequest & { vehicle: { kind: "work-unit"; slug: string; archiveCadence: "manual" } },
   root: string,
@@ -493,8 +563,7 @@ async function evaluateManualWorkUnit(
       "The active work-unit meta branch does not match the pull-request head branch.",
     ));
   }
-  facts.push(...completionFacts(content, path));
-  facts.push(...releaseNotesFacts(content, path));
+  facts.push(...lifecycleArtifactFacts(content, path));
   return facts;
 }
 
@@ -586,20 +655,14 @@ async function collectMetaPaths(
     const absolute = resolve(root, child);
     const isMetaCandidate = /^meta-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/u.test(entry.name);
     try {
-      const stat = await fs.lstat(absolute);
-      if (stat.isSymbolicLink()) {
-        if (isMetaCandidate || recursive) {
-          facts.push(fact("symlinked-artifact", child, "The lifecycle candidate is a symbolic link."));
-        }
-        continue;
-      }
-      if (stat.isDirectory()) {
+      const candidateStat = await fs.stat(absolute);
+      if (candidateStat.isDirectory()) {
         if (recursive) {
           const nested = await collectMetaPaths(root, child, fs, true);
           paths.push(...nested.paths);
           facts.push(...nested.facts);
         }
-      } else if (isMetaCandidate && stat.isFile()) {
+      } else if (isMetaCandidate && candidateStat.isFile()) {
         paths.push(child);
       } else if (isMetaCandidate) {
         facts.push(fact("non-regular-artifact", child, "The lifecycle candidate is not a regular file."));
@@ -724,7 +787,7 @@ async function cohortCoordinateFacts(
       : [active.fact];
   }
   try {
-    await fs.lstat(resolve(root, coordinator));
+    await fs.stat(resolve(root, coordinator));
     return [fact(
       "incomplete-cohort-closeout",
       coordinator,
@@ -785,14 +848,11 @@ async function evaluateArchivedWorkUnit(
       "The completed work-unit archive is missing.",
     )];
   }
-  if (archive.candidates.length > 1) {
-    return [fact(
-      "duplicate-artifact",
-      `.arc/completed/**/meta-${request.vehicle.slug}.md`,
-      "The completed work-unit archive is ambiguous.",
-    )];
-  }
-  const candidate = archive.candidates[0];
+  const candidate = [...archive.candidates].sort((left, right) => (
+    left.quarter === right.quarter
+      ? Number(left.sequence) - Number(right.sequence)
+      : left.quarter.localeCompare(right.quarter)
+  )).at(-1);
   if (candidate === undefined) return [];
   const result = await readRegularFile(root, candidate.metaPath, fs);
   if (result.fact !== undefined) return [result.fact];
@@ -829,8 +889,7 @@ async function evaluateArchivedWorkUnit(
       "The archived PR URL does not name the guarded repository and pull request.",
     ));
   }
-  facts.push(...completionFacts(content, candidate.metaPath));
-  facts.push(...releaseNotesFacts(content, candidate.metaPath));
+  facts.push(...lifecycleArtifactFacts(content, candidate.metaPath));
   facts.push(...await lifecycleCandidateFacts(root, fs));
   if (facts.length === 0) {
     facts.push(...await cohortCloseoutFacts(root, fs, candidate, record.cohort, request.vehicle.slug));
@@ -842,7 +901,9 @@ async function evaluateArchivedWorkUnit(
  * Evaluate lifecycle readiness for one exact guarded head.
  *
  * @param input - Strict request naming the supplied tree, live PR, and vehicle.
- * @param overrides - Test-only filesystem boundary override.
+ * @param overrides - Injected boundaries. The filesystem boundary is test-only;
+ *   the delivery lookup is the production injection path for member
+ *   authentication and is supplied by each composition root.
  * @returns A ready or structured-invalid review envelope.
  */
 export async function evaluateReviewReadiness(
@@ -861,6 +922,19 @@ export async function evaluateReviewReadiness(
 
   if (request.vehicle.kind === "errand") {
     return ready(request);
+  }
+  // A member pull request carries no lifecycle artifacts, so nothing beneath the
+  // root is read on this path. The resolution above is still load bearing: it is
+  // itself the check that an unusable supplied root refuses consistently across
+  // every vehicle kind, so this arm must stay below it.
+  if (request.vehicle.kind === "delivery-member") {
+    const memberFacts = await evaluateDeliveryMember(
+      request as ReviewReadinessRequest & {
+        vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
+      },
+      overrides.deliveryMemberLookup,
+    );
+    return memberFacts.length === 0 ? ready(request) : invalid(request, memberFacts);
   }
   if (request.vehicle.archiveCadence === "with-integration") {
     const productFacts = await evaluateArchivedWorkUnit(

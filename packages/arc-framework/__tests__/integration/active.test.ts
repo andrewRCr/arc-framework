@@ -18,7 +18,22 @@ import {
   runActiveSessionInitStatusInternal,
   runActiveStatus,
 } from "../../src/commands/active.js";
+import {
+  createStandardReviewReservation,
+  IntegrationBoundaryLocusSchema,
+  projectCandidateReviewBoundary,
+  projectPublicationBoundary,
+} from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { stubGitExec } from "../helpers/integration.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  serializeCandidateManagedRecord,
+} from "../../src/lib/work-unit/candidate-attestation.js";
+import {
+  projectCandidateApplicabilityDecision,
+  projectDurableCandidateTarget,
+} from "../helpers/candidate.js";
 
 /** Shared default — non-planning branch keeps existing assertions stable. */
 const defaultExec = stubGitExec("main");
@@ -35,6 +50,59 @@ async function createFixture(): Promise<Fixture> {
   return { root, activeDir };
 }
 
+async function writeCandidate(root: string, slug: string): Promise<{ candidateId: string; subjectDigest: string }> {
+  const subject = createCandidateSubjectSnapshot([]);
+  const attestation = createCandidateAttestation({
+    workUnit: slug,
+    subject,
+    baseRevision: "a".repeat(40),
+    attestedBy: "andrew",
+    attestedAt: "2026-08-19T00:00:00.000Z",
+    verificationEvidenceRef: `tasks-${slug}.md#verification`,
+  });
+  const directory = join(root, ".arc", "system", ".internal", "candidates");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, `${slug}.json`), serializeCandidateManagedRecord({
+    schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1",
+    attestation,
+    subject,
+    transitions: [],
+    lineageAttestations: [],
+  }));
+  return { candidateId: attestation.candidateId, subjectDigest: subject.subjectDigest };
+}
+
+function ownerAcceptedPublishBoundary(input: {
+  slug: string;
+  candidateId: string;
+  subjectDigest: string;
+}) {
+  return IntegrationBoundaryLocusSchema.parse({
+    schemaVersion: 1,
+    mode: "pre-publication-review",
+    workUnit: input.slug,
+    candidateId: input.candidateId,
+    candidateSubjectDigest: input.subjectDigest,
+    locus: "candidate-publish-ready",
+    nextAction: {
+      kind: "publish-candidate",
+      command: `arc publish ${input.slug} --json`,
+      interactionText: "Publish the current Candidate.",
+    },
+    policy: null,
+    reservation: null,
+    terminus: {
+      schemaVersion: 1,
+      semanticsVersion: "review-terminus/v1",
+      kind: "owner-accepted",
+      lane: "standard",
+      acceptedBy: "andrew",
+      completedPasses: 5,
+    },
+  });
+}
+
 function statusBody(fields: {
   state: string;
   branch: string;
@@ -43,6 +111,7 @@ function statusBody(fields: {
   nextTask?: string;
   taskList?: string;
   nextAction?: string;
+  candidateId?: string;
 }): string {
   const lines: string[] = [
     "# Metadata: fixture",
@@ -55,6 +124,7 @@ function statusBody(fields: {
     lines.push(`- **Current Workflow:** ${fields.currentWorkflow}`);
   }
   if (fields.taskList !== undefined) lines.push(`- **Task List:** ${fields.taskList}`);
+  if (fields.candidateId !== undefined) lines.push(`- **Candidate:** ${fields.candidateId}`);
   if (fields.nextTask !== undefined) lines.push(`- **Next Task:** ${fields.nextTask}`);
   if (fields.nextAction !== undefined) lines.push(`- **Next Action:** ${fields.nextAction}`);
   return lines.join("\n");
@@ -211,6 +281,54 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     const beta = result.candidates.find((c) => c.filename === "meta-beta.md");
     expect(beta?.branch).toBe("technical/beta");
     expect(beta?.state).toBe("Integrating");
+  });
+
+  it("warns per malformed Candidate without hiding a valid sibling", async () => {
+    const { candidateId } = await writeCandidate(fixture.root, "alpha");
+    await writeFile(
+      join(fixture.activeDir, "meta-alpha.md"),
+      statusBody({
+        state: "Active",
+        branch: "main",
+        candidateId,
+      }),
+    );
+    await writeFile(
+      join(fixture.activeDir, "meta-beta.md"),
+      statusBody({
+        state: "Active",
+        branch: "feat/beta",
+        candidateId: "sha256:not-a-candidate",
+      }),
+    );
+
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+    expect(full.candidates).toHaveLength(2);
+    expect(full.candidates.find(({ filename }) => filename === "meta-alpha.md")).toMatchObject({
+      candidateId,
+      integrationBoundary: expect.objectContaining({ candidateId }),
+    });
+    expect(full.candidates.find(({ filename }) => filename === "meta-beta.md")).toMatchObject({
+      candidateId: null,
+      integrationBoundary: null,
+    });
+    expect(full.warnings).toContainEqual(expect.stringContaining(".arc/active/meta-beta.md"));
+
+    const session = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+    expect(session).toMatchObject({
+      resolution: "multiple",
+      path: null,
+      sessionType: null,
+      integrationBoundary: null,
+    });
+    expect(session.warnings).toContainEqual(expect.stringContaining(".arc/active/meta-beta.md"));
   });
 
   it("resolves Lite layout's single file as resolution=single", async () => {
@@ -783,24 +901,24 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     expect(result.sessionType).toBe("planning");
   });
 
-  it("emits sessionType=integration when Next Action begins with integrate-work-unit", async () => {
+  it("keeps sessionType=execution when Active narration begins with integrate-work-unit", async () => {
     await writeStatus("technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 3 — push and create PR",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
-    expect(result.sessionType).toBe("integration");
+    expect(result.sessionType).toBe("execution");
   });
 
-  it("emits sessionType=integration when Next Action begins with archive-work-unit", async () => {
+  it("keeps sessionType=execution when Active narration begins with archive-work-unit", async () => {
     await writeStatus("technical", "foo", {
       taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "archive-work-unit Step 1 — archive artifacts and retire the status file",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
-    expect(result.sessionType).toBe("integration");
+    expect(result.sessionType).toBe("execution");
   });
 
   it("emits sessionType=execution for a regular Start-Task Next Action", async () => {
@@ -811,6 +929,354 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("execution");
+  });
+
+  it("projects a Candidate review locus independently of narrative fields", async () => {
+    const { candidateId } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "archive-work-unit Step 1",
+        candidateId,
+        currentWorkflow: "prepare-work-unit",
+      }),
+    );
+
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+    expect(full.candidates[0]?.integrationBoundary?.locus).toBe("candidate-review-pending");
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+    expect(result.sessionType).toBe("prepublication");
+    expect(result.currentWorkflow).toBe("prepare-work-unit");
+    expect(result.integrationBoundary).toMatchObject({
+      candidateId,
+      locus: "candidate-review-pending",
+      nextAction: {
+        kind: "run-self-review",
+        command: "arc review pre-publication foo --json",
+      },
+    });
+  });
+
+  it("preserves the exact Active prepublication boundary in full and session-init status", async () => {
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "prepare-work-unit",
+      }),
+    );
+    const boundary = ownerAcceptedPublishBoundary({ slug: "foo", candidateId, subjectDigest });
+    await writeFile(
+      join(fixture.root, ".arc", "system", ".internal", "candidates", "foo.boundary.json"),
+      JSON.stringify(boundary),
+    );
+
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+    expect(full.candidates[0]?.integrationBoundary).toEqual(boundary);
+
+    const session = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+    expect(session.integrationBoundary).toEqual(boundary);
+  });
+
+  it("falls back to initial review when an Active prepublication boundary names a stale subject", async () => {
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "prepare-work-unit",
+      }),
+    );
+    const boundary = ownerAcceptedPublishBoundary({
+      slug: "foo",
+      candidateId,
+      subjectDigest: `sha256:${"9".repeat(64)}`,
+    });
+    await writeFile(
+      join(fixture.root, ".arc", "system", ".internal", "candidates", "foo.boundary.json"),
+      JSON.stringify(boundary),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+    expect(result.integrationBoundary).toMatchObject({
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      terminus: null,
+      locus: "candidate-review-pending",
+      nextAction: { kind: "run-self-review" },
+    });
+  });
+
+  it("does not fall back to execution when a Candidate record is unavailable", async () => {
+    const candidateId = `sha256:${"1".repeat(64)}`;
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "prepare-work-unit",
+      }),
+    );
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+
+    expect(result).toMatchObject({
+      resolution: "single",
+      sessionType: null,
+      currentWorkflow: "prepare-work-unit",
+      integrationBoundary: null,
+    });
+    expect(result.warnings).toContainEqual(expect.stringMatching(/Candidate.*unavailable|unavailable.*Candidate/iu));
+  });
+
+  it("preserves the durable publication reservation in the session-init resume locus", async () => {
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Integrating",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "integrate-work-unit",
+      }),
+    );
+    const reservation = createStandardReviewReservation({
+      candidateId,
+      sourceId: "codex-pr",
+      repository: "arc-framework/example",
+      headSha: "b".repeat(40),
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"d".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const storedBoundary = IntegrationBoundaryLocusSchema.parse({
+      schemaVersion: 1,
+      mode: "integration-boundary",
+      workUnit: "foo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      locus: "candidate-publish-ready",
+      nextAction: {
+        kind: "publish-candidate",
+        command: "arc publish foo --json",
+        interactionText: "Submit the current Candidate for publication.",
+      },
+      policy: null,
+      reservation,
+    });
+    const recoveredBoundary = projectPublicationBoundary({
+      workUnit: "foo",
+      branch: "technical/foo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      reservation,
+      changeRequest: null,
+    });
+    const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
+    await mkdir(boundaryDir, { recursive: true });
+    await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(storedBoundary));
+
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+    expect(full.candidates[0]?.integrationBoundary).toEqual(recoveredBoundary);
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+
+    expect(result.integrationBoundary).toEqual(recoveredBoundary);
+  });
+
+  it("keeps an Integrating re-root in the integration session while Candidate review is pending", async () => {
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Integrating",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "integrate-work-unit",
+      }),
+    );
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "foo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+    });
+    const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
+    await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(boundary));
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectDurableCandidateTarget,
+    });
+
+    expect(result).toMatchObject({
+      resolution: "single",
+      sessionType: "integration",
+      currentWorkflow: "integrate-work-unit",
+      integrationBoundary: boundary,
+    });
+  });
+
+  it("preserves full and session-init integration context while Candidate applicability awaits authority", async () => {
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Integrating",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "integrate-work-unit",
+      }),
+    );
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "foo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+    });
+    const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
+    await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(boundary));
+
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectCandidateApplicabilityDecision,
+    });
+    expect(full.candidates[0]?.integrationBoundary).toEqual(boundary);
+    expect(full.warnings).not.toContainEqual(expect.stringMatching(/request-authority/u));
+
+    const session = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectCandidateApplicabilityDecision,
+    });
+    expect(session).toMatchObject({
+      resolution: "single",
+      sessionType: "integration",
+      currentWorkflow: "integrate-work-unit",
+      integrationBoundary: boundary,
+    });
+    expect(session.warnings).not.toContainEqual(expect.stringMatching(/request-authority/u));
+  });
+
+  it("keeps Active prepublication unresolved while Candidate applicability awaits authority", async () => {
+    const { candidateId } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "prepare-work-unit",
+      }),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectCandidateApplicabilityDecision,
+    });
+
+    expect(result).toMatchObject({
+      resolution: "single",
+      sessionType: null,
+      currentWorkflow: "prepare-work-unit",
+      integrationBoundary: null,
+    });
+    expect(result.warnings).toContainEqual(expect.stringMatching(/requires request-authority/u));
+  });
+
+  it("refuses pending applicability when the Integrating boundary names another subject", async () => {
+    const { candidateId } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Integrating",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "integrate-work-unit",
+      }),
+    );
+    const mismatched = projectCandidateReviewBoundary({
+      workUnit: "foo",
+      candidateId,
+      candidateSubjectDigest: `sha256:${"9".repeat(64)}`,
+    });
+    const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
+    await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(mismatched));
+
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectCandidateApplicabilityDecision,
+    });
+    expect(full.candidates[0]?.integrationBoundary).toBeNull();
+    expect(full.warnings).toContainEqual(expect.stringMatching(/does not match.*durable Candidate subject/u));
+
+    const session = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectCandidateApplicabilityDecision,
+    });
+    expect(session).toMatchObject({
+      resolution: "single",
+      sessionType: null,
+      currentWorkflow: "integrate-work-unit",
+      integrationBoundary: null,
+    });
   });
 
   it("emits sessionType=execution for non-integration lifecycle workflows (e.g., clean-work-unit)", async () => {
@@ -858,7 +1324,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       exec: defaultExec,
     });
     expect(result.resolution).toBe("single");
-    expect(result.sessionType).toBe("integration");
+    expect(result.sessionType).toBe("execution");
     expect(result.path).toBe(".arc/user/alice/active/meta-foo.md");
   });
 

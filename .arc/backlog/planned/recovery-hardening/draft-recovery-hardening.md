@@ -14,6 +14,34 @@
 > _Routed-in concern pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`)._
 
+### `[ ]` **Bind compaction recovery to the live directed-worktree locus**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-20); observed during nested directed-worktree
+  recovery on 2026-08-13 and reproduced on 2026-08-20.
+- _Concern:_ Codex PreCompact can write its seed and marker under the harness-root checkout while directed commands
+  execute in another registered checkout. Recovery then reads the wrong seed; marker clearing can independently
+  rebind to invocation cwd and reject the marker-owning root.
+- _Fold-in:_ preserve same-checkout behavior and bind seed emission, marker ownership, audit discovery, and clear
+  composition to one ephemeral harness-session locus. Cover parent WU plus spawned Errand, expiry, teardown, and a
+  clear refusal if an exact binding cannot be established; do not mint a canonical locus store.
+
+### `[ ]` **Reconcile provably self-produced post-seed drift without weakening recovery**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-20); captured during a live RED/GREEN marker race.
+- _Concern:_ a seed emitted between a test-first RED edit and its GREEN source edit can stop on one added dirty path
+  even when the live transcript proves that exact monotonic post-seed mutation and every branch, HEAD, locus,
+  load-set, and task-cursor dimension still matches.
+- _Fold-in:_ define a narrowly bound reconciled-self-produced result over the exact seed, HEAD, expected/actual path
+  sets, and live diff identity. Preserve stops for unknown edits, removed seed paths, reversions, overlapping
+  ownership, multiple reasons, or any topology/cursor mismatch; always run the full audit and rehydrate first.
+
+### `[ ]` **Reframe recovery hardening after durable locus retirement**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-08-10).
+- _Concern:_ the draft assumes a durable live locus can arbitrate seed/marker disagreement. That substrate is gone;
+  narrow recovery to safely clearing markers and seeds when their checkout moved or was torn down, grounded in the
+  freshly derived checkout frame with no replacement record, lease, liveness gate, or trust bypass.
+
 ### `[ ]` **Harden the seed-to-recovery-marker handoff against silent loss**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured after automatic Codex
@@ -122,6 +150,24 @@
   transition-focused recovery tests.
 
 - _Captured during:_ post-merge `arc-cleared` activation after `review-gate-right-sizing` teardown (2026-07-25).
+
+### `[ ]` **Model Candidate re-root as a resumable recovery frame**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-07); captured during
+  `delivery-native-stack-composition` dogfooding.
+- _Concern:_ an immediate Errand can improve the typed diagnostic for a proved Candidate re-root, but recovery
+  still needs an authoritative frame for continuing after a sanctioned target/base movement.
+- _Fold-in:_ define the monotonic transition evidence, seed comparison, and invalidation rules that let recovery
+  resume without trusting branch-shape inference.
+
+### `[ ]` **Model intentional unmerged-index state as a resumable recovery frame**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-09-07);
+  captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ a typed diagnostic can distinguish intentional merge composition from generic dirtiness now, but
+  safe resumption needs durable evidence for the exact merge/index operation and its allowed continuation.
+- _Fold-in:_ define the narrow resumable frame and fail closed for unrelated or ambiguous unmerged entries; do not
+  weaken ordinary dirty-path or conflict detection.
 
 ## Problem / Motivation
 

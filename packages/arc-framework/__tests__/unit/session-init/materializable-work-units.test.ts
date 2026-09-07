@@ -12,7 +12,9 @@ import type {
 } from "../../../src/lib/git/in-flight-derivation.js";
 import {
   MaterializableWorkUnitSchema,
+  MaterializableWorkUnitDiscoveryResultSchema,
   MaterializableWorkUnitsResultSchema,
+  composeMaterializableDiscoveryRefreshRemedy,
   findMaterializableWorkUnits,
 } from "../../../src/lib/session-init/materializable-work-units.js";
 
@@ -48,6 +50,71 @@ describe("MaterializableWorkUnitsResultSchema", () => {
 
   it("rejects malformed warning entries", () => {
     expect(MaterializableWorkUnitsResultSchema.safeParse({ candidates: [], warnings: [42] }).success).toBe(false);
+  });
+});
+
+describe("MaterializableWorkUnitDiscoveryResultSchema", () => {
+  const candidate = { name: "in-flight-awareness", branch: "feat/in-flight-awareness" };
+  const remedy = {
+    text: "Refresh live in-flight discovery.",
+    argv: ["arc", "active", "in-flight", "--json"],
+  };
+
+  it("enforces exact, pending, unreachable, and disabled evidence combinations", () => {
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [candidate], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: null,
+    }).success).toBe(true);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [candidate], remoteEvidence: "pending-fetch", pendingBranchCount: 2, refreshRemedy: remedy,
+    }).success).toBe(true);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [], remoteEvidence: "unreachable", pendingBranchCount: 0, refreshRemedy: null,
+      failureReason: "network",
+    }).success).toBe(true);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
+    }).success).toBe(true);
+
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [], remoteEvidence: "exact", pendingBranchCount: 1, refreshRemedy: null,
+    }).success).toBe(false);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 0, refreshRemedy: remedy,
+    }).success).toBe(false);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [], remoteEvidence: "unreachable", pendingBranchCount: 0, refreshRemedy: null,
+    }).success).toBe(false);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
+      failureReason: "network",
+    }).success).toBe(false);
+  });
+
+  it("distinguishes exact empty discovery from incomplete and unavailable discovery", () => {
+    expect(MaterializableWorkUnitDiscoveryResultSchema.parse({
+      candidates: [], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: null,
+    })).toMatchObject({ remoteEvidence: "exact", candidates: [], pendingBranchCount: 0 });
+    expect(MaterializableWorkUnitDiscoveryResultSchema.parse({
+      candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 1, refreshRemedy: remedy,
+    })).toMatchObject({ remoteEvidence: "pending-fetch", candidates: [], pendingBranchCount: 1 });
+    expect(MaterializableWorkUnitDiscoveryResultSchema.parse({
+      candidates: [], remoteEvidence: "unreachable", pendingBranchCount: 0, refreshRemedy: null,
+      failureReason: "timeout",
+    })).toMatchObject({ remoteEvidence: "unreachable", candidates: [], failureReason: "timeout" });
+  });
+
+  it("provides the exact live refresh remedy only for pending discovery", () => {
+    const composed = composeMaterializableDiscoveryRefreshRemedy();
+    expect(composed).toEqual(remedy);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 1, refreshRemedy: composed,
+    }).success).toBe(true);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: composed,
+    }).success).toBe(false);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
+      candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 1, refreshRemedy: null,
+    }).success).toBe(false);
   });
 });
 

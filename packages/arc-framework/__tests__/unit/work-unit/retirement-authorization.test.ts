@@ -2,18 +2,21 @@ import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
-import type {
-  RetirementEvidenceRef,
-  RetirementReceipt,
-  TeardownAuthorizationRequest,
+import {
+  gitTransitionResultDigest,
+  type RetirementEvidenceRef,
+  type TeardownAuthorizationRequest,
 } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
   authorizeRetirement,
   revalidateRetirementAuthorization,
+  type GitTransitionAuthorizationProof,
+  type RemoteSourceRefRelation,
   type RetirementAuthorizationContext,
 } from "../../../src/lib/work-unit/retirement-authorization.js";
 
 const head = "a".repeat(40);
+const ancestor = "9".repeat(40);
 const remote = "origin";
 
 const workUnitRequest: TeardownAuthorizationRequest = {
@@ -31,56 +34,38 @@ const shippedEvidence: Extract<RetirementEvidenceRef, { kind: "shipped" }> = {
   baseProofOid: "b".repeat(40),
 };
 
-function receipt(
-  transition: "abandon" | "park-planning" | "rename" = "abandon",
-): RetirementReceipt {
-  const parked = transition === "park-planning";
-  const renamed = transition === "rename";
+function proof(
+  transition: GitTransitionAuthorizationProof["transition"] = "abandon",
+): GitTransitionAuthorizationProof {
   return {
-    schemaVersion: 1,
-    receiptId: contentDigest(new TextEncoder().encode(`${transition}-receipt`)),
-    subject: { kind: "work-unit", name: "sample" },
     transition,
-    source: {
-      branch: "feat/sample",
-      head: "0".repeat(40),
-      artifactDigest: contentDigest(new TextEncoder().encode("source")),
-    },
-    transitionPatchDigest: contentDigest(new TextEncoder().encode("patch")),
-    retiringProjection: { kind: "direct-transition" },
-    authorization: renamed ? "identity-renamed" : parked ? "planning-relocated" : "discard-confirmed",
-    result: renamed
-      ? {
-          kind: "rename",
-          targetSlug: "renamed-sample",
-          artifactDigest: contentDigest(new TextEncoder().encode("renamed")),
-        }
-      : parked
-        ? { kind: "relocate", plannedArtifactDigest: contentDigest(new TextEncoder().encode("planned")) }
-        : { kind: "discard", artifactDigest: "absent" },
+    retiringHead: head,
+    resultHead: "c".repeat(40),
+    resultInventory: [],
   };
 }
 
-function context(candidate = receipt()): RetirementAuthorizationContext & {
+function context(candidate = proof()): RetirementAuthorizationContext & {
   local: { oid: string; worktreeProjectionSafe: boolean };
-  remoteRef: { oid: string | null };
-  candidate: { value: RetirementReceipt | null };
+  remoteRef: { relation: RemoteSourceRefRelation };
+  candidate: { value: GitTransitionAuthorizationProof | null; refusal: "evidence-missing" | null };
 } {
   const local = { oid: head, worktreeProjectionSafe: true };
-  const remoteRef = { oid: head as string | null };
-  const candidateState = { value: candidate as RetirementReceipt | null };
+  const remoteRef = { relation: { kind: "equal", oid: head } as RemoteSourceRefRelation };
+  const candidateState = { value: candidate as GitTransitionAuthorizationProof | null, refusal: null };
   return {
     readLocalProjection: vi.fn(async () => ({ ...local })),
-    readRemoteRef: vi.fn(async () => remoteRef.oid),
+    readRemoteRef: vi.fn(async () => remoteRef.relation.kind === "absent" ? null : remoteRef.relation.oid),
+    readRemoteSourceRef: vi.fn(async () => remoteRef.relation),
     readShippedEvidence: vi.fn().mockResolvedValue({
       evidence: shippedEvidence,
       remoteDisposition: "retain",
     }),
-    readReceiptCandidates: vi.fn(async () => candidateState.value === null
-      ? []
-      : [{ receipt: candidateState.value, resultHead: "c".repeat(40) }]),
-    validateReceiptRelation: vi.fn().mockResolvedValue(null),
-    validateReceiptResult: vi.fn().mockResolvedValue(null),
+    readGitTransitionProof: async () => candidateState.refusal !== null
+      ? { status: "refused", reason: candidateState.refusal }
+      : candidateState.value === null
+        ? { status: "refused", reason: "evidence-missing" }
+        : { status: "proved", proof: candidateState.value },
     local,
     remoteRef,
     candidate: candidateState,
@@ -107,8 +92,9 @@ describe("authorizeRetirement", () => {
   it.each([
     ["abandon", "discard-confirmed"],
     ["park-planning", "planning-relocated"],
-  ] as const)("authorizes a valid %s receipt and marks a matching remote for deletion", async (transition, authorization) => {
-    const ctx = context(receipt(transition));
+  ] as const)("authorizes a valid %s Git proof and marks a matching remote for deletion", async (transition, authorization) => {
+    const candidate = proof(transition);
+    const ctx = context(candidate);
 
     const decision = await authorizeRetirement(ctx, workUnitRequest);
 
@@ -120,22 +106,54 @@ describe("authorizeRetirement", () => {
         remote: { remote, oid: head, disposition: "delete" },
       },
       evidence: {
-        kind: "receipt",
+        kind: "git-transition",
         transition,
-        expectedLifecycle: transition === "park-planning" ? "planned" : "nonexistent",
+        resultDigest: gitTransitionResultDigest({
+          transition,
+          subject: workUnitRequest.subject,
+          branch: workUnitRequest.branch,
+          retiringHead: candidate.retiringHead,
+          resultHead: candidate.resultHead,
+          resultInventory: candidate.resultInventory,
+        }),
       },
     });
   });
 
-  it("refuses an advanced remote or a foreign-owned same-name local branch", async () => {
+  it.each([
+    ["an absent remote", { kind: "absent" }, null],
+    [
+      "a strict-ancestor remote",
+      { kind: "strict-ancestor", oid: ancestor },
+      { remote, oid: ancestor, disposition: "delete" },
+    ],
+  ] as const)("authorizes a valid Git transition with %s", async (_label, relation, expected) => {
     const ctx = context();
-    ctx.remoteRef.oid = "d".repeat(40);
-    await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
-      status: "refused",
-      reason: "projection-mismatch",
-    });
+    ctx.remoteRef.relation = relation;
 
-    ctx.remoteRef.oid = head;
+    const decision = await authorizeRetirement(ctx, workUnitRequest);
+
+    expect(decision).toMatchObject({
+      status: "authorized",
+      refs: { localOid: head, remote: expected },
+    });
+  });
+
+  it.each(["strict-descendant", "diverged"] as const)(
+    "refuses a %s remote",
+    async (kind) => {
+      const ctx = context();
+      ctx.remoteRef.relation = { kind, oid: "d".repeat(40) };
+
+      await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
+        status: "refused",
+        reason: "projection-mismatch",
+      });
+    },
+  );
+
+  it("refuses a foreign-owned same-name local branch", async () => {
+    const ctx = context();
     ctx.local.worktreeProjectionSafe = false;
     await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
       status: "refused",
@@ -143,7 +161,16 @@ describe("authorizeRetirement", () => {
     });
   });
 
-  it("refuses abandoned mode when no committed receipt proves the discard", async () => {
+  it("refuses a structural proof for a different retiring head", async () => {
+    const ctx = context({ ...proof(), retiringHead: "d".repeat(40) });
+
+    await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
+      status: "refused",
+      reason: "projection-mismatch",
+    });
+  });
+
+  it("refuses abandoned mode when no committed Git transition proves the result", async () => {
     const ctx = context();
     ctx.candidate.value = null;
 
@@ -153,20 +180,19 @@ describe("authorizeRetirement", () => {
     });
   });
 
-  it("refuses a rename receipt as teardown evidence before matrix validation", async () => {
-    const ctx = context(receipt("rename"));
+  it("preserves a structural proof refusal without manufacturing evidence", async () => {
+    const ctx = context();
+    ctx.candidate.refusal = "evidence-missing";
 
     await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
       status: "refused",
-      reason: "unsupported-transition",
+      reason: "evidence-missing",
     });
-    expect(ctx.validateReceiptRelation).not.toHaveBeenCalled();
-    expect(ctx.validateReceiptResult).not.toHaveBeenCalled();
   });
 
-  it("refuses a park receipt whose effective base lacks the conserved result", async () => {
-    const ctx = context(receipt("park-planning"));
-    vi.mocked(ctx.validateReceiptResult).mockResolvedValue("evidence-missing");
+  it("refuses a park proof whose effective base lacks the conserved result", async () => {
+    const ctx = context(proof("park-planning"));
+    ctx.candidate.refusal = "evidence-missing";
 
     await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
       status: "refused",
@@ -175,12 +201,12 @@ describe("authorizeRetirement", () => {
   });
 
   it.each([
-    [null, "retain", null],
-    [head, "delete", { remote, oid: head, disposition: "delete" }],
-    [head, "retain", { remote, oid: head, disposition: "retain" }],
-  ] as const)("resolves a shipped remote as %s / %s", async (remoteOid, disposition, expected) => {
+    ["absent", { kind: "absent" }, "retain", null],
+    ["equal", { kind: "equal", oid: head }, "delete", { remote, oid: head, disposition: "delete" }],
+    ["equal", { kind: "equal", oid: head }, "retain", { remote, oid: head, disposition: "retain" }],
+  ] as const)("resolves a shipped remote as %s / %s", async (_label, relation, disposition, expected) => {
     const ctx = context();
-    ctx.remoteRef.oid = remoteOid;
+    ctx.remoteRef.relation = relation;
     vi.mocked(ctx.readShippedEvidence).mockResolvedValue({
       evidence: shippedEvidence,
       remoteDisposition: disposition,
@@ -200,8 +226,8 @@ describe("authorizeRetirement", () => {
 describe("revalidateRetirementAuthorization", () => {
   it.each([
     ["local ref", (ctx: ReturnType<typeof context>) => { ctx.local.oid = "d".repeat(40); }],
-    ["remote ref", (ctx: ReturnType<typeof context>) => { ctx.remoteRef.oid = null; }],
-    ["receipt", (ctx: ReturnType<typeof context>) => { ctx.candidate.value = receipt("park-planning"); }],
+    ["remote ref", (ctx: ReturnType<typeof context>) => { ctx.remoteRef.relation = { kind: "absent" }; }],
+    ["transition", (ctx: ReturnType<typeof context>) => { ctx.candidate.value = proof("park-planning"); }],
   ] as const)("returns authority-conflict after a %s change without mutating branch state", async (_label, mutate) => {
     const ctx = context();
     const initial = await authorizeRetirement(ctx, workUnitRequest);

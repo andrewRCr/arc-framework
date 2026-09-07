@@ -144,6 +144,20 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
 - _Captured during:_ `recovery-load-scoping` retirement (2026-07-24). The analysis doc is the record-of-record;
   this capture is the pointer.
 
+### `[ ]` **Retire the vestigial `session-state` method**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: loadset-composition`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Phase 2.
+- _Concern:_ the method's three bullets duplicate always-loaded session-state rules, while its apparent override
+  seam is nonfunctional: session-init hard-codes its load set and the method default contains no document set.
+  Core session state is no longer a swappable mechanism; only specific elements are configurable.
+- _Fold-in:_ decide whether any genuine configurable residue survives and what it configures, then remove the
+  method from both copies, the install recipe and manifest, classification configuration, both lifecycle
+  workflows, and the session-init template. Keep this with the load-set owner rather than treating deletion as
+  a standalone cleanup.
+
+---
+
 ## Problem / Motivation
 
 ARC front-loads a fixed set of constitutional + state documents at every session-init (T1/T2 in

@@ -16,9 +16,11 @@ and is evolving toward, and the principles that keep interim work composable wit
 near-term WUs don't accrete tracked-`.arc/` assumptions a later migration must undo.
 
 **Scope:** Storage tiering, the tracked-vs-materialized line, forward-compat principles, integration boundaries with
-external tools, self-check triggers for plan / PRD authoring. First of three sibling check-docs: this doc owns _where
+external tools, self-check triggers for plan / PRD authoring. One of four sibling check-docs: this doc owns _where
 state lives_, [`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md) owns where non-procedural guidance
-lives, and [`strategy-procedure-evolution.md`](strategy-procedure-evolution.md) owns how procedure executes.
+lives, [`strategy-procedure-evolution.md`](strategy-procedure-evolution.md) owns how procedure executes, and
+[`strategy-pm-composition-evolution.md`](strategy-pm-composition-evolution.md) owns how ARC composes with external PM
+authorities.
 
 **Why project-internal:** Adopter-facing strategies in `strategies/arc/` describe what ARC IS. This describes
 direction for ARC's own evolution — for plan / PRD authors in this repo, not for adopters configuring ARC.
@@ -204,6 +206,12 @@ Touchpoints warranting joint attention:
   snapshot per save-commit (~660 and growing, never pruned; ancestor-walk load relies on the chain). Whether the
   backing store keeps full per-save history (nearest-ancestor load / time-travel) or compacts/prunes it is an open
   backing-store policy call — low-stakes today (pack-amortized), decide as the substrate's history model firms up.
+- **Tracked-tier delivery projection retirement** — native delivery currently reconstructs filtered member refs
+  because lifecycle artifacts ride the WU's code history and the published top remains append-only. When
+  operational state materializes off-branch and WU/session identity no longer couples to branch SHAs, replace that
+  projection with ordinary interior-ref members, register the complete stack including the top, and permit native
+  restacking end to end. Preserve the delivery-typed terminal-authorization arm and member-boundary verification;
+  those are substrate-independent contracts, not tracked-tier residue.
 
 This list is not exhaustive — other touchpoints surface during co-design.
 
@@ -222,6 +230,9 @@ This list is not exhaustive — other touchpoints surface during co-design.
   **[`strategy-procedure-evolution.md`](strategy-procedure-evolution.md)** — sibling check-docs (knowledge placement;
   procedural substrate). Their Principles 9 (projection-compatible) and 3 (verbs over mechanics) are the seams this
   doc's Principles 1, 2, and 6 compose with.
+- **[`strategy-pm-composition-evolution.md`](strategy-pm-composition-evolution.md)** — sibling check-doc for
+  field-level authority and external-PM composition; it owns the semantic boundary this doc's canonical-storage
+  principles constrain.
 - **`draft-local-mode.md`** — Local mode, tier-2 of the materialized substrate; its backing-store
   mechanics generalize to the hosted (backend) case.
 - **`adr-020-adopt-principle-anchored-scalable-core.md`** — the derived-vs-mutated split; mutable shared state

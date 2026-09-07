@@ -3,15 +3,15 @@
  * retired-WU user subdirs.
  *
  * A per-WU subdir under `user/{identity}/` is a retired candidate exactly when
- * its WU has shipped (read from the `origin/<base>` `completed/` tree — the
- * canonical, branch-independent oracle) — the same
+ * its WU has shipped (read from the advertised base OID's `completed/` tree —
+ * the canonical, branch-independent oracle) — the same
  * {@link planRetiredSubdirReconcile} decision the load / pull path acts on, read
  * against the same oracle so detection and remediation cannot disagree. This slot
  * only *surfaces* candidates; removal (with the `.internal/` backup) happens at
  * `arc user load` / `pull`.
  *
  * Follows the stale-worktree sweep's cheap-base / gated-expensive shape: the
- * local-subdir read is cheap; the shipped-ref read fires only when a local subdir
+ * local-subdir read is cheap; the shipped-tree read fires only when a local subdir
  * is present, so the common no-lingering-subdir session pays nothing for it.
  *
  * @module
@@ -26,6 +26,10 @@ import { serialize, type ReadDirFn, type ReadFileFn, type SyncManifest } from ".
 import { SlugSchema } from "../kernel/index.js";
 import { planRetiredSubdirReconcile, subdirsFromPaths } from "../user-sync/index.js";
 import { readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
+import { readShippedWorkUnitsFromExactRef } from "../work-unit/completed-index.js";
+import type { ObjectAvailabilityResult } from "../git/object-availability.js";
+import type { RemoteHeadSnapshotResult } from "../git/remote-ref-reader.js";
+import type { CleanupBaseEvidence } from "./cleanup-remote-evidence.js";
 
 export interface RunRetiredSubdirDetectionOptions {
   /** Repository root containing `.arc/`. */
@@ -34,6 +38,8 @@ export interface RunRetiredSubdirDetectionOptions {
   identity: string;
   /** Configured base branch — `shipped` is read from `origin/<baseBranch>`. */
   baseBranch: string;
+  /** Supplied advertised-base prerequisites; omitted only by compatibility callers. */
+  baseEvidence?: CleanupBaseEvidence;
   /** Git runner for the shipped-ref read. */
   exec: GitExec;
   /** Recursive user-dir reader (relative file paths) — `UserIOContext.readDir`. */
@@ -53,6 +59,43 @@ export const RetiredSubdirDetectionResultSchema = z.strictObject({
 /** Retired work-unit user subdirectories lingering locally. */
 export type RetiredSubdirDetectionResult = z.infer<typeof RetiredSubdirDetectionResultSchema>;
 
+/** Supplied prerequisites for retired-subdirectory analysis against advertised base evidence. */
+export interface AnalyzeRetiredSubdirSnapshotOptions {
+  exec: GitExec;
+  localSubdirs: readonly string[];
+  baseBranch: string;
+  remoteSyncEnabled: boolean;
+  snapshot: RemoteHeadSnapshotResult;
+  objectAvailability: ObjectAvailabilityResult;
+}
+
+/** Analyze retired subdirectories from one immutable advertised base snapshot. */
+export async function analyzeRetiredSubdirSnapshot(
+  options: AnalyzeRetiredSubdirSnapshotOptions,
+): Promise<RetiredSubdirDetectionResult> {
+  if (!options.remoteSyncEnabled || options.snapshot.kind === "unreachable") return { candidates: [] };
+  const baseOid = options.snapshot.tips[options.baseBranch];
+  if (baseOid === undefined) return { candidates: [] };
+  if (options.objectAvailability.kind !== "complete") {
+    throw new Error("Advertised base commit availability could not be inspected.");
+  }
+  const baseCommitIsLocal = options.objectAvailability.commits[baseOid];
+  if (baseCommitIsLocal === false) return { candidates: [] };
+  if (baseCommitIsLocal === undefined) {
+    throw new Error("The advertised base commit has no local availability fact.");
+  }
+  const localOnlyExec: GitExec = (command, args, execOptions) => options.exec(command, args, {
+    ...execOptions,
+    objectAccess: "local-only",
+  });
+  const shipped = await readShippedWorkUnitsFromExactRef(localOnlyExec, baseOid);
+  const { reconcile } = planRetiredSubdirReconcile({
+    localSubdirs: [...options.localSubdirs],
+    shipped,
+  });
+  return { candidates: reconcile.map((candidate) => SlugSchema.parse(candidate)) };
+}
+
 /**
  * Detect retired-WU user subdirs lingering under `user/{identity}/`.
  *
@@ -70,6 +113,17 @@ export async function runRetiredSubdirDetection(
     .catch(() => ({ version: 2, files: {} }) satisfies SyncManifest);
   const localSubdirs = subdirsFromPaths(Object.keys(diskManifest.files));
   if (localSubdirs.length === 0) return { candidates: [] };
+
+  if (options.baseEvidence !== undefined) {
+    return analyzeRetiredSubdirSnapshot({
+      exec,
+      localSubdirs,
+      baseBranch,
+      remoteSyncEnabled: options.baseEvidence.remoteSyncEnabled,
+      snapshot: options.baseEvidence.snapshot,
+      objectAvailability: options.baseEvidence.objectAvailability,
+    });
+  }
 
   const shipped = await readShippedWorkUnitsFromRef(exec, `origin/${baseBranch}`);
   const { reconcile } = planRetiredSubdirReconcile({ localSubdirs, shipped });

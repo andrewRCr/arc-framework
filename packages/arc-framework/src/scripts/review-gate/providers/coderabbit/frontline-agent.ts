@@ -1,11 +1,11 @@
-/** Version-pinned fail-closed parser for CodeRabbit agent-mode frontline output. */
+/** Structurally qualified, fail-closed parser for CodeRabbit agent-mode frontline output. */
 
 import { canonicalDigest } from "../../../../lib/kernel/index.js";
 
 import type { NormalizedReviewFinding } from "../../core/finding-records.js";
 
-export const CODERABBIT_AGENT_CLI_VERSION = "0.6.5";
 export const CODERABBIT_AGENT_MODE = "agent";
+export const CODERABBIT_AGENT_CONTRACT = "coderabbit-agent-ndjson/v1";
 
 export type CodeRabbitAgentProviderResult =
   | { kind: "clean" }
@@ -113,7 +113,7 @@ function normalizeFinding(event: AgentFindingEvent): NormalizedReviewFinding {
     findingId: canonicalDigest({
       schemaVersion: 1,
       provider: "coderabbit-cli",
-      cliVersion: CODERABBIT_AGENT_CLI_VERSION,
+      contract: CODERABBIT_AGENT_CONTRACT,
       mode: CODERABBIT_AGENT_MODE,
       finding: event,
     }),
@@ -146,7 +146,6 @@ export function parseCodeRabbitAgentResult(input: {
     };
   }
   if (isStructuredFileCapRefusal(input)) return { kind: "capability-unsupported" };
-  if (input.cliVersion !== CODERABBIT_AGENT_CLI_VERSION) return { kind: "malformed" };
   if (/rate limit(?:ed| exceeded)?/iu.test(`${input.stdout}\n${input.stderr}`)) {
     return { kind: "rate-limited" };
   }

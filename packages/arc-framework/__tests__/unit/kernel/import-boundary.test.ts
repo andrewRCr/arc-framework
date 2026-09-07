@@ -8,6 +8,7 @@ import ts from "typescript";
 import { auditKernelBoundary } from "./import-boundary.js";
 
 const temporaryRoots: string[] = [];
+const REPOSITORY_SCAN_TIMEOUT = 15_000;
 
 function fixture(files: Readonly<Record<string, string>>): { kernelRoot: string; sourceRoot: string } {
   const sourceRoot = mkdtempSync(join(tmpdir(), "arc-kernel-boundary-"));
@@ -49,18 +50,19 @@ describe("kernel import boundary", () => {
     }
 
     expect(values.sort()).toEqual([
-      "ArcError", "PrioritySchema", "ResultAsync", "SLUG_PATTERN", "SchemaError", "SlugSchema",
+      "ArcError", "PrioritySchema", "RemoteEvidenceSchema", "RemoteFailureReasonSchema", "ResultAsync",
+      "SLUG_PATTERN", "SchemaError", "SlugSchema",
       "WORK_UNIT_STATE_ORDER", "WorkClassSchema", "WorkUnitStateSchema", "assertCanonicalDigest",
       "canonicalDigest", "canonicalize", "createKernelRegistry", "createRegistry", "digestBytes", "err",
       "errAsync", "fromAsyncThrowable", "fromThrowable", "isCanonicalDigest", "isManagedPath", "isSlugSafe", "ok",
       "okAsync",
       "sortByCanonicalBytes", "toArcError", "validateClass", "validateManagedPath", "validatePriority",
-      "validateState",
+      "validateState", "withRemoteEvidence",
     ].sort());
     expect(types.sort()).toEqual([
       "ArcErrorCode", "CanonicalDigest", "KernelJSONSchema", "KernelJSONSchemaBundle", "KernelRegistry",
-      "KernelSchemaMeta", "ManagedPath", "MigrationPosture", "Priority", "Result", "SchemaErrorCode", "Slug",
-      "WorkClass", "WorkUnitState",
+      "KernelSchemaMeta", "ManagedPath", "MigrationPosture", "Priority", "RemoteEvidence",
+      "RemoteFailureReason", "Result", "SchemaErrorCode", "Slug", "WorkClass", "WorkUnitState",
     ].sort());
   });
 
@@ -186,5 +188,5 @@ describe("kernel import boundary", () => {
     const kernelRoot = join(sourceRoot, "lib/kernel");
 
     expect(auditKernelBoundary({ kernelRoot, sourceRoot })).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 });

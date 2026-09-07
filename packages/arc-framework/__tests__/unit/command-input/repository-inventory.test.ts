@@ -31,9 +31,15 @@ describe("repository command-input inventory", () => {
     );
   });
 
-  it("reconciles every live syntax and interaction site exactly once", () => {
+  it("reconciles every live syntax site and declared interaction use", () => {
     const syntaxCount = snapshot.source.commands.reduce(
       (count, command) => count + command.operands.length + command.options.length,
+      0,
+    );
+    const declaredInteractionCount = commandInputPolicyDeclarations.reduce(
+      (count, declaration) => count + declaration.sites.filter(
+        (site) => "interaction" in site.source && site.source.interaction !== undefined,
+      ).length,
       0,
     );
     const declaredSemanticSites = inventory.entries
@@ -41,7 +47,7 @@ describe("repository command-input inventory", () => {
       .map((entry) => entry.identity);
 
     expect(inventory.entries).toHaveLength(
-      syntaxCount + snapshot.source.interactions.length + declaredSemanticSites.length,
+      syntaxCount + declaredInteractionCount + declaredSemanticSites.length,
     );
     expect(declaredSemanticSites).toEqual([
       "join:semantic.identity",
@@ -72,6 +78,49 @@ describe("repository command-input inventory", () => {
         identity: "user sync:interaction.handlers-user-sync.ts-prompt-p.select-1",
         acquisition: "safe-default",
         noInput: "use-default",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan from-tasks:option.design-inventory",
+        acquisition: "handler-required",
+        schemaOwnership: "owned",
+        schemaField: "designInventory",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan from-tasks:option.task-list",
+        acquisition: "safe-default",
+        schemaOwnership: "owned",
+        schemaField: "taskList",
+        noInput: "use-default",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan from-branch:option.design-inventory",
+        acquisition: "handler-required",
+        schemaOwnership: "owned",
+        schemaField: "designInventory",
+      }),
+      expect.objectContaining({
+        identity: "delivery compose:option.landed-prefix",
+        acquisition: "required-evidence",
+        schemaOwnership: "owned",
+        schemaField: "landedPrefix",
+      }),
+      expect.objectContaining({
+        identity: "delivery compose:option.json",
+        schemaOwnership: "owned",
+        schemaField: "json",
+      }),
+      expect.objectContaining({
+        identity: "delivery plan abandon:option.json",
+        schemaOwnership: "owned",
+        schemaField: "json",
+      }),
+      expect.objectContaining({
+        identity: "review change-request resolve:option.head-ref",
+        acquisition: "parser-required",
+      }),
+      expect.objectContaining({
+        identity: "review change-request resolve:option.head-sha",
+        acquisition: "parser-required",
       }),
     ]));
     expect(new Set(inventory.entries.map((entry) => entry.identity)).size).toBe(inventory.entries.length);
@@ -149,6 +198,98 @@ describe("repository command-input inventory", () => {
     expect(command?.action?.interactionContext).toBe(true);
   });
 
+  it("assigns the byte-preserving raw Git boundary to its command families", () => {
+    const rawGitCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.lib-git-process-executor.ts-subprocess-execa-2")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(rawGitCommands).toEqual([
+      "abandon",
+      "activate",
+      "archive",
+      "attest",
+      "base merge",
+      "candidate applicability resolve",
+      "deactivate",
+      "decompose",
+      "delivery compose",
+      "delivery eligibility close",
+      "delivery eligibility prepare",
+      "delivery entry inspect",
+      "delivery land apply",
+      "delivery land prepare",
+      "delivery native land-prepare",
+      "delivery native land-select",
+      "delivery native land-status",
+      "delivery native land-submit",
+      "delivery native link",
+      "delivery native observe",
+      "delivery native unlink",
+      "delivery plan abandon",
+      "delivery plan from-branch",
+      "delivery plan from-tasks",
+      "delivery position",
+      "delivery publish",
+      "delivery reconcile",
+      "delivery refresh execute",
+      "delivery rematerialize",
+      "delivery rewrite",
+      "delivery teardown",
+      "delivery top-remedy",
+      "demote",
+      "finalize",
+      "integrate checkpoint",
+      "integrate merge",
+      "materialize",
+      "park",
+      "promote",
+      "publish",
+      "rename",
+      "reopen",
+      "repoint-design",
+      "resume",
+      "review change-request resolve",
+      "review chunking resolve",
+      "review planning-lane",
+      "review pre-publication",
+      "review status",
+      "review terminus accept",
+      "set-stage",
+      "start",
+      "status",
+      "stub",
+      "teardown",
+      "user reconcile-references",
+      "wu reconcile",
+    ]);
+  });
+
+  it("assigns the close-stdin hosted GitHub boundary to every reachable command family", () => {
+    const hostedCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.scripts-review-gate-hosted-gh-process.ts-subprocess-execa-1")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(hostedCommands).toEqual([
+      "delivery native land-prepare",
+      "delivery native land-select",
+      "delivery native land-status",
+      "delivery native land-submit",
+      "delivery native link",
+      "delivery native observe",
+      "delivery native unlink",
+      "delivery refresh execute",
+      "delivery top-remedy",
+      "integrate checkpoint",
+      "integrate merge",
+      "review",
+      "review pre-publication",
+      "review status",
+      "review terminus accept",
+    ]);
+  });
+
   it("routes lifecycle and errand command boundaries through the interaction-context adapter", () => {
     const adapterCommands = new Map(snapshot.source.commands.map((command) => [
       command.path,
@@ -163,14 +304,13 @@ describe("repository command-input inventory", () => {
       "materialize",
       "activate",
       "deactivate",
-      "integrate",
+      "publish",
       "reopen",
       "archive",
       "teardown",
       "set-stage",
       "finalize",
       "repoint-design",
-      "errand retire",
     ];
 
     expect(expected.filter((command) => adapterCommands.get(command) !== true)).toEqual([]);

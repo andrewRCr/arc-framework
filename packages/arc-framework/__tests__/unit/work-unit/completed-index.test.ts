@@ -4,6 +4,7 @@ import {
   branchToWorkUnitSlug,
   computeArchiveDestination,
   isShippedWorkUnit,
+  readArchivedWorkUnitMetaFromRef,
   readCompletedEvidenceFromRef,
   readShippedWorkUnits,
   readShippedWorkUnitRecordsFromRef,
@@ -275,6 +276,35 @@ describe("readShippedWorkUnitsFromRef", () => {
   });
 });
 
+describe("readArchivedWorkUnitMetaFromRef", () => {
+  it("reads only the exact archived metadata blob for a work-unit slug", async () => {
+    const path = ".arc/completed/2026-q3/49_demo/meta-demo.md";
+    const result = await readArchivedWorkUnitMetaFromRef(buildTreeExec({
+      paths: [
+        path,
+        ".arc/completed/2026-q3/49_demo/tasks-demo.md",
+        ".arc/completed/2026-q3/50_other/meta-other.md",
+      ],
+      blobs: { [path]: "# Metadata: demo\n" },
+    }), "a".repeat(40), "demo");
+
+    expect(result).toEqual({ kind: "read", path, text: "# Metadata: demo\n" });
+  });
+
+  it("preserves duplicate exact metadata paths as ambiguity", async () => {
+    const paths = [
+      ".arc/completed/2026-q2/12_demo/meta-demo.md",
+      ".arc/completed/2026-q3/49_demo/meta-demo.md",
+    ];
+
+    await expect(readArchivedWorkUnitMetaFromRef(
+      buildTreeExec({ paths, blobs: {} }),
+      "a".repeat(40),
+      "demo",
+    )).resolves.toEqual({ kind: "duplicate", paths });
+  });
+});
+
 describe("computeArchiveDestination", () => {
   // June 2026 → 2026-q2 (month index 5 ÷ 3 = quarter 2).
   const clock = (): Date => new Date(2026, 5, 15, 12, 0, 0);
@@ -342,6 +372,13 @@ describe("branchToWorkUnitSlug", () => {
 
   it("returns null for a branch carrying no <type>/ prefix", () => {
     expect(branchToWorkUnitSlug("main")).toBeNull();
+  });
+
+  it("reserves delivery branches as presentation refs rather than work-unit identities", () => {
+    expect(branchToWorkUnitSlug("delivery/example/first-member")).toBeNull();
+    expect(branchToWorkUnitSlug("feat/example")).toBe("example");
+    expect(branchToWorkUnitSlug("fix/example")).toBe("example");
+    expect(branchToWorkUnitSlug("plan/example")).toBe("example");
   });
 });
 

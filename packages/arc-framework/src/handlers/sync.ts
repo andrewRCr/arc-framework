@@ -82,7 +82,7 @@ import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { pushBranchBoundedNotesExport } from "../lib/user-sync/branch-bounded-notes-export.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
-  runWorktreeSyncStatus,
+  runMaterializingWorktreeInspection,
   type WorktreeSyncState,
 } from "../lib/git/worktree-sync.js";
 import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
@@ -472,12 +472,11 @@ export async function handleSync(
     readFile: io.readFile,
     warn: (message) => { output.log.warn(message); },
   });
-  const remoteSyncEnabled = resolvedSettings.settings["session.remote_sync"] === "enabled";
   const pushInterlock = resolvedSettings.resolved.pushInterlock.value;
   const syncInterlock = resolvedSettings.resolved.syncInterlock;
   const notesPushResolved = resolvedSettings.resolved.notesPush;
 
-  const worktree = await runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled });
+  const worktree = await runMaterializingWorktreeInspection({ exec: io.exec, cwd });
   const branch = worktree.branch;
 
   let notesPush = notesPushResolved.value;
@@ -673,7 +672,7 @@ function errandPartialPushDetail(
   markerRecorded: boolean,
 ): string {
   const detail = outcome.kind === "conflict"
-    ? `conflict:slugs=${outcome.slugs.join(",")}:recovery=arc errand close --force <slug> on discarded side`
+    ? `conflict:slugs=${outcome.slugs.join(",")}:recovery=resolve the same-slug identity conflict before retrying`
     : outcome.kind;
   return markerRecorded ? detail : `${detail}:marker-not-recorded`;
 }

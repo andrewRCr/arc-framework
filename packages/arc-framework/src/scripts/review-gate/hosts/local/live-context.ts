@@ -10,7 +10,10 @@ import {
   toMetaRecord,
   type MetaRecord,
 } from "../../../../lib/active/meta-reader.js";
-import { readErrandSlugByBranch } from "../../../../lib/errand/record.js";
+import {
+  projectTransientInFlightRead,
+  readTransientInFlightIndexes,
+} from "../../../../lib/errand/record.js";
 import { readConfiguredIdentity } from "../../../../lib/git/identity.js";
 import type { LocalReviewLiveContext } from "./review-authority.js";
 
@@ -24,7 +27,7 @@ export async function readLocalReviewLiveContext(input: {
   exec: GitExec;
   cwd: string;
 }): Promise<ResolvedLocalReviewLiveContext> {
-  const activeIdentity = await readConfiguredIdentity(input.exec);
+  const activeIdentity = await readConfiguredIdentity(input.exec, input.cwd);
   const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.cwd,
   })).stdout.trim();
@@ -49,7 +52,9 @@ export async function readLocalReviewLiveContext(input: {
       meta,
     };
   }
-  const errands = await readErrandSlugByBranch({ exec: input.exec, identity: activeIdentity });
+  const errands = projectTransientInFlightRead(
+    await readTransientInFlightIndexes({ exec: input.exec, identity: activeIdentity }),
+  ).indexes.slugByBranch;
   return {
     context: {
       activeIdentity,

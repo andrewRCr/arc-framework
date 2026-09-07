@@ -2,19 +2,15 @@
  * Retirement-authority contract for terminal worktree cleanup.
  *
  * The public vocabulary describes preservation evidence rather than lifecycle
- * state. Drivers record evidence through this port; teardown consumes only its
- * typed authorization decisions and never inspects adapter storage directly.
+ * state. Teardown consumes only typed authorization decisions and never
+ * inspects adapter storage directly.
  */
 
-import type { CanonicalDigest } from "../canonical/canonical-json.js";
-import type { RetirementTransition } from "../canonical/receipt-id.js";
+import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import type { ManagedPath } from "../canonical/managed-path.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
-import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
-import type {
-  DecomposeIncomingEdgeInventoryEntry,
-  DecomposeOutgoingEdgeInventoryEntry,
-  DecomposeSourceInventoryEntry,
-} from "./decompose-inventory.js";
+
+type DirectRetirementTransition = "abandon" | "park-planning" | "rename";
 
 /** Preservation fact that can authorize a terminal worktree transition. */
 export type HuskAuthorization = "merged-preserved" | "discard-confirmed" | "planning-relocated";
@@ -37,12 +33,44 @@ export type RetirementEvidenceRef =
       baseProofOid: string;
     }
   | {
-      kind: "receipt";
-      receiptId: CanonicalDigest;
-      transition: RetirementTransition;
-      expectedLifecycle: "planned" | "nonexistent";
+      kind: "git-transition";
+      transition: "abandon" | "park-planning";
       resultDigest: CanonicalDigest;
     };
+
+/** Lifecycle result derived from a receipt-free Git transition kind. */
+export function gitTransitionExpectedLifecycle(
+  transition: Extract<RetirementEvidenceRef, { kind: "git-transition" }>["transition"],
+): "planned" | "nonexistent" {
+  return transition === "park-planning" ? "planned" : "nonexistent";
+}
+
+/** Inputs bound into one replay-stable Git transition result digest. */
+export interface GitTransitionResultDigestInput {
+  transition: Extract<RetirementEvidenceRef, { kind: "git-transition" }>["transition"];
+  subject: WorktreeSubject;
+  branch: string;
+  retiringHead: string;
+  resultHead: string;
+  resultInventory: readonly { path: ManagedPath; contentDigest: CanonicalDigest }[];
+}
+
+/** Digest one pinned receipt-free transition result for authorization and replay. */
+export function gitTransitionResultDigest(input: GitTransitionResultDigestInput): CanonicalDigest {
+  return canonicalDigest({
+    domain: "arc.git-transition-result",
+    schemaVersion: 1,
+    transition: input.transition,
+    subject: input.subject,
+    branch: input.branch,
+    retiringHead: input.retiringHead,
+    resultHead: input.resultHead,
+    expectedLifecycle: gitTransitionExpectedLifecycle(input.transition),
+    resultInventory: [...input.resultInventory]
+      .sort((left, right) => Buffer.compare(Buffer.from(left.path, "utf8"), Buffer.from(right.path, "utf8")))
+      .map(({ path, contentDigest }) => ({ path, contentDigest })),
+  });
+}
 
 /** Persisted evidence preserves unknown future kinds without authorizing them. */
 export type PersistedRetirementEvidence =
@@ -57,95 +85,10 @@ export type DecodedRetirementEvidence =
       value: { kind: string } & Readonly<Record<string, unknown>>;
     };
 
-export type { DecomposeAllocationMap } from "./decompose-cut-map.js";
-
-/** Safe direct locator for one persisted decompose preparation. */
-export interface DecomposePreparationLocator {
-  receiptId: CanonicalDigest;
-  preparationId: CanonicalDigest;
-  scope: RetirementAuthorityScope;
-}
-
-/** Prepared decompose state returned to its driver. */
-export interface PreparedDecomposeRetirement {
-  locator: DecomposePreparationLocator;
-  record: DecomposePreparationRecord;
-  authorityVersion: string;
-}
-
-/** Durable compare-and-set envelope written before decompose mutates artifacts. */
-interface DecomposePreparationRecordBase {
-  kind: "prepared-decompose";
-  locator: DecomposePreparationLocator;
-  allocation: DecomposeAllocationMap;
-  sourceInventory: DecomposeSourceInventoryEntry[];
-  incomingEdgeInventory: DecomposeIncomingEdgeInventoryEntry[];
-  outgoingEdgeInventory: DecomposeOutgoingEdgeInventoryEntry[];
-  allowedPaths: string[];
-  sourceArtifactDigest: CanonicalDigest;
-  sourceInventoryDigest: CanonicalDigest;
-  incomingEdgeInventoryDigest: CanonicalDigest;
-  outgoingEdgeInventoryDigest: CanonicalDigest;
-  cutMapDigest: CanonicalDigest;
-}
-
-/** Closed quality fact for the lifecycle inventory bound into retirement evidence. */
-export type InventoryRead = "not-applicable" | "tree-only" | "reachable" | "degraded";
-
-/** Exact historical and current decompose preparation envelopes. */
-export type DecomposePreparationRecord =
-  | (DecomposePreparationRecordBase & { schemaVersion: 1 })
-  | (DecomposePreparationRecordBase & {
-      schemaVersion: 2;
-      inventoryRead: Exclude<InventoryRead, "not-applicable">;
-      transformedIncomingDependents: string[];
-    });
-
-/** Canonical non-shipped retirement receipt. */
-interface RetirementReceiptBase {
-  receiptId: CanonicalDigest;
-  subject: WorktreeSubject;
-  transition: RetirementTransition;
-  source: {
-    branch: string;
-    head: string;
-    artifactDigest: CanonicalDigest;
-  };
-  transitionPatchDigest: CanonicalDigest;
-  retiringProjection: { kind: "direct-transition" } | { kind: "unchanged" };
-  authorization: Exclude<HuskAuthorization, "merged-preserved"> | "identity-renamed";
-  result:
-    | { kind: "discard"; artifactDigest: "absent" }
-    | {
-        kind: "decompose";
-        preparationId: CanonicalDigest;
-        allocation: DecomposeAllocationMap;
-        cutMapDigest: CanonicalDigest;
-        sourceInventoryDigest: CanonicalDigest;
-        incomingEdgeInventoryDigest: CanonicalDigest;
-        outgoingEdgeInventoryDigest: CanonicalDigest;
-        sourceInventory?: DecomposeSourceInventoryEntry[];
-        incomingEdgeInventory?: DecomposeIncomingEdgeInventoryEntry[];
-        outgoingEdgeInventory?: DecomposeOutgoingEdgeInventoryEntry[];
-        transformedIncomingDependents?: string[];
-        targets: ReadonlyArray<{
-          path: string;
-          artifactDigest: CanonicalDigest;
-        }>;
-      }
-    | { kind: "relocate"; plannedArtifactDigest: CanonicalDigest }
-    | { kind: "rename"; targetSlug: string; artifactDigest: CanonicalDigest };
-}
-
-/** Exact historical and current retirement receipt envelopes. */
-export type RetirementReceipt =
-  | (RetirementReceiptBase & { schemaVersion: 1 })
-  | (RetirementReceiptBase & { schemaVersion: 2; inventoryRead: InventoryRead });
-
 /** Exact source and result projections bound by an authority snapshot. */
 export interface RetirementAuthorityScope {
   subject: WorktreeSubject;
-  transition: RetirementTransition;
+  transition: DirectRetirementTransition;
   source: {
     branch: string;
     head: string;
@@ -161,7 +104,6 @@ export interface RetirementAuthoritySnapshot {
   authorityVersion: string;
   sourceRefOid: string;
   resultRefOid: string;
-  recordState: "absent" | "prepared-decompose";
 }
 
 /** Exact live teardown request. */
@@ -209,25 +151,6 @@ export interface RetirementAuthorityPort {
     | { status: "refused"; reason: TeardownAuthorizationRefusal }
   >;
 
-  record(receipt: RetirementReceipt, expectedAuthorityVersion: string): Promise<
-    | { status: "recorded"; authorityVersion: string }
-    | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string }
-  >;
-
-  prepareDecompose(
-    scope: RetirementAuthorityScope,
-    allocation: DecomposeAllocationMap,
-    expectedAuthorityVersion: string,
-  ): Promise<
-    | { status: "prepared"; preparation: PreparedDecomposeRetirement }
-    | { status: "refused"; reason: TeardownAuthorizationRefusal }
-  >;
-
-  finalizeDecompose(locator: DecomposePreparationLocator, expectedAuthorityVersion: string): Promise<
-    | { status: "recorded"; receipt: RetirementReceipt; authorityVersion: string }
-    | { status: "refused"; reason: TeardownAuthorizationRefusal }
-  >;
-
   authorize(request: TeardownAuthorizationRequest): Promise<TeardownAuthorizationDecision>;
 
   revalidate(
@@ -266,37 +189,6 @@ export function worktreeSubjectsEqual(left: WorktreeSubject, right: WorktreeSubj
  */
 export function retirementSubjectRefusal(subject: WorktreeSubject): TeardownAuthorizationRefusal | null {
   return subject.kind === "errand" ? "unsupported-transition" : null;
-}
-
-/**
- * Validate the fixed transition/authorization/lifecycle/result matrix.
- *
- * @param receipt - Receipt whose cross-fields must agree
- * @param expectedLifecycle - Lifecycle location claimed by its evidence reference
- * @returns `null` for the fixed valid combinations, otherwise `evidence-mismatch`
- */
-export function validateReceiptMatrix(
-  receipt: RetirementReceipt,
-  expectedLifecycle: "planned" | "nonexistent",
-): TeardownAuthorizationRefusal | null {
-  const valid =
-    (receipt.transition === "abandon"
-      && receipt.authorization === "discard-confirmed"
-      && expectedLifecycle === "nonexistent"
-      && receipt.result.kind === "discard")
-    || (receipt.transition === "decompose"
-      && receipt.authorization === "discard-confirmed"
-      && expectedLifecycle === "nonexistent"
-      && receipt.result.kind === "decompose")
-    || (receipt.transition === "park-planning"
-      && receipt.authorization === "planning-relocated"
-      && expectedLifecycle === "planned"
-      && receipt.result.kind === "relocate")
-    || (receipt.transition === "rename"
-      && receipt.authorization === "identity-renamed"
-      && expectedLifecycle === "nonexistent"
-      && receipt.result.kind === "rename");
-  return valid ? null : "evidence-mismatch";
 }
 
 /**

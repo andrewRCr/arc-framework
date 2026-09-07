@@ -8,16 +8,17 @@ import {
 } from "../../../src/lib/status/roadmap-conflict-auto-remedy.js";
 import { ROADMAP_PATH } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
-function isStagedReceiptList(args: readonly string[]): boolean {
+function isStagedTransitionList(args: readonly string[]): boolean {
   return args.join("\0") === [
     "diff",
     "--cached",
     "--name-only",
-    "--diff-filter=A",
+    "--diff-filter=AM",
     "-z",
     "--",
-    ".arc/system/.internal/retirement-receipts",
+    ".arc/system/.internal/transitions",
   ].join("\0");
 }
 
@@ -82,13 +83,164 @@ describe("assessRoadmapConflictAutoRemedy", () => {
 });
 
 describe("applyRoadmapConflictAutoRemedy", () => {
+  it("regenerates from the staged index without a separate merge-authority adapter", async () => {
+    const metaPath = ".arc/active/meta-origin.md";
+    const siblingPath = ".arc/active/meta-sibling.md";
+    const meta = [
+      "# Metadata: origin",
+      "",
+      "- **State:** Active",
+      "- **Owner:** andrew",
+      "- **Branch:** plan/origin",
+      "- **Priority:** P1",
+      "- **Cohort:** [none]",
+      "- **Depends On:** [none]",
+      "",
+      "---",
+      "",
+    ].join("\n");
+    const siblingMeta = meta
+      .replace("# Metadata: origin", "# Metadata: sibling")
+      .replace("plan/origin", "feat/sibling");
+    let written = "";
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (isStagedTransitionList(args)) return { stdout: "", stderr: "" };
+      if (args[0] === "ls-files") return { stdout: "", stderr: "" };
+      if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
+      if (args[0] === "worktree") {
+        return {
+          stdout: worktreePorcelainZ([
+            "worktree /tmp/origin",
+            `HEAD ${"a".repeat(40)}`,
+            "branch refs/heads/plan/origin",
+            "",
+            "worktree /tmp/sibling",
+            `HEAD ${"b".repeat(40)}`,
+            "branch refs/heads/feat/sibling",
+          ].join("\n")),
+          stderr: "",
+        };
+      }
+      if (args[0] === "ls-tree" && args.includes("--name-only")) {
+        return {
+          stdout: args.includes("feat/sibling") ? `${siblingPath}\n` : `${metaPath}\n`,
+          stderr: "",
+        };
+      }
+      if (args.join("\0") === ["show", `plan/origin:${metaPath}`].join("\0")) {
+        return { stdout: meta, stderr: "" };
+      }
+      if (args.join("\0") === ["show", `plan/origin:${siblingPath}`].join("\0")) {
+        return { stdout: siblingMeta, stderr: "" };
+      }
+      if (args.join("\0") === ["show", `feat/sibling:${siblingPath}`].join("\0")) {
+        return { stdout: siblingMeta, stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args.includes("--abbrev-ref")) {
+        return { stdout: "HEAD\n", stderr: "" };
+      }
+      if (args[0] === "add") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+
+    const result = await applyRoadmapConflictAutoRemedy(
+      {
+        cwd: "/repo",
+        exec,
+        writeFile: async (_path, content) => {
+          written = content;
+        },
+        baseBranch: "main",
+        renderedRef: "fixed-stamp",
+      },
+      { eligible: true, trigger: "merge-staged-roadmap" },
+    );
+
+    expect(result.status).toBe("applied");
+    expect(written).toMatch(/\| `Active` \| sibling\s+\|/u);
+    expect(written).toMatch(/\| `Active` \| origin\s+\|/u);
+  });
+
+  it("resolves an unmerged transition through an alternate index before publishing", async () => {
+    const head = "a".repeat(40);
+    const writes: string[] = [];
+    let candidateStaged = false;
+    const indexFile = "/repo/.git/index.lock";
+    const commit = vi.fn(async () => undefined);
+    const rollback = vi.fn(async () => undefined);
+    const exec: GitExec = vi.fn(async (_cmd, args, options): Promise<ExecResult> => {
+      if (args.join("\0") === ["rev-parse", "--verify", "HEAD^{commit}"].join("\0")) {
+        return { stdout: `${head}\n`, stderr: "" };
+      }
+      if (args.join("\0") === [
+        "rev-parse",
+        "--verify",
+        "refs/heads/main^{commit}",
+      ].join("\0")) {
+        return { stdout: `${head}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-files" && args.includes("--unmerged")) {
+        return {
+          stdout: [
+            `100644 ${"c".repeat(40)} 1\t${ROADMAP_PATH}`,
+            `100644 ${"d".repeat(40)} 2\t${ROADMAP_PATH}`,
+            `100644 ${"b".repeat(40)} 3\t${ROADMAP_PATH}`,
+            "",
+          ].join("\0"),
+          stderr: "",
+        };
+      }
+      if (args[0] === "update-index") {
+        if (options?.indexFile !== indexFile) {
+          throw new Error("candidate ROADMAP staged outside alternate index");
+        }
+        candidateStaged = true;
+        return { stdout: "", stderr: "" };
+      }
+      if (isStagedTransitionList(args)) return { stdout: "", stderr: "" };
+      if (args[0] === "ls-files") return { stdout: "", stderr: "" };
+      if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
+      if (args[0] === "worktree") return { stdout: "", stderr: "" };
+      if (args[0] === "ls-tree") return { stdout: "", stderr: "" };
+      if (args[0] === "rev-parse" && args.includes("--abbrev-ref")) {
+        return { stdout: "main\n", stderr: "" };
+      }
+      if (args[0] === "add") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+    const result = await applyRoadmapConflictAutoRemedy(
+      {
+        cwd: "/repo",
+        exec,
+        writeFile: async (_path, content) => {
+          writes.push(content);
+        },
+        captureIndexState: async () => ({
+          indexFile,
+          commit,
+          rollback,
+        }),
+        baseBranch: "main",
+        renderedRef: "fixed-stamp",
+      },
+      { eligible: true, trigger: "unmerged-only-roadmap" },
+    );
+
+    expect(result.status).toBe("applied");
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain("# Roadmap: Project Status");
+    expect(candidateStaged).toBe(true);
+    expect(commit).toHaveBeenCalledOnce();
+    expect(rollback).not.toHaveBeenCalled();
+  });
+
   it("writes the regenerated ROADMAP and restages it when eligible", async () => {
     const writes: Array<{ path: string; content: string }> = [];
     const gitArgs: string[][] = [];
 
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
       gitArgs.push([...args]);
-      if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
+      if (isStagedTransitionList(args)) return { stdout: "", stderr: "" };
       if (args[0] === "ls-files") return { stdout: "", stderr: "" };
       if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
       if (args[0] === "worktree") return { stdout: "", stderr: "" };
@@ -131,7 +283,11 @@ describe("applyRoadmapConflictAutoRemedy", () => {
     });
 
     const result = await applyRoadmapConflictAutoRemedy(
-      { cwd: "/repo", exec, writeFile },
+      {
+        cwd: "/repo",
+        exec,
+        writeFile,
+      },
       { eligible: false, reason: "wider-conflict" },
     );
 
@@ -141,7 +297,7 @@ describe("applyRoadmapConflictAutoRemedy", () => {
 
   it("returns failed when the worktree write throws", async () => {
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
-      if (isStagedReceiptList(args)) return { stdout: "", stderr: "" };
+      if (isStagedTransitionList(args)) return { stdout: "", stderr: "" };
       if (args[0] === "ls-files") return { stdout: "", stderr: "" };
       if (args[0] === "for-each-ref") return { stdout: "", stderr: "" };
       if (args[0] === "worktree") return { stdout: "", stderr: "" };
@@ -163,7 +319,7 @@ describe("applyRoadmapConflictAutoRemedy", () => {
         baseBranch: "main",
         renderedRef: "fixed-stamp",
       },
-      { eligible: true, trigger: "unmerged-only-roadmap" },
+      { eligible: true, trigger: "markers-only-roadmap" },
     );
 
     expect(result).toEqual({ status: "failed", message: "disk full" });

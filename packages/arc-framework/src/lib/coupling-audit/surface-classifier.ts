@@ -20,6 +20,7 @@ const PACKAGE_ROOT_CONFIG = new Set([
   "packages/arc-framework/tsconfig.json",
   "packages/arc-framework/tsconfig.test.json",
   "packages/arc-framework/tsup.config.ts",
+  "packages/arc-framework/tsup.fast.config.ts",
   "packages/arc-framework/vitest.config.ts",
 ]);
 

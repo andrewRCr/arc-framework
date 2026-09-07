@@ -26,6 +26,8 @@ interface MetaSpec {
   slug: string;
   state: string;
   branch?: string;
+  currentWorkflow?: string;
+  taskList?: string | null;
 }
 
 /** Build an injectable index fs over a fixed set of `active/` metas. */
@@ -43,9 +45,17 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
         `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
         `|-----------|-----------|------------|-----------|--------------|\n` +
         `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "feat/foo"}\` | \`Novel\` | \`P1\` |\n\n` +
+        `- **Task List:** ${meta.taskList === null ? "[none]" : `\`tasks-${meta.slug}.md\``}\n` +
+        `- **Current Workflow:** ${meta.currentWorkflow ?? "[none]"}\n` +
         `- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n` +
         `- **Next Action:** continue.\n\n---\n`,
     );
+    if (meta.taskList !== null) {
+      files.set(
+        `${activeDir}/tasks-${meta.slug}.md`,
+        meta.taskList ?? "## **Phase 1:** Verification\n\n### `[x]` **1.1 Complete verification**\n",
+      );
+    }
   }
 
   return {
@@ -61,12 +71,14 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 interface Harness {
   ctx: ExecuteTransitionContext;
   calls: string[];
+  currentWorkflowWrites: string[];
   withdrawInputs: ("close" | "draft" | undefined)[];
   softWrites: Record<string, string>[];
 }
 
 function buildCtx(metas: MetaSpec[]): Harness {
   const calls: string[] = [];
+  const currentWorkflowWrites: string[] = [];
   const withdrawInputs: Harness["withdrawInputs"] = [];
   const softWrites: Record<string, string>[] = [];
 
@@ -97,26 +109,31 @@ function buildCtx(metas: MetaSpec[]): Harness {
     reconcileBranch: async (op) => {
       calls.push(`branch:${op.mutation}`);
     },
-    reconcileWorktree: async () => {
+    reconcileWorkUnitWorktree: async () => {
       calls.push("worktree:spawn");
       return { mutation: "spawn", worktreePath: "/wt", branch: "x" };
     },
     writeBranchField: async () => {
       calls.push("write:branch");
     },
-    writeCurrentWorkflowField: async () => {
+    writeCurrentWorkflowField: async (_path, workflow) => {
       calls.push("write:current-workflow");
+      currentWorkflowWrites.push(workflow);
     },
     writeDesignField: async () => {
       calls.push("write:design");
     },
     writeSoftFields: async (_path, updates) => {
+      calls.push("write:soft-fields");
       softWrites.push(updates as Record<string, string>);
+    },
+    stageMeta: async () => {
+      calls.push("stage:meta");
     },
     sideEffects,
   };
 
-  return { ctx, calls, withdrawInputs, softWrites };
+  return { ctx, calls, currentWorkflowWrites, withdrawInputs, softWrites };
 }
 
 const INTEGRATING: MetaSpec = { slug: "foo", state: "Integrating", branch: "feat/foo" };
@@ -126,7 +143,7 @@ const BASE: ReopenParams = { name: "foo", prMerged: false };
 
 describe("runReopen — the set-phase-only move", () => {
   it("flips Integrating back to Active with no location move and no branch rotation", async () => {
-    const { ctx, calls } = buildCtx([INTEGRATING]);
+    const { ctx, calls, currentWorkflowWrites } = buildCtx([INTEGRATING]);
 
     const result = await runReopen(ctx, BASE);
 
@@ -139,8 +156,162 @@ describe("runReopen — the set-phase-only move", () => {
     }
     expect(result.metaPath).toBe(".arc/active/meta-foo.md");
     expect(calls).toContain("setPhase:Active");
+    expect(currentWorkflowWrites).toEqual(["prepare-work-unit"]);
     // No location move and no branch rotation — the working branch already carries its prefix.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
+  });
+
+  it("returns to task execution when withdrawal names reopened work", async () => {
+    const task = "Task 6.11.R — Revalidate the amended member boundary";
+    const { ctx, currentWorkflowWrites, softWrites } = buildCtx([{
+      ...INTEGRATING,
+      taskList: "## **Phase 6:** Delivery\n\n### `[ ]` **6.11.R Revalidate the amended member boundary**\n",
+    }]);
+
+    const result = await runReopen(ctx, {
+      ...BASE,
+      nextTask: task,
+    });
+
+    expect(result.status).toBe("reopened");
+    expect(currentWorkflowWrites).toEqual(["[none]"]);
+    expect(softWrites).toEqual([{
+      "Next Task": task,
+      "Next Action": "[none]",
+    }]);
+  });
+
+  it("refuses a narrative task that does not match the canonical executable cursor", async () => {
+    const { ctx, calls } = buildCtx([{
+      ...INTEGRATING,
+      taskList: "## **Phase 6:** Delivery\n\n### `[ ]` **6.11.R Revalidate the amended member boundary**\n",
+    }]);
+
+    const result = await runReopen(ctx, {
+      ...BASE,
+      nextTask: "Task 6.11.R — A different narrative",
+    });
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining("Task 6.11.R — Revalidate the amended member boundary"),
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses no-task reopen while an executable cursor remains open", async () => {
+    const { ctx, calls } = buildCtx([{
+      ...INTEGRATING,
+      taskList: "## **Phase 2:** Work\n\n### `[ ]` **2.1 Finish execution**\n",
+    }]);
+
+    const result = await runReopen(ctx, BASE);
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining("Task 2.1 — Finish execution"),
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses task reopen when the canonical task list is already closed", async () => {
+    const { ctx, calls } = buildCtx([INTEGRATING]);
+
+    const result = await runReopen(ctx, { ...BASE, nextTask: "Task 1.1 — Complete verification" });
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/closed|no open/iu) });
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
+    ["unbound", { ...INTEGRATING, taskList: null }],
+    ["malformed", { ...INTEGRATING, taskList: "- `[ ]` **1.1 Invalid root task**\n" }],
+  ] as const)("refuses %s task-list authority before withdrawal", async (_label, meta) => {
+    const { ctx, calls } = buildCtx([meta]);
+
+    const result = await runReopen(ctx, BASE);
+
+    expect(result).toMatchObject({ status: "rejected" });
+    expect(calls).toEqual([]);
+  });
+
+  it("finishes the exact partial Active projection and idempotently replays withdrawal", async () => {
+    const { ctx, calls, currentWorkflowWrites, withdrawInputs, softWrites } = buildCtx([{
+      slug: "foo",
+      state: "Active",
+      branch: "feat/foo",
+      currentWorkflow: "integrate-work-unit",
+    }]);
+
+    await expect(runReopen(ctx, BASE)).resolves.toMatchObject({ status: "reopened" });
+    expect(currentWorkflowWrites).toEqual(["prepare-work-unit"]);
+    expect(softWrites).toEqual([{ "Next Task": "[none]", "Next Action": "[none]" }]);
+    expect(calls).toContain("stage:meta");
+    expect(calls).toContain("side:reconcile-roadmap");
+    expect(calls).not.toContain("setPhase:Active");
+    expect(calls).toContain("side:withdraw-pr");
+    expect(calls).toContain("side:reconcile-status-user");
+    expect(withdrawInputs).toEqual(["close"]);
+  });
+
+  it.each(["soft-fields", "stage-meta"] as const)(
+    "repairs a %s finalization failure after withdrawal changed the phase",
+    async (failure) => {
+      const first = buildCtx([INTEGRATING]);
+      if (failure === "soft-fields") {
+        first.ctx.writeSoftFields = async () => {
+          throw new Error("soft-field write failed");
+        };
+      } else {
+        first.ctx.stageMeta = async () => {
+          throw new Error("meta staging failed");
+        };
+      }
+      await expect(runReopen(first.ctx, BASE)).resolves.toMatchObject({ status: "rejected" });
+
+      const retry = buildCtx([{
+        slug: "foo",
+        state: "Active",
+        branch: "feat/foo",
+        currentWorkflow: "integrate-work-unit",
+      }]);
+      await expect(runReopen(retry.ctx, BASE)).resolves.toMatchObject({ status: "reopened" });
+      expect(retry.currentWorkflowWrites).toEqual(["prepare-work-unit"]);
+      expect(retry.softWrites).toEqual([{ "Next Task": "[none]", "Next Action": "[none]" }]);
+      expect(retry.calls).toContain("stage:meta");
+      expect(retry.calls).toContain("side:withdraw-pr");
+    },
+  );
+
+  it("does not treat an ordinary Active work unit as an interrupted reopen", async () => {
+    const { ctx, calls } = buildCtx([{
+      slug: "foo",
+      state: "Active",
+      branch: "feat/foo",
+      currentWorkflow: "prepare-work-unit",
+    }]);
+
+    await expect(runReopen(ctx, BASE)).resolves.toMatchObject({ status: "rejected" });
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
+    [true, /merged/iu],
+    [undefined, /can't be confirmed|unverifiable|unavailable/iu],
+  ] as const)("reapplies the PR guard before recovering a partial Active projection", async (prMerged, reason) => {
+    const { ctx, calls } = buildCtx([{
+      slug: "foo",
+      state: "Active",
+      branch: "feat/foo",
+      currentWorkflow: "integrate-work-unit",
+    }]);
+
+    const result = await runReopen(ctx, { name: "foo", prMerged });
+
+    expect(result).toMatchObject({ status: "rejected" });
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(reason);
+    expect(calls).toEqual([]);
   });
 });
 
@@ -150,10 +321,10 @@ describe("runReopen — soft-field disposition", () => {
 
     await runReopen(ctx, BASE);
 
-    // Withdrawing from review back to Active: the integration `Next Action` is
-    // cleared (no longer "open the PR"); `Next Task` stays untouched.
+    // Withdrawing from review back to Candidate preparation clears the
+    // integration orientation and restores the closed-task sentinel.
     expect(softWrites).toHaveLength(1);
-    expect(softWrites[0]).toEqual({ "Next Action": "[none]" });
+    expect(softWrites[0]).toEqual({ "Next Task": "[none]", "Next Action": "[none]" });
   });
 });
 

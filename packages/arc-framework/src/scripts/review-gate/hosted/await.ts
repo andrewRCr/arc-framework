@@ -1,10 +1,17 @@
 /** Bounded passive wait contract for hosted pull-request reviews. */
 
 import { z } from "zod";
+import {
+  boundedWait,
+  type BoundedWaitAttempt,
+  type BoundedWaitClock,
+} from "../bounded-wait.js";
 
 import {
+  HostedAwaitActionSchema,
   HostedRequestHandleSchema,
   HostedTargetSchema,
+  hostedAwaitAction,
   type HostedProviderId,
   type HostedRequestHandle,
 } from "./request.js";
@@ -45,6 +52,7 @@ const HostedObservationSchema = z.discriminatedUnion("kind", [
     kind: z.literal("findings"),
     reviewUrl: z.url(),
     findings: z.array(HostedFindingSchema).min(1),
+    responseSourceRef: z.string().trim().min(1).optional(),
   }),
   z.strictObject({ kind: z.literal("rate-limited") }),
   z.strictObject({ kind: z.literal("transient-unavailable") }),
@@ -52,20 +60,39 @@ const HostedObservationSchema = z.discriminatedUnion("kind", [
 ]);
 export type HostedObservation = z.infer<typeof HostedObservationSchema>;
 
-export const HostedAwaitEnvelopeSchema = z.strictObject({
+const HostedAwaitRequestShape = {
   schemaVersion: z.literal(1),
   handle: HostedRequestHandleSchema,
-  timeoutMs: z.int().positive().max(30 * 60 * 1_000),
-  pollIntervalMs: z.int().positive().max(60 * 1_000),
-}).refine((value) => value.pollIntervalMs <= value.timeoutMs, {
-  message: "pollIntervalMs must not exceed timeoutMs",
+};
+
+const TimeoutSecondsSchema = z.int().positive().max(30 * 60);
+const InitialPollIntervalSecondsSchema = z.int().positive().max(60);
+const TimeoutMsSchema = z.int().positive().max(30 * 60 * 1_000);
+const PollIntervalMsSchema = z.int().positive().max(60 * 1_000);
+
+export const HostedAwaitEnvelopeSchema = z.strictObject({
+  ...HostedAwaitRequestShape,
+  timeoutSeconds: TimeoutSecondsSchema.optional(),
+  initialPollIntervalSeconds: InitialPollIntervalSecondsSchema.optional(),
+  continueAfterAttention: z.literal(true).optional(),
+}).refine((value) => value.timeoutSeconds === undefined
+  || value.initialPollIntervalSeconds === undefined
+  || value.initialPollIntervalSeconds <= value.timeoutSeconds, {
+  message: "initialPollIntervalSeconds must not exceed timeoutSeconds",
 });
 export type HostedAwaitEnvelope = z.infer<typeof HostedAwaitEnvelopeSchema>;
 
-export interface HostedAwaitClock {
-  now(): number;
-  sleep(milliseconds: number): Promise<void>;
-}
+export const HostedAwaitExecutionEnvelopeSchema = z.strictObject({
+  ...HostedAwaitRequestShape,
+  timeoutMs: TimeoutMsSchema,
+  pollIntervalMs: PollIntervalMsSchema,
+  continueAfterAttention: z.literal(true).optional(),
+}).refine((value) => value.pollIntervalMs <= value.timeoutMs, {
+  message: "pollIntervalMs must not exceed timeoutMs",
+});
+export type HostedAwaitExecutionEnvelope = z.infer<typeof HostedAwaitExecutionEnvelopeSchema>;
+
+export type HostedAwaitClock = BoundedWaitClock;
 
 export interface HostedReviewObserver {
   id: HostedProviderId;
@@ -84,7 +111,16 @@ export const HostedAwaitResultSchema = z.union([
     ...HostedAwaitResultBaseShape,
     state: z.literal("pending"),
     nextAction: z.literal("await"),
+    action: HostedAwaitActionSchema,
     elapsedMs: z.number().nonnegative(),
+  }),
+  z.strictObject({
+    ...HostedAwaitResultBaseShape,
+    state: z.literal("pending"),
+    nextAction: z.literal("inspect-or-extend"),
+    action: HostedAwaitActionSchema,
+    ageMs: z.number().nonnegative(),
+    attentionAfterMs: z.number().int().positive(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
@@ -98,6 +134,7 @@ export const HostedAwaitResultSchema = z.union([
     nextAction: z.literal("triage"),
     reviewUrl: z.url(),
     findings: z.array(HostedFindingSchema).min(1),
+    responseSourceRef: z.string().trim().min(1).optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
@@ -135,24 +172,99 @@ function base(handle: HostedRequestHandle): HostedAwaitBase {
   return { schemaVersion: 1, mode: "review-hosted-await", handle };
 }
 
-function nextDelay(attempt: number, intervalMs: number, remainingMs: number): number {
-  const exponent = Math.min(attempt, 4);
-  return Math.min(intervalMs * (2 ** exponent), remainingMs);
+function requestAgeMs(handle: HostedRequestHandle, nowMs: number): number {
+  return Math.max(0, nowMs - Date.parse(handle.artifact.createdAt));
 }
 
-function isDeadlineAbort(error: unknown): boolean {
-  return error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name);
+function attentionRequired(
+  handle: HostedRequestHandle,
+  ageMs: number,
+  attentionAfterMs: number,
+): HostedAwaitResult {
+  return {
+    ...base(handle),
+    state: "pending",
+    nextAction: "inspect-or-extend",
+    action: hostedAwaitAction(handle),
+    ageMs,
+    attentionAfterMs,
+  };
 }
 
-/** Observe one already-requested review until it completes or the bounded call expires. */
+async function observeHostedReview(
+  observer: HostedReviewObserver,
+  handle: HostedRequestHandle,
+  signal: AbortSignal,
+): Promise<BoundedWaitAttempt<HostedAwaitResult>> {
+  const actualHeadSha = await observer.readHead(handle, { signal });
+  if (actualHeadSha !== handle.target.headSha) {
+    return { kind: "return", value: {
+      ...base(handle),
+      state: "stale-target",
+      nextAction: "stop",
+      expectedHeadSha: handle.target.headSha,
+      actualHeadSha,
+    } } as const;
+  }
+
+  const rawObservation = await observer.observe(handle, { signal });
+  const parsed = HostedObservationSchema.safeParse(rawObservation);
+  if (!parsed.success) {
+    return { kind: "return", value: {
+      ...base(handle),
+      state: "malformed-output",
+      nextAction: "stop",
+      reason: parsed.error.message,
+    } } as const;
+  }
+  const observation = parsed.data;
+  if (observation.kind === "clean") {
+    return { kind: "return", value: {
+      ...base(handle), state: "clean", nextAction: "complete", reviewUrl: observation.reviewUrl,
+    } } as const;
+  }
+  if (observation.kind === "findings") {
+    return { kind: "return", value: {
+      ...base(handle),
+      state: "findings",
+      nextAction: "triage",
+      reviewUrl: observation.reviewUrl,
+      findings: observation.findings,
+    } } as const;
+  }
+  if (observation.kind === "rate-limited" || observation.kind === "transient-unavailable") {
+    return { kind: "return", value: {
+      ...base(handle), state: observation.kind, nextAction: "try-next-source",
+    } } as const;
+  }
+  if (observation.kind === "terminal-failure") {
+    return { kind: "return", value: {
+      ...base(handle),
+      state: "terminal-failure",
+      nextAction: "stop",
+      reason: observation.reason,
+    } } as const;
+  }
+  return { kind: "continue" } as const;
+}
+
+/**
+ * Observe one already-requested review until it completes or a timing boundary expires.
+ *
+ * @param input - Effective await request with a bounded call window.
+ * @param dependencies - Provider observers, clock, and unattended-wait attention threshold.
+ * @returns A provider result, resumable pending state, or pending state requiring attention.
+ */
 export async function awaitHostedReview(
   input: unknown,
   dependencies: {
     observers: readonly HostedReviewObserver[];
     clock: HostedAwaitClock;
+    attentionAfterMs: number;
   },
 ): Promise<HostedAwaitResult> {
-  const request = HostedAwaitEnvelopeSchema.parse(input);
+  const request = HostedAwaitExecutionEnvelopeSchema.parse(input);
+  const attentionAfterMs = z.number().int().positive().parse(dependencies.attentionAfterMs);
   const observer = dependencies.observers.find((candidate) => candidate.id === request.handle.provider);
   if (observer === undefined) {
     return {
@@ -161,99 +273,49 @@ export async function awaitHostedReview(
       nextAction: "stop",
     };
   }
-
-  const startedAt = dependencies.clock.now();
-  let attempt = 0;
-  for (;;) {
-    const elapsedMs = dependencies.clock.now() - startedAt;
-    const remainingMs = request.timeoutMs - elapsedMs;
-    if (remainingMs <= 0) {
-      return { ...base(request.handle), state: "pending", nextAction: "await", elapsedMs };
-    }
-
-    const signal = AbortSignal.timeout(remainingMs);
-    let actualHeadSha: string;
-    try {
-      actualHeadSha = await observer.readHead(request.handle, { signal });
-    } catch (error) {
-      if (isDeadlineAbort(error)) {
-        return {
-          ...base(request.handle),
-          state: "pending",
-          nextAction: "await",
-          elapsedMs: dependencies.clock.now() - startedAt,
-        };
-      }
-      throw error;
-    }
-    if (actualHeadSha !== request.handle.target.headSha) {
-      return {
-        ...base(request.handle),
-        state: "stale-target",
-        nextAction: "stop",
-        expectedHeadSha: request.handle.target.headSha,
-        actualHeadSha,
-      };
-    }
-
-    let rawObservation: unknown;
-    try {
-      rawObservation = await observer.observe(request.handle, { signal });
-    } catch (error) {
-      if (isDeadlineAbort(error)) {
-        return {
-          ...base(request.handle),
-          state: "pending",
-          nextAction: "await",
-          elapsedMs: dependencies.clock.now() - startedAt,
-        };
-      }
-      throw error;
-    }
-    const parsed = HostedObservationSchema.safeParse(rawObservation);
-    if (!parsed.success) {
-      return {
-        ...base(request.handle),
-        state: "malformed-output",
-        nextAction: "stop",
-        reason: parsed.error.message,
-      };
-    }
-    const observation = parsed.data;
-    if (observation.kind === "clean") {
-      return { ...base(request.handle), state: "clean", nextAction: "complete", reviewUrl: observation.reviewUrl };
-    }
-    if (observation.kind === "findings") {
-      return {
-        ...base(request.handle),
-        state: "findings",
-        nextAction: "triage",
-        reviewUrl: observation.reviewUrl,
-        findings: observation.findings,
-      };
-    }
-    if (observation.kind === "rate-limited" || observation.kind === "transient-unavailable") {
-      return { ...base(request.handle), state: observation.kind, nextAction: "try-next-source" };
-    }
-    if (observation.kind === "terminal-failure") {
-      return {
-        ...base(request.handle),
-        state: "terminal-failure",
-        nextAction: "stop",
-        reason: observation.reason,
-      };
-    }
-
-    const afterReadRemaining = request.timeoutMs - (dependencies.clock.now() - startedAt);
-    if (afterReadRemaining <= 0) {
-      return {
-        ...base(request.handle),
-        state: "pending",
-        nextAction: "await",
-        elapsedMs: dependencies.clock.now() - startedAt,
-      };
-    }
-    await dependencies.clock.sleep(nextDelay(attempt, request.pollIntervalMs, afterReadRemaining));
-    attempt += 1;
+  const initialAgeMs = requestAgeMs(request.handle, dependencies.clock.now());
+  if (initialAgeMs >= attentionAfterMs && request.continueAfterAttention !== true) {
+    return boundedWait<HostedAwaitResult>({
+      timeoutMs: request.timeoutMs,
+      pollIntervalMs: request.pollIntervalMs,
+      clock: dependencies.clock,
+      deadline: () => attentionRequired(
+        request.handle,
+        requestAgeMs(request.handle, dependencies.clock.now()),
+        attentionAfterMs,
+      ),
+      attempt: async ({ signal }) => {
+        const observation = await observeHostedReview(observer, request.handle, signal);
+        return observation.kind === "continue"
+          ? { kind: "return", value: attentionRequired(
+              request.handle,
+              requestAgeMs(request.handle, dependencies.clock.now()),
+              attentionAfterMs,
+            ) }
+          : observation;
+      },
+    });
   }
+
+  return boundedWait<HostedAwaitResult>({
+    timeoutMs: request.continueAfterAttention === true
+      ? request.timeoutMs
+      : Math.min(request.timeoutMs, attentionAfterMs - initialAgeMs),
+    pollIntervalMs: request.pollIntervalMs,
+    clock: dependencies.clock,
+    deadline: (elapsedMs): HostedAwaitResult => {
+      const ageMs = requestAgeMs(request.handle, dependencies.clock.now());
+      return ageMs >= attentionAfterMs
+        ? attentionRequired(request.handle, ageMs, attentionAfterMs)
+        : {
+            ...base(request.handle),
+            state: "pending",
+            nextAction: "await",
+            action: hostedAwaitAction(request.handle),
+            elapsedMs,
+          };
+    },
+    attempt: ({ signal }): Promise<BoundedWaitAttempt<HostedAwaitResult>> =>
+      observeHostedReview(observer, request.handle, signal),
+  });
 }

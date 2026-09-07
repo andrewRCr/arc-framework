@@ -15,6 +15,8 @@ import {
   type CurrentWuReconcilePrepareContext,
   type DependencyReconcileConflictReason,
 } from "../work-unit/side-effects/discharge-dep-edges.js";
+/** Current-WU reconcile probe input. */
+export type CurrentWuReconcileSessionOp = Omit<CurrentWuReconcileOp, "apply">;
 
 /** Session-entry projection of one current-WU reconcile inspection. */
 export interface CurrentWuReconcileSessionResult {
@@ -38,7 +40,7 @@ export interface CurrentWuReconcileSessionResult {
  */
 export async function runCurrentWuReconcileSessionProbe(
   ctx: CurrentWuReconcilePrepareContext,
-  op: Omit<CurrentWuReconcileOp, "apply">,
+  op: CurrentWuReconcileSessionOp,
 ): Promise<CurrentWuReconcileSessionResult> {
   const result = await prepareCurrentWuReconcile(ctx, op);
   if (result.status === "clean") {

@@ -15,11 +15,11 @@ import { LoadSetManifestSchema } from "../load-set/types.js";
 import { LoadSetAuditVerdictSchema } from "../load-set/audit.js";
 import { RecoveryAuditVerdictSchema } from "../recover/audit.js";
 import { RecoverAuditReportSchema } from "../recover/report.js";
-import { BaseBranchSyncStatusResultSchema } from "../git/base-branch-sync.js";
+import { BaseBranchSnapshotAnalysisResultSchema } from "../git/base-branch-sync.js";
 import { CascadeResolutionSchema } from "../session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../session-init/errand-staleness-sweep.js";
 import { InboxStateResultSchema } from "../session-init/inbox-state.js";
-import { MaterializableWorkUnitsResultSchema } from "../session-init/materializable-work-units.js";
+import { MaterializableWorkUnitDiscoveryResultSchema } from "../session-init/materializable-work-units.js";
 import { NotesCompactionSessionAdvisoryResultSchema } from "../session-init/notes-compaction-advisory.js";
 import { OrphanBranchSweepResultSchema } from "../session-init/orphan-branch-sweep.js";
 import { PartialPushMarkerSurfaceResultSchema } from "../session-init/partial-push-marker-surface.js";
@@ -57,13 +57,13 @@ const STRICT_CURRENT_V1 = {
 } as const;
 
 /**
- * Create a fresh kernel registry extended with session-envelope family roots.
+ * Register the session-envelope family roots in an existing kernel registry.
  *
- * @returns Isolated registry containing kernel vocabulary and family schemas
+ * @param registry - Registry receiving the public session-envelope schemas
+ * @returns The same registry after registration
  */
-export function createSessionEnvelopeRegistry(): KernelRegistry {
-  const registry = createKernelRegistry();
-  registry.register(BaseBranchSyncStatusResultSchema, {
+export function registerSessionEnvelopeSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(BaseBranchSnapshotAnalysisResultSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync,
     ...STRICT_CURRENT_V1,
   });
@@ -95,7 +95,7 @@ export function createSessionEnvelopeRegistry(): KernelRegistry {
     id: SESSION_ENVELOPE_SCHEMA_IDS.loadSetManifest,
     ...STRICT_CURRENT_V1,
   });
-  registry.register(MaterializableWorkUnitsResultSchema, {
+  registry.register(MaterializableWorkUnitDiscoveryResultSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.materializableWorkUnits,
     ...STRICT_CURRENT_V1,
   });
@@ -140,4 +140,13 @@ export function createSessionEnvelopeRegistry(): KernelRegistry {
     ...STRICT_CURRENT_V1,
   });
   return registry;
+}
+
+/**
+ * Create a fresh kernel registry extended with session-envelope family roots.
+ *
+ * @returns Isolated registry containing kernel vocabulary and family schemas
+ */
+export function createSessionEnvelopeRegistry(): KernelRegistry {
+  return registerSessionEnvelopeSchemas(createKernelRegistry());
 }

@@ -2,12 +2,13 @@
 
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { GitExec } from "../../../lib/git/exec.js";
+import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
+import { canonicalize } from "../../../lib/kernel/index.js";
 import {
   LocalReviewOperationStateStore,
 } from "../hosts/local/operation-state-store.js";
 import {
-  RepositoryGitCommonStatePublisher,
   resolveRepositoryIdentity,
   withRepositoryReviewSweepLock,
 } from "../hosts/local/git-common-state.js";
@@ -17,9 +18,13 @@ import {
   ensureLocalReviewSourceMaterialized,
 } from "../hosts/local/review-materialization.js";
 import {
+  composeDeliveryMemberTarget,
   deriveLocalReviewTarget,
   confirmLocalReviewTarget,
 } from "../hosts/local/repository-target.js";
+import {
+  RepositoryDeliveryMemberLookup,
+} from "../hosts/local/delivery-member-lookup.js";
 import {
   resolveLocalReviewAuthority,
 } from "../hosts/local/review-authority.js";
@@ -48,6 +53,8 @@ import { RepositoryLocalReviewSourceSweepAdapter } from "../hosts/local/source-s
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import { sweepLocalReviewSources } from "../core/local-source-sweep.js";
 import type { LocalPrepareDependencies } from "./local-prepare.js";
+import { resolveReviewStatus } from "../status.js";
+import { createReviewStatusPort } from "../status-composition.js";
 
 const LOCAL_STANDARD_SOURCE = {
   sourceKind: "agent",
@@ -74,10 +81,12 @@ export function createLocalPrepareDependencies(input: {
     liveContext ??= readLocalReviewLiveContext(input);
     return liveContext;
   };
+  const memberLookup = new RepositoryDeliveryMemberLookup(input);
   const methodFiles = createLocalReviewMethodFilePort({ cwd: input.cwd });
   const rubricPort = createLocalReviewRubricBindingPort({ cwd: input.cwd });
 
   return {
+    laneSourceId: "delegated-agent",
     operationStore,
     sourceStore,
     now: () => new Date().toISOString(),
@@ -96,33 +105,44 @@ export function createLocalPrepareDependencies(input: {
     },
     readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),
     resolveRepositoryId: () => resolveRepositoryIdentity(publisher),
-    deriveTarget: async (repositoryId) => {
+    deriveTarget: async (repositoryId, member) => {
       const config = await readConfigSettings(input.cwd);
-      return deriveLocalReviewTarget({
+      const boundary = {
         exec: input.exec,
         cwd: input.cwd,
         baseRef: config.settings["branch.base"],
         repositoryId,
-      });
+      };
+      return member === undefined
+        ? deriveLocalReviewTarget(boundary)
+        : composeDeliveryMemberTarget({ ...boundary, member });
     },
     confirmTarget: (target) => confirmLocalReviewTarget({
       exec: input.exec,
       cwd: input.cwd,
       attemptedTarget: target,
     }),
-    resolveAuthority: (evaluatorIdentity) => resolveLocalReviewAuthority(
-      { evaluatorIdentity },
+    resolveAuthority: (evaluatorIdentity, memberHeadObjectId, deliveryAdmission) => resolveLocalReviewAuthority(
+      {
+        evaluatorIdentity,
+        ...(memberHeadObjectId === undefined ? {} : { memberHeadObjectId }),
+        ...(deliveryAdmission === undefined ? {} : { deliveryAdmission }),
+      },
       {
         readLiveContext: async () => (await readLive()).context,
         resolveRuntimeBinding: () => Promise.resolve({
           kind: "arc-cli",
           identity: `arc-cli/${getFrameworkVersion()}`,
         }),
+        memberLookup,
       },
     ),
     composeAssurance: async (authority: LocalReviewAuthority) => {
       const live = await readLive();
-      if (authority.vehicle.kind === "work-unit") {
+      // A member's assurance is its owning work unit's: same meta, same work
+      // class, same rubric. Left unrouted it would fall to the Errand arm below
+      // and compose an assurance with no work class at all.
+      if (authority.vehicle.kind === "work-unit" || authority.vehicle.kind === "delivery-member") {
         if (live.meta === null) return { status: "refused", diagnostics: ["work-unit meta unavailable"] };
         const composed = composeWorkUnitReviewAssurance(live.meta, methodFiles, rubricPort);
         if (composed.status === "refused") {
@@ -153,6 +173,18 @@ export function createLocalPrepareDependencies(input: {
         source: LOCAL_STANDARD_SOURCE,
         runtimeKind: authority.attestationRuntimeKind,
       });
+    },
+    validateDeliveryAdmission: async (admission) => {
+      const current = await resolveReviewStatus({
+        target: admission.statusTarget,
+        ...(admission.ceilingOverride === undefined
+          ? {}
+          : { ceilingOverride: admission.ceilingOverride }),
+      }, createReviewStatusPort(input));
+      if (current.nextAction !== "review-local-prepare"
+        || canonicalize(current.action) !== canonicalize(admission)) {
+        throw new Error("Local delivery-member review no longer has exact driver admission.");
+      }
     },
     describeSource: (operationId, target) => createLocalReviewSourceDescriptor({
       exec: input.exec,

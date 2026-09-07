@@ -13,13 +13,16 @@ git hooks, and a CLI package — all agent-platform agnostic.
 **Work pipeline:** PRD → task generation → task execution loop. One task = one review
 increment; see DEV-RULES.ARC § Task Execution.
 
-**Methods and extensions:** Behavior modules under `system/methods/` and `system/extensions/`,
-loaded when workflow YAML frontmatter declares them.
+**Methods and extensions:** Behavior modules under `system/methods/` and `system/extensions/`. Workflows root the
+declared method graph; methods carry their own nested dependencies, and each loads at its direct fire-point.
+Extensions remain workflow-declared.
 
 **Review authority:** Agent-side review methods and extensions are best-effort ergonomics. They improve a change
 and may produce evidence eligible for a review obligation, but an agent workflow can be bypassed by a host-UI merge.
-Only a configured required host-side check structurally enforces merge safety; never infer that guarantee from
-`self-review`, `frontline-review`, a clean report, or passing local checks.
+Host-side merge controls are distinct from agent-layer discipline: a required status check is fail-closed repo
+configuration; draft-state lock (`merge.lock: draft`) is a per-PR structural hold whose installation is procedural.
+**Never infer merge safety from `self-review`, `frontline-review`, a clean report, or passing local checks** ·
+`[invariant]`.
 
 **Quality gates:** Per-project — defined in DEV-RULES.PROJECT, referenced via the
 `quality-gate-commands` method.
@@ -56,16 +59,33 @@ Precise meanings — assume the technical sense.
   dependency ordering over a set of deliverables. Projects that never separate merge topology need only `chunk`.
 - **Errand:** Off-WU wrapper for a single _self-evident_ concern — below the spec-worthiness floor (no design
   worth recording, no durable plan a correct execution must navigate). Always **atomic** (below); no meta or
-  lifecycle — state derives from its branch + PR.
+  WU lifecycle. A transient identity may preserve exact pause/review re-entry without becoming a durable plan.
+- **Locus:** One registered checkout plus the ARC role derived from its marker, tracked lifecycle, transient
+  identity, and Git topology. A WU-owned locus is exclusive from spawn, materialization, or explicit `--here` entry
+  through exact teardown. The physical primary is the launchpad only while its marker is absent, it is clean, and
+  it is on the configured base; transient allocation never displaces a WU role.
+- **Transient identity:** The exact logical claim for an Errand, grooming set, or housekeep sweep. It may outlive
+  local occupancy while paused or awaiting merge, but creates no WU meta, task list, or SESSION-NOTES.
 - **atomic:** Work _character_ — one _indivisible_ concern in a single session, no stage needing _durable_
   (cross-session) decomposition. _Typically_ one review increment, but pass- and commit-count are incidental:
   a _determinate_ concern may run a bounded few _in-session_ passes (an _extended errand_) and stay atomic. A
   descriptor, not a wrapper; inboxes route by _fate_ (Errand vs WU), not character. Not the concurrency sense.
+- **Default:** A rule the agent may set aside in the moment by naming the fact that discharges it and disclosing
+  that fact where the developer is already reading. Every rule ARC states is one unless marked `[invariant]`; see
+  DEV-RULES.ARC § Rule Authority for the reading that classifies an unmarked rule and the discharge protocol. Not
+  "optional" — silent divergence is a violation, not a discharge.
+- **Invariant:** A rule the agent may not set aside on its own authority, marked `[invariant]` where the classifying
+  reading does not settle it. It withholds the authority to _decide_, never the capability to act: every invariant
+  has a **holder**, and that holder making the reserved decision is the rule working rather than a waiver.
+  Orthogonal to `[configurable]`, which governs whether the _project_ may set a rule's shape — the two axes compose.
+- **Dischargeable:** Said of the doubt a rule guards — whether the fact that would settle it is the agent's own
+  to establish, or already supplied (dischargeable, so a default), or lives with someone else and has not been
+  said (undischargeable, so an invariant — obtain the missing input rather than proceed with a note).
 - **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
   Configurable: `commit-`, `push-`.
 - **Review increment:** One bounded unit of execution; closes with a structured approval gate that precedes any
-  commit invocation, wrapped or raw. Default boundary: one leaf task. Applies
+  commit invocation, wrapped or raw. Applies
   universally — task list work, off-task / incidental, workflow stages.
   **Deferred review** = a batch suspending per-leaf stops within scope — user-scoped ("proceed to 3.4")
   or agent-proposed at a coupled parent (proposes, user approves; never self-invoked); commit-interlock

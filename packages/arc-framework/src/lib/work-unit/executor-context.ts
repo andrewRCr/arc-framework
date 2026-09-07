@@ -31,7 +31,17 @@
  * @module
  */
 
-import { readdir, rmdir } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  rmdir,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 import {
@@ -45,6 +55,7 @@ import {
   reconcileMetaFields,
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
+import { checkCurrentWorkflowConsistency } from "../active/current-workflow-consistency.js";
 import { captureGitIndexState, getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
 import { renderRoadmapFromIndexViewResult } from "../status/roadmap-regeneration-assert.js";
@@ -52,12 +63,14 @@ import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import type { UserIOContext } from "../../commands/user/types.js";
+import type { RawGitExec } from "../change-facts.js";
+import { createExecaRawGitExec } from "../git/process-executor.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
 import {
-  enumerateGitRetirementRecords,
-  queryGitRetirementDisposition,
-} from "./git-retirement-record-enumeration.js";
+  enumerateGitTransitionRecords,
+  queryGitTransitionDisposition,
+} from "./git-transition-record-enumeration.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
 import { listParkedSlugs } from "./lifecycle-resolver.js";
 import { listCurrentWuArtifactPaths } from "./reference-reconcile.js";
@@ -65,9 +78,10 @@ import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-ex
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
 import {
-  nodeReconcileWorktreeFs,
-  reconcileWorktree,
-} from "./mutators/reconcile-worktree.js";
+  nodeReconcileWorkUnitWorktreeFs,
+  provisionSpawnedWorktree,
+  reconcileWorkUnitWorktree,
+} from "./mutators/reconcile-work-unit-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
 import {
@@ -77,6 +91,10 @@ import {
 } from "./side-effects/discharge-dep-edges.js";
 import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
 import { withdrawPr } from "./side-effects/withdraw-pr.js";
+import { transitionOverlayCompositionInput } from "./transition-overlay.js";
+import { atomicGraduate } from "./atomic-graduation.js";
+import { createNodeTeardownSelectionReader } from "./teardown-selection.js";
+import { createNodeTeardownWorktreeTransactionDriver } from "./teardown-worktree-transaction.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
@@ -92,6 +110,8 @@ export interface ExecutorContextDeps {
   baseBranch?: string;
   /** Internal template directory for the user-workspace SESSION-NOTES seed. */
   internalTemplateDir: string;
+  /** Optional byte-preserving Git seam for transition history reads. */
+  transitionExec?: RawGitExec;
 }
 
 /**
@@ -115,6 +135,13 @@ export function buildExecutorContext(
   // guard checks the *target worktree*, not the base repo). Order matters: `cwd`
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
+  const transitionExec = deps.transitionExec ?? createExecaRawGitExec(cwd);
+  const readTeardownSelection = identity === null
+    ? undefined
+    : createNodeTeardownSelectionReader({ exec, identity });
+  const teardownWorktree = identity === null
+    ? undefined
+    : createNodeTeardownWorktreeTransactionDriver({ exec, identity });
 
   /** The lifecycle-index scan seam — shared by the executor's entry build and the discharge side-effect. */
   const indexFs: LifecycleIndexFs = {
@@ -198,8 +225,26 @@ export function buildExecutorContext(
         params,
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
-    reconcileWorktree: (op) =>
-      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs }, op),
+    reconcileWorkUnitWorktree: (op) => {
+      return reconcileWorkUnitWorktree({
+        exec,
+        chdir: (dir) => { process.chdir(at(dir)); },
+        fs: nodeReconcileWorkUnitWorktreeFs,
+        ...(readTeardownSelection === undefined ? {} : { readTeardownSelection }),
+        ...(teardownWorktree === undefined ? {} : { teardownWorktree }),
+      }, op);
+    },
+    atomicGraduate: (transaction) => {
+      return atomicGraduate(transaction, {
+        cwd,
+        exec,
+        fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
+        provisionSpawnedWorktree: (op) => provisionSpawnedWorktree(
+          { exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorkUnitWorktreeFs },
+          op,
+        ),
+      });
+    },
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));
@@ -217,6 +262,15 @@ export function buildExecutorContext(
     },
 
     writeCurrentWorkflowField: async (metaPath, stage) => {
+      const content = await io.readFile(at(metaPath));
+      const next = setMetaCurrentWorkflow(content, stage);
+      const record = parseMetaRecord(next);
+      const diagnostics = checkCurrentWorkflowConsistency(record);
+      if (diagnostics.length > 0) throw new Error(diagnostics[0]);
+      await io.writeFile(at(metaPath), next);
+    },
+
+    writeCurrentWorkflowRecoveryMarker: async (metaPath, stage) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaCurrentWorkflow(content, stage));
     },
@@ -255,8 +309,9 @@ export function buildExecutorContext(
         prepareCurrentWuReconcile(
           {
             index: await buildLifecycleIndex({ cwd, fs: indexFs }),
-            queryDisposition: (input) => queryGitRetirementDisposition(exec, "HEAD", input),
-            enumerateRetirementRecords: () => enumerateGitRetirementRecords(exec, "HEAD"),
+            queryDisposition: (input) =>
+              queryGitTransitionDisposition(transitionExec, "HEAD", input),
+            enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionExec, "HEAD"),
             listArtifactPaths: (slug, ownedMetaPath) =>
               listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(at(path))),
             readFile: (path) => io.readFile(at(path)),
@@ -290,9 +345,11 @@ export function buildExecutorContext(
                 exec,
                 ...(baseBranch !== undefined ? { baseBranch } : {}),
                 currentBranch,
-                ...(inputs.supersededSource === undefined
+                ...(inputs.transitionOverlay === undefined
                   ? {}
-                  : { superseded: inputs.supersededSource }),
+                  : {
+                      transitionOverlays: [transitionOverlayCompositionInput(inputs.transitionOverlay)],
+                    }),
               });
               return {
                 content: result.markdown,

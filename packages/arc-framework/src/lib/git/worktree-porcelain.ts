@@ -74,6 +74,80 @@ export function parseGitWorktreePorcelain(stdout: string): GitWorktreePorcelainR
   });
 }
 
+/**
+ * Parse Git's exact NUL-delimited worktree porcelain protocol.
+ *
+ * Paths are retained byte-for-code-unit from the decoded stdout string; no
+ * trimming, quote decoding, or line-oriented presentation parsing occurs.
+ */
+export function parseGitWorktreePorcelainZ(stdout: string): GitWorktreePorcelainRecord[] {
+  if (stdout === "") return [];
+  if (!stdout.endsWith("\0\0")) {
+    throw new ArcError(
+      "invalid git worktree porcelain: truncated NUL-delimited output",
+      "git.worktree-porcelain.invalid",
+    );
+  }
+
+  return stdout.slice(0, -2).split("\0\0").map((stanza, index) =>
+    parseGitWorktreePorcelainZStanza(stanza, index));
+}
+
+function parseGitWorktreePorcelainZStanza(
+  stanza: string,
+  index: number,
+): GitWorktreePorcelainRecord {
+  const candidate = emptyCandidate();
+  const seen = new Set<string>();
+  let bare = false;
+
+  for (const field of stanza.split("\0")) {
+    if (field.startsWith("worktree ")) {
+      requireUniqueField(seen, "worktree", index);
+      candidate.path = field.slice("worktree ".length);
+    } else if (field.startsWith("HEAD ")) {
+      requireUniqueField(seen, "HEAD", index);
+      candidate.head = field.slice("HEAD ".length);
+    } else if (field.startsWith("branch refs/heads/")) {
+      requireUniqueField(seen, "branch", index);
+      candidate.branch = field.slice("branch refs/heads/".length);
+    } else if (field === "detached") {
+      requireUniqueField(seen, "detached", index);
+      candidate.detached = true;
+    } else if (field === "bare") {
+      requireUniqueField(seen, "bare", index);
+      bare = true;
+    }
+  }
+
+  if (candidate.branch !== null && candidate.detached) {
+    throw invalidPorcelain(`stanzas.${index}: branch and detached fields conflict`);
+  }
+  if (!bare && candidate.head === null) {
+    throw invalidPorcelain(`stanzas.${index}.head: required for a non-bare worktree`);
+  }
+  if (!bare && candidate.branch === null && !candidate.detached) {
+    throw invalidPorcelain(`stanzas.${index}: branch or detached field is required`);
+  }
+
+  const parsed = GitWorktreePorcelainRecordSchema.safeParse(candidate);
+  if (parsed.success) return parsed.data;
+  const detail = parsed.error.issues.map((issue) => {
+    const field = issue.path.length === 0 ? "<root>" : issue.path.map(String).join(".");
+    return `stanzas.${index}.${field}: ${issue.message}`;
+  }).join("; ");
+  throw invalidPorcelain(detail);
+}
+
+function requireUniqueField(seen: Set<string>, field: string, index: number): void {
+  if (seen.has(field)) throw invalidPorcelain(`stanzas.${index}.${field}: duplicate field`);
+  seen.add(field);
+}
+
+function invalidPorcelain(detail: string): ArcError {
+  return new ArcError(`invalid git worktree porcelain: ${detail}`, "git.worktree-porcelain.invalid");
+}
+
 function emptyCandidate(): GitWorktreePorcelainStanza["candidate"] {
   return { path: null, head: null, branch: null, detached: false };
 }

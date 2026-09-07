@@ -28,7 +28,8 @@ const annotated = (seed: string): string => seed.padEnd(40, "0");
 const annotatedSha256 = (seed: string): string => seed.padEnd(64, "0");
 /** Fan-out note path for an annotated commit (`ab/cdef…`). */
 const notePathFor = (commit: string): string => `${commit.slice(0, 2)}/${commit.slice(2)}`;
-const exactRenameStatus = ["R", "100"].join("");
+/** Exact-rename name-status score (`git` emits R + similarity 0–100). */
+const exactRenameStatus = "R100";
 
 interface NotesConfig {
   /** Note-history commits, most-recent first. */

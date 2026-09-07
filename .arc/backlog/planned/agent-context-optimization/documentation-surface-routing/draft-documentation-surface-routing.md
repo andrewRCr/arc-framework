@@ -20,6 +20,22 @@ time.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Extend the surface list to the personal surfaces — `WORKING-MEMORY` and `USER-INBOX`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: documentation-surface-routing`), housekeep drain
+  (2026-07-28); captured during `judgment-authority-model` planning.
+- _Concern:_ Charter names commit bodies, task-list notes, status pointers, SESSION-NOTES, notes companions, and
+  PR descriptions — but omits `WORKING-MEMORY` and `USER-INBOX`, the personal surfaces where duplication actually
+  bites. Live symptom: agent-added WORKING-MEMORY entries that are too WU-specific or wordy for an identity-global
+  always-loaded surface (content qualification, not write authority).
+- _Fold-in:_ fold both into the charter with a positive content test each — e.g. WORKING-MEMORY earns place when it
+  constrains work the reader has not started yet.
+
 ## Problem / Motivation
 
 The codified rules across task-adjacent surfaces already say "don't restate":

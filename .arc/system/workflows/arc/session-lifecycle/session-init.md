@@ -25,12 +25,12 @@ pwd && arc status --session-init --json
 ```
 
 `pwd` should be the current repository root — the directory containing `.arc/`.
-The probe returns a single JSON envelope with these top-level slots: `identity`, `user`, `worktree`,
-`currentHusk`, `baseDistance`, `baseBranchSync`, `dirty`, `extensions`, `config`, `active`, `taskCursor`,
-`domainRules`, `releaseRouting`, `currentWuReconcile`, `userReferenceReconcile`, `recommendedCombinedPrompt`,
-`recovery`, `sweep`,
-`orphanBranchSweep`, `retiredSubdirs`, `errandSweep`, `errandState`, `materializableWorkUnits`, `workUnitState`,
-`inFlightComposition`, `cohortDocPath`, `inboxState`, `partialPushMarker`, and `compactionAdvisory`.
+The probe returns a single JSON envelope. Its required `derivedLocusState` slot is the sole session-frame and
+checkout-role authority; `locusGuidance` carries CLI-composed narration from that same read. The remaining slots
+provide sync, notes, base, configuration, active-artifact, load-set, discovery, and advisory projections.
+Remote-aware slots consume one internal request generation; they do not independently acquire or refresh code
+refs. Each slot remains an independent `Probe`, so a failed remote prerequisite degrades only the result that
+needs it while healthy local orientation and unrelated exact results continue.
 
 Load [the probe-envelope reference][probe-envelope] when a slot's shape, presence condition, or provenance is
 needed beyond the procedural checks below.
@@ -45,36 +45,52 @@ warning in orientation. Sessions without identity cannot perform handoff.
 **Role is `contributor`**: After Step 3 items 1–6, switch to [`session-init.contributor.md`][session-init-contributor]
 for item 7+, Step 5 skip, and Step 6 contributor orientation. Step 4 and Step 7 apply universally.
 
-**Probe failure fallback**: If the composite call fails, fall back to direct commands:
-`git config arc.identity` / `arc.role`, `grep -l "^active: true" .arc/system/extensions/*.md`, and a scan
-of the role-resolved active root — `.arc/active/**/meta-*.md` for maintainer / null role,
-`.arc/user/{identity}/active/meta-*.md` (flat) for contributor with identity resolved. Skip Step 2 (no
-user-sync state available) and note the degradation in orientation.
+**Resolve the selected entry row before dispatch.** Dispatch only on `derivedLocusState.value.entering` and the
+exact selected row. Never select a second frame from branch shape, metas, another worktree scan, or SESSION-NOTES.
+
+- `derivedLocusState.ok !== true` or `locusGuidance.kind === "unavailable"` → render the CLI-composed message and
+  stop.
+- `entering.kind === "unresolved"` or `entering.row.kind === "unresolved-checkout"` → render the matching
+  `locusGuidance` message and stop only this entry operation.
+- `entering.row.kind === "work-unit"` with `derivedLocusState.value.active.context` → select its workflow, session
+  type, task cursor, cohort, and load set without another meta or load-set read. A contextless current husk continues
+  to the cleanup orientation below; any other contextless WU renders `locusGuidance` and stops.
+- `entering.row.kind === "transient"` → dispatch from its exact subject and marker/identity facts to the owning
+  transient workflow. Partial Errands remain marker-derived and identity-independent.
+- `entering.row.kind === "free-primary" | "unmanaged-checkout" | "retired"` → select no active WU or transient;
+  continue to the between-WUs or cleanup guidance carried by the frame.
+
+**Composite probe failure:** If the composite call itself fails, surface the failure and stop. Direct diagnostic
+commands may explain the failure, but they never establish a session frame, select a subject, authorize context
+loading, or permit mutation.
+
+**Per-slot probe failure:** Only a failed `derivedLocusState` invokes the stop above. Preserve every other failed slot as
+an independent runtime error, omit only the action or authority that slot would have supplied, and surface the
+error in Step 6. Never replace a failed remote-aware result with a tracking-ref reading or use it to downgrade a
+healthy local slot.
 
 ## 2. Dispatch & Conditional Sync
 
-From the resolved probe (Step 1), realign git state if needed, select the **entry mode**, and — for the arm
-that continues into context-load — run the conditional sync pulls. Three parts in order: a branch-gone
-precondition, the entry dispatch, then the sync channels.
+From the selected/re-probed state, realign branch sync if needed, select the **entry mode** from the resolved role
+row, and run the conditional sync pulls for arms that continue into context-load.
 
 ### Branch-gone recovery (precondition)
 
 When `worktree.value.state == "branch-gone"`, align git state _before_ anything reads against the working
 branch. The upstream was deleted (the branch shipped elsewhere), so the notes pull here and Step 3's
 context-load would otherwise surface metas and companion files that don't exist on the recovered branch.
-The `recovery` slot carries pre-computed candidates (no scanning across turns); render them as a single
-recovery prompt, branched on `recovery.value.kind`:
+The `recovery` slot carries pre-computed candidates, evidence, action, and narration (no scanning or comparison
+across turns). Dispatch on `recovery.value.recommendedAction` and render `recommendedPromptText` verbatim:
 
-- `resolved` — offer the one candidate directly; or, when its `proposedAction` is `removable`, offer to
-  remove the shipped worktree and archive its meta instead of switching (`external` candidates are surfaced,
-  not acted on).
-- `surface` — list each candidate's `branch` + `proposedAction` for the operator to choose, never guessing.
-- `main-fallback` — offer `main`.
+- `switch` — switch to the resolved candidate and report it in orientation. The CLI emits this only for an exact,
+  clean, reversible switch with no uncommitted work at risk.
+- `prompt` — ask once with the pre-composed text. On acceptance, a `pending` result invokes its exact
+  `refreshRemedy.argv` and re-runs Step 1; `resolved`, `surface`, and `main-fallback` retain their candidate,
+  operator-choice, and `main` recovery actions respectively.
+- `surface` — render the pre-composed manual-recovery guidance and do not act.
 
-```text
-**Branch gone:** `{branch}`'s upstream was deleted on `origin`. Recover onto `{candidate.branch}`?
-(surface → list candidates, ask which; main-fallback → switch to `main`?)
-```
+Do not compare `remoteEvidence`, pending counts, candidate counts, or dirt in workflow prose. The CLI owns those
+combinations; pending evidence offers only its explicit refresh or manual recovery.
 
 On a switch, fetch the target first when it is a remote branch not yet checked out locally, then **re-run the
 Step 1 probe** so the entry dispatch below and Step 3 read against the recovered branch — the re-probed
@@ -89,39 +105,34 @@ When present, run the **spine** below before resolving the entry mode: it outran
 cold-start resolution on **any** arm and never clobbers the active checkout. Signal absent → skip to
 [Entry dispatch](#entry-dispatch) unchanged.
 
-`--next` and `--start <slug>` are handled outside this spine — neither uses it or relocates through
-`resolveWriteContext`. `--next` is a Resume-arm terminal shortcut (handled at the Resume terminal gate). `--start`
+`--next` and `--start <slug>` are handled outside this spine. `--next` is a Resume-arm terminal shortcut (handled
+at the Resume terminal gate). `--start`
 is the [focused-recon arm](#focused-recon-arm) — checkout-preserving and arm-orthogonal, resolved just below
 when no signal-leaf signal is present.
 
-Place it after the branch-gone precondition and ahead of the arm resolution; on the signal path the spine
-replaces Step 3's full context-load with a universal-only load and **skips the resume/orient worktree pull** —
-relocate moves the working branch out from under the probe's worktree state. The **notes pull still applies**:
-it is branch-independent, and the loci need USER-INBOX / WORKING-MEMORY fresh (`--housekeep` drains the inbox; a
-capture-seeded `--errand` reads it).
+Place it after the branch-gone precondition and ahead of arm resolution. On the signal path the spine replaces
+Step 3's full context-load with a universal-only load and skips the resume/orient worktree pull. The notes pull
+still applies because USER-INBOX and WORKING-MEMORY must be fresh before entering the selected workflow.
 
-**Spine** (uniform across all signals):
+**Spine:**
 
-1. **Parse** — resolve the locus (table below) and whether the signal is sufficient: `--housekeep` always is; a
+1. **Parse** — resolve the operation (table below) and whether the signal is sufficient: `--housekeep` always is; a
    bare `--errand` / `--plan` **elicits first** — prompt for the concern, adopt a flagged `USER-INBOX § Errand`
-   capture, or disambiguate the stub — before relocating; it never silently launches.
-2. **Displacement guard** — active WU or dirty checkout present → confirm once before relocating; nothing
-   checked out → proceed silently.
-3. **Relocate** via `resolveWriteContext` — full protection → short-lived branch off `branch.base`; partial →
-   direct base commit. For `--plan <stub>` under full protection, cut the interim grooming branch as
-   `chore/groom-<slug>` from the base (`git switch -c chore/groom-<slug> {base-branch}`) until a grooming-open
-   primitive owns the branch record. From a linked worktree on a WU branch the relocate resolves to the
-   **primary's** base context (the `relocate` verdict carries `primaryWorktreePath`), so the active WU's worktree
-   is never disturbed.
-4. **Sync notes, then load universal context only** — run the conditional sync pulls' notes channel (the
+   capture, or disambiguate the stub — before entry; it never silently launches.
+2. **Sync notes, then load universal context only** — run the conditional sync pulls' notes channel (the
    worktree channel is skipped per above), then Step 3 items 1–6 and WORKING-MEMORY (item 8.2); skip every
    WU-artifact read (SESSION-NOTES, active task list, lifecycle workflow).
-5. **Run the locus**; Step 5 / Step 6 then run in signal-leaf mode (orient on the locus, not the WU).
+3. **Enter the selected operation**:
+    - `--errand` — invoke `arc errand open`; render its `recommendedPromptText`, direct subsequent work to
+      `allocation.checkoutPath`, and retain `parentCheckoutPath` when present as the warm-return parent.
+    - `--housekeep` / `--plan` — run the selected workflow's write-context preflight and relocation path. These
+      workflows use their base-branch grooming path and do not create a durable transient role.
+4. **Run the subject workflow**; Step 5 / Step 6 then run in signal-leaf mode (orient on the subject, not the WU).
 
-**Per-signal locus:**
+**Per-signal workflow:**
 
-| Signal          | Locus workflow                      | Edits                                |
-|-----------------|-------------------------------------|--------------------------------------|
+| Signal          | Subject workflow                    | Edits                                |
+| --------------- | ----------------------------------- | ------------------------------------ |
 | `--errand`      | [`run-errand`][run-errand] Launch   | the errand's target paths            |
 | `--housekeep`   | [`drain-inbox`][drain-inbox]        | the user inbox → authoritative homes |
 | `--plan <stub>` | [`draft-design`][draft-design] loop | the backlog stub's `draft-*`         |
@@ -165,8 +176,8 @@ passes over that result:
 
 ### Entry dispatch
 
-Select the entry mode from `active.value.resolution` and `worktree.value` (the probe pre-resolves both — do
-not run your own fetch / `git worktree list` / meta reads):
+Select the entry mode from the selected row's `kind`, exact `subject`, and optional WU `context`. `active`,
+`worktree`, and task artifacts remain sync/context inputs; they never select the frame.
 
 An **entry seed** may accompany the invocation — an optional spec pointer or description provided at session
 entry (it reaches this workflow as context, not via the probe). It feeds **cold-start** only; on every other
@@ -181,27 +192,33 @@ An **explicit-intent signal** present at invocation is handled by
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) above, which takes precedence over the arm resolution
 here; the arms below are the **signal-absent** path.
 
-- **Errand-resume** — `errandState.value.resume.resumable === true`. The current branch is a meta-less
-  `chore/<slug>` errand, not a work unit. Continue to the sync channels below, then load universal context and
-  [run-errand][run-errand] in resume mode; never route this arm through `sessionType` or `process-task-loop`.
-- **Resume** — `active.resolution` is `single` or `multiple`. An active work unit is present; continue to the
-  sync channels below, then Step 3.
-- **Orient** — `active.resolution` is `none` and the worktree is not bare (e.g. the primary worktree between
-  units). The **signal-absent** path: discovery is the dispatch intent (the positional seed stays orthogonal —
+- **Errand-resume** — a selected `transient` row whose subject is `errand` or `partial-errand` dispatches to
+  [run-errand][run-errand] in resume mode using its exact subject and generation.
+- **Planning-groom resume** — a selected `transient` row whose subject is `groom` dispatches to
+  [draft-design][draft-design] using its exact subject and generation.
+- **Housekeep resume** — a selected `transient` row whose subject is `housekeep` dispatches to
+  [drain-inbox][drain-inbox] using its exact subject and generation.
+- **Resume** — the selected row is a `work-unit` with a resolved context; continue to the sync channels, then load
+  its reader-derived workflow and load set in Step 3. A contextless current husk selects cleanup orientation; any
+  other contextless WU stops on the CLI-composed guidance.
+- **Orient** — the selected row is `free-primary`, `unmanaged-checkout`, or `retired`. Discovery is the
+  signal-absent intent (the positional seed stays
+  orthogonal —
   never "any arg"), with a housekeep soft-offer overlaid when the inbox holds routable captures. An explicit
   `--errand` / `--housekeep` / `--plan` is dispatched by the signal leaf above, before this arm — including the
   no-active-WU errand elaboration ([Errand cold-entry](#errand-cold-entry-orient-arm) below). `--start <slug>` is
   the [focused-recon arm](#focused-recon-arm), resolved above this arm — not an Orient-arm shortcut.
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
-      that WU with an init offer (Step 5) — confirm-only, never auto-init. If `errandState` carries flagged
-      captures, in-flight `chore/` branches, or materializable remote errands — or `materializableWorkUnits`
-      carries remote-only WU candidates — surface them in Step 6 as available routes.
+      that WU with an init offer (Step 5) — confirm-only, never auto-init. If
+      `errandState.value.materializable.candidates` or `materializableWorkUnits` carry available routes, surface
+      them in Step 6.
     - **Housekeep** (`inboxState.value.housekeepNeeded`, primary worktree): when `USER-INBOX` holds routable
       captures, carry the housekeep intent — surfaced as a soft-offer in Step 6's orientation, never a hard
       dispatch. It overlays the discovery arm (housekeep, then discover) rather than replacing it; the developer
       drains via the [arc-housekeep skill][arc-housekeep-skill]. Soft-encourage, never hard-block.
-- **Cold-start** — `active.resolution` is `none` and the worktree is bare: a branch checked out for new work
+- **Cold-start** — no entry row is selected, the active checkout is linked, and no role can be adopted: a branch
+  checked out for new work
   with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
   scaffold — never auto-scaffold. Before scaffolding, run the [in-flight scope check][in-flight-scope-check] —
   an advisory pass over in-flight work units that surfaces scope overlap and never gates. When an entry seed is
@@ -212,23 +229,27 @@ here; the arms below are the **signal-absent** path.
   an ARC spec artifact (`draft-` / `spec-`) as `Design`, and passes anything else (a file/URL or free-text
   blurb) through for you to interpret. On accept, run the command, **re-run the Step 1 probe**, and proceed as
   **Resume**. On decline, fall through to **Orient**.
-- **Materialize** — the probe surfaces a remote-only work unit (`materializableWorkUnits.value.candidates`
-  non-empty) or a remote-only errand (`errandState.value.materializable.candidates` includes a `chore/<slug>`
-  branch with no local worktree and no backing meta). Surface the candidates and ask which to materialize when
-  more than one is present; never guess — the candidate list _is_ the correctness mechanism (you pick a real
-  in-flight entry, so a phantom / typo'd name is impossible). For a work unit: run `arc materialize <name>` (or
-  `arc materialize <name> --here` when explicitly materializing in the current checkout), then `arc user pull` to
-  load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an errand:
-  `git worktree add <path> origin/<branch>`, **re-run the Step 1 probe**, and proceed as **Errand-resume**. The
-  candidate surface already excludes any entry checked out locally (the oracle's `remoteOnly` filter); as a
-  backstop, `git worktree add` refuses a double checkout — an already-materialized branch fails with an error
-  rather than spawning a second worktree.
+- **Materialize** — the probe surfaces remote-only work units in
+  `materializableWorkUnits.value.candidates` and eligible identity-backed Errands in
+  `errandState.value.materializable.candidates`. Surface the candidates and ask which to materialize when more
+  than one is present; never guess — the candidate lists _are_ the correctness mechanism. For a work unit, run
+  `arc materialize <name>` (or `arc materialize <name> --here` when explicitly materializing in the current
+  checkout), then `arc user pull` to load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an
+  Errand, run
+  `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
+  candidate's claim ID and expected head. If the result is refused or reports an error, render its
+  diagnostic and stop. Continue only when its outcome is `applied` or `idempotent`, its returned `identity.key`,
+  `identity.claimId`, and `identity.branch` exactly match the selected candidate, and it carries a non-null
+  `allocation`. Render its `recommendedPromptText`, re-run the Step 1 probe, and require that the selected transient
+  row's checkout path equals the returned `allocation.checkoutPath` and its role subject carries the same claim ID
+  before proceeding as **Transient-resume**. The Errand verb accepts only the candidate's exact recorded remote head;
+  head drift or change-request mismatch refuses instead of selecting a descendant or replacement generation.
 
 **Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
-state, then re-runs the probe and re-enters as **Resume** or **Errand-resume**. **Resume**, **Errand-resume**,
+state, then re-runs the probe and re-enters as **Resume** or **Transient-resume**. **Resume**, **Transient-resume**,
 and **Orient** continue straight to the channels below.
 
-**Seed not consumed (Resume / Errand-resume / Materialize arms).** Cold-start acts on a seed (its resolved
+**Seed not consumed (Resume / Transient-resume / Materialize arms).** Cold-start acts on a seed (its resolved
 disposition), and the Orient/discovery arm pre-focuses a seed that names a backlog WU (Step 5 — confirm to
 init). On the remaining arms a supplied seed is not consumed: surface a one-line note in orientation (Step 6)
 that starting fresh work from it means spawning or checking out a new worktree and re-entering there. `--start
@@ -266,10 +287,14 @@ signal calls for it — the single load satisfies both, so they never double-run
 
 Both gate on `session.init_load.notes`, so they agree on the action — dispatch on it:
 
-- `always` — fire `arc user load` immediately, **except** when `dirty.value.state === "dirty"`. Under
-  a dirty tree, `always` degrades to `prompt` with a "stash or commit local edits before loading"
-  warning prepended to the offer text. The pre-load backup that ships with `arc user load` is the
-  safety net for the auto-action case.
+- `always` — fire `arc user load` immediately. Degrade to `prompt` only when the dirt sits where the
+  load writes: the command writes under the resolved user directory alone, so a dirty `src/` is not
+  exposed to it. The `dirty` slot is the wrong instrument for that test — it reports the current
+  worktree, while under linked-worktree operation the resolved directory lives in the primary. Take
+  the directory from the load set's `WORKING-MEMORY` entry, run one `git status --porcelain` in the
+  worktree holding it, and prompt only on an intersecting path, with the "stash or commit local edits
+  before loading" warning prepended to the offer text. The pre-load backup that ships with
+  `arc user load` is the safety net for the auto-action case.
 - `prompt` — ask before running `arc user load` (use the firing channel's `recommendedPromptText`).
   Dirty-tree-aware; the agent owns the prompt.
 - `manual` — surface in Step 6 orientation only (no prompt, no run); the retired-subdir slot's
@@ -304,18 +329,19 @@ matters, re-probe to confirm.
 **Notes operation ordering.** When the notes pull or notes load fires, it must complete before Step 3
 — SESSION-NOTES reads below would be stale otherwise.
 
-**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against a freshly
-fetched base OID. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
+**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against the
+advertised base OID from the session's shared passive remote evidence; the slot performs no fetch of
+its own. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
 analyzer-owned register text, or `skip` for every other verdict; it never resolves to `pull` / `prompt`.
 Reconciling is the developer's
 call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's
 base-drift section; on `skip`, do nothing.
 
 **Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
-pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
-(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. The slot also
-carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` is `not-checked-out` /
-`current` / `elsewhere` / `unknown` — the probe's safety signal for whether fetch-into-ref is viable:
+pull channel — distinct from the advisory-only base-distance channel above. The comparison runs against the
+request's shared passive remote evidence; the slot itself fetches nothing. Dispatch on `recommendedAction`
+(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. Do not compare its
+evidence, failure, relation, checkout, or remedy fields — the action and text already encode those combinations:
 
 - `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. Only when the
   base is **not** checked out in any worktree. Freshens a non-checked-out ref (fetch-into-ref, not the
@@ -323,12 +349,9 @@ carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` i
   divergence fails safe rather than merging. Current-worktree dirt does **not** gate this action (it only
   moves a branch tip elsewhere).
 - `prompt` — ask using `recommendedPromptText`; on accept, run the same `git fetch origin <base>:<base>`
-  (same not-checked-out precondition).
-- `surface` — carry the state into Step 6's stale-base section. Includes: a behind base under `manual`; a
-  base checked out **elsewhere** (primary-aware text naming the holding worktree and offering
-  `arc base sync`); checkout locus unknown; or a diverged base. No pull.
-- `skip` — the base is current or only ahead, **or** this worktree holds the base (`checkout.kind ===
-  "current"` — the worktree channel owns pull/dirty for HEAD).
+  (the recommendation already establishes the same not-checked-out precondition).
+- `surface` — carry `recommendedPromptText` verbatim into Step 6's stale-base section. No pull.
+- `skip` — no action.
 
 Independent of the worktree + notes combined prompt — like base-distance, it composes its own offer and never
 folds into `recommendedCombinedPrompt`.
@@ -339,11 +362,9 @@ Worktree channel still applies.
 
 ### Errand cold-entry (Orient arm)
 
-Reached via the signal leaf when `--errand` resolves with **no active work unit** — a maintenance Errand arising
-with no originating session (the cold case). `arc-session` stays the one universal door; this is its no-WU path
-acting on the second intent. Errand mode loads **universal context only**, then classifies and sets up the
-Errand: the spine's relocate already established a base-branch write context (in place when already on the
-primary; otherwise the primary's base, per `resolveWriteContext`), and the Errand executes there.
+Reached via the signal leaf when `--errand` resolves with no active work unit. Errand mode loads universal context,
+then `arc errand open` allocates the free primary or a spawned transient under full protection; partial protection
+uses only the free primary and refuses unsafe occupancy.
 
 1. **Sync notes, then load universal context only.** Run the conditional sync pulls' notes channel above (the
    worktree channel is skipped per the signal-leaf spine), then Step 3 items 1–6 and WORKING-MEMORY (item 8.2) —
@@ -354,12 +375,10 @@ primary; otherwise the primary's base, per `resolveWriteContext`), and the Erran
 3. **Classify, gate, execute.** Follow the [run-errand workflow][run-errand] in Launch mode. The errand seed
    comes from the `--errand` blurb/slug when present; when it names a flagged `USER-INBOX § Errand` capture,
    adopt that capture as the originating entry. Launch classifies errand-vs-Work-Unit (with the stop-and-route
-   exit when the work is really a Work Unit), runs the advisory `arc errand check` overlap, and resolves the
-   base + relocates by opening the `chore/<slug>` branch off `branch.base` (default `main`) via
-   `arc errand open <slug>` (folds cut→occupy; adopt a flagged capture with `--from-inbox <entry-title>`, or with
-   `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title, so the adopted entry drops at
-   `arc errand close`) in this worktree;
-   its Execute phase runs the Errand as a normal review increment.
+   exit when the work is really a Work Unit), runs the advisory `arc errand check` overlap, and invokes
+   `arc errand open <slug>` (adopt a flagged capture with `--from-inbox <entry-title>`, or with
+   `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title). Render its
+   `recommendedPromptText` and execute from `allocation.checkoutPath`; the originating checkout remains unchanged.
 4. **Orient on the Errand.** Frame the Step 6 summary on the Errand — its goal, the `chore/<slug>` branch, and
    any coordination caveat — rather than on a work unit, then continue into the Errand as the session's work.
 
@@ -372,17 +391,17 @@ section-level partial read) and the active task list (item 9 — strategic parti
 section delimiter and compute Read offsets locally — never per-section greps. Skip the grep entirely
 when a stable file convention places the section at a known location.
 
-**Parallelism (prescriptive)**: Issue items 1–6, 8 (personal session context — both SESSION-NOTES
-and WORKING-MEMORY), and — when `active.resolution === "single"` — the active meta file as Reads
-in a single tool-message. Items 9–10 follow after the meta file resolves; they may parallel each
-other. Don't serialize when the platform supports parallel reads.
+**Parallelism (prescriptive)**: Read the paths emitted by `loadSet.value.entries` according to each entry's
+`readMode`; issue the universal entries, personal session context, selected active meta, and cohort doc in one
+tool-message. The task-list strategic read and lifecycle workflow may follow in parallel. Do not reconstruct a
+second load set from branch or meta discovery.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
 
-**Errand-resume mode** (`errandState.value.resume.resumable === true`): load universal context only — items
-1–6 and WORKING-MEMORY (item 8.2). Skip active meta, SESSION-NOTES, active task list, and the
-`sessionType`-selected lifecycle workflow; instead load [run-errand][run-errand] in resume mode.
+**Transient-resume mode**: a transient row carries no WU context. Read items 1–6 and WORKING-MEMORY (item 8.2),
+skip every WU artifact, then load the exact subject's owning workflow selected above. Do not consume the top-level
+WU `loadSet` or select a workflow from branch shape, `sessionType`, or `process-task-loop`.
 
 **Project identity and agent context:**
 
@@ -404,25 +423,9 @@ session-state, follow the override instead.
 
 **Active work context:**
 
-7. **Active meta file** — resolve from `active.value` and read the file in full (small by
-   convention; no partial-read offset needed):
-    - `resolution: "single"`: path is `active.value.path`
-    - `resolution: "none"`: no active work unit. Skip items 9–10; Step 5 handles next-work discovery
-    - `resolution: "multiple"` (full mode only): apply disambiguation after SESSION-NOTES loads (item 8) —
-      precedence:
-        1. SESSION-NOTES `**Working On:**` value matches a candidate filename
-        2. Candidate `**Branch:**` matches the current git branch
-        3. Candidate `**State:** Active`
-        4. Prompt the user with each candidate shown as:
-
-            ```text
-              [N] <filename> · <branch>
-                  Next Task: <truncated Next Task>
-                  State:    <State value>
-            ```
-
-            Include an abort option (`[q]`). If the user aborts, surface the candidate list and halt
-            session-init.
+7. **Active meta file** — for a selected WU role, read the full meta path emitted by its load set. No selected WU
+   means no active meta read; Step 5 handles next-work discovery. Multiple metas or branch candidates never trigger
+   workflow-side disambiguation: the session locus reader's exact role subject either resolves one WU or stops.
     - **Task reference format**: `**Next Task:**` uses triple-anchor format —
       `Task 5.5 — Implement validation (line ~1903)`. Use it for task-list anchoring only when all three
       anchors are usable; incomplete values fall back to `taskCursor` in item 9 when available.
@@ -430,10 +433,8 @@ session-state, follow the override instead.
 8. **Personal session context** — read both per-WU and cross-WU surfaces. Uses `{identity}` from
    Step 1. Read directly (no `test -f` precheck — Read tool handles missing files gracefully).
 
-    1. `.arc/user/{identity}/<wu-name>/SESSION-NOTES.md` — per-WU session context. Derive
-       `<wu-name>` from the active meta filename (basename of `active.value.path`, strip `meta-`
-       prefix and `.md` suffix). When `active.resolution === "none"` or `"multiple"` (pre-
-       disambiguation), no WU is anchored — skip the SESSION-NOTES read.
+    1. `.arc/user/{identity}/<wu-name>/SESSION-NOTES.md` — per-WU session context. Use the path emitted by the
+       selected WU row's load set. With no selected WU role, skip the SESSION-NOTES read.
         - Personal working context from prior session: approach, decisions, things tried, known
           risks.
         - **If absent or stale**: Try `arc user load` (walks ancestors for
@@ -455,44 +456,43 @@ session-state, follow the override instead.
 > namespace (`refs/notes/arc/user/{their-identity}`). See [Team Coordination Strategy][team-coordination]
 > § Person-to-Person Task Handoff for the incoming bootstrap protocol.
 
-**Resolve session type** — after the parallel batch and item 8 resolve, settle the session type that gates
-items 9–10. The probe envelope carries `active.value.sessionType` ∈
-`{"planning", "execution", "integration", null}` inferred from the resolved meta file's `**State:**`
-(primary, case-exact `Planning`) with branch-pattern fallback (`{category}/plan-{name}`) when State is
-unset/empty or no candidate is resolved. `null` covers two distinct cases:
+**Resolve session type** — use `derivedLocusState.value.active.context.sessionType` and `.workflow`. These are reader
+projections over the exact role subject; do not infer either from branch patterns. A selected WU row without the
+expected derived context is a probe mismatch and stops. With no selected entry row, there is no session type.
+Within `sessionType: execution | integration`, the selected context may project a derived work substage without
+changing the public lifecycle phase. A found canonical cursor projects `process-task-loop`. Exact `no-open-task`
+projects `verify-work-unit` for execution closeout and, during integration, only when Candidate renewal or an exact
+delivery correction continuation requires verification; otherwise integration projects `integrate-work-unit`.
+Consume the projected workflow and load set directly — do not reconstruct this substage from narrative meta fields.
 
-- **Multiple-candidate defer:** `resolution === "multiple"` — recompute from the chosen candidate's fields
-  after disambiguation.
-- **Orphan:** `resolution === "none"` (or empty State) and the current branch does not match the
-  planning-branch pattern. No active work, no planning signal — surface in orientation; skip item 10.
-
-SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution | integration`
-(case-insensitive), supersedes the envelope value for this session. Invalid override → ignore + emit a
-warning in orientation.
+SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution` (case-insensitive), may
+supersede those discretionary envelope values for this session. `prepublication` and `integration` are
+state-determined: an override cannot enter, leave, or replace either phase. Ignore a conflicting or invalid
+override and emit a warning in orientation.
 
 **SESSION-NOTES authority boundary.** SESSION-NOTES may supply roster/context anchors (`**Working On:**`,
-`**Session Type:**`, `**Commit at Handoff:**`) and human working context. It is never authoritative for live git
-facts: HEAD, ahead/behind counts, sync state, and dirty state come from the probe envelope (or the explicit
-freshness-check commands below), not from SESSION-NOTES prose.
+`**Session Type:**`, `**Commit at Handoff:**`) and human working context within that boundary. It is never
+authoritative for typed lifecycle phase, workflow selection, load-set composition, or live git facts: HEAD,
+ahead/behind counts, sync state, and dirty state come from the probe envelope (or the explicit freshness-check
+commands below), not from SESSION-NOTES prose.
 
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
 
-    **Skip if** `sessionType === "planning"` (primary gate), the active meta file is not resolved,
-    `active.value.taskListPath === null` (`**Task List:** [none]`, unsafe path, or unresolved path),
-    `taskCursor.ok === true && taskCursor.value.status === "missing"` (task-list file absent), or the
-    anchor-source rules below resolve to no current task.
+    **Skip if** the selected WU context's `sessionType === "planning"`, its load set has no task-list entry,
+    `taskCursor.value.status === "missing"`, or the anchor-source rules below resolve to no current task.
 
-    - Path: use `active.value.taskListPath` from the probe. Do not reconstruct it from raw meta text.
+    - Path: use the task-list path emitted in the selected row's load set. Do not reconstruct it from raw meta.
     - **Anchor source**: Choose an anchor before any partial read. Prefer the `**Next Task:**`
       triple-anchor when it carries usable task id, title, and line hint. If it is absent or incomplete,
-      require `taskCursor.ok === true` and `taskCursor.value.status === "found"`; use
-      `taskCursor.value.cursor.section` as the lookup anchor for the section read, and keep
-      `taskCursor.value.cursor.leaf` only as the in-section current executable. If the cursor reports
-      `no-open-task`, skip the partial read and surface that no executable checkbox is currently open.
-      If the cursor is malformed or the `taskCursor` probe failed, stop and surface the diagnostic. Do not
-      enter the graduated lookup without a chosen anchor. This is a deterministic line-anchor helper only,
-      not thought-state.
+      require `taskCursor.value.status === "found"`; use its `cursor.section` as the lookup anchor for the
+      section read, and keep `cursor.leaf` only as the in-section current executable. If the cursor reports
+      `no-open-task`, skip the partial read; the selected context projects `verify-work-unit` for execution closeout
+      or an exact integration verification continuation, and otherwise retains `integrate-work-unit`.
+      If the cursor is malformed or the `taskCursor` probe failed, skip the partial read and surface the
+      diagnostic — the task list is reference material read on demand during work, so a lost anchor costs a
+      read rather than the session. Do not enter the graduated lookup without a chosen anchor. This is a
+      deterministic line-anchor helper only, not thought-state.
     - **Always read** — three sections, nothing else:
         1. **Header** — bullet list above the first `## **Phase` heading
         2. **Current phase preamble** — derive the phase identifier from the current section anchor by
@@ -511,21 +511,8 @@ freshness-check commands below), not from SESSION-NOTES prose.
     - **Structural mapping**: Apply the Step 3 prelude rule with delimiter `^## \*\*Phase` (or
       equivalent phase-heading marker) — one grep returns all phase positions, sufficient to compute
       Read offsets for header (above first phase), current phase preamble, and current task section.
-    - **Companion file awareness**: From `active.value.companions` — note their existence so
-      references during execution resolve immediately. **Do not read these at init**
-
-10. **Lifecycle workflow** — **read in full**, branched on `sessionType`:
-
-    - `errandState.value.resume.resumable === true` → `.arc/system/workflows/arc/supplemental/run-errand.md`
-    - `execution` → `.arc/system/workflows/arc/process-task-loop.md`
-    - `integration` → `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
-    - `planning` → `.arc/system/workflows/arc/<active.value.planningStage>.md`
-    - `null` — two paths:
-        - **Multiple-candidate defer:** skip lifecycle workflow load until disambiguation completes;
-          recompute `sessionType` from the chosen candidate and load the matching workflow then.
-        - **Orphan** (`resolution === "none"` + non-matching branch, or single candidate with empty
-          State + non-matching branch): skip lifecycle workflow load; surface the orphan state in
-          orientation. Step 5's next-work-unit discovery handles direction-finding.
+10. **Lifecycle workflow** — **read in full** from the selected WU context's workflow/load-set entry. A null
+    workflow with no selected entry row skips the read; a null workflow on a selected active role is a mismatch.
 
     Load later if the session pivots to a different lifecycle phase.
 
@@ -544,8 +531,9 @@ If `post-context-load` appears in the active-extensions list (from Step 1), load
 ## 5. Assess Readiness
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via
-[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or Errand-resume via `errandState`): skip
-this entire step — there is no work-unit handoff baseline to freshness-check, and the locus run replaces
+[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by
+`derivedLocusState.value.entering`): skip
+this entire step — there is no work-unit handoff baseline to freshness-check, and the subject workflow replaces
 next-work discovery. See [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) /
 [Errand cold-entry](#errand-cold-entry-orient-arm).
 
@@ -626,9 +614,13 @@ Render live git facts exclusively from probe slots (`worktree`, `baseDistance`, 
 `user`, `partialPushMarker`) and the Step 5 freshness result. Do not surface HEAD, ahead/behind, sync, or dirty
 claims copied from SESSION-NOTES prose.
 
+Render each present non-`derivedLocusState` slot with `ok == false` as a concise degraded-slot line using its error kind
+and message. Continue with every healthy slot; the failed slot supplies no action, relation, or cleanup authority.
+
 **Signal-leaf / errand mode** (an explicit-intent signal routed via
-[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or Errand-resume via `errandState`): frame
-the summary on the **locus** — the errand / drain / grooming target, its goal, branch, and any coordination
+[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or a transient selected by
+`derivedLocusState.value.entering`): frame
+the summary on the **transient subject** — the errand / drain / grooming target, its goal, branch, and any coordination
 caveat — instead of work-unit state; the active-work-state shape below does not apply. See
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) / [Errand cold-entry](#errand-cold-entry-orient-arm).
 
@@ -676,8 +668,8 @@ no other tracked source documents.
 Awaiting direction — proceed to Next Action?
 
 **Include only if actionable**: freshness gaps, missing identity, environment issues, sync states other than
-`clean` (worktree or notes), an unconsumed entry seed or shortcut (non-consuming arm), cohort coordination
-bearing on the current task (from the `cohortDocPath` doc), probe-failure fallback.
+`clean` (worktree or notes), an unconsumed entry seed or shortcut (non-consuming arm), or cohort coordination
+bearing on the current task (from the `cohortDocPath` doc).
 
 **Anti-pattern:** Restating the Next Task's full description from the task list. The task list carries the
 detail; orientation needs only the pointer. Reserve unbounded prose for off-task-list scenarios where no
@@ -685,6 +677,15 @@ tracked source documents the work.
 
 **Conditional top-level sections** — prepend above `**Active work state:**` when applicable:
 
+- `deliveryPosition.ok == true` AND `deliveryPosition.value != null` — render
+  `deliveryPosition.value.line` verbatim exactly once. Do not re-read delivery state or derive coordinates, counts,
+  or operation status in prose. Omit an `ok + null` slot.
+- `locusGuidance.kind === "unavailable"` — render `locusGuidance.message` and stop before any role-sensitive
+  action.
+- `locusGuidance.kind === "ready"` — collect only present optional strings and non-empty arrays; omit the section
+  when no lines remain. The composer suppresses unmanaged-sibling diagnostics and every expected/no-action frame,
+  availability, recovery, reconciliation, and cleanup fact. Render remaining strings verbatim; do not reconstruct
+  their evidence or deletion conditions.
 - `worktree.value.state == "diverged"` — branch on `worktree.value.supersession`:
     - `supersession.superseded === true` — the local-ahead commits are patch-equal to a rebased remote
       prefix (the branch was rebased and force-pushed elsewhere), so a hard reset to the remote loses no
@@ -726,7 +727,7 @@ tracked source documents the work.
   ```
 
 - `baseBranchSync.value.recommendedAction == "surface"`: the local base ref is stale — behind under `manual`
-  policy, checked out elsewhere (primary-aware), locus unknown, or diverged from `origin/<base>`. Render the
+  policy, checked out elsewhere (primary-aware), checkout location unknown, or diverged from `origin/<base>`. Render the
   precomposed `baseBranchSync.value.recommendedPromptText` verbatim. Advisory, never gates — the `pull` /
   `prompt` actions fire in Step 2's base-branch-sync channel, not here.
 
@@ -898,13 +899,15 @@ tracked source documents the work.
   local-only `plan/ → <type>/` rename); worktree-checked-out and errand-record-carrying branches never appear
   here (their own surfaces clean those up). Prefer the re-runnable `arc teardown {shippedWorkUnit}` when the orphan
   carries a non-null `shippedWorkUnit` (its own containment guards decide the reap); otherwise offer an
-  interlock-gated `git branch -d` only for a `merged` orphan (commits landed in `origin/<base>`; never `-D`),
-  and surface an unmerged one as not-removable. Branch hygiene only — never auto-removed.
+  interlock-gated `git branch -d` only for a `merged` orphan (commits landed in the advertised base; never `-D`),
+  and surface an unmerged or `blockingReason: evidence-unavailable` entry as not-removable. Branch hygiene only —
+  never auto-removed.
 
   ```text
   **Branch orphans:** {N} stale local branch(es) with a deleted upstream linger:
   - `{branch}` — work unit shipped → clean up? `arc teardown {shippedWorkUnit}`
   - `{branch}` — merged to base → remove? `git branch -d {branch}`
+  - `{branch}` — remote evidence unavailable; no cleanup authority
   - `{branch}` — not merged; surfaced, not removed (never `-D`)
   ```
 
@@ -949,47 +952,23 @@ tracked source documents the work.
   - `{slug}` — created {created} ({ageDays}d ago)
   ```
 
-- `errandState.value.residue` non-empty (Orient arm — no active WU): branches with no errand record or active
-  meta, and errand records whose branch is gone, need operator cleanup. Surface every item as an advisory;
-  never delete a branch or record automatically. Append `({marks})` only when degradation marks are present.
-
-  ```text
-  **Branch / record residue:** {N} cleanup candidate(s) detected:
-  - `{branch}` — `{slug}` ({reason}) {optional marks}
-  ```
-
-- `errandState.value.inFlight.errands` non-empty (Orient arm — no active WU): local or remote `chore/` errands
-  are in flight. Surface them as available routes; never auto-check out, merge, or delete. Suppress stale entries
-  unless `errandState.value.nudge.shouldNudge` is true; when surfaced, update the same nudge marker described
-  above.
-
-  ```text
-  **Errands in flight:** {N} `chore/` branch(es) detected:
-  - `{branch}` — {in-progress | awaiting-merge | merged-cleanup | stale} ({ageDays}d)
-  ```
-
-- `errandState.value.materializable.candidates` non-empty (Orient arm — no active WU): remote-only errand
-  branches can be materialized for cross-machine resume. Surface as a route; on selection, follow Step 2's
-  Materialize arm.
-
-  ```text
-  **Materializable errands:** {N} remote `chore/` branch(es) available:
-  - `{branch}` — materialize and resume?
-  ```
-
 - `workUnitState.value.inFlight.workUnits` non-empty (any roster-resolved arm): owned work units sit in the
   completion tail (`Integrating`, awaiting review). Surface them as advisory routes — never auto-switch,
-  auto-merge, or auto-archive. The actionable events (`mergeable`, `merged-needs-archival`) surface every
-  session-init; the time-gated `stale` overlay batches once per calendar day — suppress `stale` entries unless
-  `workUnitState.value.nudge.shouldNudge`. A `behindBase` WU needs its base merged in before it can merge;
-  surface that qualifier alongside `mergeable`. After surfacing any `stale` entry, write
+  auto-merge, or auto-archive. The actionable events (`mergeable`, `mergeability-unavailable`,
+  `merged-needs-archival`) surface every session-init; the time-gated `stale` overlay batches once per calendar day
+  — suppress `stale` entries unless
+  `workUnitState.value.nudge.shouldNudge`. For `mergeability-unavailable`, render `mergeabilityGuidance` verbatim
+  and offer no merge or base-reconciliation action. A `mergeable` WU whose `behindBase` relation is known true
+  needs its base merged in first. After surfacing any `stale` entry, write
   `workUnitState.value.nudge.today` to `workUnitState.value.nudge.markerPath` (create the parent directory if
   needed) so the stale nudge batches to once per calendar day.
 
   ```text
   **Work units in flight:** {N} owned WU(s) in the completion tail:
-  - `{branch}` — {awaiting-review | mergeable | blocked | merged-needs-archival | stale} ({ageDays}d)
-  - mergeable but `behindBase` → merge the base in first; merged-needs-archival → archive it
+  - `{branch}` — {awaiting-review | mergeable | mergeability-unavailable | blocked | merged-needs-archival |
+    stale} ({ageDays}d)
+  - mergeability-unavailable → {mergeabilityGuidance}; mergeable with known true `behindBase` → merge the base in
+    first; merged-needs-archival → archive it
   ```
 
 - `materializableWorkUnits.value.candidates` non-empty (Orient arm — no active WU): remote-only owned work units
@@ -1000,6 +979,20 @@ tracked source documents the work.
   ```text
   **Materializable work units:** {N} remote WU(s) available:
   - `{name}` (`{branch}`) — materialize and resume?
+  ```
+
+- `materializableWorkUnits.value.refreshRemedy != null` (Orient arm): render its `text` verbatim after any exact
+  candidates. On approval invoke its exact `argv`, re-run the Step 1 probe, and offer only candidates from the
+  refreshed envelope. Do not compare evidence or pending counts in prose.
+
+- `errandState.value.materializable.candidates` non-empty (Orient arm — no active WU): exact remote-only paused or
+  awaiting-merge Errand generations can be materialized onto this machine for cross-machine pickup. Surface each
+  candidate's slug, branch, state, and expected head as a route; on selection, follow Step 2's Materialize arm.
+  Record-less branches and identities without matching remote-only evidence never appear in this list.
+
+  ```text
+  **Materializable Errands:** {N} remote Errand generation(s) available:
+  - `{slug}` (`{branch}` at `{expectedHead}`, `{state}`) — materialize and resume?
   ```
 
 - `inboxState.value.housekeepNeeded` (Orient arm — no active WU): `USER-INBOX` holds routable captures. Soft-offer

@@ -21,7 +21,7 @@ export const REVIEW_DURABLE_RECORD_INVENTORY = [
     id: "review-operation-state",
     version: 1,
     owner: "operation-state",
-    variants: ["frontline-run", "review-suspension", "local-review"],
+    variants: ["frontline-run", "review-suspension", "local-review", "lane-progress"],
   },
 ] as const;
 

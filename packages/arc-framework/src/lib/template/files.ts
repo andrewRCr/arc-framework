@@ -146,3 +146,20 @@ export async function writeArcGitignoreBlock(
 ): Promise<void> {
   await writeArcManagedBlock(filePath, entries, readFile, writeFile);
 }
+
+/**
+ * Write ARC-managed entries to a .gitattributes file.
+ *
+ * @param filePath - Path to .gitattributes
+ * @param entries - ARC-managed entries to write
+ * @param readFile - Injectable read function
+ * @param writeFile - Injectable write function
+ */
+export async function writeArcGitattributesBlock(
+  filePath: string,
+  entries: string[],
+  readFile: ReadFileFn,
+  writeFile: WriteFileFn,
+): Promise<void> {
+  await writeArcManagedBlock(filePath, entries, readFile, writeFile);
+}

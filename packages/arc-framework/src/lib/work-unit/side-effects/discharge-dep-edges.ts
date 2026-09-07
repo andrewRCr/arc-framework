@@ -21,23 +21,21 @@ import type { GitIndexTransaction } from "../../git/exec.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
 import { resolveSlugState } from "../lifecycle-resolver.js";
 import {
-  enumerateReferenceTransitions,
+  enumerateTransitionReferenceTransitions,
   planReferenceReconcile,
   type ReferenceAdvisory,
   type ReferenceTransitionConflict,
   type TrackedReferenceReplacement,
 } from "../reference-reconcile.js";
-import type { RetirementRecordEnumerationResult } from "../retirement-record-enumeration.js";
+import type { TransitionRecordEnumerationResult } from "../transition-record-enumeration.js";
 import type {
-  RetirementDispositionQuery,
-  RetirementDispositionQueryResult,
-  RetirementEvidenceQuality,
-} from "../retirement-disposition-query.js";
+  TransitionDispositionQuery,
+  TransitionDispositionQueryResult,
+} from "../transition-disposition-query.js";
 
 /** One evidence hop retained in a dependency repair. */
 export interface DependencyReconcileEvidence {
   subject: string;
-  quality: RetirementEvidenceQuality;
 }
 
 /** Closed reasons that refuse a dependency reconcile before mutation. */
@@ -47,7 +45,6 @@ export type DependencyReconcileConflictReason =
   | "missing-target"
   | "ambiguous-evidence"
   | "unmapped-dependent"
-  | "version-conflict"
   | "namespace-corrupt"
   | "rename-cycle"
   | "reference-history-conflict"
@@ -112,7 +109,7 @@ export interface PlanDependencyReconcileInput {
   index: LifecycleIndex;
   dependentSlug: string;
   edges: readonly string[];
-  queryDisposition: (input: RetirementDispositionQuery) => Promise<RetirementDispositionQueryResult>;
+  queryDisposition: (input: TransitionDispositionQuery) => Promise<TransitionDispositionQueryResult>;
 }
 
 /** One exact current-WU edit guarded by the content that produced it. */
@@ -139,8 +136,8 @@ export interface PreparedCurrentWuReconcile {
 /** I/O boundary for inspecting and applying one dependent-owned plan. */
 export interface CurrentWuReconcileContext {
   index: LifecycleIndex;
-  queryDisposition: (input: RetirementDispositionQuery) => Promise<RetirementDispositionQueryResult>;
-  enumerateRetirementRecords?: () => Promise<RetirementRecordEnumerationResult>;
+  queryDisposition: (input: TransitionDispositionQuery) => Promise<TransitionDispositionQueryResult>;
+  enumerateTransitionRecords?: () => Promise<TransitionRecordEnumerationResult>;
   listArtifactPaths?: (slug: string, metaPath: string) => Promise<readonly string[]>;
   readFile: (path: string) => Promise<string>;
   writeFile: (path: string, content: string) => Promise<void>;
@@ -151,7 +148,7 @@ export interface CurrentWuReconcileContext {
 /** Read-only dependencies for producing one exact current-WU reconcile plan. */
 export type CurrentWuReconcilePrepareContext = Pick<
   CurrentWuReconcileContext,
-  "index" | "queryDisposition" | "enumerateRetirementRecords" | "listArtifactPaths" | "readFile"
+  "index" | "queryDisposition" | "enumerateTransitionRecords" | "listArtifactPaths" | "readFile"
 >;
 
 /** Mutation dependencies for applying a previously prepared exact plan. */
@@ -280,7 +277,7 @@ async function resolveRetiredEdge(
   }
   visited.add(subject);
   const resolution = await input.queryDisposition({
-    retiredSubject: subject,
+    origin: subject,
     dependentSlug: input.dependentSlug,
   });
   if (resolution.status !== "unique") {
@@ -292,7 +289,7 @@ async function resolveRetiredEdge(
       },
     };
   }
-  const evidence = [{ subject, quality: resolution.evidenceQuality }] satisfies DependencyReconcileEvidence[];
+  const evidence = [{ subject }] satisfies DependencyReconcileEvidence[];
   switch (resolution.disposition.kind) {
     case "retarget": {
       const target = resolution.disposition.targetSlug;
@@ -375,7 +372,7 @@ async function resolveRetiredEdge(
 }
 
 function conflictReason(
-  status: Exclude<RetirementDispositionQueryResult["status"], "unique">,
+  status: Exclude<TransitionDispositionQueryResult["status"], "unique">,
 ): DependencyReconcileConflictReason {
   switch (status) {
     case "absent":
@@ -384,8 +381,6 @@ function conflictReason(
       return "ambiguous-evidence";
     case "unmapped-dependent":
       return "unmapped-dependent";
-    case "version-conflict":
-      return "version-conflict";
     case "namespace-corrupt":
       return "namespace-corrupt";
   }
@@ -600,10 +595,10 @@ async function prepareReferencePlan(
   ctx: CurrentWuReconcilePrepareContext,
   artifacts: ReadonlyArray<{ path: string; content: string }>,
 ): Promise<ReturnType<typeof planReferenceReconcile>> {
-  if (ctx.enumerateRetirementRecords === undefined || ctx.listArtifactPaths === undefined) {
+  if (ctx.enumerateTransitionRecords === undefined || ctx.listArtifactPaths === undefined) {
     return planReferenceReconcile({ transitions: [], artifacts });
   }
-  const projected = enumerateReferenceTransitions(await ctx.enumerateRetirementRecords());
+  const projected = enumerateTransitionReferenceTransitions(await ctx.enumerateTransitionRecords());
   if (projected.status === "conflict") {
     return {
       status: "conflict",

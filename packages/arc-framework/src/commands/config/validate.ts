@@ -48,11 +48,15 @@ const VALIDATION_DOMAIN_ORDER = [
   "hooks.body_max_lines",
   "hooks.body_max_line_length",
   "merge.strategy",
+  "merge.lock",
   "platform.type",
   "review.frontline_max_passes",
   "review.standard_max_passes",
-  "review.chunking_threshold_lines",
-  "review.chunking_threshold_files",
+  "review.hosted_await_timeout_seconds",
+  "review.hosted_await_initial_poll_interval_seconds",
+  "review.hosted_await_attention_after_minutes",
+  "changeset.advisory_threshold_lines",
+  "changeset.advisory_threshold_files",
   "pm.mode",
   "team.mode",
   "session.remote_sync",
@@ -147,9 +151,13 @@ function renderDomain(
     const selected = configured ?? field.defaultValue;
     if (invalidKeys.has(key)) {
       const minimum = field.policy.kind === "unsigned-safe-integer" ? 0 : field.policy.minimum;
+      const maximum = field.policy.kind === "positive-safe-integer"
+        ? field.policy.maximum
+        : undefined;
       error(
         output,
-        `${key}: '${selected}' must be an unsigned base-10 safe integer >= ${minimum}`,
+        `${key}: '${selected}' must be an unsigned base-10 safe integer >= ${minimum}`
+          + (maximum === undefined ? "" : ` and <= ${maximum}`),
       );
     } else {
       pass(output, `${key}: ${selected}`);
@@ -241,6 +249,10 @@ function renderCrossFieldChecks(
   const customPattern = selectedValue(values, "commit.custom_pattern");
   const footer = selectedValue(values, "commit.context_footer");
   const contextPattern = selectedValue(values, "commit.context_pattern");
+  const hostedAwaitTimeoutSeconds = Number(selectedValue(values, "review.hosted_await_timeout_seconds"));
+  const hostedAwaitPollIntervalSeconds = Number(
+    selectedValue(values, "review.hosted_await_initial_poll_interval_seconds"),
+  );
 
   if (format === "custom") {
     if (customPattern === "") {
@@ -262,6 +274,13 @@ function renderCrossFieldChecks(
     warn(
       output,
       `commit.context_pattern is set but commit.context_footer is '${footer}' (pattern is ignored)`,
+    );
+  }
+
+  if (hostedAwaitPollIntervalSeconds > hostedAwaitTimeoutSeconds) {
+    error(
+      output,
+      "review.hosted_await_initial_poll_interval_seconds must not exceed review.hosted_await_timeout_seconds",
     );
   }
 }

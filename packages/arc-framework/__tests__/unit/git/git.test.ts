@@ -277,6 +277,22 @@ describe("gitMergeFile", () => {
     expect(result).toEqual({ content: conflictContent, hasConflicts: true });
   });
 
+  it("returns conflict markers when merge-file reports multiple conflicts", async () => {
+    const conflictContent = "<<<<<<< current.txt\nours\n=======\ntheirs\n>>>>>>> other.txt\n";
+    const error = Object.assign(new Error("exit code 2"), {
+      code: 2,
+      stdout: conflictContent,
+    });
+    const mockExec = vi.fn().mockRejectedValue(error);
+
+    await expect(gitMergeFile(
+      mockExec,
+      "current.txt",
+      "base.txt",
+      "other.txt",
+    )).resolves.toEqual({ content: conflictContent, hasConflicts: true });
+  });
+
   it("throws when input files are missing", async () => {
     const error = Object.assign(new Error("git merge-file failed"), {
       code: 255,

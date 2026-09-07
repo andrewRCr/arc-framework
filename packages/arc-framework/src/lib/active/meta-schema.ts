@@ -21,6 +21,13 @@ export const MetaPrioritySchema = z.union([PrioritySchema, z.literal("TBD")]);
 /** Semantic origin value, including the internal-origin token. */
 export const MetaOriginSchema = SemanticStringSchema;
 
+/** Canonical originating Errand generation retained by a promoted work unit. */
+export const MetaPromotionReceiptSchema = z.string()
+  .regex(/^errand-v1\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-f0-9]{32}$/u);
+
+/** Candidate attestation identity projected into the managed work-unit record. */
+export const MetaCandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+
 /** Exact Markdown-label to semantic-key mapping for managed meta fields. */
 export const META_FIELD_KEYS = [
   { name: "State", key: "state" },
@@ -34,6 +41,8 @@ export const META_FIELD_KEYS = [
   { name: "Design", key: "design" },
   { name: "Task List", key: "taskList" },
   { name: "Review Rubric", key: "reviewRubric" },
+  { name: "Promotion Receipt", key: "promotionReceipt" },
+  { name: "Candidate", key: "candidateId" },
   { name: "Current Workflow", key: "currentWorkflow" },
   { name: "Last Completed", key: "lastCompleted" },
   { name: "Next Task", key: "nextTask" },
@@ -52,8 +61,17 @@ const metaProjectionShape = Object.fromEntries(
   META_FIELD_KEYS.map(({ name }) => [name, ProjectionValueSchema]),
 ) as MetaProjectionShape;
 
-/** Complete tokenizer output keyed by the current Markdown labels. */
-export const MetaProjectionRecordSchema = z.strictObject(metaProjectionShape);
+/**
+ * Complete tokenizer output keyed by the current Markdown labels.
+ *
+ * Historical and ordinary work-unit metas omit Promotion Receipt entirely.
+ * Normalize that optional projection field to null so downstream semantic
+ * adapters retain a complete record without making old metas unreadable.
+ */
+export const MetaProjectionRecordSchema = z.strictObject(metaProjectionShape).extend({
+  "Promotion Receipt": ProjectionValueSchema.optional().default(null),
+  Candidate: ProjectionValueSchema.optional().default(null),
+});
 
 const ParsedStringSchema = SemanticStringSchema.nullable();
 
@@ -70,6 +88,8 @@ export const ParsedMetaRecordSchema = z.strictObject({
   design: z.array(SemanticStringSchema),
   taskList: ParsedStringSchema,
   reviewRubric: ParsedStringSchema,
+  promotionReceipt: ParsedStringSchema.optional().default(null),
+  candidateId: ParsedStringSchema.optional().default(null),
   currentWorkflow: ParsedStringSchema,
   lastCompleted: ParsedStringSchema,
   nextTask: ParsedStringSchema,
@@ -92,6 +112,8 @@ export const MetaRecordSchema = z.strictObject({
   design: z.array(SemanticStringSchema),
   taskList: SemanticStringSchema.nullable(),
   reviewRubric: SemanticStringSchema.nullable(),
+  promotionReceipt: MetaPromotionReceiptSchema.nullable(),
+  candidateId: MetaCandidateIdSchema.nullable(),
   currentWorkflow: SemanticStringSchema.nullable(),
   lastCompleted: SemanticStringSchema.nullable(),
   nextTask: SemanticStringSchema.nullable(),

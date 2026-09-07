@@ -31,24 +31,22 @@ import type { LifecyclePosition, Location, Phase } from "./lifecycle-state.js";
 /**
  * The work-unit lifecycle verbs — the fully inverse-paired edge set.
  *
- * Phase-axis: `activate` ⊥ `deactivate`, `reopen` ⊥ `integrate`. Location-axis:
+ * Phase-axis: `activate` ⊥ `deactivate`, `reopen` ⊥ `publish`. Location-axis:
  * `park` ⊥ `resume`, `promote` ⊥ `demote`. Forward / terminal / destructive:
- * `stub` ⊥ `abandon`, `decompose`, `archive`, and `materialize` (irreversible).
- * `start` is the state-dispatching entry verb (the inverse of `park` at its
- * headline cell); `materialize` is the remote-only entry verb.
+ * `stub` ⊥ `abandon`, `decompose`, and `archive` (irreversible). `start` is
+ * the state-dispatching entry verb (the inverse of `park` at its headline cell).
  *
  * Declared as a runtime array (the totality walk's verb axis) with {@link Verb}
  * derived from it, so the type and the enumerable list never drift.
  */
 export const VERBS = [
   "start",
-  "materialize",
   "park",
   "resume",
   "activate",
   "deactivate",
   "reopen",
-  "integrate",
+  "publish",
   "promote",
   "demote",
   "stub",
@@ -122,7 +120,7 @@ export type ArtifactDisposition = "relocate" | "scaffold" | "remove";
 /** The `reconcile-branch` leg's operation — phase-and-direction-conditioned. */
 export type BranchMutation = "create" | "rename" | "delete" | "preserve";
 
-/** The `reconcile-worktree` leg's operation. */
+/** The `reconcile-work-unit-worktree` leg's operation. */
 export type WorktreeMutation = "spawn" | "teardown";
 
 /**
@@ -131,7 +129,7 @@ export type WorktreeMutation = "spawn" | "teardown";
  * branch) holds by construction; an omitted leg does not fire for that edge.
  *
  * `setPhase` is a flag — its direction is implied by `to.phase`. `artifacts`,
- * `reconcileBranch`, and `reconcileWorktree` carry their operation explicitly
+ * `reconcileBranch`, and `reconcileWorkUnitWorktree` carry their operation explicitly
  * because it is not a pure function of the position pair (e.g. `park@Active`
  * preserves the branch while `park@Planning` deletes it; a creation edge
  * scaffolds where a location-mover relocates).
@@ -141,8 +139,8 @@ export interface MutatorSpec {
   artifacts?: ArtifactDisposition;
   /** `reconcile-branch` — create / rename / delete / preserve the WU branch. */
   reconcileBranch?: BranchMutation;
-  /** `reconcile-worktree` — spawn / teardown the worktree (incl. execution-locus relocation). */
-  reconcileWorktree?: WorktreeMutation;
+  /** `reconcile-work-unit-worktree` — spawn / teardown the worktree (incl. execution-locus relocation). */
+  reconcileWorkUnitWorktree?: WorktreeMutation;
   /** `set-phase` — write the meta `**State:**` field to `to.phase` (phase-movers only). */
   setPhase?: boolean;
   /**
@@ -156,11 +154,17 @@ export interface MutatorSpec {
    */
   clearBranchField?: boolean;
   /**
+   * Project a live lifecycle workflow into the meta `Current Workflow` field.
+   * Publication writes `integrate-work-unit`; withdrawal returns to
+   * `prepare-work-unit`. Mutually exclusive with `clearCurrentWorkflowField`.
+   */
+  setCurrentWorkflowField?: string;
+  /**
    * Clear the meta `Current Workflow` field to `[none]`. Edges that enter a
-   * terminal or non-planning state use this so stale workflow pointers do not
-   * survive after the phase transition. A logical-only field write (no git op),
-   * mirroring {@link clearBranchField}; re-entry into planning re-sets the
-   * pointer via the stage-entry write.
+   * state with no live workflow pointer use this so stale values do not survive
+   * after the phase transition. A logical-only field write (no git op), mirroring
+   * {@link clearBranchField}; re-entry into planning re-sets the pointer via the
+   * stage-entry write.
    */
   clearCurrentWorkflowField?: boolean;
 }
@@ -353,7 +357,7 @@ function withRender(...extra: SideEffectId[]): SideEffectId[] {
  * guards, encoding mutators, side-effects, and soft-field dispositions,
  * replacing the rules previously restated per workflow.
  *
- * Composite verbs (`integrate`, `decompose`) appear as edges declaring their
+ * Composite verbs (`publish`, `decompose`) appear as edges declaring their
  * encoding; their judgment halves stay in the owning workflows
  * (`integrate-work-unit`; `decompose-matrix` owns `decompose`'s full
  * parent-position matrix and refines its target/encoding). `start` is the
@@ -364,7 +368,7 @@ function withRender(...extra: SideEffectId[]): SideEffectId[] {
  * worktree-touching edges per the satellite's open/close set.
  */
 export const TRANSITIONS: readonly TransitionRecord[] = [
-  // -- Phase axis: activate / deactivate, integrate / reopen --
+  // -- Phase axis: activate / deactivate, publish / reopen --
   {
     verb: "activate",
     from: PLANNING,
@@ -386,12 +390,12 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: { nextTask: { reset: NONE }, nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
   },
   {
-    verb: "integrate",
+    verb: "publish",
     from: ACTIVE,
     to: INTEGRATING,
     inverse: "reopen",
     guards: [],
-    encodingUpdates: { setPhase: true },
+    encodingUpdates: { setPhase: true, setCurrentWorkflowField: "integrate-work-unit" },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: { reset: NONE }, nextAction: "input", lastCompleted: "input", blockers: "leave" },
   },
@@ -399,13 +403,13 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     verb: "reopen",
     from: INTEGRATING,
     to: ACTIVE,
-    inverse: "integrate",
+    inverse: "publish",
     guards: ["pr-unmerged"],
-    encodingUpdates: { setPhase: true },
+    encodingUpdates: { setPhase: true, setCurrentWorkflowField: "prepare-work-unit" },
     sideEffects: withRender("withdraw-pr"),
-    // Withdrawal back to Active clears the now-stale integration `Next Action`
-    // pointer (e.g. "open the PR"); `Next Task` stays `[none]` from `integrate`.
-    softFields: { nextTask: "leave", nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
+    // Withdrawal back to Active clears the now-stale integration `Next Action`.
+    // An explicitly reopened task restores `Next Task` through caller input.
+    softFields: { nextTask: "input", nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
   },
 
   // -- Location axis: park / resume (park is phase-polymorphic), promote / demote --
@@ -419,7 +423,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PARKED,
     inverse: "resume",
     guards: ["worktree-clean"],
-    encodingUpdates: { reconcileWorktree: "teardown" },
+    encodingUpdates: { reconcileWorkUnitWorktree: "teardown" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -449,7 +453,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: "park",
     guards: ["worktree-occupancy"],
-    encodingUpdates: { reconcileWorktree: "spawn" },
+    encodingUpdates: { reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -501,23 +505,9 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNING,
     inverse: null,
     guards: ["name-collision", "worktree-occupancy"],
-    encodingUpdates: { artifacts: "scaffold", reconcileBranch: "create", reconcileWorktree: "spawn" },
+    encodingUpdates: { artifacts: "scaffold", reconcileBranch: "create", reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: FRESH_SOFT,
-  },
-  {
-    // Cross-machine pickup: the authoritative artifacts already ride the fetched
-    // remote branch, so this edge only places that branch into a local checkout.
-    // There is no inverse transition: un-materializing a local checkout is a
-    // teardown/park concern, not a lifecycle round-trip to the remote-only source.
-    verb: "materialize",
-    from: null,
-    to: ACTIVE,
-    inverse: null,
-    guards: ["worktree-occupancy"],
-    encodingUpdates: { reconcileWorktree: "spawn" },
-    sideEffects: withRender("user-workspace"),
-    softFields: PRESERVE_SOFT,
   },
   {
     verb: "start",
@@ -525,7 +515,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNING,
     inverse: null,
     guards: ["class-resolved", "worktree-occupancy"],
-    encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorktree: "spawn" },
+    encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -535,7 +525,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: PLANNING,
     inverse: "park",
     guards: ["class-resolved", "worktree-occupancy"],
-    encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorktree: "spawn" },
+    encodingUpdates: { artifacts: "relocate", reconcileBranch: "create", reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -548,7 +538,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: "park",
     guards: ["worktree-occupancy"],
-    encodingUpdates: { reconcileWorktree: "spawn" },
+    encodingUpdates: { reconcileWorkUnitWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -712,9 +702,9 @@ export const MARKED_ILLEGAL: readonly IllegalCell[] = [
     "deactivate undoes a premature activation; only an `active` WU qualifies",
   ),
   ...illegalCells(
-    "integrate",
+    "publish",
     [PROVISIONAL, PLANNED, PLANNING, INTEGRATING, PARKED, SHIPPED],
-    "integrate opens review on an active WU; only an `active` WU qualifies",
+    "publish schedules publication for an active WU; only an `active` WU qualifies",
   ),
   ...illegalCells(
     "reopen",
@@ -770,11 +760,6 @@ export const MARKED_ILLEGAL: readonly IllegalCell[] = [
     "start",
     [SHIPPED],
     "shipped is terminal — begin new work as a fresh origin-linked WU",
-  ),
-  ...illegalCells(
-    "materialize",
-    [PROVISIONAL, PLANNED, PLANNING, ACTIVE, INTEGRATING, PARKED, SHIPPED],
-    "materialize picks up a remote-only WU; it only applies when no local lifecycle record exists",
   ),
   ...illegalCells(
     "decompose",

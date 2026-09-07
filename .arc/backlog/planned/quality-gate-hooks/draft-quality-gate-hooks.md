@@ -5,6 +5,27 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Close the two-copy sync blind spot in gate selection**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-08-10);
+  captured during `proportionality-floor` task generation.
+- _Concern:_ Framework byte identity between package source and `.arc/` is checked at commit time, but the
+  relevance table can classify a one-sided Markdown edit as documentation-only and skip code-side validation even
+  though the shipped counterpart is part of a hybrid contract.
+- _Fold-in:_ decide whether relevance classification expands when either side of a mirrored Framework pair changes,
+  or whether the sync check must emit the affected gate set explicitly. Include the warn-versus-block posture for
+  wrong-direction edits and prove both one-sided cases.
+
+### `[ ]` **Lock a completed task's identifier against removal or rename**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` draft design.
+- _Concern:_ completion commits cite task IDs in `Context:` footers, but later renumbering can silently make that
+  durable history point at different work.
+- _Fold-in:_ add a pre-commit comparison against `HEAD` that forbids removing or renaming an ID already marked
+  complete, while leaving open tasks and untouched future phases freely restructurable. Coordinate the prior-state
+  read, revision-ID forms, and subtask granularity with the task-list convention.
+
 ### `[ ]` **Reconcile ownership after repository Markdown enforcement ships**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
@@ -22,6 +43,27 @@
   warning or quality gate. The hazard grows with parallel worktree use.
 - _Approach:_ evaluate provisioning hooks during worktree creation and a fail-closed detection path that also
   catches manually created worktrees; pin the selected composition with tests.
+- _Fold-in (2026-07-27 drain):_ a second entry path is `arc errand open`, which occupies **in place** with no
+  spawn path — so `worktree.post_create` has nothing to hang off for errands even when an errand wants its own
+  checkout. Provisioning today is work-unit-spawn-scoped. Decide whether `arc errand open` should gain a
+  spawn-and-provision path (design fork; multi-step). The **cheap resolve-and-warn/fail when hooksPath is
+  missing** guard was split to an execute-now errand at the same drain and may land ahead of this design work.
+
+### `[ ]` **A lint run over an excluded or untracked path reports a false green**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-27); captured during
+  `review-protocol-alignment` handoff and `integration-boundary-accuracy` create-spec.
+- _Concern:_ two false-green shapes. (1) `WORKING-MEMORY.md` / `USER-INBOX.md` are excluded by glob;
+  `lint:md` / `format:tables` against those paths report `0 file(s)` and exit zero — indistinguishable from a
+  clean pass. (2) A newly authored **untracked** `spec-*.md` linted clean under `npm run -s lint:md` while the
+  run scanned ~1200 tracked files and silently omitted the path under edit; staging then surfaced 55 real
+  errors. A zero-match guard would not catch (2).
+- _Approach fork:_ the generalizing fix is closer to "state what was covered, or fail closed when a
+  gate-eligible path went unchecked" than to declining on zero matches alone. Mechanism (git-aware file list)
+  is inferred from behavior, not yet verified in config.
+- _Fold-in:_ settle which defect is being fixed before touching `.markdownlint-cli2.jsonc` and the
+  `lint:md` / `lint:md:staged` / `format:tables` scripts — load-bearing primary quality-gate tooling; likely
+  reviewed lane.
 
 ### `[ ]` **Distinguish raw Git rename/copy statuses from planning references**
 
@@ -283,6 +325,26 @@
 
 - _Captured during:_ `judgment-authority-model` drafting, 2026-07-26 — hit while creating
   `notes-judgment-authority-model.md` for the compression enumeration.
+
+### `[ ]` **Add a checker that resolves Markdown `§` citations against real headings**
+
+- _Routed from:_ `USER-INBOX § Errand` (reclassified multi-step at drain), housekeep drain (2026-07-28); captured
+  during `judgment-authority-model` create-spec adversarial pass two.
+- _Concern:_ Nothing validates inbound `§` citations. `lint:arc:section-refs` enforces the opposite rule (no `§` in
+  code). ~45 live citation sites across workflows/methods/strategies can silently orphan on heading rename.
+  Design forks: file-qualified vs bare same-file citations, dual package/`.arc` Framework copies, incidental prose
+  `§` false positives. Sibling of existing `audit-*.ts` / `lint:arc:*` family.
+- _Fold-in:_ fourth ARC contract check + possible rename of existing `lint:arc:section-refs` for disambiguation.
+
+### `[ ]` **Resolve cross-file Markdown anchors in the section-reference audit**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain
+  (2026-07-30); captured during `judgment-authority-model` Task 4.3.
+- _Concern:_ `lint:arc:section-refs` passes a `file.md#anchor` link whose referenced heading does not exist.
+  This is the silent-break class produced when procedure moves across the workflow/CLI seam.
+- _Fold-in:_ resolve cross-file targets against headings in the referenced file. Settle Markdown slug rules and
+  generated or conditional sections before failing closed, coordinated with the existing inbound checker for
+  prose `§` citations.
 
 ---
 

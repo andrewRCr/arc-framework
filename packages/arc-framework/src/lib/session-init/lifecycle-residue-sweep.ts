@@ -8,26 +8,29 @@ import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import { isWorktreeClean } from "../git/worktree-cleanup.js";
 import type {
   RegisteredWorktree,
-  WorktreeRosterResult,
 } from "../git/worktree-roster.js";
 import type { GitExec } from "../git/exec.js";
+import { readRefTip } from "../git/ref-tree.js";
 import type { ProtectionMode } from "../git/write-context.js";
-import { enumerateGitRetirementRecords } from "../work-unit/git-retirement-record-enumeration.js";
 import {
-  deriveDecomposeSuccessorCandidates,
   projectSuccessorReadiness,
   type RetirementLifecycleResult,
 } from "../work-unit/retirement-lifecycle-result.js";
 import type {
-  RetirementReceipt,
   TeardownAuthorizationDecision,
   TeardownAuthorizationRequest,
 } from "../work-unit/retirement-authority.js";
-import type { RetirementRecordEnumerationResult } from "../work-unit/retirement-record-enumeration.js";
 import {
   createTeardownRetirementAuthority,
+  createTeardownRetirementAuthorityStrict,
   type TeardownBlobReader,
 } from "../work-unit/teardown-retirement-driver.js";
+import { resolveParkProofTarget, type ParkProofTarget } from "../work-unit/park-retirement-proof.js";
+import {
+  projectCleanupRemoteEvidence,
+  type CleanupBaseEvidence,
+  type CleanupRemoteEvidence,
+} from "./cleanup-remote-evidence.js";
 
 /** Structured outside-worktree action for one validated deferred rename move. */
 export interface RenameMoveRemedy {
@@ -46,13 +49,13 @@ export interface RenameMoveResidue {
   remedy: RenameMoveRemedy;
 }
 
-/** Ordinary CLI action offered for one landed receipt-backed retirement. */
+/** Ordinary CLI action offered for one structurally proven landed retirement. */
 export interface RetirementTeardownRemedy {
   argv: readonly ["arc", "teardown", string];
   text: string;
 }
 
-/** Receipt-backed branch residue, either actionable or preserved as blocked evidence. */
+/** Landed branch residue, either actionable or preserved as blocked evidence. */
 export type LandedRetirementResidue =
   | {
       status: "actionable";
@@ -67,13 +70,12 @@ export type LandedRetirementResidue =
       reason: string;
     };
 
-export interface LandedRetirementSweepResult {
+export type LandedRetirementSweepResult = CleanupRemoteEvidence & {
   retirements: LandedRetirementResidue[];
   warnings: string[];
-}
+};
 
 export interface RunLandedRetirementSweepOptions {
-  roster: WorktreeRosterResult;
   topology: readonly RegisteredWorktree[];
   markers: ReadonlyMap<string, WorktreeMarkerReadResult>;
   baseBranch: string;
@@ -81,8 +83,10 @@ export interface RunLandedRetirementSweepOptions {
   exec: GitExec;
   readBlob: TeardownBlobReader;
   remote?: string;
+  /** Supplied advertised-base prerequisites from session composition. */
+  baseEvidence?: CleanupBaseEvidence;
+  /** Compatibility acquisition seam for callers outside session composition. */
   fetchBase?: () => Promise<boolean>;
-  enumerateRecords?: (ref: string) => Promise<RetirementRecordEnumerationResult>;
   authorize?: (request: TeardownAuthorizationRequest) => Promise<TeardownAuthorizationDecision>;
   isClean?: (worktreePath: string) => Promise<boolean>;
 }
@@ -131,7 +135,7 @@ export function projectRenameMoveRemedy(
 }
 
 /**
- * Discover still-branched receipt-backed worktrees from protection-aware base evidence.
+ * Discover still-branched retired worktrees from protection-aware base evidence.
  *
  * @param options - Registered topology, marker facts, and authority adapters
  * @returns Actionable and blocked retirement residue plus degraded-read warnings
@@ -139,6 +143,7 @@ export function projectRenameMoveRemedy(
 export async function runLandedRetirementSweep(
   options: RunLandedRetirementSweepOptions,
 ): Promise<LandedRetirementSweepResult> {
+  const projectedEvidence = projectCleanupRemoteEvidence(options.baseBranch, options.baseEvidence);
   const candidates = options.topology.filter((entry) => {
     if (entry.detached || entry.branch === null) return false;
     const marker = options.markers.get(entry.path);
@@ -148,53 +153,88 @@ export async function runLandedRetirementSweep(
       && marker.marker.husk === undefined
       && marker.marker.renameMovePending === undefined;
   });
-  if (candidates.length === 0) return { retirements: [], warnings: [] };
+  if (candidates.length === 0) return { ...projectedEvidence, retirements: [], warnings: [] };
 
   const remote = options.remote ?? "origin";
   const baseRef = options.protection === "full" ? `${remote}/${options.baseBranch}` : options.baseBranch;
-  if (options.protection === "full") {
-    const fetched = options.fetchBase === undefined
-      ? await fetchAuthorityBase(options.exec, remote, options.baseBranch)
-      : await options.fetchBase();
-    if (!fetched) {
+  let authorityExec = options.exec;
+  let proofTarget: ParkProofTarget;
+  if (options.baseEvidence !== undefined) {
+    const baseEvidence = options.baseEvidence;
+    if (!baseEvidence.remoteSyncEnabled || baseEvidence.snapshot.kind === "unreachable") {
+      return blockedRetirements(projectedEvidence, candidates, options.markers);
+    }
+    const baseOid = baseEvidence.snapshot.tips[options.baseBranch];
+    if (baseOid === undefined) {
+      return blockedRetirements(projectedEvidence, candidates, options.markers);
+    }
+    if (baseEvidence.objectAvailability.kind !== "complete") {
+      throw new Error("Advertised retirement object availability could not be inspected.");
+    }
+    const baseCommitIsLocal = baseEvidence.objectAvailability.commits[baseOid];
+    if (baseCommitIsLocal === false) {
+      return blockedRetirements(projectedEvidence, candidates, options.markers);
+    }
+    if (baseCommitIsLocal === undefined) {
+      throw new Error("The advertised base commit has no local availability fact.");
+    }
+    if (baseEvidence.history.kind === "shallow") {
+      return blockedRetirements(projectedEvidence, candidates, options.markers);
+    }
+    if (baseEvidence.history.kind !== "complete") {
+      throw new Error("Local retirement history completeness could not be inspected.");
+    }
+    authorityExec = (command, args, execOptions) => options.exec(command, args, {
+      ...execOptions,
+      objectAccess: "local-only",
+    });
+    proofTarget = { ref: baseOid, head: baseOid };
+  } else {
+    try {
+      proofTarget = await resolveParkProofTarget({
+        refreshRemoteBase: async (remoteName, baseBranch) => {
+          const fetched = options.fetchBase === undefined
+            ? await fetchAuthorityBase(options.exec, remoteName, baseBranch)
+            : await options.fetchBase();
+          if (!fetched) throw new Error("remote base refresh failed");
+          const head = await readRefTip(options.exec, `${remoteName}/${baseBranch}`);
+          if (head === null) throw new Error("remote base read failed");
+          return head;
+        },
+        readLocalBase: async (baseBranch) => {
+          const head = await readRefTip(options.exec, baseBranch);
+          if (head === null) throw new Error("local base read failed");
+          return head;
+        },
+      }, {
+        protection: options.protection,
+        remote,
+        baseBranch: options.baseBranch,
+      });
+    } catch {
       return {
+        ...projectedEvidence,
         retirements: [],
-        warnings: [`Could not refresh lifecycle authority ref \`${baseRef}\`; retirement cleanup remains manual.`],
+        warnings: [`Could not resolve lifecycle authority ref \`${baseRef}\`; retirement cleanup remains manual.`],
       };
     }
   }
 
-  let enumeration: RetirementRecordEnumerationResult;
-  try {
-    enumeration = await (options.enumerateRecords === undefined
-      ? enumerateGitRetirementRecords(options.exec, baseRef)
-      : options.enumerateRecords(baseRef));
-  } catch (error) {
-    return {
-      retirements: [],
-      warnings: [`Could not read retirement authority from \`${baseRef}\`: ${errorMessage(error)}`],
-    };
-  }
-  if (enumeration.status !== "valid") {
-    return {
-      retirements: [],
-      warnings: [`Retirement authority at \`${baseRef}\` is ${enumeration.status}; cleanup remains manual.`],
-    };
-  }
-
   const authority = options.authorize === undefined
-    ? createTeardownRetirementAuthority(options.exec, baseRef, options.readBlob).authorize
+    ? (options.baseEvidence === undefined
+        ? createTeardownRetirementAuthority(authorityExec, proofTarget, options.readBlob)
+        : createTeardownRetirementAuthorityStrict(authorityExec, proofTarget, options.readBlob)
+      ).authorize
     : options.authorize;
   const clean = options.isClean
     ?? (async (worktreePath: string) => await isWorktreeClean({ exec: options.exec, cwd: worktreePath }));
-  const retirements: LandedRetirementResidue[] = [];
-  for (const candidate of candidates) {
+  const projected = await Promise.all(candidates.map(async (
+    candidate,
+  ): Promise<LandedRetirementResidue | null> => {
     const marker = options.markers.get(candidate.path);
-    if (marker?.kind !== "present" || marker.marker.createdFor?.kind !== "work-unit") continue;
+    if (marker?.kind !== "present" || marker.marker.createdFor?.kind !== "work-unit") return null;
     const slug = marker.marker.createdFor.name;
-    const receipts = matchingRetirementReceipts(enumeration, slug);
-    if (receipts.length === 0) continue;
-    if (candidate.branch === null) continue;
+    if (candidate.branch === null) return null;
     const decision = await authority({
       subject: { kind: "work-unit", name: slug },
       branch: candidate.branch,
@@ -203,140 +243,72 @@ export async function runLandedRetirementSweep(
       requestedMode: "abandoned",
     });
     if (decision.status !== "authorized") {
-      if (await refusalConcernsCurrentRetirement(
-        options.exec,
-        { branch: candidate.branch, head: candidate.head },
-        receipts,
-      )) {
-        retirements.push({
+      if (decision.reason !== "evidence-missing" && decision.reason !== "unsupported-transition") {
+        return {
           status: "blocked",
           worktreePath: candidate.path,
           subject: { slug, branch: candidate.branch },
           reason: decision.reason,
-        });
+        };
       }
-      continue;
+      return null;
     }
     const evidence = decision.evidence;
-    const receipt = evidence.kind === "receipt"
-      ? receipts.find((candidateReceipt) => candidateReceipt.receiptId === evidence.receiptId)
-      : undefined;
-    if (receipt === undefined) {
-      retirements.push({
-        status: "blocked",
-        worktreePath: candidate.path,
-        subject: { slug, branch: candidate.branch },
-        reason: "evidence-mismatch",
-      });
-      continue;
-    }
+    if (evidence.kind !== "git-transition" || evidence.transition !== "abandon") return null;
     if (!await clean(candidate.path)) {
-      retirements.push({
+      return {
         status: "blocked",
         worktreePath: candidate.path,
         subject: { slug, branch: candidate.branch },
         reason: "uncommitted",
-      });
-      continue;
+      };
     }
-    const successorCandidates = receipt.result.kind === "decompose"
-      ? deriveDecomposeSuccessorCandidates(receipt.result.allocation)
-      : [];
     const pending = { status: "pending" } as const;
-    retirements.push({
+    return {
       status: "actionable",
       worktreePath: candidate.path,
       lifecycle: {
         subject: { slug, branch: candidate.branch },
-        transition: receipt.transition,
-        authority: {
-          kind: "receipt-backed",
-          receiptId: receipt.receiptId,
-          authorityVersion: decision.authorityVersion,
-        },
+        transition: "abandon",
         cleanup: {
           branch: pending,
           worktree: pending,
           userWorkspace: pending,
         },
-        successorReadiness: projectSuccessorReadiness(successorCandidates, true),
+        successorReadiness: projectSuccessorReadiness([], true),
       },
       teardown: {
         argv: ["arc", "teardown", slug],
         text: `arc teardown ${slug}`,
       },
-    });
-  }
-  return { retirements, warnings: [] };
+    };
+  }));
+  const retirements = projected.filter((entry): entry is LandedRetirementResidue => entry !== null);
+  return { ...projectedEvidence, retirements, warnings: [] };
 }
 
-async function refusalConcernsCurrentRetirement(
-  exec: GitExec,
-  candidate: { branch: string; head: string },
-  receipts: readonly LandedRetirementReceipt[],
-): Promise<boolean> {
-  const branchReceipts = receipts.filter((receipt) => receipt.source.branch === candidate.branch);
-  if (branchReceipts.some((receipt) =>
-    receipt.transition === "decompose" && receipt.source.head === candidate.head
-  )) {
-    return true;
-  }
-
-  const abandonReceipts = branchReceipts.filter((receipt) =>
-    receipt.transition === "abandon" && receipt.source.head !== candidate.head
-  );
-  if (abandonReceipts.length === 0) return false;
-
-  const firstParent = await readFirstParent(exec, candidate.head);
-  if (firstParent.status === "unavailable") {
-    // Branch binding plus a distinct source/current HEAD is the strongest
-    // evidence available when Git cannot resolve the direct-transition parent.
-    return true;
-  }
-  return firstParent.oid !== null
-    && abandonReceipts.some((receipt) => receipt.source.head === firstParent.oid);
-}
-
-async function readFirstParent(
-  exec: GitExec,
-  head: string,
-): Promise<{ status: "resolved"; oid: string | null } | { status: "unavailable" }> {
-  try {
-    const { stdout } = await exec("git", ["rev-list", "--parents", "-n", "1", head]);
-    const [resolvedHead, firstParent] = stdout.trim().split(/\s+/u);
-    if (resolvedHead !== head) return { status: "unavailable" };
-    return { status: "resolved", oid: firstParent ?? null };
-  } catch {
-    return { status: "unavailable" };
-  }
-}
-
-function matchingRetirementReceipts(
-  enumeration: Extract<RetirementRecordEnumerationResult, { status: "valid" }>,
-  slug: string,
-): LandedRetirementReceipt[] {
-  return enumeration.records.flatMap((entry) => {
-    if (entry.record.kind !== "receipt") return [];
-    const receipt = entry.record.value;
-    return isLandedRetirementReceipt(receipt, slug) ? [receipt] : [];
-  });
-}
-
-type LandedRetirementReceipt = RetirementReceipt & {
-  transition: "abandon" | "decompose";
-  result:
-    | Extract<RetirementReceipt["result"], { kind: "discard" }>
-    | Extract<RetirementReceipt["result"], { kind: "decompose" }>;
-};
-
-function isLandedRetirementReceipt(
-  receipt: RetirementReceipt,
-  slug: string,
-): receipt is LandedRetirementReceipt {
-  return receipt.subject.kind === "work-unit"
-    && receipt.subject.name === slug
-    && (receipt.transition === "abandon" || receipt.transition === "decompose")
-    && (receipt.result.kind === "discard" || receipt.result.kind === "decompose");
+function blockedRetirements(
+  evidence: CleanupRemoteEvidence,
+  candidates: readonly RegisteredWorktree[],
+  markers: ReadonlyMap<string, WorktreeMarkerReadResult>,
+): LandedRetirementSweepResult {
+  return {
+    ...evidence,
+    retirements: candidates.flatMap((candidate): LandedRetirementResidue[] => {
+      const marker = markers.get(candidate.path);
+      return candidate.branch !== null
+        && marker?.kind === "present"
+        && marker.marker.createdFor?.kind === "work-unit"
+        ? [{
+            status: "blocked",
+            worktreePath: candidate.path,
+            subject: { slug: marker.marker.createdFor.name, branch: candidate.branch },
+            reason: "evidence-unavailable",
+          }]
+        : [];
+    }),
+    warnings: [],
+  };
 }
 
 async function fetchAuthorityBase(exec: GitExec, remote: string, baseBranch: string): Promise<boolean> {
@@ -346,8 +318,4 @@ async function fetchAuthorityBase(exec: GitExec, remote: string, baseBranch: str
   } catch {
     return false;
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

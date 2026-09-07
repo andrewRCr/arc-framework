@@ -10,10 +10,12 @@
 
 import { writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
+import { basename } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import type { GitExec } from "../lib/git/exec.js";
+import { environmentForGitCwd } from "../lib/git/process-executor.js";
 import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import {
   applyRoadmapConflictAutoRemedy,
@@ -36,8 +38,13 @@ export const remedyRoadmapConflictInputPolicyDeclarations = [{
 
 /** Real Git executor for this script; stdout is not trimEnd()ed. */
 const rawGitExec: GitExec = async (cmd, args, options) => {
+  const environment = environmentForGitCwd(options?.cwd);
+  const env = options?.indexFile === undefined
+    ? environment
+    : { ...(environment ?? process.env), GIT_INDEX_FILE: options.indexFile };
   const { stdout, stderr } = await execFileAsync(cmd, args, {
     cwd: options?.cwd,
+    env,
     signal: options?.signal,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
@@ -54,9 +61,13 @@ const rawGitExec: GitExec = async (cmd, args, options) => {
 export async function runRoadmapConflictAutoRemedy(
   cwd: string = process.cwd(),
 ): Promise<{ exitCode: 0 | 1; stdout: string; stderr: string }> {
+  const exec: GitExec = async (command, args, options) => await rawGitExec(command, args, {
+    ...options,
+    cwd: options?.cwd ?? cwd,
+  });
   const result = await applyRoadmapConflictAutoRemedy({
     cwd,
-    exec: rawGitExec,
+    exec,
     writeFile: async (path, content) => {
       await writeFile(path, content, "utf8");
     },
@@ -87,6 +98,9 @@ export async function runRoadmapConflictAutoRemedyCommand(): Promise<void> {
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+const modulePath = fileURLToPath(import.meta.url);
+// Preserve the source-script fallback without treating the importing bundle (`dist/cli.js`) as
+// this module's entrypoint. Bundlers rewrite import.meta.url for every bundled source module.
+if (basename(modulePath).startsWith("remedy-roadmap-conflict.") && modulePath === process.argv[1]) {
   void runRoadmapConflictAutoRemedyCommand();
 }

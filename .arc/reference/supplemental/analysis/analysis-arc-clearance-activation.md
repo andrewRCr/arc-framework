@@ -1,5 +1,9 @@
 # ARC Clearance Activation Record
 
+> **Retired machinery.** Historical activation record for the `arc-cleared` required-status merge guard. That
+> mechanism was displaced by draft-state lock (`merge.lock: draft`; ADR-031). Keep this file for history; do not
+> treat present-tense claims below as current install guidance.
+
 This record captures the self-hosting activation of the optional `arc-cleared` exact-head merge guard after its
 implementation reached `main`.
 

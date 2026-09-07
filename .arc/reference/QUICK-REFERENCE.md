@@ -136,39 +136,44 @@ npm run -w packages/arc-framework test:watch
 ### Building
 
 ```bash
-# Build CLI package (ESM output with shebang and declarations)
+# Build CLI package (ESM output with shebang and declarations) — the build-verification gate
 npm run build
+
+# Runtime-only build: bundle, esbuild metafile, freshness stamp, and kernel schema, no
+# declarations. The one-second fix when the dev-build guard refuses a command.
+npm run build:fast
 ```
 
 ---
 
 ## Quality Gate Commands
 
-Reference commands for the DEV-RULES.PROJECT quality gates. **Which** of them a given change has to run is
-DEV-RULES.PROJECT § Quality Gates (relevance and unchanged-tree conditions); the tier model itself is the
-[Quality Gates Strategy][quality-gates].
+The project's quality gates and the commands that run them. **Which** of them a given change has to run is
+DEV-RULES.PROJECT § Quality Gates (relevance and unchanged-tree conditions), which also carries the standards each
+gate enforces; the tier model itself is the [Quality Gates Strategy][quality-gates].
 
 **Parity with CI.** The full-suite set below tracks the required workflow in `.github/workflows/ci.yml`. The
 `lint:arc:*` contract checks are required there and are easy to omit locally — doing so produces a false green
 that CI then rejects. When CI gains or renames a required gate, update this section in the same change.
 
-**Measured cost** (2026-07-25, warm cache). Targeting is what makes Tier 1 a per-task gate rather than a second
-full suite — the expensive checks narrow by an order of magnitude, and the ARC contract checks are already cheap:
+### The gates
 
-| Check                   | Full project | Targeted                                    |
-| ----------------------- | ------------ | ------------------------------------------- |
-| `lint:md`               | 6.9s         | 0.25s — `lint:md:file`, per file            |
-| `lint:ts`               | 21.4s        | 2.1s one file · 9.1s one directory          |
-| `lint:sh`               | 1.0s         | not narrowable (fixed hook/script set)      |
-| `lint:arc:triggers`     | 0.27s        | corpus-wide by design; already cheap        |
-| `lint:arc:domain-rules` | 0.23s        | corpus-wide by design; already cheap        |
-| `lint:arc:section-refs` | 0.22s        | corpus-wide by design; already cheap        |
-| `typecheck`             | 4.2s         | not narrowable (whole-program)              |
-| `typecheck:test`        | 7.3s         | not narrowable (whole-program)              |
-| `test:unit`             | 24.2s        | 1.1s — filename filter                      |
-| `test:arc-contracts`    | 0.9s         | subset of `test`; a Tier 1 targeting handle |
-| `test` (7,524)          | 67.0s        | narrow via `test:unit` or a per-tier script |
-| `build`                 | 5.7s         | not narrowable                              |
+Zero violations or errors on each. Commands, config, and tooling:
+
+- **Markdown lint** — `lint:md` over the worktree; `lint:md:staged` certifies the index and is authoritative at
+  pre-commit. Config `.markdownlint-cli2.jsonc`.
+- **Code lint** — `lint:ts`, config `packages/arc-framework/eslint.config.js` (typescript-eslint
+  recommended-type-checked); `lint:sh`, which requires a system-installed `shellcheck` on developer machines.
+- **Type checking** — `typecheck` for source (`packages/arc-framework/tsconfig.json`, strict, excludes
+  `__tests__`), `typecheck:test` for tests (`tsconfig.test.json`), or `typecheck:all` for both.
+- **Tests** — `npm test` for the full suite, `test:unit` for unit only. Vitest, config
+  `packages/arc-framework/vitest.config.ts`.
+- **Build** — `build`. Tooling is tsup, emitting ESM output, declarations, and an injected shebang.
+- **ARC contract checks** — `lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`. Corpus-wide by
+  design and required in CI.
+
+Invocation detail for the Markdown gates — `lint:md:staged`, `lint:md:fix:file`, `format:tables`, the `--no-globs`
+rule, and the MD060 caveat — stays in § Markdown Linting above rather than being restated here.
 
 ### Incremental — Tier 1 (per-task)
 
@@ -222,9 +227,8 @@ npm test
 ### Full Suite — Tier 3 (per-phase / pre-PR)
 
 Tier 2 plus build verification and a change review. Run it whole — the strategy's no-partial-Tier-3 rule holds.
-Worth recording that in this repo Tier 3 exceeds Tier 2 by `build` alone (~5.7s, about 5%): the two tiers have
-nearly converged here, which is an input to the eventual tier-model rework rather than a license to substitute
-one for the other.
+In this repo Tier 3 exceeds Tier 2 by `build` alone, so the two tiers have nearly converged. That convergence is an
+input to the eventual tier-model rework rather than a license to substitute one for the other.
 
 ```bash
 # 1-9: the Tier 2 block above (which carries the full CI-required set), then:
@@ -249,10 +253,36 @@ additional full-suite gates.
 > `arc` install in this working tree. A global install would resolve to the published version,
 > not local source, so changes you make here wouldn't run. Use `npx arc <command>` for every ARC
 > CLI command in the sections below; npm workspaces symlinks the local package binary into
-> `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires `npm run build` to be
-> current (the binary points at `packages/arc-framework/dist/cli.js`). This guidance applies only
+> `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires a current build (the
+> binary points at `packages/arc-framework/dist/cli.js`); the guard refuses against a stale one,
+> and `npm run build:fast` refreshes it in about a second. This guidance applies only
 > to the self-hosting repo; adopter projects install the published CLI globally and use `arc`
 > directly.
+
+### Command Prerequisites and Remote Access
+
+ARC requires Node.js 24 or newer and Git 2.45 or newer.
+
+`npx arc status --session-init --json` is passive for code-repository evidence: it reads one live advertised-head
+generation and inspects only objects already present locally. It does not fetch code objects, update or create code
+refs, prune, or run maintenance. This holds in linked worktrees, where ref and object writes would target the shared
+Git common directory. Missing advertised objects return `pending-fetch`; unreachable transport returns
+`unreachable`; disabled or absent transport returns `not-applicable`. Shallow history or missing partial-clone
+trees/blobs cannot produce an exact graph or content result and do not trigger lazy fetching.
+
+Use an explicit operation when acquisition is intended:
+
+```bash
+# Expand live in-flight candidates; may fetch missing advertised candidate objects
+npx arc active in-flight --json
+
+# Fast-forward the local base ref from advertised remote state
+npx arc base sync --json
+```
+
+Materialization, pull, and sync verbs likewise own their documented Git writes. User-notes refs and transient
+Errand-record transport are separate channels with their own operational ref behavior; they never count as passive
+code-head evidence. See [Session Operations Strategy][session-ops] § Remote access boundary.
 
 ### Setup and Configuration
 
@@ -293,7 +323,9 @@ by design, not a missing ceremony.
 arc status <slug> [--json]
 
 # Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields per strategy-work-organization.md § Stub required fields)
-arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <ref>] [--design <ref>] [--cohort <slug>]
+# --cohort accepts <cohort> or <cohort>/<subcohort> and requires the planned tier.
+arc stub <name> --commitment <provisional|planned> --priority <P#> \
+  [--origin <ref>] [--design <ref>] [--cohort <cohort-path>]
 
 # Start an existing work unit on plan/<name>; --new explicitly creates an absent name.
 # Spawns a worktree; --here uses the current checkout (init-work-unit.md).
@@ -317,20 +349,28 @@ arc park [slug] --reason <text> [--land <oid>]
 # Resume a parked WU's preserved branch (resume-work-unit.md)
 arc resume [slug] [--here]
 
-# Open review: Active → Integrating, marks phase entry not the merge (integrate-work-unit.md)
-arc integrate [slug] --last-completed <work> --action <next action>
+# Attest a verified Candidate without changing lifecycle State (verify-work-unit.md)
+# --new-root roots a new lineage over the current fully verified subject, superseding a blocked Candidate
+arc attest <name> --json [--new-root]
+
+# Schedule publication: Active → Integrating, not the merge (prepare-work-unit.md)
+# --last-completed / --action override the task-list and boundary reads the verb makes on its own
+arc publish [slug] [--last-completed <work>] [--action <next action>] [--json]
+# Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
+arc integrate checkpoint <name> [--json]
+arc integrate merge <name> --checkpoint <handle> [--json]
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)
 arc reopen [slug] [--keep-pr]
 
 # Split one WU into a cohort of members per a cut-map (decompose-work-unit.md)
-arc decompose <origin> --cut-map <file>
+arc decompose <origin> --execute <file>
 
 # Abandon a pre-merge WU — artifacts, branch, worktree; prints the impact plan (deactivate-work-unit.md § Case A-delete)
 arc abandon <slug> --yes
 
 # Sweep a shipped WU to completed/ (archive-work-unit.md)
 arc archive [slug] [--pr-url <url>] [--completed <date>]
-# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 14)
+# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 11)
 arc teardown <name> [--force] [--husk <absolute-path>]
 
 # Safely fast-forward the configured local base from any worktree
@@ -339,12 +379,15 @@ arc base sync [--json]
 # Classify the planning-entry route — committable, or redirect to start / stub / errand
 arc plan check
 
-# Errand lifecycle — chore/<slug> branch, no meta (run-errand.md)
-arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>] [--inbox-entry-file <path|->]
-arc errand link <slug> (--from-inbox <entry> | --inbox-entry-file <path|->)
-arc errand close <slug>
-arc errand promote <slug>
-arc errand retire <slug>
+# Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
+arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--json]
+arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
+arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]
+arc errand leave <slug> --state <paused|awaiting-merge> [--confirm-foreign-generation <generation>] [--json]
+arc errand close <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand abandon <slug> [--confirm-foreign-generation <generation>] [--json]
+arc errand promote <slug> [--name <name>] [--type <type>] --floor <derivation|scale> \
+  [--confirm-foreign-generation <generation>] [--json]
 ```
 
 ### Session State Portability

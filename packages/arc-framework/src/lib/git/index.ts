@@ -33,16 +33,23 @@ export {
 } from "./process-error.js";
 
 export {
+  analyzeWorktreeSnapshot,
   countAheadBehindRef,
+  runMaterializingWorktreeInspection,
+  runPassiveWorktreeInspection,
   runWorktreeSyncStatus,
+  type AnalyzeWorktreeSnapshotOptions,
+  type RunMaterializingWorktreeInspectionOptions,
+  type RunPassiveWorktreeInspectionOptions,
+  type WorktreeMaterializingInspectionResult,
   type WorktreeSyncState,
+  type WorktreeSnapshotAnalysisResult,
   type WorktreeSyncStatusResult,
   type RunWorktreeSyncStatusOptions,
 } from "./worktree-sync.js";
 
 export {
   runBaseDrift,
-  runBaseDistanceStatus,
   type BaseDriftMode,
   type BaseDriftResult,
   type BaseDriftUnavailableReason,
@@ -50,7 +57,6 @@ export {
   type IntegrationEvidenceResolver,
   type IntegrationEvidenceResolverFactory,
   type ReconciliationClassifier,
-  type RunBaseDistanceStatusOptions,
   type RunBaseDriftOptions,
 } from "./base-distance.js";
 
@@ -90,7 +96,10 @@ export {
 } from "./ancestry.js";
 
 export {
+  analyzeSupersessionSnapshot,
   detectSupersession,
+  type AnalyzeSupersessionSnapshotOptions,
+  type SupersessionSnapshotAnalysisResult,
   type SupersessionResult,
   type DetectSupersessionOptions,
 } from "./supersession.js";
@@ -134,20 +143,43 @@ export {
 
 export {
   listLiveRemoteBranches,
+  readRemoteHeadSnapshot,
   readLiveRemoteHeads,
   listPrunedRemoteTrackingBranches,
   fetchRefBounded,
+  fetchRefsBounded,
   readMetaAtRef,
   type ListLiveRemoteBranchesOptions,
   type LiveRemoteHeadsResult,
+  type ReadRemoteHeadSnapshotOptions,
+  type RemoteHeadSnapshotResult,
+  type RemoteHeadSnapshotScope,
   type ReadLiveRemoteHeadsOptions,
   type ListPrunedRemoteTrackingBranchesOptions,
   type FetchRefBoundedOptions,
+  type FetchRefsBoundedOptions,
   type ReadMetaAtRefOptions,
 } from "./remote-ref-reader.js";
 
 export {
+  readObjectAvailability,
+  type ObjectAvailabilityResult,
+  type ReadObjectAvailabilityOptions,
+} from "./object-availability.js";
+
+export {
+  historyAllowsProof,
+  readHistoryCompleteness,
+  type HistoryCompletenessResult,
+  type ReadHistoryCompletenessOptions,
+} from "./history-completeness.js";
+
+export {
+  analyzeInFlightSnapshot,
   deriveInFlight,
+  isEligibleInFlightBranch,
+  type AnalyzeInFlightSnapshotOptions,
+  type AnalyzeInFlightSnapshotResult,
   type DeriveInFlightOptions,
   type InFlightEntry,
   type InFlightWorkUnit,

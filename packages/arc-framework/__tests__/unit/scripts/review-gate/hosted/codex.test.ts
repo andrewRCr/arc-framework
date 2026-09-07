@@ -5,6 +5,7 @@ import {
   CODEX_HOSTED_REGISTRATION,
 } from "../../../../../src/scripts/review-gate/hosted/codex.js";
 import type {
+  HostedGitHubIssueComment,
   HostedGitHubPort,
   HostedGitHubReview,
   HostedGitHubThread,
@@ -34,6 +35,7 @@ function port(overrides: Partial<HostedGitHubPort> = {}): HostedGitHubPort {
     readThreads: () => Promise.resolve([]),
     readIssueComments: () => Promise.resolve([]),
     readCheckRuns: () => Promise.resolve([]),
+    readCommitStatuses: () => Promise.resolve([]),
     findReplies: () => Promise.resolve([]),
     postReply: () => Promise.resolve({ kind: "ambiguous" }),
     readThread: () => Promise.resolve({ kind: "missing" }),
@@ -68,6 +70,18 @@ function findingThread(): HostedGitHubThread {
       line: 7,
       headSha: HEAD,
     }],
+  };
+}
+
+function cleanComment(body: string): HostedGitHubIssueComment {
+  return {
+    id: "IC_CODEX",
+    url: "https://github.com/owner/repo/pull/42#issuecomment-codex",
+    actorIdentity: "199175422",
+    appId: "1144995",
+    body,
+    createdAt: "2026-07-23T12:05:00.000Z",
+    updatedAt: "2026-07-23T12:05:00.000Z",
   };
 }
 
@@ -142,6 +156,68 @@ describe("Codex hosted adapter", () => {
 
     await expect(clean.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
     await expect(findings.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ severity: "major", locus: "src/a.ts:7" }],
+    });
+  });
+
+  it("recognizes layout-varied clean output with one exact reviewed-head marker", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([cleanComment(
+        `**Codex Review:** Didn't find any major issues. Keep it up!
+
+**Reviewed commit:** \`${HEAD.slice(0, 10)}\`
+
+<details><summary>About Codex</summary>Non-semantic provider help.</details>`,
+      )]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it("recognizes connected-account failure under a bold provider heading", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([cleanComment(
+        "**Codex Review:**\n\nConnect your ChatGPT account to use Codex.",
+      )]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "connected-account-required",
+    });
+  });
+
+  it.each([
+    {
+      name: "mismatched reviewed head",
+      body: `Codex Review: Didn't find any major issues.\n\nReviewed commit: \`${"b".repeat(10)}\``,
+    },
+    {
+      name: "multiple reviewed-head markers",
+      body: `Codex Review: Didn't find any major issues.
+
+Reviewed commit: \`${HEAD.slice(0, 10)}\`
+Reviewed commit: \`${HEAD.slice(0, 12)}\``,
+    },
+  ])("keeps $name pending", async ({ body }) => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([cleanComment(body)]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({ kind: "pending" });
+  });
+
+  it("does not let clean-summary wording mask exact-head findings", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([codexReview()]),
+      readThreads: () => Promise.resolve([findingThread()]),
+      readIssueComments: () => Promise.resolve([cleanComment(
+        `Codex Review: Didn't find any major issues.\n\nReviewed commit: \`${HEAD}\``,
+      )]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
       kind: "findings",
       findings: [{ severity: "major", locus: "src/a.ts:7" }],
     });

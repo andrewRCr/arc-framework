@@ -1,17 +1,16 @@
 ---
-purpose: Ship a work unit — PR open, review iteration, post-approval composition + sweep, final push pre-merge.
+purpose: Integrate a published work unit — push, change request, hosted review, composition, checkpoint, merge, and cleanup.
 audience: agent
 arc:
   methods:
     - adversarial-review
-    - self-review
-    - frontline-review
     - standard-review
     - review-chunking
     - implementation-audit
     - review-triage
     - review-response
     - commit-footer
+    - quality-gate-commands
   extensions:
     - pre-pr-open
     - post-pr-open
@@ -21,21 +20,24 @@ arc:
 
 # Workflow: Integrate Work Unit
 
-Ship a WU via the single merge-to-main moment. The PR opens with code-only commits; review iteration churns only
-code. Post-review-approval, compose Release Notes Entry + Completion Notes into the meta file's archive-phase
-sections, sweep + ROADMAP regen, and push the final pre-merge state.
+Integrate a publicly scheduled WU through the single merge-to-main moment. Private Candidate preparation has already
+settled; this workflow pushes the published branch, opens and reviews the change request, composes the final
+candidate tail, checkpoints, merges, and cleans up.
 
-**When to use:** All tasks in `tasks-{name}.md` are marked `[x]`; `active/meta-{name}.md` shows `**State:** Active`.
+**When to use:** `active/meta-{name}.md` shows `**State:** Integrating`, or a shipped candidate still has an
+incomplete merge tail.
 
 > [!NOTE]
-> **WU not Active?** If `**State:** Planning`, run [`activate-work-unit.md`](activate-work-unit.md) first.
+> **WU still Active?** If it carries a Candidate, run
+> [`prepare-work-unit.md`](prepare-work-unit.md). Without a Candidate, finish
+> [`verify-work-unit.md`](verify-work-unit.md).
 
 **Two timing phases inside one PR:**
 
-1. **Phase 1: Open + iterate** — code commits only. Composition / sweep / ROADMAP do **not** fire here.
-   Rejected PRs touch only code; no archive churn.
-2. **Phase 2: Compose + sweep + ship** — post-review-approval, content cleanup + final-form composition +
-   sweep + ROADMAP regen land as the final push before merge.
+1. **Phase 1: Open + iterate** — push, open the change request, and settle hosted review. Composition / sweep /
+   ROADMAP do **not** fire here.
+2. **Phase 2: Compose + sweep + ship** — post-review-approval, content cleanup + final-form composition + sweep +
+   ROADMAP regen land as the final push before merge.
 
 **Per-worktree isolation invariant preserved** — sweep lands on the WU branch before merge.
 
@@ -43,101 +45,69 @@ sections, sweep + ROADMAP regen, and push the final pre-merge state.
 
 ## Phase 1: Open and iterate
 
-### 1) Pre-conditions + entry mode (fresh vs. resume)
+### 1) Push the branch and open the PR
 
-`Integrating` is a suspendable point: a session can enter it, hand off across the review wait, and a later
-session — or machine — re-enters here. Resolve the entry mode from the resolver — `arc status {name} --json` —
-before doing anything else: `active` is a fresh entry, `integrating` is an in-progress resume, and `shipped` can be
-an already-swept candidate whose PR remains open or whose post-merge tail remains incomplete.
+`Integrating` is a suspendable point: a session can enter after `arc publish`, hand off across the review wait,
+and a later session or machine re-enters here. Resolve the current state with
+`arc status {name} --json`. An `active` result has not crossed the publication boundary and returns to
+[`prepare-work-unit.md`](prepare-work-unit.md); `integrating` resumes this workflow; `shipped` can be an
+already-swept candidate whose PR or post-merge tail remains incomplete.
 
-#### Fresh entry — resolver `state: active`
+On interruption, re-enter delivery status only through the public typed protocol. Resume an operation with its
+self-contained handle; never reconstruct status from workflow prose or narrative meta fields.
 
-Verify the integration context:
-
-- Currently on the WU branch (per [`branch-format`][branch-format])
-- `active/meta-{name}.md` exists and shows `**State:** Active`
-
-Compose the integration inputs (judgment — never fabricated):
-
-- last completed — the WU's final completed work (the last `[x]` task / phase in `tasks-{name}.md`)
-- next action — the integration pointer (`open the PR`)
+When the status result is `integrating`, classify delivery intent before resolving a singleton change request or
+performing any push:
 
 ```bash
-arc integrate {name} --last-completed "{last completed}" --action "{next action}"
+printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect --input - --json
 ```
 
-The executor fires the full `integrate` edge: flips `**State:** Active → Integrating`, writes `**Last Completed:**`
-/ `**Next Action:**`, resets `**Next Task:** [none]`, regenerates `backlog/ROADMAP.md` so the In Flight table's
-`State` column reflects `Integrating`, and stages both the meta and the ROADMAP. `{name}` defaults to the current
-worktree's WU. The `Integrating` state covers PR open through review-response.
+Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.
+`resolve-delivery-status` resumes at Step 2's provider-neutral delivery-status reduction with its exact
+`deliveryStatusAction`; only a downstream explicit review action represents review work;
+do not resolve a singleton change request or enter delivery publication / position reconciliation.
+`review-fix-verification-required` invokes `arc delivery review-fix continue - --json` with only the repository and
+remote identities, then follows the resumable correction procedure in `deliver-stack.md`; do not enter whole-WU
+verification, Frontline, or singleton prepublication.
+`candidate-verification-required` leaves this workflow for Candidate verification closeout; it synthesizes no
+attestation or review action.
+`correction-route-ambiguous` stops after rendering `recommendedActionText`. The seam has separated a work-unit
+branch carrying non-lifecycle content from an outstanding non-terminal member review, and it attributes that content
+to neither route. Obtain the Owner's selection between the two returned routes and enter the selected one unchanged;
+never infer it from branch movement, task-cursor position, or commit prose.
+`candidate-renewal-required` invokes its exact `attestationAction`, requires `unchanged`, then re-runs this entry
+inspection; attestation alone revalidates and refreshes the public delivery continuation without replaying
+verification or leaving `Integrating`.
+`canonicalize-provisional`, `validate-canonical`, `continue-publication`, and `resume-bound` leave this workflow and
+enter the matching route in [`supplemental/deliver-stack.md`](../supplemental/deliver-stack.md); that workflow owns
+publication, state binding, member pull requests, and the landing window. `refused` stops after rendering
+`recommendedActionText`; any other route also stops as an integration-entry contract violation. Do not perform this
+entry dispatch on the `shipped` tail, which has already crossed initial publication.
 
-An advisory-only reconcile stops before the transition and surfaces every reference. Edit and rerun, or obtain
-explicit user direction to retain all surfaced advisories and rerun the same command with `--allow-advisories`.
-The flag does not accept conflicts or stale mechanical edits.
+Resolve the branch head, then invoke
+`arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json`. Follow its typed state:
 
-Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before committing.
+| Resolver and change-request state              | Demonstrably already ran             | Resume at                                                       |
+| ---------------------------------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| `integrating`; `none`                          | publication transition               | Step 1, from the idempotent **push** action                     |
+| `integrating`; `open`                          | transition, PR open                  | Step 2 (`post-pr-open` → review iteration), then candidate tail |
+| `integrating`; `closed-unmerged`               | transition, former PR                | Reopen the request, then Step 2                                 |
+| `shipped` in `completed`; `open`               | transition, PR open, candidate sweep | Step 10                                                         |
+| `merged-at-head`                               | transition, PR open, merge           | Verify Phase 2 products; when complete, resume at Step 10 tail  |
+| `merged-stale-head`, `ambiguous`, or `blocked` | unresolved                           | Stop; follow any emitted remedy text                            |
 
-> [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per § Commit
-> Discipline, meta-file commit shape):
+Resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`. Within the
+suspendable review cycle, resume the first incomplete candidate-tail step. Composition already written into the
+meta's archive-phase sections and a committed sweep are observed, never redone. A resolver `state: shipped` with
+an open, not merged PR resumes at Step 10. Steps 10–11 are individually re-runnable and no-op when their target is
+already gone.
 
-```text
-chore(arc): integrate {name}
-
-- Flip State: Active → Integrating
-
-Context: meta-{name}.md (integration)
-```
-
-Proceed to Step 2.
-
-#### Resume entry — resolver state `integrating | shipped` (re-entry guard)
-
-The transition already ran in a prior session (or the merge landed unattended). **Skip the state transition and
-every pre-PR / PR-open step that already ran** — re-enter at the first incomplete tail step. Resolve the resume
-point from observable state — PR open vs. merged, plus worktree/branch presence — never by redoing a completed
-step:
-
-On interruption, re-enter local and frontline review only through the public protocol in Step 3. Retain the returned
-operation ID and follow the last typed `state` / `nextAction`: resume a local operation with
-`arc review local resume -`, and re-invoke the owning idempotent verb for frontline, response, or reduction work.
-Resume a hosted operation by passing its self-contained handle back to `arc review hosted await -`. Never publish
-or reconstruct review state from workflow prose; the meta's narrative `Next Action` is not operational authority.
-When no public action can advance yet, leave the vehicle in `Integrating` and state the exact source change or
-deadline that should trigger human re-entry.
-
-| Resolver and PR state                         | Demonstrably already ran             | Resume at                                                          |
-| --------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------ |
-| `integrating`; no PR open                     | transition                           | Step 2 (local preflight → creation path)                           |
-| `integrating`; PR open, not merged            | transition, PR open                  | Step 4 (`post-pr-open` → review iteration), then candidate tail    |
-| `shipped` in `completed`; PR open, not merged | transition, PR open, candidate sweep | Step 13 (validate products, then final settlement)                 |
-| PR already merged                             | transition, PR open, merge           | Verify Phase 2 products; when complete, resume at the Step 13 tail |
-
-Resolve PR state with `gh pr view {type}/{name} --json state,mergedAt` (fall back to `gh pr list --head
-{type}/{name}`); resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`.
-Within the suspendable review cycle, resume the first incomplete candidate-tail step. Composition already written
-into the meta's archive-phase sections and a committed sweep are observed, never redone. A resolver `state: shipped`
-with an open, not merged PR is the swept-candidate arm and resumes at Step 13. The tail steps (Steps 13–14 below) are
-individually re-runnable and no-op when their target is already gone, so an over-eager resume costs nothing.
-
-Before selecting the merged-PR tail, verify the meta contains Completion Notes and any applicable Release Notes;
-under `with-integration`, the resolver reports `shipped` in `completed`. A merged PR proves only that the merge ran,
-not that composition or archival ran. If a required product is absent, preserve the branch and worktree, and do not
+Before selecting the merged-PR tail, verify the meta contains Completion Notes and any applicable Release Notes.
+Under `with-integration`, the resolver reports `shipped` in `completed`. A merged PR proves only that the merge ran,
+not that composition or archival ran. If a required product is absent, preserve the branch and worktree; do not
 invoke `arc user close` or `arc teardown`. Land the missing products through a lifecycle-only repair change request,
-then re-enter this guard after it merges.
-
-### 2) Local diff preflight
-
-If the [`self-review` method][self-review] is effectively active:
-
-1. Execute the [`self-review` method][self-review] against the local aggregate diff vs the base branch.
-   Classify findings per the [`review-triage` method][review-triage]; commit fixes per the
-   [`commit-footer` method][commit-footer].
-When inactive, proceed directly to Step 3.
-
-### 3) Open the PR
-
-Push the WU branch upstream.
+then re-enter this guard.
 
 **Push extension contract** · `#pre-push-review`: Before every agent-managed push in this workflow, if the
 extension appears in the active-extensions list, load and execute its `.actions`. Halt-on-fail surfaces an
@@ -146,44 +116,13 @@ actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise,
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
 
-From the pushed branch, compose the immutable policy target
-`{ repository, pullRequest: null, headSha }`, the routed `standardReview` projection, and the explicit routing facts.
-For each new target, invoke `arc review chunking resolve -` once and retain its target statistics. Select
-whole-target or chunked scope separately for frontline and standard review, then pass the exact selection to
-`arc review resolve -`. The chunking recommendation informs this bounded scope judgment — apply the
-[`review-chunking` method][review-chunking] to make it; the workflow never recomputes thresholds.
+**Push the WU branch upstream.** Re-entry from the no-PR resume row starts here; pushing an unchanged branch is
+idempotent, so both transitioned-but-unpushed and pushed-but-uncreated interruptions use this same resume action.
 
-Resolve the frontline lane first, then the pre-PR standard lane. Follow only each returned `state` /
-`nextAction` pair:
-
-- `skipped | no-op | pass-complete / none` — the lane is complete at this boundary.
-- `awaiting-change-request / open-change-request` — retain the standard-lane progress and continue to PR creation.
-- `ready / run-frontline` — invoke `arc review frontline resolve -`, then
-  `arc review frontline run -` with the exact driver selection.
-- `ready / local-prepare` — invoke `arc review local prepare -`.
-- `findings / respond` — enter the disposition protocol below.
-- `approval-required / obtain-ceiling-override` — surface the returned exact one-pass consequence and
-  `Approve (or redirect)?`; only exact approval returns that override to the next identical target/lane call.
-- `chunk-pending / continue-chunks` — continue the selected local chunk series without consuming the pass.
-- `stale-target / select-scope` — recompose the target and rerun chunking before resolving again.
-- `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
-
-Dispatch frontline and local operations only through their public typed actions. Local preparation receives the
-evaluator identity and routing facts; the evaluator submits status, result, findings, and run identity to
-`arc review local attest -`. Runtime-owned bindings for repository, target/tree, source, rubric, and guidance are
-injected from the immutable operation. Any supplied compatibility binding must match exactly. Resume with
-`arc review local resume -`; reduce with `arc review reduce -`; submit approved disposition state with
-`arc review respond -`. A command error envelope, including `invalid-input`, carries no dispatchable state.
-
-For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present reviewer
-severity, ARC re-grade, source locus, and a discrete `Recommended disposition:` line. Approval is required before
-any finding-driven fix, durable deferral, channel settlement, or other mutation/commitment. A complete no-action
-record-only set may remain proposed for the final combined gate. Approved fixes run Tier 1 gates, commit atomically,
-push through the workflow contract, and produce a new target; apply Step 4's review applicability judgment rather
-than carrying clearance or merge authority.
-
-Never treat advisory receipts, outcomes, reductions, scope recommendations, or disposition proposals as merge
-authority.
+Invoke `arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json`. `none /
+create-change-request` continues below; `open / reuse-change-request` proceeds to Step 2; `closed-unmerged /
+reopen-change-request` reopens before Step 2; `merged-at-head / complete` enters the merged tail. Every other typed
+action stops. This resolver call is the pre-create exact-head validation.
 
 Immediately before creation, compose
 `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }` from the pushed branch. If `pre-pr-open`
@@ -191,51 +130,208 @@ is active, execute its numbered `.actions` in authored order. Halt before later 
 `gh pr create` does not make the hook durable: retry the creation path and its retry-safe actions. Skip this hook
 whenever an open PR already exists.
 
-Open the PR:
+Immediately before creation, re-resolve the current head with
+`arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --require-remote --json`.
+Continue only from `none / create-change-request`; every other typed action dispatches as above. This exact replay
+requires the remote branch itself to carry the creation head, including after any hook action.
+
+Invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action: `locked / open-locked`
+creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts creation before any PR exists.
+
+Open the PR on the resolved action:
 
 ```bash
-gh pr create --base {base-branch} --head {type}/{name}
+gh pr create --base {base-branch} --head {type}/{name}            # open-plain
+gh pr create --base {base-branch} --head {type}/{name} --draft    # open-locked
 ```
 
 Single PR per WU. The PR title's Conventional Commits type carries the signal.
 
-**PR body:** load [`template-pull-request.md`][template-pull-request] for the canonical shape (Spec / Summary /
-Changes / optional Test Plan / Out of Scope / Follow-Up Work) and its anti-patterns. Do not add sections
+**PR body:** load [`template-pull-request.md`][template-pull-request] for the canonical shape (Design / optional
+Local review / Summary / Changes / optional Test Plan / Out of Scope / Follow-Up Work) and its anti-patterns. The
+`Local review` field names the carrier that ran gated review locally before publication and nothing else; omit it
+when none ran. Do not add sections
 describing post-merge workflow continuity or next actions — those route to the meta file and SESSION-NOTES per
 [DEV-RULES.ARC][dev-rules-arc] § Write for the reader, not the author.
 
-### 4) Review iteration
+### 2) Review iteration
 
-Resolve the one open PR and compose `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open`
-is active, execute its numbered `.actions` in authored order before review iteration. This idempotent hook fires on
-both the newly-created path and every open-PR re-entry; actions derive current host state from `hostRef`. Every
-hook and review invocation shares this exact-head contract. If an action changes the head, recompose
-`openedChangeRequest` from the canonical current head before re-entry.
+Bind the open PR from the resolver's returned `candidate` — the reuse and reopen arms carry it, and the creation
+path uses the request Step 1 just opened — and compose `openedChangeRequest = { repositoryRef, hostRef, headSha }`
+from it. If `post-pr-open` is active, execute its numbered `.actions` in authored order before review iteration.
+This idempotent hook fires on both the newly-created path and every open-PR re-entry; actions derive current host
+state from `hostRef`. Every hook and review invocation shares this exact-head contract. If an action changes the
+head, recompose `openedChangeRequest` from the canonical current head before re-entry.
 
 Before spending a hosted pass on a branch already behind its base, read `arc base drift --json`. Keep `clean` and
 regenerable-only drift silent. For substantive overlap, reconcile early only when the interaction is clear and
 reviewing first would waste the pass; use an append-only merge, rerun Tier 1 gates, push, and recompose the target
 without a permission stop. A conflict, material interaction, or uncertain product decision stops. This advisory
-never replaces Step 13's authoritative final drift read.
+never replaces Step 10's authoritative final drift read.
 
-For the opened target, rerun `arc review chunking resolve -` and invoke `arc review resolve -` for any incomplete
-lane. Follow the Step 3 dispatch. On `ready / hosted-request`, invoke `arc review hosted request -` with the selected
-provider, exact opened target, and `coverage: complete`:
+Read `integrationBoundary.reservation` from the typed status projection. A null reservation means the standard lane
+already settled or was a typed no-op before submission; do not invent a post-PR obligation. A carried reservation
+must match the current Candidate and carries the ordered sources and exact obligation. Dispatch only on
+`integrationBoundary.nextAction.kind`:
 
-- `requested / await` — pass the returned self-contained handle to `arc review hosted await -`. Use the bounded
-  wait again when it returns `pending / await`; do not build an agent polling loop.
-- `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
-- `findings / triage` — run the disposition protocol. For each approved finding with
-  `settlement: reply-and-resolve`, settle before feeding `findings` back to the driver. For `defer` or `reject`,
-  invoke `arc review hosted settle -` with the unchanged originating `target` and `fixTarget: null`. For `fix`,
-  apply and verify the approved change, commit and push it, recompose the current target, then invoke the same verb
-  with the originating `target` plus that changed `fixTarget`. A finding with `settlement: not-applicable` is
-  triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for
-  it, regardless of disposition.
-- `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it may
-  select the next configured source without consuming the pass.
+- `resolve-delivery-status` requires a delivery reservation. Execute `integrationBoundary.nextAction.command`. The
+  WU-scoped public status reducer joins the current delivery
+  bindings and durable review progress, selects the first outstanding retained member, observes that member's exact
+  change request and checks, and returns a top-level `deliveryCursor`, the complete supporting conjunction, and the
+  existing driver's next action. Only an exact `review-hosted-request` result authorizes provider work. Do not invoke
+  Frontline, generic prepublication, private source selection, or a whole-work-unit fallback.
+- `continue-pre-publication-review` remains the ordinary singleton continuation. Invoke
+  `integrationBoundary.nextAction.command` and continue only from `ready / hosted-request`; the returned policy
+  preserves the reservation without rerunning chunking or source ordering and supplies `policy.payload.sourceId`
+  plus the authorized `policy.payload.pass`. Bind the open pull request, resolve its exact current `targetRef`, and
+  invoke `arc review status --target '{targetRef}' --json`.
+
+Every other boundary action stops. Dispatch only on `nextAction` from the status result.
+
+Throughout this iteration, **re-enter status** means preserve the same status scope: execute the WU-scoped boundary
+command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
+judgment option before `--json`; never narrow a delivery-status action to an agent-reconstructed member target.
+
+`obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
+`terminusAction.offer.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
+one additional pass; on approval, re-enter the same status scope with the returned consequence serialized unchanged.
+For a delivery, use:
+
+```bash
+arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --ceiling-override '{consequence}' --json
+```
+
+For an ordinary singleton, use:
+
+```bash
+arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
+```
+
+A `review-hosted-request` or `review-local-prepare` result may also carry `terminusAction` after an earlier complete
+pass. Surface it as an optional Owner alternative without turning it into a stop; absent explicit acceptance,
+execute the returned review action unchanged.
+
+When the Owner accepts any returned delivery-member terminus, add
+`judgment: { "mode": "owner-accepted" }` to `terminusAction` and pass the resulting envelope unchanged to:
+
+```bash
+arc review terminus accept -
+```
+
+`recorded / commit-boundary` stages the exact boundary record. Commit and push it, then resume through the
+selector-free correction procedure with only the repository and remote identities:
+
+```bash
+printf '%s\n' '{"repository":"{repositoryRef}","remote":"origin"}' | arc delivery review-fix continue - --json
+```
+
+The procedure performs any owed terminal-coordinate rebind before returning the first outstanding member.
+`exact-replay / continue` and `refused / rerun-status` create no new head and re-enter status directly; the refused
+arm does not reuse the stale offer. Every other result stops. The terminus records explicit Owner authority only;
+never report the member clean or converged from it.
+
+`review-hosted-request` means pass the returned action unchanged to:
+
+```bash
+arc review hosted request -
+```
+
+`review-local-prepare` returns the exact standard-review driver admission. Pass its `action` unchanged as
+`deliveryAdmission` in the ordinary local prepare request:
+
+```bash
+arc review local prepare -
+```
+
+Follow the typed local launch, attest, reduce, and findings-response sequence. Do not rerun source selection or
+substitute the current checkout head for the returned member head. After the local attempt concludes, re-enter
+through `arc review status`; durable lane progress consumes the admitted pass.
+
+When `action.scopeSelection.mode` is `chunked`, apply [`review-chunking`][review-chunking] to the prepared exact
+target: run contract-closed chunks, the dedicated seam, and a fresh aggregate evaluator against the returned review
+root and rubric. Attest only the aggregate result; partial chunk or seam reports never consume the admitted pass.
+
+`review-local-resume` means pass the returned action unchanged to:
+
+```bash
+arc review local resume -
+```
+
+Follow the same typed local sequence, then re-enter through `arc review status`.
+
+`respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
+[`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:
+
+```bash
+arc review respond -
+```
+
+This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
+plan through the phase-ordered settlement path below, then re-enter through `arc review status`.
+
+`delivery-correction-required / continue-delivery-correction` is the delivery-member fix route. Execute any
+before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
+`authoring-required`, and edit only its exact `authoring.checkoutPath` and `authoring.ref` under the returned
+`authoringAuthorization`; resume only through `resumeAction`. A missing, stale, or different locus stops before
+authoring. `ready-to-fix / apply-fix` remains the ordinary singleton route and never substitutes for this one.
+
+The action already carries the selected source, exact opened target, requested coverage, and any delivery-member
+vehicle. Status uses complete coverage by default; only the explicit supplemental route below returns incremental
+coverage. When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first.
+Explicit acceptance follows the terminus path above and re-enters status without resolving applicability. Absent
+explicit acceptance, render `selectionAction.interactionText`, obtain the Owner's typed choice, and submit the
+returned `selectionAction` unchanged as `offer` beside that `selection` to:
+
+```bash
+arc candidate applicability resolve {workUnitId} -
+```
+
+Outside a driven delivery correction, commit a returned `commit-selection`, then re-enter through
+`arc review status`. When the correction driver supplied the applicability stop, pass the returned `recordEffect`
+unchanged as the sole `recordEffects` entry beside its repository and remote resume input; the driver binds those
+exact bytes before its machine-owned commit and push. `continue` retains the earlier attempt; `request-review`
+re-enters status and receives the ordinary hosted request action. Applicability reruns, base movement, and pending
+checks return to their typed checkpoint; `upgrade` and every `stop` remain stops.
+
+- `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses the
+  project's configured bounded-call defaults.
+- `pending / await` — pass the newly returned `action` unchanged; do not build an agent polling loop.
+- `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Stop with the
+  request intact. Submitting `action` unchanged checks once; on explicit direction, add
+  `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review or
+  records a provider outcome.
+
+Hosted delivery-member request and await operations persist their admitted pass in durable lane progress. Re-enter
+through status after each concluded result; do not reconstruct `completedPasses` or route the public member back
+through private policy. For the ordinary singleton continuation, retain `policy.payload.pass` as the authorizing
+completed-pass input. A completed attempt consumes that pass; pending chunk series and non-pass outcomes retain the
+prior count.
+
+- `clean / complete` — a delivery member re-enters status; an ordinary singleton feeds a `clean` attempt to
+  `arc review resolve -`.
+- `findings / triage` — run [`review-triage`][review-triage] and [`review-response`][review-response]. When
+  `arc review respond -` returns `payload.hostedSettlementPlan` for approved `settlement: reply-and-resolve`
+  findings, execute its phases in order: invoke `arc review hosted settle -` for every ID in the active phase.
+  Settle each
+  `beforeFixFindingIds` entry against the unchanged originating `target` with `fixTarget: null`, and require every
+  result to complete before any approved fix changes the head; then apply, verify, commit, and push the approved
+  fixes; then settle every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget`
+  verified for the current head. For a delivery member, require the post-fix response state
+  `delivery-member-advanced` or idempotent `delivery-member-current` and pass `payload.hostedFixTarget` unchanged as
+  that `fixTarget`; never reconstruct it from the checkout. A `settlement: not-applicable` finding appears in neither
+  phase and remains
+  triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
+  On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
+  only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host mutation;
+  every stop state remains a stop. Feed `findings` back to the driver only after both phases complete.
+- `rate-limited | transient-unavailable / try-next-source` — a delivery member re-enters status; an ordinary
+  singleton feeds that safe outcome to the same driver call. The outcome does not consume the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
   an uncertain request.
+
+After any concluded attempt, invoke the same boundary status action again. The CLI selects the next retained target
+and source;
+only `settled / continue-reconcile` with the typed discharge conjunction advances to Phase 2.
 
 While a hosted await is live, speculative drafting of Completion Notes, Release Notes, and the cleanup plan is
 allowed when useful. Do not commit, push, archive, regenerate readiness, or destructively clean from that draft
@@ -252,9 +348,22 @@ After every target movement, make and disclose a **review applicability** judgme
 These are judgment signals, not an eligibility checklist or proof obligation. A confident bounded choice proceeds
 without asking permission and is retained for the final gate. An agent-selected supplemental review is disclosed
 as it runs and enters the same finding/disposition loop; it does not settle `standardReview` unless it ran that
-contract. A hosted supplemental request uses `coverage: incremental`; if its adapter reports
-`effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass needs
-new authority, material cost, or resolution of genuine uncertainty.
+contract. For an ordinary singleton, request a hosted supplemental review through its exact target:
+
+```bash
+arc review status --target '{targetRef}' --coverage incremental --json
+```
+
+For a delivery, let WU status select the current first-outstanding member without reconstructing it:
+
+```bash
+arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --coverage incremental --json
+```
+
+Pass the returned action unchanged; it carries `coverage: incremental`. After the supplemental attempt concludes,
+re-enter status without the coverage option so the still-required complete lane remains executable. If the adapter
+reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only when the pass
+needs new authority, material cost, or resolution of genuine uncertainty.
 
 Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and merge authorization;
 never rewrite a prior exact-target result as if it ran on the new head.
@@ -265,34 +374,23 @@ The WU stays in `**State:** Integrating` throughout this phase. Composition + sw
 
 ## Phase 2: Compose, sweep, ship
 
-### 5) Candidate-entry requirement
+### 3) Confirm review coordination
 
-Do not begin candidate assembly until Step 6 reduces the WU's routed review obligation to `review-settled`.
-`review-settled` is the candidate-entry state, never merge readiness. A raw local clean report, a launched review
-pass, or an unattested result does not establish it.
-
-### 6) Confirm review coordination
-
-Confirm the public open-PR review protocol has reduced the routed WU obligation to `review-settled`. Every
-mutation- or commitment-bearing disposition must already be approved; a complete no-action record-only set may
-remain proposed for the combined final gate. This is not the final-head checkpoint; base freshness belongs only to
-Step 13, after candidate composition.
+Confirm the public open-PR review protocol has reduced the routed WU obligation to `review-settled` — the
+candidate-entry state, never merge readiness, and never established by a raw local clean report, a launched review
+pass, or an unattested result. Candidate assembly begins only after that reduction. Every mutation- or
+disposition set must already be approved for its exact target. An approved no-action record-only set may retain its
+idempotent channel settlement for the checkpointed final transition, but it cannot remain merely proposed. This is
+not the final-head checkpoint; base freshness belongs only to Step 10, after candidate composition.
 
 Only that protocol's settled reduction establishes `review-settled`. Any pre-composition direction to merge once
 review settles authorizes autonomous advance through candidate assembly to the final integration interlock; it is
 not prospective merge authority over the candidate's not-yet-known head.
 
-After settlement, clean the WU content:
-
-- If `notes-{name}.md` exists, decide its disposition: follow [`clean-work-unit.md`][clean] `§ Notes File
-  Consolidation`, keep it as-is only when already reference-ready, or delete it and remove task-file references.
-- Survey the task list for temporal markers, ad-hoc inline status, or accumulated scratchpad content. When present,
-  apply [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass`.
-
 Candidate assembly now advances without another proceed turn. Stop only for a material alignment disagreement,
 failed quality gate, base conflict, or unexpected state.
 
-### 7) Spec-presence + alignment checks
+### 4) Spec-presence + alignment checks
 
 First confirm the WU's `**Design:**` field resolves to a spec present in `active/` — a `spec-{name}.md` or the
 layered `spec-{name}-prd.md` / `spec-{name}-rfc.md` pair; if absent, stop and surface.
@@ -311,7 +409,7 @@ Always evaluated. Surface conflicts between final reviewed scope and PROJECT-PRD
 Fires only when the PRD touched technical surfaces (tech stack, architecture, runtime, dependencies,
 infrastructure). Independent of the PROJECT-PRD check — scope distinction is the trigger.
 
-### 8) Compose Release Notes Entry — uncommitted
+### 5) Compose Release Notes Entry — uncommitted
 
 Compose a public entry into `active/meta-{name}.md`'s archive-phase `## Release Notes Entry` section. Describe only
 shipped reader/operator-visible outcomes supported by the exact candidate diff. Never include WU names or slugs,
@@ -325,19 +423,19 @@ that order. Use **Infrastructure** only for an externally meaningful operational
 Changes** callout must name the affected stability contract and required migration. Omit the entire section when
 nothing reader/operator-visible ships; otherwise size it to what shipped.
 
-Leave the edit uncommitted for the candidate-tail commit in Step 10.
+Leave the edit uncommitted for the candidate-tail commit in Step 7.
 
-### 9) Compose Completion Notes — uncommitted
+### 6) Compose Completion Notes — uncommitted
 
 Compose narrative Completion Notes into the meta file's archive-phase `## Completion Notes` section. Distinguish
 delivered scope, material deviations or supersessions, and verified evidence. Synthesize the result; never repeat
 the task list's verbatim record or git history. Size it to what there is to say. Always present — not omittable,
-unlike Step 8's Release Notes. Leave it uncommitted until Step 10.
+unlike Step 5's Release Notes. Leave it uncommitted until Step 7.
 
-### 10) Commit completion content
+### 7) Commit completion content
 
-Run the applicable quality gates and stop on failure. Bundle the composition edits under the provisional-candidate
-exception; this commit does not make the branch merge-ready.
+Run the applicable quality gates ([`quality-gate-commands`][arc-methods-qg]) and stop on failure. Bundle the
+composition edits under the provisional-candidate exception; this commit does not make the branch merge-ready.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -351,11 +449,11 @@ chore(arc): compose archive-phase content for {name}
 Context: meta-{name}.md (integration)
 ```
 
-When Step 8 omitted the Release Notes section (nothing user-facing), drop its bullet from the commit body.
+When Step 5 omitted the Release Notes section (nothing user-facing), drop its bullet from the commit body.
 
 See [DEV-RULES.ARC][dev-rules-arc] § Commit format and the [`commit-footer` method][commit-footer].
 
-### 11) Cadence dispatch — `archive.cadence`
+### 8) Cadence dispatch — `archive.cadence`
 
 Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
@@ -364,11 +462,11 @@ Read `archive.cadence` from [`arc-config.yml`][arc-config]:
   `completed/<dated>/{NN}_{name}/meta-{name}.md`, the logical `Branch → [none]`, the `PR URL` / `Completed`
   finalize-fact write (sourcing the PR URL from this ceremony's open PR), and ROADMAP regen per its
   cadence-invariant body — the **mergeable** ship, which rides this PR. Physical branch/worktree teardown is
-  **not** archive's: it is Step 14's post-merge cleanup below. Returns; resume at Step 12.
+  **not** archive's: it is Step 11's post-merge cleanup below. Returns; resume at Step 9.
 - **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`
-  invocation. Step 12's push covers completion content only under this cadence.
+  invocation. Step 9's push covers completion content only under this cadence.
 
-### 12) Final push
+### 9) Final push
 
 What gets pushed varies by cadence:
 
@@ -376,68 +474,28 @@ What gets pushed varies by cadence:
 - Under `manual`: completion content commit only. Sweep + ROADMAP fire later when `archive-work-unit.md` is
   invoked explicitly post-merge.
 
-Repeat the Step 3 push extension contract before this push.
+Repeat the Step 1 push extension contract before this push.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
-After push, this is a provisional integration candidate, never merge readiness.
-Recompose its exact target, rerun chunking preflight, and apply Step 4's review applicability judgment. Only
-Step 13's exact-head integration authorization can release the merge.
+After push, this is a provisional integration candidate, never merge readiness. Recompose its exact target, invoke
+`arc review chunking resolve -` with `{ kind, baseRef, diffBaseSha, headSha }`, apply
+[`review-chunking`][review-chunking] when its typed action requests selection, and make Step 2's review applicability
+judgment. Only Step 10's exact-head integration authorization can release
+the merge.
 
-### 13) Behind-base reconcile gate and merge
+### 10) Behind-base reconcile gate and merge
 
-This is the candidate's final mutation site. Run the authoritative drift verb and parse its JSON:
-
-```bash
-arc base drift --json
-```
-
-Accept only a JSON object with `mode: authoritative`, a recognized verdict, and the verdict's required typed
-fields. A healthy `clean` / `reconcile` result requires non-negative integer distance, a validated `baseOid`,
-and the typed evidence fields; `reconcile` additionally requires a register. An `unavailable`, `skipped`,
-unrecognized, malformed, or non-JSON result stops integration — surface its typed reason or parse failure.
-
-On `reconcile`, continue autonomously only when the typed result carries a validated `baseOid`, complete integration
-evidence, `overlap.status: available`, and an empty `substantivePaths` set. Re-read canonical host mergeability;
-a base conflict stops, and any analyzer/host disagreement stops. Unavailable overlap, incomplete evidence, or a
-substantive interaction also stops rather than weakening the reconcile.
-
-Immediately refresh `arc base drift --json`. A `clean` result skips the merge; a changed `baseOid` restarts this same
-read. When the identical OID still has the safe typed disjoint result, merge it append-only:
-
-```text
-git merge --no-edit {baseOid}
-```
-
-A merge conflict stops without resolution. Otherwise run Tier 1 quality gates and recompose the exact target. Ask
-the operating agent for the same disclosed review applicability judgment as Step 4. Preserve prior complete
-coverage with targeted verification when the merge is confidently non-interacting; otherwise run focused or
-complete review and recompose the candidate afterward. Clearance and integration authority never carry.
-
-Repeat the Step 3 push extension contract.
-
-> [!CAUTION]
-> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
-
-After push, re-run required CI and routing on the new exact head before `pre-merge`. If the base moves again, return
-to the same Step 13 drift read. Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Continue
-only when the authoritative result is `clean`.
-
-At the zero-behind head, apply the current WU's exact reconcile and parse its JSON:
+Apply the current WU's exact reconcile before composing a checkpoint:
 
 ```bash
 arc wu reconcile {name} --apply --json
 ```
 
-Accept only a schema-v1 result for the exact slug with status `clean`, `pending`, `applied`, or `conflict`. Malformed,
-unrecognized, or command-failure output stops integration. `pending` stops and surfaces every advisory reference:
-edit and rerun until `clean` / `applied`, or obtain explicit user direction to retain each advisory as intentional
-before continuing. `conflict` — including missing, ambiguous, corrupt, or
-otherwise unavailable replacement evidence — stops unmerged and surfaces the typed reason; the WU may remain
-`Integrating`.
-
-`clean` proceeds without a commit. On `applied`, run Tier 1 quality gates over the staged correction, then commit:
+`pending` surfaces every advisory reference immediately and requires direction to retain them or a correction and
+rerun. `conflict` stops on its typed reason. `clean` continues to the checkpoint below. On `applied`, run Tier 1
+over the staged correction, then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -445,91 +503,151 @@ otherwise unavailable replacement evidence — stops unmerged and surfaces the t
 ```text
 chore(arc): reconcile {name} before integration
 
-Context: meta-{name}.md (integration reconcile)
+Context: meta-{name}.md (integration)
 ```
 
-Repeat the Step 3 push extension contract and exact-head mutability action, then push through `workflowPush`.
-Rerun required CI and exact-head review coordination, and restart Step 13 from the authoritative base-drift read.
-The correction invalidates every prior base, lifecycle, review, and pre-merge checkpoint; rebuild them from the new
-head. Do not widen the review-readiness request or add a second merge-guard criterion.
+Repeat the Step 1 push extension contract.
 
-At the zero-behind final head, retain the `clean` result's `baseOid` as the current base-freshness evidence. Resolve
-authoritative lifecycle state:
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+Restart this step. The correction changed the head, so no checkpoint evidence carries.
+
+Invoke the checkpoint:
 
 ```bash
-arc status {name} --json
+arc integrate checkpoint {name} --json
 ```
 
-Require a valid result for the exact WU and cadence. Under `with-integration`, require resolver state `shipped` in
-`completed`, with the archive move, applicable cohort closeout, and readiness regeneration present. Under `manual`,
-require resolver state `integrating`; archive and readiness products remain post-merge. Both cadences require
-Completion Notes and any applicable Release Notes. Missing, ambiguous, or wrong-cadence products stop.
+The checkpoint reduces machine-proved `applicable` currentness internally, with no attended step. Follow every
+surfaced Candidate-applicability action exactly:
 
-Compose the current `openedChangeRequest` and invoke `arc review readiness -` with the exact tree root, target,
-vehicle, and WU slug. Require the ready envelope for this head. Fire `pre-merge` when active; its actions report
-checks, conversations, and requirements without replacing readiness or review settlement. Retain
-`openedChangeRequest.headSha` as `{approved-head-sha}`. Any candidate mutation or review action invalidates the
-checkpoint: return to the authoritative lifecycle/drift reads, reconcile if needed, and fire the final hook again.
-No lifecycle- or review-authored commit or push is allowed after this stable checkpoint and before the integration
-interlock.
+- `candidate-applicability / rerun-checkpoint` restarts this step.
+- `candidate-applicability / stop` and `candidate-applicability / upgrade` render the typed result and stop. These
+  arms never offer an authority selection.
+- `candidate-applicability / request-authority` renders `payload.selectionOfferText`,
+  `payload.recommendedActionText`, and `payload.selectionPromptText` verbatim, then stops for the named authority's
+  explicit choice. Do not infer a selection from the recommendation.
 
-Compose the exact candidate-tail diff from the settled implementation head through task and notes cleanup,
-composition, cohort closeout, archive moves, readiness regeneration, and reconcile commits. Surface this exact diff,
-not excerpts alone.
+After an explicit `covered`, `targeted-check`, or `changed` choice, compose the strict input from
+`payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, first complete the bounded
+check and add its evidence reference. Then invoke `arc candidate applicability resolve {name} -` with that input.
+For `covered` or `targeted-check`, `resolved / commit-selection` and `exact-replay / commit-selection` leave the
+Candidate selection staged. Run Tier 1 over that correction, then commit:
 
-Compose and preview the final content-gated `## Review` record. Report `Local` and `Hosted PR` activity by
-human-readable product/model and count, using `None` for an empty category. Report `Triage` with the GitHub identity
-approving the final disposition set and distinct material-finding counts by final disposition. When prior complete
-coverage carried across a later narrow delta, add `Coverage` with the targeted verification and delta character;
-omit `Coverage` when every reported pass ran on this head. Omit the whole section when no review ran.
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
 
-No `gh pr merge`, auto-merge enablement, or queued merge may occur before these products exist and the final
-integration-interlock fires. The integration-interlock is the sole merge authority.
+```text
+chore(arc): record Candidate applicability for {name}
 
-A post-composition failure leaves the candidate unmerged and stops with its evidence. On re-entry, resume the first
-incomplete candidate-tail step; never infer readiness from later products that happen to exist.
+Context: meta-{name}.md (integration)
+```
+
+Repeat the Step 1 push extension contract.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+Restart this step. `resolved / continue` and `exact-replay / continue` mean that selection is already durable and
+restart without a redundant commit. Only `resolved / establish-new-root` or `exact-replay / establish-new-root` —
+produced by an explicit `changed` choice — follows ordinary scope selection, completed verification,
+`arc attest {name} --new-root --json`, and the ordinary attestation commit and push contracts before a checkpoint
+rerun. Every stale, conflicting, invalid, or unavailable resolution follows its typed next action without
+substituting a selection in prose.
+
+`candidate-publication-required / resume-pre-publication` renders `payload.recommendedActionText` verbatim and
+invokes `payload.attestArgv` unchanged. Invoke the returned `locus.nextAction.command` and follow that ordinary
+pre-publication procedure. At `candidate-publish-ready`, invoke `arc publish {name} --json`; require its idempotent
+Integrating result, then complete the already-open Step 2 review for any carried reservation. Run Tier 1 over the
+exact new head and staged boundary correction, then commit:
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): refresh publication boundary for {name}
+
+Context: meta-{name}.md (integration)
+```
+
+Repeat the Step 1 push extension contract.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+Restart this step. Ordinary review and publication settlement remain authoritative; Candidate applicability
+supplies neither verdict.
+
+`terminal-rebind-required / reconcile-delivery-state` invokes `arc delivery reconcile - --json` with
+`payload.reconcileInput` unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
+This reuses ordinary delivery reconciliation and adds no new operation.
+
+`blocked / stop` stops on its typed reason. `ready / request-approval` continues at the ready checkpoint below.
+
+`blocked` with `retarget` or `reopen-and-retarget` renders the returned reason and remedy, then stops for explicit
+direction to apply that exact remedy. On direction, invoke `remedy.argv` with `remedy.stdin` unchanged.
+`remedied / terminal-checkpoint` restarts this step. `remedied / teardown-member` returns to the delivery teardown
+path with its exact `selectedDeliverableId`. `blocked / trigger-ref-restore-required` renders its exact ref/head and
+stops for Owner approval before restoring only that missing ref, then reruns the same remedy. Every other result
+stops.
+
+`reconcile / reconcile-base` enters the base-merge arm with the checkpoint's validated safety facts.
+
+Invoke
+`arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json`.
+`base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
+`head-contained-by-base / rerun-checkpoint` restart this step.
+`blocked / stop` and `conflict / stop` stop before every later fire point.
+`skipped-clean / continue-reconcile` restarts this step without a push. On `merged / run-quality-gates`, run Tier 1
+over the exact merged head. These are the ordinary new-head automated checks; make no applicability or review
+judgment before the checkpoint classifies the exact target.
+
+For `merged / run-quality-gates` only, repeat the Step 1 push extension contract.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+Restart this step. The checkpoint now owns Candidate applicability, ordinary publication settlement, delivery
+rebind, review status, and final readiness over the pushed exact head. Clearance never carries.
+Advisory receipts are not merge authority.
+
+On `ready / request-approval`, render `payload.interlockSurface.machineEvidence.text` verbatim.
+
+**Extension report** · `#pre-merge`: If active, execute its `.actions` once for this ready checkpoint and render
+their results under this label. Otherwise, skip — the composed surface's slot carries null content, so an inactive
+extension renders nothing. The extension fires here — after `ready`, before the integration interlock.
+No commit or push may occur after `ready`.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop before merge. Surface the exact approved head, complete candidate-tail diff, every
-> review applicability call and targeted verification, the proposed final dispositions and `## Review` record, PR
-> status, requirements, merge method, lifecycle readiness, and the clean base-drift result. State that approval
-> applies final dispositions and channel settlement, ends review, invokes the exact-head unlock when available, and
-> authorizes merge only if the required status and ordinary exact-head rechecks succeed unchanged. Close with
-> `Approve (or redirect)?`.
+> `integration-interlock`: Stop after the ready evidence and extension report. Surface both, the composed
+> candidate-tail diff — the Release Notes entry and Completion Notes — with any swept or regenerated artifacts
+> named rather than diffed, the review applicability calls and targeted verification retained from Step 2, and the
+> approved final dispositions carried by the checkpointed settlement plan; state that approval executes that exact
+> plan, settles the review-response channel — hosted settlement already ran at Step 2 — ends review, and authorizes
+> merge of the checkpointed head. Close with `Approve (or redirect)?`.
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
 the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
-push through the workflow contract, rebuild lifecycle/base evidence, and refire the integration-interlock over the
-new exact head.
+push through the workflow contract, and rebuild the checkpoint over the new head.
 
-Immediately after approval, apply the approved final dispositions and channel settlements, then recompose
-`openedChangeRequest` from the canonical current head. If its `headSha` differs from `{approved-head-sha}`,
-invalidate the approval and return through review applicability. Otherwise, re-read PR status for that exact head.
-If threads, required approvals, or required checks are no longer settled, invalidate the approval and return
-through review.
+After approval, invoke:
 
-Invoke `arc review unlock -` with the exact approved target, vehicle, and tree root. Follow only its typed action:
-`dispatched / await-clearance` waits for the required `arc-cleared` status; `no-unlock / none` continues because the
-default-branch workflow is absent; `blocked / stop` invalidates approval. Re-read required checks on the unchanged
-head, then replace any stale PR review summary with the previewed `## Review` record immediately before merge.
-
-With PR state still settled, immediately invoke `arc base drift --json` once more and apply the same strict
-validation. `unavailable`, `skipped`, malformed, or unrecognized stops; `reconcile` returns to the reconcile loop
-and requires a new exact-head checkpoint plus integration approval. Only `clean` permits the merge command, with
-no extension, review action, lifecycle mutation, commit, push, fetch, or second human stop between this final read
-and merge:
-
-```text
-result = arc base drift --json
-if <result is authoritative clean>:
-    gh pr merge {pr-number} --merge --match-head-commit {approved-head-sha}   # strategy per config
-else:
-    <stop or return to the reconcile loop per the validated verdict>
+```bash
+arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json
 ```
 
-**Skip the merge when the PR is already merged** — the resume path's PR-merged arm (Step 1) enters here with the
-merge already landed (attended elsewhere, or unattended on the auto-merge lane); proceed straight to `arc user
-close`.
+`merged / complete` proceeds to the tail. `awaiting-checks / retry` keeps the checkpoint and draft lock, surfaces
+`payload.checks` and any `payload.diagnosticFailures`, and ends the current foreground attempt;
+`payload.elapsedMs` discloses the bounded wait already served. Do not re-invoke recursively. A later retry invokes
+the same command with the same checkpoint handle; the verb revalidates exact head and lifecycle, so the prior
+approval carries only while both remain unchanged. `invalidated / checkpoint` returns to the checkpoint;
+`blocked / stop` stops. The integration interlock is the sole merge authority.
+
+**Skip the merge when the PR is already merged** — the resume path's `merged-at-head` arm (Step 1) enters here with the
+merge already landed (attended elsewhere, or unattended on the auto-merge lane); enter the same cleanup tail below.
+For a delivery, the checkpoint's typed arm has already bound the exact terminal claim, landed heads, residual, top
+target, and member-review conjunction before the integration interlock.
 
 Retire the per-WU user workspace subdir (filesystem op only, no git ops — contents are gitignored):
 
@@ -541,10 +659,24 @@ This is an **individually re-runnable** step, not just the tail of a synchronous
 the owning caller of `arc user close` — a merge that landed while no session attended it has no other closer.
 `arc user close` no-ops when the subdir is already retired, so a re-run is safe.
 
-### 14) Post-merge worktree cleanup
+Invoke delivery closeout with the exact current change-request repository bound as `repositoryRef` in Step 1:
+
+```json
+{"workUnitId":"{name}","repository":"{repositoryRef}","remote":"origin"}
+```
+
+```bash
+arc delivery closeout - --json
+```
+
+`closed-out` renders `recommendedActionText` and continues. `blocked` renders `recommendedActionText` and stops;
+every other typed result stops. The call is idempotent and returns `closed-out` with no plan IDs for an ordinary
+non-delivery work unit.
+
+### 11) Post-merge worktree cleanup
 
 After `arc user close`, run `arc teardown <wu-name>` under the pre-merge `integration-interlock` approval — no
-second prompt fires. This is the **physical** branch/worktree teardown the archive sweep (Step 11) deferred: it
+second prompt fires. This is the **physical** branch/worktree teardown the archive sweep (Step 8) deferred: it
 runs post-merge, since a merged branch can only be reaped once its PR has landed. The verb resolves the shipped
 WU's branch and composes the cleanup deterministically, presence-guarded throughout — a resume that re-enters
 after a partial teardown skips what is already done:
@@ -585,29 +717,26 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 ## Next step
 
 - **Under `with-integration` (default):** WU is fully shipped after merge — archive ceremony already landed in
-  Step 11.
+  Step 8.
 - **Under `manual`:** After merge, invoke [`archive-work-unit.md`][archive-work-unit] to complete archival
   post-merge.
 
 ## Related workflows
 
 - [`reopen-work-unit.md`](reopen-work-unit.md) — the inverse; Integrating → Active (withdraw from review).
-- [`activate-work-unit.md`](activate-work-unit.md) — preceding ceremony; Planning → Active.
+- [`prepare-work-unit.md`](prepare-work-unit.md) — preceding private-review ceremony; Active → Integrating.
 - [`archive-work-unit.md`](archive-work-unit.md) — cadence-invariant archival; invoked inline under
   `with-integration` or explicitly under `manual`.
-- [`clean-work-unit.md`][clean] — supplemental content-cleanup toolkit invoked from Step 5.
 
 ---
 
-[branch-format]: ../../../methods/branch-format.md
-[self-review]: ../../../methods/self-review.md
 [review-chunking]: ../../../methods/review-chunking.md
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
+[arc-methods-qg]: ../../../methods/quality-gate-commands.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [archive-work-unit]: archive-work-unit.md
-[clean]: ../supplemental/clean-work-unit.md
 [session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [create-spec]: ../create-spec.md
 [arc-config]: ../../../arc-config.yml

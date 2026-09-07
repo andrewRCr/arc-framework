@@ -60,7 +60,7 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "reference/strategies/STRATEGY-INDEX.md",
   "completed/README.md",
   // Per-file methods — adopters toggle `override-active` and populate `.override` bodies
-  "system/methods/assess-cohort-fit.md",
+  "system/methods/assess-boundary-fit.md",
   "system/methods/assess-design-proportionality.md",
   "system/methods/assess-draft-readiness.md",
   "system/methods/adversarial-review.md",
@@ -82,6 +82,7 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/methods/spec-review.md",
   "system/methods/task-audit.md",
   "system/methods/test-first.md",
+  "system/methods/validate-criteria.md",
   // Per-file extensions — adopters toggle `active` and populate `.actions` bodies
   "system/extensions/post-context-load.md",
   "system/extensions/post-task-completion.md",

@@ -11,6 +11,7 @@ import { LocalReviewRoutingInputSchema } from "../policy/routing-schema.js";
 import { projectStandardReviewObligation } from "../policy/standard-review-projection.js";
 import { createReviewRequirement } from "../core/gate-contract-v2.js";
 import {
+  GitObjectIdSchema,
   ReviewIdentifierSchema,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
@@ -31,7 +32,11 @@ import {
   LocalReviewSourceSchema,
   type LocalReviewSource,
 } from "../core/local-review-source.js";
-import type { LocalReviewAuthority } from "../core/local-review-authority.js";
+import type {
+  LocalReviewAuthority,
+  LocalReviewAuthorityResolution,
+  LocalReviewMemberCoordinates,
+} from "../core/local-review-authority.js";
 import {
   LocalReviewStateSchema,
   type LocalReviewState,
@@ -46,6 +51,10 @@ import {
   REVIEW_VERSION_RETRY_ATTEMPTS,
 } from "../core/version-conflict.js";
 import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js";
+import {
+  DeliveryLocalReviewAdmissionSchema,
+  type DeliveryLocalReviewAdmission,
+} from "../policy/delivery-local-review-admission.js";
 
 const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
 
@@ -54,6 +63,20 @@ export const LocalPrepareRequestSchema = z.strictObject({
   evaluatorIdentity: ReviewIdentifierSchema,
   routingFacts: LocalReviewRoutingInputSchema,
   freshnessMs: z.number().int().positive().optional(),
+  /** Exact head of the delivery member to review; absent reviews the work-unit branch. */
+  memberHeadObjectId: GitObjectIdSchema.optional(),
+  /** Exact standard-lane admission returned by delivery-member status. */
+  deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
+}).superRefine((request, context) => {
+  if (request.memberHeadObjectId !== undefined
+    && request.deliveryAdmission !== undefined
+    && request.memberHeadObjectId !== request.deliveryAdmission.vehicle.head) {
+    context.addIssue({
+      code: "custom",
+      path: ["memberHeadObjectId"],
+      message: "member selector must match the exact delivery admission",
+    });
+  }
 });
 export type LocalPrepareRequest = z.infer<typeof LocalPrepareRequestSchema>;
 
@@ -71,15 +94,25 @@ export interface LocalPrepareDependencies {
   sweep(): Promise<void>;
   withSourceLock<T>(action: () => Promise<T>): Promise<T>;
   resolveRepositoryId(): Promise<string>;
-  deriveTarget(repositoryId: string): Promise<ReviewTarget>;
+  /** Configured review-policy source represented by this local carrier. */
+  laneSourceId: string;
+  deriveTarget(
+    repositoryId: string,
+    member?: LocalReviewMemberCoordinates,
+  ): Promise<ReviewTarget>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
-  resolveAuthority(evaluatorIdentity: string): Promise<LocalReviewAuthority>;
+  resolveAuthority(
+    evaluatorIdentity: string,
+    memberHeadObjectId?: string,
+    deliveryAdmission?: DeliveryLocalReviewAdmission,
+  ): Promise<LocalReviewAuthorityResolution>;
   composeAssurance(authority: LocalReviewAuthority): Promise<AssuranceComposition>;
   resolvePolicy(): LocalReviewPolicyBindingResolution;
   validatePolicySelection(
     binding: LocalReviewPolicyBinding,
     authority: LocalReviewAuthority,
   ): void;
+  validateDeliveryAdmission(admission: DeliveryLocalReviewAdmission): Promise<void>;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   readReceipts(targetId: string): Promise<ForwardReceiptLedger>;
@@ -119,8 +152,17 @@ export async function prepareLocalReview(
   const request = LocalPrepareRequestSchema.parse(requestInput);
   await dependencies.sweep();
   const repositoryId = await dependencies.resolveRepositoryId();
-  const target = await dependencies.deriveTarget(repositoryId);
-  const authority = await dependencies.resolveAuthority(request.evaluatorIdentity);
+  // Authority resolves first: derivation needs the member coordinates it records,
+  // and a named member's target is those coordinates rather than the checkout's.
+  const authorityResolution = request.deliveryAdmission === undefined
+    ? await dependencies.resolveAuthority(request.evaluatorIdentity, request.memberHeadObjectId)
+    : await dependencies.resolveAuthority(
+        request.evaluatorIdentity,
+        request.deliveryAdmission.vehicle.head,
+        request.deliveryAdmission,
+      );
+  const { authority, member } = authorityResolution;
+  const target = await dependencies.deriveTarget(repositoryId, member ?? undefined);
   const assurance = await dependencies.composeAssurance(authority);
   if (assurance.status === "refused") {
     return LocalPrepareEnvelopeSchema.parse({
@@ -174,8 +216,12 @@ export async function prepareLocalReview(
     target,
     requirement,
     authority,
+    laneSourceId: dependencies.laneSourceId,
     policyBindingDigest: policy.binding.bindingDigest,
     requestMechanism: policy.binding.requestMechanism,
+    ...(request.deliveryAdmission === undefined
+      ? {}
+      : { deliveryAdmission: request.deliveryAdmission }),
   };
   const confirmation = await dependencies.confirmTarget(target);
   if (confirmation.state === "stale-target") {
@@ -190,6 +236,13 @@ export async function prepareLocalReview(
         currentTarget: confirmation.currentTarget,
       },
     });
+  }
+  if (request.deliveryAdmission !== undefined) {
+    if (target.kind !== "delivery-member"
+      || target.headSha !== request.deliveryAdmission.vehicle.head) {
+      throw new LocalPrepareCommandError("local review target does not match its delivery admission");
+    }
+    await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
   }
   const cleanupTtlMs = request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS;
   const settled = await dependencies.withSourceLock(async () => {

@@ -11,7 +11,9 @@ import { registerReviewOperationStateSchemas } from "./operation-state-schema.js
 import { registerLocalReviewSourceSchemas } from "./local-review-source.js";
 import { registerAdvisoryRecordSchemas } from "./advisory-records.js";
 import { registerReviewCommandEnvelopeSchemas } from "./review-command-envelope.js";
+import { registerMergeLockCommandEnvelopeSchemas } from "../merge-lock-command-envelope.js";
 import { registerReviewChunkingCommandSchemas } from "./review-chunking-command-schema.js";
+import { registerFrontlineRunCommandSchemas } from "./frontline-run-command-schema.js";
 import { registerFrontlineOutcomeSchema } from "../policy/frontline-outcome.js";
 import { registerLocalReviewPolicySchemas } from "../policy/local-review-policy.js";
 import { registerStandardReviewProjectionSchema } from "../policy/standard-review-projection-schema.js";
@@ -25,6 +27,7 @@ import { registerReviewApplicabilitySchemas } from "./applicability.js";
 import { registerForwardReceiptLedgerSchema } from "./forward-receipt-ledger-schema.js";
 import { registerSeverityGatingPolicySchema } from "./severity-gating-policy.js";
 import { assertReviewDurableRecordInventory } from "./schema-inventory.js";
+import { registerReviewSupportCommandSchemas } from "../support-command-schemas.js";
 
 /** Compose every currently implemented review schema into a fresh kernel registry. */
 export function registerReviewDomainSchemas(registry: KernelRegistry): KernelRegistry {
@@ -40,7 +43,10 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerLocalReviewSourceSchemas(registry);
   registerAdvisoryRecordSchemas(registry);
   registerReviewCommandEnvelopeSchemas(registry);
+  registerReviewSupportCommandSchemas(registry);
+  registerMergeLockCommandEnvelopeSchemas(registry);
   registerReviewChunkingCommandSchemas(registry);
+  registerFrontlineRunCommandSchemas(registry);
   registerForwardReceiptLedgerSchema(registry);
   registerForwardLifecycleTailSchema(registry);
   registerReviewPrimitiveSchemas(registry);

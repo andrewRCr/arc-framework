@@ -4,6 +4,7 @@ import { execa } from "execa";
 
 import type {
   HostedGitHubCheckRun,
+  HostedGitHubCommitStatus,
   HostedGitHubIssueComment,
   HostedGitHubPort,
   HostedGitHubReview,
@@ -15,10 +16,14 @@ import type { HostedArtifact, HostedTarget } from "./request.js";
 import type { HostedSettlementReply } from "./settle.js";
 
 export interface HostedProcessRunner {
-  run(args: string[], options?: { signal?: AbortSignal }): Promise<{ stdout: string; stderr: string }>;
+  run(
+    args: string[],
+    options?: { signal?: AbortSignal; allowFailure?: boolean },
+  ): Promise<{ stdout: string; stderr: string }>;
 }
 
 export class HostedProcessError extends Error {
+  readonly stdout: string;
   readonly stderr: string;
   readonly exitCode: number | null;
   readonly httpStatus: number | null;
@@ -28,9 +33,11 @@ export class HostedProcessError extends Error {
     stderr: string,
     exitCode: number | null = null,
     httpStatus: number | null = null,
+    stdout = "",
   ) {
     super(message);
     this.name = "HostedProcessError";
+    this.stdout = stdout;
     this.stderr = stderr;
     this.exitCode = exitCode;
     this.httpStatus = httpStatus;
@@ -49,15 +56,27 @@ export const hostedGhRunner: HostedProcessRunner = {
       const result = await execa("gh", args, {
         stdin: "ignore",
         timeout: 60_000,
+        reject: options?.allowFailure !== true,
         ...(options?.signal === undefined ? {} : { cancelSignal: options.signal }),
       });
+      if (options?.signal?.aborted === true || result.isCanceled) {
+        const reason = options?.signal?.reason as unknown;
+        throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
+      }
+      if (result.timedOut) {
+        throw new DOMException("The hosted process timed out.", "TimeoutError");
+      }
       return { stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
       if (options?.signal?.aborted === true) {
         const reason = options.signal.reason as unknown;
         throw reason instanceof Error ? reason : new DOMException("The operation was aborted.", "AbortError");
       }
+      if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+        throw error;
+      }
       const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
+      const stdout = typeof record.stdout === "string" ? record.stdout : "";
       const stderr = typeof record.stderr === "string" ? record.stderr : "";
       const message = error instanceof Error ? error.message : String(error);
       throw new HostedProcessError(
@@ -65,6 +84,7 @@ export const hostedGhRunner: HostedProcessRunner = {
         stderr,
         typeof record.exitCode === "number" ? record.exitCode : null,
         parseHttpStatus(`${message}\n${stderr}`),
+        stdout,
       );
     }
   },
@@ -293,6 +313,37 @@ export class GhHostedReviewPort implements HostedGitHubPort {
         conclusion: item.conclusion === null ? null : string(item.conclusion, `check-runs[${index}].conclusion`),
         appOwnerIdentity: owner === null ? null : integerString(owner.id, `check-runs[${index}].app.owner.id`),
         summary: typeof output?.summary === "string" ? output.summary : "",
+      };
+    });
+  }
+
+  async readCommitStatuses(
+    target: HostedTarget,
+    options?: { signal?: AbortSignal },
+  ): Promise<HostedGitHubCommitStatus[]> {
+    const rawStatuses = await this.read([
+      apiPath(target, `commits/${target.headSha}/statuses?per_page=100`),
+      "--paginate",
+      "--slurp",
+    ], options);
+    return pages(rawStatuses, "commit-statuses").map((entry, index) => {
+      const item = record(entry, `commit-statuses[${index}]`);
+      const state = string(item.state, `commit-statuses[${index}].state`).toLowerCase();
+      if (!["pending", "success", "failure", "error"].includes(state)) {
+        throw new HostedGitHubReadError(
+          "terminal-failure",
+          `commit-statuses[${index}].state: unsupported ${state}`,
+        );
+      }
+      const normalizedState: HostedGitHubCommitStatus["state"] = state === "error"
+        ? "failure"
+        : state as HostedGitHubCommitStatus["state"];
+      return {
+        context: string(item.context, `commit-statuses[${index}].context`),
+        state: normalizedState,
+        description: typeof item.description === "string" ? item.description : "",
+        createdAt: string(item.created_at, `commit-statuses[${index}].created_at`),
+        updatedAt: string(item.updated_at, `commit-statuses[${index}].updated_at`),
       };
     });
   }

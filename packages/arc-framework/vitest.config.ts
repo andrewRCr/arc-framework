@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { ISOLATED_UNIT_MOCK_FILES } from "./__tests__/helpers/isolated-unit-mock-files.js";
+import { resolveVitestMaxWorkers } from "./__tests__/helpers/vitest-worker-policy.js";
 
 // Absolute package root from this config file — not process.cwd(). `root: "."`
 // resolves against the invoker's cwd, so `npx vitest --config …` from the monorepo
@@ -26,23 +27,20 @@ if (process.platform === "win32") {
   process.env.TMPDIR = canonicalTempRoot;
 }
 
-// Vitest sizes its worker pool from `availableParallelism() - 1`, which assumes the run
-// owns the machine. CI schedules several jobs of this graph at once, so each one claiming
-// all-but-one core oversubscribes the shared cores — surfacing as timing-sensitive test
-// failures rather than as honest slowness. Cap the pool under CI; leave developer machines
-// on the default, where the spare cores are real. The cap is a share rather than a count so
-// it tracks the host's core count instead of pinning to one machine size, and
-// `VITEST_MAX_WORKERS` overrides both so it can be retuned from the runner without a
-// code change.
-const configuredWorkers = process.env["VITEST_MAX_WORKERS"] ?? (process.env["CI"] ? "50%" : undefined);
-if (configuredWorkers !== undefined && !/^(?:[1-9]\d*|[1-9]\d?%|100%)$/u.test(configuredWorkers)) {
-  throw new Error(
-    `VITEST_MAX_WORKERS must be a positive integer or a percentage; received "${configuredWorkers}"`,
-  );
-}
-const maxWorkers = configuredWorkers?.endsWith("%") === false
-  ? Number(configuredWorkers)
-  : configuredWorkers;
+// Test repositories must not inherit developer-machine Git configuration. A
+// long-lived workstation can carry `arc.identity` globally even when a fixture
+// intentionally omits the local key, while hosted runners usually cannot expose
+// that leak. Keep every project on the same hermetic system/global baseline;
+// fixtures install the local values they exercise explicitly.
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+process.env.GIT_CONFIG_GLOBAL = process.platform === "win32" ? "NUL" : "/dev/null";
+
+// Local quality gates share developer machines with parallel agent sessions, so cap their
+// default pool at 50%. CI runner capacity is deployment-specific: hosted runners can use
+// Vitest's native sizing, while constrained self-hosted runners pass an explicit override
+// from the workflow. An empty CI value means native sizing, which lets the workflow carry
+// an optional repository variable without inventing a sentinel value.
+const maxWorkers = resolveVitestMaxWorkers(process.env);
 
 // Single multi-project config so one `vitest run` executes every tier and prints
 // one combined summary. Per-tier runs use `--project <name>` (see package.json).
@@ -81,6 +79,8 @@ export default defineConfig({
           name: "integration",
           root: packageRoot,
           include: ["__tests__/integration/**/*.test.ts"],
+          globalSetup: ["__tests__/integration/global-setup.ts"],
+          testTimeout: 30_000,
           passWithNoTests: true,
         },
       },

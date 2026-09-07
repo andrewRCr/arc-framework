@@ -46,12 +46,15 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
       "review.standard_sources": "[]",
       "review.frontline_max_passes": "2",
       "review.standard_max_passes": "2",
+      "review.hosted_await_timeout_seconds": "120",
+      "review.hosted_await_initial_poll_interval_seconds": "15",
+      "review.hosted_await_attention_after_minutes": "15",
       "user.notes_push": "on-sync",
     });
   });
 
-  it("enumerates the 29 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(29);
+  it("enumerates the 33 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(33);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -86,8 +89,10 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
   });
 
   it("includes review chunking thresholds only in the full settings set", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toContain("review.chunking_threshold_lines");
-    expect(AGENT_CONSUMABLE_KEYS).toContain("review.chunking_threshold_files");
+    expect(AGENT_CONSUMABLE_KEYS).toContain("changeset.advisory_threshold_lines");
+    expect(AGENT_CONSUMABLE_KEYS).toContain("changeset.advisory_threshold_files");
+    expect(AGENT_CONSUMABLE_KEYS).not.toContain("review.chunking_threshold_lines");
+    expect(AGENT_CONSUMABLE_KEYS).not.toContain("review.chunking_threshold_files");
   });
 });
 
@@ -108,13 +113,17 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["commit.format"]).toBe("conventional");
     expect(result.settings["commit.context_footer"]).toBe("required");
     expect(result.settings["merge.strategy"]).toBe("merge");
+    expect(result.settings["merge.lock"]).toBe("none");
     expect(result.settings["platform.type"]).toBe("github");
     expect(result.settings["review.frontline_sources"]).toBe("[]");
     expect(result.settings["review.standard_sources"]).toBe("[]");
     expect(result.settings["review.frontline_max_passes"]).toBe("2");
     expect(result.settings["review.standard_max_passes"]).toBe("2");
-    expect(result.settings["review.chunking_threshold_lines"]).toBe("0");
-    expect(result.settings["review.chunking_threshold_files"]).toBe("0");
+    expect(result.settings["review.hosted_await_timeout_seconds"]).toBe("120");
+    expect(result.settings["review.hosted_await_initial_poll_interval_seconds"]).toBe("15");
+    expect(result.settings["review.hosted_await_attention_after_minutes"]).toBe("15");
+    expect(result.settings["changeset.advisory_threshold_lines"]).toBe("0");
+    expect(result.settings["changeset.advisory_threshold_files"]).toBe("0");
     expect(result.settings["team.mode"]).toBe("false");
     expect(result.settings["session.remote_sync"]).toBe("enabled");
     expect(result.settings["archive.cadence"]).toBe("with-integration");
@@ -158,13 +167,17 @@ describe("readConfigSettings — user-supplied values", () => {
       "commit.custom_pattern: ^FOO-.+",
       "commit.context_pattern: ^Relates to",
       "merge.strategy: rebase",
+      "merge.lock: draft",
       "platform.type: gitlab",
       "review.frontline_sources: [coderabbit-cli,project-reviewer]",
       "review.standard_sources: [coderabbit-pr,codex-pr,delegated-agent]",
       "review.frontline_max_passes: 3",
       "review.standard_max_passes: 4",
-      "review.chunking_threshold_lines: 5000",
-      "review.chunking_threshold_files: 150",
+      "review.hosted_await_timeout_seconds: 90",
+      "review.hosted_await_initial_poll_interval_seconds: 10",
+      "review.hosted_await_attention_after_minutes: 40",
+      "changeset.advisory_threshold_lines: 5000",
+      "changeset.advisory_threshold_files: 150",
       "pm.mode: arc-in-git",
       "team.mode: true",
       "session.remote_sync: disabled",
@@ -186,12 +199,16 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["worktree.post_create"]).toBe("npm run setup:worktree");
     expect(result.settings["worktree.harness_dirs"]).toBe(".codex,.custom-harness");
     expect(result.settings["commit.format"]).toBe("custom");
+    expect(result.settings["merge.lock"]).toBe("draft");
     expect(result.settings["review.frontline_sources"]).toBe("[coderabbit-cli,project-reviewer]");
     expect(result.settings["review.standard_sources"]).toBe("[coderabbit-pr,codex-pr,delegated-agent]");
     expect(result.settings["review.frontline_max_passes"]).toBe("3");
     expect(result.settings["review.standard_max_passes"]).toBe("4");
-    expect(result.settings["review.chunking_threshold_lines"]).toBe("5000");
-    expect(result.settings["review.chunking_threshold_files"]).toBe("150");
+    expect(result.settings["review.hosted_await_timeout_seconds"]).toBe("90");
+    expect(result.settings["review.hosted_await_initial_poll_interval_seconds"]).toBe("10");
+    expect(result.settings["review.hosted_await_attention_after_minutes"]).toBe("40");
+    expect(result.settings["changeset.advisory_threshold_lines"]).toBe("5000");
+    expect(result.settings["changeset.advisory_threshold_files"]).toBe("150");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["user.notes_push"]).toBe("manual");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
@@ -219,6 +236,19 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.defaultsApplied).not.toContain("branch.protection");
     expect(result.defaultsApplied).toContain("branch.base");
     expect(result.defaultsApplied).toContain("commit.format");
+  });
+
+  it("ignores former review-owned keys and defaults the changeset thresholds", async () => {
+    await writeFile(fixture.configPath, [
+      "review.chunking_threshold_lines: 5000",
+      "review.chunking_threshold_files: 150",
+    ].join("\n"));
+
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["changeset.advisory_threshold_lines"]).toBe("0");
+    expect(result.settings["changeset.advisory_threshold_files"]).toBe("0");
+    expect(result.settings).not.toHaveProperty("review.chunking_threshold_lines");
+    expect(result.settings).not.toHaveProperty("review.chunking_threshold_files");
   });
 
   it("ignores hooks.* keys in the on-disk file", async () => {

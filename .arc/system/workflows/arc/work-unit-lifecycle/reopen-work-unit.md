@@ -1,5 +1,5 @@
 ---
-purpose: Withdraw an Integrating work unit back to Active for more work — phase-flip Integrating → Active plus PR withdrawal.
+purpose: Withdraw an Integrating work unit back to Active task execution or Candidate preparation.
 audience: agent
 arc:
   methods:
@@ -11,13 +11,14 @@ arc:
 
 # Workflow: Reopen Work Unit
 
-Pull a work unit out of review back to active work — the inverse of [`integrate-work-unit.md`][integrate]. A
-`set-phase`-only move (`Integrating → Active`, no location move and no branch rotation — the working branch keeps the
-`<type>/` prefix it took at activation) that withdraws the open PR.
+Pull a work unit out of public integration back to private work — the inverse of the publication transition in
+[`prepare-work-unit.md`][prepare]. A `set-phase`-only move (`Integrating → Active`, no location move and no branch
+rotation — the working branch keeps the `<type>/` prefix it took at activation) that withdraws the open PR. An
+exact reopened-task input returns to execution; otherwise the ordinary destination is Candidate preparation.
 
 **When to use:** A WU sits in `**State:** Integrating` (PR open, awaiting review), but it needs substantial rework
-before it can merge — a reviewer requested changes large enough to leave review for, or a problem surfaced that more
-task work must address. Withdrawing returns it to `Active` and pulls the PR out of review.
+before it can merge — a reviewer requested changes large enough to leave public review for, or a problem surfaced
+that needs private convergence. Withdrawing returns it to Candidate-bearing `Active` and pulls the PR out of review.
 
 > [!NOTE]
 > **PR already merged?** `reopen` refuses a merged PR (the `pr-unmerged` guard) — backing out merged work is a new
@@ -30,6 +31,8 @@ task work must address. Withdrawing returns it to `Active` and pulls the PR out 
 - Currently on the WU's `<type>/<name>` branch (per [`branch-format`][branch-format])
 - `.arc/active/meta-{name}.md` exists and shows `**State:** Integrating`
 - The WU's PR is open and **not merged** (a draft PR still qualifies; a merged PR does not)
+- The canonical task list has exactly the intended shape: a found executable cursor for `--task`, or
+  `no-open-task` when reopening directly to Candidate preparation
 
 ---
 
@@ -39,7 +42,7 @@ task work must address. Withdrawing returns it to `Active` and pulls the PR out 
 
 The judgment `reopen` carries is the withdraw-vs-stay-integrating call: pull out of review only when the remaining work
 is substantial enough that churning the open PR through it is worse than withdrawing. Minor review-driven fixes stay in
-[`integrate-work-unit.md`][integrate] Step 4 (review iteration) — they don't warrant a reopen.
+[`integrate-work-unit.md`][integrate] Step 2 (review iteration) — they don't warrant a reopen.
 
 Then choose how the PR is withdrawn:
 
@@ -53,12 +56,26 @@ Then choose how the PR is withdrawn:
 ```bash
 arc reopen {name}            # close the PR (default)
 arc reopen {name} --keep-pr  # convert the PR to a draft instead
+arc reopen {name} --keep-pr --task "Task X.Y.R — ..."  # return to reopened task execution
 ```
 
-The executor fires the `reopen` edge: flips `**State:** Integrating → Active`, clears the now-stale integration
-`**Next Action:**` pointer (`**Next Task:**` stays `[none]` from `integrate`), and fires the `withdraw-pr`
-side-effect — `gh pr close` (default) or `gh pr ready --undo` (`--keep-pr`). `{name}` defaults to the current
-worktree's WU.
+The verb first establishes exact delivery composition through its typed read-only projection. Determinate delivery
+absence and a coherent unbound plan retain ordinary withdrawal. A coherently bound delivery, or unavailable,
+contradictory, or malformed delivery evidence, refuses before PR observation or lifecycle mutation; never approximate
+delivery-wide withdrawal by closing or drafting only the terminal request.
+
+Before mutation, the executor resolves the canonical task list. `--task` must equal
+`Task {cursor.id} — {cursor.title}` for the current executable leaf; without `--task`, the list must resolve
+`no-open-task`. Missing, unreadable, unbound, malformed, mismatched, or mode-inconsistent task authority refuses
+with the exact corrective boundary.
+
+The executor then fires the `reopen` edge: flips `**State:** Integrating → Active`, clears the now-stale integration
+`**Next Action:**` pointer, and fires the `withdraw-pr` side-effect — `gh pr close` (default) or
+`gh pr ready --undo` (`--keep-pr`). Without `--task`, `**Next Task:**` stays `[none]` and `Current Workflow`
+returns to `prepare-work-unit`. With an exact `--task`, the transition writes that orientation and clears
+`Current Workflow` to `[none]`, returning the Active work unit to `process-task-loop`. `{name}` defaults to the
+current worktree's WU. Candidate currentness remains mandatory before prepublication resumes; reopened task
+execution carries no review or publication authority from the stale Candidate.
 
 The PR's merge fact is resolved live against `gh` (never fabricated); the guard clears only a positively-unmerged
 PR. A merged PR is refused, and so is an unverifiable merge state — when `gh` or the remote is unavailable the reopen
@@ -95,22 +112,27 @@ under `--keep-pr`, so the draft PR carries it.
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
-### 4) Resume task work
+### 4) Resume execution or Candidate preparation
 
-The WU is back in `**State:** Active`. Return to task execution per [`process-task-loop.md`][process-task-loop] and
-address the rework that prompted the withdrawal. `reopen` left `**Next Task:**` / `**Next Action:**` at `[none]`; they
-re-establish at the next handoff, or set them by hand if orientation is needed before then.
+With `--task`, resume [`process-task-loop.md`](../process-task-loop.md) at the exact canonical cursor. When the final
+task closes, session init and recovery project `verify-work-unit` until Candidate attestation. Without `--task`, the
+already-closed WU is back in
+Candidate-bearing `**State:** Active`, which projects `sessionType: prepublication` and `workflow:
+prepare-work-unit`; return to [`prepare-work-unit.md`][prepare]. Candidate currentness and review procedures account
+for head-changing fixes; never route from the cleared narrative `**Next Action:**` field.
 
 ---
 
 ## Next step
 
-Active task work resumes. When the rework is complete and the WU is ready to ship again, re-enter
-[`integrate-work-unit.md`][integrate] — `arc status {name} --json` reads `active` again, so it enters fresh.
+Reopened execution, when selected, returns through work-unit verification and establishes a new Candidate root.
+Candidate preparation then resumes. When it settles, `arc publish` schedules public integration again and hands
+back to [`integrate-work-unit.md`][integrate].
 
 ## Related workflows
 
-- [`integrate-work-unit.md`][integrate] — the inverse; Active → Integrating (open review).
+- [`prepare-work-unit.md`][prepare] — owns the inverse `publish` transition; Active → Integrating.
+- [`integrate-work-unit.md`][integrate] — the public integration phase this workflow withdraws from.
 - [`deactivate-work-unit.md`](deactivate-work-unit.md) — the other phase-axis reversal; Active → Planning (own-file
   precedent).
 - Backing out **merged** work has no reopen path: open a new origin-linked follow-up WU (its `**Origin:**` records the
@@ -121,5 +143,5 @@ Active task work resumes. When the rework is complete and the WU is ready to shi
 [branch-format]: ../../../methods/branch-format.md
 [commit-footer]: ../../../methods/commit-footer.md
 [integrate]: integrate-work-unit.md
-[process-task-loop]: ../process-task-loop.md
+[prepare]: prepare-work-unit.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md

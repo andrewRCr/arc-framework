@@ -39,17 +39,25 @@ const mockRunCreateNew = vi.fn();
 const mockRunColdStart = vi.fn();
 const mockRunGraduate = vi.fn();
 const mockExec = vi.fn();
+const mockExecInput = vi.fn();
+let execInputAvailable = true;
 const mockReadFile = vi.fn(async () => "");
 const mockWriteFile = vi.fn();
 const mockMkdir = vi.fn();
 const mockResolveComposedLifecycleIndex = vi.fn();
 const mockBaseReadFile = vi.fn(async () => "");
+const mockParseMetaRecord = vi.fn(() => ({ workClass: "Light" }));
 const mockBaseFs = {
   readdir: vi.fn(async () => []),
   readFile: mockBaseReadFile,
 };
 const mockCreateProjectViewRefSnapshot = vi.fn();
 const mockRefreshBase = vi.fn(async () => "origin/main");
+const mockExpandActiveInFlight = vi.fn();
+
+vi.mock("../../../src/commands/active.js", () => ({
+  expandActiveInFlight: (...args: unknown[]) => mockExpandActiveInFlight(...args),
+}));
 
 vi.mock("../../../src/commands/start.js", () => ({
   buildCreateNewCeremonyCommitMessage: (name: string) =>
@@ -94,7 +102,7 @@ vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
-  parseMetaRecord: () => ({ workClass: "Light" }),
+  parseMetaRecord: () => mockParseMetaRecord(),
 }));
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
@@ -144,6 +152,7 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 vi.mock("../../../src/lib/io-context.js", () => ({
   createUserIOContext: () => ({
     exec: mockExec,
+    execInput: execInputAvailable ? mockExecInput : undefined,
     readFile: mockReadFile,
     writeFile: mockWriteFile,
     mkdir: mockMkdir,
@@ -159,6 +168,7 @@ describe("handleStart — dispatch orchestration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    execInputAvailable = true;
     mockExec.mockImplementation(async (_cmd, args) =>
       args[0] === "rev-parse" && String(args[1]).endsWith("^{commit}")
         ? { stdout: "base123\n", stderr: "" }
@@ -166,8 +176,20 @@ describe("handleStart — dispatch orchestration", () => {
     );
     mockReadFile.mockResolvedValue("");
     mockBaseReadFile.mockResolvedValue("");
+    mockParseMetaRecord.mockReturnValue({ workClass: "Light" });
     mockCreateProjectViewRefSnapshot.mockResolvedValue({ ok: true, fs: mockBaseFs });
     mockRefreshBase.mockResolvedValue("origin/main");
+    mockExpandActiveInFlight.mockResolvedValue({
+      entries: [],
+      residue: [],
+      warnings: [],
+      snapshot: { refs: {}, worktrees: {} },
+      liveRefs: {},
+      reachable: true,
+      pendingBranchCount: 0,
+      remoteEvidence: "exact",
+      candidateExpansion: { status: "complete", pendingBranchCount: 0 },
+    });
     mockMkdir.mockResolvedValue(undefined);
     mockIsNonInteractive.mockReturnValue(true); // skip confirm by default
     mockIsCancel.mockReturnValue(false);
@@ -215,6 +237,19 @@ describe("handleStart — dispatch orchestration", () => {
 
     await handleStart("widget", { new: true });
 
+    expect(mockExpandActiveInFlight).toHaveBeenCalledWith(expect.objectContaining({
+      exec: mockExec,
+      execInput: mockExecInput,
+      identity: "andrew",
+      teamMode: false,
+      baseBranch: "main",
+    }));
+    expect(mockResolveComposedLifecycleIndex).toHaveBeenCalledWith(expect.objectContaining({
+      oracle: expect.objectContaining({
+        acquisitionPolicy: "materialized-live",
+        suppliedResult: expect.objectContaining({ remoteEvidence: "exact" }),
+      }),
+    }));
     expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
     expect(mockResolveStartDispatch).toHaveBeenCalledWith(expect.any(Map), "widget", { create: true });
     expect(mockRunCreateNew.mock.calls[0]?.[1]).toMatchObject({ baseRef: "base123" });
@@ -224,6 +259,43 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockSpinnerStart).toHaveBeenCalledWith("Refreshing ROADMAP...");
     expect(mockSpinnerStart).toHaveBeenCalledWith("Committing and pushing start ceremony...");
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("refuses to dispatch without stdin-capable Git I/O", async () => {
+    execInputAvailable = false;
+
+    await handleStart("widget", { new: true });
+
+    expect(mockLog.error).toHaveBeenCalledWith("remote start expansion requires stdin-capable Git I/O");
+    expect(process.exitCode).toBe(1);
+    expect(mockExpandActiveInFlight).not.toHaveBeenCalled();
+    expect(mockResolveComposedLifecycleIndex).not.toHaveBeenCalled();
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["partial", { status: "partial", pendingBranchCount: 2 }, "pending-fetch"],
+    ["failed", { status: "failed", pendingBranchCount: 0 }, "unreachable"],
+  ])("refuses to dispatch on %s candidate expansion", async (_label, candidateExpansion, remoteEvidence) => {
+    mockExpandActiveInFlight.mockResolvedValue({
+      entries: [],
+      residue: [],
+      warnings: [],
+      snapshot: { refs: {}, worktrees: {} },
+      liveRefs: {},
+      reachable: remoteEvidence !== "unreachable",
+      pendingBranchCount: candidateExpansion.pendingBranchCount,
+      remoteEvidence,
+      candidateExpansion,
+    });
+
+    await handleStart("widget", { new: true });
+
+    expect(mockLog.error)
+      .toHaveBeenCalledWith("could not completely expand remote work-unit candidates; retry `arc start`.");
+    expect(process.exitCode).toBe(1);
+    expect(mockResolveComposedLifecycleIndex).not.toHaveBeenCalled();
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
   });
 
   it("stops the spawn spinner with a failure label when create-new is refused", async () => {
@@ -394,6 +466,17 @@ describe("handleStart — dispatch orchestration", () => {
 
     expect(mockRunGraduate).not.toHaveBeenCalled();
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("conflicts with the meta's recorded Class"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses an unresolved meta Class without throwing or preparing graduation", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockParseMetaRecord.mockReturnValue({ workClass: "TBD" });
+
+    await expect(handleStart("widget", {})).resolves.toBeUndefined();
+
+    expect(mockRunGraduate).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/resolved Class|Light.*Heavy.*Novel/iu));
     expect(process.exitCode).toBe(1);
   });
 
@@ -689,6 +772,26 @@ describe("handleStart — dispatch orchestration", () => {
 
     expect(mockRunGraduate).not.toHaveBeenCalled();
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/differs from the base snapshot/iu));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("renders typed graduation recovery residue and stops before success reporting", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({
+      status: "graduation-recovery-required",
+      reason: "rollback could not remove the branch",
+      residue: {
+        slug: "widget",
+        branch: "plan/widget",
+        mode: "in-place",
+        failures: [{ stage: "branch", locus: "refs/heads/plan/widget", detail: "ref changed" }],
+      },
+    });
+
+    await handleStart("widget", { here: true, yes: true });
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/rollback could not remove.*refs\/heads\/plan\/widget/is));
+    expect(mockNote).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 

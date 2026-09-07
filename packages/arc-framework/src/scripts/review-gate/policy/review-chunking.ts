@@ -3,8 +3,8 @@
 import type { ChangeStats } from "../../../lib/change-stats.js";
 
 export const REVIEW_CHUNKING_THRESHOLD_KEYS = [
-  "review.chunking_threshold_lines",
-  "review.chunking_threshold_files",
+  "changeset.advisory_threshold_lines",
+  "changeset.advisory_threshold_files",
 ] as const;
 
 export type ReviewChunkingThresholdKey = (typeof REVIEW_CHUNKING_THRESHOLD_KEYS)[number];
@@ -13,6 +13,16 @@ export interface ReviewChunkingThresholds {
   lines: number;
   files: number;
 }
+
+/** Fresh repository delivery evidence used only after an attention threshold trips. */
+export type ReviewAttentionDeliveryBinding =
+  | {
+    readonly status: "bound";
+    readonly planId: string;
+    readonly targetKind: "work-unit" | "delivery-member";
+  }
+  | { readonly status: "authoritative-unbound" }
+  | { readonly status: "unavailable"; readonly reason: string };
 
 export type ReviewChunkingThresholdParseResult =
   | { kind: "valid"; thresholds: ReviewChunkingThresholds }
@@ -35,7 +45,30 @@ export type ReviewChunkingPolicyResult =
     metrics: ChangeStats;
     thresholds: ReviewChunkingThresholds;
     tripped: Array<"lines" | "files">;
-    advisory: string;
+    remedy: "review-chunks";
+    recommendedActionText: string;
+  }
+  | {
+    disposition: "scope-selected";
+    metrics: ChangeStats;
+    thresholds: ReviewChunkingThresholds;
+    tripped: Array<"lines" | "files">;
+  }
+  | {
+    disposition: "evidence-unavailable";
+    metrics: ChangeStats;
+    thresholds: ReviewChunkingThresholds;
+    tripped: Array<"lines" | "files">;
+    reason: string;
+  }
+  | {
+    disposition: "delivery-bound";
+    metrics: ChangeStats;
+    thresholds: ReviewChunkingThresholds;
+    tripped: Array<"lines" | "files">;
+    planId: string;
+    remedy: "continue-bound-delivery";
+    recommendedActionText: string;
   };
 
 function normalizeScalar(value: string): string {
@@ -74,19 +107,19 @@ export function parseReviewChunkingThresholds(
   settings: Record<ReviewChunkingThresholdKey, string>,
 ): ReviewChunkingThresholdParseResult {
   const lines = parseThreshold(
-    "review.chunking_threshold_lines",
-    settings["review.chunking_threshold_lines"],
+    "changeset.advisory_threshold_lines",
+    settings["changeset.advisory_threshold_lines"],
   );
   if (typeof lines !== "number") return lines;
   const files = parseThreshold(
-    "review.chunking_threshold_files",
-    settings["review.chunking_threshold_files"],
+    "changeset.advisory_threshold_files",
+    settings["changeset.advisory_threshold_files"],
   );
   if (typeof files !== "number") return files;
   return { kind: "valid", thresholds: { lines, files } };
 }
 
-function advisoryText(
+function reviewChunksActionText(
   metrics: ChangeStats,
   thresholds: ReviewChunkingThresholds,
   tripped: Array<"lines" | "files">,
@@ -101,15 +134,32 @@ function advisoryText(
     + "then preserve complete union and seam coverage.";
 }
 
+function boundDeliveryActionText(
+  metrics: ChangeStats,
+  thresholds: ReviewChunkingThresholds,
+  tripped: Array<"lines" | "files">,
+): string {
+  const triggers = tripped.map((dimension) => (
+    dimension === "lines"
+      ? `lines ${metrics.lines} >= ${thresholds.lines}`
+      : `files ${metrics.files} >= ${thresholds.files}`
+  )).join(", ");
+  return `Continue the bound delivery plan for this exact target (${metrics.lines} changed lines, `
+    + `${metrics.files} changed files; tripped: ${triggers}). Use its planned review and delivery members `
+    + "instead of starting a second chunking mechanism.";
+}
+
 /**
  * Resolve whether one immutable target warrants chunk consideration.
  *
- * @param input - Validated thresholds and metrics when either dimension is enabled.
- * @returns Disabled, below-threshold, or consideration-worthy policy.
+ * @param input - Validated thresholds, metrics, exact-target selection, and fresh delivery evidence.
+ * @returns One closed attention result with at most one remedy.
  */
 export function resolveReviewChunkingPolicy(input: {
   thresholds: ReviewChunkingThresholds;
   metrics?: ChangeStats;
+  scopeSelected?: boolean;
+  deliveryBinding?: ReviewAttentionDeliveryBinding;
 }): ReviewChunkingPolicyResult {
   const { thresholds } = input;
   if (thresholds.lines === 0 && thresholds.files === 0) return { disposition: "disabled" };
@@ -123,11 +173,44 @@ export function resolveReviewChunkingPolicy(input: {
   if (tripped.length === 0) {
     return { disposition: "below-threshold", metrics: input.metrics, thresholds };
   }
+  if (input.scopeSelected === true) {
+    return {
+      disposition: "scope-selected",
+      metrics: input.metrics,
+      thresholds,
+      tripped,
+    };
+  }
+  if (input.deliveryBinding === undefined) {
+    throw new Error("fresh delivery binding is required when review attention trips");
+  }
+  if (input.deliveryBinding.status === "unavailable") {
+    return {
+      disposition: "evidence-unavailable",
+      metrics: input.metrics,
+      thresholds,
+      tripped,
+      reason: input.deliveryBinding.reason,
+    };
+  }
+  if (input.deliveryBinding.status === "bound"
+    && input.deliveryBinding.targetKind === "work-unit") {
+    return {
+      disposition: "delivery-bound",
+      metrics: input.metrics,
+      thresholds,
+      tripped,
+      planId: input.deliveryBinding.planId,
+      remedy: "continue-bound-delivery",
+      recommendedActionText: boundDeliveryActionText(input.metrics, thresholds, tripped),
+    };
+  }
   return {
     disposition: "consider-chunks",
     metrics: input.metrics,
     thresholds,
     tripped,
-    advisory: advisoryText(input.metrics, thresholds, tripped),
+    remedy: "review-chunks",
+    recommendedActionText: reviewChunksActionText(input.metrics, thresholds, tripped),
   };
 }

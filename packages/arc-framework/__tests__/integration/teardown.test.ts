@@ -32,12 +32,16 @@ import { removeGitBackedDir } from "../helpers/temp-repo.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
+import { createGitRetirementAuthorizationContext } from
+  "../../src/lib/work-unit/git-retirement-authorization-context.js";
 import {
   runBranchTeardown,
   runTeardown,
   type TeardownContext,
 } from "../../src/lib/work-unit/verbs/teardown.js";
 import {
+  ensureWorktreeMarkerIgnored,
+  nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
   writeWorktreeOwnershipMarker,
 } from "../../src/lib/git/worktree-marker.js";
@@ -244,6 +248,51 @@ async function prepareSelfTeardownWorktree(
   expect(await git(wtPath, ["status", "--porcelain"])).toBe("");
   return wtPath;
 }
+
+describe("retirement authorization remote snapshot materialization", () => {
+  it("classifies ancestry without materializing remote trees or blobs", async () => {
+    const h = await setupMultiClone();
+    const branch = "chore/remote-descendant";
+    try {
+      await git(h.origin, ["config", "uploadpack.allowFilter", "true"]);
+      await git(h.cloneA, ["remote", "set-url", "origin", `file://${h.origin}`]);
+
+      await git(h.cloneB, ["checkout", "-b", branch, "main"]);
+      await writeFile(join(h.cloneB, "large.bin"), Buffer.alloc(4 * 1024 * 1024, 0x61));
+      await git(h.cloneB, ["add", "large.bin"]);
+      await git(h.cloneB, ["commit", "-m", "test: add remote-only payload"]);
+      await git(h.cloneB, ["push", "origin", branch]);
+
+      const retiringHead = await git(h.cloneA, ["rev-parse", "main"]);
+      const remoteHead = await git(h.cloneB, ["rev-parse", branch]);
+      const treeOid = await git(h.cloneB, ["rev-parse", `${branch}^{tree}`]);
+      const blobOid = await git(h.cloneB, ["rev-parse", `${branch}:large.bin`]);
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${treeOid}^{tree}`]),
+      ).rejects.toThrow();
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${blobOid}^{blob}`]),
+      ).rejects.toThrow();
+
+      const context = createGitRetirementAuthorizationContext(
+        execFor(h.cloneA),
+        "main",
+        async () => null,
+      );
+      await expect(
+        context.readRemoteSourceRef("origin", branch, retiringHead),
+      ).resolves.toEqual({ kind: "strict-descendant", oid: remoteHead });
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${treeOid}^{tree}`]),
+      ).rejects.toThrow();
+      await expect(
+        git(h.cloneA, ["--no-lazy-fetch", "cat-file", "-e", `${blobOid}^{blob}`]),
+      ).rejects.toThrow();
+    } finally {
+      await h.cleanup();
+    }
+  });
+});
 
 describe("arc teardown — merge-strategy-independent branch reaping", () => {
   for (const strategy of ["squash", "rebase", "merge-commit"] as const) {
@@ -499,6 +548,75 @@ describe("arc teardown --branch — recordless cheap branches over real git", ()
       expect(result.branchDeleted).toBe(true);
       expect(await branchPresent(h.cloneA, branch)).toBe(false);
     } finally {
+      await h.cleanup();
+    }
+  });
+
+  it("removes an unpublished ARC-owned decomposition candidate with staged generated changes", async () => {
+    const h = await setupMultiClone();
+    const branch = "chore/decompose-origin";
+    const parent = await mkdtemp(join(tmpdir(), "arc-decompose-candidate-teardown-"));
+    const worktree = join(parent, "candidate");
+    try {
+      await git(h.cloneA, ["worktree", "add", "-b", branch, worktree, "main"]);
+      await ensureWorktreeMarkerIgnored(worktree, execFor(worktree), nodeWorktreeMarkerIgnoreFs);
+      await writeWorktreeOwnershipMarker(worktree, {
+        createdByArc: true,
+        createdFor: { kind: "branch", ref: branch },
+        spawningIdentity: "clone-a",
+      });
+      await writeFile(join(worktree, "generated.txt"), "generated\n");
+      await git(worktree, ["add", "generated.txt"]);
+
+      const result = await runBranchTeardown(teardownCtx(h.cloneA), {
+        branch,
+        base: "main",
+        protection: "partial",
+      });
+
+      expect(result).toMatchObject({
+        status: "torn-down",
+        branch,
+        branchDeleted: true,
+        worktreeRemoved: worktree,
+      });
+      expect(await branchPresent(h.cloneA, branch)).toBe(false);
+      await expect(readFile(join(worktree, "generated.txt"))).rejects.toThrow();
+    } finally {
+      await git(h.cloneA, ["worktree", "remove", "--force", worktree]).catch(() => undefined);
+      await rm(parent, { recursive: true, force: true });
+      await h.cleanup();
+    }
+  });
+
+  it("preserves an unpublished decomposition candidate with a unique commit", async () => {
+    const h = await setupMultiClone();
+    const branch = "chore/decompose-origin";
+    const parent = await mkdtemp(join(tmpdir(), "arc-decompose-committed-candidate-"));
+    const worktree = join(parent, "candidate");
+    try {
+      await git(h.cloneA, ["worktree", "add", "-b", branch, worktree, "main"]);
+      await ensureWorktreeMarkerIgnored(worktree, execFor(worktree), nodeWorktreeMarkerIgnoreFs);
+      await writeWorktreeOwnershipMarker(worktree, {
+        createdByArc: true,
+        createdFor: { kind: "branch", ref: branch },
+        spawningIdentity: "clone-a",
+      });
+      await writeFile(join(worktree, "authored.txt"), "authored\n");
+      await git(worktree, ["add", "authored.txt"]);
+      await git(worktree, ["commit", "-m", "authored candidate"]);
+
+      await runBranchTeardown(teardownCtx(h.cloneA), {
+        branch,
+        base: "main",
+        protection: "partial",
+      });
+
+      expect(await branchPresent(h.cloneA, branch)).toBe(true);
+    } finally {
+      await git(h.cloneA, ["worktree", "remove", "--force", worktree]).catch(() => undefined);
+      await git(h.cloneA, ["branch", "-D", branch]).catch(() => undefined);
+      await rm(parent, { recursive: true, force: true });
       await h.cleanup();
     }
   });

@@ -2,6 +2,22 @@
 
 import { z } from "zod";
 
+import { canonicalize } from "../../../lib/kernel/index.js";
+import {
+  DeliveryReviewMemberVehicleSchema,
+  type DeliveryReviewMemberVehicle,
+} from "../../../lib/delivery/review-vehicle.js";
+import type { DeliveryMemberLookup } from "../core/delivery-member-lookup.js";
+import { StandardReviewObligationProjectionSchema } from
+  "../policy/standard-review-projection-schema.js";
+import {
+  ReviewCeilingOverrideSchema,
+  type ReviewCeilingOverride,
+} from "../policy/review-policy-driver.js";
+
+const GitHubObjectIdSchema = z.string().regex(/^[0-9a-f]{40}$/u);
+const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
+
 export const HostedProviderIdSchema = z.enum(["coderabbit-pr", "codex-pr"]);
 export type HostedProviderId = z.infer<typeof HostedProviderIdSchema>;
 
@@ -11,7 +27,7 @@ export type HostedReviewCoverage = z.infer<typeof HostedReviewCoverageSchema>;
 export const HostedTargetSchema = z.strictObject({
   repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
   pullRequest: z.int().positive(),
-  headSha: z.string().regex(/^[a-f0-9]{40}$/u),
+  headSha: GitHubObjectIdSchema,
 });
 export type HostedTarget = z.infer<typeof HostedTargetSchema>;
 
@@ -23,6 +39,37 @@ export const HostedArtifactSchema = z.strictObject({
 });
 export type HostedArtifact = z.infer<typeof HostedArtifactSchema>;
 
+export const HostedErrandRequestVehicleSchema = z.strictObject({
+  kind: z.literal("errand"),
+  standardReview: StandardReviewObligationProjectionSchema,
+});
+export type HostedErrandRequestVehicle = z.infer<typeof HostedErrandRequestVehicleSchema>;
+
+export const HostedDeliveryMemberRequestVehicleSchema = DeliveryReviewMemberVehicleSchema;
+export type HostedDeliveryMemberRequestVehicle = DeliveryReviewMemberVehicle;
+
+export const HostedRequestVehicleSchema = z.discriminatedUnion("kind", [
+  HostedErrandRequestVehicleSchema,
+  HostedDeliveryMemberRequestVehicleSchema,
+]);
+export type HostedRequestVehicle = z.infer<typeof HostedRequestVehicleSchema>;
+
+export const HostedErrandProgressBindingSchema = z.strictObject({
+  kind: z.literal("errand"),
+  key: z.string().trim().min(1),
+  claimId: z.string().trim().min(1),
+  branch: z.string().trim().min(1),
+  sources: z.array(ReviewSourceIdSchema).min(1).readonly(),
+  standardReview: StandardReviewObligationProjectionSchema,
+});
+export type HostedErrandProgressBinding = z.infer<typeof HostedErrandProgressBindingSchema>;
+
+export const HostedProgressVehicleSchema = z.discriminatedUnion("kind", [
+  HostedErrandProgressBindingSchema,
+  DeliveryReviewMemberVehicleSchema,
+]);
+export type HostedProgressVehicle = z.infer<typeof HostedProgressVehicleSchema>;
+
 export const HostedRequestHandleSchema = z.strictObject({
   schemaVersion: z.literal(1),
   provider: HostedProviderIdSchema,
@@ -30,6 +77,7 @@ export const HostedRequestHandleSchema = z.strictObject({
   effectiveCoverage: HostedReviewCoverageSchema,
   target: HostedTargetSchema,
   artifact: HostedArtifactSchema,
+  vehicle: HostedProgressVehicleSchema.optional(),
 }).refine(
   (handle) => handle.requestedCoverage !== "complete" || handle.effectiveCoverage === "complete",
   {
@@ -39,13 +87,88 @@ export const HostedRequestHandleSchema = z.strictObject({
 );
 export type HostedRequestHandle = z.infer<typeof HostedRequestHandleSchema>;
 
-export const HostedRequestEnvelopeSchema = z.strictObject({
+/** Submit-ready input for one bounded await of an acknowledged hosted request. */
+export const HostedAwaitActionSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  handle: HostedRequestHandleSchema,
+}).readonly();
+export type HostedAwaitAction = z.infer<typeof HostedAwaitActionSchema>;
+
+/**
+ * Project an acknowledged hosted request into the next command's exact input.
+ *
+ * @param handle - Durable identity and target binding for the acknowledged request.
+ * @returns A schema-validated action accepted directly by the hosted-await command.
+ */
+export function hostedAwaitAction(handle: HostedRequestHandle): HostedAwaitAction {
+  return HostedAwaitActionSchema.parse({ schemaVersion: 1, handle });
+}
+
+/** Compare a durable hosted request handle with its lane-progress binding. */
+export function hostedRequestHandleMatchesProgress(
+  handle: HostedRequestHandle,
+  progress: {
+    readonly sourceId: string;
+    readonly target: HostedTarget;
+    readonly requestedCoverage: HostedReviewCoverage;
+    readonly effectiveCoverage: HostedReviewCoverage | null;
+    readonly vehicle?: DeliveryReviewMemberVehicle;
+  },
+): boolean {
+  return handle.provider === progress.sourceId
+    && handle.target.repository.toLowerCase() === progress.target.repository.toLowerCase()
+    && handle.target.pullRequest === progress.target.pullRequest
+    && handle.target.headSha === progress.target.headSha
+    && handle.requestedCoverage === progress.requestedCoverage
+    && handle.effectiveCoverage === progress.effectiveCoverage
+    && canonicalize(handle.vehicle?.kind === "delivery-member" ? handle.vehicle : null)
+      === canonicalize(progress.vehicle ?? null);
+}
+
+export interface HostedRequestEnvelope {
+  schemaVersion: 1;
+  target: HostedTarget;
+  provider: HostedProviderId;
+  coverage: HostedReviewCoverage;
+  vehicle?: HostedRequestVehicle;
+  invocation?: { readonly mode: "force"; readonly sourceId: string };
+  ceilingOverride?: ReviewCeilingOverride;
+}
+
+export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.strictObject({
   schemaVersion: z.literal(1),
   target: HostedTargetSchema,
   provider: HostedProviderIdSchema,
   coverage: HostedReviewCoverageSchema,
+  vehicle: HostedRequestVehicleSchema.optional(),
+  invocation: z.strictObject({
+    mode: z.literal("force"),
+    sourceId: ReviewSourceIdSchema,
+  }).readonly().optional(),
+  ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+}).superRefine((request, context) => {
+  if (request.ceilingOverride !== undefined && request.vehicle?.kind !== "delivery-member") {
+    context.addIssue({
+      code: "custom",
+      path: ["ceilingOverride"],
+      message: "a hosted ceiling override requires one exact delivery-member vehicle",
+    });
+  }
+  if (request.invocation !== undefined && request.vehicle?.kind !== "delivery-member") {
+    context.addIssue({
+      code: "custom",
+      path: ["invocation"],
+      message: "a hosted source invocation requires one exact delivery-member vehicle",
+    });
+  }
+  if (request.invocation !== undefined && request.invocation.sourceId !== request.provider) {
+    context.addIssue({
+      code: "custom",
+      path: ["invocation", "sourceId"],
+      message: "hosted source invocation must select the request provider",
+    });
+  }
 });
-export type HostedRequestEnvelope = z.infer<typeof HostedRequestEnvelopeSchema>;
 
 export type HostedRequestOutcome =
   | {
@@ -66,6 +189,37 @@ export interface HostedReviewAdapter {
   request(target: HostedTarget, coverage: HostedReviewCoverage): Promise<HostedRequestOutcome>;
 }
 
+function resolveErrandBinding(
+  vehicle: HostedErrandRequestVehicle,
+  binding: HostedErrandProgressBinding | undefined,
+): HostedErrandProgressBinding {
+  const resolved = HostedErrandProgressBindingSchema.parse(binding);
+  if (canonicalize(vehicle.standardReview) !== canonicalize(resolved.standardReview)) {
+    throw new Error("Hosted Errand progress binding does not match the requested standard-review obligation.");
+  }
+  return resolved;
+}
+
+async function validateDeliveryMemberBinding(
+  vehicle: HostedDeliveryMemberRequestVehicle,
+  targetHead: string,
+  lookup: DeliveryMemberLookup | undefined,
+): Promise<void> {
+  if (vehicle.head !== targetHead) {
+    throw new Error("Hosted delivery-member binding does not match the requested exact head.");
+  }
+  if (lookup === undefined) throw new Error("Hosted delivery-member binding is unavailable.");
+  const resolution = await lookup.resolveMemberByHead(vehicle.head);
+  if (resolution.status === "unavailable") throw new Error("Hosted delivery-member binding is unavailable.");
+  if (resolution.status === "unbound") throw new Error("Hosted delivery-member binding is unbound.");
+  if (resolution.member.planId !== vehicle.planId
+    || resolution.member.deliverableId !== vehicle.deliverableId
+    || resolution.member.workUnitId !== vehicle.workUnitId
+    || resolution.member.head !== vehicle.head) {
+    throw new Error("Hosted delivery-member binding does not match the requested member.");
+  }
+}
+
 const HostedRequestResultBaseShape = {
   schemaVersion: z.literal(1),
   mode: z.literal("review-hosted-request"),
@@ -79,6 +233,7 @@ export const HostedRequestResultSchema = z.union([
     state: z.literal("requested"),
     nextAction: z.literal("await"),
     handle: HostedRequestHandleSchema,
+    action: HostedAwaitActionSchema,
   }),
   z.strictObject({
     ...HostedRequestResultBaseShape,
@@ -111,9 +266,27 @@ export type HostedRequestResult = z.infer<typeof HostedRequestResultSchema>;
 /** Request one hosted review without introducing local operation state. */
 export async function requestHostedReview(
   input: unknown,
-  dependencies: { adapters: readonly HostedReviewAdapter[] },
+  dependencies: {
+    adapters: readonly HostedReviewAdapter[];
+    errandBinding?: HostedErrandProgressBinding;
+    deliveryMemberLookup?: DeliveryMemberLookup;
+    admitDeliveryMemberRequest?: (
+      request: HostedRequestEnvelope & { vehicle: HostedDeliveryMemberRequestVehicle },
+    ) => Promise<void>;
+  },
 ): Promise<HostedRequestResult> {
   const request = HostedRequestEnvelopeSchema.parse(input);
+  let progressVehicle: HostedProgressVehicle | undefined;
+  if (request.vehicle?.kind === "errand") {
+    progressVehicle = resolveErrandBinding(request.vehicle, dependencies.errandBinding);
+  } else if (request.vehicle?.kind === "delivery-member") {
+    await validateDeliveryMemberBinding(
+      request.vehicle,
+      request.target.headSha,
+      dependencies.deliveryMemberLookup,
+    );
+    progressVehicle = request.vehicle;
+  }
   const attemptedProviders = [request.provider];
   const resultBase = {
     schemaVersion: 1 as const,
@@ -131,20 +304,30 @@ export async function requestHostedReview(
     };
   }
 
+  if (request.vehicle?.kind === "delivery-member") {
+    if (dependencies.admitDeliveryMemberRequest === undefined) {
+      throw new Error("Hosted delivery-member capacity requires request-time driver admission.");
+    }
+    await dependencies.admitDeliveryMemberRequest({ ...request, vehicle: request.vehicle });
+  }
+
   const outcome = await adapter.request(request.target, request.coverage);
   if (outcome.kind === "created") {
+    const handle = HostedRequestHandleSchema.parse({
+      schemaVersion: 1,
+      provider: adapter.id,
+      requestedCoverage: request.coverage,
+      effectiveCoverage: outcome.effectiveCoverage,
+      target: request.target,
+      artifact: outcome.artifact,
+      ...(progressVehicle === undefined ? {} : { vehicle: progressVehicle }),
+    });
     return {
       ...resultBase,
       state: "requested",
       nextAction: "await",
-      handle: HostedRequestHandleSchema.parse({
-        schemaVersion: 1,
-        provider: adapter.id,
-        requestedCoverage: request.coverage,
-        effectiveCoverage: outcome.effectiveCoverage,
-        target: request.target,
-        artifact: outcome.artifact,
-      }),
+      handle,
+      action: hostedAwaitAction(handle),
     };
   }
   if (outcome.kind === "rate-limited" || outcome.kind === "transient-unavailable") {

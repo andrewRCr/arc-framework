@@ -1,7 +1,7 @@
 /** Operator-level coverage for work-unit rename across its three subject shapes. */
 
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -12,10 +12,16 @@ import {
   createTempRepo,
   git,
   removeGitBackedDir,
+  runArcAnchored,
   runArcNoTty,
+  unwrapPresentationOutput,
 } from "./helpers.js";
-import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
+import {
+  resolveSubmissionBoundaryPath,
+  writeSubmissionBoundary,
+} from "../../src/lib/work-unit/submission-boundary-store.js";
+import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -181,10 +187,12 @@ async function createFixture(): Promise<RenameFixture> {
 
 async function startInPlace(fixture: RenameFixture): Promise<void> {
   await git(fixture.repo, ["switch", "-c", "feat/old-name"]);
-  const started = await runArcNoTty([
-    "start", "old-name", "--here", "--new", "--from", "internal",
+  const started = await runArcAnchored([
+    "start", "old-name", "--here", "--new", "--from", "internal", "--yes",
   ], fixture.repo);
   expect(started.exitCode).toBe(0);
+  const lociRoot = join(fixture.repo, ".arc", "user", "test-user", ".internal", "loci");
+  expect(await exists(lociRoot)).toBe(false);
   await seedTrackedSweep(fixture.repo, join(".arc", "active"), "old-name");
   await git(fixture.repo, ["add", "."]);
   await git(fixture.repo, ["commit", "-m", "chore(test): start work unit"]);
@@ -200,11 +208,8 @@ async function installRenameGateHook(
   const hook = join(repo, ".git", "hooks", "pre-commit");
   await writeFile(hook, [
     "#!/usr/bin/env node",
-    "const { spawnSync } = require('node:child_process');",
     "const { existsSync, writeFileSync } = require('node:fs');",
     `writeFileSync(${JSON.stringify(marker)}, '');`,
-    `const result = spawnSync(process.execPath, [${JSON.stringify(CLI_PATH)}, 'hook-validate-decompose-record'], { stdio: 'inherit' });`,
-    "if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);",
     ...(options.rejectOnce === true ? [
       `if (!existsSync(${JSON.stringify(refusalMarker)})) {`,
       `  writeFileSync(${JSON.stringify(refusalMarker)}, '');`,
@@ -226,7 +231,7 @@ describe("arc rename", () => {
     for (const path of cleanupPaths.splice(0).reverse()) await removeGitBackedDir(path);
   });
 
-  it("renames a backlog stub through CHECK 20 on a short-lived branch and rests on main", async () => {
+  it("renames a backlog stub through a rejecting commit hook and rests on main", async () => {
     const fixture = await createFixture();
     cleanupPaths.push(fixture.remote, fixture.repo);
     const stubbed = await runArcNoTty([
@@ -246,7 +251,7 @@ describe("arc rename", () => {
     expect(refused.exitCode).toBe(1);
     expect(refused.stdout + refused.stderr).toContain("rename commit refused");
     expect(await exists(gate.ranMarker)).toBe(true);
-    expect(await exists(gate.refusalMarker)).toBe(true);
+    expect(await exists(gate.refusalMarker), refused.stdout + refused.stderr).toBe(true);
     expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
     expect(await exists(join(fixture.repo, oldArtifactDir, "meta-old-name.md"))).toBe(true);
     expect(await exists(join(fixture.repo, newArtifactDir, "meta-new-name.md"))).toBe(false);
@@ -256,17 +261,12 @@ describe("arc rename", () => {
     expect(renamed.exitCode).toBe(0);
     expect(renamed.stdout).toContain("pending integration");
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("main");
-    const receiptPaths = (await git(fixture.repo, [
-      "ls-tree", "-r", "--name-only", "chore/rename-old-name-to-new-name", "--",
-      ".arc/system/.internal/retirement-receipts",
-    ])).split("\n").filter(Boolean);
-    expect(receiptPaths).toHaveLength(1);
-    const receipt = JSON.parse(await git(fixture.repo, [
-      "show", `chore/rename-old-name-to-new-name:${receiptPaths[0]}`,
-    ])) as { transition: string; result: { kind: string; targetSlug: string } };
-    expect(receipt).toMatchObject({
-      transition: "rename",
-      result: { kind: "rename", targetSlug: "new-name" },
+    const transition = JSON.parse(await git(fixture.repo, [
+      "show", "chore/rename-old-name-to-new-name:.arc/system/.internal/transitions/old-name.json",
+    ])) as { kind: string; successors: string[] };
+    expect(transition).toMatchObject({
+      kind: "rename",
+      successors: ["new-name"],
     });
     await git(fixture.repo, ["switch", "chore/rename-old-name-to-new-name"]);
     await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");
@@ -282,7 +282,7 @@ describe("arc rename", () => {
 
     expect(renamed.exitCode).toBe(0);
     expect(renamed.stdout).toContain("in-place");
-    expect(renamed.stdout).toContain("Marker:    skipped");
+    expect(renamed.stdout).toContain("Checkout:  unmanaged");
     expect(renamed.stdout).toContain("Worktree:  unchanged");
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/new-name");
     expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).toBe("");
@@ -299,7 +299,63 @@ describe("arc rename", () => {
     expect(await hasUserWorkspace(fixture.repo, "new-name")).toBe(true);
   }, 30_000);
 
-  it("renames from reachable tree truth when the composed oracle cannot reach origin", async () => {
+  it("refuses Candidate publication state before mutating any rename surface", async () => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    await startInPlace(fixture);
+    const boundaryPath = await writeSubmissionBoundary(fixture.repo, projectCandidateReviewBoundary({
+      workUnit: "old-name",
+      candidateId: `sha256:${"c".repeat(64)}`,
+    }), null);
+    await git(fixture.repo, ["add", boundaryPath]);
+    await git(fixture.repo, ["commit", "-m", "chore(test): add Candidate boundary"]);
+    await git(fixture.repo, ["push"]);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("Candidate publication state cannot be renamed");
+    expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
+    expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/old-name");
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-old-name.md"))).toBe(true);
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-new-name.md"))).toBe(false);
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).not.toBe("");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).toBe("");
+  }, 30_000);
+
+  it("refuses a public-attestation Candidate record even when no boundary remains", async () => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    await startInPlace(fixture);
+    const metaPath = join(fixture.repo, ".arc", "active", "meta-old-name.md");
+    const planningMeta = await readFile(metaPath, "utf8");
+    await writeFile(metaPath, planningMeta.replace(/(\|\s*)`Planning`(\s*\|)/u, "$1`Active`$2"), "utf8");
+    await writeFile(
+      join(fixture.repo, ".arc", "active", "tasks-old-name.md"),
+      "# Task List: old-name\n\n- [x] Verification complete\n",
+      "utf8",
+    );
+    await git(fixture.repo, ["add", ".arc/active/meta-old-name.md", ".arc/active/tasks-old-name.md"]);
+    const attested = await runArcNoTty(["attest", "old-name", "--json"], fixture.repo);
+    expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+    await rm(join(fixture.repo, resolveSubmissionBoundaryPath("old-name")));
+    await git(fixture.repo, ["add", "-A"]);
+    await git(fixture.repo, ["commit", "-m", "chore(test): retain Candidate record only"]);
+    await git(fixture.repo, ["push"]);
+
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("Candidate publication state cannot be renamed");
+    expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
+    expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("feat/old-name");
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-old-name.md"))).toBe(true);
+    expect(await exists(join(fixture.repo, ".arc", "active", "meta-new-name.md"))).toBe(false);
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/old-name"])).not.toBe("");
+    expect(await git(fixture.repo, ["ls-remote", "--heads", "origin", "feat/new-name"])).toBe("");
+  }, 30_000);
+
+  it("refuses rename when explicit candidate expansion cannot reach origin", async () => {
     const fixture = await createFixture();
     cleanupPaths.push(fixture.remote, fixture.repo);
     const stubbed = await runArcNoTty([
@@ -316,9 +372,10 @@ describe("arc rename", () => {
 
     const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
 
-    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
-    await git(fixture.repo, ["switch", "chore/rename-old-name-to-new-name"]);
-    await expectTrackedSweep(fixture.repo, oldArtifactDir, newArtifactDir, "old-name", "new-name");
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("Could not completely expand remote work-unit candidates");
+    expect(await exists(join(fixture.repo, oldArtifactDir))).toBe(true);
+    expect(await exists(join(fixture.repo, newArtifactDir))).toBe(false);
   }, 30_000);
 
   it("self-renames every identity leg while deferring the live worktree directory move", async () => {
@@ -342,8 +399,9 @@ describe("arc rename", () => {
     expect(renamed.stdout).toContain("move deferred");
     expect(renamed.stdout).toContain("Follow-up:");
     expect(renamed.stdout).toContain("`git worktree move");
-    expect(renamed.stdout).toContain(oldWorktree);
-    expect(renamed.stdout).toContain(newWorktree);
+    const unwrappedOutput = unwrapPresentationOutput(renamed.stdout);
+    expect(unwrappedOutput).toContain(oldWorktree);
+    expect(unwrappedOutput).toContain(newWorktree);
     expect(renamed.stdout).not.toContain("process relocated");
     expect(await exists(oldWorktree)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);
@@ -389,7 +447,7 @@ describe("arc rename", () => {
     expect(movedMarker.renameMovePending).toBeUndefined();
   }, 30_000);
 
-  it("does not project a deferred move action from a foreign worktree marker", async () => {
+  it("refuses rename from a foreign worktree marker without projecting a move action", async () => {
     const fixture = await createFixture();
     const oldWorktree = `${fixture.repo}.old-name`;
     const newWorktree = `${fixture.repo}.new-name`;
@@ -409,10 +467,9 @@ describe("arc rename", () => {
 
     const renamed = await runArcNoTty(["rename", "old-name", "new-name"], oldWorktree, { timeout: 20_000 });
 
-    expect(renamed.exitCode, renamed.stdout + renamed.stderr).toBe(0);
-    expect(renamed.stdout).toContain("move deferred");
+    expect(renamed.exitCode).toBe(1);
+    expect(renamed.stdout + renamed.stderr).toContain("role-conflict");
     expect(renamed.stdout).not.toContain("`git worktree move");
-    expect(renamed.stdout).toContain("no move action projected");
     expect(await exists(oldWorktree)).toBe(true);
     expect(await exists(newWorktree)).toBe(false);
     const foreignMarker = JSON.parse(await readFile(markerPath, "utf8")) as { renameMovePending?: unknown };

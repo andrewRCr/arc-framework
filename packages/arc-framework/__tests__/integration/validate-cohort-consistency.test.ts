@@ -1,13 +1,13 @@
 /**
  * Integration tests for validate-cohort-consistency.ts — pre-commit CHECK 18.
  *
- * Exercises the validator the way the hook invokes it: via `npx tsx` against
+ * Exercises the validator the way the hook invokes it: via Node's TypeScript loader against
  * on-disk fixture metas and cohort docs under real `.arc/backlog/planned/`
- * paths in a temp directory. Covers a consistent cohort (pass) plus the three
- * failure modes — field↔dir drift, a missing cohort doc, and an orphan member
- * section — and the lifecycle-complete live scan (a graduated member and an
- * unstaged ancestor doc, both resolved from the on-disk tree). Absolute fixture
- * paths are passed; the validator anchors on the `.arc/backlog/planned/` segment
+ * paths in a temp directory. Covers a consistent cohort (pass) plus the four
+ * failure modes — field↔dir drift, a missing cohort doc, an unfinished Purpose,
+ * and an orphan member section — and the lifecycle-complete live scan (a
+ * graduated member and an unstaged ancestor doc, both resolved from the on-disk
+ * tree). Absolute fixture paths are passed; the validator anchors on the `.arc/backlog/planned/` segment
  * wherever it appears, and roots its live-tree walk at each fixture's own `.arc/`
  * tree (derived from the absolute path), so the cases stay isolated from the real
  * repo while the subprocess keeps `cwd` at the repo root.
@@ -22,6 +22,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
+const tsxLoader = import.meta.resolve("tsx");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..", "..", "..", "..");
@@ -30,7 +31,7 @@ const SCRIPT_PATH = resolve(
   "packages/arc-framework/src/scripts/validate-cohort-consistency.ts",
 );
 
-/** `npx tsx` startup is the dominant cost; give each subprocess case headroom. */
+/** TypeScript loader startup is the dominant cost; give each subprocess case headroom. */
 const CASE_TIMEOUT_MS = 30_000;
 
 async function runValidator(
@@ -38,8 +39,8 @@ async function runValidator(
 ): Promise<{ code: number; stderr: string; stdout: string }> {
   try {
     const { stdout, stderr } = await execFileAsync(
-      "npx",
-      ["tsx", SCRIPT_PATH, ...absPaths],
+      process.execPath,
+      ["--import", tsxLoader, SCRIPT_PATH, ...absPaths],
       { cwd: REPO_ROOT },
     );
     return { code: 0, stdout, stderr };
@@ -149,6 +150,27 @@ describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
       const result = await runValidator([meta]);
       expect(result.code).toBe(1);
       expect(result.stderr).toContain("cohort-core.md");
+    },
+    CASE_TIMEOUT_MS,
+  );
+
+  it(
+    "fails when a cohort Purpose remains the scaffold sentinel",
+    async () => {
+      const dir = join(tmp, "case-purpose-sentinel");
+      const meta = await writeFixture(
+        dir,
+        ".arc/backlog/planned/core/widget/meta-widget.md",
+        metaFixture("`core`"),
+      );
+      const doc = await writeFixture(
+        dir,
+        ".arc/backlog/planned/core/cohort-core.md",
+        cohortDocFixture("core", { purpose: "—" }),
+      );
+      const result = await runValidator([meta, doc]);
+      expect(result.code).toBe(1);
+      expect(result.stderr).toMatch(/purpose/i);
     },
     CASE_TIMEOUT_MS,
   );

@@ -5,7 +5,6 @@ import { z } from "zod";
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/index.js";
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
 import {
-  ReviewTargetSchema,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import type {
@@ -13,9 +12,9 @@ import type {
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import {
-  FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
 } from "../core/review-command-envelope.js";
+import { FrontlineRunCommandRequestSchema } from "../core/frontline-run-command-schema.js";
 import type { ReviewPass } from "../core/review-pass.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
@@ -25,6 +24,7 @@ import {
 import {
   normalizeFrontlineOutcome,
 } from "../policy/frontline-outcome.js";
+import { recordFrontlineAttempt } from "../lane-progress.js";
 import {
   FrontlineSemanticRecordSchema,
 } from "../policy/frontline-semantic.js";
@@ -38,13 +38,6 @@ import {
 
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const OPERATION_LOCK_COMPLETION_MARGIN_MS = 30_000;
-
-export const FrontlineRunRequestSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  target: ReviewTargetSchema,
-  resolution: FrontlineResolveEnvelopeSchema,
-  timeoutMs: z.number().int().positive().max(2_147_483_647).optional(),
-});
 
 export interface FrontlineRunCommandDependencies {
   operationStore: ReviewOperationStateStore;
@@ -115,7 +108,7 @@ export async function runFrontlineReviewCommand(
   requestInput: unknown,
   dependencies: FrontlineRunCommandDependencies,
 ): Promise<z.infer<typeof FrontlineRunEnvelopeSchema>> {
-  const request = FrontlineRunRequestSchema.parse(requestInput);
+  const request = FrontlineRunCommandRequestSchema.parse(requestInput);
   if (request.resolution.state !== "ready") {
     throw new FrontlineRunCommandError("frontline run requires a ready resolution");
   }
@@ -208,6 +201,11 @@ export async function runFrontlineReviewCommand(
       routing: readyPayload.routing,
       frontlineReview: semantic,
     }),
+  });
+  await recordFrontlineAttempt(dependencies.operationStore, {
+    attemptId: terminal.operationId,
+    outcome: terminal.outcome,
+    now: dependencies.now(),
   });
   const transition = actionFor(terminal.outcome);
   return FrontlineRunEnvelopeSchema.parse({

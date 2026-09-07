@@ -27,7 +27,11 @@
 
 import { posix } from "node:path";
 
-import type { MetaFieldName, MetaProjectionOverrides } from "../active/meta-reader.js";
+import {
+  type MetaFieldName,
+  type MetaProjectionOverrides,
+  parseMetaRecord,
+} from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   buildLifecycleIndex,
@@ -38,11 +42,17 @@ import { resolveSlugPosition } from "./lifecycle-resolver.js";
 import type { LifecyclePosition, Location } from "./lifecycle-state.js";
 import type { ReconcileBranchOp } from "./mutators/reconcile-branch.js";
 import type {
-  ReconcileWorktreeOp,
-  ReconcileWorktreeResult,
-} from "./mutators/reconcile-worktree.js";
+  ReconcileWorkUnitWorktreeOp,
+  ReconcileWorkUnitWorktreeResult,
+} from "./mutators/reconcile-work-unit-worktree.js";
 import type { RelocateArtifactsParams, RelocateArtifactsResult } from "./mutators/relocate-artifacts.js";
 import type { SetPhaseParams, SetPhaseResult } from "./mutators/set-phase.js";
+import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
+import type {
+  AtomicGraduationResult,
+  GraduationRecoveryResidue,
+} from "./atomic-graduation.js";
+import type { ValidatedGraduationTransaction } from "./validated-graduation-transaction.js";
 import {
   MARKED_ILLEGAL,
   TRANSITIONS,
@@ -67,14 +77,18 @@ import {
  * side-effect + encoding sets; Phase-4 verbs extend it as they add operands.
  */
 export interface TransitionInputs {
+  /** Sole mutation authority for a backlog `start` graduation. */
+  graduationTransaction?: ValidatedGraduationTransaction;
   /** Destination directory for a `relocate` artifacts leg (source derived from the meta path). */
   toDir?: string;
   /** The branch op for a declared `reconcile-branch` leg — its `mutation` must match the edge. */
   branchOp?: ReconcileBranchOp;
-  /** The worktree op for a declared `reconcile-worktree` leg — its `mutation` must match the edge. */
-  worktreeOp?: ReconcileWorktreeOp;
+  /** The worktree op for a declared `reconcile-work-unit-worktree` leg — its `mutation` must match the edge. */
+  worktreeOp?: ReconcileWorkUnitWorktreeOp;
   /** Values for soft fields whose disposition is `"input"` — required when the field applies. */
   softFields?: Partial<Record<keyof SoftFieldDispositions, string>>;
+  /** Explicit destination-workflow override for a task-resuming lifecycle edge. */
+  currentWorkflowOverride?: string;
   /** The WU's resolved `Class` — the `class-resolved` guard input (`promote`). */
   class?: string;
   /** Persist a newly acquired Class in the relocated meta during promotion finalization. */
@@ -85,8 +99,8 @@ export interface TransitionInputs {
   prWithdrawMode?: "close" | "draft";
   /** Explicit confirmation for a destructive cascade — the `confirmation` guard input (`abandon`). */
   confirmed?: boolean;
-  /** Exact retiring ref candidate suppressed after the complete staged transition exists. */
-  supersededSource?: { slug: string; branch: string };
+  /** Plan-bound retiring ref suppression applied after the complete staged transition exists. */
+  transitionOverlay?: ProspectiveTransitionOverlay;
   /**
    * Override for the `worktree-occupancy` guard's placement test. Fresh worktree
    * spawns normally infer this from `worktreeOp.createBranch`, but remote
@@ -213,8 +227,10 @@ export interface ExecuteTransitionContext {
   relocateArtifacts: (params: RelocateArtifactsParams) => Promise<RelocateArtifactsResult>;
   /** Pre-bound `reconcile-branch` mutator. */
   reconcileBranch: (op: ReconcileBranchOp) => Promise<void>;
-  /** Pre-bound `reconcile-worktree` mutator. */
-  reconcileWorktree: (op: ReconcileWorktreeOp) => Promise<ReconcileWorktreeResult>;
+  /** Pre-bound `reconcile-work-unit-worktree` mutator. */
+  reconcileWorkUnitWorktree: (op: ReconcileWorkUnitWorktreeOp) => Promise<ReconcileWorkUnitWorktreeResult>;
+  /** Start-only atomic graduation mutator. */
+  atomicGraduate?: (transaction: ValidatedGraduationTransaction) => Promise<AtomicGraduationResult>;
   /** Runner for the `scaffold` / `remove` artifact dispositions (Phase-4). */
   scaffoldOrRemove?: ArtifactRunner;
 
@@ -239,11 +255,20 @@ export interface ExecuteTransitionContext {
 
   /**
    * Write the meta `Current Workflow` bullet field at `metaPath` (read → rewrite
-   * → write). The planning-stage-pointer sibling of {@link writeBranchField}:
-   * `stage` is a planning-stage basename (`draft-design` / `create-spec` /
-   * `generate-tasks`) at a sub-stage entry, or `[none]` when planning exits.
+   * → write). The workflow-pointer sibling of {@link writeBranchField}: `stage`
+   * is a planning-stage basename, a live publication lifecycle workflow, or
+   * `[none]` when the current phase carries no workflow pointer.
    */
   writeCurrentWorkflowField: (metaPath: string, stage: string) => Promise<void>;
+
+  /**
+   * Persist the source workflow as an intentional interrupted-transition marker after the phase
+   * has already moved. Unlike the ordinary workflow writer, this recovery-only seam may encode
+   * the temporary phase/workflow contradiction that {@link resumeTransitionFinalization} consumes.
+   * Production contexts provide it whenever meta staging is enabled; the fallback keeps narrow
+   * test contexts and adapters compatible.
+   */
+  writeCurrentWorkflowRecoveryMarker?: (metaPath: string, stage: string) => Promise<void>;
 
   /**
    * Write the meta `Design` bullet field at `metaPath` (read → rewrite → write).
@@ -306,7 +331,13 @@ export interface ExecuteTransitionContext {
 // ---------------------------------------------------------------------------
 
 /** The encoding legs, in their canonical fire order. */
-export type EncodingLeg = "setPhase" | "classField" | "artifacts" | "reconcileWorktree" | "reconcileBranch";
+export type EncodingLeg =
+  | "atomicGraduate"
+  | "setPhase"
+  | "classField"
+  | "artifacts"
+  | "reconcileWorkUnitWorktree"
+  | "reconcileBranch";
 
 /**
  * The post-side-effect meta writes, in their fire order — the finalize block that
@@ -319,7 +350,7 @@ export type FinalizeWrite = "branchField" | "currentWorkflowField" | "softFields
 
 /**
  * Canonical leg order. `setPhase` precedes `artifacts` so the meta is edited at
- * its pre-relocation path; `reconcileWorktree` precedes `reconcileBranch` so a
+ * its pre-relocation path; `reconcileWorkUnitWorktree` precedes `reconcileBranch` so a
  * worktree teardown (with its locus-hop) runs before a `git branch -D` that
  * would otherwise refuse the worktree's checked-out branch.
  */
@@ -327,7 +358,7 @@ const LEG_ORDER: readonly EncodingLeg[] = [
   "classField",
   "setPhase",
   "artifacts",
-  "reconcileWorktree",
+  "reconcileWorkUnitWorktree",
   "reconcileBranch",
 ];
 
@@ -364,6 +395,12 @@ export type TransitionOutcome =
       status: "rejected";
       stage: "lookup" | "guard" | "inputs";
       message: string;
+    }
+  | {
+      /** Atomic start application could not prove complete rollback. */
+      status: "graduation-recovery-required";
+      message: string;
+      residue: GraduationRecoveryResidue;
     }
   | {
       /**
@@ -416,6 +453,13 @@ const DISPOSITION_KEY: Record<keyof SoftFieldDispositions, MetaFieldName> = {
 function positionsEqual(a: LifecyclePosition | null, b: LifecyclePosition | null): boolean {
   if (a === null || b === null) return a === b;
   return a.phase === b.phase && a.location === b.location;
+}
+
+function sourceWorkflowFor(record: TransitionRecord): string | undefined {
+  return TRANSITIONS.find((candidate) =>
+    candidate.verb === record.inverse
+    && candidate.to !== null
+    && positionsEqual(candidate.to, record.from))?.encodingUpdates.setCurrentWorkflowField;
 }
 
 /**
@@ -472,7 +516,12 @@ export async function executeTransition(
 
   // 1. Build the index once (the lone fs touch) and resolve current state.
   const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
-  const position = resolveSlugPosition(index, slug);
+  const position = inputs.graduationTransaction === undefined
+    ? resolveSlugPosition(index, slug)
+    : {
+        phase: "Planning" as const,
+        location: inputs.graduationTransaction.source.location,
+      };
 
   // 2. Look up the legal edge for (verb, from); reject illegal / unknown.
   const record = selectEdge(verb, position, inputs.commitment);
@@ -502,20 +551,52 @@ export async function executeTransition(
   //    reports what landed (recoverable, never silently half-applied).
   const legsFired: EncodingLeg[] = [];
   const advisories: string[] = [];
-  for (const leg of LEG_ORDER) {
-    if (!legDeclared(record, leg, inputs)) continue;
+  let activeCtx = ctx;
+  if (inputs.graduationTransaction !== undefined) {
+    let result: AtomicGraduationResult | undefined;
     try {
-      const advisory = await fireLeg(ctx, leg, record, slug, metaPath, inputs);
-      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+      result = await ctx.atomicGraduate?.(inputs.graduationTransaction);
     } catch (err) {
       return {
         status: "encoding-failed",
         legsFired,
-        failedLeg: leg,
+        failedLeg: "atomicGraduate",
         message: err instanceof Error ? err.message : String(err),
       };
     }
-    legsFired.push(leg);
+    if (result === undefined) {
+      return {
+        status: "encoding-failed",
+        legsFired,
+        failedLeg: "atomicGraduate",
+        message: "atomic graduation is unavailable.",
+      };
+    }
+    if (result.status === "rejected") {
+      return { status: "encoding-failed", legsFired, failedLeg: "atomicGraduate", message: result.reason };
+    }
+    if (result.status === "graduation-recovery-required") {
+      return { status: result.status, message: result.reason, residue: result.residue };
+    }
+    legsFired.push("atomicGraduate");
+    if (result.postCreateNotice !== null) advisories.push(result.postCreateNotice);
+    activeCtx = ctx.withCwd?.(result.worktreePath) ?? ctx;
+  } else {
+    for (const leg of LEG_ORDER) {
+      if (!legDeclared(record, leg, inputs)) continue;
+      try {
+        const advisory = await fireLeg(ctx, leg, record, slug, metaPath, inputs);
+        if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+      } catch (err) {
+        return {
+          status: "encoding-failed",
+          legsFired,
+          failedLeg: leg,
+          message: err instanceof Error ? err.message : String(err),
+        };
+      }
+      legsFired.push(leg);
+    }
   }
 
   // 6. Fire declared non-ROADMAP side-effects once the encoding succeeded.
@@ -524,10 +605,10 @@ export async function executeTransition(
   const sideEffectsFired: SideEffectId[] = [];
   for (const id of record.sideEffects) {
     if (id === "reconcile-roadmap") continue;
-    const handler = ctx.sideEffects?.[id];
+    const handler = activeCtx.sideEffects?.[id];
     // Presence was validated in step 4; the guard here narrows the type.
     if (handler === undefined) continue;
-    const advisory = await handler({ cwd: ctx.cwd, slug, from: record.from, to: record.to, inputs });
+    const advisory = await handler({ cwd: activeCtx.cwd, slug, from: record.from, to: record.to, inputs });
     if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
     sideEffectsFired.push(id);
   }
@@ -539,20 +620,27 @@ export async function executeTransition(
   //   `finalize-failed`, distinct from the pre-side-effect `encoding-failed`.
   //   `failedWrite` tracks the in-flight write so the report names which one threw.
   let branchFieldWritten: string | null;
-  let currentWorkflowCleared: string | null;
+  let currentWorkflowWritten: string | null;
   let softFieldsWritten: MetaFieldName[];
   let failedWrite: FinalizeWrite = "branchField";
   try {
     // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
-    branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
-
-    // 7.5 Clear the meta `Current Workflow` when the edge declares it stale.
-    failedWrite = "currentWorkflowField";
-    currentWorkflowCleared = await applyCurrentWorkflowField(ctx, record, metaPath, inputs);
+    branchFieldWritten = inputs.graduationTransaction?.branch
+      ?? await applyBranchField(ctx, record, metaPath, inputs);
 
     // 8. Apply the soft-field disposition (reset constants + supplied inputs).
     failedWrite = "softFields";
-    softFieldsWritten = await applySoftFields(ctx, record, metaPath, inputs);
+    softFieldsWritten = inputs.graduationTransaction === undefined
+      ? await applySoftFields(ctx, record, metaPath, inputs)
+      : [];
+
+    // 8.25 Project or clear `Current Workflow` only after every other content
+    // write has landed. The source workflow is the durable interrupted-transition
+    // marker consumed by `resumeTransitionFinalization`.
+    failedWrite = "currentWorkflowField";
+    currentWorkflowWritten = inputs.graduationTransaction === undefined
+      ? await applyCurrentWorkflowField(ctx, record, metaPath, inputs)
+      : null;
 
     // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
     //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
@@ -563,10 +651,27 @@ export async function executeTransition(
       legsFired.includes("setPhase") ||
       branchFieldWritten !== null ||
       inputs.persistClass !== undefined ||
-      currentWorkflowCleared !== null ||
+      currentWorkflowWritten !== null ||
       softFieldsWritten.length > 0;
-    if (wroteMeta && metaPath !== null) {
-      await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
+    const stageMeta = ctx.stageMeta;
+    if (inputs.graduationTransaction === undefined && wroteMeta && metaPath !== null && stageMeta !== undefined) {
+      try {
+        await stageMeta(effectiveMetaPath(record, metaPath, inputs));
+      } catch (error) {
+        const sourceWorkflow = sourceWorkflowFor(record);
+        if (currentWorkflowWritten !== null && sourceWorkflow !== undefined) {
+          try {
+            await (ctx.writeCurrentWorkflowRecoveryMarker ?? ctx.writeCurrentWorkflowField)(
+              effectiveMetaPath(record, metaPath, inputs),
+              sourceWorkflow,
+            );
+          } catch {
+            // Preserve the staging failure as the actionable error. A second
+            // write failure remains visible in the unstaged worktree.
+          }
+        }
+        throw error;
+      }
     }
   } catch (err) {
     return {
@@ -582,9 +687,9 @@ export async function executeTransition(
   // adapter degrades render/write failures to advisories, preserving the
   // transition's forward-recoverable boundary.
   if (record.sideEffects.includes("reconcile-roadmap")) {
-    const handler = ctx.sideEffects?.["reconcile-roadmap"];
+    const handler = activeCtx.sideEffects?.["reconcile-roadmap"];
     if (handler !== undefined) {
-      const advisory = await handler({ cwd: ctx.cwd, slug, from: record.from, to: record.to, inputs });
+      const advisory = await handler({ cwd: activeCtx.cwd, slug, from: record.from, to: record.to, inputs });
       if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
       sideEffectsFired.push("reconcile-roadmap");
     }
@@ -605,6 +710,124 @@ export async function executeTransition(
   };
 }
 
+/**
+ * Finish a phase transition whose meta projection or staging failed after its phase and side effects landed.
+ *
+ * The phase/workflow contradiction is the durable retry marker. This path writes only the remaining meta
+ * projection and ROADMAP; a caller may also replay the transition's non-ROADMAP side effects when those effects
+ * are idempotent and therefore form part of completing the interrupted transition.
+ */
+export async function resumeTransitionFinalization(
+  ctx: ExecuteTransitionContext,
+  params: {
+    verb: Verb;
+    slug: string;
+    inputs: TransitionInputs;
+    replayNonRoadmapSideEffects?: boolean;
+  },
+): Promise<TransitionOutcome | null> {
+  const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
+  const position = resolveSlugPosition(index, params.slug);
+  if (position === null) return null;
+  const matches = TRANSITIONS.filter((candidate) =>
+    candidate.verb === params.verb
+    && candidate.to !== null
+    && positionsEqual(candidate.to, position));
+  const record = matches.length === 1 ? matches[0] : undefined;
+  const metaPath = index.get(params.slug)?.path ?? null;
+  if (record === undefined || metaPath === null) return null;
+  const sourceWorkflow = sourceWorkflowFor(record);
+  if (sourceWorkflow === undefined) return null;
+  const meta = parseMetaRecord(await ctx.indexFs.readFile(posix.join(ctx.cwd, metaPath)));
+  if (meta.currentWorkflow !== sourceWorkflow) return null;
+
+  const validators = { ...DEFAULT_GUARD_VALIDATORS, ...ctx.guardValidators };
+  for (const guard of record.guards) {
+    const validator = validators[guard];
+    if (validator === undefined) return null;
+    const result = await validator({ index, slug: params.slug, position, inputs: params.inputs });
+    if (!result.ok) return { status: "rejected", stage: "guard", message: result.message };
+  }
+
+  const sideEffectsFired: SideEffectId[] = [];
+  const advisories: string[] = [];
+  if (params.replayNonRoadmapSideEffects === true) {
+    for (const id of record.sideEffects) {
+      if (id === "reconcile-roadmap") continue;
+      const handler = ctx.sideEffects?.[id];
+      if (handler === undefined) return null;
+      const advisory = await handler({
+        cwd: ctx.cwd,
+        slug: params.slug,
+        from: record.from,
+        to: record.to,
+        inputs: params.inputs,
+      });
+      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+      sideEffectsFired.push(id);
+    }
+  }
+  let failedWrite: FinalizeWrite = "softFields";
+  try {
+    const softFieldsWritten = await applySoftFields(ctx, record, metaPath, params.inputs);
+    failedWrite = "currentWorkflowField";
+    const currentWorkflowWritten = await applyCurrentWorkflowField(ctx, record, metaPath, params.inputs);
+    failedWrite = "stageMeta";
+    const stageMeta = ctx.stageMeta;
+    if (stageMeta !== undefined) {
+      try {
+        await stageMeta(effectiveMetaPath(record, metaPath, params.inputs));
+      } catch (error) {
+        if (currentWorkflowWritten !== null) {
+          try {
+            await (ctx.writeCurrentWorkflowRecoveryMarker ?? ctx.writeCurrentWorkflowField)(
+              effectiveMetaPath(record, metaPath, params.inputs),
+              sourceWorkflow,
+            );
+          } catch {
+            // Keep the original staging failure as the recovery result.
+          }
+        }
+        throw error;
+      }
+    }
+    if (record.sideEffects.includes("reconcile-roadmap")) {
+      const handler = ctx.sideEffects?.["reconcile-roadmap"];
+      if (handler !== undefined) {
+        const advisory = await handler({
+          cwd: ctx.cwd,
+          slug: params.slug,
+          from: record.from,
+          to: record.to,
+          inputs: params.inputs,
+        });
+        if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+        sideEffectsFired.push("reconcile-roadmap");
+      }
+    }
+    return {
+      status: "ok",
+      verb: params.verb,
+      from: record.from,
+      to: record.to,
+      legsFired: [],
+      sideEffectsFired,
+      advisories,
+      softFieldsWritten,
+      branchFieldWritten: null,
+      suggestion: params.inputs.suggestion ?? null,
+    };
+  } catch (error) {
+    return {
+      status: "finalize-failed",
+      legsFired: [],
+      sideEffectsFired,
+      failedWrite,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 /** Compose the rejection message for a `(verb, from)` cell with no legal edge. */
 function lookupRejection(verb: Verb, position: LifecyclePosition | null): string {
   if (position === null) {
@@ -623,14 +846,16 @@ function lookupRejection(verb: Verb, position: LifecyclePosition | null): string
 function legDeclared(record: TransitionRecord, leg: EncodingLeg, inputs: TransitionInputs): boolean {
   const e = record.encodingUpdates;
   switch (leg) {
+    case "atomicGraduate":
+      return false;
     case "setPhase":
       return e.setPhase === true;
     case "classField":
       return inputs.persistClass !== undefined;
     case "artifacts":
       return e.artifacts !== undefined;
-    case "reconcileWorktree":
-      return e.reconcileWorktree !== undefined;
+    case "reconcileWorkUnitWorktree":
+      return e.reconcileWorkUnitWorktree !== undefined;
     case "reconcileBranch":
       return e.reconcileBranch !== undefined;
   }
@@ -646,26 +871,42 @@ function validateInputs(
   inputs: TransitionInputs,
 ): string | null {
   const e = record.encodingUpdates;
+  const atomicStart = inputs.graduationTransaction !== undefined;
+
+  if (atomicStart) {
+    if (record.verb !== "start" || e.artifacts !== "relocate") {
+      return "a graduation transaction is valid only for backlog `start`.";
+    }
+    if (ctx.atomicGraduate === undefined) return "atomic graduation is unavailable.";
+    if (inputs.toDir !== undefined
+      || inputs.branchOp !== undefined
+      || inputs.worktreeOp !== undefined
+      || inputs.persistClass !== undefined) {
+      return "atomic graduation cannot be combined with generic lifecycle mutation inputs.";
+    }
+  } else if (record.verb === "start" && e.artifacts === "relocate") {
+    return "backlog `start` requires one validated graduation transaction.";
+  }
 
   if (inputs.persistClass !== undefined && ctx.writeClassField === undefined) {
     return "Class persistence is unavailable.";
   }
-  if (e.artifacts === "relocate" && inputs.toDir === undefined) {
+  if (!atomicStart && e.artifacts === "relocate" && inputs.toDir === undefined) {
     return "this transition relocates artifacts but no `toDir` was supplied.";
   }
   if ((e.artifacts === "scaffold" || e.artifacts === "remove") && ctx.scaffoldOrRemove === undefined) {
     return `the \`${e.artifacts}\` artifact disposition has no runner wired.`;
   }
-  if (e.reconcileBranch !== undefined) {
+  if (!atomicStart && e.reconcileBranch !== undefined) {
     if (inputs.branchOp === undefined) return "this transition reconciles a branch but no `branchOp` was supplied.";
     if (inputs.branchOp.mutation !== e.reconcileBranch) {
       return `branchOp mutation \`${inputs.branchOp.mutation}\` does not match the edge's \`${e.reconcileBranch}\`.`;
     }
   }
-  if (e.reconcileWorktree !== undefined) {
+  if (!atomicStart && e.reconcileWorkUnitWorktree !== undefined) {
     if (inputs.worktreeOp === undefined) return "this transition reconciles a worktree but no `worktreeOp` was supplied.";
-    if (inputs.worktreeOp.mutation !== e.reconcileWorktree) {
-      return `worktreeOp mutation \`${inputs.worktreeOp.mutation}\` does not match the edge's \`${e.reconcileWorktree}\`.`;
+    if (inputs.worktreeOp.mutation !== e.reconcileWorkUnitWorktree) {
+      return `worktreeOp mutation \`${inputs.worktreeOp.mutation}\` does not match the edge's \`${e.reconcileWorkUnitWorktree}\`.`;
     }
   }
 
@@ -700,6 +941,8 @@ async function fireLeg(
 ): Promise<string | undefined> {
   const e = record.encodingUpdates;
   switch (leg) {
+    case "atomicGraduate":
+      throw new Error("atomic graduation is fired only through its dedicated executor path.");
     case "setPhase": {
       if (metaPath === null || record.to === null) {
         throw new Error("set-phase requires a resolved meta path and target phase.");
@@ -729,9 +972,9 @@ async function fireLeg(
       await ctx.scaffoldOrRemove?.({ disposition, slug, fromDir, toDir: inputs.toDir ?? null });
       return undefined;
     }
-    case "reconcileWorktree": {
-      if (inputs.worktreeOp === undefined) throw new Error("reconcile-worktree requires a `worktreeOp`.");
-      const result = await ctx.reconcileWorktree(inputs.worktreeOp);
+    case "reconcileWorkUnitWorktree": {
+      if (inputs.worktreeOp === undefined) throw new Error("reconcile-work-unit-worktree requires a `worktreeOp`.");
+      const result = await ctx.reconcileWorkUnitWorktree(inputs.worktreeOp);
       return result.mutation === "spawn" ? result.postCreateNotice : undefined;
     }
     case "reconcileBranch": {
@@ -765,7 +1008,7 @@ function effectiveMetaPath(
  * - `reconcile-branch` `delete` → the `[none]` sentinel (`park@Planning` /
  *   `abandon` tear the branch down in place). The merge-gated `archive` ship
  *   clears the field via `clearBranchField` instead (logical-only, no git op).
- * - `reconcile-worktree` `spawn` → the spawned/attached branch — graduate cuts
+ * - `reconcile-work-unit-worktree` `spawn` → the spawned/attached branch — graduate cuts
  *   `plan/<slug>` and resume re-attaches the preserved branch here, since branch
  *   birth/attach rides the worktree leg (the co-occurring `create` branchOp is a
  *   no-op carrying no name).
@@ -809,10 +1052,11 @@ async function applyBranchField(
 }
 
 /**
- * Clear the meta `Current Workflow` field to `[none]` when the edge declares
- * `clearCurrentWorkflowField`. Gated identically to the soft-field pass (skipped
- * for creation / deletion edges) and a no-op on any edge that does not declare
- * the clear. Returns `"[none]"` when the clear fired, else `null`.
+ * Project the meta `Current Workflow` field when the edge declares a live value,
+ * or clear it to `[none]` when the edge declares the pointer stale. Gated
+ * identically to the soft-field pass (skipped for creation / deletion edges) and
+ * a no-op on any edge that declares neither operation. Returns the written value,
+ * else `null`.
  */
 async function applyCurrentWorkflowField(
   ctx: ExecuteTransitionContext,
@@ -821,9 +1065,12 @@ async function applyCurrentWorkflowField(
   inputs: TransitionInputs,
 ): Promise<string | null> {
   if (!softFieldsApply(record) || metaPath === null) return null;
-  if (record.encodingUpdates.clearCurrentWorkflowField !== true) return null;
-  await ctx.writeCurrentWorkflowField(effectiveMetaPath(record, metaPath, inputs), "[none]");
-  return "[none]";
+  const workflow = inputs.currentWorkflowOverride
+    ?? record.encodingUpdates.setCurrentWorkflowField
+    ?? (record.encodingUpdates.clearCurrentWorkflowField === true ? "[none]" : null);
+  if (workflow === null) return null;
+  await ctx.writeCurrentWorkflowField(effectiveMetaPath(record, metaPath, inputs), workflow);
+  return workflow;
 }
 
 /**

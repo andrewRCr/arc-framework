@@ -13,22 +13,33 @@ fallback when a developer notices compaction erased ARC operating context. Recov
 the context-load layer from live state plus the latest compaction seed. It does not reconstruct
 the just-before-compaction action; the harness compaction summary owns that volatile current
 leaf — but that precedence governs reconciliation _after_ the audit, and is never grounds to skip
-recovery. Run the audit whenever a compaction injection fires, even if your remaining context feels
-sufficient: compaction loss is silent, so you cannot tell from inside what was dropped. Recovery
+recovery. **Run the audit whenever a compaction injection fires, even if your remaining context feels
+sufficient** · `[invariant]`: compaction loss is silent, so you cannot tell from inside what was dropped. Recovery
 does not run session-init, sync, pull, discover next work, relocate, commit, push, or prompt on a
 clean path.
 
 ## 1. Run The Deterministic Recovery Audit
 
-Run the recovery audit:
+Run the exact recovery audit supplied by the recovery injection. When no explicit seed path is supplied, run:
 
 ```bash
 arc recover audit --json
 ```
 
+When the supplied command carries `--seed-path <path>`, preserve that exact operand. It is an adapter-owned locus
+handoff; the audit validates that the path belongs to exactly one registered checkout and binds fresh recovery
+probes to that checkout.
+
 Require `mode: "recover-audit"`. If the command fails or the report is malformed, stop,
 surface that recovery cannot establish live state, and ask for direction.
 Do not manually reconstruct a seed from the harness summary.
+
+The report's required `recover.derivedLocusState` is the sole topology/frame read. `recover.recoveryFrame`,
+`recover.loadSet`, and `recover.taskCursor` are reader-owned projections from that same value; consume them rather
+than resolving worktrees, branches, metas, identities, or parent edges again. `recover.locusGuidance` carries
+CLI-composed recovery/refusal narration.
+
+The seed locus selects where the fresh recovery probes run; the command's invocation directory does not override it.
 
 Treat active-meta progress fields as soft orientation after compaction, not recovery authority:
 `Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers` may be stale.
@@ -36,31 +47,44 @@ Use them only as context after the deterministic recovery checks and harness sum
 
 ## 2. Interpret The Verdict
 
-If `verdict.status === "stop"`, inspect `verdict.stopReasons`:
+If `verdict.status === "stop"`, surface the structured reason details and stop. The CLI has already
+checked seed presence/schema, identity, the fresh entering-checkout frame, load-set drift, dirty path-set drift,
+and non-planning task-cursor drift when a cursor exists. For an unresolved entering checkout or identity-basis
+failure, also render the matching `report.recover.locusGuidance` text verbatim. Do not choose another row or repair
+the graph in workflow prose.
 
-- For any reason other than `planning-workflow-uncertain`, stop and surface the structured reason
-  details. The CLI has already checked seed presence/schema, identity, fresh recovery state,
-  load-set drift, dirty path-set drift, and non-planning task-cursor drift when a cursor exists.
-- If `planning-workflow-uncertain` is the only reason, continue only when the harness compaction
-  summary names a planning workflow/stage that can be verified against the recovered load set and
-  artifacts. If the summary is missing, vague, or contradictory, stop for direction. Do not fall
-  back to active-meta `Current Workflow`.
+A `seed-locus-unresolved` stop means the selected seed path and registered checkout topology did not select one exact
+recovery checkout. Surface its typed message; do not retry from another directory or degrade it to `seed-missing`.
 
 If `verdict.status === "ready"`, continue to Step 3 without prompting. `ready` attests that the load set is
 trustworthy — no blocking drift between the seed and fresh state — not that context is restored. It is a property
 of the manifest, never a clearance to resume project work: recovery is incomplete until Step 3's reads land.
 
+An `integration-correction-progression` entry in `verdict.explainedDrift` means the audit has already proved the
+closed forward transition and coupled its fresh load set and task cursor. Consume those fresh projections exactly
+as reported; do not reconstruct task-list conservation, Candidate state, delivery reservation, or lifecycle order
+in workflow prose. An `integration-correction-unresolved` reason remains a stop.
+
+Require `verdict.locusHint.match === true`. The audit has already compared the seed's checkout path and optional
+marker-parent path against the fresh entering row and recovery frame. Any mismatch is a stop, never an invitation
+to fall back to branch or harness-summary inference. An unavailable marker parent is not a mismatch: recovery keeps
+the marker path as context, emits a return-to-base diagnostic, and omits parent WU session context.
+
 Use the **fresh** report surfaces for context loading:
 
 - `report.recover.loadSet.value` is the canonical context-load plan. The seed's embedded load set
   is only the audit baseline.
-- For execution sessions, require `report.verdict.taskCursor.match === true` and use
-  `report.verdict.taskCursor.actual.cursor` as the verified task-list anchor. For integration sessions,
-  apply the same rule when the report carries a non-null `taskCursor` comparison (seed or fresh
-  recovery found a cursor); a cursorless integration review state is valid when the task list has no open
-  executable checkbox. If a required cursor is absent, malformed, or not `status: "found"`, stop; do not
-  fall back to active-meta `Next Task`. A task-cursor mismatch is an unconditional stop: the harness summary
-  can explain the volatile current leaf, but it does not override durable task-list drift.
+- For execution sessions whose projected workflow is `process-task-loop`, require
+  `report.verdict.taskCursor.match === true` and use `report.verdict.taskCursor.actual.cursor` as the verified
+  task-list anchor. Exact execution closeout normally projects `workflow: verify-work-unit`; when canonical delivery
+  state retains pending scoped review-fix verification, it instead projects `workflow: integrate-work-unit` with
+  `workUnitStage: delivery-correction`. Both cursorless closeout arms carry no verdict cursor comparison and require
+  the fresh task cursor to report `no-open-task`. For prepublication and integration
+  sessions, apply the same rule when the report carries a non-null `taskCursor` comparison (seed or fresh recovery
+  found a cursor); a cursorless phase state is valid when the task list has no open executable checkbox. If a
+  required cursor is absent, malformed, or not `status: "found"`, stop; do not fall back to active-meta `Next Task`.
+  A task-cursor mismatch is an unconditional stop: the harness summary can explain the volatile current leaf, but
+  it does not override durable task-list drift.
 - For planning sessions, use the harness-summary workflow/stage only after the verification above.
 
 Do not stop solely because the seed is old or `HEAD` moved. The recovery audit's structured
@@ -73,8 +97,12 @@ Load `report.recover.loadSet.value.entries`; the manifest order is the context o
 serial-read requirement. Issue independent reads in a single tool message when the platform
 supports parallel reads. Never wait on one document before issuing the next unless locating a
 slice genuinely depends on the earlier read. Never load from the seed's paths. The harness
-summary is authoritative for the volatile work-in-progress locus, but not for ARC operating
+summary is authoritative for the volatile work in progress, but not for ARC operating
 context; verify it against the recovered files when it names a task.
+
+Run checkout-relative reads and every resumed project command from the resolved
+`report.recover.recoveryFrame.value.checkoutPath`. A recovery audit invoked from primary may have selected a
+spawned transient checkout; the invocation directory is not the resumed work locus.
 
 The recovery load set is ARC-owned context only. Repository-root harness instruction files
 (such as `AGENTS.md` for Codex CLI and `CLAUDE.md` for Claude Code) are expected to come from
@@ -108,14 +136,21 @@ Apply each entry's `readMode`:
        checkbox inside that section.
 
   If offsets are needed, build one structural map from phase/task headings rather than repeated
-  ad hoc searches. Stop if any required slice cannot be located.
+  ad hoc searches. Stop if the current task section cannot be located — the verified anchor is
+  then wrong, which is not yours to resolve. A missing header or phase preamble is a
+  structural-convention miss instead: surface it and continue with the slices that resolved.
 
 Preserve the manifest order when reconciling loaded content and deciding what procedural
 context applies, even when the reads complete out of order.
 
-The load set already includes the session-type lifecycle workflow when the recovered state has
-one. If no lifecycle workflow is present for an execution, planning, or integration resume, stop
-and surface the missing workflow pointer. For planning recovery, do not treat `Current Workflow`
+The load set already includes the state-selected lifecycle workflow when the recovered state has
+one. Open-task execution maps to `process-task-loop`; ordinary execution closeout maps to `verify-work-unit`; scoped
+delivery-correction closeout maps to `integrate-work-unit`; and prepublication or integration maps to its phase
+workflow. The mapping is a deterministic shipped table, so an
+absent entry is a projection defect rather than a missing decision: load the mapped workflow and
+surface the omission rather than stopping — the gap is itself a signal about the audit that
+produced the load set, so it is reported, never swallowed. A planning resume has no such mapping
+and keeps its stop. For planning recovery, do not treat `Current Workflow`
 as authoritative by itself; if the stage is unclear from deterministic state plus the harness
 summary, stop for direction.
 
@@ -128,7 +163,7 @@ after the recovery load set has been read. Otherwise skip.
 
 Before resuming work, apply this precedence rule internally: the recovered ARC operating context
 is authoritative for ARC procedure and state; the harness summary is authoritative only for the
-volatile in-progress locus. Do not paste recovered files or print precedence language to the
+volatile in-progress work. Do not paste recovered files or print precedence language to the
 developer, and keep any recovery note brief. Do not emit a formal "recovery complete" status line:
 on the Codex pending-marker path the clear command below prints a `COMPLETE` banner, and on Claude
 Code the opening boundary marker plus a brief conversational note suffice.
@@ -153,28 +188,18 @@ for /f "delims=" %i in ('git rev-parse --show-toplevel') do node "%i\.arc\system
 Clearing the marker prints an `=== ARC post-compaction recovery: COMPLETE ===` banner that closes the
 recovery window the injected `PENDING` banner opened. If recovery stops for direction, leave the marker in place.
 
-Resume from the harness-summary locus, bounded by the recovered ARC context, without a routine
-prompt:
+Resume without a routine prompt by dispatching only on `report.recover.recoveryFrame.value`:
 
-- `execution` - continue the summarized current task through `process-task-loop.md`.
-- `planning` - continue the recovered planning workflow when the stage is verified; otherwise stop.
-- `integration` - continue `integrate-work-unit.md`.
-
-**Out-of-work-unit loci.** The three types above assume an active work unit. A compaction can also land in
-a between-WU locus — inbox drain / housekeep, an errand, or planning-grooming — where no active meta
-resolves and the load set carries no lifecycle workflow. Key recovery off the **indicated intent in the
-harness summary, not branch presence**: a compaction can land before the locus cuts its `chore/<slug>` or
-grooming branch, so the branch is not a reliable signal. When the summary indicates such a locus, rehydrate
-the floor above, then load its workflow through its normal trigger and resume:
-
-- **inbox drain / housekeep** - load `drain-inbox.md`.
-- **errand** - load `run-errand.md`.
-- **planning-grooming** - load the planning workflow the summary names (verify the stage as for `planning`).
-
-Resolve the resume mode from the working branch: on a `chore/<slug>` or grooming branch the locus already
-exists — resume mid-flow; on bare base with no such branch the cut had not happened — re-enter the workflow
-at its Launch/entry phase (safe to replay: classify and `arc errand check` are read-only, `arc errand open`
-cuts fresh). If the summary is missing, vague, or contradictory about the locus, stop for direction.
+- `kind: "resolved"` — continue its `workflow`, already included in the fresh load set. A transient workflow
+  (`run-errand`, `draft-design`, or `drain-inbox`) resumes before its optional parent WU; when it leaves/closes,
+  re-run the recovery probe and continue from the freshly derived parent WU or between-WUs frame.
+  Never persist or reconstruct a third frame.
+- `kind: "none"` — the reader proves a between-WUs frame for the current checkout. Use the harness summary only for the
+  volatile current leaf; if it claims an open transient, stop because durable state and summary disagree.
+For a resolved WU, `workflow` selects planning, execution, prepublication, or integration directly. For a resolved
+transient, the
+subject workflow owns resume/leave/close and reports the restored frame. Branch prefixes, active-meta fields, and
+the harness summary never select recovery mode.
 
 Recovery restores the init-time ARC load set plus the state-selected lifecycle workflow only.
 On-demand context loaded mid-task before compaction is not restored here; reload it through its

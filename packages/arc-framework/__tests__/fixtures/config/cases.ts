@@ -137,7 +137,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".codex", ".claude"] },
       },
       validator: {
-        passes: 28,
+        passes: 32,
         warnings: 0,
         errors: 0,
         exitCode: 0,
@@ -183,7 +183,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "throws", messageIncludes: "reserved directory" },
       },
       validator: {
-        passes: 24,
+        passes: 28,
         warnings: 0,
         errors: 5,
         exitCode: 2,
@@ -232,7 +232,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".claude", ".codex", ".gemini", ".opencode"] },
       },
       validator: {
-        passes: 28,
+        passes: 32,
         warnings: 0,
         errors: 0,
         exitCode: 0,
@@ -280,7 +280,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [] },
       },
       validator: {
-        passes: 28,
+        passes: 32,
         warnings: 0,
         errors: 1,
         exitCode: 2,
@@ -310,7 +310,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".claude", ".codex", ".gemini", ".opencode"] },
       },
       validator: {
-        passes: 28,
+        passes: 32,
         warnings: 2,
         errors: 0,
         exitCode: 1,
@@ -348,7 +348,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".claude", ".codex", ".gemini", ".opencode"] },
       },
       validator: {
-        passes: 28,
+        passes: 32,
         warnings: 0,
         errors: 0,
         exitCode: 0,
@@ -375,7 +375,7 @@ export const CONFIG_COMPATIBILITY_CASES: readonly ConfigCompatibilityCase[] = [
         harnessDirs: { kind: "value", value: [".claude", ".codex", ".gemini", ".opencode"] },
       },
       validator: {
-        passes: 28,
+        passes: 32,
         warnings: 0,
         errors: 0,
         exitCode: 0,

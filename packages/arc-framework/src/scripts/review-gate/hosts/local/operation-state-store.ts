@@ -7,8 +7,12 @@ import {
   ReviewOperationStateSchema,
   type ReviewOperationState,
 } from "../../core/operation-state-schema.js";
-import type { ReviewOperationStateStore } from "../../core/ports.js";
-import type { GitCommonStatePublisher } from "./git-common-state.js";
+import type {
+  ReviewOperationStateSnapshot,
+  ReviewOperationStateSnapshotIndex,
+  ReviewOperationStateStore,
+} from "../../core/ports.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const OPERATION_STORE_SEMANTICS = "review-operation-store/v1" as const;
@@ -35,7 +39,7 @@ function recordName(operationId: string): string {
   return `operation-${digest}.json`;
 }
 
-function parseRecord(raw: string, operationId: string): ReviewOperationStoreRecord {
+function parseRecordValue(raw: string): ReviewOperationStoreRecord {
   let value: unknown;
   try {
     value = JSON.parse(raw);
@@ -44,32 +48,82 @@ function parseRecord(raw: string, operationId: string): ReviewOperationStoreReco
   }
   const parsed = ReviewOperationStoreRecordSchema.safeParse(value);
   if (!parsed.success) throw new LocalOperationStateStoreError("malformed-operation-state");
-  if (parsed.data.operationId !== operationId || parsed.data.state.operationId !== operationId) {
+  if (parsed.data.operationId !== parsed.data.state.operationId) {
     throw new LocalOperationStateStoreError("operation-id-mismatch");
   }
   return parsed.data;
 }
 
+function parseRecord(raw: string, operationId: string): ReviewOperationStoreRecord {
+  const parsed = parseRecordValue(raw);
+  if (parsed.operationId !== operationId) {
+    throw new LocalOperationStateStoreError("operation-id-mismatch");
+  }
+  return parsed;
+}
+
 /** Version-checked operation store backed by the repository's non-evidentiary Git-common namespace. */
-export class LocalReviewOperationStateStore implements ReviewOperationStateStore {
+export class LocalReviewOperationStateStore implements
+  ReviewOperationStateStore,
+  ReviewOperationStateSnapshotIndex {
   constructor(private readonly publisher: GitCommonStatePublisher) {}
 
   async readOperation(operationId: string): Promise<{ version: number; state: ReviewOperationState | null }> {
     const name = recordName(operationId);
-    const raw = await this.publisher.read("operations", name);
+    const raw = await this.publisher.read({ root: "review-gate", namespace: "operations" }, name);
     if (raw === null) return { version: 0, state: null };
     const record = parseRecord(raw, operationId);
     return { version: record.version, state: record.state };
   }
 
+  async readOperationSnapshot(): Promise<ReviewOperationStateSnapshot> {
+    let entries;
+    try {
+      entries = await this.publisher.snapshot({ root: "review-gate", namespace: "operations" });
+    } catch (error) {
+      return {
+        status: "unavailable",
+        reason: error instanceof Error ? error.message : "operation-snapshot-failed",
+      };
+    }
+    const records: Array<{ version: number; state: ReviewOperationState }> = [];
+    const operationIds = new Set<string>();
+    for (const entry of entries) {
+      if (entry.kind !== "file") {
+        return { status: "incomplete", reason: "unexpected-operation-state-entry" };
+      }
+      let record;
+      try {
+        record = parseRecordValue(entry.content);
+      } catch (error) {
+        return {
+          status: "incomplete",
+          reason: error instanceof LocalOperationStateStoreError
+            ? error.code
+            : "malformed-operation-state",
+        };
+      }
+      if (entry.name !== recordName(record.operationId)) {
+        return { status: "incomplete", reason: "operation-record-name-mismatch" };
+      }
+      if (operationIds.has(record.operationId)) {
+        return { status: "incomplete", reason: "duplicate-operation-state" };
+      }
+      operationIds.add(record.operationId);
+      records.push({ version: record.version, state: record.state });
+    }
+    records.sort((left, right) => left.state.operationId.localeCompare(right.state.operationId));
+    return { status: "complete", records };
+  }
+
   async publishOperation(state: ReviewOperationState, expectedVersion: number): Promise<{ version: number }> {
     const canonicalState = ReviewOperationStateSchema.parse(state);
     const name = recordName(canonicalState.operationId);
-    return this.publisher.update("operations", name, (raw) => {
+    return this.publisher.update({ root: "review-gate", namespace: "operations" }, name, (raw) => {
       if (raw !== null) {
         const current = parseRecord(raw, canonicalState.operationId);
         if (canonicalize(current.state) === canonicalize(canonicalState)) {
-          return { content: null, result: { version: current.version } };
+          return { kind: "keep", result: { version: current.version } };
         }
         if (current.version !== expectedVersion) {
           throw new LocalOperationStateStoreError("version-conflict");
@@ -79,7 +133,7 @@ export class LocalReviewOperationStateStore implements ReviewOperationStateStore
           version: current.version + 1,
           state: canonicalState,
         });
-        return { content: `${JSON.stringify(next)}\n`, result: { version: next.version } };
+        return { kind: "write", content: `${JSON.stringify(next)}\n`, result: { version: next.version } };
       }
       if (expectedVersion !== 0) throw new LocalOperationStateStoreError("version-conflict");
       const next = ReviewOperationStoreRecordSchema.parse({
@@ -89,7 +143,7 @@ export class LocalReviewOperationStateStore implements ReviewOperationStateStore
         version: 1,
         state: canonicalState,
       });
-      return { content: `${JSON.stringify(next)}\n`, result: { version: next.version } };
+      return { kind: "write", content: `${JSON.stringify(next)}\n`, result: { version: next.version } };
     });
   }
 }

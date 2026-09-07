@@ -24,6 +24,7 @@ import {
   type ProjectReadinessOracleOptions,
   type ProjectViewFs,
 } from "../status/project-view.js";
+import type { TransitionOverlayCompositionInput } from "./transition-overlay.js";
 
 import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "./lifecycle-index.js";
 
@@ -48,9 +49,11 @@ export interface ResolveComposedLifecycleIndexOptions {
   cwd: string;
   fs?: ProjectViewFs;
   /** Omit for exact tree-only parity. `baseBranch` is required because exclusion is load-bearing. */
-  oracle?: Omit<ProjectReadinessOracleOptions, "baseBranch"> & { baseBranch: string };
+  oracle?: ProjectReadinessOracleOptions & { baseBranch: string };
   /** Optional staged-tree precedence for the checked-out branch's own work unit. */
   prospective?: ProjectReadinessProspectiveInput;
+  /** Optional receipt-blind transition suppressions. */
+  transitionOverlays?: readonly TransitionOverlayCompositionInput[];
 }
 
 /** Tree + oracle lifecycle truth and the quality/enrichment channels consumers need beside it. */
@@ -164,6 +167,7 @@ export async function resolveComposedLifecycleIndex(
     ...(options.fs !== undefined ? { fs: options.fs } : {}),
     ...(options.oracle !== undefined ? { oracle: options.oracle } : {}),
     ...(options.prospective !== undefined ? { prospective: options.prospective } : {}),
+    ...(options.transitionOverlays !== undefined ? { transitionOverlays: options.transitionOverlays } : {}),
   });
   const oracleResult = composition.oracleResult;
   const treeBySlug = new Map(composition.treeRecords.map((record) => [record.slug, record] as const));
@@ -197,11 +201,14 @@ export async function resolveComposedLifecycleIndex(
       })),
     ),
     recordsBySlug,
-    qualityFacts: qualityFactsFor(oracleResult, options.oracle !== undefined && options.oracle.localOnly !== true),
+    qualityFacts: qualityFactsFor(
+      oracleResult,
+      options.oracle !== undefined && options.oracle.acquisitionPolicy !== "local",
+    ),
     worktreePathBySlug,
     liveRefs: { ...(oracleResult?.liveRefs ?? {}) },
     reachable: oracleResult?.reachable ?? false,
-    readQuality: options.oracle === undefined || options.oracle.localOnly === true
+    readQuality: options.oracle === undefined || options.oracle.acquisitionPolicy === "local"
       ? "tree-only"
       : oracleResult?.reachable === true ? "reachable" : "degraded",
   };

@@ -8,6 +8,7 @@ import {
   TaskListCursorReaderSchema,
   TaskListCursorResultSchema,
   TaskListCursorSchema,
+  resolveLastCompletedTask,
   resolveTaskListCursor,
 } from "../../../src/lib/task-list/cursor.js";
 import {
@@ -76,6 +77,23 @@ describe("task-list cursor schemas", () => {
 });
 
 describe("resolveTaskListCursor", () => {
+  it("starts at Task 1.1 after a task-shaped provisional Delivery Plan", () => {
+    const result = resolveTaskListCursor(taskList([
+      "## Delivery Plan",
+      "",
+      "### `[ ]` **9.9 Provisional member**",
+      "",
+      "## **Phase 1:** Build",
+      "",
+      "### `[ ]` **1.1 First executable task**",
+    ]));
+
+    expect(result).toMatchObject({
+      status: "found",
+      cursor: { section: { id: "1.1" }, leaf: { id: "1.1" } },
+    });
+  });
+
   it("returns the parent section and first open subtask leaf", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
@@ -329,6 +347,24 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("returns malformed for non-executable numeric-third task markers at root level", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **1.1 Parent task**",
+      "",
+      "- `[ ]` **1.1.1 Child-shaped marker**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "task checkbox marker appeared at root level",
+      },
+    });
+  });
+
   it("returns malformed for id-only checkbox bullets at root level", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
@@ -528,6 +564,76 @@ describe("resolveTaskListCursor", () => {
         line: 5,
         message: "subtask marker does not match task-list bullet grammar",
       },
+    });
+  });
+});
+
+describe("resolveLastCompletedTask", () => {
+  it("returns the deepest completed leaf when the terminal parent has subtasks", () => {
+    const result = resolveLastCompletedTask(taskList([
+      "# Task List: Cursor",
+      "",
+      "## **Phase 1:** Build",
+      "",
+      "### `[x]` **1.1 Implement cursor projection**",
+      "",
+      "    - `[x]` **1.1.a Parse parent tasks**",
+      "",
+      "    - `[x]` **1.1.b Parse subtasks**",
+      "",
+      "### `[ ]` **1.2 Later work**",
+    ]));
+
+    expect(result).toEqual({
+      status: "found",
+      item: { id: "1.1.b", title: "Parse subtasks", lineHint: 9 },
+    });
+  });
+
+  it("returns the terminal completed parent when it carries no subtasks", () => {
+    const result = resolveLastCompletedTask(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[x]` **1.1 Completed setup**",
+      "",
+      "### `[x]` **1.2 Completed follow-up**",
+      "",
+      "### `[ ]` **1.3 Open work**",
+    ]));
+
+    expect(result).toEqual({
+      status: "found",
+      item: { id: "1.2", title: "Completed follow-up", lineHint: 5 },
+    });
+  });
+
+  it("passes over a deferred marker to the last genuinely completed task", () => {
+    const result = resolveLastCompletedTask(taskList([
+      "### `[x]` **1.1 Completed setup**",
+      "",
+      "### `[~]` **1.2 Superseded by a later design**",
+    ]));
+
+    expect(result).toEqual({
+      status: "found",
+      item: { id: "1.1", title: "Completed setup", lineHint: 1 },
+    });
+  });
+
+  it("reports none when nothing is complete", () => {
+    expect(resolveLastCompletedTask(taskList([
+      "### `[ ]` **1.1 Open work**",
+    ]))).toEqual({ status: "none" });
+  });
+
+  it("reports the malformed marker rather than a completed task before it", () => {
+    expect(resolveLastCompletedTask(taskList([
+      "### `[x]` **1.1 Completed setup**",
+      "",
+      "- `[x]` **1.2 Root-level checkbox**",
+    ]))).toEqual({
+      status: "malformed",
+      error: { line: 3, message: "task checkbox marker appeared at root level" },
     });
   });
 });

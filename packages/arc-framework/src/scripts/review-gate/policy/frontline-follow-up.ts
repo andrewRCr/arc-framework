@@ -2,7 +2,12 @@
 
 import { z } from "zod";
 
-import type { ApprovedDispositionSet } from "../core/disposition-records.js";
+import {
+  effectiveDispositionSeverity,
+  reviewerDispositionNit,
+  reviewerDispositionSeverity,
+  type ApprovedDispositionSet,
+} from "../core/disposition-records.js";
 import { validateDispositionState } from "../core/dispositions.js";
 import { ReviewTargetSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
@@ -54,14 +59,15 @@ export function projectFrontlineFollowUpAdvice(input: {
       return finding !== undefined
         && item.sourceIdentity === outcome.source.sourceId
         && item.locus === finding.locus
-        && item.severity === finding.severity
-        && item.nit === finding.nit;
+        && reviewerDispositionSeverity(item) === finding.severity
+        && reviewerDispositionNit(item) === finding.nit;
     })) {
     throw new Error("approved dispositions do not match the frontline outcome");
   }
 
   const materialFix = dispositionSet.findings.some((item) =>
-    item.disposition === "fix" && (item.severity === "major" || item.severity === "blocker"));
+    item.disposition === "fix"
+      && (effectiveDispositionSeverity(item) === "major" || effectiveDispositionSeverity(item) === "blocker"));
   if (!materialFix) return { action: "stop", reason: "no-approved-material-fix" };
   if (outcome.pass >= outcome.maxPasses) return { action: "stop", reason: "pass-cap-exhausted" };
   return {

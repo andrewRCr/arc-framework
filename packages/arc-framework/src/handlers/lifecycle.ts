@@ -1,7 +1,7 @@
 /**
  * The work-unit lifecycle verb handlers — the top-level CLI commands (`stub` /
  * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` /
- * `integrate` / `reopen` / `abandon`).
+ * `publish` / `reopen` / `abandon`).
  *
  * Each handler is a thin, consistent binding: resolve the ambient context
  * (identity, cwd, I/O), resolve *which* work unit the verb acts on through the
@@ -32,22 +32,38 @@ import {
 } from "../lib/command-input/declaration.js";
 
 import {
+  formatValue,
   parseMetaRecord,
   readActiveMetaCandidates,
+  setMetaBulletFields,
+  setMetaCandidate,
   type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
+import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
+import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
+import {
+  expandActiveInFlight,
+  resolveTaskListPath,
+  runActiveInFlightExpansion,
+} from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
-import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
-import { createUserIOContext, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
+import { canonicalize } from "../lib/canonical/canonical-json.js";
+import {
+  createRawGitExec,
+  createUserIOContext,
+  prepareGitRefVerification,
+  readGitBlobBytes,
+  readGitObjectBytes,
+} from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import { getInternalTemplatePath } from "../lib/paths.js";
+import { getArcTemplatePath, getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
   runWorktreeRoster,
 } from "../lib/git/worktree-roster.js";
-import { deriveInFlight, renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
+import { renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
 import { DEFAULT_NETWORK_TIMEOUT_MS } from "../lib/git/remote-ref-reader.js";
 import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
@@ -77,9 +93,16 @@ import {
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
-import { runDecompose, runPreparedDecompose } from "../lib/work-unit/verbs/decompose.js";
-import { parseCutMap } from "../lib/work-unit/decompose-cut-map.js";
-import { createInRepoDecomposeRetirementDriver } from "../lib/work-unit/decompose-retirement-driver.js";
+import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3-preflight.js";
+import {
+  executeGitV3DecomposeCommand,
+  executeGitV3ExtractionCommand,
+} from "../lib/work-unit/git-decompose-v3-operation.js";
+import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-finish.js";
+import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
+import { advanceGitDecomposeTransitionBase } from
+  "../lib/work-unit/git-decompose-transition-base-advancement.js";
+import { decodeV3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -93,12 +116,13 @@ import {
   createInRepoParkPlanningLandingContext,
   landParkPlanningTransition,
 } from "../lib/work-unit/park-planning-landing.js";
+import { createInRepoTerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
+import { isGitTransitionOriginOccupied } from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
-  resolveRetirementRecordPath,
-  resolveRetirementRecordRelativePath,
-  writeRetirementRecord,
-} from "../lib/work-unit/retirement-record-store.js";
-import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
+  resolveTransitionRecordPath,
+  writeTransitionRecord,
+} from "../lib/work-unit/transition-record-store.js";
+import { runPublish } from "../lib/work-unit/verbs/publish.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import {
@@ -110,15 +134,57 @@ import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
+import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
+import {
+  collectGitCandidateTarget,
+  collectUnstagedReviewablePaths,
+} from "../lib/work-unit/git-candidate-subject.js";
+import {
+  readCandidateRecord,
+  readCandidateRecordVersioned,
+  writeCandidateRecord,
+} from "../lib/work-unit/candidate-record-store.js";
+import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
+import {
+  inspectRepositoryDeliveryCandidateRenewal,
+  inspectRepositoryDeliveryReopen,
+} from "../lib/delivery/repository-entry.js";
+import {
+  resolveLastCompletedTask,
+  resolveTaskListCursor,
+} from "../lib/task-list/cursor.js";
+import {
+  readSubmissionBoundaryVersioned,
+  writeSubmissionBoundary,
+} from "../lib/work-unit/submission-boundary-store.js";
+import {
+  projectCandidateReviewBoundary,
+  projectCandidateReviewResumeBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
+} from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
   type MaterializableWorkUnit,
 } from "../lib/session-init/materializable-work-units.js";
-import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
+import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
+import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
+import {
+  attestArgv,
+  attestNewRootArgv,
+  spineRemedy,
+  SpineRemedySchema,
+  type SpineRemedy,
+} from "../scripts/integration/spine-refusal.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
-import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import {
+  PrioritySchema,
+  SLUG_PATTERN,
+  SlugSchema,
+  WorkClassSchema,
+  validateManagedPath,
+} from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -128,6 +194,8 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 // ---------------------------------------------------------------------------
 // Shared dispatch shape — target resolution + candidate surfacing
 // ---------------------------------------------------------------------------
+
+class DeliveryCandidateRenewalRefusal extends Error {}
 
 /** The production filesystem seam for the lifecycle-index scan (mirrors `start`). */
 const lifecycleFs: LifecycleIndexFs = {
@@ -181,6 +249,7 @@ export async function resolveVerbTargetOrReport(
   verb: TransitionVerb,
   slugArg: string | undefined,
   cwd: string,
+  json = false,
 ): Promise<string | null> {
   const needsCurrentWu = !slugArg?.trim() && DISPATCH_MODE[verb] === "context-defaulting";
   const currentWuSlug = needsCurrentWu ? await resolveCurrentWuSlug(cwd) : null;
@@ -189,8 +258,21 @@ export async function resolveVerbTargetOrReport(
   if (target.kind === "resolved") return target.slug;
 
   const index = await buildLifecycleIndex({ cwd, fs: lifecycleFs });
-  p.log.error(formatVerbCandidates(verb, findVerbCandidates(index, verb)));
-  process.exitCode = 1;
+  const reason = formatVerbCandidates(verb, findVerbCandidates(index, verb));
+  if (json) {
+    refuseWithRemedy(
+      reason,
+      spineRemedy(
+        "Lifecycle commands require one resolvable work-unit target.",
+        "Inspect the current lifecycle state, then retry with an explicit target",
+        ["arc", "status", "--json"],
+      ),
+      true,
+    );
+  } else {
+    p.log.error(reason);
+    process.exitCode = 1;
+  }
   return null;
 }
 
@@ -206,7 +288,38 @@ interface VerbBase {
 }
 
 /** Resolve identity, repo root, and the I/O context; `null` when a guard already reported. */
-async function resolveVerbBase(context?: InteractionContext): Promise<VerbBase | null> {
+async function resolveVerbBase(context?: InteractionContext, json = false): Promise<VerbBase | null> {
+  const io = createUserIOContext(context?.subprocess);
+  if (json) {
+    const cwd = resolveArcRoot();
+    if (cwd === null) {
+      refuseWithRemedy(
+        "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
+        spineRemedy(
+          "Lifecycle commands require an ARC project root.",
+          "Enter an ARC project, then inspect its lifecycle state",
+          ["arc", "status", "--json"],
+        ),
+        true,
+      );
+      return null;
+    }
+    try {
+      const identity = await resolveUserIdentity(io.exec);
+      return { identity, cwd, io };
+    } catch {
+      refuseWithRemedy(
+        "No identity configured.",
+        spineRemedy(
+          "Lifecycle commands require a configured ARC identity.",
+          "Initialize the project identity",
+          ["arc", "init"],
+        ),
+        true,
+      );
+      return null;
+    }
+  }
   let identity: string;
   try {
     identity = await resolveUserIdentity();
@@ -216,7 +329,7 @@ async function resolveVerbBase(context?: InteractionContext): Promise<VerbBase |
   }
   const cwd = requireArcProjectRoot();
   if (!cwd) return null;
-  return { identity, cwd, io: createUserIOContext(context?.subprocess) };
+  return { identity, cwd, io };
 }
 
 /** Read config once and build the production executor context, returning both. */
@@ -238,15 +351,29 @@ async function resolveTransformComposition(
   base: VerbBase,
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
 ): Promise<ComposedLifecycleIndexResult> {
+  if (base.io.execInput === undefined) {
+    throw new Error("Remote lifecycle expansion requires stdin-capable Git I/O.");
+  }
   const currentBranch = await getCurrentBranch(base.io.exec);
+  const expandedInFlight = await expandActiveInFlight({
+    exec: base.io.exec,
+    execInput: base.io.execInput,
+    cwd: base.cwd,
+    identity: base.identity,
+    teamMode: false,
+    baseBranch: settings["branch.base"],
+  });
+  if (expandedInFlight.candidateExpansion.status !== "complete") {
+    throw new Error("Could not completely expand remote work-unit candidates.");
+  }
   return await resolveComposedLifecycleIndex({
     cwd: base.cwd,
     fs: lifecycleFs,
     oracle: {
       exec: base.io.exec,
       baseBranch: settings["branch.base"],
-      localOnly: false,
-      expandLiveOnly: true,
+      acquisitionPolicy: "materialized-live",
+      suppliedResult: expandedInFlight,
     },
     ...(currentBranch === null ? {} : { prospective: { currentBranch } }),
   });
@@ -258,10 +385,19 @@ function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
     cwd: base.cwd,
     exec: base.io.exec,
     readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-    readFile: base.io.readFile,
-    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
-    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
   };
+}
+
+/** Bind exclusive terminal-history creation and index staging. */
+function terminalTransitionWriter(base: VerbBase): ReturnType<typeof createInRepoTerminalTransitionRecordWriter> {
+  const transitionExec = createRawGitExec(base.cwd);
+  return createInRepoTerminalTransitionRecordWriter({
+    cwd: base.cwd,
+    exec: base.io.exec,
+    isOriginOccupied: (origin) => isGitTransitionOriginOccupied(transitionExec, origin),
+    createRecord: (record) => writeTransitionRecord(base.cwd, record),
+    removeRecord: (origin) => rm(resolveTransitionRecordPath(base.cwd, origin), { force: true }),
+  });
 }
 
 /** Surface a transition's success note plus any side-effect advisories. */
@@ -271,16 +407,63 @@ function reportOutcome(label: string, lines: string[], outcome: TransitionOutcom
   p.outro("Done.");
 }
 
+/** Surface a placement-only materialize result without fabricating a lifecycle transition. */
+function reportMaterializeOutcome(
+  label: string,
+  lines: string[],
+  advisories: readonly string[],
+): void {
+  p.note(lines.join("\n"), label);
+  for (const advisory of advisories) p.log.info(advisory);
+  p.outro("Done.");
+}
+
 /** Report a refusal and set a non-zero exit code. */
 function refuse(reason: string): void {
   p.log.error(reason);
   process.exitCode = 1;
 }
 
-function parseLifecycleCommand<T extends z.ZodType>(schema: T, value: unknown): z.output<T> | null {
+/** Refuse with the failed invariant and the one command that advances from it. */
+export const LifecycleCommandRefusalSchema = z.strictObject({
+  status: z.literal("rejected"),
+  reason: z.string().min(1),
+  remedy: SpineRemedySchema,
+});
+
+function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): void {
+  if (json) {
+    const refusal = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy });
+    process.stdout.write(`${JSON.stringify(refusal)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  refuse(`${reason}\n${remedy.text}`);
+}
+
+/** Name a bounded sample of paths so a wide refusal stays readable without hiding its scale. */
+function summarizePaths(paths: readonly string[], limit = 5): string {
+  const shown = paths.slice(0, limit).map((path) => `\`${path}\``).join(", ");
+  return paths.length <= limit ? shown : `${shown}, and ${paths.length - limit} more`;
+}
+
+function parseLifecycleCommand<T extends z.ZodType>(
+  schema: T,
+  value: unknown,
+  command: readonly string[],
+  json = false,
+): z.output<T> | null {
   const parsed = schema.safeParse(value);
   if (parsed.success) return parsed.data;
-  refuse(z.prettifyError(parsed.error));
+  refuseWithRemedy(
+    z.prettifyError(parsed.error),
+    spineRemedy(
+      "Command input must satisfy its registered schema.",
+      "Review command usage",
+      ["arc", ...command, "--help"],
+    ),
+    json,
+  );
   return null;
 }
 
@@ -299,6 +482,17 @@ export interface StubOptions {
   class?: string;
 }
 
+/** Canonical cohort path accepted by the `stub` command boundary. */
+const slugSegmentPatternSource = SLUG_PATTERN.source.slice(1, -1);
+const stubCohortPathPattern = new RegExp(
+  `^${slugSegmentPatternSource}(?:/${slugSegmentPatternSource}){0,${String(COHORT_SEGMENT_CAP - 1)}}$`,
+  "u",
+);
+const StubCohortPathSchema = z.string().regex(
+  stubCohortPathPattern,
+  "Expected a canonical one- or two-segment cohort path",
+);
+
 /** Complete schema-owned stub creation input. */
 export const StubCommandInputSchema = z.object({
   name: SlugSchema,
@@ -306,7 +500,7 @@ export const StubCommandInputSchema = z.object({
   priority: PrioritySchema,
   origin: z.string().min(1).optional(),
   design: z.string().min(1).optional(),
-  cohort: SlugSchema.optional(),
+  cohort: StubCohortPathSchema.optional(),
   class: WorkClassSchema.optional(),
 }).strict();
 
@@ -320,13 +514,59 @@ export const PromoteCommandInputSchema = z.object({
 export const DemoteCommandInputSchema = z.object({ slug: SlugSchema.optional() }).strict();
 
 const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).strict();
+
+/** Decomposition modes consumed by schema exclusivity and machine-readable routing. */
+export const DECOMPOSE_MODE_KEYS = [
+  "preflight",
+  "execute",
+  "extract",
+  "finish",
+  "advanceBase",
+] as const;
+
+/** Mode keys plus non-mode operands that still require machine-readable diagnostics. */
+export const DECOMPOSE_MACHINE_READABLE_KEYS = [
+  ...DECOMPOSE_MODE_KEYS,
+  "apply",
+] as const;
+
+type DecomposeRoutingOptions = Partial<Record<
+  typeof DECOMPOSE_MACHINE_READABLE_KEYS[number],
+  string | boolean
+>>;
+
+function decomposeOptionSelected(options: DecomposeRoutingOptions, key: keyof DecomposeRoutingOptions): boolean {
+  const value = options[key];
+  return typeof value === "boolean" ? value : value !== undefined;
+}
+
+/** Whether a decomposition invocation must keep output and parse failures on machine-readable streams. */
+export function isDecomposeMachineReadableInvocation(options: DecomposeRoutingOptions): boolean {
+  return DECOMPOSE_MACHINE_READABLE_KEYS.some((key) => decomposeOptionSelected(options, key));
+}
+
 export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
-  cutMap: z.string().min(1).optional(),
-  finalize: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  preflight: z.literal(true).optional(),
+  execute: z.string().trim().min(1).optional(),
+  extract: z.string().trim().min(1).optional(),
+  finish: z.string().trim().min(1).optional(),
+  apply: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  advanceBase: z.string().trim().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
-  if ((value.cutMap === undefined) === (value.finalize === undefined)) {
-    refinement.addIssue({ code: "custom", message: "Provide exactly one of --cut-map or --finalize." });
+  const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
+  if (modes !== 1) {
+    refinement.addIssue({
+      code: "custom",
+      message: "Exactly one of --preflight, --execute, --extract, --finish, or --advance-base is required.",
+    });
+  }
+  if (value.apply !== undefined && value.finish === undefined) {
+    refinement.addIssue({
+      code: "custom",
+      path: ["apply"],
+      message: "--apply is valid only with --finish.",
+    });
   }
 });
 export const ParkCommandInputSchema = z.object({
@@ -348,13 +588,17 @@ export const ActivateCommandInputSchema = z.object({
   task: z.string().trim().min(1),
   action: z.string().trim().min(1),
 }).strict();
-export const IntegrateCommandInputSchema = z.object({
+export const PublishCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
-  lastCompleted: z.string().trim().min(1),
-  action: z.string().trim().min(1),
+  lastCompleted: z.string().trim().min(1).optional(),
+  action: z.string().trim().min(1).optional(),
   allowAdvisories: z.boolean().optional(),
+  json: z.boolean().optional(),
 }).strict();
-export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({ keepPr: z.boolean().optional() });
+export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({
+  keepPr: z.boolean().optional(),
+  task: z.string().trim().min(1).optional(),
+});
 export const ArchiveCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   prUrl: z.string().trim().min(1).optional(),
@@ -388,15 +632,33 @@ export const SetStageCommandInputSchema = z.object({
   advance: z.boolean().optional(),
 }).strict();
 export const FinalizeCommandInputSchema = z.object({
-  firePoint: z.enum(["create-spec", "generate-tasks", "verify"]),
+  firePoint: z.enum(["create-spec", "generate-tasks"]),
   class: WorkClassSchema.optional(),
 }).strict().superRefine((value, refinement) => {
-  const requiresClass = value.firePoint === "create-spec" || value.firePoint === "generate-tasks";
-  if (requiresClass && value.class === undefined) {
+  if (value.class === undefined) {
     refinement.addIssue({ code: "custom", path: ["class"], message: "--class is required at this fire-point." });
   }
-  if (!requiresClass && value.class !== undefined) {
-    refinement.addIssue({ code: "custom", path: ["class"], message: "--class is not valid at verify." });
+});
+export const AttestCommandInputSchema = z.object({
+  name: SlugSchema,
+  json: z.boolean().optional(),
+  newRoot: z.boolean().optional(),
+  expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+}).strict().superRefine((value, refinement) => {
+  if ((value.expectedCandidate === undefined) !== (value.expectedSubject === undefined)) {
+    refinement.addIssue({
+      code: "custom",
+      path: [value.expectedCandidate === undefined ? "expectedCandidate" : "expectedSubject"],
+      message: "--expected-candidate and --expected-subject must be supplied together.",
+    });
+  }
+  if ((value.expectedCandidate !== undefined || value.expectedSubject !== undefined) && value.newRoot !== true) {
+    refinement.addIssue({
+      code: "custom",
+      path: ["newRoot"],
+      message: "Bound re-root selectors require --new-root.",
+    });
   }
 });
 export const RepointDesignCommandInputSchema = z.object({
@@ -429,7 +691,15 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "decompose",
     schema: DecomposeCommandInputSchema,
-    schemaFields: { "operand.origin": "origin", "option.cut-map": "cutMap", "option.finalize": "finalize" },
+    schemaFields: {
+      "operand.origin": "origin",
+      "option.preflight": "preflight",
+      "option.execute": "execute",
+      "option.extract": "extract",
+      "option.finish": "finish",
+      "option.apply": "apply",
+      "option.advance-base": "advanceBase",
+    },
   },
   {
     commandPath: "promote",
@@ -464,19 +734,20 @@ export const lifecycleCommandInputRegistrations = [
   },
   { commandPath: "deactivate", schema: DeactivateCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
   {
-    commandPath: "integrate",
-    schema: IntegrateCommandInputSchema,
+    commandPath: "publish",
+    schema: PublishCommandInputSchema,
     schemaFields: {
       "operand.slug": "slug",
       "option.last-completed": "lastCompleted",
       "option.action": "action",
       "option.allow-advisories": "allowAdvisories",
+      "option.json": "json",
     },
   },
   {
     commandPath: "reopen",
     schema: ReopenCommandInputSchema,
-    schemaFields: { "operand.slug": "slug", "option.keep-pr": "keepPr" },
+    schemaFields: { "operand.slug": "slug", "option.keep-pr": "keepPr", "option.task": "task" },
   },
   { commandPath: "abandon", schema: AbandonCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
   {
@@ -503,6 +774,17 @@ export const lifecycleCommandInputRegistrations = [
     commandPath: "finalize",
     schema: FinalizeCommandInputSchema,
     schemaFields: { "operand.fire-point": "firePoint", "option.class": "class" },
+  },
+  {
+    commandPath: "attest",
+    schema: AttestCommandInputSchema,
+    schemaFields: {
+      "operand.name": "name",
+      "option.json": "json",
+      "option.new-root": "newRoot",
+      "option.expected-candidate": "expectedCandidate",
+      "option.expected-subject": "expectedSubject",
+    },
   },
   {
     commandPath: "repoint-design",
@@ -653,10 +935,18 @@ export async function handleStub(
 
 /** Options for `arc decompose`. */
 export interface DecomposeOptions {
-  /** Path to the structured cut-map file (JSON) — required; the cut is authored, never inferred. */
-  cutMap?: string;
-  /** Deterministic prepared receipt ID to finalize instead of starting a new transform. */
-  finalize?: string;
+  /** Emit one exact machine-derived starter map without mutation. */
+  preflight?: true;
+  /** Stage one exact repository result from a canonical completed cut map. */
+  execute?: string;
+  /** Stage one additive result while preserving the source origin. */
+  extract?: string;
+  /** Preview source thinning from one completed extraction map. */
+  finish?: string;
+  /** Apply the exact source-thinning preview authority. */
+  apply?: string;
+  /** Advance one committed full-protection candidate from its canonical completed cut map. */
+  advanceBase?: string;
 }
 
 function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolean {
@@ -666,133 +956,150 @@ function retirementCleanupRequired(lifecycle: RetirementLifecycleResult): boolea
 }
 
 /**
- * `arc decompose <origin> --cut-map <file>` — turn one work unit into a cohort of
- * members per a structured cut-map. Deserializes + validates the cut-map file
- * (the boundary `parseCutMap`), refusing a malformed file before any mutation,
- * then runs the deterministic legs (`runDecompose`): batch-scaffold the members,
- * retire the origin through its reserved edge (skipped on the extraction shape),
- * re-point the incoming `Depends On` edges, and regenerate the ROADMAP. The
- * cut-map's judgment (members, distribution, dispositions) is authored upstream;
- * the command never fabricates it.
+ * Dispatch one closed v3 decomposition command mode.
+ *
+ * @param origin - Planning source slug to authenticate and inspect.
+ * @param opts - Closed command mode and its exact cut-map operands.
+ * @param context - Optional interaction context supplying subprocess execution.
+ * @returns A promise that resolves after emitting one canonical result or refusal.
  */
 export async function handleDecompose(
   origin: string | undefined,
   opts: DecomposeOptions,
   context?: InteractionContext,
 ): Promise<void> {
-  p.intro("arc decompose");
-  const input = parseLifecycleCommand(DecomposeCommandInputSchema, { origin: origin?.trim(), ...opts });
-  if (input === null) return;
-  const base = await resolveVerbBase(context);
-  if (base === null) return;
-
-  const originArg = input.origin;
-  const { executor, settings } = await buildExecutor(base);
-  const composed = await resolveTransformComposition(base, settings);
-  const driver = createInRepoDecomposeRetirementDriver({
-    cwd: base.cwd,
-    exec: base.io.exec,
-    lifecycleFs,
-    readFile: base.io.readFile,
-    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
-    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
-    composed,
-  });
-  const finalizeId = input.finalize?.trim();
-  if (finalizeId !== undefined && finalizeId !== "") {
-    if (!isCanonicalDigest(finalizeId)) {
-      refuse("`arc decompose --finalize` requires a canonical `sha256:<64-lower-hex>` receipt ID.");
-      return;
+  const parsed = DecomposeCommandInputSchema.safeParse({ origin: origin?.trim(), ...opts });
+  if (!parsed.success) {
+    const diagnostic = z.prettifyError(parsed.error);
+    if (isDecomposeMachineReadableInvocation(opts)) {
+      process.stderr.write(`${diagnostic}\n`);
+      process.exitCode = 1;
+    } else {
+      refuse(diagnostic);
     }
-    const finalized = await driver.finalize(originArg, finalizeId);
-    if (finalized.status === "refused") {
-      refuse(finalized.reason);
-      return;
-    }
-    const lines = [
-      `Origin:  ${originArg}`,
-      `Receipt: ${resolveRetirementRecordRelativePath(finalized.receipt.receiptId)}`,
-    ];
-    if (retirementCleanupRequired(finalized.lifecycle)) {
-      lines.push(`Cleanup: after landing — \`arc teardown ${originArg}\``);
-    }
-    p.note(lines.join("\n"), "Decompose finalized");
-    p.outro("Done.");
     return;
   }
-  const cutMapPath = input.cutMap?.trim();
-  if (!cutMapPath) {
-    refuse("`arc decompose` requires `--cut-map <file>` — the cut is authored, never inferred.");
+  const cwd = resolveArcRoot();
+  if (cwd === null) {
+    process.stderr.write("Not inside an ARC project (no .arc/ directory found walking up from cwd).\n");
+    process.exitCode = 1;
     return;
   }
-
-  // Deserialization (read the file, parse JSON) is the command's job; structural
-  // validation is `parseCutMap`'s, so a read / syntax failure refuses distinctly.
-  let raw: unknown;
   try {
-    raw = JSON.parse(await readFile(resolve(base.cwd, cutMapPath), "utf8"));
-  } catch (err) {
-    refuse(`could not read or parse the cut-map file \`${cutMapPath}\`: ${(err as Error).message}`);
-    return;
-  }
-
-  const parsed = parseCutMap(raw);
-  if (parsed.status === "rejected") {
-    refuse(`cut-map rejected: ${parsed.reason}`);
-    return;
-  }
-  if (parsed.params.origin.slug !== originArg) {
-    refuse(`cut-map origin \`${parsed.params.origin.slug}\` does not match the \`<origin>\` argument \`${originArg}\`.`);
-    return;
-  }
-  for (const advisory of findIntegratingDependentAdvisories(composed, originArg)) {
-    p.log.warn(advisory.text);
-  }
-
-  const decomposeContext = {
-    executor,
-    composed,
-    fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile },
-    removeFs: { readdir: (path: string) => readdir(path), rm: (path: string) => rm(path), rmdir: (path: string) => rmdir(path) },
-  };
-  const preparation = parsed.params.shape === "extraction" ? null : await driver.prepare(parsed.params);
-  if (preparation?.status === "refused") {
-    refuse(preparation.reason);
-    return;
-  }
-  const result = preparation === null
-    ? await runDecompose(decomposeContext, { cut: parsed.params })
-    : await runPreparedDecompose(decomposeContext, {
-        cut: parsed.params,
-        preparation: preparation.preparation,
-        revalidate: async () => await driver.revalidate(preparation.preparation),
+    const { settings, warnings } = await readConfigSettings(cwd);
+    for (const warning of warnings) process.stderr.write(`${warning}\n`);
+    const io = createUserIOContext(context?.subprocess);
+    if (parsed.data.preflight === true) {
+      const result = await createGitV3DecomposePreflight({
+        cwd,
+        exec: io.exec,
+        readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
+      }, settings["branch.base"], parsed.data.origin);
+      if (result.status === "rejected") {
+        const locus = "locus" in result ? result.locus : undefined;
+        process.stderr.write(
+          `${result.reason}${locus === undefined ? "" : `: ${locus}`}\n`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
+      return;
+    }
+    const cohortTemplate = new Uint8Array(await readFile(join(
+      getArcTemplatePath(),
+      "reference",
+      "templates",
+      "arc",
+      "work-unit",
+      "template-cohort.md",
+    )));
+    const repository = {
+      cwd,
+      exec: io.exec,
+      readBlob: (ref: string, path: string) => readGitBlobBytes(cwd, ref, path),
+      readObject: (oid: string, objectKind: string) => readGitObjectBytes(cwd, oid, objectKind),
+      cohortTemplate,
+    };
+    const protection = settings["branch.protection"] === "full" ? "full" : "partial";
+    if (parsed.data.finish !== undefined) {
+      const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
+        cwd,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.finish,
+        applyAuthority: (parsed.data.apply ?? null) as `sha256:${string}` | null,
+      }));
+      process.stdout.write(`${canonicalize(result)}\n`);
+      if (result.status === "refused") {
+        process.stderr.write(
+          `${result.reason}${result.locus === undefined ? "" : `: ${result.locus}`}\n`,
+        );
+        process.exitCode = 1;
+      }
+      return;
+    }
+    if (parsed.data.execute !== undefined) {
+      const result = await executeGitV3DecomposeCommand({
+        ...repository,
+        spawningIdentity: await resolveUserIdentity(),
+      }, {
+        protection,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.execute,
       });
-  if (result.status === "rejected") {
-    refuse(result.reason);
-    return;
+      process.stdout.write(`${canonicalize(result)}\n`);
+      if (result.status !== "staged") {
+        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
+        process.exitCode = 1;
+      }
+      return;
+    }
+    if (parsed.data.extract !== undefined) {
+      const result = await executeGitV3ExtractionCommand({
+        ...repository,
+        spawningIdentity: await resolveUserIdentity(),
+      }, {
+        protection,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.extract,
+      });
+      process.stdout.write(`${canonicalize(result)}\n`);
+      if (result.status !== "staged") {
+        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
+        process.exitCode = 1;
+      }
+      return;
+    }
+    if (parsed.data.advanceBase !== undefined) {
+      let completedMap: unknown;
+      try {
+        completedMap = JSON.parse(await readFile(resolve(cwd, parsed.data.advanceBase), "utf8"));
+      } catch {
+        completedMap = null;
+      }
+      const decoded = decodeV3DecomposeCutMap(completedMap);
+      const result = decoded.status === "accepted"
+        && decoded.value.machine.source.origin === parsed.data.origin
+        ? await advanceGitDecomposeTransitionBase(repository, {
+            protection,
+            baseBranch: settings["branch.base"],
+            completedMap: decoded.value,
+          })
+        : { status: "refused" as const, reason: "map:invalid" };
+      process.stdout.write(`${canonicalize(result)}\n`);
+      if (result.status === "refused") {
+        process.stderr.write(`${result.reason}\n`);
+        process.exitCode = 1;
+      }
+      return;
+    }
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
   }
-  if (preparation !== null) await driver.stagePreparedResult(preparation.preparation);
-
-  const { placement, members, repointed, origin: disposition, teardown } = result.result;
-  const lines = [
-    `Origin:     ${originArg} (${disposition})`,
-    `Placement:  ${placement.summary}`,
-    `Members:    ${members.map((m) => m.slug).join(", ")}`,
-    `Re-pointed: ${repointed.length === 0 ? "none" : repointed.map((r) => r.dependent).join(", ")}`,
-  ];
-  if (teardown !== null) {
-    lines.push(
-      `Cleanup:    after finalize + landing — \`arc teardown ${teardown.slug}\` (branch \`${teardown.branch}\`)`,
-    );
-  }
-  if (preparation !== null) {
-    lines.push(
-      `Finalize:   \`arc decompose ${originArg} --finalize ${preparation.preparation.locator.receiptId}\``,
-    );
-  }
-  p.note(lines.join("\n"), "Decomposed");
-  p.outro("Done.");
 }
 
 /** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */
@@ -804,18 +1111,24 @@ export async function handleRename(
   p.intro("arc rename");
   const input = parseLifecycleCommand(RenameCommandInputSchema, {
     slug: sourceSlug.trim(), newSlug: targetSlug.trim(),
-  });
+  }, ["rename"]);
   if (input === null) return;
   const { slug: renameSource, newSlug: renameTarget } = input;
   const base = await resolveVerbBase(context);
   if (base === null) return;
+  if (base.io.execInput === undefined) {
+    refuse("remote rename expansion requires stdin-capable Git I/O");
+    return;
+  }
+  const io = { ...base.io, execInput: base.io.execInput };
   const { settings } = await readConfigSettings(base.cwd);
   const result = await runRenameCommand({
     cwd: base.cwd,
     identity: base.identity,
     baseBranch: settings["branch.base"],
-    io: base.io,
+    io,
     retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
+    transitionWriter: terminalTransitionWriter(base),
     onPreparedAdvisories: (advisories) => {
       for (const advisory of advisories) p.log.warn(advisory);
       return Promise.resolve();
@@ -835,7 +1148,7 @@ export async function handleRename(
   }
   if (result.remote?.status === "unpublished") lines.push("Remote:    unpublished; no ref created");
   if (result.shape === "in-place") {
-    lines.push("Marker:    skipped; in-place work units carry no ownership marker");
+    lines.push("Checkout:  unmanaged; no ownership marker was minted");
     lines.push("Worktree:  unchanged; the primary worktree cannot be moved");
   }
   if (result.worktree !== undefined) {
@@ -859,10 +1172,10 @@ export async function handleRename(
       lines.push(`Worktree:  unchanged; registered path does not contain the old slug: ${result.worktree.worktreePath}`);
     } else if (result.worktree.status === "deferred-self-move") {
       lines.push(`Worktree:  move deferred; current session remains at ${result.worktree.from}`);
-      if (result.marker === "renamed") {
+      if (result.checkout?.kind === "renamed" || result.checkout?.kind === "idempotent") {
         lines.push(`Follow-up:  from outside it, \`git worktree move ${result.worktree.from} ${result.worktree.to}\``);
       } else {
-        lines.push(`Marker:    ${result.marker ?? "unavailable"}; no move action projected`);
+        lines.push(`Checkout:  ${result.checkout?.kind ?? "unavailable"}; no move action projected`);
       }
     } else {
       lines.push("Worktree:  unchanged; no linked worktree is registered for the renamed branch");
@@ -960,7 +1273,7 @@ export async function handlePromote(
 
 /** `arc demote <slug>` — lower a planned stub back to provisional. */
 export function handleDemote(slug: string | undefined, context?: InteractionContext): Promise<void> {
-  const input = parseLifecycleCommand(DemoteCommandInputSchema, { slug: slug?.trim() || undefined });
+  const input = parseLifecycleCommand(DemoteCommandInputSchema, { slug: slug?.trim() || undefined }, ["demote"]);
   return input === null
     ? Promise.resolve()
     : handleBacklogMove("demote", input.slug, runDemote, "Demoted", context);
@@ -988,7 +1301,11 @@ export async function handleActivate(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc activate");
-  const input = parseLifecycleCommand(ActivateCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ActivateCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["activate"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1019,7 +1336,11 @@ export async function handleActivate(
 /** `arc deactivate [slug]` — undo a premature activation (Active → Planning). */
 export async function handleDeactivate(slug: string | undefined, context?: InteractionContext): Promise<void> {
   p.intro("arc deactivate");
-  const input = parseLifecycleCommand(DeactivateCommandInputSchema, { slug: slug?.trim() || undefined });
+  const input = parseLifecycleCommand(
+    DeactivateCommandInputSchema,
+    { slug: slug?.trim() || undefined },
+    ["deactivate"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1138,7 +1459,7 @@ export async function handlePark(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc park");
-  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(ParkCommandInputSchema, { slug: slug?.trim() || undefined, ...opts }, ["park"]);
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1182,7 +1503,6 @@ export async function handlePark(
       [
         `Work unit: ${target}`,
         `Commit:    ${result.commit}`,
-        `Receipt:   ${result.receiptPath}`,
         `Artifacts: ${result.plannedPaths.length} staged`,
       ].join("\n"),
       "Park result landed",
@@ -1261,7 +1581,11 @@ export async function handleResume(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc resume");
-  const input = parseLifecycleCommand(ResumeCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ResumeCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["resume"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1288,7 +1612,8 @@ export async function handleResume(
         `Meta:      ${result.metaPath}`,
         ``,
         `Pointer-record removed (staged, not committed). Commit it on the tracked branch,`,
-        `then re-attach in this checkout:  git checkout ${result.branch}`,
+        `then continue in this checkout:  git checkout ${result.branch} && `
+          + `arc wu reconcile ${target} --apply --json`,
       ],
       result.outcome,
     );
@@ -1329,10 +1654,16 @@ async function resolveMaterializeCandidate(
   settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
   slug: string | undefined,
 ): Promise<MaterializableWorkUnit | null> {
+  if (base.io.execInput === undefined) {
+    refuse("remote materialization discovery requires stdin-capable Git I/O");
+    return null;
+  }
   const target = slug?.trim();
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs }));
-  const result = await deriveInFlight({
+  const result = await runActiveInFlightExpansion({
     exec: base.io.exec,
+    execInput: base.io.execInput,
+    cwd: base.cwd,
     localOnly: false,
     baseBranch: settings["branch.base"],
     identity: base.identity,
@@ -1342,8 +1673,14 @@ async function resolveMaterializeCandidate(
   for (const warning of result.warnings) {
     p.log.warn(renderInFlightWarning(warning));
   }
-  if (!result.reachable) {
+  if (result.candidateExpansion.status === "failed") {
     refuse("could not refresh remote materialize candidates from `origin` — retry when the remote is reachable.");
+    return null;
+  }
+  if (result.candidateExpansion.status === "partial") {
+    refuse(
+      `could not materialize ${result.candidateExpansion.pendingBranchCount} remote candidate branch(es) — retry.`,
+    );
     return null;
   }
   const { entries } = result;
@@ -1390,7 +1727,11 @@ export async function handleMaterialize(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc materialize");
-  const input = parseLifecycleCommand(MaterializeCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    MaterializeCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["materialize"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1427,15 +1768,16 @@ export async function handleMaterialize(
       return;
     }
     spinner.stop("Materialize complete.");
-    reportOutcome(
+    reportMaterializeOutcome(
       "Materialized (in place)",
       [
         `Work unit: ${candidate.name}`,
         `Branch:    ${candidate.branch}`,
+        `Worktree:  ${result.worktreePath}`,
         ``,
         `Run \`arc user pull\`, then re-run session init to resume.`,
       ],
-      result.outcome,
+      result.advisories,
     );
     return;
   }
@@ -1464,81 +1806,185 @@ export async function handleMaterialize(
       return;
     }
     spinner.stop("Worktree ready.");
-    reportOutcome(
+    reportMaterializeOutcome(
       "Materialized",
       [
         `Work unit: ${candidate.name}`,
         `Branch:    ${candidate.branch}`,
+        `Worktree:  ${result.worktreePath}`,
         ``,
         `Run \`arc user pull\` in the materialized checkout, then re-run session init to resume.`,
       ],
-      result.outcome,
+      result.advisories,
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Phase move (review entry) — `integrate`
+// Phase move (publication entry) — `publish`
 // ---------------------------------------------------------------------------
 
-/** Options for `arc integrate`. */
-export interface IntegrateOptions {
+/** Options for `arc publish`. */
+export interface PublishOptions {
   lastCompleted?: string;
   action?: string;
   allowAdvisories?: boolean;
+  json?: boolean;
 }
 
 /**
- * `arc integrate [slug]` — open review on an `Active` WU (Active → Integrating),
- * defaulting to the current WU. Marks phase entry, not the merge — the
- * integration-interlock owns merge approval. Refuses without the orientation inputs
- * (`--last-completed` / `--action`); both feed the edge's `input` soft fields and
- * are never fabricated. A non-`Active` source falls to the table's illegal-edge
- * rejection.
+ * `arc publish [slug]` — schedule publication for an `Active` WU (Active → Integrating),
+ * defaulting to the current WU. Marks publication entry, not the merge — the
+ * integration-interlock owns merge approval. The orientation inputs default to what the
+ * repository already states: `--action` to the publication boundary's own pointer and
+ * `--last-completed` to the task list's terminal completed task. Both flags override;
+ * an underivable `Last Completed` refuses rather than submitting under an invented one.
+ * A non-`Active` source falls to the table's illegal-edge rejection.
  */
-export async function handleIntegrate(
+export async function handlePublish(
   slug: string | undefined,
-  opts: IntegrateOptions,
+  opts: PublishOptions,
   context?: InteractionContext,
 ): Promise<void> {
-  p.intro("arc integrate");
-  const input = parseLifecycleCommand(IntegrateCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  if (opts.json !== true) p.intro("arc publish");
+  const input = parseLifecycleCommand(
+    PublishCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["publish"],
+    opts.json === true,
+  );
   if (input === null) return;
-  const base = await resolveVerbBase(context);
+  const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
 
-  const target = await resolveVerbTargetOrReport("integrate", input.slug, base.cwd);
+  const target = await resolveVerbTargetOrReport("publish", input.slug, base.cwd, input.json === true);
   if (target === null) return;
 
   const { lastCompleted, action } = input;
 
-  const { executor } = await buildExecutor(base);
-  const result = await runIntegrate(executor, {
+  const { executor, settings } = await buildExecutor(base);
+  const rawGit = createRawGitExec(base.cwd);
+  const readCandidateAuthorization = async () => {
+    const record = await readCandidateRecord(base.cwd, target);
+    if (record === null) return null;
+    const effective = await projectGitCandidateEffectiveTarget({
+      cwd: base.cwd,
+      name: target,
+      baseBranch: settings["branch.base"],
+      record,
+      exec: base.io.exec,
+      rawExec: rawGit,
+    });
+    const candidateSubjectDigest = effective.state === "current"
+      ? effective.recognizedTarget.subject.subjectDigest
+      : effective.state === "changed" || effective.state === "staged-change"
+        ? effective.currentTarget.subject.subjectDigest
+        : effective.currentTarget.subjectDigest;
+    return {
+      record,
+      candidateId: record.attestation.candidateId,
+      candidateSubjectDigest,
+      candidateCurrent: effective.state === "current"
+        && effective.convergenceVerification === "satisfied",
+    };
+  };
+  const candidate = await readCandidateAuthorization();
+  if (candidate === null) {
+    refuseWithRemedy(
+      `Cannot publish \`${target}\`: no managed Candidate record exists.`,
+      spineRemedy(
+        "Submission requires a managed Candidate attestation.",
+        "Attest the candidate",
+        ["arc", "attest", target],
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const record = candidate.record;
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target);
+  const boundary = boundarySnapshot.boundary;
+  if (boundary === null) {
+    refuseWithRemedy(
+      `Cannot publish \`${target}\`: no durable pre-publication boundary exists.`,
+      spineRemedy(
+        "Submission requires a settled pre-publication boundary.",
+        "Resolve the pre-publication lanes",
+        ["arc", "review", "pre-publication", target, "--json"],
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const result = await runPublish(executor, {
     name: target,
-    lastCompleted,
-    nextAction: action,
+    ...(lastCompleted === undefined ? {} : { lastCompleted }),
+    ...(action === undefined ? {} : { nextAction: action }),
+    candidateId: candidate.candidateId,
+    candidateSubjectDigest: candidate.candidateSubjectDigest,
+    candidateCurrent: candidate.candidateCurrent,
+    boundary,
+    refreshCandidateAuthorization: async () => {
+      const refreshed = await readCandidateAuthorization();
+      if (refreshed === null) {
+        return {
+          candidateId: record.attestation.candidateId,
+          candidateSubjectDigest: candidate.candidateSubjectDigest,
+          candidateCurrent: false,
+        };
+      }
+      return refreshed;
+    },
+    claimPublicationBoundary: async (publicationBoundary) => {
+      const boundaryPath = await writeSubmissionBoundary(
+        base.cwd,
+        publicationBoundary,
+        boundarySnapshot.version,
+      );
+      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    },
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
   });
   if (result.status === "rejected") {
-    refuse(result.reason);
+    refuseWithRemedy(result.reason, result.remedy, input.json === true);
+    return;
+  }
+  if (result.status === "unchanged") {
+    if (canonicalize(result.boundary) !== canonicalize(boundary)) {
+      const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
+      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    }
+    if (input.json === true) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+    } else {
+      p.note(
+        `Work unit: ${target}\nLocus:     ${result.boundary.locus}\nNext:      ${result.boundary.nextAction.command}`,
+        "Submission unchanged",
+      );
+    }
     return;
   }
   if (result.status === "reconcile-failed") {
-    refuse(result.reason);
+    refuseWithRemedy(result.reason, result.remedy, input.json === true);
     return;
   }
   if (result.status === "reconcile-pending") {
-    for (const advisory of result.reconcile.prepared.plan.advisories) {
-      p.log.info(
-        `Reconcile advisory: ${advisory.path}:${advisory.line} — `
-        + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
-        + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
-      );
+    if (input.json === true) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      process.exitCode = 1;
+    } else {
+      for (const advisory of result.reconcile.prepared.plan.advisories) {
+        p.log.info(
+          `Reconcile advisory: ${advisory.path}:${advisory.line} — `
+          + `${advisory.referenceKind} reference to \`${advisory.subject}\`; `
+          + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
+        );
+      }
+      refuseWithRemedy(result.reason, result.remedy);
     }
-    refuse(result.reason);
     return;
   }
-  if (result.reconcile.status === "pending") {
+  if (result.reconcile.status === "pending" && input.json !== true) {
     for (const advisory of result.reconcile.prepared.plan.advisories) {
       p.log.info(
         `Accepted reconcile advisory: ${advisory.path}:${advisory.line} — `
@@ -1546,6 +1992,10 @@ export async function handleIntegrate(
         + `${advisory.suggestedDisposition}. Context: ${advisory.context}`,
       );
     }
+  }
+  if (input.json === true) {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
   }
   reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
@@ -1557,6 +2007,7 @@ export async function handleIntegrate(
 /** Options for `arc reopen`. */
 export interface ReopenOptions {
   keepPr?: boolean;
+  task?: string;
 }
 
 /**
@@ -1576,8 +2027,11 @@ async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | 
   }
   if (branch === null) return undefined;
   try {
-    const facts = await createGhWorkUnitPrSource(base.io.exec)([branch]);
-    return facts.get(branch)?.merged;
+    const observed = await base.io.exec("gh", ["pr", "view", branch, "--json", "state"]);
+    const parsed: unknown = JSON.parse(observed.stdout);
+    if (typeof parsed !== "object" || parsed === null || !("state" in parsed)) return undefined;
+    const state = parsed.state;
+    return typeof state === "string" ? state === "MERGED" : undefined;
   } catch {
     return undefined;
   }
@@ -1585,11 +2039,15 @@ async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | 
 
 /**
  * `arc reopen [slug]` — withdraw an `Integrating` WU back to `Active` for more work
- * (defaults to the current WU). Resolves the PR's merge fact via `gh` (never
- * fabricated), degrading to unknown when `gh` / the remote is unavailable — which
- * the `pr-unmerged` guard refuses rather than reopen on an unverifiable merge state;
- * a positively-merged PR is likewise refused — post-merge rework is a new
- * origin-linked WU. `--keep-pr` converts the PR to a draft instead of closing it.
+ * (defaults to the current WU). Exact delivery composition must permit ordinary
+ * withdrawal before the handler observes PR state or enters lifecycle execution.
+ * A coherently bound delivery and every unavailable or incoherent composition
+ * refuse there; singleton and coherent unbound delivery subjects retain the
+ * existing path. The PR merge fact then resolves through `gh` (never fabricated),
+ * degrading to unknown when `gh` / the remote is unavailable — which the
+ * `pr-unmerged` guard refuses rather than reopen on an unverifiable merge state.
+ * A positively-merged PR is likewise refused. `--keep-pr` converts the PR to a
+ * draft instead of closing it.
  */
 export async function handleReopen(
   slug: string | undefined,
@@ -1597,7 +2055,11 @@ export async function handleReopen(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc reopen");
-  const input = parseLifecycleCommand(ReopenCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ReopenCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["reopen"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1605,12 +2067,47 @@ export async function handleReopen(
   const target = await resolveVerbTargetOrReport("reopen", input.slug, base.cwd);
   if (target === null) return;
 
+  const { executor, settings } = await buildExecutor(base);
+  const metaPath = projectActiveMetaPath(target);
+  let taskListPath: string | null;
+  try {
+    const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
+    taskListPath = resolveTaskListPath(metaPath, meta.taskList);
+  } catch {
+    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+      + "the active metadata is unavailable.");
+    return;
+  }
+  if (taskListPath === null) {
+    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+      + "the canonical task-list binding is unavailable.");
+    return;
+  }
+  let delivery;
+  try {
+    delivery = await inspectRepositoryDeliveryReopen({
+      cwd: base.cwd,
+      taskListPath,
+      workUnitId: target,
+      baseBranch: settings["branch.base"],
+      exec: base.io.exec,
+    });
+  } catch {
+    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+      + "the plan, state, or transition evidence is unavailable.");
+    return;
+  }
+  if (delivery.status !== "reopen-permitted") {
+    refuse(delivery.recommendedActionText);
+    return;
+  }
+
   const prMerged = await resolvePrMerged(base, target);
-  const { executor } = await buildExecutor(base);
   const result = await runReopen(executor, {
     name: target,
     prMerged,
     withdrawMode: input.keepPr === true ? "draft" : "close",
+    nextTask: input.task,
   });
   if (result.status === "rejected") {
     refuse(result.reason);
@@ -1701,6 +2198,7 @@ export async function handleAbandon(
       executor,
       fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
       retirement,
+      transitionWriter: terminalTransitionWriter(base),
       composed,
     },
     { name: target, confirmed: true },
@@ -1745,7 +2243,11 @@ export async function handleArchive(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc archive");
-  const input = parseLifecycleCommand(ArchiveCommandInputSchema, { slug: slug?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    ArchiveCommandInputSchema,
+    { slug: slug?.trim() || undefined, ...opts },
+    ["archive"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1845,7 +2347,11 @@ export async function handleTeardown(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc teardown");
-  const input = parseLifecycleCommand(TeardownCommandInputSchema, { name: name?.trim() || undefined, ...opts });
+  const input = parseLifecycleCommand(
+    TeardownCommandInputSchema,
+    { name: name?.trim() || undefined, ...opts },
+    ["teardown"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -1886,6 +2392,8 @@ export async function handleTeardown(
   // cwd (the dangling-locus failure the out-of-band move exists to avoid).
   let locus = base.cwd;
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
+  const readTeardownSelection = createNodeTeardownSelectionReader({ exec, identity: base.identity });
+  const teardownWorktree = createNodeTeardownWorktreeTransactionDriver({ exec, identity: base.identity });
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
       {
@@ -1893,9 +2401,16 @@ export async function handleTeardown(
         exec,
         indexFs: lifecycleFs,
         chdir: (dir) => { process.chdir(dir); locus = dir; },
+        readCurrentLocus: () => locus,
         readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+        readTeardownSelection,
+        teardownWorktree,
       },
-      { branch: branchArg, base: baseBranch },
+      {
+        branch: branchArg,
+        base: baseBranch,
+        protection: settings["branch.protection"] === "full" ? "full" : "partial",
+      },
     );
     if (result.status === "rejected") {
       if (result.huskRefusal !== undefined) {
@@ -1923,7 +2438,10 @@ export async function handleTeardown(
       exec,
       indexFs: lifecycleFs,
       chdir: (dir) => { process.chdir(dir); locus = dir; },
+      readCurrentLocus: () => locus,
       readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+      readTeardownSelection,
+      teardownWorktree,
     },
     {
       name: wuName ?? "",
@@ -1977,7 +2495,11 @@ export async function handleSetStage(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc set-stage");
-  const input = parseLifecycleCommand(SetStageCommandInputSchema, { stage: stage?.trim(), advance: opts?.advance });
+  const input = parseLifecycleCommand(
+    SetStageCommandInputSchema,
+    { stage: stage?.trim(), advance: opts?.advance },
+    ["set-stage"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2011,15 +2533,14 @@ export async function handleSetStage(
 // ---------------------------------------------------------------------------
 
 /**
- * `arc finalize <fire-point>` — persist a planning / verification ceremony's
+ * `arc finalize <fire-point>` — persist a planning ceremony's
  * deterministic finalize facts at its fire-point: the resolved `Class`, the derived
  * `Task List`, and the fixed terminal `Next Action`, per the fire-point's contract
- * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action;
- * `verify` → Next Action). The complement of `set-stage` / `repoint-design` (which
+ * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action).
+ * The complement of `set-stage` / `repoint-design` (which
  * own the planning pointers): not a lifecycle transition. `--class` carries the
- * resolved weight, required at create-spec / generate-tasks and refused (via
- * `runFinalizeStage`) at verify. Refuses without a single resolvable active WU. Verb
- * spelling is provisional, pending idiomatic-alignment.
+ * resolved weight, required at both fire-points. Refuses without a single
+ * resolvable active WU.
  */
 export async function handleFinalizeStage(
   firePoint: string | undefined,
@@ -2030,7 +2551,7 @@ export async function handleFinalizeStage(
   const input = parseLifecycleCommand(FinalizeCommandInputSchema, {
     firePoint: firePoint?.trim(),
     class: opts?.class,
-  });
+  }, ["finalize"]);
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;
@@ -2070,6 +2591,364 @@ export async function handleFinalizeStage(
 }
 
 // ---------------------------------------------------------------------------
+// Candidate attestation — `attest`
+// ---------------------------------------------------------------------------
+
+export interface AttestOptions {
+  json?: boolean;
+  newRoot?: boolean;
+  expectedCandidate?: string;
+  expectedSubject?: string;
+}
+
+/** Attest the current verified work-unit subject without changing lifecycle State. */
+export async function handleAttest(
+  name: string | undefined,
+  opts: AttestOptions,
+  context?: InteractionContext,
+): Promise<void> {
+  if (opts.json !== true) p.intro("arc attest");
+  const input = parseLifecycleCommand(
+    AttestCommandInputSchema,
+    {
+      name: name?.trim(),
+      json: opts.json,
+      newRoot: opts.newRoot,
+      expectedCandidate: opts.expectedCandidate,
+      expectedSubject: opts.expectedSubject,
+    },
+    ["attest"],
+    opts.json === true,
+  );
+  if (input === null) return;
+  const base = await resolveVerbBase(context, input.json === true);
+  if (base === null) return;
+  const { settings } = await buildExecutor(base);
+  let metaPath = resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: { kind: "active", scope: { kind: "project" } },
+    slug: input.name,
+    artifact: "meta",
+  });
+  let absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
+  let metaContent: string;
+  try {
+    metaContent = await base.io.readFile(absoluteMetaPath);
+  } catch {
+    const archived = (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(input.name);
+    if (input.newRoot !== true || archived?.location !== "completed") {
+      refuseWithRemedy(
+        `\`arc attest\` requires an active record, or an archived record with \`--new-root\`, for \`${input.name}\`.`,
+        spineRemedy(
+          "Candidate attestation requires a resolvable work-unit record.",
+          "Inspect the work-unit lifecycle state",
+          ["arc", "status", input.name, "--json"],
+        ),
+        input.json === true,
+      );
+      return;
+    }
+    metaPath = validateManagedPath(archived.path);
+    absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
+    metaContent = await base.io.readFile(absoluteMetaPath);
+  }
+  const meta = parseMetaRecord(metaContent);
+  if (meta.state !== "Active" && meta.state !== "Integrating" && !(meta.state === "Shipped" && input.newRoot === true)) {
+    refuseWithRemedy(
+      `\`arc attest\` requires \`${input.name}\` to be Active or Integrating, or Shipped with \`--new-root\`.`,
+      spineRemedy(
+        "Candidate attestation runs only from an active publication lifecycle.",
+        "Inspect the work-unit lifecycle state",
+        ["arc", "status", input.name, "--json"],
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  let lastCompleted: string | null = null;
+  const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
+  if (taskListPath === null) {
+    refuseWithRemedy(
+      `\`arc attest\` requires a canonical task-list binding for \`${input.name}\`.`,
+      spineRemedy(
+        "Candidate attestation requires a resolvable, structurally closed task list.",
+        "Restore the task-list binding and close execution before attesting",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  let taskList: string;
+  try {
+    taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
+  } catch {
+    refuseWithRemedy(
+      `\`arc attest\` requires the canonical task list for \`${input.name}\` to be readable.`,
+      spineRemedy(
+        "Candidate attestation requires a resolvable, structurally closed task list.",
+        "Restore the task list and close execution before attesting",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const taskCursor = resolveTaskListCursor(taskList);
+  if (taskCursor.status === "malformed") {
+    refuseWithRemedy(
+      `\`arc attest\` cannot use the malformed task list for \`${input.name}\` at line `
+        + `${taskCursor.error.line}: ${taskCursor.error.message}`,
+      spineRemedy(
+        "Candidate attestation requires a structurally closed task list.",
+        "Repair the task-list structure and close execution before attesting",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  if (taskCursor.status === "found") {
+    const current = `Task ${taskCursor.cursor.leaf.id} — ${taskCursor.cursor.leaf.title}`;
+    refuseWithRemedy(
+      `\`arc attest\` cannot attest \`${input.name}\` while task remains open: ${current}.`,
+      spineRemedy(
+        "Candidate attestation begins only after canonical task execution is closed.",
+        "Complete the current task and work-unit verification, then attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const terminal = resolveLastCompletedTask(taskList);
+  if (terminal.status === "found") {
+    lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
+  }
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+  let deliveryRenewal: Awaited<ReturnType<typeof inspectRepositoryDeliveryCandidateRenewal>> = {
+    status: "not-applicable",
+  };
+  if (meta.state === "Integrating" || meta.state === "Shipped") {
+    try {
+      deliveryRenewal = await inspectRepositoryDeliveryCandidateRenewal({
+        cwd: base.cwd,
+        taskListPath: validateManagedPath(taskListPath),
+        workUnitId: input.name,
+        baseBranch: settings["branch.base"],
+        exec: base.io.exec,
+        sourceBoundary: boundarySnapshot.boundary,
+      });
+    } catch {
+      deliveryRenewal = { status: "refused", reason: "evidence-unavailable" };
+    }
+    if (deliveryRenewal.status === "refused") {
+      refuseWithRemedy(
+        `\`arc attest\` cannot establish exact public delivery Candidate renewal evidence for \`${input.name}\` `
+          + `(${deliveryRenewal.reason}).`,
+        spineRemedy(
+          "Corrective attestation must preserve the exact public Candidate, plan, state, member, and review binding.",
+          "Restore the exact public delivery continuation before attesting",
+          input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+        ),
+        input.json === true,
+      );
+      return;
+    }
+  }
+
+  const unstaged = await collectUnstagedReviewablePaths({
+    cwd: base.cwd,
+    name: input.name,
+    exec: base.io.exec,
+  });
+  if (unstaged.length > 0) {
+    refuseWithRemedy(
+      `\`arc attest\` attests the staged subject, and ${unstaged.length} reviewable path(s) hold `
+        + `working-tree content the index does not carry: ${summarizePaths(unstaged)}.`,
+      spineRemedy(
+        "A Candidate attests the staged subject, so every verified reviewable change must be staged first.",
+        "Stage the verified content, then re-attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+
+  let result: Awaited<ReturnType<typeof runAttest>>;
+  try {
+    result = await runAttest({
+      actor: base.identity,
+      now: () => new Date().toISOString(),
+      verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
+      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
+      currentTarget: (slug) => collectGitCandidateTarget({
+        cwd: base.cwd,
+        name: slug,
+        baseBranch: settings["branch.base"],
+        exec: base.io.exec,
+      }),
+      effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
+        cwd: base.cwd,
+        name: slug,
+        baseBranch: settings["branch.base"],
+        record,
+        exec: base.io.exec,
+        rawExec: createRawGitExec(base.cwd),
+      }),
+      publish: async (publication) => {
+        let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryStatusBoundary> | null = null;
+        if (deliveryRenewal.status === "ready") {
+          const fresh = await inspectRepositoryDeliveryCandidateRenewal({
+            cwd: base.cwd,
+            taskListPath: validateManagedPath(taskListPath),
+            workUnitId: input.name,
+            baseBranch: settings["branch.base"],
+            exec: base.io.exec,
+            sourceBoundary: boundarySnapshot.boundary,
+          });
+          if (fresh.status !== "ready") {
+            throw new DeliveryCandidateRenewalRefusal(
+              fresh.status === "refused" ? fresh.reason : "delivery evidence disappeared",
+            );
+          }
+          if (boundarySnapshot.boundary === null) {
+            throw new DeliveryCandidateRenewalRefusal("public delivery boundary disappeared");
+          }
+          try {
+            deliveryLocus = projectCorrectiveDeliveryStatusBoundary({
+              workUnit: publication.name,
+              candidateId: publication.candidateId,
+              candidateSubjectDigest: publication.candidateSubjectDigest,
+              supersedesCandidateId: publication.record.attestation.supersedes ?? null,
+              sourceBoundary: boundarySnapshot.boundary,
+              deliveryContinuation: fresh.deliveryContinuation,
+            });
+          } catch (error) {
+            throw new DeliveryCandidateRenewalRefusal(
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+        }
+        const recordPath = await writeCandidateRecord(
+          base.cwd,
+          publication.name,
+          publication.record,
+          publication.expectedRecordVersion,
+        );
+        const priorMeta = parseMetaRecord(metaContent);
+        const existingBoundary = boundarySnapshot.boundary;
+        const boundaryMatches = existingBoundary !== null
+          && existingBoundary.candidateId === publication.candidateId
+          && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
+        const convergenceResume = existingBoundary !== null
+          && boundaryMatches
+          && existingBoundary.locus === "candidate-convergence-verification-pending"
+          ? projectCandidateReviewResumeBoundary({
+              workUnit: publication.name,
+              candidateId: publication.candidateId,
+              candidateSubjectDigest: publication.candidateSubjectDigest,
+              reservation: existingBoundary.reservation,
+              terminus: existingBoundary.terminus,
+            })
+          : null;
+        const locus = deliveryLocus ?? convergenceResume
+          ?? (publication.repairCurrent && boundaryMatches
+            ? existingBoundary
+            : projectCandidateReviewBoundary({
+                workUnit: publication.name,
+                candidateId: publication.candidateId,
+                candidateSubjectDigest: publication.candidateSubjectDigest,
+              }));
+        const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
+        const orientation: Record<string, string> = {};
+        if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
+          orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
+        }
+        if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
+          orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
+        }
+        if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
+          orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
+        }
+        if (priorMeta.nextTask !== null) {
+          orientation["Next Task"] = "[none]";
+        }
+        metaContent = Object.keys(orientation).length === 0
+          ? withCandidate
+          : setMetaBulletFields(withCandidate, orientation);
+        const workflowDiagnostics = checkCurrentWorkflowConsistency(parseMetaRecord(metaContent));
+        if (workflowDiagnostics.length > 0) throw new Error(workflowDiagnostics[0]);
+        const boundaryPath = await writeSubmissionBoundary(
+          base.cwd,
+          locus,
+          boundarySnapshot.version,
+        );
+        await base.io.writeFile(absoluteMetaPath, metaContent);
+        await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
+        return { recordPath, metaPath, locus };
+      },
+    }, {
+      name: input.name,
+      lifecycle: meta.state,
+      newRoot: input.newRoot === true,
+      ...(input.expectedCandidate === undefined || input.expectedSubject === undefined
+        ? {}
+        : {
+            expectedBlocked: {
+              candidateId: input.expectedCandidate,
+              subjectDigest: input.expectedSubject,
+            },
+          }),
+    });
+  } catch (error) {
+    if (!(error instanceof DeliveryCandidateRenewalRefusal)) throw error;
+    refuseWithRemedy(
+      `\`arc attest\` refused stale or mismatched public delivery Candidate renewal for \`${input.name}\`: `
+        + error.message,
+      spineRemedy(
+        "Corrective attestation writes only one exact version-bound public member-review continuation.",
+        "Restore the exact public Candidate, plan, state, member, and review evidence, then re-attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+
+  if (result.status === "unchanged") {
+    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+    if (currentBoundary.boundary?.candidateId !== result.locus.candidateId
+      || currentBoundary.boundary.candidateSubjectDigest !== result.locus.candidateSubjectDigest) {
+      const boundaryPath = await writeSubmissionBoundary(
+        base.cwd,
+        result.locus,
+        currentBoundary.version,
+      );
+      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+    }
+  }
+
+  if (input.json === true) {
+    process.stdout.write(`${JSON.stringify(AttestResultSchema.parse(result))}\n`);
+  } else if (result.status === "blocked") {
+    p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
+  } else if (result.status === "refused") {
+    p.log.error(result.recommendedActionText);
+  } else {
+    const lines = [
+      `Work unit: ${result.locus.workUnit}`,
+      `Candidate: ${result.locus.candidateId}`,
+      `Locus:     ${result.locus.locus}`,
+    ];
+    p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
+    p.outro("Done.");
+  }
+  if (result.status === "blocked" || result.status === "refused") process.exitCode = 1;
+}
+
+// ---------------------------------------------------------------------------
 // Planning design-pointer — `repoint-design`
 // ---------------------------------------------------------------------------
 
@@ -2089,7 +2968,11 @@ export async function handleRepointDesign(
   context?: InteractionContext,
 ): Promise<void> {
   p.intro("arc repoint-design");
-  const input = parseLifecycleCommand(RepointDesignCommandInputSchema, { event: event?.trim() });
+  const input = parseLifecycleCommand(
+    RepointDesignCommandInputSchema,
+    { event: event?.trim() },
+    ["repoint-design"],
+  );
   if (input === null) return;
   const base = await resolveVerbBase(context);
   if (base === null) return;

@@ -64,6 +64,7 @@ function fixture() {
       runtimeIdentity: "arc-cli/0.1.0",
       attestationMechanism: "local-attestation",
     },
+    laneSourceId: "delegated-agent",
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -92,6 +93,7 @@ function fixture() {
     requestId: admission.carrier.request.requestId,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
+    laneSourceId: admission.laneSourceId,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,
@@ -441,7 +443,8 @@ describe("local resume command", () => {
     const records = fixture();
     const finding = {
       findingId: "finding-1",
-      severity: "major" as const,
+      severity: "minor" as const,
+      nit: true as const,
       locus: "src/index.ts:7",
       evidenceUrlOrId: "review:finding-1",
     };
@@ -484,7 +487,9 @@ describe("local resume command", () => {
       proposedBy: records.operation.attestation.runtimeIdentity,
       findings: [{
         findingId: finding.findingId,
-        severity: finding.severity,
+        reviewerSeverity: finding.severity,
+        reviewerNit: true,
+        arcSeverity: "major",
         locus: finding.locus,
         sourceIdentity: records.operation.request.evaluatorIdentity,
         sourceVerification: "verified",
@@ -505,6 +510,9 @@ describe("local resume command", () => {
       semanticsVersion: "review-advisory/v1",
       repositoryId: records.operation.repositoryId,
       operationId: records.operation.operationId,
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
+      deliveryMember: null,
       source: {
         kind: "attested-local",
         receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),
@@ -512,6 +520,8 @@ describe("local resume command", () => {
       },
       approvedDisposition,
       fixAuthorization: null,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
     });
 
     await expect(resumeLocalReviewCommand({

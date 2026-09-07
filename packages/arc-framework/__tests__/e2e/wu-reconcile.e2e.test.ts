@@ -1,13 +1,10 @@
-import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
-
-const DIGEST = `sha256:${"0".repeat(64)}`;
 
 function canonicalize(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -18,31 +15,28 @@ function canonicalize(value: unknown): string {
     .join(",")}}`;
 }
 
-function canonicalDigest(value: unknown): string {
-  return `sha256:${createHash("sha256").update(canonicalize(value)).digest("hex")}`;
-}
-
 function meta(slug: string, branch: string, dependsOn: string): string {
   return `# Metadata: ${slug}\n\n`
     + "- **State:** Active\n"
+    + "- **Owner:** test-user\n"
     + `- **Branch:** \`${branch}\`\n`
     + `- **Depends On:** ${dependsOn}\n`;
 }
 
 describe("arc wu reconcile", () => {
   let repo: string;
-  let receiptPath: string;
-  let receiptRelativePath: string;
-  let receiptContent: string;
+  let transitionPath: string;
+  let transitionRelativePath: string;
+  let transitionContent: string;
 
   beforeEach(async () => {
     repo = await createTempRepo("arc-wu-reconcile-");
     const active = join(repo, ".arc", "active");
     const planned = join(repo, ".arc", "backlog", "planned");
-    const records = join(repo, ".arc", "system", ".internal", "retirement-receipts");
+    const transitions = join(repo, ".arc", "system", ".internal", "transitions");
     await mkdir(active, { recursive: true });
     await mkdir(planned, { recursive: true });
-    await mkdir(records, { recursive: true });
+    await mkdir(transitions, { recursive: true });
     await writeFile(
       join(active, "meta-dependent.md"),
       meta("dependent", "main", "`origin`"),
@@ -53,36 +47,16 @@ describe("arc wu reconcile", () => {
       meta("successor", "[none]", "[none]").replace("- **State:** Active", "- **State:** Planning"),
       "utf8",
     );
-    const subject = { kind: "work-unit", name: "origin" };
-    const source = { branch: "feat/origin", head: "a".repeat(40), artifactDigest: DIGEST };
-    const receiptId = canonicalDigest({
+    transitionRelativePath = join(".arc", "system", ".internal", "transitions", "origin.json");
+    transitionPath = join(repo, transitionRelativePath);
+    transitionContent = canonicalize({
       schemaVersion: 1,
-      subject,
-      transition: "rename",
-      sourceBranch: source.branch,
-      sourceHead: source.head,
+      origin: "origin",
+      kind: "rename",
+      successors: ["successor"],
+      edges: [],
     });
-    const receipt = {
-      schemaVersion: 1,
-      receiptId,
-      subject,
-      transition: "rename",
-      source,
-      transitionPatchDigest: DIGEST,
-      retiringProjection: { kind: "direct-transition" },
-      authorization: "identity-renamed",
-      result: { kind: "rename", targetSlug: "successor", artifactDigest: DIGEST },
-    };
-    receiptRelativePath = join(
-      ".arc",
-      "system",
-      ".internal",
-      "retirement-receipts",
-      `${receiptId.replace(":", "-")}.json`,
-    );
-    receiptPath = join(repo, receiptRelativePath);
-    receiptContent = canonicalize(receipt);
-    await writeFile(receiptPath, receiptContent, "utf8");
+    await writeFile(transitionPath, transitionContent, "utf8");
     await git(repo, ["add", "--all"]);
     await git(repo, ["commit", "-m", "fixture"]);
   });
@@ -110,6 +84,35 @@ describe("arc wu reconcile", () => {
       status: "applied",
       stagedPaths: [".arc/active/meta-dependent.md"],
     });
+    expect(await readFile(metaPath, "utf8")).toContain("- **Depends On:** `successor`");
+    expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(".arc/active/meta-dependent.md");
+  });
+
+  it("rejects the retired session-attachment option", async () => {
+    const result = await runArc(["wu", "reconcile", "dependent", "--attach-session", "--json"], repo);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/unknown option '--attach-session'/u);
+  });
+
+  it("applies without an identity because reconciliation is checkout-owned", async () => {
+    await git(repo, ["config", "--unset", "arc.identity"]);
+    await git(repo, ["config", "--unset", "user.name"]);
+    const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
+
+    const result = await runArc(
+      ["wu", "reconcile", "dependent", "--apply", "--json"],
+      repo,
+      {
+        env: {
+          GIT_CONFIG_GLOBAL: join(repo, "missing-global-gitconfig"),
+          GIT_CONFIG_NOSYSTEM: "1",
+        },
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "applied", slug: "dependent" });
     expect(await readFile(metaPath, "utf8")).toContain("- **Depends On:** `successor`");
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe(".arc/active/meta-dependent.md");
   });
@@ -229,16 +232,16 @@ describe("arc wu reconcile", () => {
     expect(await git(repo, ["status", "--porcelain"])).toBe(beforeStatus);
   });
 
-  it("rechecks receipt evidence that appears after the dependent entered integration", async () => {
+  it("rechecks transition evidence that appears after the dependent entered integration", async () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
     await writeFile(
       metaPath,
       meta("dependent", "main", "`origin`").replace("- **State:** Active", "- **State:** Integrating"),
       "utf8",
     );
-    await git(repo, ["rm", receiptRelativePath]);
+    await git(repo, ["rm", transitionRelativePath]);
     await git(repo, ["add", ".arc/active/meta-dependent.md"]);
-    await git(repo, ["commit", "-m", "enter integration before receipt"]);
+    await git(repo, ["commit", "-m", "enter integration before transition"]);
 
     const blocked = await runArc(["status", "--session-init", "--json"], repo);
     expect(blocked.exitCode).toBe(0);
@@ -249,10 +252,10 @@ describe("arc wu reconcile", () => {
       },
     });
 
-    await mkdir(join(repo, ".arc", "system", ".internal", "retirement-receipts"), { recursive: true });
-    await writeFile(receiptPath, receiptContent, "utf8");
-    await git(repo, ["add", receiptRelativePath]);
-    await git(repo, ["commit", "-m", "merge retirement evidence"]);
+    await mkdir(join(repo, ".arc", "system", ".internal", "transitions"), { recursive: true });
+    await writeFile(transitionPath, transitionContent, "utf8");
+    await git(repo, ["add", transitionRelativePath]);
+    await git(repo, ["commit", "-m", "merge transition evidence"]);
     const applied = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
 
     expect(applied.exitCode).toBe(0);
@@ -294,6 +297,8 @@ describe("arc wu reconcile", () => {
       expect(JSON.parse(result.stdout)).toMatchObject({ status: "applied" });
       expect(await readFile(siblingMeta, "utf8")).toBe(before);
       expect(await git(sibling, ["status", "--porcelain"])).toBe("");
+      const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
+      await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await git(repo, ["worktree", "remove", "--force", sibling]);
     }
@@ -392,21 +397,71 @@ describe("arc wu reconcile", () => {
     expect(JSON.parse(drift.stdout)).toMatchObject({ diskState: "different" });
   });
 
-  it("keeps an owned clean reconcile invisible", async () => {
+  it("exits without a plan when full-protection base materialization fails", async () => {
+    const configRoot = join(repo, ".arc", "system");
+    await mkdir(configRoot, { recursive: true });
+    await writeFile(
+      join(configRoot, "arc-config.yml"),
+      "branch.base: main\nbranch.protection: full\n",
+      "utf8",
+    );
+
+    const result = await runArc(["user", "reconcile-references", "--json"], repo);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schemaVersion: 1,
+      status: "unavailable",
+      authority: {
+        status: "unavailable",
+        ref: "origin/main",
+        remoteEvidence: "unreachable",
+        failureReason: "error",
+      },
+      plan: null,
+      recommendedCommand: null,
+    });
+  });
+
+  it("keeps a clean checkout-owned reconcile silent without minting a locus record", async () => {
     const metaPath = join(repo, ".arc", "active", "meta-dependent.md");
+    const lociRoot = join(repo, ".arc", "user", "test-user", ".internal", "loci");
     await writeFile(metaPath, meta("dependent", "main", "[none]"), "utf8");
     await git(repo, ["add", "--all"]);
     await git(repo, ["commit", "-m", "clear dependency"]);
     const before = await readFile(metaPath, "utf8");
     const beforeHead = await git(repo, ["rev-parse", "HEAD"]);
 
-    const result = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+    const status = await runArc(["status", "--session-init", "--json"], repo);
 
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    expect(status.exitCode).toBe(0);
+    expect(JSON.parse(status.stdout)).toMatchObject({
+      currentWuReconcile: {
+        ok: true,
+        value: {
+          status: "clean",
+          recommendedAction: "skip",
+          recommendedCommand: null,
+          recommendedPromptText: "",
+        },
+      },
+    });
+    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const applied = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+
+    expect(applied.exitCode).toBe(0);
+    expect(JSON.parse(applied.stdout)).toMatchObject({
       status: "clean",
       stagedPaths: [],
     });
+    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const replay = await runArc(["wu", "reconcile", "dependent", "--apply", "--json"], repo);
+
+    expect(replay.exitCode).toBe(0);
+    expect(JSON.parse(replay.stdout)).toMatchObject({ status: "clean", stagedPaths: [] });
+    await expect(readdir(lociRoot)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(metaPath, "utf8")).toBe(before);
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
     expect(await git(repo, ["rev-parse", "HEAD"])).toBe(beforeHead);

@@ -19,6 +19,8 @@ import {
 import {
   registerReviewDomainSchemas,
 } from "../../../src/scripts/review-gate/core/register-review-schemas.js";
+import { registerDeliveryDomainSchemas } from "../../../src/lib/delivery/schema.js";
+import { registerDeliveryAuthoringSchemas } from "../../../src/lib/delivery/design-inventory.js";
 
 const temporaryRoots: string[] = [];
 const strict = (id: string): KernelSchemaMeta => ({ id, version: 1, migrationPosture: "strict-current" });
@@ -31,15 +33,21 @@ describe("kernel schema artifact generation", () => {
   it("projects the built-in schema map without touching disk", () => {
     expect(Object.keys(projectKernelSchemas().schemas)).toEqual([
       "priority",
+      "remote-evidence",
+      "remote-failure-reason",
       "slug",
       "work-class",
       "work-unit-state",
     ]);
   });
 
-  it("projects the composed review family with stable references and bytes", () => {
-    const first = registerReviewDomainSchemas(createKernelRegistry());
-    const second = registerReviewDomainSchemas(createKernelRegistry());
+  it("projects the composed production families with stable references and bytes", () => {
+    const first = registerDeliveryAuthoringSchemas(
+      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
+    );
+    const second = registerDeliveryAuthoringSchemas(
+      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
+    );
     const firstBundle = projectKernelSchemas(first);
 
     expect(Object.keys(firstBundle.schemas)).toEqual([
@@ -49,6 +57,13 @@ describe("kernel schema artifact generation", () => {
       "canonical-change-set",
       "change-path-fact",
       "change-path-set",
+      "delivery-deliverable-id-preimage",
+      "delivery-design-inventory-input",
+      "delivery-plan",
+      "delivery-plan-authoring-input",
+      "delivery-plan-member",
+      "delivery-plan-seam",
+      "delivery-state",
       "disposition-approval",
       "disposition-report-item",
       "disposition-set",
@@ -64,23 +79,33 @@ describe("kernel schema artifact generation", () => {
       "frontline-outcome-digest-preimage",
       "frontline-outcome-record",
       "frontline-run-state",
+      "lane-progress-state",
       "local-review-policy-binding",
       "local-review-policy-binding-digest-preimage",
       "local-review-source",
       "local-review-source-digest-preimage",
       "local-review-state",
+      "merge-lock-command-error-envelope",
+      "merge-lock-hold-envelope",
+      "merge-lock-release-envelope",
+      "merge-lock-resolve-envelope",
       "normalized-review-finding",
       "priority",
       "project-routing-promotion",
       "proposed-disposition-set",
+      "remote-evidence",
+      "remote-failure-reason",
       "review-applicability",
       "review-applicability-id-preimage",
       "review-assurance-input",
+      "review-change-request-resolve-result",
+      "review-checks-await-result",
       "review-chunking-resolve-envelope",
       "review-chunking-resolve-request",
       "review-command-error-envelope",
       "review-frontline-resolve-envelope",
       "review-frontline-run-envelope",
+      "review-frontline-run-request",
       "review-guidance-digest-preimage",
       "review-hosted-await-envelope",
       "review-hosted-request-envelope",
@@ -89,9 +114,11 @@ describe("kernel schema artifact generation", () => {
       "review-local-attest-envelope",
       "review-local-prepare-envelope",
       "review-local-resume-envelope",
+      "review-merge-method-resolve-result",
       "review-method-activity",
       "review-operation-state",
       "review-policy-version-preimage",
+      "review-pre-publication-envelope",
       "review-readiness-envelope",
       "review-receipt",
       "review-receipt-ledger",
@@ -109,10 +136,10 @@ describe("kernel schema artifact generation", () => {
       "review-routing-facts",
       "review-rubric-overlay-resolution",
       "review-severity",
+      "review-status-result",
       "review-suspension-state",
       "review-target",
       "review-target-id-preimage",
-      "review-unlock-envelope",
       "severity-gating-policy",
       "slug",
       "standard-review-contract",
@@ -121,7 +148,11 @@ describe("kernel schema artifact generation", () => {
       "work-class",
       "work-unit-review-assurance",
       "work-unit-state",
+      "__shared",
     ]);
+    for (const [id, schema] of Object.entries(firstBundle.schemas)) {
+      expect(schema.$id).toBe(`${id}.schema.json`);
+    }
     expect(JSON.stringify(firstBundle.schemas["canonical-change-set"]))
       .toContain('"$ref":"canonical-change.schema.json"');
     expect(firstBundle.schemas["finding-classification"]?.properties?.severity)

@@ -23,6 +23,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
 import {
+  MetaCandidateIdSchema,
   MetaProjectionRecordSchema,
   MetaRecordSchema,
   ParsedMetaRecordSchema,
@@ -166,10 +167,17 @@ async function parseCandidate(
   }
   const rel = relative(cwd, absPath).split(sep).join("/");
   const filename = rel.split("/").pop() ?? rel;
+  let candidateId = parsed.candidateId;
+  if (candidateId !== null && !MetaCandidateIdSchema.safeParse(candidateId).success) {
+    warnings.push(`Malformed Candidate in ${rel}: expected sha256 followed by 64 lowercase hexadecimal characters.`);
+    candidateId = null;
+  }
   return {
     path: rel,
     filename,
     branch: parsed.branch,
+    candidateId,
+    integrationBoundary: null,
     state: parsed.state,
     nextTask: parsed.nextTask,
     taskList: parsed.taskList,
@@ -180,6 +188,7 @@ async function parseCandidate(
 
 export interface ParsedMetaFields {
   branch: string | null;
+  candidateId: string | null;
   state: string | null;
   nextTask: string | null;
   taskList: string | null;
@@ -208,6 +217,7 @@ export function parseMetaFile(content: string): ParsedMetaFields {
   const record = parseMetaProjectionRecord(content);
   return {
     branch: record.Branch,
+    candidateId: nullableProjectionValue(record.Candidate),
     state: record.State,
     nextTask: record["Next Task"],
     taskList: record["Task List"],
@@ -249,6 +259,8 @@ export interface MetaFieldDescriptor {
   readonly key: MetaSemanticKey;
   /** Value rendered when the caller supplies no override for this field. */
   readonly default: string;
+  /** Omit the field entirely when its semantic value is absent. */
+  readonly omitWhenAbsent?: boolean;
   /** Grouping key — bullet fields sharing a group render contiguously, blank-line separated. */
   readonly group: string;
   /** Layout: a cell in the hoisted core-block table, or a grouped bullet. */
@@ -276,6 +288,24 @@ export const META_FIELDS = [
   { name: "Design", key: "design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
   { name: "Task List", key: "taskList", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Review Rubric", key: "reviewRubric", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  {
+    name: "Promotion Receipt",
+    key: "promotionReceipt",
+    default: "[none]",
+    group: "reference",
+    render: "bullet",
+    valueClass: "identifier",
+    omitWhenAbsent: true,
+  },
+  {
+    name: "Candidate",
+    key: "candidateId",
+    default: "[none]",
+    group: "reference",
+    render: "bullet",
+    valueClass: "identifier",
+    omitWhenAbsent: true,
+  },
   { name: "Current Workflow", key: "currentWorkflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
   { name: "Last Completed", key: "lastCompleted", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Task", key: "nextTask", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
@@ -418,9 +448,11 @@ function renderBullets(valueOf: (field: MetaFieldDescriptor) => string): string[
   let prevGroup: string | null = null;
   for (const field of META_FIELDS) {
     if (field.render !== "bullet") continue;
+    const value = valueOf(field);
+    if ("omitWhenAbsent" in field && value === field.default) continue;
     if (prevGroup !== null && field.group !== prevGroup) lines.push("");
     const prefix = `- **${field.name}:** `;
-    const [first = "", ...rest] = renderBulletValueLines(field, valueOf(field), prefix.length);
+    const [first = "", ...rest] = renderBulletValueLines(field, value, prefix.length);
     lines.push(`${prefix}${first}`);
     for (const continuation of rest) lines.push(`  ${continuation}`);
     prevGroup = field.group;
@@ -514,6 +546,8 @@ export function renderMetaFile(
     design: [],
     taskList: null,
     reviewRubric: null,
+    promotionReceipt: null,
+    candidateId: null,
     currentWorkflow: null,
     lastCompleted: null,
     nextTask: null,
@@ -536,6 +570,8 @@ export function renderMetaFile(
     Design: renderIdentifierList(record.design),
     "Task List": renderNullable(record.taskList),
     "Review Rubric": renderNullable(record.reviewRubric),
+    "Promotion Receipt": renderNullable(record.promotionReceipt),
+    Candidate: renderNullable(record.candidateId),
     "Current Workflow": renderNullable(record.currentWorkflow),
     "Last Completed": renderNullable(record.lastCompleted),
     "Next Task": renderNullable(record.nextTask),
@@ -626,17 +662,16 @@ export function setMetaClass(content: string, value: string): string {
 }
 
 /**
- * Rewrite the `Current Workflow` bullet field in place — the planning-stage
- * pointer's single-field write. The bullet-field sibling of {@link setMetaBranch}
- * (which rewrites the core-table Branch cell): the lifecycle executor projects
- * the meta `Current Workflow` from the planning sub-stage a transition enters
- * (`draft-design` / `create-spec` / `generate-tasks`), or `[none]` when planning
- * exits at activation. Every other field and the prose below stay byte-stable.
+ * Rewrite the `Current Workflow` bullet field in place — the workflow pointer's
+ * single-field write. The bullet-field sibling of {@link setMetaBranch} (which
+ * rewrites the core-table Branch cell): lifecycle ceremonies project the
+ * planning sub-stage, the live publication workflow, or `[none]` when the phase
+ * carries no workflow pointer. Every other field and the prose below stay
+ * byte-stable.
  *
  * A thin wrapper over {@link setMetaBulletFields} fixing the field to
- * `Current Workflow` — the named primitive the executor's stage-pointer writes
- * route through, so the stage-entry command and the activate-exit clear share
- * one write. The `stage` is rendered per the `identifier` value class (backticked,
+ * `Current Workflow` — the named primitive every workflow-pointer write routes
+ * through. The `stage` is rendered per the `identifier` value class (backticked,
  * `[none]` left bare) so the written form matches {@link renderMetaFile}. Inherits
  * {@link setMetaBulletFields}'s fail-loud contract: a meta without the
  * `Current Workflow` bullet throws (structural drift, not a no-op).
@@ -674,6 +709,18 @@ export function setMetaCurrentWorkflow(content: string, stage: string): string {
  */
 export function setMetaDesign(content: string, value: string): string {
   return setMetaBulletFields(content, { Design: formatValue(value, "identifier-list") });
+}
+
+/**
+ * Project a Candidate attestation identity into the managed work-unit record.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param candidateId - Canonical Candidate identity, or `[none]` to clear it.
+ * @returns The rewritten markdown.
+ */
+export function setMetaCandidate(content: string, candidateId: string): string {
+  const { content: reconciled } = reconcileMetaFields(content, { Candidate: candidateId });
+  return setMetaBulletFields(reconciled, { Candidate: formatValue(candidateId, "identifier") });
 }
 
 /** The finalize-group fields, in render order — written together at archive. */
@@ -817,7 +864,9 @@ export function reconcileMetaFields(
   const bulletFields = META_FIELDS.filter((f) => f.render === "bullet");
   const absent = new Set<MetaFieldName>(
     bulletFields
-      .filter((f) => !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
+      .filter((f) =>
+        (!("omitWhenAbsent" in f) || Object.prototype.hasOwnProperty.call(overrides, f.name))
+        && !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
       .map((f) => f.name as MetaFieldName),
   );
   if (absent.size === 0) return { content, backfilled: [] };
@@ -905,6 +954,9 @@ export function setMetaBulletFields(
   content: string,
   updates: Partial<Record<MetaFieldName, string>>,
 ): string {
+  if (Object.prototype.hasOwnProperty.call(updates, "Promotion Receipt")) {
+    throw new Error("Cannot set meta field: `Promotion Receipt` is immutable after initial rendering.");
+  }
   let lines = content.split("\n");
   for (const [name, value] of Object.entries(updates)) {
     lines = replaceBulletField(lines, name, value);
@@ -1189,6 +1241,8 @@ export function parseMetaRecord(content: string): ParsedMetaRecord {
     design: parseIdentifierList(projection.Design),
     taskList: nullableProjectionValue(projection["Task List"]),
     reviewRubric: nullableProjectionValue(projection["Review Rubric"]),
+    promotionReceipt: nullableProjectionValue(projection["Promotion Receipt"]),
+    candidateId: nullableProjectionValue(projection.Candidate),
     currentWorkflow: nullableProjectionValue(projection["Current Workflow"]),
     lastCompleted: nullableProjectionValue(projection["Last Completed"]),
     nextTask: nullableProjectionValue(projection["Next Task"]),
@@ -1263,7 +1317,7 @@ const FIELD_MARKER_RE = /^[ \t>*+-]*\*\*[^*]+:\*\*/;
 function extractField(content: string, label: string): string | null {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const labelRe = new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*[ \\t]*(.*)$`);
-  const lines = content.split("\n");
+  const lines = content.split(/\r?\n/u);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line === undefined) continue;

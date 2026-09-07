@@ -9,16 +9,8 @@ import {
 } from "../../lib/kernel/index.js";
 import type {
   Probe,
-  SessionSharedProbes,
 } from "./types.js";
-import type { ActiveSessionInitResult } from "../active/types.js";
-import type { UserSessionInitStatusResult } from "../user/types.js";
-import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
-import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
-import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
-
-const IDENTITY_MISSING_MESSAGE =
-  "User probe skipped: `arc.identity` is not configured in git config.";
+import type { SessionRemoteContext } from "../../handlers/status-remote-context.js";
 
 function causeMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
@@ -29,7 +21,8 @@ export class SessionIdentityMissingError extends ArcError {
   readonly slot: string;
 
   constructor(slot: string) {
-    super(IDENTITY_MISSING_MESSAGE, "session.identity-missing");
+    const label = slot === "user" ? "User" : "Session locus state";
+    super(`${label} probe skipped: \`arc.identity\` is not configured in git config.`, "session.identity-missing");
     this.name = "SessionIdentityMissingError";
     this.slot = slot;
   }
@@ -80,6 +73,32 @@ export function safeProbe<Value>(
   return fromAsyncThrowable(probe, (cause) => new SessionProbeError(slot, cause))();
 }
 
+/** One memoized internal context with per-dependent probe error isolation. */
+export interface SessionRemoteContextSlot {
+  run<Value>(
+    slot: string,
+    probe: (context: SessionRemoteContext) => Promise<Value>,
+  ): ResultAsync<Value, SessionProbeError>;
+}
+
+/** Build the internal request-context prerequisite shared by session-init dependents. */
+export function buildSessionRemoteContextSlot(
+  contextProbe: () => Promise<SessionRemoteContext>,
+): SessionRemoteContextSlot {
+  const context = safeProbe("remoteContext", contextProbe);
+  return {
+    run: <Value>(slot: string, probe: (value: SessionRemoteContext) => Promise<Value>) =>
+      safeProbe(slot, async (): Promise<Value> => {
+        const resolved = await context;
+        if (resolved.isErr()) throw resolved.error.originalCause;
+        if (resolved.value.kind === "unavailable") {
+          throw new Error(`Session remote prerequisite failed: ${resolved.value.prerequisite}.`);
+        }
+        return probe(resolved.value);
+      }),
+  };
+}
+
 /** Declare an optional probe only when its gate fires. */
 export function gatedSlot<Value>(
   condition: boolean,
@@ -97,31 +116,6 @@ export function userSlot<Value>(
   return identity === null
     ? errAsync(new SessionIdentityMissingError("user"))
     : safeProbe("user", () => probe(identity));
-}
-
-/** Five eager ResultAsync slots shared by both session-scoped orchestrators. */
-export interface SessionSharedResults {
-  user: ResultAsync<UserSessionInitStatusResult, SessionIdentityMissingError | SessionProbeError>;
-  worktree: ResultAsync<WorktreeSyncStatusResult, SessionProbeError>;
-  dirty: ResultAsync<DirtyStateResult, SessionProbeError>;
-  active: ResultAsync<ActiveSessionInitResult, SessionProbeError>;
-  releaseRouting: ResultAsync<ReleaseRoutingValue, SessionProbeError>;
-}
-
-/** Declare the shared eager session probes without awaiting or aggregating them. */
-export function buildSessionSharedSlots(options: {
-  identity: string | null;
-  role: string | null;
-  probes: SessionSharedProbes;
-}): SessionSharedResults {
-  const { identity, role, probes } = options;
-  return {
-    user: userSlot(identity, (id) => probes.user(id)),
-    worktree: safeProbe("worktree", () => probes.worktree()),
-    dirty: safeProbe("dirty", () => probes.dirty()),
-    active: safeProbe("active", () => probes.active(identity, role)),
-    releaseRouting: safeProbe("releaseRouting", () => probes.releaseRouting()),
-  };
 }
 
 /**

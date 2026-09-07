@@ -1,0 +1,275 @@
+# Task List: Proportionality Floor
+
+- **Design:** `spec-proportionality-floor.md`
+
+---
+
+## **Phase 1:** Proportionality floor and its always-loaded offset
+
+_Purpose:_ Land the floor on the always-loaded surface and pay for it in the same phase, so the budget question
+settles in one place rather than split across the work unit. The floor is the artifact every later phase leans
+on, so it lands first.
+
+_Design decisions:_ The floor belongs in `DEV-RULES.ARC` rather than a `DEV-RULES.{DOMAIN}.md` file. A rule that
+proves position-conditional is evidence for the domain-rules mechanism; this one is universal by charter — it
+must fire at every moment the planning-time method cannot reach — so the canonical universal set is its home.
+The removal from `DEV-RULES.PROJECT` is an absorption into another always-loaded surface, not a demotion to an
+on-demand destination, so no reachability trigger is owed for the content that moves.
+
+### `[x]` **1.1 Proportionality section in `DEV-RULES.ARC`**
+
+- _Goal:_ Every session loads a universal rule that traces material mechanism to a stated goal, real constraint,
+  trust boundary, or observed failure, and that a literal reading cannot turn into under-delivery.
+
+- _Outcome:_ `## Proportionality` sits between § Scaled Process, Invariant Discipline and § Commit Discipline in
+  both copies of `DEV-RULES.ARC`, byte-identical, carrying all nine load-bearing clauses in the approved order and
+  no `[invariant]` marker. The transcribed text measures 160 words under the counting rule — the same figure the
+  design states — so the band check doubled as verification that nothing was lost in transcription.
+
+### `[x]` **1.2 Scope-discipline removal from both `DEV-RULES.PROJECT` copies**
+
+- _Goal:_ The doctrine the floor now carries exists in exactly one always-loaded place, and the adopter-side and
+  repo-local budgets both collect the offset.
+
+    - `[x]` **1.2.a Capture the two-copy baseline**
+        - Captured the pre-edit cross-copy diff (293 lines — the copies diverge well beyond this entry) and kept
+          it for the post-edit comparison in 1.2.c.
+
+    - `[x]` **1.2.b Remove the lines from the project instance**
+        - Removed the leading `**Scope discipline:**` entry from `.arc/system/rules/DEV-RULES.PROJECT.md`
+          § Engineering Standards. The section now opens on the pre-public-release posture, which reads
+          correctly under that heading; no surviving line was reseated.
+
+    - `[x]` **1.2.c Remove the lines from the package source**
+        - Removed the same doctrine from `packages/arc-framework/arc/system/rules/DEV-RULES.PROJECT.md` § Code
+          Quality Principles. What remains is one seed principle plus the placeholder comments inviting
+          language-specific standards — a well-formed template section.
+        - Re-diffed against the 1.2.a baseline comparing divergence sets rather than hunk positions: the
+          substantive set is unchanged, the only delta being blank-line realignment around the removal.
+
+- _Outcome:_ The doctrine now lives only in the floor. Both copies were edited in place rather than synced, and
+  the baseline comparison is what makes that verifiable — for a `Configurable` pair the framework-sync gate
+  proves nothing, so a per-copy edit is indistinguishable from an introduced divergence once the pre-edit state
+  is gone.
+
+### `[x]` **1.3 Phrasing-consolidation sweep of `DEV-RULES.ARC`**
+
+- _Goal:_ Wording that the floor now states once stops being restated around it, recovering some of the words the
+  new section spends.
+
+- _Outcome:_ Yield zero — both named surfaces were read against the floor text and neither restates it. The
+  preamble governs not losing a discovered observation and the authority of capture surfaces; Anti-rider governs
+  whether a **second concern** may ride the current change, keyed on concern-identity. The floor's nearest clause
+  governs the **size of the response to one concern**. Adjacent subjects, no shared sentence to recover, so no
+  edit was made rather than a manufactured saving. Recorded net growth: `DEV-RULES.ARC` +161 words (the 160-word
+  section plus its heading), `DEV-RULES.PROJECT` −28 in each copy, so both always-loaded sets net +133 — the
+  design's projected ~+130.
+
+## **Phase 2:** Scope-boundary carrier chain, draft through spec
+
+_Purpose:_ Give a work unit's Won't-Do commitments an unbroken path from the draft template through all four spec
+forms into the finalized spec, with the amendment contract stated where a mid-implementation editor is already
+reading. Without this phase the floor's scope-boundary clause points at a surface that no finalized spec
+reliably carries.
+
+_Design decisions:_ Freeze is at activation, and after it every boundary change — expansion or contraction —
+appends a provenance line inside the section rather than to a parallel log. The ceremony is boundary-only by
+design: other spec sections are records whose provenance git history already carries, and generalizing the
+ceremony would tax exactly the behavior the floor wants more of.
+
+The chain's weak link is its lightest path, in both workflows: `draft-design`'s `low` produces no draft artifact
+and `create-spec` maps `low` to the one form with no boundary section, so in each stage placement decides whether
+that path is covered at all. The other loss surface is author replacement of a template section body on emit.
+Tasks 2.3.a and 2.3.b seat their lines above the split; 2.2.d and 2.3.c close the emit surface.
+
+### `[x]` **2.1 Scope-boundary section in `template-draft.md`**
+
+- _Goal:_ A new draft prompts for what the work will not do instead of for a size estimate no downstream stage
+  consumes.
+
+    - `## Scope Estimate` is replaced by `## Scope boundary (Won't Do)` in both copies, byte-identical. The
+      heading shares "scope boundary" with the `outline` spec form so the carry-forward reads as one chain, and
+      "Won't Do" reuses `template-tasks.md` vocabulary rather than coining a term.
+    - The new body prompts for the adjacent work being left out and says why — so the spec inherits the boundary
+      instead of rediscovering it — and retains the old section's dependencies prompt verbatim.
+    - Confirmed forward-only and consumer-free: nothing under `packages/arc-framework/src` reads the old section
+      name, and no template, workflow, or method references it. Existing drafts keep it until independently
+      groomed.
+
+### `[x]` **2.2 Amendment carrier on all four spec forms**
+
+- _Goal:_ Whichever form a work unit is specified in, exactly one boundary surface states that it freezes at
+  activation and how a later change records itself.
+
+    - `[x]` **2.2.a Settle the carrier wording and apply it to the `outline` form**
+        - Settled wording: `_Frozen at activation; changes after that append:
+          `Amended YYYY-MM-DD — <delta> — <prompt>`_`. It is the form this work unit's own spec already carries,
+          so the phrasing is field-tested rather than newly coined.
+        - Seated directly under `template-spec-outline.md` § Scope boundary (No-gos), above the section's prose.
+
+    - `[x]` **2.2.b PRD form**
+        - Same line verbatim under `template-spec-detailed-prd.md` § Non-Goals — the surviving carrier on a
+          paired PRD plus RFC.
+
+    - `[x]` **2.2.c RFC form**
+        - Same line verbatim under `template-spec-detailed-rfc.md` § Non-Goals. The section is
+          `omit-when-paired`, so a paired set drops it along with its carrier; the line serves the standalone
+          case, leaving exactly one carrier governing a spec either way.
+
+    - `[x]` **2.2.d `brief` form**
+        - Seated as a standalone italic line after the braced paragraph rather than inside it. Braced guidance is
+          replaced wholesale on emit, so a carrier placed there would be the single most likely thing lost —
+          recreating the very failure the retain instruction exists to prevent, one layer earlier and beyond its
+          reach.
+        - Keeps the settled sentence verbatim and adds the form's scoping: the freeze governs the scope-boundary
+          clause alone, intent and the success signal keep revising in place, amendment lines append below the
+          paragraph.
+
+- _Outcome:_ One wording reaches all four forms, so the retain instruction in Task 2.3.c has a single exact line
+  to quote. No new section was added to any template — each carrier attached to the boundary surface already
+  present — and all four pairs are byte-identical across the two copies.
+
+### `[x]` **2.3 Workflow-side instructions that keep the boundary alive**
+
+- _Goal:_ The boundary survives both stage transitions that could silently lose it — the draft-to-spec handoff,
+  and the template-to-finalized-spec emit.
+
+    - `[x]` **2.3.a Carry-forward line in `draft-design.md`**
+        - § Draft in the resolved level now states that whatever the path produces, the scope boundary it records
+          is what the spec inherits — authored as a handoff surface, not a private note.
+        - Seated after the path-selection sentence and above the `low` heading, the last point common to all
+          three paths, so the artifact-less `low` path is covered rather than silently skipped.
+
+    - `[x]` **2.3.b Carry-forward line in `create-spec.md`**
+        - New `### Scope-boundary carry-forward (all forms)` states that the spec's boundary inherits the
+          draft's and sharpens it, never silently dropping a recorded commitment, and that where no `draft-*`
+          exists the inheritance arrives as the carried determinacy-confirm instead.
+        - Seated in the same all-forms band as § Proportionality guard, above the three per-form blocks — the
+          file's existing pattern, and what keeps `low → brief` in scope.
+
+    - `[x]` **2.3.c Retain-on-emit instruction in `create-spec.md` § Write and save**
+        - Added directly after the strip contract, its complement: the carrier sits inside a section body the
+          author replaces wholesale, so the instruction says to keep it and quotes the exact settled line in a
+          `text` block for recognition, including the `brief` form's clause-scoping sentence.
+
+    - `[x]` **2.3.d Close the phase's gates**
+        - Both workflow pairs verified byte-identical, both diffs pure insertions with frontmatter untouched.
+        - Markdown gate, all three ARC contract checks, and the full code checks green — `lint:ts`, `lint:sh`,
+          both type checks, and the whole suite at 743 files.
+
+- _Outcome:_ The chain is unbroken end to end: draft records the boundary, spec inherits and sharpens it, emit
+  retains the amendment contract. Both lines sit above their stage's path split, so the two lightest paths — the
+  one that produces no draft and the one that maps to the form with no boundary section — are covered by
+  placement rather than by a criterion that would have passed either way.
+
+## **Phase 3:** Reviewer-side boundary provisioning
+
+_Purpose:_ Let a reviewer see the boundary a change is governed by, and oblige a finding whose remedy crosses it
+to say so. This is the only phase that touches a reviewer-facing surface, and it is deliberately the narrowest
+edit that reaches the two lanes in scope.
+
+_Design decisions:_ The edit lands in `adversarial-review` § Context provisioning rather than in
+`implementation-audit`'s finding floor. The audit method looks like the better home on method-contract grounds,
+but its markdown twin stands beside a typed contract registered in code whose finding floor carries four
+requirements; editing the markdown would reach the same two lanes while leaving the twin claiming a fifth
+requirement the contract does not carry. Closing that gap means bumping the typed floor, which is a
+hosted-review change this work unit does not make.
+
+### `[x]` **3.1 Boundary and finding-shape provisioning on the frontline and standard rows**
+
+- _Goal:_ A frontline or standard pass over a spec-governed change arrives already holding that spec's scope
+  boundary, and a finding that proposes crossing it names the crossing and grounds it in behavior required for
+  correctness, safety, or a stated goal.
+
+    - `[x]` **3.1.a Capture the two-copy baseline**
+        - Captured the pre-edit cross-copy diff (20 lines) for the post-edit comparison in 3.1.c.
+
+    - `[x]` **3.1.b Edit the package source**
+        - Added two short paragraphs to § Context provisioning, seated with the existing row-specific
+          provisioning note rather than inside the artifact-set table, so the table's rows stay unconditional.
+          The first supplies the governing spec's scope boundary on the frontline and standard rows and says
+          there is nothing extra to supply where no boundary exists; the second obliges a finding whose remedy
+          crosses it to say so and ground the crossing in required behavior, naming what does not count as a
+          ground.
+        - Stated self-contained — no rail cited by name — and clear of the three phrases the negative assertion
+          forbids, verified over the concatenated `standard-review` + `adversarial-review` text the assertion
+          actually reads.
+        - No rubric touched: the edit stays inside § Context provisioning, and § Severity model and § Exit gate
+          are unchanged.
+
+    - `[x]` **3.1.c Apply the same edit to the project instance**
+        - Targeted edit rather than a copy. Re-diffed against the 3.1.a baseline: the cross-copy divergence is
+          byte-for-byte unchanged, so both copies took exactly this edit and nothing else.
+
+    - `[x]` **3.1.d Confirm the existing string assertions still hold**
+        - `framework-sync.test.ts` and `pr-open-extensions.test.ts` run green both in the full suite and on
+          their own (34 tests), covering all three assertion sites including the negative one.
+        - Markdown gate, ARC contract checks, and the full code checks green — both type checks run, suite at
+          743 files.
+
+- _Outcome:_ The floor's scope-boundary clause now has a reviewer-side counterpart on the two lanes that see
+  implementation changes. The obligation is stated so a reviewer holding only this method can follow it, and the
+  row scoping keeps it off the planning fire-points, where the boundary is the artifact under audit rather than
+  context for it.
+
+## **Phase 4:** Verification
+
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Tier 3 whole — Markdown lint, the three ARC contract checks, `lint:ts`, `lint:sh`, both type
+  checks, full suite (743 files / 9,607 tests, 1 skipped), and build. All passed.
+
+- _Success criteria:_ 9 criteria, all met, none superseded. Verified against file states, the install manifest,
+  and the gates rather than task markings. One advisory adversarial pass ran at the `Light` cap and returned zero
+  findings; its three load-bearing claims were re-verified against source, and its reading of "one carrier line"
+  corrected a deviation note this pass had drafted. Recorded caveat: nothing executable fails if the floor is
+  deleted, which is the design's accepted position rather than a gap.
+
+---
+
+## Success Criteria
+
+- `[x]` `DEV-RULES.ARC` carries a `## Proportionality` section of 150-170 words, targeting ~160 —
+  whitespace-separated tokens containing a word character, excluding the heading — adjacent to § Scaled Process,
+  Invariant Discipline, with all nine load-bearing clauses present and no `[invariant]` marker
+    - 160 words in both copies. A normalized character-level comparison against the approved text in the design
+      returns an exact match, so the nine clauses and their counterweight ordering are present verbatim rather
+      than by inspection.
+
+- `[x]` Neither copy of `DEV-RULES.PROJECT` contains the Scope-discipline lines, and the floor carries the
+  authority attribution that replaces them
+
+- `[x]` `template-draft.md` contains no `## Scope Estimate` and carries a scope-boundary (Won't Do) section that
+  retains the dependencies prompt
+    - Surviving matches for the old heading are existing `backlog/` drafts, which the forward-only no-go
+      requires be left alone.
+
+- `[x]` `draft-design.md` and `create-spec.md` each carry one boundary carry-forward line, and `create-spec`
+  § Write and save instructs the author to retain the boundary carrier when emitting a spec
+    - `create-spec`'s carry-forward landed as a section in the all-forms band rather than a bare line, matching
+      that file's existing pattern. Not a deviation: the design uses "line" for one instruction, calling the
+      `brief` form's three-line carrier "one shipped carrier line".
+
+- `[x]` All four spec templates carry the amendment-contract line at their existing boundary surface, with the
+  `brief` form's carrier governing its scope-boundary clause alone, and no new section added to any of them
+    - Heading counts are unchanged in all four.
+
+- `[x]` `adversarial-review.md` § Context provisioning lists the governing spec's scope boundary **for** the
+  frontline and standard review rows and carries the self-contained finding-shape sentence, both explicitly scoped
+  to those two rows and conditioned on the change being spec-governed; its string assertions at all three sites
+  still pass, including the negative one; no rubric method is modified
+    - Single diff hunk, inside § Context provisioning; § Severity model and § Exit gate untouched and no rubric
+      file in the change set at all.
+
+- `[x]` The eight `Framework` files among the touched set are byte-identical across the package source and the
+  project instance with the framework-sync gate green; the two `Configurable` files carry the intended edit in
+  both copies, verified per copy rather than by that gate
+    - The 8 / 2 split is confirmed from the install manifest's own classification rather than assumed, and each
+      `Configurable` copy's remaining divergence matches its pre-edit baseline.
+
+- `[x]` All quality gates pass (tests, linting, type checking)
+
+- `[x]` Ready for integration
+    - One caveat recorded rather than passed silently: no executable check fails if the floor itself is removed
+      from both copies. That is the design's accepted position — the boundary rules out new machinery, and the
+      amendment model is likewise visibility-based rather than gated.

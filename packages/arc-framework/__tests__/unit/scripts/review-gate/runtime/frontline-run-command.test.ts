@@ -10,6 +10,7 @@ import type {
   FrontlineOutcomeStore,
   ReviewOperationStateStore,
 } from "../../../../../src/scripts/review-gate/core/ports.js";
+import { laneProgressOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { reduceReviewRouting } from "../../../../../src/scripts/review-gate/policy/routing.js";
 import { runFrontlineReviewCommand } from "../../../../../src/scripts/review-gate/runtime/frontline-run-command.js";
@@ -286,6 +287,13 @@ describe("frontline run command", () => {
     });
     expect(execute).not.toHaveBeenCalled();
     expect(release).toHaveBeenCalledOnce();
+    await expect(stores.operationStore.readOperation(laneProgressOperationId({
+      lane: "frontline",
+      repositoryId: attemptedTarget.repositoryId,
+      headSha: attemptedTarget.headSha,
+    }))).resolves.toMatchObject({
+      state: { kind: "lane-progress", attempts: [{ outcome: "stale-target" }] },
+    });
   });
 
   it("persists source-unbound when the ready source registration no longer resolves", async () => {

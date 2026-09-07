@@ -25,6 +25,14 @@
   multiple separated entries, a post-separator match, and idempotent absence. Re-ground the implementation after
   `session-locus-model` integrates because its completed branch overlaps `inbox-writer.ts`.
 
+### `[ ]` **Make the execute-bound inbox queue discoverable from a cold session**
+
+- _Routed from:_ housekeep drain (2026-09-07), while preparing the first ordered execute-bound queue.
+- _Concern:_ Errand completion can offer the next physical execute-bound entry, but cold session orientation does
+  not make the queue or its next available item comparably visible.
+- _Fold-in:_ carry ordered execute-bound entries as an operational-state projection with one discoverable next
+  item, preserving the inbox as the interim source until managed entry records replace it.
+
 ### `[ ]` **Deterministic same-entry cross-WU notes merge (FP 5.4 fast-follow)**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-18);
@@ -565,6 +573,18 @@
 - _Scope:_ a constant plus its config surface. Explicitly within the notes stop-loss rule — no plumbing deepened.
 
 - _Captured during:_ `WORKING-MEMORY` prune follow-up, 2026-07-25.
+
+### `[ ]` **Give `WORKING-MEMORY` a mutation verb, and make its proposal gate mechanical**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-28); captured during
+  `judgment-authority-model` planning.
+- _Concern:_ `arc user` has `inbox-remove` for `USER-INBOX`, but nothing mutates `WORKING-MEMORY` — every entry is
+  hand-written prose whose shape rules live in an on-demand strategy. Verb-gap per DEV-RULES.PROJECT § Verbs over
+  mechanics. A verb could enforce `_Remove when:_` mechanically and carry the propose-don't-self-add gate as a real
+  interlock.
+- _Fold-in:_ `user-surface-records` / managed-write surface — the WORKING-MEMORY side of the same CLI mutator family
+  as `arc inbox add` paired with remove. Settle verb surface (add / remove / list), composition with
+  `arc user save` / `load`, and gate shape (interlock vs emitted proposal).
 
 ---
 

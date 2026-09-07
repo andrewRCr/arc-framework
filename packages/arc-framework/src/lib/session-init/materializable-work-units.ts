@@ -23,7 +23,7 @@
 import { z } from "zod";
 
 import type { InFlightEntry } from "../git/in-flight-derivation.js";
-import { SlugSchema } from "../kernel/index.js";
+import { RemoteFailureReasonSchema, SlugSchema } from "../kernel/index.js";
 
 /** Runtime authority for one remotely materializable work unit. */
 export const MaterializableWorkUnitSchema = z.strictObject({
@@ -49,6 +49,68 @@ export const MaterializableWorkUnitsResultSchema = z.strictObject({
 
 /** Remote-only owned work units and optional upstream diagnostics. */
 export type MaterializableWorkUnitsResult = z.infer<typeof MaterializableWorkUnitsResultSchema>;
+
+/** Explicit action that can materialize pending advertised discovery objects. */
+export const MaterializableDiscoveryRefreshRemedySchema = z.strictObject({
+  text: z.string().min(1),
+  argv: z.tuple([
+    z.literal("arc"),
+    z.literal("active"),
+    z.literal("in-flight"),
+    z.literal("--json"),
+  ]),
+});
+
+const DiscoveryCommonFields = {
+  candidates: z.array(MaterializableWorkUnitSchema),
+  warnings: z.array(z.string()).optional(),
+};
+
+/** Discovery-domain evidence contract installed into session status during composition cutover. */
+export const MaterializableWorkUnitDiscoveryResultSchema = z.discriminatedUnion("remoteEvidence", [
+  z.strictObject({
+    ...DiscoveryCommonFields,
+    remoteEvidence: z.literal("exact"),
+    pendingBranchCount: z.literal(0),
+    refreshRemedy: z.null(),
+  }),
+  z.strictObject({
+    ...DiscoveryCommonFields,
+    remoteEvidence: z.literal("pending-fetch"),
+    pendingBranchCount: z.number().int().positive(),
+    refreshRemedy: MaterializableDiscoveryRefreshRemedySchema,
+  }),
+  z.strictObject({
+    ...DiscoveryCommonFields,
+    candidates: z.array(MaterializableWorkUnitSchema).max(0),
+    remoteEvidence: z.literal("unreachable"),
+    pendingBranchCount: z.literal(0),
+    refreshRemedy: z.null(),
+    failureReason: RemoteFailureReasonSchema,
+  }),
+  z.strictObject({
+    ...DiscoveryCommonFields,
+    candidates: z.array(MaterializableWorkUnitSchema).max(0),
+    remoteEvidence: z.literal("not-applicable"),
+    pendingBranchCount: z.literal(0),
+    refreshRemedy: z.null(),
+  }),
+]);
+
+/** Complete materializable-work-unit discovery domain result. */
+export type MaterializableWorkUnitDiscoveryResult = z.infer<
+  typeof MaterializableWorkUnitDiscoveryResultSchema
+>;
+
+/** Compose the exact explicit command offered for pending discovery. */
+export function composeMaterializableDiscoveryRefreshRemedy(): z.infer<
+  typeof MaterializableDiscoveryRefreshRemedySchema
+> {
+  return {
+    text: "Refresh live in-flight discovery.",
+    argv: ["arc", "active", "in-flight", "--json"],
+  };
+}
 
 /**
  * Select the materializable work units from the oracle's in-flight entries.

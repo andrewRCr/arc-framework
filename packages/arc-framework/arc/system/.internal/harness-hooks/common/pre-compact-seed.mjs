@@ -5,38 +5,30 @@ import { dirname, join, resolve } from "node:path";
 import {
   readHookInput,
   reapExpiredRecoveryArtifacts,
+  resolveCodexExecutionCheckout,
   writeFallbackPendingMarker,
   writePendingMarker,
 } from "./codex-recovery-marker.mjs";
 
 // Read the PreCompact payload's `session_id` (drains stdin in the same call) so the
 // marker is scoped to a key the later reader hooks share — see codex-recovery-marker.
-const { sessionId } = readHookInput();
-const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+const { sessionId, raw } = readHookInput();
+const hookCwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 const staleBuildCommand = process.env.ARC_HOOK_STALE_BUILD_COMMAND?.trim() || "";
 const env = { ...process.env };
+const hookDeadline = Date.now() + 29_000;
+const cwd = isCodexHarness() ? resolveCodexExecutionCheckout(raw) ?? hookCwd : hookCwd;
 
 try {
   reapExpiredRecoveryArtifacts();
-  let result = runSeedCommand();
-  if (shouldRetryAfterBuild(result)) {
-    const build = spawnSync(staleBuildCommand, {
-      cwd,
-      env,
-      encoding: "utf8",
-      shell: true,
-      stdio: "ignore",
-      timeout: 20_000,
-      killSignal: "SIGKILL",
-    });
-    if (build.status === 0) {
-      result = runSeedCommand();
-    }
-  }
-
+  const seedAttempt = runWithStaleBuildRepair("seed command", runSeedCommand);
   if (isCodexHarness()) {
-    writeMarkerFromResult(result);
+    if (seedAttempt.failure === null) {
+      writeMarkerFromResult(seedAttempt.result);
+    } else {
+      writeFallbackPendingMarker(seedAttempt.failure, sessionId);
+    }
   }
 } catch {
   // PreCompact must never block compaction; recovery will surface seed failures.
@@ -63,15 +55,43 @@ function runSeedCommand() {
     encoding: "utf8",
     shell: true,
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 15_000,
+    timeout: remainingTimeout(),
     killSignal: "SIGKILL",
   });
 }
 
-function shouldRetryAfterBuild(result) {
-  if (staleBuildCommand.length === 0 || result.status === 0) {
-    return false;
+function runWithStaleBuildRepair(label, run) {
+  let result = run();
+  if (!shouldRetryAfterBuild(result)) return { result, failure: null };
+
+  const build = spawnSync(staleBuildCommand, {
+    cwd,
+    env,
+    encoding: "utf8",
+    shell: true,
+    stdio: "ignore",
+    timeout: remainingTimeout(20_000),
+    killSignal: "SIGKILL",
+  });
+  if (build.status !== 0) {
+    return { result, failure: commandFailureMessage("stale-build repair", build) };
   }
+
+  result = run();
+  return hasStaleBuildWarning(result)
+    ? { result, failure: `${label} remained stale after repair` }
+    : { result, failure: null };
+}
+
+function remainingTimeout(maximum = Number.POSITIVE_INFINITY) {
+  return Math.max(1, Math.min(maximum, hookDeadline - Date.now() - 250));
+}
+
+function shouldRetryAfterBuild(result) {
+  return staleBuildCommand.length > 0 && hasStaleBuildWarning(result);
+}
+
+function hasStaleBuildWarning(result) {
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
   return `${stderr}\n${stdout}`.includes("arc dev build is stale");
@@ -159,13 +179,17 @@ function hasControlCharacter(value) {
 }
 
 function seedCommandFailureMessage(result) {
+  return commandFailureMessage("seed command", result);
+}
+
+function commandFailureMessage(label, result) {
   const status = result.status === null ? "unknown" : String(result.status);
   const signal = typeof result.signal === "string" ? ` signal ${result.signal}` : "";
   const error = result.error instanceof Error ? result.error.message : null;
   const stderr = firstNonEmptyLine(result.stderr);
   const stdout = firstNonEmptyLine(result.stdout);
   const detail = stderr ?? stdout ?? error;
-  return `seed command exited ${status}${signal}${detail ? `: ${detail}` : ""}`;
+  return `${label} exited ${status}${signal}${detail ? `: ${detail}` : ""}`;
 }
 
 function seedWriteFailureMessage(write, expectedPath) {

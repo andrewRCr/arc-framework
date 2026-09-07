@@ -7,7 +7,16 @@ on:
     branches: [main]
     # labeled/unlabeled re-run classify so adding/removing `ci-defer-heavy`
     # updates the merge signal without an artificial push.
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    #
+    # `ready_for_review` is deliberately absent. Draft pull requests already run
+    # this workflow on `opened` and `synchronize`, so the flip re-tests a head
+    # that is already green and changes no content. Under `merge.lock: draft`
+    # every merge performs that flip, so listening to it would put the required
+    # check back in flight at the moment the merge needs it — the release cannot
+    # complete until a run it caused finishes. Projects that gate CI behind
+    # non-draft status need the opposite choice and must not adopt this one
+    # unchanged.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       run_portability_pair:
@@ -28,11 +37,23 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded work within the same event/ref lane. Push and pull_request
-# runs do not cancel each other; duplicate push runs skip downstream jobs after
-# classification when an open PR already owns the same branch head.
+# Local Vitest runs keep their own 50% shared-machine default. In CI, an ordinary
+# GitHub-hosted Linux runner uses native sizing; selecting a custom Linux runner
+# defaults to one worker so multiple jobs and their CLI/Git subprocesses fit a
+# constrained host. The repository variable can retune that fleet without a code
+# change.
+env:
+  VITEST_MAX_WORKERS: ${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}
+
+# Cancel superseded work for the same ref. The group deliberately omits the
+# event name: a label toggle and a push against one pull request are the same
+# lane of work, and keying on the event let them run concurrently, paying twice
+# to test one head. Push and pull_request runs still never cancel each other,
+# because a branch ref and a pull-request merge ref are different groups.
+# Duplicate push runs skip downstream jobs after classification when an open PR
+# already owns the same branch head.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -196,83 +217,6 @@ jobs:
           echo "lane=$lane" >> "$GITHUB_OUTPUT"
           echo "classified lane=$lane (event=$event action=$action); see decide log above for weight"
 
-  planning-classify:
-    name: Classify PR lane for ARC clearance
-    permissions:
-      contents: read
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
-    outputs:
-      lane: ${{ steps.planning-lane.outputs.lane }}
-      head_sha: ${{ steps.planning-lane.outputs.head_sha }}
-    steps:
-      - id: planning-classifier
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-        with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: 24
-      - id: planning-data
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: _arc_change_data
-          fetch-depth: 0
-          persist-credentials: false
-      - id: planning-lane
-        name: Classify the exact pull-request change
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-        run: |
-          lane=reviewed
-          if [ "$EVENT_NAME" = pull_request ] && [ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
-            classifier_usage="$(bash scripts/classify-change.sh 2>&1 || true)"
-            if grep -Fq 'planning-lane <base> <head>' <<<"$classifier_usage"; then
-              lane="$(CLASSIFY_REPOSITORY_DIR="$GITHUB_WORKSPACE/_arc_change_data" \
-                bash scripts/classify-change.sh planning-lane "$BASE_SHA" "$HEAD_SHA")"
-            else
-              echo "::warning::trusted base predates planning-lane; defaulting to reviewed"
-            fi
-          fi
-          if [ "$lane" != planning ] && [ "$lane" != reviewed ]; then
-            echo "::error::invalid planning classifier output: $lane"
-            exit 1
-          fi
-          echo "lane=$lane" >>"$GITHUB_OUTPUT"
-          echo "head_sha=$HEAD_SHA" >>"$GITHUB_OUTPUT"
-
-  planning-clearance:
-    name: Post ARC clearance for planning-only PR
-    needs: planning-classify
-    if: ${{ needs.planning-classify.outputs.lane == 'planning' }}
-    permissions:
-      statuses: write
-    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
-    steps:
-      - id: planning-status
-        name: Post planning-lane ARC clearance
-        env:
-          GH_TOKEN: ${{ github.token }}
-          LANE: ${{ needs.planning-classify.outputs.lane }}
-          HEAD_SHA: ${{ needs.planning-classify.outputs.head_sha }}
-        run: |
-          if [ "$LANE" = planning ]; then
-            [[ "$HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]
-            target="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-            gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
-              -f state=success -f context=arc-cleared \
-              -f description='ARC planning lane cleared this exact head' -f target_url="$target"
-          elif [ "$LANE" != reviewed ]; then
-            echo "::error::invalid planning lane: $LANE"
-            exit 1
-          fi
-
   # Shared install + build for heavy runs. One npm ci / build per workflow; consumer
   # legs restore node_modules from cache and download dist (no per-leg rebuild).
   # Light / schedule / duplicate-push runs skip this job entirely.
@@ -405,6 +349,7 @@ jobs:
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
+        fetch-depth: 0
         persist-credentials: false
     - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
@@ -428,7 +373,7 @@ jobs:
         ARC_E2E_SKIP_BUILD: '1'
 
   e2e:
-    name: E2E Tests
+    name: E2E Tests (${{ matrix.shard }})
     permissions:
       contents: read
       actions: read # download-artifact of shared dist
@@ -437,7 +382,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
+        # Keep one stable heavyweight on each leg, then let native sharding cover
+        # every remaining file (including newly added files) without a manifest.
+        include:
+        - shard: 1
+          anchor: errand.e2e.test.ts
+        - shard: 2
+          anchor: candidate-lineage.e2e.test.ts
+        - shard: 3
+          anchor: command-input-no-input.e2e.test.ts
+        - shard: 4
+          anchor: lifecycle-exit.e2e.test.ts
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -460,7 +416,18 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
-    - run: npm run test:e2e -w packages/arc-framework -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+    - name: Run E2E anchor
+      run: npm run test:e2e -w packages/arc-framework -- __tests__/e2e/${{ matrix.anchor }} --passWithNoTests=false
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+    - name: Run E2E remainder shard
+      run: >-
+        npm run test:e2e -w packages/arc-framework --
+        --exclude='**/errand.e2e.test.ts'
+        --exclude='**/candidate-lineage.e2e.test.ts'
+        --exclude='**/command-input-no-input.e2e.test.ts'
+        --exclude='**/lifecycle-exit.e2e.test.ts'
+        --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       env:
         ARC_E2E_SKIP_BUILD: '1'
 
@@ -513,6 +480,9 @@ jobs:
     name: Portability targeted
     permissions:
       contents: read
+    # The Linux fleet capacity policy does not constrain hosted Windows/macOS.
+    env:
+      VITEST_MAX_WORKERS: ''
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || github.event_name == 'schedule' }}
     strategy:
       fail-fast: false
@@ -530,6 +500,10 @@ jobs:
     - run: npm ci
     - run: npm run build
     - run: npm run test:portability
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+    - if: ${{ runner.os == 'macOS' }}
+      run: npm run test:portability:macos
       env:
         ARC_E2E_SKIP_BUILD: '1'
 

@@ -12,7 +12,8 @@ import {
 import { parseEvidence } from "../../src/scripts/review-gate/core/evidence.js";
 import {
   RepositoryGitCommonStatePublisher,
-} from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
+  type GitCommonStatePublisher,
+} from "../../src/lib/git-common-state.js";
 import {
   LocalReviewOperationStateStore,
 } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
@@ -64,6 +65,69 @@ describe("local review operation state authority", () => {
       version: 1,
       state: records.state,
     });
+  });
+
+  it("returns one complete locked snapshot of strictly parsed operation records", async () => {
+    const records = await fixture();
+    await records.store.publishOperation(records.state, 0);
+
+    await expect(records.store.readOperationSnapshot()).resolves.toEqual({
+      status: "complete",
+      records: [{ version: 1, state: records.state }],
+    });
+  });
+
+  it("returns an empty namespace as a complete snapshot rather than inferred review absence", async () => {
+    const records = await fixture();
+    await expect(records.store.readOperationSnapshot()).resolves.toEqual({ status: "complete", records: [] });
+  });
+
+  it("marks malformed, misnamed, and non-file namespace entries incomplete", async () => {
+    const malformed = await fixture();
+    const malformedDirectory = join(malformed.commonDir, "arc", "review-gate", "operations");
+    await mkdir(malformedDirectory, { recursive: true });
+    await writeFile(join(malformedDirectory, `operation-${"0".repeat(64)}.json`), "not-json\n", "utf8");
+    await expect(malformed.store.readOperationSnapshot()).resolves.toEqual({
+      status: "incomplete",
+      reason: "malformed-operation-state",
+    });
+
+    const misnamed = await fixture();
+    await misnamed.store.publishOperation(misnamed.state, 0);
+    const misnamedDirectory = join(misnamed.commonDir, "arc", "review-gate", "operations");
+    const digestName = canonicalDigest({ operationId: misnamed.state.operationId }).slice("sha256:".length);
+    const content = await readFile(join(misnamedDirectory, `operation-${digestName}.json`), "utf8");
+    await writeFile(join(misnamedDirectory, "unexpected.json"), content, "utf8");
+    await expect(misnamed.store.readOperationSnapshot()).resolves.toEqual({
+      status: "incomplete",
+      reason: "operation-record-name-mismatch",
+    });
+
+    const nonFile = await fixture();
+    await mkdir(join(nonFile.commonDir, "arc", "review-gate", "operations", "unexpected.json"), {
+      recursive: true,
+    });
+    await expect(nonFile.store.readOperationSnapshot()).resolves.toEqual({
+      status: "incomplete",
+      reason: "unexpected-operation-state-entry",
+    });
+  });
+
+  it("types snapshot failure as unavailable and performs no operation mutation", async () => {
+    let mutations = 0;
+    const publisher = {
+      snapshot: async () => { throw new Error("snapshot-lock-failed"); },
+      read: async () => null,
+      list: async () => [],
+      update: async () => { mutations += 1; throw new Error("unexpected mutation"); },
+    } as GitCommonStatePublisher;
+    const store = new LocalReviewOperationStateStore(publisher);
+
+    await expect(store.readOperationSnapshot()).resolves.toEqual({
+      status: "unavailable",
+      reason: "snapshot-lock-failed",
+    });
+    expect(mutations).toBe(0);
   });
 
   it("rejects stale conflicting publication without overwriting recoverable state", async () => {
