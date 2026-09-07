@@ -7,6 +7,7 @@ import {
   getNotesLockPath,
   inboxEntrySourceDigest,
   inspectInboxEntry,
+  markInboxEntriesExecuteBoundInOrder,
   mutateInboxEntries,
   releaseAdvisoryLock,
   type AdvisoryLockHandle,
@@ -145,11 +146,7 @@ export async function markCurrentInboxEntriesExecuteBound(
 ): Promise<RunUserInboxMutationResult> {
   const transaction = await withLockedUserInbox(options, ({ content }) => {
     if (content === null) throw new Error("USER-INBOX is missing.");
-    const mutations = options.titles.map((title) => {
-      const entry = inspectInboxEntry(content, title);
-      return { kind: "mark" as const, title: entry.title, sourceDigest: entry.sourceDigest };
-    });
-    const result = mutateInboxEntries(content, mutations);
+    const result = markInboxEntriesExecuteBoundInOrder(content, options.titles);
     return {
       result: { changed: result.changed, outcomes: result.outcomes },
       ...(result.changed ? { replacement: result.content } : {}),

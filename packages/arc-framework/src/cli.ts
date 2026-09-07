@@ -109,7 +109,8 @@ import {
   type AttestOptions,
 } from "./handlers/lifecycle.js";
 import {
-  handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
+  handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxMarkExecuteBound,
+  handleUserInboxRemove, handleUserOpen,
   handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
   handleUserReconcileReferences,
   type UserInboxRemoveOptions,
@@ -1073,6 +1074,17 @@ userCmd
   .command("close <wu-name>")
   .description("Close per-WU user workspace subdir (removes user/{identity}/<wu-name>/ recursively)")
   .action(handleUserClose);
+
+userCmd
+  .command("inbox-mark-execute-bound")
+  .description("Atomically mark and order the complete execute-bound USER-INBOX queue as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", '\nRequest JSON:\n  {"schemaVersion":1,"orderedTitles":["First","Second"]}\n')
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    (context, input: string) => handleUserInboxMarkExecuteBound(input, context),
+  ));
 
 userCmd
   .command("inbox-remove [slug]")

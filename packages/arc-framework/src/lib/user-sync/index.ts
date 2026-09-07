@@ -33,6 +33,7 @@ export {
   hasExecuteBoundDisposition,
   inboxEntrySourceDigest,
   listExecuteBoundInboxEntries,
+  markInboxEntriesExecuteBoundInOrder,
   inspectInboxEntry,
   listInboxEntryTitles,
   mutateInboxEntries,
