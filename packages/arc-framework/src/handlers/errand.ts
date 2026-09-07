@@ -99,6 +99,7 @@ import {
   InboxMutationConflictError,
   inspectInboxEntry,
   resolveExecutionNextOffer,
+  type ExecutionOfferResolution,
 } from "../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -1189,7 +1190,17 @@ async function runErrandCloseHandler(
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         settleInbox: async (binding) => {
-          if (binding.originEntry === null) return { kind: "idempotent", nextOffer: null };
+          if (binding.originEntry === null) {
+            const offer = await resolveCurrentExecutionNextOffer({
+              cwd,
+              io,
+              identity,
+              completedTitle: null,
+              parentCheckoutPath: binding.parentCheckoutPath,
+            });
+            if (offer.kind === "refused") return offer;
+            return { kind: "idempotent", nextOffer: offer.nextOffer };
+          }
           const removed = await removeCurrentInboxEntry({ cwd, io, identity, title: binding.originEntry });
           if (removed.postImage.state !== "present") {
             return { kind: removed.removed ? "applied" : "idempotent", nextOffer: null };
@@ -1215,9 +1226,20 @@ async function runErrandCloseHandler(
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
         removeInbox: async (record, parentCheckoutPath, settlementCheckoutPath) => {
-          if (record.originEntry === null) return { kind: "absent", nextOffer: null };
+          const inboxCwd = settlementCheckoutPath ?? parentCheckoutPath ?? cwd;
+          if (record.originEntry === null) {
+            const offer = await resolveCurrentExecutionNextOffer({
+              cwd: inboxCwd,
+              io,
+              identity,
+              completedTitle: null,
+              parentCheckoutPath,
+            });
+            if (offer.kind === "refused") return offer;
+            return { kind: "absent", nextOffer: offer.nextOffer };
+          }
           const removed = await removeCurrentInboxEntry({
-            cwd: settlementCheckoutPath ?? parentCheckoutPath ?? cwd,
+            cwd: inboxCwd,
             io,
             identity,
             title: record.originEntry,
@@ -1261,6 +1283,25 @@ async function runErrandCloseHandler(
         },
   });
   emitErrandCloseResult(completeErrandTerminalResult({ result, ...projection }), opts.json === true);
+}
+
+async function resolveCurrentExecutionNextOffer(options: {
+  cwd: string;
+  io: ReturnType<typeof createUserIOContext>;
+  identity: string;
+  completedTitle: string | null;
+  parentCheckoutPath: string | null;
+}): Promise<ExecutionOfferResolution> {
+  const { postImage } = await withLockedUserInbox(
+    { cwd: options.cwd, io: options.io, identity: options.identity },
+    () => ({ result: null }),
+  );
+  if (postImage.state === "missing") return { kind: "resolved", nextOffer: null };
+  return resolveExecutionNextOffer({
+    content: postImage.content,
+    completedTitle: options.completedTitle,
+    parentCheckoutPath: options.parentCheckoutPath,
+  });
 }
 
 export function formatErrandCloseResult(
