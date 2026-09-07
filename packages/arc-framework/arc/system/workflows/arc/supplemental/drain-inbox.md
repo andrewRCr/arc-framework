@@ -220,6 +220,19 @@ routing write.
 
 ### 6. Execution transition — committed atomics → `run-errand`
 
+Persist the complete execute-bound set once before dispatch. Invoke
+`arc user inbox-mark-execute-bound <file | ->` with every already-marked and newly approved Errand title in its
+final file order:
+
+```json
+{"schemaVersion":1,"orderedTitles":["First exact inner bold title","Second exact inner bold title"]}
+```
+
+Continue only from `applied | unchanged / none`; `invalid-input / correct-input` corrects and retries the request,
+while `refused / stop` surfaces the diagnostic and halts before any Errand opens. The verb owns the identity-global
+notes lock, exact-title validation, all-or-nothing marking, and physical ordering — never add or reorder
+`_Disposition:_` fields by hand.
+
 For each **execute-now** atomic, hand off to the [`run-errand`][run-errand] lifecycle — the drain never executes
 atomic work itself. The atomic's `USER-INBOX` entry is the errand's **originating capture**: pass it to
 `run-errand` so `arc errand open` mints an `inbox`-origin record, using `--from-inbox <entry-title>` or

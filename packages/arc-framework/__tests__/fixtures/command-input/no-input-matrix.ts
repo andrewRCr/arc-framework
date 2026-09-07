@@ -83,6 +83,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "sync", args: ["sync", "--json"], expected: { exitCode: 1, outputIncludes: "notes-blocked" } },
   { commandPath: "teardown", args: ["teardown", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "update", args: ["update", "--quiet"], expected: { exitCode: 0, outputIncludes: "Update complete" } },
+  { commandPath: "user inbox-mark-execute-bound", args: ["user", "inbox-mark-execute-bound", "-"], stdin: "{\"schemaVersion\":1,\"orderedTitles\":[\"Matrix errand\"]}\n", fixture: "bare", expected: { exitCode: 1, outputIncludes: "\"state\":\"refused\"" } },
   { commandPath: "user open", args: ["user", "open", "matrix"], expected: { exitCode: 0, outputIncludes: "User workspace opened" } },
   { commandPath: "user pull", args: ["user", "pull"], preservesWorktree: true, expected: { exitCode: 1, outputIncludes: "Remote unavailable" } },
   { commandPath: "user reconcile-references", args: ["user", "reconcile-references", "--json"], expected: { exitCode: 0 } },

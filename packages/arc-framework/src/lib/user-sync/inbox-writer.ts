@@ -79,6 +79,7 @@ interface LocatedInboxEntry {
   start: number;
   end: number;
   title: string;
+  section: string;
 }
 
 const DISPOSITION_LINE = "- _Disposition:_ `execute-bound`";
@@ -104,7 +105,7 @@ function locateInboxEntriesResilient(
       diagnostics.push(`Malformed USER-INBOX entry heading: ${heading.line.trim()}`);
       continue;
     }
-    entries.push({ start: heading.index, end, title });
+    entries.push({ start: heading.index, end, title, section: heading.section });
   }
   return { entries, diagnostics };
 }
@@ -144,7 +145,7 @@ export function hasExecuteBoundDisposition(raw: string): boolean {
   const title = matchInboxEntryTitle(lines[0] ?? "");
   if (title === null) return false;
   try {
-    return executeBoundMark(lines, { start: 0, end: lines.length, title }) !== null;
+    return executeBoundMark(lines, { start: 0, end: lines.length, title, section: "Errand" }) !== null;
   } catch {
     return false;
   }
@@ -230,6 +231,82 @@ export function listExecuteBoundInboxEntries(content: string): ExecuteBoundInbox
     }
   }
   return { entries, diagnostics };
+}
+
+/**
+ * Mark one complete execute-bound Errand queue and arrange it in the requested order.
+ *
+ * Selected entry blocks exchange only their existing physical slots, so unrelated entries and
+ * section prose remain byte-stable. Every already-marked entry must be named: otherwise the
+ * requested order would not describe the complete queue that readers actually observe.
+ *
+ * @param content - Complete `USER-INBOX` content.
+ * @param orderedTitles - Exact Errand titles in their final execution order.
+ * @returns The exact post-image and per-entry mark outcomes.
+ */
+export function markInboxEntriesExecuteBoundInOrder(
+  content: string,
+  orderedTitles: readonly string[],
+): MutateInboxEntriesResult {
+  const titles = orderedTitles.map((title) => title.trim());
+  if (titles.length === 0 || titles.some((title) => title === "")) {
+    throw new Error("Execute-bound order must contain at least one non-empty USER-INBOX title.");
+  }
+  if (new Set(titles).size !== titles.length) {
+    throw new Error("Duplicate USER-INBOX title in execute-bound order.");
+  }
+
+  const lines = content.split("\n");
+  const entries = locateInboxEntries(lines);
+  const selected = titles.map((title) => {
+    const matches = entries.filter((entry) => entry.title === title);
+    if (matches.length !== 1) {
+      throw new Error(matches.length === 0
+        ? `Missing USER-INBOX entry '${title}'.`
+        : `Duplicate USER-INBOX entry title '${title}'.`);
+    }
+    const entry = matches[0] as LocatedInboxEntry;
+    if (entry.section !== "Errand") {
+      throw new Error(`USER-INBOX entry '${title}' is not in the Errand section.`);
+    }
+    return entry;
+  });
+
+  const requested = new Set(titles);
+  const existingQueue = listExecuteBoundInboxEntries(content);
+  const unreadable = existingQueue.diagnostics[0];
+  if (unreadable !== undefined) throw new Error(unreadable);
+  const omitted = existingQueue.entries.find((entry) => !requested.has(entry.title));
+  if (omitted !== undefined) {
+    throw new Error(`Existing execute-bound USER-INBOX entry '${omitted.title}' is absent from the requested order.`);
+  }
+
+  const marked = mutateInboxEntries(content, selected.map((entry) => ({
+    kind: "mark" as const,
+    title: entry.title,
+    sourceDigest: unboundDigest(lines, entry),
+  })));
+  const markedLines = marked.content.split("\n");
+  const markedEntries = locateInboxEntries(markedLines);
+  const slots = markedEntries
+    .filter((entry) => requested.has(entry.title))
+    .sort((left, right) => left.start - right.start);
+  const blocks = titles.map((title) => {
+    const entry = markedEntries.find((candidate) => candidate.title === title) as LocatedInboxEntry;
+    return markedLines.slice(entry.start, entry.end);
+  });
+  const reordered = [...markedLines];
+  for (let index = slots.length - 1; index >= 0; index--) {
+    const slot = slots[index] as LocatedInboxEntry;
+    reordered.splice(slot.start, slot.end - slot.start, ...(blocks[index] as string[]));
+  }
+  const postImage = reordered.join("\n");
+  return {
+    ...marked,
+    content: postImage,
+    digest: contentDigest(Buffer.from(postImage, "utf8")),
+    changed: marked.changed || postImage !== marked.content,
+  };
 }
 
 /** Apply one all-or-nothing title/digest-qualified inbox mutation batch. */
@@ -325,21 +402,22 @@ function isEntryHeading(line: string): boolean {
  */
 function* entryHeadingLines(
   lines: readonly string[],
-): Generator<{ index: number; line: string }> {
-  let inEntrySection = false;
+): Generator<{ index: number; line: string; section: string }> {
+  let entrySection: string | null = null;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
     const heading = line.trimEnd().match(/^## (.+)$/);
     if (heading) {
-      inEntrySection = ENTRY_SECTIONS.includes((heading[1] ?? "").trim());
+      const section = (heading[1] ?? "").trim();
+      entrySection = ENTRY_SECTIONS.includes(section) ? section : null;
       continue;
     }
     if (line.trimEnd() === "---") {
-      inEntrySection = false;
+      entrySection = null;
       continue;
     }
-    if (!inEntrySection || !isEntryHeading(line)) continue;
-    yield { index: i, line };
+    if (entrySection === null || !isEntryHeading(line)) continue;
+    yield { index: i, line, section: entrySection };
   }
 }
 

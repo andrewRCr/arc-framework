@@ -181,6 +181,18 @@ describe("runUserInboxMutation", () => {
     expect(result.postImage.content.match(/- _Disposition:_ `execute-bound`/g)).toHaveLength(2);
   });
 
+  it("uses the requested batch order as the file-ordered execution queue", async () => {
+    const titles = ["Keep me", "Fix the flaky log assertion"];
+
+    const result = await markCurrentInboxEntriesExecuteBound({ cwd, io: io(), identity: IDENTITY, titles });
+
+    expect(result.changed).toBe(true);
+    const after = await readFile(inboxPath, "utf-8");
+    expect(after.indexOf("### `[ ]` **Keep me**")).toBeLessThan(
+      after.indexOf("### `[ ]` **Fix the flaky log assertion**"),
+    );
+  });
+
   it("serializes concurrent mark and remove writers without losing either update", async () => {
     const markDigest = inboxEntrySourceDigest(INBOX, "Keep me");
     const removeDigest = inboxEntrySourceDigest(INBOX, "Fix the flaky log assertion");
