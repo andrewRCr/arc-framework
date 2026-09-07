@@ -13,9 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Spec re-synthesized against the shipped delivery model, two adversarial passes folded, and
-  finalized at `8e8051b9e` — draft retired, `notes-plan-segmentation.md` migrated, `Class` Heavy persisted, stage
-  advanced to generate-tasks.
+- **Last Completed:** Canonical task and delivery plans completed; work unit activated at `c1069c253`.
 - **Next Task:** Begin Task 1.1 — Segment model and preamble-line resolution
 - **Blockers:** [none]
 
