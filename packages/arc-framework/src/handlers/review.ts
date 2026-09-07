@@ -941,7 +941,7 @@ async function acceptDeliveryReviewTerminus(
         workUnitId,
         remote: request.offer.remote,
       });
-      return "terminusAction" in status ? status.terminusAction ?? null : null;
+      return "terminusAction" in status ? status.terminusAction?.offer ?? null : null;
     },
     writeBoundary: async (boundary, expectedVersion) => {
       try {

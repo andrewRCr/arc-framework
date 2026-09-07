@@ -2302,22 +2302,27 @@ describe("arc delivery position", () => {
     );
     expect(archivedStatus.exitCode, `${archivedStatus.stderr}\n${archivedStatus.stdout}`).toBe(0);
     const archivedStatusOutput = JSON.parse(archivedStatus.stdout) as {
-      terminusAction?: unknown;
+      terminusAction?: Record<string, unknown>;
     };
     expect(archivedStatusOutput).toMatchObject({
       nextAction: "resolve-review-applicability",
       terminusAction: {
-        workUnitId: fixture.plan.workUnitId,
-        target: { headSha: expect.any(String) },
-        completedPasses: 1,
+        schemaVersion: 1,
+        offer: {
+          workUnitId: fixture.plan.workUnitId,
+          target: { headSha: expect.any(String) },
+          completedPasses: 1,
+        },
       },
     });
+    if (archivedStatusOutput.terminusAction === undefined) {
+      throw new Error("expected submit-ready Owner terminus action");
+    }
     const acceptedTerminus = await runArcWithStdin(
       ["review", "terminus", "accept", "-"],
       archivedCheckout,
       `${JSON.stringify({
-        schemaVersion: 1,
-        offer: archivedStatusOutput.terminusAction,
+        ...archivedStatusOutput.terminusAction,
         judgment: { mode: "owner-accepted" },
       })}\n`,
       { env: fixture.env },

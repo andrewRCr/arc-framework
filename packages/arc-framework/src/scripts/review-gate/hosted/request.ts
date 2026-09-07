@@ -87,6 +87,23 @@ export const HostedRequestHandleSchema = z.strictObject({
 );
 export type HostedRequestHandle = z.infer<typeof HostedRequestHandleSchema>;
 
+/** Submit-ready input for one bounded await of an acknowledged hosted request. */
+export const HostedAwaitActionSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  handle: HostedRequestHandleSchema,
+}).readonly();
+export type HostedAwaitAction = z.infer<typeof HostedAwaitActionSchema>;
+
+/**
+ * Project an acknowledged hosted request into the next command's exact input.
+ *
+ * @param handle - Durable identity and target binding for the acknowledged request.
+ * @returns A schema-validated action accepted directly by the hosted-await command.
+ */
+export function hostedAwaitAction(handle: HostedRequestHandle): HostedAwaitAction {
+  return HostedAwaitActionSchema.parse({ schemaVersion: 1, handle });
+}
+
 /** Compare a durable hosted request handle with its lane-progress binding. */
 export function hostedRequestHandleMatchesProgress(
   handle: HostedRequestHandle,
@@ -216,6 +233,7 @@ export const HostedRequestResultSchema = z.union([
     state: z.literal("requested"),
     nextAction: z.literal("await"),
     handle: HostedRequestHandleSchema,
+    action: HostedAwaitActionSchema,
   }),
   z.strictObject({
     ...HostedRequestResultBaseShape,
@@ -295,19 +313,21 @@ export async function requestHostedReview(
 
   const outcome = await adapter.request(request.target, request.coverage);
   if (outcome.kind === "created") {
+    const handle = HostedRequestHandleSchema.parse({
+      schemaVersion: 1,
+      provider: adapter.id,
+      requestedCoverage: request.coverage,
+      effectiveCoverage: outcome.effectiveCoverage,
+      target: request.target,
+      artifact: outcome.artifact,
+      ...(progressVehicle === undefined ? {} : { vehicle: progressVehicle }),
+    });
     return {
       ...resultBase,
       state: "requested",
       nextAction: "await",
-      handle: HostedRequestHandleSchema.parse({
-        schemaVersion: 1,
-        provider: adapter.id,
-        requestedCoverage: request.coverage,
-        effectiveCoverage: outcome.effectiveCoverage,
-        target: request.target,
-        artifact: outcome.artifact,
-        ...(progressVehicle === undefined ? {} : { vehicle: progressVehicle }),
-      }),
+      handle,
+      action: hostedAwaitAction(handle),
     };
   }
   if (outcome.kind === "rate-limited" || outcome.kind === "transient-unavailable") {

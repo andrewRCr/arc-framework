@@ -52,10 +52,21 @@ export const DeliveryReviewTerminusOfferSchema = z.strictObject({
 /** Exact member-scoped Owner-terminus offer returned by work-unit review status. */
 export type DeliveryReviewTerminusOffer = z.infer<typeof DeliveryReviewTerminusOfferSchema>;
 
-/** Owner-authenticated acceptance of one exact status offer. */
-export const DeliveryReviewTerminusAcceptanceInputSchema = z.strictObject({
+/** Submit-ready acceptance prefix whose sole missing field is the Owner judgment. */
+const DeliveryReviewTerminusAcceptanceActionShape = {
   schemaVersion: z.literal(1),
   offer: DeliveryReviewTerminusOfferSchema,
+};
+export const DeliveryReviewTerminusAcceptanceActionSchema = z.strictObject(
+  DeliveryReviewTerminusAcceptanceActionShape,
+).readonly();
+export type DeliveryReviewTerminusAcceptanceAction = z.infer<
+  typeof DeliveryReviewTerminusAcceptanceActionSchema
+>;
+
+/** Owner-authenticated acceptance of one exact status offer. */
+export const DeliveryReviewTerminusAcceptanceInputSchema = z.strictObject({
+  ...DeliveryReviewTerminusAcceptanceActionShape,
   judgment: OwnerAcceptedReviewTerminusJudgmentSchema,
 });
 /** Mutation request for one exact delivery-member Owner terminus. */
