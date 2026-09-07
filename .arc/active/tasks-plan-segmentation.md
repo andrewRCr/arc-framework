@@ -95,28 +95,14 @@ _Design decisions:_ the scan is a sibling validator at each site, not a new verb
 sites keep `selectTaskDescriptorPaths` as their single selector, so archived work stays excluded and the canonical
 template fixture stays included without a second selection rule to keep in step.
 
-### `[ ]` **2.1 Worktree descriptor lint fire site — D6, D9**
+### `[x]` **2.1 Worktree descriptor lint fire site — D6, D9**
 
 - _Goal:_ `npm run -s lint:md:descriptors` reports segmentation findings alongside descriptor-spacing findings over
   the same selected paths and exits non-zero on either, so an author sees both from one run.
 
-- _Shape:_ the worktree result currently types its diagnostics as the descriptor-spacing shape alone, which
-  carries parent-task fields a phase-level finding has no value for. Widen it to the shape both validators share —
-  path, line, and message — so the script renders either without branching.
-
-- _Note:_ the worktree selector enumerates untracked non-ignored files as well as index paths. That is what lets a
-  saved, not-yet-staged task list be scanned — the property the task-generation Finalize obligation depends on.
-
-- _Note:_ the composite lint verb runs its stages in order and stops at the first failure, so a Markdown-rule
-  error masks descriptor and segmentation findings. That is why the Finalize obligation names the descriptor verb
-  directly rather than the composite — keep it that way.
-
-    Build `test-first` (one behavior at a time):
-
-    - a selected task list with a segmentation defect produces a finding and a non-zero exit
-    - findings from both validators sort together by path, then line, then message
-    - an unsegmented task list produces nothing from the new validator
-    - a task list under excluded paths is not scanned
+- _Outcome:_ the worktree descriptor lint now runs segmentation beside spacing validation over the shared selected
+  documents, returns their common path/line/message shape, and sorts the combined stream deterministically. The
+  public command fails on segmentation findings while legacy and excluded task lists remain unaffected.
 
 ### `[ ]` **2.2 Staged indexed-certification fire site — D6, D9**
 
