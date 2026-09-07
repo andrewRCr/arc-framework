@@ -12,12 +12,12 @@
 - **Task List:** `tasks-plan-segmentation.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
-- **Last Completed:** Canonical task and delivery plans completed; work unit activated at `c1069c253`.
-- **Next Task:** Begin Task 1.1 — Segment model and preamble-line resolution
+- **Current Workflow:** `process-task-loop`
+- **Last Completed:** Task 3.3 — Substrate contract close-out — D7
+- **Next Task:** Task 4.1.a — Author the procedure at the entry read (line ~208)
 - **Blockers:** [none]
 
-- **Next Action:** Load and follow process-task-loop.md for Task 1.1
+- **Next Action:** Load and follow process-task-loop.md for Task 4.1.a
 
 - **PR URL:** [none]
 - **Completed:** [none]
