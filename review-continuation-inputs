@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-continuation-inputs",
+  "claimId": "5fa70ae4dfdd2156dca7e987d1555ee9",
+  "createdAt": "2026-09-07T17:25:18.355Z",
+  "updatedAt": "2026-09-07T17:25:18.355Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "review-continuation-inputs",
+  "branch": "chore/review-continuation-inputs",
+  "origin": "inbox",
+  "originEntry": "Make review continuation inputs ready to submit",
+  "originEntrySourceDigest": "sha256:a011135029d7fbda58d5dc9bb156815e59bab59c30567fb5a3fae6be2de19e43",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
