@@ -179,13 +179,14 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
     const path = requiredOnly ? "required-checks" : "observed-checks";
     const value = noReportedChecks ? [] : parse(result.stdout, path);
     if (!Array.isArray(value)) throw new Error(`${path}: expected an array`);
-    return coalesceCheckRows(value.map((item, index) => {
+    const checks = value.map((item, index) => {
       const check = record(item, `${path}[${index}]`);
       if (typeof check.name !== "string" || check.name === "") {
         throw new Error(`${path}[${index}].name: expected a non-empty string`);
       }
       return { name: check.name, state: checkState(check.bucket, check.state, `${path}[${index}]`) };
-    }));
+    });
+    return requiredOnly ? coalesceCheckRows(checks) : checks;
   }
 
   return {
