@@ -71,6 +71,35 @@
 - _Approach:_ settle directory-only versus vocabulary-wide rename scope, then sequence the mechanical move after
   `review-protocol-alignment` so in-flight branches do not all conflict on imports and paths.
 
+### `[ ]` **Make the review-exempt route reachable from caller-held facts**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ the review-exempt fast path exists behind internal schemas and projections that ordinary workflow
+  callers cannot compose without source archaeology.
+- _Fold-in:_ preserve strict exemption authority while reducing the route to discoverable caller-held facts and a
+  typed refusal when the exemption does not apply.
+
+### `[ ]` **Treat stacked review correction as one resumable control loop**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ review correction across a delivery stack repeatedly re-enters member selection, reviewability,
+  response, verification, and progression as separate ceremonies, losing the active correction position and
+  multiplying manual reconstruction.
+- _Fold-in:_ compose one resumable correction loop with an explicit member-reviewability checkpoint and typed
+  continuation. The `tier1Reuse` vocabulary cleanup is extracted as an Errand; local-coverage truthfulness remains
+  with `review-signal-convergence`.
+
+### `[ ]` **Retire a retained attempt when a later clean pass proves complete residual coverage**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ retained attempts remain live even when a later clean pass can prove it covered their complete
+  residual, leaving redundant review state to settle manually.
+- _Fold-in:_ define the proof and terminal collection boundary for safe supersession without converting temporal
+  sequence into an ungrounded assumption of coverage.
+
 ---
 
 ## Problem / Motivation
