@@ -48,6 +48,25 @@ describe("runCli", () => {
     expect(lockRelease.stdout).toContain('"vehicle":{"kind":"errand","slug":"example"}');
   });
 
+  it("documents the initial review resolver request shapes", async () => {
+    const chunking = await runCli(["review", "chunking", "resolve", "--help"]);
+    const policy = await runCli(["review", "resolve", "--help"]);
+    const frontlineResolve = await runCli(["review", "frontline", "resolve", "--help"]);
+    const frontlineRun = await runCli(["review", "frontline", "run", "--help"]);
+
+    for (const result of [chunking, policy, frontlineResolve, frontlineRun]) {
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("Request JSON:");
+    }
+    expect(chunking.stdout).toContain('"diffBaseSha":"<git-oid>"');
+    expect(chunking.stdout).toContain('"targetId":"sha256:<digest>"');
+    expect(policy.stdout).toContain('"standardReview"');
+    expect(policy.stdout).toContain('"attempts":[]');
+    expect(frontlineResolve.stdout).toContain('"changeSet"');
+    expect(frontlineResolve.stdout).toContain('"invocation":{"mode":"inherit"}');
+    expect(frontlineRun.stdout).toContain('"resolution":"<ready frontline resolve output>"');
+  });
+
   it("reserves bare integrate for procedures and points publication scheduling to publish", async () => {
     const result = await runCli(["integrate"]);
 
