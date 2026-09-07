@@ -1565,64 +1565,6 @@ const reviewCmd = program
   .command("review")
   .description("Resolve and execute review workflows");
 
-const reviewTargetHelp = {
-  schemaVersion: 2,
-  semanticsVersion: "review-gate/v2",
-  kind: "change-set",
-  repositoryId: "owner/repo",
-  baseRef: "main",
-  diffBaseSha: "<git-oid>",
-  diffBaseTree: "<git-tree-oid>",
-  headSha: "<git-oid>",
-  headTree: "<git-tree-oid>",
-  targetId: "sha256:<digest>",
-};
-const reviewStandardProjectionHelp = {
-  obligation: "required",
-  reasons: ["sensitive-change-set"],
-  rubricVersion: "standard-review/v1",
-  rubricDigest: "sha256:<digest>",
-  retrigger: "full-final",
-  count: 1,
-};
-const reviewChunkingResolveHelp = JSON.stringify({
-  schemaVersion: 1,
-  target: reviewTargetHelp,
-});
-const reviewPolicyResolveHelp = JSON.stringify({
-  schemaVersion: 1,
-  target: {
-    repository: "owner/repo",
-    pullRequest: null,
-    headSha: "<git-oid>",
-  },
-  lane: "standard",
-  frontlineActive: true,
-  standardReview: reviewStandardProjectionHelp,
-  completedPasses: 0,
-  attempts: [],
-});
-const reviewFrontlineResolveHelp = JSON.stringify({
-  schemaVersion: 1,
-  changeSet: {
-    schemaVersion: 1,
-    changeSetState: "known",
-    contentKind: "code-bearing",
-    reviewRisk: "routine",
-    changeDeterminacy: "atomic",
-    ownership: "self",
-    surfaceAuthority: "ordinary",
-    assurance: { workContext: "errand", workClass: "none" },
-    activity: { selfReview: true, frontlineReview: true },
-  },
-  invocation: { mode: "inherit" },
-});
-const reviewFrontlineRunHelp = JSON.stringify({
-  schemaVersion: 1,
-  target: reviewTargetHelp,
-  resolution: "<ready frontline resolve output>",
-});
-
 reviewCmd
   .command("change-request")
   .description("Exact-head change-request operations")
@@ -1713,12 +1655,6 @@ reviewCmd
   .description("Resolve the next configured review-policy action as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .addHelpText(
-    "after",
-    `\nRequest JSON:\n  ${reviewPolicyResolveHelp}\n\n`
-      + "Replace placeholders with routed exact values. Use pullRequest: null before the change request exists; "
-      + "submit emitted actions unchanged.\n",
-  )
   .action((input: string) => handleReviewResolve(input));
 
 const frontlineCmd = reviewCmd
@@ -1730,11 +1666,6 @@ frontlineCmd
   .description("Resolve explicit change-set facts and one-run intent as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .addHelpText(
-    "after",
-    `\nRequest JSON:\n  ${reviewFrontlineResolveHelp}\n\n`
-      + "Set change-set and activity values from the current facts and configuration.\n",
-  )
   .action((input: string) => handleReviewFrontlineResolve(input));
 
 frontlineCmd
@@ -1742,12 +1673,6 @@ frontlineCmd
   .description("Execute one exact-target frontline review as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .addHelpText(
-    "after",
-    `\nRequest JSON:\n  ${reviewFrontlineRunHelp}\n\n`
-      + "Replace target placeholders with the canonical exact target. Pass the complete ready frontline resolve "
-      + "output unchanged as resolution.\n",
-  )
   .action(withInteractionContext(
     { machineReadable: true },
     (context, input: string) => handleReviewFrontlineRun(input, {}, context),
@@ -1793,11 +1718,6 @@ reviewCmd
   .description("Resolve one immutable target's chunking recommendation as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .addHelpText(
-    "after",
-    `\nRequest JSON:\n  ${reviewChunkingResolveHelp}\n\n`
-      + "Replace placeholders with the canonical exact target, including its targetId.\n",
-  )
   .action((input: string) => handleReviewChunkingResolve(input));
 
 const localReviewCmd = reviewCmd
