@@ -190,28 +190,22 @@ carries no transitional framing. The stage's obligations land here and the defin
 so the doctrine is briefly incoherent between them; that is why both phases are one delivery member and land
 together, not a resequencing to fix.
 
-### `[ ]` **4.1 Inline the segmentation procedure at the scale-axis read — D1, D2, D3**
+### `[x]` **4.1 Inline the segmentation procedure at the scale-axis read — D1, D2, D3**
 
 - _Goal:_ the stage's existing entry read yields a third output — an ordered sequence of segments with modes —
   from a named, method-shaped procedure, and the phase-ordering guidance consumes that output instead of gesturing
   at incremental delivery.
 
-- _Shape:_ a procedure with a signature line naming its inputs and outcome, the three modes and what each closes
-  on, the residual-risk discriminator, the pilot-then-replicate composition, and the ordering doctrine. Authored
-  method-shaped and placed inline: it has one consumer today, and the signature is what makes extraction free
-  later. The read is universal — a light work unit's read returns one segment with an evident mode.
-
-- _Approach:_ the body is its own named section between the entry read and the resolved-level paths, invoked from
-  the read — the shape the stage already uses to separate its execution driver from the procedures that driver
-  invokes. The entry read gains the call, not the content.
-
     - `[x]` **4.1.a Author the procedure at the entry read**
         - the shared scale-axis read now yields segmentation through an inline, method-shaped procedure carrying
           the universal read, residual-risk modes, pilot composition, and ordering doctrine
 
-    - `[ ]` **4.1.b Rewrite the phase-ordering principle to take the resolved segments as input**
-        - the ordering principle and the phase-shape guidance task 4.2 edits are adjacent bullets in the same
-          subsection
+    - `[x]` **4.1.b Rewrite the phase-ordering principle to take the resolved segments as input**
+        - phase ordering now preserves the resolved risk-retirement sequence before minimizing dependencies within
+          each segment
+
+- _Outcome:_ the scale-axis read produces the segment sequence, and structural decomposition consumes that sequence
+  directly instead of applying a separate incremental-delivery heuristic.
 
 ### `[ ]` **4.2 Phase-preamble grammar for the recorded surface — D4**
 

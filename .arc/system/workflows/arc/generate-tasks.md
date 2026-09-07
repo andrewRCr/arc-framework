@@ -182,7 +182,8 @@ Design elements (RFC), settled Decisions (`outline`), or the single falsifiable 
 **Principles:**
 
 - Each phase should produce testable, verifiable progress
-- Order phases to minimize dependencies and enable incremental delivery
+- Order phases from the resolved segments: preserve the sequence that retires the dominant residual risk earliest,
+  then minimize dependencies within each segment
 - When test-first applies, group test and implementation together by module or concern
 - **Always end with a verification phase** — single task pointing to `verify-work-unit.md`. See
   [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
