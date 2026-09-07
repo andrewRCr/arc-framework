@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Base `main` reconciled into the branch (2026-09-07) at `8945c6f44` — Tier 2 gates green —
-  then the full SESSION-NOTES regrounding pass ran against landed code. Findings recorded in SESSION-NOTES. Prior:
-  spec authored, self-reviewed, saved at `26bf15461` and surfaced at Gate 1.
+- **Last Completed:** Spec re-synthesized against the shipped delivery model, two adversarial passes folded, and
+  finalized at `8e8051b9e` — draft retired, `notes-plan-segmentation.md` migrated, `Class` Heavy persisted, stage
+  advanced to generate-tasks.
 - **Next Task:** [none]
-- **Blockers:** Gate 1 cannot close on the spec as written. Regrounding found D6 substantially pre-empted by landed
-  code and D5's family-marker claim contradicted by the shipped member-verifier suffix; both need re-synthesis.
+- **Blockers:** [none]
 
 - **Next Action:** [begin current workflow]
 
