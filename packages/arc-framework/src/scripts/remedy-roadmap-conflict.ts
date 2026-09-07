@@ -10,6 +10,7 @@
 
 import { writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
+import { basename } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -97,6 +98,9 @@ export async function runRoadmapConflictAutoRemedyCommand(): Promise<void> {
   }
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
+const modulePath = fileURLToPath(import.meta.url);
+// Preserve the source-script fallback without treating the importing bundle (`dist/cli.js`) as
+// this module's entrypoint. Bundlers rewrite import.meta.url for every bundled source module.
+if (basename(modulePath).startsWith("remedy-roadmap-conflict.") && modulePath === process.argv[1]) {
   void runRoadmapConflictAutoRemedyCommand();
 }
