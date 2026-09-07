@@ -205,7 +205,9 @@ together, not a resequencing to fix.
   the read — the shape the stage already uses to separate its execution driver from the procedures that driver
   invokes. The entry read gains the call, not the content.
 
-    - `[ ]` **4.1.a Author the procedure at the entry read**
+    - `[x]` **4.1.a Author the procedure at the entry read**
+        - the shared scale-axis read now yields segmentation through an inline, method-shaped procedure carrying
+          the universal read, residual-risk modes, pilot composition, and ordering doctrine
 
     - `[ ]` **4.1.b Rewrite the phase-ordering principle to take the resolved segments as input**
         - the ordering principle and the phase-shape guidance task 4.2 edits are adjacent bullets in the same

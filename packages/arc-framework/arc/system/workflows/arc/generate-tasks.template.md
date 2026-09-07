@@ -41,10 +41,11 @@ already advanced `Current Workflow` here.
 ## Resolve depth & Class
 
 Make **one scale-axis read** — the implementation surface and the codebase-grounding breadth a correct task plan
-needs — then run [`resolve-planning-depth`][arc-methods-rpd] and [`classify-work-unit`][arc-methods-cwu] off it:
-one read drives both, yielding this run's **level** (`low` / `medium` / `high`) and confirming, ratcheting, or
-correcting **`Class`** against that same read. The methods own how the read maps to a level, and the mid-stage
-re-entry valve.
+needs — then run [`resolve-planning-depth`][arc-methods-rpd], [`classify-work-unit`][arc-methods-cwu], and
+**Resolve plan segmentation** below from that read. One read drives all three, yielding this run's **level**
+(`low` / `medium` / `high`), confirming, ratcheting, or correcting **`Class`**, and producing an ordered sequence of
+segments with modes. Segmentation also reads the spec's lifecycle statements. The methods own how the read maps to
+a level and the mid-stage re-entry valve.
 
 The level is transient and feed-forward-immune — no upstream artifact carries scale, so this stage reads the
 work surface directly and cross-checks against `Class`. The `**Class:**` decision is live from this read, but
@@ -52,6 +53,28 @@ its write defers to the Finalize ceremony commit.
 
 **No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel
 overlay (it reaches novelty only indirectly, through scale).
+
+## Resolve plan segmentation
+
+**Signature:** `resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes;
+ordering doctrine`
+
+When authoring the phase structure and its exit criteria, divide the plan into an ordered sequence of contiguous
+segments. Each segment spans one or more phases and closes on one stated kind of progress. Attach the mode to the
+segment, not the work unit; mixed-mode plans are ordinary, while a single-mode plan is the simplest case. The read is
+universal — a light work unit still yields one segment with an evident mode.
+
+Choose each segment's mode from the dominant residual risk after planning closes:
+
+| Residual risk lies in                                           | Mode              | The segment closes on                              |
+| --------------------------------------------------------------- | ----------------- | -------------------------------------------------- |
+| **Composition** — do the parts assemble into intended behavior? | **`slice`**       | a thin end-to-end capability that can be exercised |
+| **Substrate contract** — is the shared thing underneath right?  | **`layer`**       | a complete, settled layer                          |
+| **Mechanics at scale** — does this transformation work N times? | **`replication`** | the enumerated surface exhausted, batch-verified   |
+
+`pilot-then-replicate` is a composition, not a fourth mode: use a thin `slice` segment to prove one instance, then a
+`replication` segment to exhaust the enumerated surface. Order segments to retire the dominant residual risk earliest;
+place the first `slice` as early as its required substrate allows.
 
 ## Generate in the resolved level
 
