@@ -433,6 +433,8 @@ pre-save checklist and bundles the commit.
       segment's opening phase, `_Exit criterion:_` on its closing phase, then any `_Design decisions:_` links to
       `notes-{name}.md`. A single-phase segment carries both structural lines with `_Mode:_` first; every preamble
       entry has a blank line after it; soft cap ~12 lines per preamble.
+- [ ] Segmentation diagnostics are clean for the saved task-list corpus. Run `npm run -s lint:md:descriptors`
+      before the interlock; it scans tracked and untracked task lists and emits the structural diagnostic family.
 - [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
       [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
@@ -448,6 +450,9 @@ pre-save checklist and bundles the commit.
 - [ ] Subtasks and description bullets indent 4 spaces under the root-level descriptor block
 - [ ] Blank lines between every subtask (always — see § Blank-Line Discipline in the strategy doc)
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
+- [ ] Every stub a `slice` creates carries a `_Retired in:_ Phase N` detail bullet naming the phase whose exit
+      criterion replaces or removes it. Identify scaffolding tasks, add the bullet, and confirm every named phase
+      exists.
 - [ ] Italic for non-actionable descriptors (`_Purpose:_`, `_Goal:_`, `_Outcome:_`, `_Note:_`,
       `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`); bold for actionable titles (`**X.Y Title**`)
 - [ ] Test-first tasks group test + implementation together (by concern, not activity)
@@ -468,6 +473,9 @@ pre-save checklist and bundles the commit.
       register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` / companions)
       that would survive verbatim execution into the target. See [strategy-task-list-formatting § Instruction
       Audience][task-list-formatting]
+- [ ] On a composition-risk plan, every mandatory lifecycle row stated by the spec is present in Success Criteria
+      and assigned to a `slice` segment or parent task that wires its production callsite and proves it with an
+      executable scenario. Inventory and assign the rows before any boundary report is recorded.
 - [ ] Success Criteria section at bottom with root-indent checkboxes; a Delivery Plan groups them by member and
       cross-member seams, while a single-deliverable work unit keeps the flat form (marked only at verification)
 

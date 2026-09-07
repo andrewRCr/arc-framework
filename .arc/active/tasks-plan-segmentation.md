@@ -223,23 +223,25 @@ together, not a resequencing to fix.
 - _Outcome:_ structural decomposition authors the segmentation lines when phase boundaries are chosen, and Finalize
   checks the same reproducible order before save.
 
-### `[ ]` **4.3 The three Finalize obligations — D7, D8, D9**
+### `[x]` **4.3 The three Finalize obligations — D7, D8, D9**
 
 - _Goal:_ the stage will not close on a plan whose structural segmentation is broken, whose lifecycle rows are
   unassigned, or whose stubs name no retiring phase — one obligation scanned, two judged.
 
-- _Rationale:_ the structural half runs the descriptor lint before the interlock, so the author sees precomposed
-  diagnostics over the saved file rather than hand-checking a checklist. The two judgment obligations need the
-  spec and the code read, so they stay author-evaluated.
+    - `[x]` **4.3.a Segmentation diagnostics are clean before the interlock**
+        - Finalize now requires the saved task-list corpus to pass `lint:md:descriptors`, surfacing structural
+          segmentation diagnostics before approval
 
-- _Shape:_ every existing checklist entry asserts a property of the file, so each new entry states its property
-  and carries the verb in its body rather than reading as a bare instruction.
+    - `[x]` **4.3.b Every mandatory lifecycle row is assigned on a composition-risk plan**
+        - Finalize now inventories the spec's lifecycle rows into Success Criteria and assigns each to a `slice`
+          that wires its production callsite and executable proof before boundary reporting
 
-    - `[ ]` **4.3.a Segmentation diagnostics are clean before the interlock**
+    - `[x]` **4.3.c Every stub names a retiring phase**
+        - Finalize now requires every `slice` scaffold to name the existing phase whose exit criterion replaces or
+          removes it
 
-    - `[ ]` **4.3.b Every mandatory lifecycle row is assigned on a composition-risk plan**
-
-    - `[ ]` **4.3.c Every stub names a retiring phase**
+- _Outcome:_ Finalize combines the executable segmentation scan with lifecycle-row and stub-disposition judgments,
+  settling all three obligations before the task-list approval interlock.
 
 ## **Phase 5:** Recorded-surface definitions of record
 
