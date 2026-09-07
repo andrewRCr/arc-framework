@@ -14,6 +14,7 @@ import {
 } from "../../../../src/lib/work-unit/verbs/attest.js";
 import { projectCandidateReviewBoundary } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { projectDurableCandidateTarget } from "../../../helpers/candidate.js";
 
 const REVISION = "a".repeat(40);
 const CHANGED_REVISION = "b".repeat(40);
@@ -43,6 +44,7 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
     verificationEvidenceRef: (name) => `tasks-${name}.md#verification`,
     readRecord: async () => ({ record: storedRecord, version: recordVersion }),
     currentTarget: async () => currentTarget,
+    effectiveTarget: (name, record) => projectDurableCandidateTarget({ cwd: "/repo", name, record }),
     publish: async (input) => {
       publicationCount += 1;
       storedRecord = input.record;
@@ -101,7 +103,7 @@ describe("runAttest", () => {
       storedRecord: {
         schemaVersion: 1,
         semanticsVersion: "candidate-attestation/v1",
-        responses: [],
+        transitions: [],
         lineageAttestations: [],
       },
     });
@@ -149,7 +151,7 @@ describe("runAttest", () => {
       verificationEvidenceRefs: ["test://candidate/focused"],
       implementationChanged: true,
     });
-    fixture.replaceRecord({ ...root, responses: [response] });
+    fixture.replaceRecord({ ...root, transitions: [response] });
     fixture.setCurrentTarget(changedTarget);
 
     const converged = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
@@ -172,6 +174,41 @@ describe("runAttest", () => {
     });
   });
 
+  it("republishes a committed machine-carried target without masking later staged content", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const root = fixture.state().storedRecord!;
+    const carriedTarget = { revision: CHANGED_REVISION, subject: subject("mechanically-carried") };
+    fixture.setCurrentTarget(carriedTarget);
+    fixture.context.effectiveTarget = async () => ({
+      schemaVersion: 1,
+      mode: "candidate-effective-target",
+      state: "current",
+      nextAction: "continue",
+      candidateId: root.attestation.candidateId,
+      durableBaselineTarget: { revision: root.attestation.baseRevision, subject: root.subject },
+      recognizedTarget: carriedTarget,
+      recognition: {
+        kind: "machine",
+        proof: "mechanical-reapply",
+        projectionDigest: canonicalDigest({ projection: "carried" }),
+        residualDigest: canonicalDigest({ residual: "carried" }),
+      },
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+    });
+
+    await expect(runAttest(fixture.context, { name: "example", lifecycle: "Active" }))
+      .resolves.toMatchObject({
+        status: "unchanged",
+        locus: { candidateSubjectDigest: carriedTarget.subject.subjectDigest },
+      });
+
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("staged-after-carry") });
+    await expect(runAttest(fixture.context, { name: "example", lifecycle: "Active" }))
+      .resolves.toMatchObject({ status: "blocked" });
+  });
+
   it("rejects an unexplained reviewable delta without replacing the lineage root", async () => {
     const fixture = harness();
     await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
@@ -183,7 +220,103 @@ describe("runAttest", () => {
       status: "blocked",
       candidateId: fixture.state().storedRecord!.attestation.candidateId,
       delta: { added: [], removed: [], changed: ["packages/arc-framework/src/example.ts"] },
-      nextAction: "Run full work-unit verification to establish a new Candidate lineage root.",
+      nextAction: "establish-new-root",
+      recommendedActionText: "Run full work-unit verification, then establish a new Candidate lineage root.",
+      continuation: {
+        argv: [
+          "arc",
+          "attest",
+          "example",
+          "--new-root",
+          "--expected-candidate",
+          fixture.state().storedRecord!.attestation.candidateId,
+          "--expected-subject",
+          subject("unexplained").subjectDigest,
+          "--json",
+        ],
+      },
+    });
+    expect(fixture.state().publicationCount).toBe(1);
+  });
+
+  it("refuses a bound re-root continuation after the staged subject changes", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const refusedTarget = { revision: CHANGED_REVISION, subject: subject("refused") };
+    fixture.setCurrentTarget(refusedTarget);
+    const blocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    if (blocked.status !== "blocked") throw new Error("expected blocked Candidate delta");
+
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("staged-later") });
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: {
+        candidateId: blocked.candidateId,
+        subjectDigest: refusedTarget.subject.subjectDigest,
+      },
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "re-root-subject-mismatch",
+      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+    });
+    expect(fixture.state().publicationCount).toBe(1);
+  });
+
+  it("refuses a bound re-root continuation after the blocked Candidate changes", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const firstTarget = { revision: CHANGED_REVISION, subject: subject("first-refusal") };
+    fixture.setCurrentTarget(firstTarget);
+    const firstBlocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    if (firstBlocked.status !== "blocked") throw new Error("expected first blocked Candidate delta");
+
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active", newRoot: true });
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("second-refusal") });
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: {
+        candidateId: firstBlocked.candidateId,
+        subjectDigest: firstTarget.subject.subjectDigest,
+      },
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "re-root-candidate-mismatch",
+      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+    });
+    expect(fixture.state().publicationCount).toBe(2);
+  });
+
+  it("refuses a bound re-root continuation when the Candidate is no longer blocked", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const refusedTarget = { revision: CHANGED_REVISION, subject: subject("refused") };
+    fixture.setCurrentTarget(refusedTarget);
+    const blocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    if (blocked.status !== "blocked") throw new Error("expected blocked Candidate delta");
+
+    fixture.setCurrentTarget({ revision: REVISION, subject: subject() });
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: {
+        candidateId: blocked.candidateId,
+        subjectDigest: refusedTarget.subject.subjectDigest,
+      },
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "re-root-no-longer-blocked",
+      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
     });
     expect(fixture.state().publicationCount).toBe(1);
   });
@@ -207,7 +340,7 @@ describe("runAttest", () => {
       projectedNextAction: "Candidate review pending — run pre-publication review",
       storedRecord: {
         attestation: { supersedes: superseded },
-        responses: [],
+        transitions: [],
         lineageAttestations: [],
       },
     });

@@ -1,18 +1,37 @@
 /** Production composition for the typed pre-publication review procedure. */
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import { parseMetaRecord, toMetaRecord } from "../../../lib/active/meta-reader.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
+import {
+  compareGitNormalizedDeliveryTrees,
+  inspectDeliveryCandidateCheckout,
+  observeDeliveryEligibilityRef,
+} from "../../../lib/delivery/git-eligibility.js";
+import {
+  readGitDeliveryLifecycleArtifactsAtRef,
+  revalidateDeliveryLifecycleContribution,
+} from "../../../lib/delivery/git-lifecycle-contribution.js";
+import { CurrentDeliveryLifecycleContributionPathSource } from "../../../lib/delivery/lifecycle-contribution.js";
+import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../../../lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
-import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
+import { createRawGitExec } from "../../../lib/io-context.js";
+import { SlugSchema, validateManagedPath } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
-import { projectCandidateCurrentness } from "../../../lib/work-unit/candidate-attestation.js";
+import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
+import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
+import { candidateReviewResponses } from "../../../lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../../lib/work-unit/git-candidate-subject.js";
+import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-readers.js";
+import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import { resolveChangeRequest } from "../change-request.js";
+import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
+import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../hosts/local/frontline-source-preferences.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import {
@@ -20,21 +39,162 @@ import {
   createLocalReviewRubricBindingPort,
 } from "../hosts/local/method-files.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
+import {
+  composeDeliveryMemberTarget,
+  deriveLocalReviewTarget,
+} from "../hosts/local/repository-target.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { readLaneProgressAcrossLineage } from "../lane-progress.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
+import {
+  composePreBindingDeliveryReviewTargets,
+  type PreBindingDeliveryReviewTargetDependencies,
+} from "./pre-publication-delivery-targets.js";
 import type {
   AssuranceRead,
   CandidateRead,
   ImmutableTargetRead,
   PrePublicationCompositionDependencies,
+  ReservationTargetRead,
   TargetRead,
 } from "./pre-publication-request.js";
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Bind canonical delivery, Git eligibility, and exact review-target reads for private member projection.
+ *
+ * @param input - The originating work-unit checkout and its Git boundary.
+ * @returns The production dependencies for `composePreBindingDeliveryReviewTargets`.
+ */
+export function createPreBindingDeliveryReviewTargetDependencies(input: {
+  cwd: string;
+  exec: GitExec;
+}): PreBindingDeliveryReviewTargetDependencies {
+  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  const states = new RepositoryDeliveryStateStore(publisher);
+  const lookup = new RepositoryDeliveryMemberLookup(input);
+  let repositoryIdPromise: Promise<string> | null = null;
+  const repositoryId = () => {
+    repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
+    return repositoryIdPromise;
+  };
+  return {
+    resolveDelivery: (workUnitId, protectedBaseRef) => lookup.resolveReservationRecords(
+      workUnitId,
+      { status: "established", ref: protectedBaseRef },
+    ),
+    resolveGitCommonDir: () => resolveGitCommonDir(input.exec, input.cwd),
+    resolveOriginatingTop: async (plan) => {
+      const [active, branch] = await Promise.all([
+        resolveActiveWu({ cwd: input.cwd }),
+        getCurrentBranch(input.exec),
+      ]);
+      return active.status === "resolved" && active.name === plan.workUnitId
+        && active.branch !== null && active.branch === branch
+        ? `refs/heads/${active.branch}`
+        : null;
+    },
+    resolveLifecyclePaths: async ({ plan, protectedBaseRef, topRef }) => {
+      const active = await resolveActiveWu({ cwd: input.cwd });
+      if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
+      const paths = await new CurrentDeliveryLifecycleContributionPathSource({
+        readDirectory: (path) => readdir(resolve(input.cwd, path)),
+        readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(
+          input.exec,
+          ref,
+          workUnitId,
+        ),
+      }).resolve({
+        workUnitId: plan.workUnitId,
+        activeMetaPath: validateManagedPath(active.path),
+        protectedBaseRef,
+        topRef,
+      });
+      return [...paths.workUnitArtifacts, ...paths.sharedProjections];
+    },
+    eligibility: {
+      observeRef: (ref) => observeDeliveryEligibilityRef(input.exec, ref),
+      readAncestry: (ancestor, descendant) => readAncestry(input.exec, ancestor, descendant),
+      revalidateLifecycleContribution: (candidate) => revalidateDeliveryLifecycleContribution({
+        exec: input.exec,
+        ...candidate,
+      }),
+      compareNormalizedCompleteness: async (candidate) => {
+        const compared = await compareGitNormalizedDeliveryTrees({
+          exec: input.exec,
+          protectedBaseTree: candidate.protectedBase.tree,
+          topTree: candidate.top.tree,
+          finalCandidateTree: candidate.finalCandidate.tree,
+          lifecyclePaths: candidate.lifecyclePaths,
+        });
+        if (compared.status === "unavailable") {
+          return { status: "refused" as const, reason: "unavailable" as const };
+        }
+        if (compared.status === "match") return compared;
+        const reason = compared.droppedPaths.length > 0
+          ? "dropped" as const
+          : compared.inventedPaths.length > 0 ? "invented" as const : "mismatched" as const;
+        return { status: "refused" as const, reason };
+      },
+      readCurrentPlan: async (planId) => {
+        const current = await plans.readCurrent(planId);
+        return current.status === "ok" ? current.value : null;
+      },
+      resolveMember: (head) => states.resolveMemberReadOnly({ selector: { kind: "head", objectId: head } }),
+      inspectCheckout: (path) => inspectDeliveryCandidateCheckout(input.exec, path),
+    },
+    composeTarget: async ({ baseRef, base, head }) => composeDeliveryMemberTarget({
+      exec: input.exec,
+      cwd: input.cwd,
+      baseRef,
+      repositoryId: await repositoryId(),
+      member: { base, head },
+    }),
+  };
+}
+
+/** Select the carried reservation marker from one coherent delivery-record read. */
+export function selectPrePublicationReservationTarget(input: {
+  workUnit: string;
+  singleton: { repository: string; headSha: string };
+  delivery:
+    | { status: "absent" }
+    | { status: "unavailable" }
+    | { status: "planned" | "bound"; planId: string; workUnitId: string };
+}): ReservationTargetRead {
+  const workUnit = SlugSchema.parse(input.workUnit);
+  if (input.delivery.status === "unavailable") {
+    return {
+      status: "refused",
+      reason: "The pre-publication reservation target could not be resolved from delivery records.",
+    };
+  }
+  if (input.delivery.status !== "absent" && input.delivery.workUnitId !== workUnit) {
+    return {
+      status: "refused",
+      reason: "The resolved delivery plan does not belong to the requested work unit.",
+    };
+  }
+  if (input.delivery.status !== "absent") {
+    return {
+      status: "resolved",
+      target: {
+        kind: "delivery",
+        repository: input.singleton.repository,
+        planId: input.delivery.planId,
+        workUnitId: workUnit,
+      },
+    };
+  }
+  return {
+    status: "resolved",
+    target: { kind: "pinned-head", ...input.singleton },
+  };
 }
 
 /**
@@ -53,7 +213,10 @@ export function createPrePublicationCompositionDependencies(input: {
     return (await settingsPromise).settings;
   };
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const rawGit = createRawGitExec(input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
+  const deliveryMemberLookup = new RepositoryDeliveryMemberLookup(input);
+  const deliveryReviewTargetDependencies = createPreBindingDeliveryReviewTargetDependencies(input);
   let repositoryIdPromise: Promise<string> | null = null;
   const repositoryId = () => {
     repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
@@ -65,26 +228,35 @@ export function createPrePublicationCompositionDependencies(input: {
       const name = SlugSchema.parse(workUnit);
       const record = await readCandidateRecord(input.cwd, name);
       if (record === null) return { status: "missing" };
-      const current = await collectGitCandidateTarget({
+      const effective = await projectGitCandidateEffectiveTarget({
         cwd: input.cwd,
         name,
         baseBranch: (await settings())["branch.base"],
+        record,
         exec: input.exec,
+        rawExec: rawGit,
       });
-      const currentness = projectCandidateCurrentness({ record, current });
-      if (currentness.status === "blocked") return { status: "blocked", reason: currentness.nextAction };
+      if (effective.state !== "current") {
+        const reason = effective.state === "changed" || effective.state === "staged-change"
+          ? "Run full work-unit verification to establish a new Candidate lineage root."
+          : effective.state === "decision-required"
+            ? `${effective.selectionOfferText}\n${effective.recommendedActionText}`
+            : `Candidate applicability could not recognize the current target (${effective.nextAction}).`;
+        return { status: "blocked", reason };
+      }
       return {
         status: "current",
-        candidateId: currentness.candidateId,
-        headSha: currentness.recognizedRevision,
-        subjectDigest: current.subject.subjectDigest,
-        implementationChanged: currentness.implementationChanged,
-        convergenceVerification: currentness.convergenceVerification,
+        candidateId: effective.candidateId,
+        headSha: effective.recognizedTarget.revision,
+        subjectDigest: effective.recognizedTarget.subject.subjectDigest,
+        implementationChanged: effective.implementationChanged,
+        convergenceVerification: effective.convergenceVerification,
         lineageHeadShas: [...new Set([
           record.attestation.baseRevision,
-          ...record.responses.flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
+          ...candidateReviewResponses(record)
+            .flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
           ...record.lineageAttestations.map((attestation) => attestation.target.revision),
-          currentness.recognizedRevision,
+          effective.recognizedTarget.revision,
         ])],
       };
     },
@@ -147,6 +319,7 @@ export function createPrePublicationCompositionDependencies(input: {
         headRef,
         headSha,
         baseRef: (await settings())["branch.base"],
+        acceptableBaseRefs: await resolveAcceptableDeliveryBaseRefs(deliveryMemberLookup, headSha),
       }, port);
       return {
         status: "resolved",
@@ -157,6 +330,32 @@ export function createPrePublicationCompositionDependencies(input: {
         },
       };
     },
+
+    readReservationTarget: async (workUnit, singleton): Promise<ReservationTargetRead> => {
+      const base = (await settings())["branch.base"].trim();
+      const delivery = await deliveryMemberLookup.resolveReservationRecords(
+        workUnit,
+        base === ""
+          ? { status: "unestablished" }
+          : { status: "established", ref: `refs/heads/${base}` },
+      );
+      return selectPrePublicationReservationTarget({
+        workUnit,
+        singleton,
+        delivery: delivery.status === "planned" || delivery.status === "bound"
+          ? {
+              status: delivery.status,
+              planId: delivery.plan.planId,
+              workUnitId: delivery.plan.workUnitId,
+            }
+          : delivery,
+      });
+    },
+
+    readDeliveryReviewTargets: async (workUnit) => composePreBindingDeliveryReviewTargets({
+      workUnitId: workUnit,
+      baseRef: (await settings())["branch.base"],
+    }, deliveryReviewTargetDependencies),
 
     deriveImmutableTarget: async (): Promise<ImmutableTargetRead> => {
       try {

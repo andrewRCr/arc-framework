@@ -220,6 +220,17 @@ records the current member/seam intent for review but does not create canonical 
 plan, or mutate an external projection. Rebuild or remove the locus if the skeleton changes; do not put canonical
 sentinels around provisional prose. A recorded unchanged outcome remains silent under the method's sticky posture.
 
+Use the provisional coverage to emit the delivery-aware task shape:
+
+- Open each affected phase preamble with one `**Delivery member:**` pointer carrying the ordinal and backticked chunk
+  key per member represented there, before `_Purpose:_`. The pointer orients the reader; coverage remains assignment
+  authority.
+- End each member's task range with a member-scope verification parent assigned to that member and carrying the exact
+  `— validate criteria at member scope` suffix. Its Goal is the member-scope criteria walk through
+  `validate-criteria`; it stays distinct from the sole terminal work-unit verification task and adds no phase.
+- Group Success Criteria beneath the member headings, followed by `### Cross-member seams`. Assign each criterion
+  to the earliest boundary that can see its evidence; criteria with no visible member boundary go to the seam group.
+
 → **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
 discipline above) before continuing.
 
@@ -389,8 +400,8 @@ pre-save checklist and bundles the commit.
 - [ ] Header is the single `**Design:**` chain-of-authority pointer (bare spec filename) — no
       `Purpose` / `Branch` / `Base Branch` on `tasks-*` (Purpose lives on the spec, branch on `meta-*`).
 - [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
-- [ ] Phase preambles open with `_Purpose:_` line (italic); optional `_Design decisions:_` block
-      links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
+- [ ] Phase preambles open with any delivery-member pointers when a Delivery Plan is present, then `_Purpose:_`
+      (italic); optional `_Design decisions:_` links to `notes-{name}.md`; soft cap ~12 lines per preamble
 - [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
       [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
@@ -414,6 +425,9 @@ pre-save checklist and bundles the commit.
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
 - [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
+- [ ] Delivery member ranges, when present, end in member-scope verification parents assigned through coverage and
+      carrying the exact `— validate criteria at member scope` suffix; they add no phase and stay distinct from the
+      sole terminal work-unit verification task
 - [ ] All "carry as context" findings from the grounding audit are durably captured (inline `_Note:_` or
       cross-reference to `notes-{name}.md` companion file)
 - [ ] Task bodies read as a coherent forward artifact — no audit / correction / "pending" / amendment
@@ -423,7 +437,8 @@ pre-save checklist and bundles the commit.
       register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` / companions)
       that would survive verbatim execution into the target. See [strategy-task-list-formatting § Instruction
       Audience][task-list-formatting]
-- [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
+- [ ] Success Criteria section at bottom with root-indent checkboxes; a Delivery Plan groups them by member and
+      cross-member seams, while a single-deliverable work unit keeps the flat form (marked only at verification)
 
 **Destination path** (referenced by **Structural decomposition**'s file creation) — co-locate with the
 work unit's existing artifacts (lifecycle position first; `pm.mode` only when nothing is on disk yet):

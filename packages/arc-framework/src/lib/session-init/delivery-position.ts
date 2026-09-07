@@ -18,7 +18,7 @@ import { validateDeliveryStateAgainstPlan } from "../delivery/state.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 
 const ActiveOperationViewSchema = z.strictObject({
-  kind: z.enum(["materialize", "publish", "land", "rewrite", "teardown"]),
+  kind: z.enum(["materialize", "publish", "land", "rewrite", "teardown", "top-remedy"]),
   operationId: z.string().min(1),
 });
 

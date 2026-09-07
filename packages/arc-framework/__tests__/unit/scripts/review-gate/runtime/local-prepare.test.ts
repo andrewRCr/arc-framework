@@ -119,6 +119,7 @@ describe("local review preparation request", () => {
 
   describe("member preparation", () => {
     const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
+    const PLAN_ID = "123e4567-e89b-42d3-a456-426614174000";
 
     function fixture() {
       const targetOf = (kind: "change-set" | "delivery-member", seed: string) => createReviewTarget({
@@ -181,6 +182,7 @@ describe("local review preparation request", () => {
         })
       ));
       const materialize = vi.fn(async () => ({ reviewRoot: "/tmp/review-root" }));
+      const validateDeliveryAdmission = vi.fn(async () => undefined);
 
       const dependencies = {
         sweep: async () => undefined,
@@ -203,6 +205,7 @@ describe("local review preparation request", () => {
           diagnostics: [] as [],
         }),
         validatePolicySelection: () => undefined,
+        validateDeliveryAdmission,
         operationStore: {
           readOperation: async (operationId: string) => (
             operations.get(operationId) ?? { version: 0, state: null }
@@ -241,6 +244,7 @@ describe("local review preparation request", () => {
         describeSource,
         materialize,
         resolveAuthority,
+        validateDeliveryAdmission,
         operations,
         published: () => lastPublished,
       };
@@ -267,6 +271,78 @@ describe("local review preparation request", () => {
         targetId: context.memberTarget.targetId,
         target: { kind: "delivery-member" },
       });
+    });
+
+    it("carries and freshly validates the exact driver admission before local preparation", async () => {
+      const context = fixture();
+      const deliveryAdmission = {
+        schemaVersion: 1 as const,
+        sourceId: "delegated-agent" as const,
+        statusTarget: {
+          repository: "owner/repository",
+          headRef: "delivery/member-1",
+          headSha: context.memberTarget.headSha,
+        },
+        target: {
+          repository: "owner/repository",
+          pullRequest: 41,
+          headSha: context.memberTarget.headSha,
+        },
+        vehicle: {
+          kind: "delivery-member" as const,
+          planId: PLAN_ID,
+          deliverableId: DELIVERABLE_ID,
+          workUnitId: "review-surface-binding",
+          head: context.memberTarget.headSha,
+        },
+        pass: 1,
+      };
+
+      await expect(prepareLocalReview(
+        { ...request, deliveryAdmission },
+        context.dependencies,
+      )).resolves.toMatchObject({ state: "ready", nextAction: "launch-review" });
+
+      expect(context.validateDeliveryAdmission).toHaveBeenCalledWith(deliveryAdmission);
+      expect(context.resolveAuthority).toHaveBeenCalledWith(
+        "evaluator-1",
+        context.memberTarget.headSha,
+        deliveryAdmission,
+      );
+      expect(context.published()).toMatchObject({ deliveryAdmission });
+    });
+
+    it("stops a stale driver admission before publishing a local operation", async () => {
+      const context = fixture();
+      const deliveryAdmission = {
+        schemaVersion: 1 as const,
+        sourceId: "delegated-agent" as const,
+        statusTarget: {
+          repository: "owner/repository",
+          headRef: "delivery/member-1",
+          headSha: context.memberTarget.headSha,
+        },
+        target: {
+          repository: "owner/repository",
+          pullRequest: 41,
+          headSha: context.memberTarget.headSha,
+        },
+        vehicle: {
+          kind: "delivery-member" as const,
+          planId: PLAN_ID,
+          deliverableId: DELIVERABLE_ID,
+          workUnitId: "review-surface-binding",
+          head: context.memberTarget.headSha,
+        },
+        pass: 1,
+      };
+      context.validateDeliveryAdmission.mockRejectedValueOnce(new Error("delivery admission moved"));
+
+      await expect(prepareLocalReview(
+        { ...request, deliveryAdmission },
+        context.dependencies,
+      )).rejects.toThrow(/delivery admission moved/u);
+      expect(context.operations.size).toBe(0);
     });
 
     it("feeds the resolution's recorded shas to derivation, and none without a selector", async () => {
@@ -333,7 +409,7 @@ describe("local review preparation request", () => {
         },
       });
       // The carrier's snapshot is built from that same target, so a request bound
-      // to it carries the member's coordinates rather than the control branch's.
+      // to it carries the member's coordinates rather than the work-unit branch's.
       expect(state?.kind === "local-review" && state.request.targetId)
         .toBe(context.memberTarget.targetId);
     });
@@ -425,7 +501,7 @@ describe("local review preparation request", () => {
           { ...request, memberHeadObjectId: context.memberTarget.headSha },
           context.dependencies,
         );
-        // A forgotten selector reviews the control branch rather than the member,
+        // A forgotten selector reviews the work-unit branch rather than the member,
         // which admits as its own operation instead of colliding with the member's.
         await expect(prepareLocalReview(request, context.dependencies))
           .resolves.toMatchObject({ state: "ready" });
@@ -489,6 +565,7 @@ describe("local review preparation request", () => {
         diagnostics: [] as [],
       }),
       validatePolicySelection: () => undefined,
+      validateDeliveryAdmission: async () => undefined,
       operationStore: {
         readOperation: async () => {
           if (persistedState === null && initialReads < 2) {
@@ -613,6 +690,7 @@ describe("local review preparation request", () => {
           diagnostics: [] as [],
         }),
         validatePolicySelection: () => undefined,
+        validateDeliveryAdmission: async () => undefined,
         operationStore: {
           readOperation: async (operationId: string) => (
             persistedState?.operationId === operationId

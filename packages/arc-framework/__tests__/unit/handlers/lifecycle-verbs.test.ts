@@ -9,7 +9,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import {
+  createStandardReviewReservation,
   projectCandidateReviewBoundary,
+  projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const mockLogError = vi.fn();
@@ -18,6 +20,7 @@ const mockNote = vi.fn();
 const mockSelect = vi.fn();
 const mockIoExec = vi.fn();
 const mockIoExecInput = vi.fn();
+const mockIoWriteFile = vi.fn();
 const mockCreateUserIOContext = vi.fn();
 const mockSpinnerStart = vi.fn();
 const mockSpinnerStop = vi.fn();
@@ -48,7 +51,7 @@ vi.mock("../../../src/lib/io-context.js", () => ({
       exec: mockIoExec,
       execInput: mockIoExecInput,
       readFile: vi.fn(async () => "meta"),
-      writeFile: vi.fn(),
+      writeFile: (...args: unknown[]) => mockIoWriteFile(...args),
       mkdir: vi.fn(),
     };
   },
@@ -98,15 +101,30 @@ vi.mock("../../../src/lib/git/write-context.js", () => ({
   }),
 }));
 
-const mockParseMetaRecord = vi.fn(() => ({ branch: "feat/foo", state: "Active" }));
+const mockParseMetaRecord = vi.fn((): {
+  branch: string;
+  state: string;
+  taskList: string;
+  currentWorkflow?: string | null;
+  nextAction?: string | null;
+  lastCompleted?: string | null;
+  nextTask?: string | null;
+} => ({ branch: "feat/foo", state: "Active", taskList: "tasks-foo.md" }));
 const mockReadActiveMetaCandidates = vi.fn<(cwd: string) => Promise<{ candidates: { filename: string }[] }>>(
   async () => ({
     candidates: [{ filename: "meta-foo.md" }],
   }),
 );
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
+  formatValue: (value: string) => value,
   parseMetaRecord: () => mockParseMetaRecord(),
   readActiveMetaCandidates: (cwd: string) => mockReadActiveMetaCandidates(cwd),
+  setMetaBulletFields: (content: string) => content,
+  setMetaCandidate: (content: string) => content,
+}));
+vi.mock("../../../src/lib/active/current-workflow-consistency.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/active/current-workflow-consistency.js")>(),
+  checkCurrentWorkflowConsistency: () => [],
 }));
 
 const mockBuildLifecycleIndex = vi.fn();
@@ -217,10 +235,11 @@ vi.mock("../../../src/lib/git/in-flight-derivation.js", () => ({
 
 const mockExpandActiveInFlight = vi.fn();
 const mockRunActiveInFlightExpansion = vi.fn();
+const mockResolveTaskListPath = vi.fn();
 vi.mock("../../../src/commands/active.js", () => ({
   expandActiveInFlight: (...args: unknown[]) => mockExpandActiveInFlight(...args),
   runActiveInFlightExpansion: (...args: unknown[]) => mockRunActiveInFlightExpansion(...args),
-  resolveTaskListPath: () => null,
+  resolveTaskListPath: (...args: unknown[]) => mockResolveTaskListPath(...args),
 }));
 
 const mockFindMaterializableWorkUnits = vi.fn();
@@ -248,9 +267,10 @@ vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
 }));
 
 const mockReadCandidateRecord = vi.fn();
+const mockWriteCandidateRecord = vi.fn();
 vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
-  writeCandidateRecord: vi.fn(),
+  writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
 }));
 const mockCollectGitCandidateTarget = vi.fn();
 const mockCollectUnstagedReviewablePaths = vi.fn();
@@ -263,9 +283,9 @@ vi.mock("../../../src/lib/work-unit/verbs/attest.js", async (orig) => ({
   ...(await orig<typeof import("../../../src/lib/work-unit/verbs/attest.js")>()),
   runAttest: (...a: unknown[]) => mockRunAttest(...a),
 }));
-const mockProjectCandidateCurrentness = vi.fn();
-vi.mock("../../../src/lib/work-unit/candidate-attestation.js", () => ({
-  projectCandidateCurrentness: (...a: unknown[]) => mockProjectCandidateCurrentness(...a),
+const mockProjectGitCandidateEffectiveTarget = vi.fn();
+vi.mock("../../../src/lib/work-unit/git-candidate-effective-target.js", () => ({
+  projectGitCandidateEffectiveTarget: (...a: unknown[]) => mockProjectGitCandidateEffectiveTarget(...a),
 }));
 const mockReadSubmissionBoundaryVersioned = vi.fn();
 const mockWriteSubmissionBoundary = vi.fn();
@@ -278,14 +298,12 @@ const mockRunReopen = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/reopen.js", () => ({
   runReopen: (...a: unknown[]) => mockRunReopen(...a),
 }));
-
-// The `gh`-backed PR source feeds the `pr-unmerged` guard input; the factory returns
-// the source fn, so handler tests drive merge state (and gh-failure degradation) by
-// resolving / rejecting that fn.
-const mockPrSource = vi.fn();
-const mockCreateGhWorkUnitPrSource = vi.fn();
-vi.mock("../../../src/lib/session-init/work-unit-pr-source.js", () => ({
-  createGhWorkUnitPrSource: (...a: unknown[]) => mockCreateGhWorkUnitPrSource(...a),
+const mockInspectRepositoryDeliveryReopen = vi.fn();
+const mockInspectRepositoryDeliveryCandidateRenewal = vi.fn();
+vi.mock("../../../src/lib/delivery/repository-entry.js", () => ({
+  inspectRepositoryDeliveryReopen: (...args: unknown[]) => mockInspectRepositoryDeliveryReopen(...args),
+  inspectRepositoryDeliveryCandidateRenewal: (...args: unknown[]) =>
+    mockInspectRepositoryDeliveryCandidateRenewal(...args),
 }));
 
 // The slug→state resolver feeds the handler's impact-plan composition; keep the
@@ -363,9 +381,19 @@ beforeEach(() => {
   mockResolveArcRoot.mockReturnValue("/repo");
   mockReadActiveMetaCandidates.mockResolvedValue({ candidates: [{ filename: "meta-foo.md" }] });
   mockReadFile.mockResolvedValue("{}");
+  mockResolveTaskListPath.mockReturnValue(".arc/active/tasks-foo.md");
   mockReadConfigSettings.mockResolvedValue(configResult());
-  mockParseMetaRecord.mockReturnValue({ branch: "feat/foo", state: "Active" });
+  mockParseMetaRecord.mockReturnValue({ branch: "feat/foo", state: "Active", taskList: "tasks-foo.md" });
+  mockInspectRepositoryDeliveryReopen.mockReset();
+  mockInspectRepositoryDeliveryReopen.mockResolvedValue({
+    status: "reopen-permitted",
+    composition: "absent",
+    nextAction: "continue-reopen",
+    recommendedActionText: "Continue ordinary singleton withdrawal.",
+  });
+  mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValue({ status: "not-applicable" });
   mockCollectUnstagedReviewablePaths.mockResolvedValue([]);
+  mockWriteCandidateRecord.mockResolvedValue(".arc/system/.internal/candidates/foo.json");
   mockRunAttest.mockResolvedValue({
     status: "unchanged",
     locus: projectCandidateReviewBoundary({ workUnit: "foo", candidateId: `sha256:${"c".repeat(64)}` }),
@@ -429,7 +457,15 @@ beforeEach(() => {
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
   mockCollectGitCandidateTarget.mockResolvedValue({ revision: "a".repeat(40), subject: {} });
-  mockProjectCandidateCurrentness.mockReturnValue({ status: "current", convergenceVerification: "satisfied" });
+  mockProjectGitCandidateEffectiveTarget.mockResolvedValue({
+    state: "current",
+    candidateId,
+    recognizedTarget: {
+      revision: "a".repeat(40),
+      subject: { subjectDigest: `sha256:${"b".repeat(64)}` },
+    },
+    convergenceVerification: "satisfied",
+  });
   mockReadSubmissionBoundaryVersioned.mockResolvedValue({ boundary, version: "boundary-version" });
   mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");
   mockRunPublish.mockResolvedValue({
@@ -440,8 +476,6 @@ beforeEach(() => {
     boundary: { ...boundary, mode: "integration-boundary", locus: "publication-pending" },
   });
   mockRunReopen.mockResolvedValue({ status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
-  mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
-  mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
   mockReadFile.mockResolvedValue('{"schemaVersion":1}');
   mockRevalidateV3DecomposeExecutionPreflight.mockResolvedValue({
     status: "current",
@@ -479,6 +513,7 @@ beforeEach(() => {
     candidateHead: "d".repeat(40),
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
+  mockIoWriteFile.mockResolvedValue(undefined);
   mockResolveInFlightBranchSet.mockResolvedValue({
     branches: ["feat/foo"],
     refs: { "origin/feat/foo": "abc123" },
@@ -1297,19 +1332,96 @@ describe("handlePublish", () => {
 });
 
 describe("handleReopen", () => {
+  it("establishes coherent unbound delivery before host observation and lifecycle transition", async () => {
+    const events: string[] = [];
+    mockInspectRepositoryDeliveryReopen.mockImplementationOnce(async () => {
+      events.push("delivery-composition");
+      return {
+        status: "reopen-permitted",
+        composition: "unbound",
+        planId: "11111111-1111-4111-8111-111111111111",
+        nextAction: "continue-reopen",
+        recommendedActionText: "Continue ordinary withdrawal.",
+      };
+    });
+    mockIoExec.mockImplementationOnce(async () => {
+      events.push("host-observation");
+      return { stdout: '{"state":"OPEN"}\n', stderr: "" };
+    });
+    mockRunReopen.mockImplementationOnce(async () => {
+      events.push("lifecycle-transition");
+      return { status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" };
+    });
+
+    await handleReopen("foo", {});
+
+    expect(events).toEqual(["delivery-composition", "host-observation", "lifecycle-transition"]);
+    expect(mockLogError).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("refuses a coherently bound delivery before host or lifecycle mutation", async () => {
+    const reason = "Ordinary reopen would strand retained member requests.";
+    mockInspectRepositoryDeliveryReopen.mockResolvedValueOnce({
+      status: "reopen-bound",
+      planId: "11111111-1111-4111-8111-111111111111",
+      stateRevision: 7,
+      nextAction: "stop",
+      recommendedActionText: reason,
+    });
+
+    await handleReopen("foo", {});
+
+    expect(mockLogError).toHaveBeenCalledWith(reason);
+    expect(process.exitCode).toBe(1);
+    expect(mockIoExec).not.toHaveBeenCalled();
+    expect(mockRunReopen).not.toHaveBeenCalled();
+  });
+
+  it.each(["evidence-unavailable", "state-incoherent"])(
+    "fails closed on %s delivery composition before host or lifecycle mutation",
+    async (reason) => {
+      const recommendedActionText = `Resolve ${reason} delivery evidence before reopening.`;
+      mockInspectRepositoryDeliveryReopen.mockResolvedValueOnce({
+        status: "refused",
+        nextAction: "stop",
+        reason,
+        recommendedActionText,
+      });
+
+      await handleReopen("foo", {});
+
+      expect(mockLogError).toHaveBeenCalledWith(recommendedActionText);
+      expect(process.exitCode).toBe(1);
+      expect(mockIoExec).not.toHaveBeenCalled();
+      expect(mockRunReopen).not.toHaveBeenCalled();
+    },
+  );
+
   it("reopens an unmerged WU, forwarding the resolved merge fact and the default close mode", async () => {
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"OPEN"}\n', stderr: "" });
     await handleReopen("foo", {});
     expect(mockRunReopen).toHaveBeenCalledTimes(1);
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo", prMerged: false, withdrawMode: "close" });
+    expect(mockIoExec).toHaveBeenCalledWith("gh", ["pr", "view", "feat/foo", "--json", "state"]);
   });
 
   it("forwards the draft withdrawal mode under --keep-pr", async () => {
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"OPEN"}\n', stderr: "" });
     await handleReopen("foo", { keepPr: true });
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ withdrawMode: "draft" });
   });
 
+  it("forwards an exact reopened task orientation", async () => {
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"OPEN"}\n', stderr: "" });
+    await handleReopen("foo", { task: "Task 6.11.R — Revalidate the amended member boundary" });
+    expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({
+      nextTask: "Task 6.11.R — Revalidate the amended member boundary",
+    });
+  });
+
   it("forwards a merged PR fact and surfaces the resulting rejection", async () => {
-    mockPrSource.mockResolvedValueOnce(new Map([["feat/foo", { merged: true }]]));
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"MERGED"}\n', stderr: "" });
     mockRunReopen.mockResolvedValueOnce({ status: "rejected", reason: "the PR has already merged — back out via a new WU." });
     await handleReopen("foo", {});
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ prMerged: true });
@@ -1318,7 +1430,7 @@ describe("handleReopen", () => {
   });
 
   it("forwards an undefined merge fact when gh is unavailable, surfacing the guard's refusal", async () => {
-    mockPrSource.mockRejectedValueOnce(new Error("gh: command not found"));
+    mockIoExec.mockRejectedValueOnce(new Error("gh: command not found"));
     mockRunReopen.mockResolvedValueOnce({
       status: "rejected",
       reason: "the PR's merge state can't be confirmed (`gh`/remote unavailable) — resolve it and retry.",
@@ -1332,6 +1444,7 @@ describe("handleReopen", () => {
   });
 
   it("defaults a bare invocation to the current worktree's WU", async () => {
+    mockIoExec.mockResolvedValueOnce({ stdout: '{"state":"OPEN"}\n', stderr: "" });
     await handleReopen(undefined, {});
     expect(mockRunReopen).toHaveBeenCalledTimes(1);
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
@@ -1362,6 +1475,421 @@ describe("handleAttest", () => {
       name: "foo",
       lifecycle: "Active",
       newRoot: false,
+    });
+  });
+
+  it("refuses Integrating attestation before Candidate mutation when public delivery evidence is not exact", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: "Integrating",
+      taskList: "tasks-foo.md",
+    });
+    mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValueOnce({
+      status: "refused",
+      reason: "public-boundary-mismatch",
+    });
+
+    await handleAttest("foo", { json: true });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining("public delivery Candidate renewal"),
+    });
+    expect(mockRunAttest).not.toHaveBeenCalled();
+  });
+
+  it.each(["Integrating", "Shipped"] as const)("preserves public delivery authority while %s", async (lifecycle) => {
+    const sourceCandidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"b".repeat(64)}`;
+    const subjectDigest = `sha256:${"c".repeat(64)}`;
+    const planId = "11111111-1111-4111-8111-111111111111";
+    const memberTerminus = {
+      vehicle: {
+        kind: "delivery-member" as const,
+        planId,
+        deliverableId: `sha256:${"f".repeat(64)}`,
+        workUnitId: "foo",
+        head: "a".repeat(40),
+      },
+      terminus: {
+        schemaVersion: 1 as const,
+        semanticsVersion: "review-terminus/v1" as const,
+        kind: "owner-accepted" as const,
+        lane: "standard" as const,
+        acceptedBy: "andrew",
+        completedPasses: 2,
+      },
+    };
+    const reservation = createStandardReviewReservation({
+      candidateId: sourceCandidateId,
+      sourceId: "codex-pr",
+      target: {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "foo",
+        planId,
+      },
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"d".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const source = {
+      ...projectPublicationBoundary({
+        workUnit: "foo",
+        branch: "feat/foo",
+        candidateId: sourceCandidateId,
+        candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+        reservation,
+        changeRequest: null,
+      }),
+      deliveryReviewTermini: [memberTerminus],
+    };
+    const deliveryContinuation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId,
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision: 7,
+      stateDigest: `sha256:${"2".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+    };
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: lifecycle,
+      taskList: "tasks-foo.md",
+      currentWorkflow: lifecycle === "Integrating" ? "integrate-work-unit" : "[none]",
+      nextAction: lifecycle === "Integrating" ? "resume integration review" : "[none]",
+      lastCompleted: null,
+      nextTask: null,
+    });
+    mockReadSubmissionBoundaryVersioned.mockResolvedValue({
+      boundary: source,
+      version: "source-boundary-version",
+    });
+    mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValue({
+      status: "ready",
+      planId,
+      stateRevision: 7,
+      deliveryContinuation,
+    });
+    let persistedBoundary: unknown = null;
+    mockWriteSubmissionBoundary.mockImplementation(async (
+      _cwd: unknown,
+      boundary: unknown,
+      expectedVersion: unknown,
+    ) => {
+      if (expectedVersion !== "source-boundary-version") {
+        throw new Error("renewed boundary did not use the source boundary version");
+      }
+      persistedBoundary = boundary;
+      return ".arc/system/.internal/candidates/foo.boundary.json";
+    });
+    mockRunAttest.mockImplementationOnce(async (context) => {
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId, supersedes: sourceCandidateId } },
+        candidateId,
+        candidateSubjectDigest: subjectDigest,
+        currentWorkflow: "integrate-work-unit",
+        nextAction: "Candidate review pending — resume integration review",
+        expectedRecordVersion: "candidate-version",
+        repairCurrent: false,
+      });
+      return { status: "attested", operation: "re-root", ...published };
+    });
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleAttest("foo", { json: true, newRoot: true });
+
+    expect(persistedBoundary).toMatchObject({
+      mode: "integration-boundary",
+      locus: "delivery-status-required",
+      workUnit: "foo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      reservation,
+      deliveryContinuation,
+      deliveryReviewTermini: [memberTerminus],
+      nextAction: expect.objectContaining({ kind: "resolve-delivery-status" }),
+    });
+    expect(mockParseMetaRecord.mock.results.at(-1)?.value).toMatchObject({ state: lifecycle });
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "attested",
+      locus: { locus: "delivery-status-required", candidateId },
+    });
+  });
+
+  it("repairs forward when Candidate persistence succeeds before the boundary version write", async () => {
+    const sourceCandidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"b".repeat(64)}`;
+    const subjectDigest = `sha256:${"c".repeat(64)}`;
+    const planId = "11111111-1111-4111-8111-111111111111";
+    const reservation = createStandardReviewReservation({
+      candidateId: sourceCandidateId,
+      sourceId: "codex-pr",
+      target: {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "foo",
+        planId,
+      },
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"d".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const source = projectPublicationBoundary({
+      workUnit: "foo",
+      branch: "feat/foo",
+      candidateId: sourceCandidateId,
+      candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+      reservation,
+      changeRequest: null,
+    });
+    const deliveryContinuation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId,
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision: 7,
+      stateDigest: `sha256:${"2".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+    };
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: "Integrating",
+      taskList: "tasks-foo.md",
+      currentWorkflow: "integrate-work-unit",
+      nextAction: "resume integration review",
+      lastCompleted: null,
+      nextTask: null,
+    });
+    mockReadSubmissionBoundaryVersioned.mockResolvedValue({
+      boundary: source,
+      version: "source-boundary-version",
+    });
+    mockInspectRepositoryDeliveryCandidateRenewal.mockResolvedValue({
+      status: "ready",
+      planId,
+      stateRevision: 7,
+      deliveryContinuation,
+    });
+    let persistedCandidate: unknown = null;
+    mockWriteCandidateRecord.mockImplementation(async (
+      _cwd: unknown,
+      _name: unknown,
+      record: unknown,
+    ) => {
+      persistedCandidate = record;
+      return ".arc/system/.internal/candidates/foo.json";
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId, supersedes: sourceCandidateId } },
+        candidateId,
+        candidateSubjectDigest: subjectDigest,
+        currentWorkflow: "integrate-work-unit",
+        nextAction: "Candidate review pending — resume integration review",
+        expectedRecordVersion: attempt === 1 ? "source-candidate-version" : "renewed-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return { status: "attested", operation: "re-root", ...published };
+    });
+    let persistedBoundary: unknown = null;
+    mockWriteSubmissionBoundary
+      .mockRejectedValueOnce(new Error("stale boundary version"))
+      .mockImplementationOnce(async (
+        _cwd: unknown,
+        boundary: unknown,
+        expectedVersion: unknown,
+      ) => {
+        if (expectedVersion !== "source-boundary-version") {
+          throw new Error("forward repair did not retain the source boundary version");
+        }
+        persistedBoundary = boundary;
+        return ".arc/system/.internal/candidates/foo.boundary.json";
+      });
+
+    await expect(handleAttest("foo", { json: true, newRoot: true }))
+      .rejects.toThrow("stale boundary version");
+    expect(persistedCandidate).toMatchObject({
+      attestation: { candidateId, supersedes: sourceCandidateId },
+    });
+    expect(persistedBoundary).toBeNull();
+
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true, newRoot: true });
+
+    expect(persistedBoundary).toMatchObject({
+      locus: "delivery-status-required",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      reservation,
+      deliveryContinuation,
+    });
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "attested",
+      operation: "re-root",
+      locus: { locus: "delivery-status-required", candidateId },
+    });
+  });
+
+  it("refreshes delivery evidence across boundary, meta, and index interruption", async () => {
+    const sourceCandidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"b".repeat(64)}`;
+    const subjectDigest = `sha256:${"c".repeat(64)}`;
+    const planId = "11111111-1111-4111-8111-111111111111";
+    const reservation = createStandardReviewReservation({
+      candidateId: sourceCandidateId,
+      sourceId: "codex-pr",
+      target: {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "foo",
+        planId,
+      },
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"d".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    let currentBoundary = projectPublicationBoundary({
+      workUnit: "foo",
+      branch: "feat/foo",
+      candidateId: sourceCandidateId,
+      candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+      reservation,
+      changeRequest: null,
+    });
+    let boundaryVersion = "source-boundary-version";
+    let stateRevision = 7;
+    const continuation = () => ({
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId,
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision,
+      stateDigest: `sha256:${stateRevision.toString(16).repeat(64)}`,
+      memberEvidenceDigest: `sha256:${(stateRevision + 1).toString(16).repeat(64)}`,
+    });
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: "Integrating",
+      taskList: "tasks-foo.md",
+      currentWorkflow: "integrate-work-unit",
+      nextAction: "resume integration review",
+      lastCompleted: null,
+      nextTask: null,
+    });
+    mockReadSubmissionBoundaryVersioned.mockImplementation(async () => ({
+      boundary: currentBoundary,
+      version: boundaryVersion,
+    }));
+    mockInspectRepositoryDeliveryCandidateRenewal.mockImplementation(async () => ({
+      status: "ready",
+      planId,
+      stateRevision,
+      deliveryContinuation: continuation(),
+    }));
+    mockWriteSubmissionBoundary.mockImplementation(async (
+      _cwd: unknown,
+      boundary: typeof currentBoundary,
+      expectedVersion: unknown,
+    ) => {
+      if (expectedVersion !== boundaryVersion) throw new Error("stale boundary version");
+      currentBoundary = boundary;
+      boundaryVersion = `boundary-version-${stateRevision}`;
+      return ".arc/system/.internal/candidates/foo.boundary.json";
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId, supersedes: sourceCandidateId } },
+        candidateId,
+        candidateSubjectDigest: subjectDigest,
+        currentWorkflow: "integrate-work-unit",
+        nextAction: "Candidate review pending — resume integration review",
+        expectedRecordVersion: attempt === 1 ? "source-candidate-version" : "renewed-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return { status: "attested", operation: "re-root", ...published };
+    });
+    mockIoWriteFile.mockRejectedValueOnce(new Error("meta write interrupted"));
+
+    await expect(handleAttest("foo", { json: true, newRoot: true }))
+      .rejects.toThrow("meta write interrupted");
+    expect(currentBoundary).toMatchObject({
+      candidateId,
+      deliveryContinuation: { stateRevision: 7 },
+    });
+
+    stateRevision = 8;
+    mockIoExec.mockRejectedValueOnce(new Error("index write interrupted"));
+    await expect(handleAttest("foo", { json: true, newRoot: true }))
+      .rejects.toThrow("index write interrupted");
+    expect(currentBoundary).toMatchObject({
+      candidateId,
+      deliveryContinuation: { stateRevision: 8 },
+    });
+
+    stateRevision = 9;
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true, newRoot: true });
+
+    expect(currentBoundary).toMatchObject({
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      reservation,
+      deliveryContinuation: { stateRevision: 9 },
+    });
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "attested",
+      locus: { locus: "delivery-status-required", candidateId },
+    });
+  });
+
+  it("forwards the exact Candidate and subject selectors on a bound re-root", async () => {
+    const expectedCandidate = `sha256:${"a".repeat(64)}`;
+    const expectedSubject = `sha256:${"b".repeat(64)}`;
+
+    await handleAttest("foo", {
+      json: true,
+      newRoot: true,
+      expectedCandidate,
+      expectedSubject,
+    });
+
+    expect(mockRunAttest).toHaveBeenCalledTimes(1);
+    expect(mockRunAttest.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: {
+        candidateId: expectedCandidate,
+        subjectDigest: expectedSubject,
+      },
     });
   });
 

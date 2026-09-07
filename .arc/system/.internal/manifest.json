@@ -147,6 +147,11 @@
       "layer": "core",
       "pristine_hash": "4ff635b014fb01468f1cdbc07adabfd8ab24209c870ce21341c0aac0e70809c7"
     },
+    "reference/strategies/arc/strategy-integration.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "c3bce5f62f733e7cad38957fcc9fa21613019e31fb76d035c2678c390ce5696f"
+    },
     "reference/strategies/arc/strategy-interlock-release-wrappers.md": {
       "classification": "Framework",
       "layer": "core",
@@ -466,6 +471,11 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "bc699c5ae1e973d76cc58b018c5e0306ea8b57bbe3889d8a42e46537fe9b353f"
+    },
+    "system/methods/validate-criteria.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "a88f127af10be97b35304343aa722371f5a32bc864b20f0e2d3c0783dcaf0a97"
     },
     "system/methods/README.md": {
       "classification": "Framework",

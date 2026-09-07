@@ -3,6 +3,7 @@
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import {
   ApprovedDispositionRecordSchema,
+  isExactDeliveryMemberBindingAdvance,
   type ApprovedDispositionRecord,
 } from "../../core/advisory-records.js";
 import { validateDispositionState } from "../../core/dispositions.js";
@@ -40,16 +41,19 @@ function parseEnumeratedRecord(raw: string): ApprovedDispositionRecord | null {
   }
 }
 
-function isErrandFixAdvance(
+function isFixResponseAdvance(
   existing: ApprovedDispositionRecord,
   next: ApprovedDispositionRecord,
 ): boolean {
-  if (existing.errandFixResponse !== null || next.errandFixResponse === null) return false;
-  return canonicalize({ ...existing, errandFixResponse: null })
-    === canonicalize({ ...next, errandFixResponse: null });
+  const errandAdvance = existing.errandFixResponse === null && next.errandFixResponse !== null;
+  const deliveryAdvance = existing.deliveryMemberFixResponse === null
+    && next.deliveryMemberFixResponse !== null;
+  if (Number(errandAdvance) + Number(deliveryAdvance) !== 1) return false;
+  return canonicalize({ ...existing, errandFixResponse: null, deliveryMemberFixResponse: null })
+    === canonicalize({ ...next, errandFixResponse: null, deliveryMemberFixResponse: null });
 }
 
-/** Git-common disposition store with exact replay and one monotonic Errand-fix evidence append. */
+/** Git-common disposition store with exact replay and one monotonic verified-fix response append. */
 export class LocalApprovedDispositionRecordStore
 implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
   constructor(private readonly publisher: GitCommonStatePublisher) {}
@@ -89,11 +93,13 @@ implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
     return this.publisher.update({ root: "review-gate", namespace: "evidence" }, name, (raw) => {
       if (raw !== null) {
         const existing = parseRecord(raw);
-        const errandFixAdvance = isErrandFixAdvance(existing, record);
-        if (canonicalize(existing) !== canonicalize(record) && !errandFixAdvance) {
+        const fixResponseAdvance = isFixResponseAdvance(existing, record);
+        const deliveryMemberBindingAdvance = isExactDeliveryMemberBindingAdvance(existing, record);
+        if (canonicalize(existing) !== canonicalize(record)
+          && !fixResponseAdvance && !deliveryMemberBindingAdvance) {
           throw new LocalReviewRecordStoreError("local-disposition-conflict");
         }
-        if (errandFixAdvance) {
+        if (fixResponseAdvance || deliveryMemberBindingAdvance) {
           return {
             kind: "write",
             content: `${JSON.stringify(record)}\n`,

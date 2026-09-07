@@ -238,7 +238,10 @@ function withTempArcProject<T>(fn: (root: string) => T): T {
   }
 }
 
-function resolveTranscriptCheckout(root: string, raw: string): string {
+function resolveTranscriptCheckout(
+  root: string,
+  raw: string,
+): string {
   return execFileSync(process.execPath, [
     "--input-type=module",
     "-e",
@@ -310,6 +313,39 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       } finally {
         execFileSync("git", ["worktree", "remove", "--force", spawned], { cwd: root });
         rmSync(spawned, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("rejects a registered non-transient checkout even when reader evidence names the same work unit", () => {
+    withTempArcProject((root) => {
+      const replacement = `${root}-work-unit`;
+      execFileSync("git", ["init", "--initial-branch=main"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+      execFileSync("git", ["config", "user.name", "Test"], { cwd: root });
+      execFileSync("git", ["add", "."], { cwd: root });
+      execFileSync("git", ["commit", "-m", "seed"], { cwd: root, stdio: "ignore" });
+      execFileSync("git", ["worktree", "add", "-b", "feat/transfer-probe", replacement], {
+        cwd: root,
+        stdio: "ignore",
+      });
+
+      try {
+        const transcriptPath = join(root, "transcript.jsonl");
+        writeFileSync(transcriptPath, `${JSON.stringify({
+          payload: {
+            item: {
+              type: "CommandExecution",
+              cwd: pathToFileURL(replacement).href,
+            },
+          },
+        })}\n`);
+        const raw = JSON.stringify({ transcript_path: transcriptPath });
+
+        expect(resolveTranscriptCheckout(root, raw)).toBe("");
+      } finally {
+        execFileSync("git", ["worktree", "remove", "--force", replacement], { cwd: root });
+        rmSync(replacement, { recursive: true, force: true });
       }
     });
   });
@@ -436,10 +472,35 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(seedScript).toContain("reapExpiredRecoveryArtifacts");
     expect(seedScript).toContain("readHookInput");
     expect(seedScript).toContain("ARC_HOOK_STALE_BUILD_COMMAND");
-    expect(seedScript).toContain("timeout: 15_000");
+    expect(seedScript).toContain("const hookDeadline = Date.now() + 29_000");
+    expect(seedScript).toContain("timeout: remainingTimeout()");
+    expect(seedScript).not.toContain("locus --json");
+    expect(seedScript).not.toContain("runLocusCommand");
     expect(seedScript).toContain("stdio: [\"ignore\", \"pipe\", \"pipe\"]");
     expect(seedScript).toContain("process.exit(0)");
   });
+
+  it("allows a valid seed command to use the enclosing hook budget beyond fifteen seconds", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = writeSuccessFakeArc(root);
+      writeFileSync(fakeArcPath, [
+        "await new Promise((resolveDelay) => setTimeout(resolveDelay, 15_250));",
+        readFileSync(fakeArcPath, "utf8"),
+      ].join("\n"));
+
+      runHookScriptRaw(seedScriptPath, root, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      expect(readJson<PendingMarker>(identityMarkerPath(root))).toMatchObject({
+        fallback: false,
+        seedPath: ".arc/user/andrew/.internal/compaction-seed.json",
+      });
+    });
+  }, 30_000);
 
   it("routes recovery through PostToolUse injection with a UserPromptSubmit backstop", () => {
     const fragment = readJson<CodexHooksFragment>(hooksPath);

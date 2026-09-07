@@ -19,6 +19,40 @@ import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
 
+function pendingHostedAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): boolean {
+  const pendingHosted = pending.hosted;
+  const nextHosted = next.hosted;
+  if (pending.outcome !== "pending" || next.outcome === "pending"
+    || pendingHosted?.handle === undefined || nextHosted?.handle === undefined
+    || pendingHosted.findings.length !== 0 || pendingHosted.dispositionSetId !== null
+    || pendingHosted.settledFindingIds.length !== 0) return false;
+  return canonicalize({
+    attemptId: pending.attemptId,
+    sourceId: pending.sourceId,
+    ...(pending.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: pending.chunkSeriesComplete }),
+    handle: pendingHosted.handle,
+    target: pendingHosted.target,
+    requestedCoverage: pendingHosted.requestedCoverage,
+    effectiveCoverage: pendingHosted.effectiveCoverage,
+    ...(pendingHosted.vehicle === undefined ? {} : { vehicle: pendingHosted.vehicle }),
+    reviewTarget: pendingHosted.reviewTarget,
+    requirement: pendingHosted.requirement,
+    actorIdentity: pendingHosted.actorIdentity,
+  }) === canonicalize({
+    attemptId: next.attemptId,
+    sourceId: next.sourceId,
+    ...(next.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: next.chunkSeriesComplete }),
+    handle: nextHosted.handle,
+    target: nextHosted.target,
+    requestedCoverage: nextHosted.requestedCoverage,
+    effectiveCoverage: nextHosted.effectiveCoverage,
+    ...(nextHosted.vehicle === undefined ? {} : { vehicle: nextHosted.vehicle }),
+    reviewTarget: nextHosted.reviewTarget,
+    requirement: nextHosted.requirement,
+    actorIdentity: nextHosted.actorIdentity,
+  });
+}
+
 /** Resolve the stable identity of one hosted request attempt. */
 export function hostedLaneAttemptId(handle: HostedRequestHandle): string {
   return `hosted/${canonicalDigest(handle).slice("sha256:".length)}`;
@@ -79,14 +113,14 @@ export function laneProgressOperationId(input: {
 }
 
 /**
- * Append one concluded attempt to its lane's durable progress.
+ * Record one attempt state in its lane's durable progress.
  *
  * `consumedPass` is the caller's, not this function's: the review-policy driver reports whether a
  * resolution consumed a pass, so pass accounting follows that same distinction rather than being
  * inferred from the outcome here.
  *
  * @param store - Versioned operation-state storage boundary.
- * @param input - The lane, its exact target, the concluded attempt, and whether it consumed a pass.
+ * @param input - The lane, its exact target, the attempt state, and whether it consumed a pass.
  * @returns The published lane-progress record.
  */
 export async function recordLaneAttempt(
@@ -102,7 +136,9 @@ export async function recordLaneAttempt(
     consumedPass: boolean;
     chunkSeriesComplete?: boolean;
     hosted?: LaneAttempt["hosted"];
+    local?: LaneAttempt["local"];
     now: string;
+    advancePendingHostedAttempt?: boolean;
   },
 ): Promise<LaneProgressState> {
   const operationId = laneProgressOperationId(input);
@@ -114,14 +150,29 @@ export async function recordLaneAttempt(
     outcome: input.outcome,
     ...(input.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: input.chunkSeriesComplete }),
     ...(input.hosted === undefined ? {} : { hosted: input.hosted }),
+    ...(input.local === undefined ? {} : { local: input.local }),
   };
   const replay = existing?.attempts.find((candidate) => candidate.attemptId === input.attemptId);
   if (replay !== undefined) {
-    if (canonicalize(replay) !== canonicalize(attempt)) {
+    if (canonicalize(replay) === canonicalize(attempt)) {
+      if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
+      return LaneProgressStateSchema.parse(existing);
+    }
+    if (input.advancePendingHostedAttempt !== true || !pendingHostedAttemptCanAdvance(replay, attempt)) {
       throw new Error("conflicting lane-attempt replay");
     }
     if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
-    return LaneProgressStateSchema.parse(existing);
+    const attempts = existing.attempts.map((candidate) => candidate.attemptId === input.attemptId
+      ? attempt
+      : candidate);
+    const advanced = LaneProgressStateSchema.parse({
+      ...existing,
+      updatedAt: input.now,
+      completedPasses: existing.completedPasses + (input.consumedPass ? 1 : 0),
+      attempts,
+    });
+    await store.publishOperation(advanced, version);
+    return advanced;
   }
   const next = LaneProgressStateSchema.parse({
     schemaVersion: 1,
@@ -140,10 +191,50 @@ export async function recordLaneAttempt(
   return next;
 }
 
+/** Persist one successful hosted request before any await call can be lost to restart. */
+export async function recordHostedPendingRequest(
+  store: ReviewOperationStateStore,
+  input: {
+    repositoryId: string;
+    handle: HostedRequestHandle;
+    reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
+    requirement: NonNullable<LaneAttempt["hosted"]>["requirement"];
+    actorIdentity: string;
+    now: string;
+  },
+): Promise<LaneProgressState> {
+  const { handle } = input;
+  return recordLaneAttempt(store, {
+    lane: "standard",
+    repositoryId: input.repositoryId,
+    changeRequestId: `pull/${handle.target.pullRequest}`,
+    headSha: handle.target.headSha,
+    attemptId: hostedLaneAttemptId(handle),
+    sourceId: handle.provider,
+    outcome: "pending",
+    consumedPass: false,
+    hosted: {
+      handle,
+      target: handle.target,
+      requestedCoverage: handle.requestedCoverage,
+      effectiveCoverage: handle.effectiveCoverage,
+      ...(handle.vehicle?.kind === "delivery-member" ? { vehicle: handle.vehicle } : {}),
+      reviewTarget: input.reviewTarget,
+      requirement: input.requirement,
+      actorIdentity: input.actorIdentity,
+      findings: [],
+      dispositionSetId: null,
+      settledFindingIds: [],
+    },
+    now: input.now,
+  });
+}
+
 /**
- * Record one concluded hosted await against its standard-lane progress.
+ * Record one hosted await against its standard-lane progress.
  *
- * A verdict-bearing outcome consumes a pass; an unavailable or failed attempt is recorded without
+ * Pending results preserve the request handle without consuming a pass. A verdict-bearing outcome
+ * advances that same attempt and consumes a pass; unavailable or failed attempts advance it without
  * consuming one, matching the review-policy driver's own `consumedPass` distinction.
  *
  * `repositoryId` is the store's own repository identity, not the host's `owner/repo` slug — every
@@ -152,7 +243,7 @@ export async function recordLaneAttempt(
  *
  * @param store - Versioned operation-state storage boundary.
  * @param input - The repository identity, the hosted await result, and the timestamp.
- * @returns The published record, or `null` when the call yielded without concluding an attempt.
+ * @returns The published lane-progress record.
  */
 export async function recordHostedAwaitAttempt(
   store: ReviewOperationStateStore,
@@ -164,10 +255,19 @@ export async function recordHostedAwaitAttempt(
     actorIdentity: string;
     now: string;
   },
-): Promise<LaneProgressState | null> {
+): Promise<LaneProgressState> {
   const outcome = hostedAwaitLaneOutcome(input.result.state);
-  if (outcome === null) return null;
   const { handle } = input.result;
+  if (outcome === null) {
+    return recordHostedPendingRequest(store, {
+      repositoryId: input.repositoryId,
+      handle,
+      reviewTarget: input.reviewTarget,
+      requirement: input.requirement,
+      actorIdentity: input.actorIdentity,
+      now: input.now,
+    });
+  }
   return await recordLaneAttempt(store, {
     lane: "standard",
     repositoryId: input.repositoryId,
@@ -176,9 +276,15 @@ export async function recordHostedAwaitAttempt(
     attemptId: hostedLaneAttemptId(handle),
     sourceId: handle.provider,
     outcome,
-    consumedPass: outcome === "clean" || outcome === "findings",
+    consumedPass: handle.effectiveCoverage === "complete"
+      && (outcome === "clean" || outcome === "findings"),
+    advancePendingHostedAttempt: true,
     hosted: {
+      handle,
       target: handle.target,
+      requestedCoverage: handle.requestedCoverage,
+      effectiveCoverage: handle.effectiveCoverage,
+      ...(handle.vehicle?.kind === "delivery-member" ? { vehicle: handle.vehicle } : {}),
       reviewTarget: input.reviewTarget,
       requirement: input.requirement,
       actorIdentity: input.actorIdentity,
@@ -217,6 +323,9 @@ export async function recordHostedRequestUnavailableAttempt(
     consumedPass: false,
     hosted: {
       target: input.request.target,
+      requestedCoverage: input.request.coverage,
+      effectiveCoverage: null,
+      ...(input.request.vehicle?.kind === "delivery-member" ? { vehicle: input.request.vehicle } : {}),
       reviewTarget: input.reviewTarget,
       requirement: input.requirement,
       actorIdentity: input.actorIdentity,

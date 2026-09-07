@@ -407,6 +407,37 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("re-enters retained hosted findings without spending a replacement review", async () => {
+    const paths = [
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/deliver-stack.md",
+      "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    ];
+    for (const path of paths) {
+      const workflow = await readRepositoryFile(path);
+      expect(workflow).toMatch(
+        /respond-to-findings[\s\S]*responsePlan[\s\S]*review-triage[\s\S]*review-response[\s\S]*arc review respond -/iu,
+      );
+      expect(workflow).toMatch(/never requests another hosted review/iu);
+    }
+  });
+
+  it("routes approved delivery-member fixes through the exact driver-owned authoring locus", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      ),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    ]);
+    expect(project).toBe(packaged);
+    expect(packaged).toMatch(
+      /delivery-correction-required \/ continue-delivery-correction[\s\S]*payload\.correctionAction[\s\S]*authoring-required/iu,
+    );
+    expect(packaged).toMatch(
+      /authoring\.checkoutPath[\s\S]*authoring\.ref[\s\S]*authoringAuthorization[\s\S]*resumeAction/iu,
+    );
+    expect(packaged).toMatch(/ready-to-fix \/ apply-fix[\s\S]*ordinary singleton route/iu);
+  });
+
   it("carries an explicit standard-review provider through both review lifecycles", async () => {
     const [prepare, errand, integrate] = await Promise.all([
       readRepositoryFile(
@@ -419,7 +450,9 @@ describe("trusted review-gate workflows", () => {
     ]);
 
     expect(prepare).toMatch(/standard\.invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
-    expect(prepare).toMatch(/Re-invoke[\s\S]*same `--change-set`, `--lanes`/u);
+    expect(prepare).toMatch(
+      /After every lane operation,[\s\S]*exact command returned by the envelope[\s\S]*opaque resume carries judgment/u,
+    );
     expect(errand).toMatch(/invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
     expect(errand).toMatch(/every policy call for that target/u);
     expect(integrate).toMatch(
@@ -639,17 +672,18 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
     const checkpoint = gate.indexOf("arc integrate checkpoint {name} --json");
-    const baseMerge = gate.indexOf("arc base merge --expected-base {payload.safety.baseOid} --json");
-    const status = gate.indexOf("arc review status --target '{targetRef}' --json");
+    const baseMerge = gate.indexOf(
+      "arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json",
+    );
     const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
     const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
-    expect(checkpoint).toBeGreaterThan(-1);
+    expect(reconcile).toBeGreaterThan(-1);
+    expect(checkpoint).toBeGreaterThan(reconcile);
     expect(baseMerge).toBeGreaterThan(checkpoint);
-    expect(status).toBeGreaterThan(baseMerge);
-    expect(reconcile).toBeGreaterThan(status);
-    expect(merge).toBeGreaterThan(reconcile);
+    expect(merge).toBeGreaterThan(baseMerge);
+    expect(gate).not.toContain("arc review status --target '{targetRef}' --json");
+    expect(gate).toMatch(/checkpoint now owns Candidate applicability,[\s\S]*review status/u);
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
-    expect(gate).toContain("`checks-pending / rerun-checkpoint`");
     expect(gate).not.toContain("arc review checks await");
     expect(gate).toContain("keeps the checkpoint and draft lock");
     expect(gate).toContain("`payload.diagnosticFailures`");
@@ -660,8 +694,7 @@ describe("trusted review-gate workflows", () => {
     expect(gate).not.toContain("returned deadline");
     expect(gate).not.toContain("otherwise render `None`");
     expect(gate).not.toContain("exact-head mutability action");
-    expect(gate).toContain("review applicability");
-    expect(gate).toMatch(/targeted, focused, or full\s+review/u);
+    expect(gate).toMatch(/no applicability or review\s+judgment before the checkpoint classifies/iu);
     expect(gate).not.toContain("git merge --no-edit");
     expect(gate).not.toContain("gh pr merge");
   });
@@ -679,6 +712,8 @@ describe("trusted review-gate workflows", () => {
       merged: "run-quality-gates",
       "skipped-clean": "continue-reconcile",
       "base-moved": "rerun-checkpoint",
+      "head-moved": "rerun-checkpoint",
+      "head-contained-by-base": "rerun-checkpoint",
       conflict: "stop",
       blocked: "stop",
     } satisfies Record<BaseMergeResult["state"], BaseMergeResult["nextAction"]>;

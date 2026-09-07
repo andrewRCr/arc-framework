@@ -3,28 +3,59 @@
 import { resolve } from "node:path";
 
 import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
+import type { RawGitExec } from "../../lib/change-facts.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
 import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
+import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import {
-  projectCandidateCurrentness,
+  reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../lib/work-unit/candidate-attestation.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import {
+  projectEffectiveCandidateCurrentness,
+  type CandidateEffectiveCurrentnessProjection,
+  type CandidateEffectiveTargetProjection,
+} from "../../lib/work-unit/candidate-effective-target.js";
+import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
+import {
+  projectGitCandidateEffectiveTarget,
+  resolveGitCandidateTargetBase,
+} from "../../lib/work-unit/git-candidate-effective-target.js";
 import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
+import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
+import { projectGitDeliveryTerminalRecordAdvance } from
+  "../../lib/delivery/public-review-continuation-git.js";
+import {
+  sameDeliveryReviewMemberIdentity,
+  type DeliveryReviewMemberVehicle,
+} from "../../lib/delivery/review-vehicle.js";
+import {
+  assessDeliveryTerminalTop,
+  classifyDeliveryTerminalDrift,
+} from "../../lib/delivery/terminal-integration.js";
+import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import { resolveChangeRequest } from "../review-gate/change-request.js";
 import { lifecycleArtifactFacts, type ReviewReadinessFact } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
 import { aggregateChecks } from "../review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../review-gate/hosts/github/checks-await.js";
 import { GitObjectIdSchema } from "../review-gate/core/gate-contract-v2-schema.js";
+import { resolveAcceptableDeliveryBaseRefs } from
+  "../review-gate/core/delivery-member-lookup.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
+import { resolveRepositoryIdentity } from "../review-gate/hosts/local/git-common-state.js";
 import { createGitTreeReadFs } from "../review-gate/hosts/local/git-tree-fs.js";
+import { LocalReviewOperationStateStore } from
+  "../review-gate/hosts/local/operation-state-store.js";
+import { RepositoryDeliveryMemberLookup } from
+  "../review-gate/hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "../review-gate/hosted/gh-process.js";
 import {
   MergeMethodSchema,
@@ -32,7 +63,19 @@ import {
 } from "../review-gate/merge-method.js";
 import {
   createHostedReservationDischargeReader,
+  resolveHostedReservationTargets,
+  type HostedReservationDischarge,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
+import type { DeliveryReviewMemberTerminus } from
+  "../review-gate/policy/review-terminus.js";
+import {
+  projectHostedReservationPolicyProgress,
+  type HostedReservationPolicyProgress,
+} from "../review-gate/policy/hosted-reservation-admission.js";
+import {
+  isDeliveryReviewMemberDischargedByOwnerTerminus,
+  type DeliveryReviewOwnerTerminusAdvance,
+} from "../review-gate/status.js";
 import { projectPublicationBoundary } from "../review-gate/policy/integration-boundary-locus.js";
 import {
   CheckpointReadyCompositionSchema,
@@ -47,10 +90,56 @@ import {
 import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import { createLineageReviewComposer } from "./lineage-review-composition.js";
 import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
+import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
 
 interface CachedCandidate {
   record: CandidateManagedRecordV1;
-  current: Awaited<ReturnType<typeof collectGitCandidateTarget>>;
+  recordVersion: string;
+  effective: CandidateEffectiveTargetProjection;
+  currentness: CandidateEffectiveCurrentnessProjection;
+}
+
+/**
+ * Decide whether every exact delivery target has terminal checkpoint review evidence.
+ *
+ * @param input - Exact targets, raw discharges, policy progress, and retained Owner termini.
+ * @returns Whether every member is discharged by raw evidence or an exact applicable Owner terminus.
+ */
+export function deliveryCheckpointReviewIsDischarged(input: {
+  readonly targets: readonly { readonly vehicle: DeliveryReviewMemberVehicle }[];
+  readonly discharges: readonly HostedReservationDischarge[];
+  readonly progress: readonly HostedReservationPolicyProgress[];
+  readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  readonly ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
+}): boolean {
+  return input.targets.length === input.discharges.length
+    && input.targets.length === input.progress.length
+    && input.targets.every((target, index) => {
+      const discharge = input.discharges[index];
+      const progress = input.progress[index];
+      if (discharge === undefined || progress?.status !== "complete") return false;
+      return discharge.discharged || isDeliveryReviewMemberDischargedByOwnerTerminus({
+        target,
+        discharge: { ...discharge, completedPasses: progress.completedPasses },
+        ownerTermini: input.ownerTermini,
+        ownerTerminusAdvances: input.ownerTerminusAdvances,
+      });
+    });
+}
+
+/**
+ * Decide whether the open request targets the configured base or its validated delivery predecessor.
+ *
+ * @param input - Observed request base plus the two authoritative admitted-base sources.
+ * @returns True only when one authority admits the observed base.
+ */
+export function checkpointBaseIsAccepted(input: {
+  candidateBaseRef: string;
+  configuredBaseRef: string;
+  acceptableDeliveryBaseRefs: readonly string[];
+}): boolean {
+  return input.candidateBaseRef === input.configuredBaseRef
+    || input.acceptableDeliveryBaseRefs.includes(input.candidateBaseRef);
 }
 
 export type IntegrationLifecycleReadFs = NonNullable<
@@ -87,22 +176,67 @@ async function currentHead(exec: GitExec, cwd: string): Promise<{ branch: string
   return { branch, head };
 }
 
+function branchName(ref: string): string {
+  return ref.replace(/^refs\/heads\//u, "");
+}
+
+async function readCoordinate(exec: GitExec, cwd: string, head: string): Promise<{
+  readonly head: string;
+  readonly tree: string;
+} | null> {
+  try {
+    const [commit, tree] = await Promise.all([
+      exec("git", ["rev-parse", "--verify", `${head}^{commit}`], { cwd, objectAccess: "local-only" }),
+      exec("git", ["rev-parse", `${head}^{tree}`], { cwd, objectAccess: "local-only" }),
+    ]);
+    const resolvedHead = commit.stdout.trim();
+    const resolvedTree = tree.stdout.trim();
+    return resolvedHead === head
+      && GitObjectIdSchema.safeParse(resolvedTree).success
+      ? { head: resolvedHead, tree: resolvedTree }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readDiffPaths(
+  rawExec: RawGitExec,
+  fromRevision: string,
+  throughRevision: string,
+): Promise<string[]> {
+  const result = await rawExec([
+    "diff", "--name-only", "-z", "--no-renames", fromRevision, throughRevision, "--",
+  ], { objectAccess: "local-only" });
+  const output = new TextDecoder("utf-8", { fatal: true }).decode(result.stdout);
+  if (output === "") return [];
+  if (!output.endsWith("\0")) throw new Error("Git returned an unterminated path list.");
+  return output.slice(0, -1).split("\0");
+}
+
 async function resolveOpenChangeRequest(exec: GitExec, cwd: string) {
   const target = await currentHead(exec, cwd);
   const baseRef = (await readConfigSettings(cwd)).settings["branch.base"];
+  const memberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd });
+  const acceptableBaseRefs = await resolveAcceptableDeliveryBaseRefs(memberLookup, target.head);
   const result = await resolveChangeRequest(
-    { headRef: target.branch, headSha: target.head, baseRef },
+    {
+      headRef: target.branch,
+      headSha: target.head,
+      baseRef,
+      acceptableBaseRefs,
+    },
     createGhChangeRequestResolutionPort(exec, cwd),
   );
   if (result.state !== "open") {
     throw new Error(`The exact integration head has no reusable open change request (${result.state}).`);
   }
-  return result;
+  return { changeRequest: result, acceptableBaseRefs };
 }
 
 async function readHostFact(exec: GitExec, cwd: string): Promise<ReconcileHostFact> {
   try {
-    const changeRequest = await resolveOpenChangeRequest(exec, cwd);
+    const { changeRequest } = await resolveOpenChangeRequest(exec, cwd);
     const repository = changeRequest.targetRef.repository;
     const pullRequest = changeRequest.candidate.number;
     const live = parseRecord(
@@ -196,6 +330,7 @@ export async function readLifecycleSummary(
 export function createIntegrationCheckpointDependencies(input: {
   cwd: string;
   exec: GitExec;
+  rawExec?: RawGitExec;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
 }): IntegrationCheckpointDependencies {
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
@@ -204,13 +339,22 @@ export function createIntegrationCheckpointDependencies(input: {
     return settingsPromise;
   };
   const candidates = new Map<string, Promise<CachedCandidate | null>>();
+  const candidateBaseRevisions = new Map<string, string>();
+  const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
   let identityPromise: ReturnType<typeof resolveIdentity> | null = null;
   const identity = () => {
     identityPromise ??= resolveIdentity({ exec: input.exec });
     return identityPromise;
   };
   const composeLineageReview = createLineageReviewComposer(input);
-  const readHostedReservationDischarge = createHostedReservationDischargeReader(input);
+  const deliveryLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
+  const deliveryHost = new GhDeliveryHostPort(hostedGhRunner);
+  const readHostedReservationDischarge = createHostedReservationDischargeReader({
+    ...input,
+    delivery: deliveryLookup,
+    host: deliveryHost,
+  });
+  const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
   const lifecycleStorage = input.lifecycleStorage ?? {
     readSnapshot: async () => {
       const { head } = await currentHead(input.exec, input.cwd);
@@ -220,22 +364,49 @@ export function createIntegrationCheckpointDependencies(input: {
       };
     },
   };
-  const candidate = (workUnit: string): Promise<CachedCandidate | null> => {
-    let value = candidates.get(workUnit);
+  const candidate = (workUnit: string, baseRevision?: string): Promise<CachedCandidate | null> => {
+    const boundBase = candidateBaseRevisions.get(workUnit);
+    if (baseRevision !== undefined) {
+      if (boundBase !== undefined && boundBase !== baseRevision) {
+        throw new Error("The authoritative Candidate base changed during checkpoint composition.");
+      }
+      candidateBaseRevisions.set(workUnit, baseRevision);
+    }
+    const effectiveBase = baseRevision ?? boundBase;
+    const cacheKey = `${workUnit}\0${effectiveBase ?? "materialized"}`;
+    let value = candidates.get(cacheKey);
     if (value === undefined) {
       value = (async () => {
-        const record = await readCandidateRecord(input.cwd, workUnit);
-        if (record === null) return null;
+        const versioned = await readCandidateRecordVersioned(input.cwd, workUnit);
+        if (versioned.record === null || versioned.version === null) return null;
+        const record = versioned.record;
         const config = await settings();
-        const current = await collectGitCandidateTarget({
+        const effective = await projectGitCandidateEffectiveTarget({
           cwd: input.cwd,
           name: workUnit,
           baseBranch: config.settings["branch.base"],
+          baseRevision: effectiveBase,
+          record,
           exec: input.exec,
+          rawExec,
         });
-        return { record, current };
+        return {
+          record,
+          recordVersion: versioned.version,
+          effective,
+          currentness: projectEffectiveCandidateCurrentness(effective),
+        };
       })();
-      candidates.set(workUnit, value);
+      candidates.set(cacheKey, value);
+    }
+    return value;
+  };
+  const boundaries = new Map<string, ReturnType<typeof readSubmissionBoundary>>();
+  const boundary = (workUnit: string) => {
+    let value = boundaries.get(workUnit);
+    if (value === undefined) {
+      value = readSubmissionBoundary(input.cwd, workUnit);
+      boundaries.set(workUnit, value);
     }
     return value;
   };
@@ -250,6 +421,55 @@ export function createIntegrationCheckpointDependencies(input: {
         ...createCurrentBaseDriftAdapters(input.exec),
       });
     },
+    classifyDeliveryDrift: async (workUnit, drift) => {
+      const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+      if (records.status === "unbound") return { status: "not-applicable" };
+      if (records.status === "unavailable") {
+        return { status: "unavailable", detail: "The delivery terminal records are unavailable." };
+      }
+      if (drift.overlap?.status !== "available") {
+        return { status: "unavailable", detail: "The delivery drift overlap is unavailable." };
+      }
+      try {
+        const value = await candidate(workUnit, drift.baseOid ?? undefined);
+        const currentness = value?.currentness ?? null;
+        if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
+          return { status: "unavailable", detail: "The current delivery Candidate is unavailable." };
+        }
+        const terminal = records.state.members.at(-1);
+        if (terminal === undefined) {
+          return { status: "unavailable", detail: "The delivery terminal member is unavailable." };
+        }
+        const nonTerminal = records.state.members.slice(0, -1);
+        const highestCoordinate = nonTerminal.at(-1)?.coordinates
+          ?? records.state.target?.coordinates
+          ?? null;
+        if (highestCoordinate === null) {
+          return { status: "unavailable", detail: "The delivery predecessor coordinate is unavailable." };
+        }
+        const residualPaths = await readDiffPaths(
+          rawExec,
+          highestCoordinate.head,
+          currentness.recognizedRevision,
+        );
+        const firstCoordinate = nonTerminal[0]?.coordinates;
+        const predecessorPaths = firstCoordinate == null
+          ? []
+          : await readDiffPaths(rawExec, firstCoordinate.base, highestCoordinate.head);
+        const classified = classifyDeliveryTerminalDrift({
+          substantivePaths: drift.overlap.substantivePaths,
+          regenerablePaths: drift.overlap.regenerablePaths,
+          residualPaths,
+          predecessorPaths,
+        });
+        return classified;
+      } catch (error) {
+        return {
+          status: "unavailable",
+          detail: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
     readReconcileHost: async () => readHostFact(input.exec, input.cwd),
     readLifecycle: async (workUnit) => {
       const config = await settings();
@@ -262,35 +482,343 @@ export function createIntegrationCheckpointDependencies(input: {
         snapshot.fs,
       );
     },
-    readCandidate: async (workUnit) => {
-      const value = await candidate(workUnit);
-      return value === null ? null : projectCandidateCurrentness(value);
+    readCandidate: async (workUnit, baseRevision) => {
+      const value = await candidate(workUnit, baseRevision);
+      return value?.currentness ?? null;
     },
-    resolveMergeMethod: async (repository) => {
+    composeCandidateApplicabilityResolutionSelector: async (workUnit, decision) => {
+      const value = await candidate(workUnit, decision.currentBase);
+      if (value === null || value.effective.state !== "decision-required") {
+        throw new Error("The Candidate applicability decision is no longer current.");
+      }
+      const config = await settings();
+      const currentTarget = await collectGitCandidateTarget({
+        cwd: input.cwd,
+        name: workUnit,
+        baseBranch: config.settings["branch.base"],
+        baseRevision: decision.currentBase,
+        exec: input.exec,
+        revision: decision.currentTarget.revision,
+      });
+      const priorTarget = reduceCandidateDurableBaseline(value.record).target;
+      if (priorTarget.revision !== decision.baselineTarget.revision
+        || priorTarget.subject.subjectDigest !== decision.baselineTarget.subjectDigest
+        || currentTarget.subject.subjectDigest !== decision.currentTarget.subjectDigest) {
+        throw new Error("The Candidate applicability selector changed during checkpoint composition.");
+      }
+      return {
+        schemaVersion: 1,
+        expectedRecordVersion: value.recordVersion,
+        candidateId: decision.candidateId,
+        priorTarget,
+        currentTarget,
+        currentBase: decision.currentBase,
+        projectionDigest: decision.projectionDigest,
+        residualDigest: decision.residualDigest,
+      };
+    },
+    readCandidatePublication: async (workUnit, baseRevision) => {
+      const [value, publicationBoundary] = await Promise.all([
+        candidate(workUnit, baseRevision),
+        boundary(workUnit),
+      ]);
+      if (value === null || value.effective.state !== "current") {
+        throw new Error("The current Candidate publication subject is unavailable.");
+      }
+      const publicLocus = publicationBoundary?.locus === "publication-pending"
+        || publicationBoundary?.locus === "hosted-review-pending"
+        || publicationBoundary?.locus === "delivery-status-required";
+      return publicationBoundary !== null
+        && publicLocus
+        && publicationBoundary.candidateId === value.effective.candidateId
+        && publicationBoundary.candidateSubjectDigest
+          === value.effective.recognizedTarget.subject.subjectDigest
+        ? { status: "current" }
+        : { status: "refresh-required" };
+    },
+    composeDelivery: async ({ workUnit, candidate: currentness, baseRevision }) => {
+      const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+      if (records.status === "unbound") return { status: "not-applicable" };
+      if (records.status === "unavailable") throw new Error("The delivery terminal records are unavailable.");
+      const [value, publicationBoundary, config] = await Promise.all([
+        candidate(workUnit, baseRevision),
+        boundary(workUnit),
+        settings(),
+      ]);
+      if (value === null || publicationBoundary === null) {
+        throw new Error("The delivery Candidate publication boundary is unavailable.");
+      }
+      if (value.effective.state !== "current"
+        || value.effective.recognizedTarget.revision !== currentness.recognizedRevision) {
+        throw new Error("The delivery Candidate effective target changed during checkpoint composition.");
+      }
+      if (publicationBoundary.candidateId !== currentness.candidateId
+        || publicationBoundary.candidateSubjectDigest
+          !== value.effective.recognizedTarget.subject.subjectDigest) {
+        throw new Error("The delivery publication boundary belongs to a different Candidate.");
+      }
+      const configuredBase = config.settings["branch.base"];
+      const members = records.state.members;
+      const terminal = members.at(-1);
+      if (terminal?.ref === null || terminal?.ref === undefined
+        || terminal.changeRequest === null || terminal.coordinates === null) {
+        throw new Error("The delivery top has no exact retained binding.");
+      }
+      const predecessorRef = members.at(-2)?.ref;
+      if (terminal.coordinates.head !== currentness.recognizedRevision) {
+        const currentTop = await resolveChangeRequest({
+          headRef: branchName(terminal.ref),
+          headSha: currentness.recognizedRevision,
+          baseRef: configuredBase,
+          acceptableBaseRefs: predecessorRef === null || predecessorRef === undefined
+            ? []
+            : [branchName(predecessorRef)],
+        }, changeRequestPort);
+        if (currentTop.state !== "open"
+          || String(currentTop.candidate.number) !== terminal.changeRequest.changeRequestId) {
+          if (currentTop.state === "closed-unmerged"
+            && String(currentTop.candidate.number) === terminal.changeRequest.changeRequestId
+            && currentTop.candidate.headRefName === branchName(terminal.ref)
+            && currentTop.candidate.headRefOid === terminal.coordinates.head) {
+            const top = assessDeliveryTerminalTop({
+              terminal: true,
+              protectedBaseRef: configuredBase,
+              publicationHead: terminal.coordinates.head,
+              request: {
+                binding: terminal.changeRequest,
+                repository: currentTop.targetRef.repository,
+                headRef: currentTop.candidate.headRefName,
+                headSha: currentTop.candidate.headRefOid,
+                baseRef: currentTop.candidate.baseRefName,
+                state: "closed",
+              },
+            });
+            if (top.status === "refused" && top.reason === "top-target-mismatch") {
+              return {
+                status: "blocked",
+                nextAction: top.remedy.nextAction,
+                reason: top.reason,
+                planId: records.plan.planId,
+                remedy: top.remedy,
+              };
+            }
+          }
+          throw new Error("The current delivery top request does not match its retained binding.");
+        }
+        return {
+          status: "terminal-rebind-required",
+          nextAction: "reconcile-delivery-state",
+          planId: records.plan.planId,
+          repository: currentTop.targetRef.repository,
+        };
+      }
+      const landings: Array<{ deliverableId: string; head: string }> = [];
+      for (const [index, member] of members.slice(0, -1).entries()) {
+        if (member.ref === null || member.changeRequest === null || member.coordinates === null) {
+          throw new Error(`Delivery member ${member.deliverableId} has no exact retained binding.`);
+        }
+        const predecessorRef = index === 0 ? records.state.target?.ref : members[index - 1]?.ref;
+        const resolved = await resolveChangeRequest({
+          headRef: branchName(member.ref),
+          headSha: member.coordinates.head,
+          baseRef: configuredBase,
+          acceptableBaseRefs: predecessorRef === null || predecessorRef === undefined
+            ? []
+            : [branchName(predecessorRef)],
+        }, changeRequestPort);
+        if (resolved.state !== "merged-at-head"
+          || String(resolved.candidate.number) !== member.changeRequest.changeRequestId) {
+          throw new Error(`Delivery member ${member.deliverableId} is not merged at its exact bound head.`);
+        }
+        landings.push({ deliverableId: member.deliverableId, head: member.coordinates.head });
+      }
+      const topResolution = await resolveChangeRequest({
+        headRef: branchName(terminal.ref),
+        headSha: terminal.coordinates.head,
+        baseRef: configuredBase,
+        acceptableBaseRefs: predecessorRef === null || predecessorRef === undefined
+          ? []
+          : [branchName(predecessorRef)],
+      }, changeRequestPort);
+      if (topResolution.targetRef === null
+        || (topResolution.state !== "open"
+          && topResolution.state !== "closed-unmerged"
+          && topResolution.state !== "merged-at-head")) {
+        throw new Error("The delivery top request cannot be resolved at its exact bound head.");
+      }
+      if (String(topResolution.candidate.number) !== terminal.changeRequest.changeRequestId) {
+        throw new Error("The delivery top request does not match its retained binding.");
+      }
+      const top = {
+        binding: terminal.changeRequest,
+        repository: topResolution.targetRef.repository,
+        headRef: topResolution.candidate.headRefName,
+        headSha: topResolution.candidate.headRefOid,
+        baseRef: topResolution.candidate.baseRefName,
+        state: topResolution.state === "open"
+          ? "open" as const
+          : topResolution.state === "merged-at-head"
+            ? "merged" as const
+            : "closed" as const,
+      };
+      const targetResolution = await resolveHostedReservationTargets({
+        workUnitId: workUnit,
+        reservation: publicationBoundary.reservation,
+        singleton: {
+          repository: top.repository,
+          pullRequest: topResolution.candidate.number,
+          headSha: terminal.coordinates.head,
+          baseRevision: terminal.coordinates.base,
+        },
+        delivery: deliveryLookup,
+        host: deliveryHost,
+      });
+      if (targetResolution.status !== "resolved" || targetResolution.kind !== "delivery"
+        || targetResolution.targets.length !== members.length) {
+        throw new Error("The delivery member review targets are unavailable.");
+      }
+      const deliveryTargets = targetResolution.targets.map((target) => {
+        if (target.vehicle === undefined) {
+          throw new Error("The delivery member review selectors are unavailable.");
+        }
+        return { ...target, vehicle: target.vehicle };
+      });
+      const reviewTargets = members.map((member, index) => {
+        const target = deliveryTargets[index];
+        if (target === undefined || member.changeRequest === null || member.coordinates === null
+          || target.pullRequest !== Number(member.changeRequest.changeRequestId)
+          || target.headSha !== member.coordinates.head) {
+          throw new Error(`Delivery member ${member.deliverableId} has a mismatched review target.`);
+        }
+        return {
+          deliverableId: member.deliverableId,
+          providerId: member.changeRequest.providerId,
+          changeRequestId: member.changeRequest.changeRequestId,
+          head: member.coordinates.head,
+        };
+      });
+      const terminalTarget = deliveryTargets.at(-1);
+      const ownerTerminusAdvances: DeliveryReviewOwnerTerminusAdvance[] = terminalTarget === undefined
+        || terminalTarget.position !== terminalTarget.memberCount
+        ? []
+        : (await Promise.all(publicationBoundary.deliveryReviewTermini.map(async (record) => {
+            if (!sameDeliveryReviewMemberIdentity(record.vehicle, terminalTarget.vehicle)
+              || record.vehicle.head === terminalTarget.vehicle.head) return [];
+            const proof = await projectGitDeliveryTerminalRecordAdvance({
+              cwd: input.cwd,
+              exec: input.exec,
+              workUnitId: workUnit,
+              baseBranch: configuredBase,
+              priorHead: record.vehicle.head,
+              currentHead: terminalTarget.vehicle.head,
+            });
+            return proof === undefined
+              ? []
+              : [{
+                  priorVehicle: record.vehicle,
+                  currentVehicle: terminalTarget.vehicle,
+                  proof,
+                }];
+          }))).flat();
+      const discharges = await Promise.all(deliveryTargets.map((target) => readHostedReservationDischarge({
+        reservation: publicationBoundary.reservation,
+        baseRevision: target.baseRevision,
+        approvedHead: target.headSha,
+        changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
+        vehicle: target.vehicle,
+        candidate: value.record,
+      })));
+      const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+      const operationSnapshot = await new LocalReviewOperationStateStore(publisher).readOperationSnapshot();
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const progress = deliveryTargets.map((target) => projectHostedReservationPolicyProgress({
+        snapshot: operationSnapshot,
+        repositoryId,
+        target: {
+          repository: target.repository,
+          pullRequest: target.pullRequest,
+          headSha: target.headSha,
+        },
+        vehicle: target.vehicle,
+      }));
+      const reviewDischarged = deliveryCheckpointReviewIsDischarged({
+        targets: deliveryTargets,
+        discharges,
+        progress,
+        ownerTermini: publicationBoundary.deliveryReviewTermini,
+        ownerTerminusAdvances,
+      });
+      const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
+      const mergeBase = await resolveGitCandidateTargetBase({
+        cwd: input.cwd,
+        revision: currentness.recognizedRevision,
+        baseBranch: configuredBase,
+        baseRevision,
+        exec: input.exec,
+      });
+      const predecessorCoordinate = await readCoordinate(input.exec, input.cwd, mergeBase);
+      if (candidateCoordinate === null || predecessorCoordinate === null) {
+        throw new Error("The delivery terminal delta coordinates are unavailable.");
+      }
+      return composeDeliveryCheckpointArm({
+        record: value.record,
+        candidate: currentness,
+        plan: records.plan,
+        state: records.state,
+        landings,
+        terminalDelta: { predecessor: predecessorCoordinate, member: candidateCoordinate },
+        protectedBaseRef: configuredBase,
+        publication: { candidateId: publicationBoundary.candidateId, head: currentness.recognizedRevision },
+        top,
+        review: {
+          status: reviewDischarged ? "discharged" : "outstanding",
+          targets: reviewTargets,
+        },
+        readCandidateCoordinate: (head) => readCoordinate(input.exec, input.cwd, head),
+        proveResidual: (endpoints) => proveGitDeliveryContribution({
+          exec: rawExec,
+          ...endpoints,
+        }),
+      });
+    },
+    resolveMergeMethod: async (repository, stackPosition) => {
       const config = await settings();
       return resolveMergeMethod(
         MergeMethodSchema.parse(config.settings["merge.strategy"]),
         createGhMergeMethodPolicyPort(hostedGhRunner),
         repository,
+        stackPosition,
       );
     },
-    composeReady: async ({ workUnit, lifecycle, candidate: currentness }) => {
-      const [value, changeRequest, boundary] = await Promise.all([
+    composeReady: async ({ workUnit, lifecycle, candidate: currentness, delivery }) => {
+      const [value, resolvedChangeRequest, publicationBoundary] = await Promise.all([
         candidate(workUnit),
         resolveOpenChangeRequest(input.exec, input.cwd),
-        readSubmissionBoundary(input.cwd, workUnit),
+        boundary(workUnit),
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");
-      if (boundary === null) throw new Error("The durable publication boundary is unavailable.");
-      if (boundary.candidateId !== value.record.attestation.candidateId
-        || boundary.candidateSubjectDigest !== value.current.subject.subjectDigest) {
+      if (value.effective.state !== "current"
+        || value.effective.recognizedTarget.revision !== currentness.recognizedRevision) {
+        throw new Error("The effective Candidate target changed during checkpoint composition.");
+      }
+      if (publicationBoundary === null) throw new Error("The durable publication boundary is unavailable.");
+      const { changeRequest, acceptableBaseRefs } = resolvedChangeRequest;
+      if (publicationBoundary.candidateId !== value.record.attestation.candidateId
+        || publicationBoundary.candidateSubjectDigest
+          !== value.effective.recognizedTarget.subject.subjectDigest) {
         throw new Error("The durable publication boundary belongs to a different Candidate subject.");
       }
-      if (boundary.locus !== "publication-pending" && boundary.locus !== "hosted-review-pending") {
+      if (publicationBoundary.locus !== "publication-pending"
+        && publicationBoundary.locus !== "hosted-review-pending"
+        && publicationBoundary.locus !== "delivery-status-required") {
         throw new Error("The durable publication boundary has not entered public integration.");
       }
       const configuredBase = (await settings()).settings["branch.base"];
-      if (changeRequest.candidate.baseRefName !== configuredBase) {
+      if (!checkpointBaseIsAccepted({
+        candidateBaseRef: changeRequest.candidate.baseRefName,
+        configuredBaseRef: configuredBase,
+        acceptableDeliveryBaseRefs: acceptableBaseRefs,
+      })) {
         throw new Error("The open change request targets a different branch than the configured base.");
       }
       // The boundary's own derivation decides whether a hosted review is due at this exact head;
@@ -300,23 +828,29 @@ export function createIntegrationCheckpointDependencies(input: {
         workUnit,
         branch: changeRequest.targetRef.headRef,
         candidateId: value.record.attestation.candidateId,
-        candidateSubjectDigest: value.current.subject.subjectDigest,
-        reservation: boundary.reservation,
-        terminus: boundary.terminus,
+        candidateSubjectDigest: value.effective.recognizedTarget.subject.subjectDigest,
+        reservation: publicationBoundary.reservation,
+        terminus: publicationBoundary.terminus,
         changeRequest: {
           repository: changeRequest.targetRef.repository,
           pullRequest: changeRequest.candidate.number,
         },
       });
-      const discharge = await readHostedReservationDischarge({
-        reservation: boundary.reservation,
-        baseRevision: value.record.attestation.baseRevision,
-        approvedHead: currentness.recognizedRevision,
-        changeRequest: {
-          repository: changeRequest.targetRef.repository,
-          pullRequest: changeRequest.candidate.number,
-        },
-      });
+      const discharge = delivery.status === "ready"
+        ? {
+            discharged: true,
+            detail: `Every derived delivery-member review is discharged (${delivery.checks.targets.length} checked).`,
+          }
+        : await readHostedReservationDischarge({
+            reservation: publicationBoundary.reservation,
+            baseRevision: value.record.attestation.baseRevision,
+            approvedHead: currentness.recognizedRevision,
+            changeRequest: {
+              repository: changeRequest.targetRef.repository,
+              pullRequest: changeRequest.candidate.number,
+            },
+            candidate: value.record,
+          });
       const hostedReviewPending = publicationLocus.locus === "hosted-review-pending"
         && !discharge.discharged;
       const checksPort = createGhRequiredChecksPort(hostedGhRunner);
@@ -332,8 +866,7 @@ export function createIntegrationCheckpointDependencies(input: {
       const checks = aggregateChecks(
         await checksPort.readRequiredChecks(repository, changeRequest.candidate.number, signal),
       );
-      const lastResponse = value.record.responses.at(-1);
-      const fromRevision = lastResponse?.newTarget.revision ?? value.record.attestation.baseRevision;
+      const fromRevision = value.effective.durableBaselineTarget.revision;
       return CheckpointReadyCompositionSchema.parse({
         approvedHead: currentness.recognizedRevision,
         candidateTailDiff: {
@@ -370,8 +903,8 @@ export function createIntegrationCheckpointDependencies(input: {
         },
       });
     },
-    composeSettlementPlan: async ({ workUnit, composition }) => composeCanonicalSettlementPlan(
-      (await composeLineageReview(workUnit, composition.approvedHead)).actions,
+    composeSettlementPlan: async ({ workUnit, baseRevision, composition }) => composeCanonicalSettlementPlan(
+      (await composeLineageReview(workUnit, composition.approvedHead, baseRevision)).actions,
     ),
     createHandle: async ({ workUnit, approvedHead, statusSummary, settlementPlan, mergeMethod }) => {
       const resolvedIdentity = await identity();

@@ -25,6 +25,10 @@ no field edit. The design is canonical for Scope (Will Do / Won't Do); the task 
 
 ## **Phase 1:** {Phase name}
 
+<!-- With a Delivery Plan, insert this pointer before Purpose; repeat for each member represented in this phase:
+**Delivery member:** {ordinal} — `{chunk-key}`
+-->
+
 _Purpose:_ {what this phase delivers and why this granularity}
 
 ### `[ ]` **1.1 {Subtaskless parent task title}**
@@ -49,6 +53,12 @@ _Purpose:_ {what this phase delivers and why this granularity}
     - `[ ]` **1.2.b {Subtask description}**
         - {detail bullet}
 
+<!-- With a Delivery Plan, end each member task range with an assigned verification parent. It is the final
+     assigned task in that member range, and its title must end with this exact suffix:
+### `[ ]` **{task-id} {Member closing title} — validate criteria at member scope**
+     Repeat for every member. These member verifiers are distinct from the sole terminal work-unit verification
+     task below. -->
+
 ## **Phase N:** Verification
 
 ### `[ ]` **N.1 Complete verification** — load and follow `verify-work-unit.md`
@@ -56,6 +66,18 @@ _Purpose:_ {what this phase delivers and why this granularity}
 ---
 
 ## Success Criteria
+
+<!-- With a Delivery Plan, replace the flat list below with this grouped form:
+### Member {ordinal} — `{chunk-key}`
+
+- `[ ]` {Verifiable outcome derived from Scope "Will Do"}
+- `[ ]` {Another verifiable outcome}
+
+### Cross-member seams
+
+- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[ ]` Ready for integration
+-->
 
 - `[ ]` {Verifiable outcome derived from Scope "Will Do"}
 - `[ ]` {Another verifiable outcome}

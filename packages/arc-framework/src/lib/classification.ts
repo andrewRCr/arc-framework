@@ -82,6 +82,7 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/methods/spec-review.md",
   "system/methods/task-audit.md",
   "system/methods/test-first.md",
+  "system/methods/validate-criteria.md",
   // Per-file extensions — adopters toggle `active` and populate `.actions` bodies
   "system/extensions/post-context-load.md",
   "system/extensions/post-task-completion.md",

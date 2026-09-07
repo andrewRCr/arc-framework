@@ -63,11 +63,11 @@ export function readHookInput() {
 }
 
 /**
- * Recover the most recent registered transient checkout from Codex's session
- * transcript. Codex anchors hook `cwd` to the session root even when a tool
- * command ran in a directed checkout, while the transcript retains the
- * command's actual cwd. The candidate remains only a hint: the seed command's
- * normal locus reader revalidates the exact marker + identity generation.
+ * Recover the most recent registered execution checkout from Codex's session
+ * transcript. Codex anchors hook `cwd` to the session root even when an
+ * ARC-declared transient runs in another checkout, while the transcript retains
+ * the command's actual cwd. Only ready transient candidates may redirect the
+ * hook; moving a work-unit branch never transfers recovery authority.
  */
 export function resolveCodexExecutionCheckout(raw) {
   const transcriptPath = hookTranscriptPath(raw);
@@ -83,8 +83,7 @@ export function resolveCodexExecutionCheckout(raw) {
   const registered = registeredWorktreeRoots(hookRoot);
   const candidateIndex = registered.findIndex((path) => resolve(path) === resolve(candidateRoot));
   if (candidateIndex === -1) return null;
-  if (!isReadyTransient(candidateRoot, candidateIndex === 0)) return null;
-  return candidateRoot;
+  return isReadyTransient(candidateRoot, candidateIndex === 0) ? candidateRoot : null;
 }
 
 function hookTranscriptPath(raw) {

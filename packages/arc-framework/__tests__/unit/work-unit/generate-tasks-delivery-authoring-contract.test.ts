@@ -48,4 +48,46 @@ describe("generate-tasks delivery authoring contract", () => {
     expect(commit).toBeGreaterThan(finalize);
     expect(installed).toBe(packaged);
   });
+
+  it("authors member close-outs as scoped verification tasks with the canonical suffix", () => {
+    const packaged = readFileSync(
+      join(PACKAGE_ROOT, "arc/system/workflows/arc/generate-tasks.template.md"),
+      "utf8",
+    );
+    const installed = readFileSync(
+      join(PROJECT_ROOT, ".arc/system/workflows/arc/generate-tasks.md"),
+      "utf8",
+    );
+
+    for (const workflow of [packaged, installed]) {
+      const closeOutStart = workflow.indexOf("- End each member's task range");
+      const closeOutEnd = workflow.indexOf("\n- Group Success Criteria", closeOutStart);
+      expect(closeOutStart).toBeGreaterThan(-1);
+      expect(closeOutEnd).toBeGreaterThan(closeOutStart);
+      const memberCloseOut = workflow.slice(closeOutStart, closeOutEnd);
+
+      expect(memberCloseOut).toContain("member-scope verification parent");
+      expect(memberCloseOut).toContain("— validate criteria at member scope");
+      expect(memberCloseOut).toContain("sole terminal work-unit verification task");
+      expect(memberCloseOut).not.toContain("ordinary implementation parent");
+    }
+  });
+
+  it("teaches the member verifier shape in every shipped task-authoring reference", () => {
+    const suffix = "— validate criteria at member scope";
+    const references = [
+      "arc/reference/templates/arc/work-unit/template-tasks.md",
+      "arc/reference/strategies/arc/strategy-task-list-formatting.md",
+    ];
+
+    for (const relativePath of references) {
+      const packaged = readFileSync(join(PACKAGE_ROOT, relativePath), "utf8");
+      const installed = readFileSync(join(PROJECT_ROOT, ".arc", relativePath.replace(/^arc\//u, "")), "utf8");
+
+      expect(installed).toBe(packaged);
+      expect(packaged).toContain(suffix);
+      expect(packaged).toMatch(/member[^\n]*range[\s\S]*?final[\s\S]{0,160}?(?:parent|task)/iu);
+      expect(packaged).toMatch(/sole terminal\s+work-unit verification\s+task/u);
+    }
+  });
 });

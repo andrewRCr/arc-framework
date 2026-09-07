@@ -23,6 +23,17 @@ const ERRAND_BINDING = {
   sources: ["coderabbit-pr", "codex-pr"],
   standardReview: STANDARD_REVIEW,
 };
+const DELIVERY_MEMBER = {
+  planId: "123e4567-e89b-12d3-a456-426614174000",
+  deliverableId: `sha256:${"d".repeat(64)}`,
+  workUnitId: "example",
+  base: "b".repeat(40),
+  baseRef: "main",
+  headRef: "delivery/plan-1/member-1",
+  head: HEAD,
+  candidateHead: HEAD,
+  isFinalMember: false,
+};
 
 function adapter(
   request: HostedReviewAdapter["request"],
@@ -114,6 +125,119 @@ describe("hosted review request", () => {
     });
   });
 
+  it("carries validated delivery-member progress authority in the resumable handle", async () => {
+    const input = {
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr" as const,
+      coverage: "complete" as const,
+      vehicle: {
+        kind: "delivery-member" as const,
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: DELIVERY_MEMBER.head,
+      },
+    };
+    const result = await requestHostedReview(input, {
+      adapters: [adapter(async () => ({
+        kind: "created",
+        effectiveCoverage: "complete",
+        artifact: {
+          kind: "issue-comment",
+          id: "IC_kwDO123",
+          url: "https://github.com/owner/repo/pull/42#issuecomment-1",
+          createdAt: "2026-07-23T12:00:00.000Z",
+        },
+      }))],
+      deliveryMemberLookup: {
+        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+      },
+      admitDeliveryMemberRequest: async () => undefined,
+    });
+
+    expect(result).toMatchObject({
+      state: "requested",
+      handle: { target: input.target, vehicle: input.vehicle },
+    });
+  });
+
+  it("rechecks delivery-member admission before invoking the hosted adapter", async () => {
+    let providerCalled = false;
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: {
+        kind: "delivery-member",
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: DELIVERY_MEMBER.head,
+      },
+    }, {
+      adapters: [adapter(async () => {
+        providerCalled = true;
+        return { kind: "rate-limited" };
+      })],
+      deliveryMemberLookup: {
+        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+      },
+      admitDeliveryMemberRequest: async () => {
+        throw new Error("review pass ceiling requires approval");
+      },
+    })).rejects.toThrow(/ceiling requires approval/u);
+    expect(providerCalled).toBe(false);
+  });
+
+  it("refuses delivery-member capacity when no request-time driver admission is bound", async () => {
+    let providerCalled = false;
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: {
+        kind: "delivery-member",
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: DELIVERY_MEMBER.head,
+      },
+    }, {
+      adapters: [adapter(async () => {
+        providerCalled = true;
+        return { kind: "rate-limited" };
+      })],
+      deliveryMemberLookup: {
+        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+      },
+    })).rejects.toThrow(/request-time driver admission/u);
+    expect(providerCalled).toBe(false);
+  });
+
+  it("rejects a delivery-member request whose exact binding does not match", async () => {
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: {
+        kind: "delivery-member",
+        planId: "123e4567-e89b-12d3-a456-426614174001",
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: HEAD,
+      },
+    }, {
+      adapters: [],
+      deliveryMemberLookup: {
+        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+      },
+    })).rejects.toThrow("does not match");
+  });
+
   it("rejects malformed and unsupported-version requests", () => {
     expect(() => HostedRequestEnvelopeSchema.parse({
       schemaVersion: 2,
@@ -139,6 +263,27 @@ describe("hosted review request", () => {
       provider: "codex-pr",
       coverage: "complete",
     })).toThrow();
+    expect(() => HostedRequestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "codex-pr",
+      coverage: "complete",
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toThrow(/exact delivery-member vehicle/u);
+    expect(() => HostedRequestEnvelopeSchema.parse({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: {
+        kind: "delivery-member",
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: DELIVERY_MEMBER.head,
+      },
+      invocation: { mode: "force", sourceId: "codex-pr" },
+    })).toThrow(/select the request provider/u);
   });
 
   it("returns a typed failure when the selected source is unavailable", async () => {

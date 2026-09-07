@@ -128,7 +128,7 @@ describe("member-coordinate target derivation", () => {
     };
   }
 
-  /** A control branch two commits ahead of `main`, standing in for a two-member stack. */
+  /** A work-unit branch two commits ahead of `main`, standing in for a two-member stack. */
   async function createStack(): Promise<{
     root: string;
     predecessorSha: string;
@@ -278,8 +278,11 @@ describe("member-coordinate target derivation", () => {
         planId: "3f1b7c2e-4a5d-4e6f-8a9b-0c1d2e3f4a5b",
         deliverableId: `sha256:${"1".repeat(64)}`,
         workUnitId: "owning-work-unit",
+        baseRef: "main",
+        candidateHead: overrides.head,
         isFinalMember: false,
         ...overrides,
+        headRef: overrides.headRef === undefined ? "delivery/plan/member-1" : overrides.headRef,
       };
     }
 

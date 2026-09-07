@@ -6,20 +6,27 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { MetaRecord } from "../../src/lib/active/meta-reader.js";
 import { MetaRecordSchema } from "../../src/lib/active/meta-schema.js";
-import { RepositoryDeliveryStateStore } from "../../src/lib/delivery/local-stores.js";
+import {
+  RepositoryDeliveryPlanStore,
+  RepositoryDeliveryStateStore,
+} from "../../src/lib/delivery/local-stores.js";
+import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import {
   DeliveryStateV1Schema,
+  type DeliveryPlanV1,
   type DeliveryStateV1,
 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { deliveryStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
-const WORK_UNIT = "review-surface-binding";
+const WORK_UNIT = SlugSchema.parse("review-surface-binding");
 const OWNER = "andrew";
 const EVALUATOR = "fresh-reviewer";
 const REPOSITORY_ID = "12345678-1234-1234-1234-123456789abc";
+const REPOSITORY = "owner/repository";
 
 const exec = createExecaGitExec();
 const roots: string[] = [];
@@ -47,7 +54,7 @@ const meta: MetaRecord = MetaRecordSchema.parse({
   completed: null,
 });
 
-// The control locus resolves to its work unit. Pinned here because the reader
+// The originating locus resolves to its work unit. Pinned here because the reader
 // takes the active ARC identity from ambient Git config, which no temporary
 // repository owns; everything below it — the delivery read, the derivation, and
 // the adapters that join them — runs for real.
@@ -83,23 +90,24 @@ interface Stack {
   memberSha: string;
   successorSha: string;
   deliverableId: string;
+  terminalDeliverableId: string;
 }
 
-function deliverableId(index: number): string {
-  return canonicalDigest({ member: index, planId: PLAN_ID });
-}
-
-function state(stack: Omit<Stack, "deliverableId">, memberTree: string): DeliveryStateV1 {
+function state(
+  stack: Omit<Stack, "deliverableId" | "terminalDeliverableId">,
+  plan: DeliveryPlanV1,
+  memberTree: string,
+): DeliveryStateV1 {
   return DeliveryStateV1Schema.parse({
     schemaVersion: 1,
     semanticsVersion: "delivery-state/v1",
     planId: PLAN_ID,
     workUnitId: WORK_UNIT,
-    boundPlan: { planRevision: 1, planDigest: canonicalDigest({ planId: PLAN_ID, revision: 1 }) },
+    boundPlan: { planRevision: plan.planRevision, planDigest: plan.planDigest },
     target: null,
     members: [
       {
-        deliverableId: deliverableId(0),
+        deliverableId: plan.members[0]!.deliverableId,
         ref: "opaque-member-0",
         changeRequest: null,
         coordinates: {
@@ -109,7 +117,7 @@ function state(stack: Omit<Stack, "deliverableId">, memberTree: string): Deliver
         },
       },
       {
-        deliverableId: deliverableId(1),
+        deliverableId: plan.members[1]!.deliverableId,
         ref: "opaque-member-1",
         changeRequest: null,
         coordinates: {
@@ -120,11 +128,12 @@ function state(stack: Omit<Stack, "deliverableId">, memberTree: string): Deliver
       },
     ],
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
 }
 
 /**
- * A control locus mid-stack: two members landed, a successor written on top, and
+ * An originating locus mid-stack: two members landed, a successor written on top, and
  * an uncommitted edit — the state that is normal while member work continues.
  */
 async function boundStack(): Promise<Stack> {
@@ -150,14 +159,21 @@ async function boundStack(): Promise<Stack> {
   await writeFile(join(root, "tracked.txt"), "uncommitted\n", "utf8");
 
   const stack = { root, predecessorSha, memberSha, successorSha };
-  const store = new RepositoryDeliveryStateStore(
-    new RepositoryGitCommonStatePublisher(exec, root),
-  );
+  const plan = deliveryStackPlanForWorkUnitFixture(WORK_UNIT, PLAN_ID);
+  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+  const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  const planPublished = await planStore.publishCurrent(PLAN_ID, plan, null);
+  expect(planPublished.status).toBe("ok");
+  const store = new RepositoryDeliveryStateStore(publisher);
   const memberTree = await git(root, "rev-parse", `${memberSha}^{tree}`);
-  const published = await store.publish(PLAN_ID, state(stack, memberTree), 0);
+  const published = await store.publish(PLAN_ID, state(stack, plan, memberTree), 0);
   expect(published.status).toBe("ok");
 
-  return { ...stack, deliverableId: deliverableId(0) };
+  return {
+    ...stack,
+    deliverableId: plan.members[0]!.deliverableId,
+    terminalDeliverableId: plan.members[1]!.deliverableId,
+  };
 }
 
 describe("local review delivery binding at its composition root", () => {
@@ -220,6 +236,42 @@ describe("local review delivery binding at its composition root", () => {
       .rejects.toMatchObject({ reason: "delivery-member-unbound" });
   });
 
+  it("authenticates the final member only through its exact driver admission", async () => {
+    const stack = await boundStack();
+    const vehicle = {
+      kind: "delivery-member" as const,
+      planId: PLAN_ID,
+      deliverableId: stack.terminalDeliverableId,
+      workUnitId: WORK_UNIT,
+      head: stack.successorSha,
+    };
+    const dependencies = createLocalPrepareDependencies({ exec, cwd: stack.root });
+
+    await expect(dependencies.resolveAuthority(
+      EVALUATOR,
+      stack.successorSha,
+      {
+        schemaVersion: 1,
+        sourceId: "delegated-agent",
+        statusTarget: {
+          repository: REPOSITORY,
+          headRef: "feature",
+          headSha: stack.successorSha,
+        },
+        target: {
+          repository: REPOSITORY,
+          pullRequest: 42,
+          headSha: stack.successorSha,
+        },
+        vehicle,
+        pass: 1,
+      },
+    )).resolves.toMatchObject({
+      authority: { vehicle: { kind: "delivery-member", identity: vehicle.deliverableId } },
+      member: { base: stack.memberSha, head: stack.successorSha },
+    });
+  });
+
   it("leaves the no-selector path reading the checkout, dirt and all", async () => {
     const stack = await boundStack();
     const prepare = createLocalPrepareDependencies({ exec, cwd: stack.root });
@@ -230,9 +282,9 @@ describe("local review delivery binding at its composition root", () => {
       }),
       member: null,
     });
-    // The control locus is dirty, which is what an ordinary derivation refuses —
+    // The originating locus is dirty, which is what an ordinary derivation refuses —
     // and what a forgotten selector therefore runs into rather than silently
-    // reviewing the control branch in the member's place.
+    // reviewing the work-unit branch in the member's place.
     await expect(prepare.deriveTarget(REPOSITORY_ID))
       .rejects.toMatchObject({ code: "invalid-input", reason: "dirty-worktree" });
   });

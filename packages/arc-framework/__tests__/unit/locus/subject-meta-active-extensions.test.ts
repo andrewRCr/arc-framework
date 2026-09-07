@@ -4,6 +4,10 @@ import { posix } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  projectCandidateApplicabilityDecision,
+  projectDurableCandidateTarget,
+} from "../../helpers/candidate.js";
 import type { LoadSetProjectionInput } from "../../../src/lib/load-set/projection.js";
 import {
   projectCheckoutSubjectMeta,
@@ -12,6 +16,7 @@ import {
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
+  projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -43,6 +48,8 @@ function subjectIO(files: ReadonlyMap<string, string>): SubjectMetaIO {
     pathExists: async (path) => files.has(path),
     realpath: async (path) => posix.normalize(path),
     lstat: async () => ({ isSymbolicLink: () => false }),
+    projectDeliveryCorrection: async () => ({ status: "none" }),
+    projectCandidateTarget: projectDurableCandidateTarget,
   };
 }
 
@@ -64,7 +71,7 @@ function candidateRecord(slug: string): { candidateId: string; subjectDigest: st
       semanticsVersion: "candidate-attestation/v1",
       attestation,
       subject,
-      responses: [],
+      transitions: [],
       lineageAttestations: [],
     }),
   };
@@ -233,6 +240,471 @@ describe("checkout subject active-extension seam", () => {
     if (result.kind === "resolved") expect(result.integrationBoundary).toEqual(recoveredBoundary);
   });
 
+  it("keeps an Integrating re-root recoverable while pre-publication review is pending", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const { candidateId, subjectDigest } = candidate;
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "integrate-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: boundary,
+    });
+  });
+
+  it("projects open corrective work without leaving the integration session", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: candidate.subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "process-task-loop",
+      taskCursor: { status: "found", cursor: { section: { id: "1.1" }, leaf: { id: "1.1" } } },
+      integrationBoundary: boundary,
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).toEqual(expect.arrayContaining([
+      {
+        path: ".arc/active/tasks-demo.md",
+        readMode: { kind: "partial-strategic" },
+      },
+      {
+        path: ".arc/system/workflows/arc/process-task-loop.md",
+        readMode: { kind: "full" },
+      },
+    ]));
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).not.toContainEqual(
+      {
+        path: ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+        readMode: { kind: "full" },
+      },
+    );
+  });
+
+  it("projects integration verification while Candidate applicability awaits authority", async () => {
+    resolverInputs.length = 0;
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const { candidateId, subjectDigest } = candidate;
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projectCandidateApplicabilityDecision },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "verify-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: boundary,
+    });
+    expect(resolverInputs.at(-1)).toMatchObject({
+      sessionType: "integration",
+      workUnitStage: "verification-closeout",
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      readMode: { kind: "full" },
+    });
+  });
+
+  it("keeps pending delivery correction verification in the integration continuation", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: candidate.subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: {
+        ...options.io,
+        projectDeliveryCorrection: async () => ({ status: "scoped-verification-required" as const }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "integrate-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: boundary,
+    });
+    expect(resolverInputs.at(-1)).toMatchObject({
+      sessionType: "integration",
+      workUnitStage: "delivery-correction",
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      readMode: { kind: "full" },
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).not.toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      readMode: { kind: "full" },
+    });
+  });
+
+  it("keeps Candidate continuation renewal in the integration workflow", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: candidate.subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: {
+        ...options.io,
+        projectDeliveryCorrection: async () => ({ status: "candidate-renewal-required" as const }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "integrate-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: boundary,
+    });
+  });
+
+  it("refuses integration projection when delivery correction evidence is incoherent", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const boundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: candidate.subjectDigest,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(boundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: {
+        ...options.io,
+        projectDeliveryCorrection: async () => ({
+          status: "refused" as const,
+          message: "Delivery correction evidence is incoherent.",
+        }),
+      },
+    });
+
+    expect(result).toEqual({
+      kind: "unresolved",
+      code: "subject-unresolved",
+      message: "Delivery correction evidence is incoherent.",
+      metaPath: ".arc/active/meta-demo.md",
+    });
+  });
+
+  it("does not recover pending applicability through a boundary bound to another subject", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const { candidateId } = candidate;
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const mismatched = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId,
+      candidateSubjectDigest: `sha256:${"9".repeat(64)}`,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(mismatched),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projectCandidateApplicabilityDecision },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: null,
+      workflow: null,
+      integrationBoundary: null,
+    });
+  });
+
+  it("recovers changed-Candidate verification without reviving a mismatched boundary", async () => {
+    resolverInputs.length = 0;
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Integrating\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`integrate-work-unit\`
+- **Next Action:** stale narrative
+`;
+    const changedSubjectBoundary = projectCandidateReviewBoundary({
+      workUnit: "demo",
+      candidateId: candidate.candidateId,
+      candidateSubjectDigest: `sha256:${"9".repeat(64)}`,
+    });
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[x]` **1.1 Done**\n");
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+    files.set(
+      `${options.cwd}/.arc/system/.internal/candidates/demo.boundary.json`,
+      JSON.stringify(changedSubjectBoundary),
+    );
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: {
+        ...options.io,
+        projectCandidateTarget: projectCandidateApplicabilityDecision,
+        projectDeliveryCorrection: async () => ({ status: "verification-required" as const }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "integration",
+      workflow: "verify-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: null,
+    });
+    expect(resolverInputs.at(-1)).toMatchObject({
+      sessionType: "integration",
+      workUnitStage: "verification-closeout",
+    });
+  });
+
+  it("keeps Active prepublication strict while Candidate applicability awaits authority", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+
+    await expect(projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projectCandidateApplicabilityDecision },
+    })).resolves.toMatchObject({
+      kind: "unresolved",
+      code: "subject-unresolved",
+      message: "Candidate target requires request-authority.",
+    });
+  });
+
   it("projects a Candidate-bearing Active subject as prepublication", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
@@ -272,6 +744,78 @@ describe("checkout subject active-extension seam", () => {
     expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
       path: ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
       readMode: { kind: "full" },
+    });
+  });
+
+  it("does not require Candidate currentness while an Active subject is back in task execution", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const projector = vi.fn(async () => {
+      throw new Error("execution recovery must not project Candidate authority");
+    });
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** [none]
+- **Next Action:** Continue reopened work
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projector },
+    });
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "execution",
+      workflow: "process-task-loop",
+      taskCursor: { status: "found", cursor: { section: { id: "1.1" }, leaf: { id: "1.1" } } },
+      integrationBoundary: null,
+    });
+    expect(projector).not.toHaveBeenCalled();
+  });
+
+  it("projects a closed Active task list as execution verification closeout", async () => {
+    resolverInputs.length = 0;
+    const { options, files } = fixture();
+    files.set(
+      `${options.cwd}/.arc/active/tasks-demo.md`,
+      "## **Phase 1:** Verification\n\n### `[x]` **1.1 Complete verification**\n",
+    );
+
+    const result = await projectCheckoutSubjectMeta(options);
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      sessionType: "execution",
+      workflow: "verify-work-unit",
+      taskCursor: { status: "no-open-task" },
+      integrationBoundary: null,
+    });
+    expect(resolverInputs.at(-1)).toMatchObject({
+      sessionType: "execution",
+      workUnitStage: "verification-closeout",
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).toContainEqual({
+      path: ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      readMode: { kind: "full" },
+    });
+    expect(result.kind === "resolved" ? result.loadSet.entries : []).not.toContainEqual({
+      path: ".arc/active/tasks-demo.md",
+      readMode: { kind: "partial-strategic" },
     });
   });
 

@@ -7,10 +7,13 @@ import {
   CandidateLineageTargetSchema,
   createCandidateAttestation,
   createCandidateLineageAttestation,
-  projectCandidateCurrentness,
   type CandidateManagedRecordV1,
   type CandidateLineageTarget,
 } from "../candidate-attestation.js";
+import {
+  projectStagedCandidateCurrentness,
+  type CandidateEffectiveTargetProjection,
+} from "../candidate-effective-target.js";
 import type { VersionedCandidateRecord } from "../candidate-record-store.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import {
@@ -33,6 +36,27 @@ const ATTESTED_ORIENTATION = {
   },
 } as const;
 
+const CandidateDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+
+const AttestExpectedBlockedSchema = z.strictObject({
+  candidateId: CandidateDigestSchema,
+  subjectDigest: CandidateDigestSchema,
+});
+
+const AttestReRootContinuationSchema = z.strictObject({
+  argv: z.tuple([
+    z.literal("arc"),
+    z.literal("attest"),
+    SlugSchema,
+    z.literal("--new-root"),
+    z.literal("--expected-candidate"),
+    CandidateDigestSchema,
+    z.literal("--expected-subject"),
+    CandidateDigestSchema,
+    z.literal("--json"),
+  ]),
+});
+
 export const AttestResultSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("attested"),
@@ -47,13 +71,24 @@ export const AttestResultSchema = z.discriminatedUnion("status", [
   }),
   z.strictObject({
     status: z.literal("blocked"),
-    candidateId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+    candidateId: CandidateDigestSchema,
     delta: z.strictObject({
       added: z.array(z.string()),
       removed: z.array(z.string()),
       changed: z.array(z.string()),
     }),
-    nextAction: z.string().trim().min(1),
+    nextAction: z.literal("establish-new-root"),
+    recommendedActionText: z.string().trim().min(1),
+    continuation: AttestReRootContinuationSchema,
+  }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.enum([
+      "re-root-candidate-mismatch",
+      "re-root-subject-mismatch",
+      "re-root-no-longer-blocked",
+    ]),
+    recommendedActionText: z.string().trim().min(1),
   }),
 ]);
 export type AttestResult = z.infer<typeof AttestResultSchema>;
@@ -64,6 +99,7 @@ export interface AttestContext {
   verificationEvidenceRef(name: string): string;
   readRecord(name: string): Promise<VersionedCandidateRecord>;
   currentTarget(name: string): Promise<CandidateLineageTarget>;
+  effectiveTarget(name: string, record: CandidateManagedRecordV1): Promise<CandidateEffectiveTargetProjection>;
   publish(input: {
     name: string;
     record: CandidateManagedRecordV1;
@@ -88,26 +124,59 @@ export interface AttestContext {
  */
 export async function runAttest(
   context: AttestContext,
-  params: { name: string; lifecycle: keyof typeof ATTESTED_ORIENTATION; newRoot?: boolean },
+  params: {
+    name: string;
+    lifecycle: keyof typeof ATTESTED_ORIENTATION;
+    newRoot?: boolean;
+    expectedBlocked?: { candidateId: string; subjectDigest: string };
+  },
 ): Promise<AttestResult> {
   const name = SlugSchema.parse(params.name);
+  const expectedBlocked = params.expectedBlocked === undefined
+    ? undefined
+    : AttestExpectedBlockedSchema.parse(params.expectedBlocked);
   const orientation = ATTESTED_ORIENTATION[params.lifecycle];
   const current = CandidateLineageTargetSchema.parse(await context.currentTarget(name));
   const existing = await context.readRecord(name);
   if (existing.record !== null) {
     const record = CandidateManagedRecordV1Schema.parse(existing.record);
-    const currentness = projectCandidateCurrentness({ record, current });
+    const currentness = projectStagedCandidateCurrentness({
+      record,
+      staged: current,
+      committed: await context.effectiveTarget(name, record),
+    });
     if (currentness.status === "blocked") {
       if (params.newRoot !== true) {
         return {
           status: "blocked",
           candidateId: currentness.candidateId,
           delta: currentness.delta,
-          nextAction: currentness.nextAction,
+          nextAction: "establish-new-root",
+          recommendedActionText: "Run full work-unit verification, then establish a new Candidate lineage root.",
+          continuation: {
+            argv: [
+              "arc",
+              "attest",
+              name,
+              "--new-root",
+              "--expected-candidate",
+              currentness.candidateId,
+              "--expected-subject",
+              current.subject.subjectDigest,
+              "--json",
+            ],
+          },
         };
+      }
+      if (expectedBlocked !== undefined && expectedBlocked.candidateId !== currentness.candidateId) {
+        return reRootRefusal("re-root-candidate-mismatch");
+      }
+      if (expectedBlocked !== undefined && expectedBlocked.subjectDigest !== current.subject.subjectDigest) {
+        return reRootRefusal("re-root-subject-mismatch");
       }
       return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }
+    if (expectedBlocked !== undefined) return reRootRefusal("re-root-no-longer-blocked");
     if (currentness.convergenceVerification === "satisfied") {
       const published = await context.publish({
         name,
@@ -146,7 +215,19 @@ export async function runAttest(
     return { status: "attested", operation: "convergence", ...published };
   }
 
+  if (expectedBlocked !== undefined) return reRootRefusal("re-root-candidate-mismatch");
+
   return establishRoot(context, name, current, orientation, undefined, existing.version);
+}
+
+function reRootRefusal(
+  reason: "re-root-candidate-mismatch" | "re-root-subject-mismatch" | "re-root-no-longer-blocked",
+): AttestResult {
+  return {
+    status: "refused",
+    reason,
+    recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+  };
 }
 
 /** Attest one fresh lineage root over the current target, recording any Candidate it supersedes. */
@@ -172,7 +253,7 @@ async function establishRoot(
     semanticsVersion: "candidate-attestation/v1",
     attestation,
     subject: current.subject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   });
   const published = await context.publish({

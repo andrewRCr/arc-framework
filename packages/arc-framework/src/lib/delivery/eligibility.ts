@@ -15,6 +15,12 @@ export interface DeliveryEligibilityMember extends DeliveryEligibilityCoordinate
   readonly ref: string;
 }
 
+/** Caller-reported Tier 2 outcome for one exact disposable member candidate. */
+export interface DeliveryCandidateGateResult extends DeliveryEligibilityCoordinates {
+  readonly deliverableId: string;
+  readonly status: "passed" | "failed";
+}
+
 /** Ephemeral mechanical snapshot; never a persisted authorization token. */
 export interface DeliveryEligibilitySnapshot {
   readonly planId: string;
@@ -22,7 +28,7 @@ export interface DeliveryEligibilitySnapshot {
   readonly planRevision: number;
   readonly planDigest: string;
   readonly protectedBase: DeliveryEligibilityCoordinates & { readonly ref: string };
-  readonly control: DeliveryEligibilityCoordinates & { readonly ref: string };
+  readonly top: DeliveryEligibilityCoordinates & { readonly ref: string };
   readonly members: readonly DeliveryEligibilityMember[];
   readonly lifecyclePaths: readonly string[];
 }
@@ -38,7 +44,7 @@ export interface DeliveryEligibilityDependencies {
   }): Promise<{ readonly status: "ok" } | { readonly status: "refused"; readonly paths: readonly string[] }>;
   compareNormalizedCompleteness(input: {
     readonly protectedBase: DeliveryEligibilityCoordinates & { readonly ref: string };
-    readonly control: DeliveryEligibilityCoordinates & { readonly ref: string };
+    readonly top: DeliveryEligibilityCoordinates & { readonly ref: string };
     readonly finalCandidate: DeliveryEligibilityMember;
     readonly lifecyclePaths: readonly string[];
   }): Promise<
@@ -64,12 +70,18 @@ export interface DeliveryEligibilityRefusal {
     | "extra-candidate"
     | "duplicate-candidate"
     | "reordered-candidate"
+    | "direct-delivery-ref"
     | "candidate-unavailable"
     | "wrong-predecessor"
     | "empty-candidate"
     | "lifecycle-contribution"
     | "checkout-dirty"
     | "checkout-moved"
+    | "missing-gate-result"
+    | "duplicate-gate-result"
+    | "reordered-gate-result"
+    | "gate-result-failed"
+    | "gate-result-stale"
     | "lifecycle-paths-moved"
     | "completeness-dropped"
     | "completeness-invented"
@@ -77,6 +89,7 @@ export interface DeliveryEligibilityRefusal {
     | "evidence-unavailable"
     | "source-moved"
     | "plan-moved"
+    | "top-ref-mismatch"
     | "head-already-bound";
   readonly deliverableId?: string;
   /** Every mismatching lifecycle-contribution path; present only for `lifecycle-contribution` refusals. */
@@ -84,12 +97,18 @@ export interface DeliveryEligibilityRefusal {
 }
 
 /** Dependencies that keep plan and lifecycle discovery inside one mutation observation window. */
-export interface FreshDeliveryEligibilityMutationDependencies<Result>
+export interface FreshDeliveryEligibilityMutationDependencies<Prepared, Result, PreparationRefusal>
 extends DeliveryEligibilityDependencies {
+  resolveOriginatingTopRef(plan: DeliveryPlanV1): Promise<string | null>;
   resolveLifecyclePaths(plan: DeliveryPlanV1): Promise<readonly string[] | null>;
+  prepareMutation(input: {
+    readonly plan: DeliveryPlanV1;
+    readonly snapshot: DeliveryEligibilitySnapshot;
+  }): Promise<{ readonly status: "prepared"; readonly value: Prepared } | PreparationRefusal>;
   mutate(input: {
     readonly plan: DeliveryPlanV1;
     readonly snapshot: DeliveryEligibilitySnapshot;
+    readonly prepared: Prepared;
   }): Promise<Result>;
 }
 
@@ -100,27 +119,40 @@ extends DeliveryEligibilityDependencies {
  * @param deps - Current plan/lifecycle readers, mechanical observers, and the guarded mutation
  * @returns The mutation result, or the first refusal before mutation begins
  */
-export async function executeWithFreshDeliveryEligibility<Result>(input: {
+export async function executeWithFreshDeliveryEligibility<
+  Prepared,
+  Result,
+  PreparationRefusal extends { readonly status: "refused" },
+>(input: {
   readonly planId: string;
   readonly protectedBaseRef: string;
-  readonly controlRef: string;
+  readonly topRef: string;
   readonly memberOffset?: number;
   readonly candidates: readonly {
     readonly deliverableId: string;
     readonly ref: string;
     readonly checkoutPath: string;
   }[];
-}, deps: FreshDeliveryEligibilityMutationDependencies<Result>): Promise<Result | DeliveryEligibilityRefusal> {
+  readonly gateResults?: readonly DeliveryCandidateGateResult[];
+}, deps: FreshDeliveryEligibilityMutationDependencies<Prepared, Result, PreparationRefusal>): Promise<
+  Result | PreparationRefusal | DeliveryEligibilityRefusal
+> {
   const plan = await deps.readCurrentPlan(input.planId);
   if (plan === null) return { status: "refused", reason: "plan-moved" };
+  const originatingTopRef = await deps.resolveOriginatingTopRef(plan);
+  if (originatingTopRef === null) return { status: "refused", reason: "evidence-unavailable" };
+  if (originatingTopRef !== input.topRef) return { status: "refused", reason: "top-ref-mismatch" };
   const lifecyclePaths = await deps.resolveLifecyclePaths(plan);
   if (lifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
   const eligible = await revalidateDeliveryEligibilityForMutation({
     ...input,
     plan,
     lifecyclePaths,
+    gateResults: input.gateResults,
   }, deps);
   if (eligible.status !== "eligible") return eligible;
+  const prepared = await deps.prepareMutation({ plan, snapshot: eligible.snapshot });
+  if (prepared.status === "refused") return prepared;
   const currentLifecyclePaths = await deps.resolveLifecyclePaths(plan);
   if (currentLifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
   const normalizedCurrentPaths = [...new Set(currentLifecyclePaths)].sort(byteSort);
@@ -128,19 +160,24 @@ export async function executeWithFreshDeliveryEligibility<Result>(input: {
     || normalizedCurrentPaths.some((path, index) => path !== eligible.snapshot.lifecyclePaths[index])) {
     return { status: "refused", reason: "lifecycle-paths-moved" };
   }
-  return deps.mutate({ plan, snapshot: eligible.snapshot });
+  if (await deps.resolveOriginatingTopRef(plan) !== input.topRef) {
+    return { status: "refused", reason: "top-ref-mismatch" };
+  }
+  return deps.mutate({ plan, snapshot: eligible.snapshot, prepared: prepared.value });
 }
 
 async function revalidateDeliveryEligibilityForMutation(input: {
   readonly plan: DeliveryPlanV1;
   readonly protectedBaseRef: string;
-  readonly controlRef: string;
+  readonly topRef: string;
+  readonly memberOffset?: number;
   readonly candidates: readonly {
     readonly deliverableId: string;
     readonly ref: string;
     readonly checkoutPath: string;
   }[];
   readonly lifecyclePaths: readonly string[];
+  readonly gateResults?: readonly DeliveryCandidateGateResult[];
 }, deps: DeliveryEligibilityDependencies): Promise<
   | { readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot }
   | DeliveryEligibilityRefusal
@@ -159,14 +196,19 @@ async function revalidateDeliveryEligibilityForMutation(input: {
     );
     if (checkout.status !== "exact") return checkout;
   }
-  return closeDeliveryEligibility(prepared.snapshot, deps);
+  return input.gateResults === undefined
+    ? closeDeliveryEligibility(prepared.snapshot, deps)
+    : closeDeliveryEligibilityForPublication({
+      snapshot: prepared.snapshot,
+      gateResults: input.gateResults,
+    }, deps);
 }
 
 /** Validate and pin one complete authored candidate chain before workflow-owned gates run. */
 export async function prepareDeliveryEligibility(input: {
   readonly plan: DeliveryPlanV1;
   readonly protectedBaseRef: string;
-  readonly controlRef: string;
+  readonly topRef: string;
   readonly memberOffset?: number;
   readonly candidates: readonly { readonly deliverableId: string; readonly ref: string }[];
   readonly lifecyclePaths: readonly string[];
@@ -192,15 +234,25 @@ export async function prepareDeliveryEligibility(input: {
   if (input.candidates.some((candidate, index) => candidate.deliverableId !== expectedMembers[index]?.deliverableId)) {
     return { status: "refused", reason: "reordered-candidate" };
   }
+  const directDeliveryCandidate = input.candidates.find((candidate) => (
+    candidate.ref.startsWith("refs/heads/delivery/")
+  ));
+  if (directDeliveryCandidate !== undefined) {
+    return {
+      status: "refused",
+      reason: "direct-delivery-ref",
+      deliverableId: directDeliveryCandidate.deliverableId,
+    };
+  }
 
   const observed = await Promise.all([
     deps.observeRef(input.protectedBaseRef),
-    deps.observeRef(input.controlRef),
+    deps.observeRef(input.topRef),
     ...input.candidates.map((candidate) => deps.observeRef(candidate.ref)),
   ]);
   const protectedBase = observed[0];
-  const control = observed[1];
-  if (protectedBase === null || control === null) return { status: "refused", reason: "evidence-unavailable" };
+  const top = observed[1];
+  if (protectedBase === null || top === null) return { status: "refused", reason: "evidence-unavailable" };
   const members: DeliveryEligibilityMember[] = [];
   for (const [index, candidate] of input.candidates.entries()) {
     const coordinates = observed[index + 2];
@@ -244,7 +296,7 @@ export async function prepareDeliveryEligibility(input: {
       planRevision: input.plan.planRevision,
       planDigest: input.plan.planDigest,
       protectedBase: { ref: input.protectedBaseRef, ...protectedBase },
-      control: { ref: input.controlRef, ...control },
+      top: { ref: input.topRef, ...top },
       members,
       lifecyclePaths: [...new Set(input.lifecyclePaths)].sort(byteSort),
     },
@@ -277,8 +329,41 @@ export async function verifyDeliveryCandidateCheckout(
   return { status: "exact" };
 }
 
-/** Close the observation window after workflow-owned gates without writing plan or state. */
+/**
+ * Close a mechanically exact eligibility window without granting publication authority.
+ *
+ * @param snapshot - Prepared candidate coordinates to reobserve
+ * @param deps - Exact Git, plan, and member-binding readers
+ * @returns The eligible snapshot or the first mechanical refusal
+ */
 export async function closeDeliveryEligibility(
+  snapshot: DeliveryEligibilitySnapshot,
+  deps: DeliveryEligibilityDependencies,
+): Promise<{ readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot } | DeliveryEligibilityRefusal> {
+  return closeMechanicalDeliveryEligibility(snapshot, deps);
+}
+
+/**
+ * Close the publication eligibility window after consuming workflow-owned gate results.
+ *
+ * @param input - Prepared candidate coordinates and their ordered exact gate results
+ * @param deps - Exact Git, plan, and member-binding readers
+ * @returns The eligible snapshot or the first gate or mechanical refusal
+ */
+export async function closeDeliveryEligibilityForPublication(
+  input: {
+    readonly snapshot: DeliveryEligibilitySnapshot;
+    readonly gateResults: readonly DeliveryCandidateGateResult[];
+  },
+  deps: DeliveryEligibilityDependencies,
+): Promise<{ readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot } | DeliveryEligibilityRefusal> {
+  const { snapshot } = input;
+  const gateRefusal = validateDeliveryCandidateGateResults(snapshot, input.gateResults);
+  if (gateRefusal !== null) return gateRefusal;
+  return closeMechanicalDeliveryEligibility(snapshot, deps);
+}
+
+async function closeMechanicalDeliveryEligibility(
   snapshot: DeliveryEligibilitySnapshot,
   deps: DeliveryEligibilityDependencies,
 ): Promise<{ readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot } | DeliveryEligibilityRefusal> {
@@ -286,7 +371,7 @@ export async function closeDeliveryEligibility(
   if (finalCandidate === undefined) return { status: "refused", reason: "candidate-unavailable" };
   const completeness = await deps.compareNormalizedCompleteness({
     protectedBase: snapshot.protectedBase,
-    control: snapshot.control,
+    top: snapshot.top,
     finalCandidate,
     lifecyclePaths: snapshot.lifecyclePaths,
   });
@@ -298,7 +383,7 @@ export async function closeDeliveryEligibility(
         : `completeness-${completeness.reason}`,
     };
   }
-  const refs = [snapshot.protectedBase, snapshot.control, ...snapshot.members];
+  const refs = [snapshot.protectedBase, snapshot.top, ...snapshot.members];
   const currentRefs = await Promise.all(refs.map((entry) => deps.observeRef(entry.ref)));
   for (const [index, entry] of currentRefs.entries()) {
     const expected = refs[index];
@@ -322,6 +407,29 @@ export async function closeDeliveryEligibility(
     }
   }
   return { status: "eligible", snapshot };
+}
+
+function validateDeliveryCandidateGateResults(
+  snapshot: DeliveryEligibilitySnapshot,
+  results: readonly DeliveryCandidateGateResult[],
+): DeliveryEligibilityRefusal | null {
+  if (new Set(results.map((result) => result.deliverableId)).size !== results.length) {
+    return { status: "refused", reason: "duplicate-gate-result" };
+  }
+  if (results.length < snapshot.members.length) return { status: "refused", reason: "missing-gate-result" };
+  for (const [index, result] of results.entries()) {
+    const member = snapshot.members[index];
+    if (member === undefined || result.deliverableId !== member.deliverableId) {
+      return { status: "refused", reason: "reordered-gate-result" };
+    }
+    if (result.head !== member.head || result.tree !== member.tree) {
+      return { status: "refused", reason: "gate-result-stale", deliverableId: member.deliverableId };
+    }
+    if (result.status !== "passed") {
+      return { status: "refused", reason: "gate-result-failed", deliverableId: member.deliverableId };
+    }
+  }
+  return null;
 }
 
 function byteSort(left: string, right: string): number {

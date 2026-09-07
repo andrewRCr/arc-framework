@@ -282,7 +282,9 @@ export async function runPublish(
     };
   }
   if (lifecycle === "Integrating"
-    && (boundary.locus === "publication-pending" || boundary.locus === "hosted-review-pending")) {
+    && (boundary.locus === "publication-pending"
+      || boundary.locus === "hosted-review-pending"
+      || boundary.locus === "delivery-status-required")) {
     if (boundary.candidateId !== candidateId || boundary.candidateSubjectDigest !== candidateSubjectDigest) {
       return {
         status: "rejected",

@@ -50,6 +50,10 @@ describe("lifecycle review driver", () => {
     ]);
     expect(workflow).toContain("arc review change-request resolve --head-ref");
     expect(workflow).toContain("arc review status --target '{targetRef}' --json");
+    expect(workflow.indexOf("arc review status --target '{targetRef}' --json"))
+      .toBeLessThan(workflow.indexOf("arc review hosted request -"));
+    expect(workflow).toContain("checkpoint now owns Candidate applicability, ordinary publication settlement");
+    expect(workflow).toMatch(/delivery\s+rebind, review status, and final readiness/u);
     expect(workflow).toContain("arc merge lock resolve -");
     expect(workflow).toContain("arc integrate checkpoint {name} --json");
     expect(workflow).toContain("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
@@ -62,12 +66,12 @@ describe("lifecycle review driver", () => {
     expect(workflow).not.toContain("arc merge lock hold -");
   });
 
-  it("resolves the carried WU reservation before requesting hosted review", async () => {
+  it("resumes the carried WU reservation through public review status", async () => {
     const workflow = await readFile(resolve(packageArc, integrateWorkflow), "utf8");
 
-    expect(workflow).toContain("invoke `integrationBoundary.nextAction.command`");
-    expect(workflow).toContain("`ready / hosted-request`");
-    expect(workflow).toContain("`policy.payload.pass`");
+    expect(workflow).toContain("integrationBoundary.nextAction.command");
+    expect(workflow).toContain("`resolve-delivery-status`");
+    expect(workflow).toContain("selects the first outstanding retained member");
   });
 
   it("keeps attention suppression with the owner of each judgment", async () => {

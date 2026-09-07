@@ -7,15 +7,19 @@ import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
+import type { PreBindingDeliveryReviewTargets } from "./pre-publication-delivery-targets.js";
 import {
   PrePublicationReviewRequestSchema,
   type PrePublicationReviewRequest,
 } from "./pre-publication-procedure.js";
-import { ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
+import { resolveReviewPolicy, ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
 import type { OwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
-import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
+import type {
+  StandardReviewReservationTarget,
+  StandardReviewReservationV1,
+} from "./integration-boundary-locus.js";
 
 /** Per-lane scope, invocation, ceiling, and Owner-terminus judgment, keyed by lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
@@ -64,6 +68,15 @@ export function consumeOwnerAcceptedTerminus(input: unknown): unknown {
   return { ...parsed.data, standard };
 }
 
+/** Remove a one-pass Frontline ceiling approval before another exact member is selected. */
+export function consumeFrontlineCeilingOverride(input: unknown): unknown {
+  const parsed = PrePublicationLaneJudgmentsSchema.safeParse(input ?? {});
+  if (!parsed.success || parsed.data.frontline?.ceilingOverride === undefined) return input;
+  const frontline = { ...parsed.data.frontline };
+  delete frontline.ceilingOverride;
+  return { ...parsed.data, frontline };
+}
+
 /** The author self-review states the procedure distinguishes. */
 export type PrePublicationSelfReviewState = PrePublicationReviewRequest["selfReview"];
 /** The two lanes a pre-publication request composes. */
@@ -97,6 +110,11 @@ export type TargetRead =
   | { status: "resolved"; target: ReviewPolicyTarget }
   | { status: "refused"; reason: string };
 
+/** Exact reservation marker selected from current singleton or delivery authority. */
+export type ReservationTargetRead =
+  | { status: "resolved"; target: StandardReviewReservationTarget }
+  | { status: "refused"; reason: string };
+
 /**
  * The immutable review target, or why the checkout cannot produce one.
  *
@@ -118,6 +136,11 @@ export interface PrePublicationCompositionDependencies {
   readCandidate(workUnit: string): Promise<CandidateRead>;
   readAssurance(workUnit: string): Promise<AssuranceRead>;
   resolveTarget(headSha: string): Promise<TargetRead>;
+  readReservationTarget(
+    workUnit: string,
+    singleton: { repository: string; headSha: string },
+  ): Promise<ReservationTargetRead>;
+  readDeliveryReviewTargets(workUnit: string): Promise<PreBindingDeliveryReviewTargets>;
   deriveImmutableTarget(): Promise<ImmutableTargetRead>;
   readOwnerTerminusAuthority(workUnit: string): Promise<OwnerTerminusAuthorityRead>;
   readLaneProgress(
@@ -145,6 +168,8 @@ export interface PrePublicationCompositionInput {
    * dropping a malformed ceiling override silently re-blocks a pass the operator already approved.
    */
   lanes?: unknown;
+  /** Exact Frontline head to which a caller-carried one-pass ceiling approval remains bound. */
+  frontlineCeilingHeadSha?: string;
 }
 
 export type PrePublicationComposition =
@@ -307,8 +332,35 @@ export async function composePrePublicationReviewRequest(
       reason: "The resolved review target does not identify the Candidate head.",
     };
   }
-  const immutable = await dependencies.deriveImmutableTarget();
-  if (immutable.status === "resolved" && immutable.target.headSha !== candidate.headSha) {
+  const reservationTarget = await dependencies.readReservationTarget(input.workUnit, {
+    repository: target.repository,
+    headSha: target.headSha,
+  });
+  if (reservationTarget.status === "refused") {
+    return { status: "refused", reason: reservationTarget.reason };
+  }
+  const deliveryTargets = await dependencies.readDeliveryReviewTargets(input.workUnit);
+  if (deliveryTargets.status === "refused") {
+    return {
+      status: "refused",
+      reason: `The pre-publication delivery-member targets could not be composed (${deliveryTargets.reason}).`,
+    };
+  }
+  const reservationMatchesDelivery = deliveryTargets.status === "composed"
+    ? reservationTarget.target.kind === "delivery"
+      && reservationTarget.target.planId === deliveryTargets.planId
+      && reservationTarget.target.workUnitId === input.workUnit
+    : reservationTarget.target.kind === "pinned-head";
+  if (!reservationMatchesDelivery) {
+    return {
+      status: "refused",
+      reason: "The pre-publication delivery targets do not match the selected reservation.",
+    };
+  }
+  const immutable = deliveryTargets.status === "absent"
+    ? await dependencies.deriveImmutableTarget()
+    : null;
+  if (immutable?.status === "resolved" && immutable.target.headSha !== candidate.headSha) {
     return {
       status: "refused",
       reason: "The immutable review target does not identify the Candidate head.",
@@ -338,18 +390,26 @@ export async function composePrePublicationReviewRequest(
 
   const advisories: string[] = [];
   if (routing.diagnostics.length > 0) advisories.push(rejectedRoutingAdvisory(routing.diagnostics));
-  if (immutable.status === "unavailable") advisories.push(unavailableTargetAdvisory(immutable.reason));
-  const composeLane = async (lane: ReviewLane) => {
-    const [policy, progress] = await Promise.all([
-      dependencies.readLanePolicy(lane),
-      dependencies.readLaneProgress(lane, candidate.headSha, candidate.lineageHeadShas),
-    ]);
+  if (immutable?.status === "unavailable") advisories.push(unavailableTargetAdvisory(immutable.reason));
+  const [frontlinePolicy, standardPolicy] = await Promise.all([
+    dependencies.readLanePolicy("frontline"),
+    dependencies.readLanePolicy("standard"),
+  ]);
+  const composeLane = async (
+    lane: ReviewLane,
+    policyTarget: ReviewPolicyTarget,
+    lineageHeadShas: readonly string[],
+  ) => {
+    const [policy, progress] = [
+      lane === "frontline" ? frontlinePolicy : standardPolicy,
+      await dependencies.readLaneProgress(lane, policyTarget.headSha, lineageHeadShas),
+    ];
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];
     const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
     return {
       schemaVersion: 1,
-      target,
+      target: policyTarget,
       lane,
       frontlineActive: assurance.activity.frontlineReview,
       standardReview,
@@ -365,13 +425,10 @@ export async function composePrePublicationReviewRequest(
       maxPasses: policy.maxPasses,
       ...(judgment?.scopeMode === undefined
         ? {}
-        : { scopeSelection: { mode: judgment.scopeMode, target } }),
+        : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
       ...(judgment?.invocation === undefined
         ? {}
         : { invocation: judgment.invocation }),
-      ...(judgment?.ceilingOverride === undefined
-        ? {}
-        : { ceilingOverride: { ...judgment.ceilingOverride, target, lane } }),
       ...(lane !== "standard"
         || judgment?.terminus === undefined
         || ownerTerminusAuthority?.status !== "authorized"
@@ -388,14 +445,83 @@ export async function composePrePublicationReviewRequest(
           }),
     };
   };
-  const frontline = await composeLane("frontline");
-  const standard = await composeLane("standard");
+  const withCeilingOverride = <Request extends Awaited<ReturnType<typeof composeLane>>>(
+    lane: ReviewLane,
+    policyTarget: ReviewPolicyTarget,
+    request: Request,
+  ): Request => {
+    const ceilingOverride = lanes.data[lane]?.ceilingOverride;
+    const boundToAnotherFrontlineHead = lane === "frontline"
+      && input.frontlineCeilingHeadSha !== undefined
+      && input.frontlineCeilingHeadSha !== policyTarget.headSha;
+    return ceilingOverride === undefined || boundToAnotherFrontlineHead
+      ? request
+      : {
+          ...request,
+          ceilingOverride: { ...ceilingOverride, target: policyTarget, lane },
+        };
+  };
+  let exactTarget: ReviewTarget | null;
+  let policyTarget: ReviewPolicyTarget;
+  let policyLineage: readonly string[];
+  let frontline: Awaited<ReturnType<typeof composeLane>>;
+  if (deliveryTargets.status === "composed") {
+    let selected: {
+      exactTarget: ReviewTarget;
+      policyTarget: ReviewPolicyTarget;
+      frontline: Awaited<ReturnType<typeof composeLane>>;
+    } | null = null;
+    for (const member of deliveryTargets.targets) {
+      const memberPolicyTarget = {
+        repository: target.repository,
+        pullRequest: null,
+        headSha: member.target.headSha,
+      };
+      const memberFrontline = await composeLane(
+        "frontline",
+        memberPolicyTarget,
+        [member.target.headSha],
+      );
+      selected = {
+        exactTarget: member.target,
+        policyTarget: memberPolicyTarget,
+        frontline: memberFrontline,
+      };
+      const state = resolveReviewPolicy(memberFrontline).state;
+      if (state !== "skipped" && state !== "pass-complete") break;
+    }
+    if (selected === null) {
+      return {
+        status: "refused",
+        reason: "The canonical delivery plan produced no private review members.",
+      };
+    }
+    exactTarget = selected.exactTarget;
+    policyTarget = selected.policyTarget;
+    policyLineage = [selected.exactTarget.headSha];
+    frontline = withCeilingOverride("frontline", policyTarget, selected.frontline);
+  } else {
+    exactTarget = immutable?.status === "resolved" ? immutable.target : null;
+    policyTarget = target;
+    policyLineage = candidate.lineageHeadShas;
+    frontline = withCeilingOverride(
+      "frontline",
+      policyTarget,
+      await composeLane("frontline", policyTarget, policyLineage),
+    );
+  }
+  const standard = withCeilingOverride(
+    "standard",
+    policyTarget,
+    await composeLane("standard", policyTarget, policyLineage),
+  );
 
   const composed = {
     schemaVersion: 1,
     workUnit: input.workUnit,
     candidateId: candidate.candidateId,
-    target: immutable.status === "resolved" ? immutable.target : null,
+    reservationTarget: reservationTarget.target,
+    target: exactTarget,
     selfReview: input.selfReview === "settled"
       ? "settled"
       : assurance.activity.selfReview ? "pending" : "inactive",
