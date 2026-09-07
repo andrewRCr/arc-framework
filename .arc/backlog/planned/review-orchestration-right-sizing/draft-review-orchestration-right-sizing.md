@@ -15,6 +15,22 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Give exact Errand targets an Owner-accepted review terminus**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep execution recon (2026-09-07); promoted when the attempted
+  pull-forward crossed the design floor.
+- _Concern:_ an ordinary Errand can retain exact-head review progress but has no typed way for the agent to
+  recommend that further frontline or standard review is disproportionate and for the Owner to accept that
+  residual risk. The existing terminus is inseparable from a delivery member's Candidate boundary. Correct Errand
+  support therefore has to settle strict identity and canonical-target binding, portable versus local authority,
+  replay and invalidation, and resumable completion; a workflow-only conversational bypass would preserve the
+  brittleness this mechanism is meant to remove.
+- _Fold-in:_ emit one submit-ready, lane-specific recommendation bound to exact Errand key, claim, branch, base,
+  head, review progress, and rationale; accept only explicit Owner judgment; invalidate every material movement;
+  resume the accepted operation by reference; and preserve accepted risk as distinct from provider clean or
+  convergence. Coordinate provider-neutral native-review dismissal and `ci-defer-heavy` convergence with
+  `review-source-authority`'s existing hosted-blocker concern rather than duplicating that authority design here.
+
 ### `[ ]` **Define terminal ownership and collection for review evidence**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-22); captured during `decompose-extraction`
