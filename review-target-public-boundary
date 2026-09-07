@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-target-public-boundary",
+  "claimId": "32cde2f30a63403e548ab46d888199a4",
+  "createdAt": "2026-09-07T20:09:29.436Z",
+  "updatedAt": "2026-09-07T20:09:29.436Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "review-target-public-boundary",
+  "branch": "chore/review-target-public-boundary",
+  "origin": "inbox",
+  "originEntry": "Derive the repository-local review identity at the public request boundary",
+  "originEntrySourceDigest": "sha256:a7f330947ee487e1eaef2d61169f9e2e3bb75eef8deede18a3b930026d83a455",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
