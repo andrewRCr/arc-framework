@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Spec approved after two adversarial passes and final coherence review; draft retired and
-  stage advanced to generate-tasks
-- **Next Task:** Begin Task 1.1 — Refuse uncovered retirement content end to end through the typed envelope
+- **Last Completed:** Task generation finalized and work unit activated; implementation has not begun
+- **Next Task:** Task 1.1.a — Define the shared refusal envelope and first remedy mapping (line ~74)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Refuse uncovered retirement content end to end through the typed envelope
+- **Next Action:** Begin Task 1.1.a — Define the shared refusal envelope and first remedy mapping
 
 - **PR URL:** [none]
 - **Completed:** [none]
