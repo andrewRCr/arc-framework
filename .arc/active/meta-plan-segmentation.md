@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Spec authored, self-reviewed, and saved (2026-08-24) — `spec-plan-segmentation.md`,
-  `detailed` · RFC, substrate D1–D13, saved at `26bf15461` and surfaced at Gate 1. Prior: draft-design complete
-  (2026-08-24), captured at `870c37b33`.
+- **Last Completed:** Base `main` reconciled into the branch (2026-09-07) at `8945c6f44` — Tier 2 gates green —
+  then the full SESSION-NOTES regrounding pass ran against landed code. Findings recorded in SESSION-NOTES. Prior:
+  spec authored, self-reviewed, saved at `26bf15461` and surfaced at Gate 1.
 - **Next Task:** [none]
-- **Blockers:** Gate 2 (finalize) held until `delivery-native-stack-composition` merges — it edits the same four
-  task-list surfaces this spec edits, and D6 is grounded against its unlanded worktree.
+- **Blockers:** Gate 1 cannot close on the spec as written. Regrounding found D6 substantially pre-empted by landed
+  code and D5's family-marker claim contradicted by the shipped member-verifier suffix; both need re-synthesis.
 
-- **Next Action:** Hold at create-spec Gate 1. On that merge, reground per the SESSION-NOTES checklist, then run
-  the deferred adversarial pass, then Gate 2 finalize.
+- **Next Action:** Apply the pending dependency reconcile in its own increment, then re-synthesize D6 and D5 (with
+  the smaller D4/D7 gaps) from the SESSION-NOTES findings, then the deferred adversarial pass, then Gate 2.
 
 - **PR URL:** [none]
 - **Completed:** [none]
