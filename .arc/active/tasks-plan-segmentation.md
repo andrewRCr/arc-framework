@@ -207,26 +207,21 @@ together, not a resequencing to fix.
 - _Outcome:_ the scale-axis read produces the segment sequence, and structural decomposition consumes that sequence
   directly instead of applying a separate incremental-delivery heuristic.
 
-### `[ ]` **4.2 Phase-preamble grammar for the recorded surface — D4**
+### `[x]` **4.2 Phase-preamble grammar for the recorded surface — D4**
 
 - _Goal:_ an author following the stage knows exactly where the two lines go and what they may say, so the
   recorded surface is reproducible without reading the scan.
 
-- _Context:_ the landed preamble order is any delivery-member pointer, then the required purpose line, then these
-  two, then any design-decisions block. The mode line carries a backticked token from the closed set, an optional
-  span, and a prose gloss after an em dash; the exit criterion is prose. Only the token and span are parsed.
+    - `[x]` **4.2.a State the grammar and position in the phase-shape guidance**
+        - structural decomposition now places the opening and closing lines around the required purpose, defines
+          their grammar, and separates each preamble entry with a blank line
 
-- _Approach:_ the two lines belong to the structural skeleton, written in the pass that decomposes phases — they
-  are claims about the boundaries being decided there, not content filled in later. Say so where the skeleton
-  shape is specified, or a multi-pass author defers them and the Finalize scan meets a plan whose boundaries were
-  never declared at the point they were chosen.
+    - `[x]` **4.2.b Rewrite the Finalize preamble-order entry to admit both lines in position**
+        - Finalize now checks the same ordered preamble shape, including the single-phase order and blank-line
+          separation
 
-- _Note:_ preamble entries separate with a blank line — adjacent label lines render as one flowing paragraph.
-  The grammar, the definition of record, and the template all state the same spacing.
-
-    - `[ ]` **4.2.a State the grammar and position in the phase-shape guidance**
-
-    - `[ ]` **4.2.b Rewrite the Finalize preamble-order entry to admit both lines in position**
+- _Outcome:_ structural decomposition authors the segmentation lines when phase boundaries are chosen, and Finalize
+  checks the same reproducible order before save.
 
 ### `[ ]` **4.3 The three Finalize obligations — D7, D8, D9**
 

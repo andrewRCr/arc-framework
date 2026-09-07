@@ -196,8 +196,13 @@ below. It stays on disk through the remaining procedures and Finalize.
 - Header per [`template-tasks.md`][template-tasks] planned variant — the single `**Design:**` chain-of-authority
   pointer (bare spec filename). No `Purpose` / `Branch` / `Base Branch` on `tasks-*`: Purpose lives on the spec,
   branch on `meta-*`. See [strategy-task-list-formatting § Task List Headers][task-list-formatting]
-- Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_` block stating
-  key calls
+- Phase shapes: `## **Phase X:**` headings followed by a preamble in this order: any `**Delivery member:**`
+  pointers, the required `_Purpose:_`, `_Mode:_` on a segment's opening phase, `_Exit criterion:_` on its closing
+  phase, then any `_Design decisions:_` block. A single-phase segment carries both structural lines, `_Mode:_`
+  first. Separate every preamble entry with a blank line.
+    - `_Mode:_` takes a backticked `slice`, `layer`, or `replication` token, an optional `through Phase N` span,
+      then an em dash and a non-empty prose gloss naming what the segment closes on.
+    - `_Exit criterion:_` takes the segment's specific, non-empty criterion as prose.
 - Parent-task skeletons (titles only — H3 headings with backtick-wrapped marker per
   [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing the spec's enumerable units
   (which units does this parent satisfy?)
@@ -424,8 +429,10 @@ pre-save checklist and bundles the commit.
 - [ ] Header is the single `**Design:**` chain-of-authority pointer (bare spec filename) — no
       `Purpose` / `Branch` / `Base Branch` on `tasks-*` (Purpose lives on the spec, branch on `meta-*`).
 - [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
-- [ ] Phase preambles open with any delivery-member pointers when a Delivery Plan is present, then `_Purpose:_`
-      (italic); optional `_Design decisions:_` links to `notes-{name}.md`; soft cap ~12 lines per preamble
+- [ ] Phase preambles carry, in order, any delivery-member pointers, the required `_Purpose:_`, `_Mode:_` on a
+      segment's opening phase, `_Exit criterion:_` on its closing phase, then any `_Design decisions:_` links to
+      `notes-{name}.md`. A single-phase segment carries both structural lines with `_Mode:_` first; every preamble
+      entry has a blank line after it; soft cap ~12 lines per preamble.
 - [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
       [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
