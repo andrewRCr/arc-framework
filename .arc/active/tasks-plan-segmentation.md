@@ -150,10 +150,29 @@ and no consumer of the doctrine exists yet; Phase 4 authors the first one.
   digest-bearing `segment` verification roles while preserving member and positional work-unit roles. A suffix
   inside the bold task title remains ordinary title prose.
 
-### `[ ]` **3.3 Substrate contract close-out — D7** — validate criteria at member scope
+### `[x]` **3.3 Substrate contract close-out — D7** — validate criteria at member scope
 
 - _Goal:_ Member 1's grouped criteria are walked at its boundary and the resulting evidence recorded, so terminal
   verification dispositions this member from a report rather than re-deriving it.
+
+- _Outcome:_ Member 1 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 1 — segmentation-substrate`.
+    - _Span:_ diff `7f61861a5..e42da8fce`; reachability `e42da8fce`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 1 — segmentation-substrate > 1`; _criterion-digest:_
+      `sha256:a6a7b55efe98584d76d8eb9f23ab0016a0d6065c6442d5534152cc186e946d5d`; _State:_ `[x]`; _Evidence:_
+      the closed scanner diagnostic family is composed into both worktree and index-byte fire sites, with
+      source-located coverage for malformed, presence-triggered, unphased, terminal, and valid-unsegmented shapes.
+    - _Criterion:_ `Success Criteria > Member 1 — segmentation-substrate > 2`; _criterion-digest:_
+      `sha256:5c5a22ea44255963649efc261f71e2c200c722c13788ad19e189f42021cd9c56`; _State:_ `[x]`; _Evidence:_
+      the shared schema closes the scope enum, suffix classification produces assignable digest-bearing `segment`
+      roles, and coverage preserves the sole terminal unassigned work-unit verifier and member partition boundary.
+    - _Criterion:_ `Success Criteria > Member 1 — segmentation-substrate > 3`; _criterion-digest:_
+      `sha256:d30afb7a09aacd97d68ba1f1b577b58351bb71e0586013254993823950bfb5fe`; _State:_ `[x]`; _Evidence:_
+      layer fixtures pass with or without a verifier, while terminal mode and criterion declarations fail even
+      without another segmentation trigger.
+    - _Summary:_ three met, zero superseded, zero unresolved. Two Heavy adversarial passes found four confirmed
+      defects; all were fixed in `bcf304307` and `e42da8fce`, then the settled member passed Tier 2 in isolation.
 
 ## **Phase 4:** The discriminator at the task-generation entry read
 
