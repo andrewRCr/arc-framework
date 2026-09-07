@@ -8,6 +8,28 @@
 
 ---
 
+## Resume amendment — 2026-09-07
+
+Retain this WU and its design intent. Native-stack delivery now supplies the landing boundaries; the historical
+preference for four child WUs and the wait for DTI/chunked delivery are superseded. The old estimates and cut remain
+historical inputs in `notes-review-signal-convergence.md`, not binding member boundaries.
+
+Adopt the three routed concerns: attestation ordering before publish-readiness; delivery-member progression,
+logical-pass accounting and requested/effective coverage; and recognizable native finding identity in disposition
+reports. Explicit member-scoped Owner acceptance remains separate from convergence derived from durable results and
+approved dispositions.
+
+The retained body below is the pre-resumption design baseline. Current source already implements regrading,
+all-lane response preparation, durable hosted snapshots in lane progress, and parts of member progression. The
+source reconciliation and residual obligations are recorded in `notes-review-signal-convergence.md` § Resume
+assessment — 2026-09-07. In particular, the baseline's claim of absent hosted durability is no longer current.
+
+The assessment exposes bounded design work in coverage/accounting and publication continuation, plus the native
+navigation projection and a proportionality check of result storage against shipped snapshots. Its recommendations
+and delivery partition await review; the baseline's `Open Questions`
+section does not declare those new issues settled. Preserve this spec as the amendment source rather than restarting
+problem framing. Task content fill and implementation remain gated on the refreshed design.
+
 ## Introduction / Context
 
 ARC's review surfaces currently preserve several correct ideas at different layers without joining them at the

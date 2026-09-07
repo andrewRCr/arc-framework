@@ -2,6 +2,11 @@
 
 - **Design:** `spec-review-signal-convergence.md`
 
+Retained structural baseline from 2026-07-27, not a finalized executable list. Resume assessment and the provisional
+native-stack partition are in `notes-review-signal-convergence.md` § Resume assessment — 2026-09-07. The existing
+parents remain traceability inputs until the spec amendment and refreshed structural pass are reviewed; no task here
+is authorized for implementation.
+
 ---
 
 ## **Phase 1:** Establish the strict review-severity vocabulary
