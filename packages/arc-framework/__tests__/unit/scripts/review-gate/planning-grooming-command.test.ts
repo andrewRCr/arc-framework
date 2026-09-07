@@ -7,6 +7,7 @@ import {
   ReviewPlanningGroomingResolveRequestSchema,
 } from "../../../../src/scripts/review-gate/core/planning-grooming-command-schema.js";
 import {
+  composePlanningGroomingMethodActivity,
   resolvePlanningGroomingReviewCommand,
 } from "../../../../src/scripts/review-gate/policy/planning-grooming-command.js";
 
@@ -170,12 +171,28 @@ describe("resolvePlanningGroomingReviewCommand", () => {
     expect(ReviewPlanningGroomingResolveRequestSchema.safeParse(request).success).toBe(true);
   });
 
-  it("rejects a derived target that does not match the caller-held exact head", () => {
+  it.each([
+    ["baseRef", "release"],
+    ["diffBaseSha", "e".repeat(40)],
+    ["headSha", "f".repeat(40)],
+  ] as const)("rejects a derived target with a mismatched %s", (field, replacement) => {
     expect(() => resolvePlanningGroomingReviewCommand({
-      request: { ...request, target: { ...request.target, headSha: "f".repeat(40) } },
+      request: { ...request, target: { ...request.target, [field]: replacement } },
       target,
       changeSet: planningChangeSet,
       context: transientContext,
-    })).toThrow(/derived target headSha does not match/u);
+    })).toThrow(new RegExp(`derived target ${field} does not match`, "u"));
+  });
+
+  it("preserves method-activation fallback diagnostics with normalized activity", () => {
+    const result = composePlanningGroomingMethodActivity({
+      readMethodFile: () => undefined,
+    });
+
+    expect(result.activity).toEqual({ selfReview: true, frontlineReview: false });
+    expect(result.diagnostics).toEqual([
+      "method.frontline-review.missing",
+      "method.self-review.missing",
+    ]);
   });
 });

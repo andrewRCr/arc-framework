@@ -166,14 +166,15 @@ import { resolveReviewHeadRef } from "../scripts/review-gate/core/review-subject
 import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
-import { resolvePlanningGroomingReviewCommand } from
+import {
+  composePlanningGroomingMethodActivity,
+  resolvePlanningGroomingReviewCommand,
+} from
   "../scripts/review-gate/policy/planning-grooming-command.js";
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import { createLocalReviewMethodFilePort } from
   "../scripts/review-gate/hosts/local/method-files.js";
-import { bindReviewMethodActivity, resolveReviewMethodActivity } from
-  "../scripts/review-gate/policy/activity.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
   HostedRequestEnvelopeSchema,
@@ -1294,8 +1295,8 @@ function defaultReviewPlanningGroomingResolveDependencies(
       ]);
       const context = live.context.workUnit === null && live.context.errand !== null
         ? (() => {
-            const activity = resolveReviewMethodActivity(
-              bindReviewMethodActivity(createLocalReviewMethodFilePort({ cwd: root })).activityPort,
+            const activity = composePlanningGroomingMethodActivity(
+              createLocalReviewMethodFilePort({ cwd: root }),
             );
             return {
               state: "resolved" as const,

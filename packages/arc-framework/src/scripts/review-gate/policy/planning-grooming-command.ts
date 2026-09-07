@@ -14,6 +14,12 @@ import { ReviewTargetSchema } from "../core/gate-contract-v2-schema.js";
 import {
   ReviewMethodActivitySchema,
 } from "./assurance-schema.js";
+import {
+  bindReviewMethodActivity,
+  resolveReviewMethodActivity,
+  type ReviewMethodFilePort,
+  type ReviewMethodActivityResolution,
+} from "./activity.js";
 import { resolveReviewRouting } from "./routing.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 
@@ -56,6 +62,18 @@ const PlanningGroomingCommandInputSchema = z.strictObject({
     }
   }
 });
+
+/** Resolve live method activity without dropping project-file fallback diagnostics. */
+export function composePlanningGroomingMethodActivity(
+  port: ReviewMethodFilePort,
+): ReviewMethodActivityResolution {
+  const bound = bindReviewMethodActivity(port);
+  const resolved = resolveReviewMethodActivity(bound.activityPort);
+  return {
+    activity: resolved.activity,
+    diagnostics: [...new Set([...bound.diagnostics, ...resolved.diagnostics])].sort(),
+  };
+}
 
 function ineligible(
   target: z.infer<typeof ReviewTargetSchema>,
