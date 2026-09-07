@@ -319,7 +319,9 @@ arc review hosted await -
 ```
 
 `pending / await` retains the newly returned `action`; `pending / inspect-or-extend` retains the request for the
-diagnostic below, then stops. For either pending outcome, run one short exact-head diagnostic observation before
+diagnostic below, then stops. Submitting `action` unchanged checks once; on explicit direction, add
+`continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review or
+records a provider outcome. For either pending outcome, run one short exact-head diagnostic observation before
 continuing or stopping:
 
 ```bash

@@ -446,6 +446,7 @@ describe("trusted review-gate workflows", () => {
       expect(pendingInspection).toContain("diagnosticFailures");
       expect(pendingInspection).toMatch(/read-only diagnos/iu);
       expect(pendingInspection).toMatch(/inspect-or-extend[\s\S]{0,250}diagnostic below, then stop/iu);
+      expect(pendingInspection).toContain("continueAfterAttention: true");
       expect(pendingInspection).toMatch(/same hosted[^.]*action/iu);
       expect(pendingInspection).toMatch(/exact head[^.]*draft lock/iu);
       expect(pendingInspection).toMatch(/does\s+not[^.]*review settlement/iu);
