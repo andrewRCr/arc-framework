@@ -104,28 +104,18 @@ template fixture stays included without a second selection rule to keep in step.
   documents, returns their common path/line/message shape, and sorts the combined stream deterministically. The
   public command fails on segmentation findings while legacy and excluded task lists remain unaffected.
 
-### `[ ]` **2.2 Staged indexed-certification fire site — D6, D9**
+### `[x]` **2.2 Staged indexed-certification fire site — D6, D9**
 
 - _Goal:_ the pre-commit staged gate certifies index bytes for segmentation too, and a change to the scan itself
   retriggers certification rather than passing on stale evidence.
 
-- _Rationale:_ registering at one site only is the false-green the two-site design exists to refuse — a host-side
-  merge or an unverified commit would reach CI with a broken segmentation.
+    - `[x]` **2.2.a Add the scan module to the runtime-implementation path list**
+        - Added `segmentation.ts` immediately after the structural scanner, so a scan-only staged change triggers
+          certification and participates in the worktree/index implementation-alignment guard.
 
-    Build `test-first` (one behavior at a time):
-
-    - staged index bytes with a segmentation defect fail certification
-    - worktree bytes differing from the index do not change the staged verdict
-    - a staged change to the scan module alone triggers certification
-
-    - `[ ]` **2.2.a Add the scan module to the runtime-implementation path list**
-        - the staged gate resolves its executing modules by walking the relative-import closure from that list,
-          so it already reaches the scan through the fire site importing it. The static list serves a second
-          reader that has no closure: the worktree-index drift guard, which is what makes the composite lint verb
-          fail closed when a staged gate path still differs in the worktree. Without the entry the scan slips
-          that guard — which is also why the structural scanner is listed despite being reachable
-        - place it immediately after the structural scanner, keeping the list's directory grouping; the staged
-          gate's unit test also selects one entry positionally, and appending there shifts nothing
+- _Outcome:_ indexed certification now runs segmentation over staged task-list blobs beside descriptor validation,
+  retaining its verdict when worktree bytes differ. The runtime path registration makes scan changes invalidate
+  stale certification evidence.
 
 ## **Phase 3:** Verification scope closure and `segment` production
 

@@ -25,6 +25,7 @@ export const MARKDOWN_RUNTIME_IMPLEMENTATION_PATHS = [
   "packages/arc-framework/src/lib/markdown/selection.ts",
   "packages/arc-framework/src/lib/markdown/staged-gate.ts",
   "packages/arc-framework/src/lib/task-list/scanner.ts",
+  "packages/arc-framework/src/lib/task-list/segmentation.ts",
   "packages/arc-framework/src/scripts/lint-markdown-staged.ts",
   "packages/arc-framework/src/scripts/verify-markdown-dependencies.ts",
 ] as const;
