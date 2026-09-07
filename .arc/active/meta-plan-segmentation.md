@@ -12,7 +12,7 @@
 - **Task List:** `tasks-plan-segmentation.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `process-task-loop`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 3.3 — Substrate contract close-out — D7
 - **Next Task:** Task 4.1.a — Author the procedure at the entry read (line ~208)
 - **Blockers:** [none]
