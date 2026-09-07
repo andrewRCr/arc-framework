@@ -92,6 +92,41 @@ describe("trusted review-gate workflows", () => {
     expect(parsed.jobs?.["portability-cross-platform"]?.env?.VITEST_MAX_WORKERS).toBe("");
   });
 
+  it("runs four E2E shards with a denominator derived from the matrix", async () => {
+    const workflow = await read("ci.yml");
+    const e2e = jobValue(workflow, "e2e");
+    const anchors = [
+      "errand.e2e.test.ts",
+      "candidate-lineage.e2e.test.ts",
+      "command-input-no-input.e2e.test.ts",
+      "lifecycle-exit.e2e.test.ts",
+    ];
+
+    expect(e2e.name).toBe("E2E Tests (${{ matrix.shard }})");
+    expect(e2e.strategy).toMatchObject({
+      "fail-fast": false,
+      matrix: {
+        shard: [1, 2, 3, 4],
+        include: anchors.map((anchor, index) => ({ shard: index + 1, anchor })),
+      },
+    });
+
+    const steps = e2e.steps;
+    expect(Array.isArray(steps)).toBe(true);
+    const anchorStep = (steps as Array<Record<string, unknown>>).find((step) => step.name === "Run E2E anchor");
+    expect(anchorStep?.run).toBe(
+      "npm run test:e2e -w packages/arc-framework -- __tests__/e2e/${{ matrix.anchor }} --passWithNoTests=false",
+    );
+
+    const remainderStep = (steps as Array<Record<string, unknown>>)
+      .find((step) => step.name === "Run E2E remainder shard");
+    expect(remainderStep?.run).toContain("--shard=${{ matrix.shard }}/${{ strategy.job-total }}");
+    for (const anchor of anchors) {
+      expect(remainderStep?.run).toContain(`--exclude='**/${anchor}'`);
+      await expect(readRepositoryFile(`packages/arc-framework/__tests__/e2e/${anchor}`)).resolves.toBeTruthy();
+    }
+  });
+
   it("provisions Node before the classifier hashes the code tree", async () => {
     const workflow = await read("ci.yml");
     const classifySteps = jobValue(workflow, "classify").steps;
