@@ -13,7 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Reconciled base into the planning branch
+- **Last Completed:** Draft captured formalization-ready after two adversarial passes; stage advanced to
+  create-spec
 - **Next Task:** [none]
 - **Blockers:** [none]
 
