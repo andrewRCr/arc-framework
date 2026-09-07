@@ -144,6 +144,31 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
     }
   }
 
+  async function readChecks(
+    repository: string,
+    pullRequest: number,
+    signal: AbortSignal,
+    requiredOnly: boolean,
+  ): Promise<RequiredCheck[]> {
+    const result = await runner.run([
+      "pr", "checks", String(pullRequest), "--repo", repository,
+      ...(requiredOnly ? ["--required"] : []),
+      "--json", "name,state,bucket",
+    ], { signal, allowFailure: true });
+    const noReportedChecks = result.stdout.trim() === ""
+      && /no (?:required )?checks reported/iu.test(result.stderr);
+    const path = requiredOnly ? "required-checks" : "observed-checks";
+    const value = noReportedChecks ? [] : parse(result.stdout, path);
+    if (!Array.isArray(value)) throw new Error(`${path}: expected an array`);
+    return value.map((item, index) => {
+      const check = record(item, `${path}[${index}]`);
+      if (typeof check.name !== "string" || check.name === "") {
+        throw new Error(`${path}[${index}].name: expected a non-empty string`);
+      }
+      return { name: check.name, state: checkState(check.bucket, check.state, `${path}[${index}]`) };
+    });
+  }
+
   return {
     resolveRepository: async () => {
       const value = record(parse(
@@ -159,26 +184,15 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
       return pullRequestHeadSha(await readPullRequest(repository, pullRequest, signal));
     },
     readRequiredChecks: async (repository, pullRequest, signal) => {
-      const result = await runner.run([
-        "pr", "checks", String(pullRequest), "--repo", repository, "--required",
-        "--json", "name,state,bucket",
-      ], { signal, allowFailure: true });
-      const noReportedChecks = result.stdout.trim() === ""
-        && /no required checks reported/iu.test(result.stderr);
-      const value = noReportedChecks ? [] : parse(result.stdout, "required-checks");
-      if (!Array.isArray(value)) throw new Error("required-checks: expected an array");
-      const observed = value.map((item, index) => {
-        const check = record(item, `required-checks[${index}]`);
-        if (typeof check.name !== "string" || check.name === "") {
-          throw new Error(`required-checks[${index}].name: expected a non-empty string`);
-        }
-        return { name: check.name, state: checkState(check.bucket, check.state, `required-checks[${index}]`) };
-      });
+      const observed = await readChecks(repository, pullRequest, signal, true);
       if (observed.some(({ state }) => state !== "green")) return observed;
       return mergeConfiguredChecks(
         observed,
         await readConfiguredContexts(repository, pullRequest, signal),
       );
+    },
+    readObservedChecks: async (repository, pullRequest, signal) => {
+      return readChecks(repository, pullRequest, signal, false);
     },
   };
 }

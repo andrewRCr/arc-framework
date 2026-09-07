@@ -9,6 +9,7 @@ import {
   createCandidateLineageAttestation,
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
+  createCandidateVerificationResponseEvidence,
   parseCandidateManagedRecord,
   projectCandidateCurrentness,
   serializeCandidateManagedRecord,
@@ -17,6 +18,7 @@ import {
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
 const SHA_C = "c".repeat(40);
+const SHA_D = "d".repeat(40);
 
 function snapshot(sourceDigest = canonicalDigest({ source: "one" })) {
   return createCandidateSubjectSnapshot([
@@ -77,7 +79,7 @@ describe("Candidate attestation", () => {
       semanticsVersion: "candidate-attestation/v1",
       attestation: first,
       subject: snapshot(),
-      responses: [],
+      transitions: [],
       lineageAttestations: [],
     }).success).toBe(true);
   });
@@ -105,7 +107,7 @@ describe("Candidate attestation", () => {
       semanticsVersion: "candidate-attestation/v1" as const,
       attestation: attestation(),
       subject: snapshot(),
-      responses: [],
+      transitions: [],
       lineageAttestations: [],
     };
 
@@ -132,7 +134,7 @@ describe("Candidate attestation", () => {
       semanticsVersion: "candidate-attestation/v1" as const,
       attestation: root,
       subject: snapshot(),
-      responses: [response],
+      transitions: [response],
       lineageAttestations: [],
     };
 
@@ -142,11 +144,11 @@ describe("Candidate attestation", () => {
     }).success).toBe(false);
     expect(CandidateManagedRecordV1Schema.safeParse({
       ...record,
-      responses: [{ ...response, responseId: canonicalDigest({ forged: "response" }) }],
+      transitions: [{ ...response, responseId: canonicalDigest({ forged: "response" }) }],
     }).success).toBe(false);
     expect(CandidateManagedRecordV1Schema.safeParse({
       ...record,
-      responses: [{ ...response, implementationChanged: false }],
+      transitions: [{ ...response, implementationChanged: false }],
     }).success).toBe(false);
     const inconsistentSubject = {
       ...changed,
@@ -165,7 +167,7 @@ describe("Candidate attestation", () => {
     });
     expect(CandidateManagedRecordV1Schema.safeParse({
       ...record,
-      responses: [inconsistentResponse],
+      transitions: [inconsistentResponse],
     }).success).toBe(false);
   });
 
@@ -220,13 +222,197 @@ describe("Candidate attestation", () => {
       semanticsVersion: "candidate-attestation/v1",
       attestation: root,
       subject: snapshot(),
-      responses: [firstResponse, secondResponse],
+      transitions: [firstResponse, secondResponse],
       lineageAttestations: convergence,
     }).success).toBe(true);
   });
 });
 
 describe("Candidate lineage currentness", () => {
+  it("stores either review-applicability choice without changing the durable Candidate target", () => {
+    const root = attestation();
+    const selector = {
+      schemaVersion: 1,
+      repositoryId: "repository-1",
+      repository: "owner/repository",
+      pullRequest: 42,
+      lane: "standard",
+      sourceId: "codex-pr",
+      priorAttemptId: "attempt-prior",
+      priorHead: SHA_A,
+      currentHead: SHA_B,
+      priorBase: SHA_C,
+      currentBase: SHA_D,
+    };
+    for (const choice of ["covered", "review-required"] as const) {
+      const record = CandidateManagedRecordV1Schema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation: root,
+        subject: snapshot(),
+        transitions: [{
+          transitionKind: "review-applicability-selection",
+          schemaVersion: 1,
+          semanticsVersion: "candidate-attestation/v1",
+          candidateId: root.candidateId,
+          selector,
+          projectionDigest: canonicalDigest({ projection: "review" }),
+          residualDigest: canonicalDigest({ residual: "review" }),
+          selectedBy: "andrew",
+          selectedAt: "2026-08-23T12:00:00.000Z",
+          choice,
+        }],
+        lineageAttestations: [],
+      });
+
+      expect(projectCandidateCurrentness({
+        record,
+        current: { revision: SHA_A, subject: snapshot() },
+      })).toMatchObject({ status: "current", recognizedRevision: SHA_A });
+    }
+  });
+
+  it("advances the durable baseline through an exact covered applicability selection", () => {
+    const root = attestation();
+    const carried = snapshot(canonicalDigest({ source: "covered-base-carry" }));
+
+    const parsed = CandidateManagedRecordV1Schema.safeParse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      transitions: [{
+        transitionKind: "applicability-selection",
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        candidateId: root.candidateId,
+        priorTarget: { revision: SHA_A, subject: snapshot() },
+        currentTarget: { revision: SHA_B, subject: carried },
+        projectionDigest: canonicalDigest({ projection: "covered" }),
+        residualDigest: canonicalDigest({ residual: "covered" }),
+        selectedBy: "andrew",
+        choice: "covered",
+      }],
+      lineageAttestations: [],
+    });
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) throw new Error("expected a valid Candidate transition record");
+    expect(projectCandidateCurrentness({
+      record: parsed.data,
+      current: { revision: SHA_B, subject: carried },
+    })).toMatchObject({
+      status: "current",
+      recognizedRevision: SHA_B,
+      convergenceVerification: "satisfied",
+    });
+  });
+
+  it("requires completed targeted evidence in the targeted applicability transition", () => {
+    const root = attestation();
+    const common = {
+      transitionKind: "applicability-selection",
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      candidateId: root.candidateId,
+      priorTarget: { revision: SHA_A, subject: snapshot() },
+      currentTarget: { revision: SHA_B, subject: snapshot(canonicalDigest({ source: "targeted" })) },
+      projectionDigest: canonicalDigest({ projection: "targeted" }),
+      residualDigest: canonicalDigest({ residual: "targeted" }),
+      selectedBy: "andrew",
+      choice: "targeted-check",
+    };
+    const record = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      lineageAttestations: [],
+    };
+
+    expect(CandidateManagedRecordV1Schema.safeParse({ ...record, transitions: [common] }).success).toBe(false);
+    expect(CandidateManagedRecordV1Schema.safeParse({
+      ...record,
+      transitions: [{ ...common, targetedEvidenceRef: "verification://targeted-carry" }],
+    }).success).toBe(true);
+  });
+
+  it("records changed without advancing the durable Candidate target", () => {
+    const root = attestation();
+    const changed = snapshot(canonicalDigest({ source: "selected-changed" }));
+    const record = CandidateManagedRecordV1Schema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      transitions: [{
+        transitionKind: "applicability-selection",
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        candidateId: root.candidateId,
+        priorTarget: { revision: SHA_A, subject: snapshot() },
+        currentTarget: { revision: SHA_B, subject: changed },
+        projectionDigest: canonicalDigest({ projection: "changed" }),
+        residualDigest: canonicalDigest({ residual: "changed" }),
+        selectedBy: "andrew",
+        choice: "changed",
+      }],
+      lineageAttestations: [],
+    });
+
+    expect(projectCandidateCurrentness({
+      record,
+      current: { revision: SHA_B, subject: changed },
+    })).toMatchObject({ status: "blocked", recognizedRevision: SHA_A, currentRevision: SHA_B });
+  });
+
+  it("replays a response after an ephemeral carry and a later applicability selection", () => {
+    const root = attestation();
+    const carried = snapshot(canonicalDigest({ source: "machine-carried" }));
+    const reviewed = snapshot(canonicalDigest({ source: "reviewed-fix" }));
+    const final = snapshot(canonicalDigest({ source: "later-selection" }));
+    const response = createCandidateReviewResponseEvidence({
+      candidateId: root.candidateId,
+      oldTarget: { revision: SHA_B, subject: carried },
+      newTarget: { revision: SHA_C, subject: reviewed },
+      dispositionId: canonicalDigest({ dispositions: "after-machine-carry" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://reviewed-fix"],
+      implementationChanged: true,
+    });
+    const record = CandidateManagedRecordV1Schema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      transitions: [response, {
+        transitionKind: "applicability-selection",
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        candidateId: root.candidateId,
+        priorTarget: { revision: SHA_C, subject: reviewed },
+        currentTarget: { revision: SHA_D, subject: final },
+        projectionDigest: canonicalDigest({ projection: "after-response" }),
+        residualDigest: canonicalDigest({ residual: "after-response" }),
+        selectedBy: "andrew",
+        choice: "covered",
+      }],
+      lineageAttestations: [],
+    });
+
+    expect(projectCandidateCurrentness({
+      record,
+      current: { revision: SHA_D, subject: final },
+    })).toMatchObject({
+      status: "current",
+      recognizedRevision: SHA_D,
+      implementationChanged: true,
+      convergenceVerification: "pending",
+    });
+  });
+
   it("records full verification over one recognized lineage head", () => {
     const root = attestation();
     const target = { revision: SHA_B, subject: snapshot(canonicalDigest({ source: "review-fix" })) };
@@ -268,7 +454,7 @@ describe("Candidate lineage currentness", () => {
         semanticsVersion: "candidate-attestation/v1",
         attestation: root,
         subject: snapshot(),
-        responses: [response],
+        transitions: [response],
         lineageAttestations: [],
       },
       current: { revision: SHA_B, subject: changed },
@@ -284,6 +470,48 @@ describe("Candidate lineage currentness", () => {
     expect(response).toMatchObject({ applicability: "focused", verificationEvidenceRefs: ["test://candidate/focused"] });
   });
 
+  it("advances through a scoped verification response without reopening convergence", () => {
+    const root = attestation();
+    const changed = snapshot(canonicalDigest({ source: "delivery-review-fix" }));
+    const response = createCandidateVerificationResponseEvidence({
+      candidateId: root.candidateId,
+      oldTarget: { revision: SHA_A, subject: snapshot() },
+      newTarget: { revision: SHA_B, subject: changed },
+      authorityRef: canonicalDigest({ continuation: "delivery-review-fix" }),
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-31T12:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: [
+        "criteria://delivery/member-1",
+        "gates://tier-1/current-top",
+      ],
+      implementationChanged: true,
+    });
+    const record = CandidateManagedRecordV1Schema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      transitions: [response],
+      lineageAttestations: [],
+    });
+
+    expect(response).toMatchObject({
+      transitionKind: "verification-response",
+      authorityRef: canonicalDigest({ continuation: "delivery-review-fix" }),
+      applicability: "focused",
+    });
+    expect(projectCandidateCurrentness({
+      record,
+      current: { revision: SHA_B, subject: changed },
+    })).toMatchObject({
+      status: "current",
+      recognizedRevision: SHA_B,
+      implementationChanged: true,
+      convergenceVerification: "satisfied",
+    });
+  });
+
   it("preserves Candidate across operational-only churn", () => {
     const root = attestation();
     const current = createCandidateSubjectSnapshot([
@@ -297,7 +525,7 @@ describe("Candidate lineage currentness", () => {
         semanticsVersion: "candidate-attestation/v1",
         attestation: root,
         subject: snapshot(),
-        responses: [],
+        transitions: [],
         lineageAttestations: [],
       },
       current: { revision: SHA_C, subject: current },
@@ -325,7 +553,7 @@ describe("Candidate lineage currentness", () => {
         semanticsVersion: "candidate-attestation/v1",
         attestation: root,
         subject: snapshot(),
-        responses: [response],
+        transitions: [response],
         lineageAttestations: [],
       },
       current: { revision: SHA_C, subject: changed },
@@ -346,7 +574,7 @@ describe("Candidate lineage currentness", () => {
         semanticsVersion: "candidate-attestation/v1",
         attestation: root,
         subject: snapshot(),
-        responses: [],
+        transitions: [],
         lineageAttestations: [],
       },
       current: { revision: SHA_B, subject: changed },

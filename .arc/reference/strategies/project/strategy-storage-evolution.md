@@ -206,6 +206,12 @@ Touchpoints warranting joint attention:
   snapshot per save-commit (~660 and growing, never pruned; ancestor-walk load relies on the chain). Whether the
   backing store keeps full per-save history (nearest-ancestor load / time-travel) or compacts/prunes it is an open
   backing-store policy call — low-stakes today (pack-amortized), decide as the substrate's history model firms up.
+- **Tracked-tier delivery projection retirement** — native delivery currently reconstructs filtered member refs
+  because lifecycle artifacts ride the WU's code history and the published top remains append-only. When
+  operational state materializes off-branch and WU/session identity no longer couples to branch SHAs, replace that
+  projection with ordinary interior-ref members, register the complete stack including the top, and permit native
+  restacking end to end. Preserve the delivery-typed terminal-authorization arm and member-boundary verification;
+  those are substrate-independent contracts, not tracked-tier residue.
 
 This list is not exhaustive — other touchpoints surface during co-design.
 

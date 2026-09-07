@@ -56,7 +56,11 @@ import {
   type RebindDeliveryStateFailure,
   type DeliveryStatePlanCoherenceFailure,
 } from "./state.js";
-import type { DeliveryTaskInventory } from "./task-inventory.js";
+import {
+  isDeliveryTaskAssignable,
+  type DeliveryTaskInventory,
+  type DeliveryTaskRole,
+} from "./task-inventory.js";
 import type {
   DeliveryTaskListRenderer,
   DeliveryTaskListRenderResult,
@@ -142,7 +146,7 @@ export function validateDeliveryContributionPartition(input: {
 
 /** One retrofit gap with the nearest represented member in inventory order. */
 export interface DeliveryCompositionCoverageAdvisory {
-  readonly kind: "uncovered-implementation-task";
+  readonly kind: "uncovered-assignable-task";
   readonly taskId: string;
   readonly adjacentMemberChunkKey: string | null;
 }
@@ -175,15 +179,16 @@ export type DeliveryCompositionCoverageResult =
 /** Revalidate entry-sensitive task coverage and enrich retrofit gaps without choosing boundaries. */
 export function validateDeliveryCompositionCoverage(input: {
   readonly entry: DeliveryPlanEntry;
-  readonly implementationTaskIds: readonly string[];
-  readonly verificationTaskId: string;
+  readonly tasks: readonly { readonly taskId: string; readonly role: DeliveryTaskRole }[];
   readonly members: readonly { readonly chunkKey: string; readonly taskIds: readonly string[] }[];
 }): DeliveryCompositionCoverageResult {
+  const assignableTaskIds = input.tasks
+    .filter(isDeliveryTaskAssignable)
+    .map((task) => task.taskId);
   const coverage = validateDeliveryTaskCoverage({
     entry: input.entry,
     predecessorEntry: null,
-    implementationTaskIds: input.implementationTaskIds,
-    verificationTaskId: input.verificationTaskId,
+    tasks: input.tasks,
     memberTaskIds: input.members.map((member) => member.taskIds),
   });
   if (coverage.status === "refused") return coverage;
@@ -193,7 +198,7 @@ export function validateDeliveryCompositionCoverage(input: {
       ...advisory,
       adjacentMemberChunkKey: adjacentMemberForTask(
         advisory.taskId,
-        input.implementationTaskIds,
+        assignableTaskIds,
         input.members,
       ),
     })),
@@ -362,8 +367,7 @@ export class DeliveryPlanComposer {
     if (partition.status === "refused") return partition;
     const coverage = validateDeliveryCompositionCoverage({
       entry: input.projection.authoring.entry,
-      implementationTaskIds: input.taskInventory.implementation.map((task) => task.taskId),
-      verificationTaskId: input.taskInventory.verificationTaskId,
+      tasks: input.taskInventory.parents,
       members: input.projection.authoring.members.map((member) => ({
         chunkKey: member.chunkKey,
         taskIds: member.taskIds,
@@ -432,6 +436,9 @@ export class DeliveryPlanComposer {
         }
         if (coherence.state.activeOperation !== null) {
           return { status: "refused", reason: "operation-active" };
+        }
+        if (coherence.state.pendingReviewFixVerification !== null) {
+          return { status: "refused", reason: "pending-review-fix-verification" };
         }
         const amendment = classifyDeliveryPlanAmendment({
           current,
@@ -512,8 +519,7 @@ export class DeliveryPlanComposer {
     }
     const coverage = validateDeliveryCompositionCoverage({
       entry: validation.plan.entry,
-      implementationTaskIds: validation.plan.tasks.implementation.map(({ taskId }) => taskId),
-      verificationTaskId: validation.plan.tasks.verificationTaskId,
+      tasks: validation.plan.tasks.parents,
       members: validation.plan.members.map((member) => ({
         chunkKey: member.chunkKey,
         taskIds: member.taskIds,

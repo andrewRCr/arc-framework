@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createRawGitExec } from "../../src/lib/io-context.js";
 import { inspectDeliveryBranch } from "../../src/lib/delivery/from-branch.js";
-import { constructDeliveryPlanRevision, validateDeliveryPlanRecord } from "../../src/lib/delivery/plan.js";
+import { constructDeliveryPlanRevision } from "../../src/lib/delivery/plan.js";
 import { DeliveryPlanAuthoringInputV1Schema } from "../../src/lib/delivery/schema.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
@@ -108,17 +108,22 @@ describe("recorded delivery field runs", () => {
     ]);
   }, FIELD_RUN_TIMEOUT_MS);
 
-  it.each(RUNS)("constructs the $workUnitId plan without invented task membership", (run) => {
+  it.each(RUNS)("refuses the $workUnitId plan rather than inventing closing tasks", (run) => {
     const planId = run.workUnitId === "session-locus-model"
       ? "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1"
       : "9cd88752-ef99-4e21-a41f-234bc98f35e0";
     const seams = adjacentFieldSeams(run);
+    const terminalParent = {
+      taskId: "1.1",
+      semanticDigest: null,
+      role: { kind: "verification" as const, scope: "work-unit" },
+    };
     const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
       schemaVersion: 1,
       semanticsVersion: "delivery-plan/v1",
       workUnitId: run.workUnitId,
       design: { artifacts: [{ artifactId: `spec-${run.workUnitId}.md` }], elements: [] },
-      tasks: { implementation: [], verificationTaskId: "1.1" },
+      tasks: { parents: [{ taskId: terminalParent.taskId, role: terminalParent.role }] },
       entry: "from-branch",
       projection: { kind: "stack-to-main" },
       members: run.members.map((member) => ({
@@ -134,9 +139,8 @@ describe("recorded delivery field runs", () => {
     const construction = constructDeliveryPlanRevision({
       authoring,
       taskInventory: {
-        inventoryDigest: canonicalDigest([]),
-        implementation: [],
-        verificationTaskId: "1.1",
+        inventoryDigest: canonicalDigest([terminalParent]),
+        parents: [terminalParent],
       },
       designInventory: {
         artifacts: [{
@@ -149,17 +153,10 @@ describe("recorded delivery field runs", () => {
       mintPlanId: () => planId,
     });
 
-    expect(construction.status).toBe("constructed");
-    if (construction.status !== "constructed") return;
-    expect(validateDeliveryPlanRecord(construction.plan).status).toBe("valid");
-    expect(construction.plan.members).toHaveLength(run.members.length);
-    expect(construction.plan.members.every((member) => member.taskIds.length === 0)).toBe(true);
-    for (const seam of seams) {
-      const recorded = construction.plan.seams.find((candidate) => candidate.seamKey === seam.seamKey);
-      const ownerKey = seam.incidentChunkKeys[1];
-      const expectedOwner = construction.plan.members.find((member) => member.chunkKey === ownerKey);
-      expect(recorded?.ownerDeliverableId).toBe(expectedOwner?.deliverableId);
-    }
+    expect(construction).toEqual({
+      status: "refused",
+      issues: [{ code: "member-task-order" }],
+    });
   });
 
   it("refuses the recorded mixed base absorb rather than dropping its authored resolution", async () => {

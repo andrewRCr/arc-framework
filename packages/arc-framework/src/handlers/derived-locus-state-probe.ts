@@ -4,6 +4,8 @@ import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { GitExec } from "../lib/git/exec.js";
+import { createRawGitExec } from "../lib/io-context.js";
+import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
   acquireDerivedLocusEvidence,
   createDerivedLocusEvidenceIO,
@@ -14,6 +16,7 @@ import {
 } from "../lib/locus/derived-reader.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { createUserSurfaceResolver } from "../lib/user-surfaces.js";
+import { inspectRepositoryDeliveryEntry } from "../lib/delivery/repository-entry.js";
 
 export interface DerivedLocusStateProbeOptions {
   readonly cwd: string;
@@ -59,6 +62,41 @@ export async function runDerivedLocusStateProbe(
       pathExists: (path) => access(path).then(() => true, () => false),
       realpath,
       lstat,
+      projectDeliveryCorrection: async ({ cwd, workUnitId, taskListPath }) => {
+        const result = await inspectRepositoryDeliveryEntry({
+          cwd,
+          taskListPath,
+          request: { workUnitId: SlugSchema.parse(workUnitId), entryMode: "integrating" },
+          baseBranch: options.baseBranch,
+          exec: options.exec,
+        });
+        if (result.status === "review-fix-verification-required") {
+          return { status: "scoped-verification-required" };
+        }
+        if (result.status === "correction-routing-required") {
+          return { status: "authoring-required" };
+        }
+        if (result.status === "candidate-verification-required") {
+          return { status: "verification-required" };
+        }
+        if (result.status === "candidate-renewal-required") {
+          return { status: "candidate-renewal-required" };
+        }
+        if (result.status === "correction-route-ambiguous") {
+          return { status: "refused", message: result.recommendedActionText };
+        }
+        return result.status === "refused"
+          ? { status: "refused", message: result.recommendedActionText }
+          : { status: "none" };
+      },
+      projectCandidateTarget: ({ cwd, name, record }) => projectGitCandidateEffectiveTarget({
+        cwd,
+        name,
+        baseBranch: options.baseBranch,
+        record,
+        exec: options.exec,
+        rawExec: createRawGitExec(cwd),
+      }),
     },
   });
 }

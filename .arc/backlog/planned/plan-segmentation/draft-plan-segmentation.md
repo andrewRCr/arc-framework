@@ -13,6 +13,60 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Make task generation assign complete lifecycle transitions to executable segments**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: plan-segmentation`), grooming errand (2026-08-24).
+- _Concern:_ `delivery-native-stack-composition` Phase 6 was decomposed horizontally across refresh planning,
+  suffix proof, top absorption, native routing, recovery, handlers, and workflow prose. Each primitive and local
+  contract tested green, yet no task owned the complete external-refresh adoption or typed native-fallback
+  transition. The resulting gaps survived repeated adversarial passes: top absorption had no refresh-adoption
+  caller, native selection admitted caller-authored coordinates before state binding, and `native-stack-required`
+  stranded a sequential reservation behind an inapplicable refresh command. Member-level acceptance criteria also
+  omitted an explicit D5 lifecycle, while workflow integration tests mainly asserted strings and ordering rather
+  than executing the state transition.
+- _Approach:_ strengthen `generate-tasks` for composition-risk plans: inventory each supported lifecycle row from
+  initial durable state through caller and fresh authority, mutation boundary, reservation/CAS and crash-retry
+  behavior, and typed next action; then assign every row to one vertical segment or parent task that wires its
+  production callsite and proves it with an executable scenario. A primitive, schema arm, or workflow paragraph
+  cannot close the obligation by itself. Require member/phase exit criteria to cover every mandatory spec
+  lifecycle, not merely representative outcomes. Draft/spec authoring should name invariants, capabilities, and
+  transitions; task generation owns turning those into vertically closed implementation and verification slices.
+- _Coordination:_ this WU owns the planning discriminator and executable segment exit criterion. Coordinate with
+  `runtime-composition-seams`' named-seam and zero-caller guard so deterministic reachability analysis
+  complements, rather than substitutes for, lifecycle scenario ownership.
+
+### `[ ]` **Regrounding: recurrence evidence, stacked-delivery reader, and external prior art (2026-08-24)**
+
+- _Routed from:_ session discussion + `medium-research` pass, grooming errand (2026-08-24).
+- _Concern:_ the capture above is not isolated — the same failure shape (spec solid, verification finds
+  implementation gaps sourced to task-list coverage) recurred at pattern level across the recent execution era
+  (`integration-boundary-accuracy`, `decompose-extraction`, and/or `delivery-stack-topology`; not individually
+  re-cited). Two recurring shapes: **unwired production callers** (modules built but unreachable), and
+  **surface-level statement without the next-layer-deep realization** a detailed spec normally supplies. This
+  converts the WU from capability-motivated to evidence-motivated and supplies the re-grounding the draft says it
+  owes.
+- _Bearing on open questions:_ stacked delivery now gives each deliverable phase its own verification step
+  (`validate-criteria`, extracted in `delivery-native-stack-composition`) — a concrete, already-built candidate
+  for the **exit-criterion reader** (the draft's efficacy hinge), pulling the surfacing question toward
+  _recorded_. Each deliverable must land independently by definition, making member boundaries de facto vertical
+  exit criteria; re-check where the segment ↔ chunk refinement-invariant question now lives (routed to
+  `chunked-delivery`, effectively DNSC).
+- _External prior art (research pass, 2026-08-24):_ walking skeleton (Cockburn/GOOS), tracer bullet (Hunt &
+  Thomas), and steel thread are one idiom under three names — thin, real, kept, end-to-end first — targeting
+  exactly this composition risk; GOOS's acceptance-test-per-slice discipline (an executable end-to-end test reads
+  each increment's done-ness, not structural assertions) is the strongest sourced form of the executable exit
+  criterion. SPIDR's published discriminator ("if no cut produces a shippable slice, it's a scope problem, not a
+  splitting problem") and the recognized substrate/migration alternatives (enabler work, layer-first,
+  canary/expand–contract) externally validate the three-mode residual-risk taxonomy — including
+  `pilot-then-replicate` as a real, distinct rollout idiom. Slice-scaffolding disposition is a **gap in the
+  published literature** (closest convention: stub retirement tied to a later planned slice's done-ness), so ARC
+  would be authoring, not adapting. Naming caution: "steel thread" has contested notability — cite walking
+  skeleton as the anchor prior art.
+- _Coordination:_ task-list conventions this WU would edit are partly in DNSC's unlanded worktree; spec
+  finalization for anything touching task-list/member conventions should follow DNSC's ship. `plan-amendment`
+  (minted alongside this adoption) owns the mid-implementation corrective procedure for the residue this WU
+  cannot prevent; the two are complementary, not overlapping.
+
 ### `[ ]` **Make batching the fail-first-preserving form for coupled test-first behaviors**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10).

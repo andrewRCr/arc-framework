@@ -881,32 +881,52 @@ function worktreeValue(value: SessionInitEnvelopeValue): Record<string, unknown>
 function phaseAcceptsBoundary(
   sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
   boundary: z.infer<typeof IntegrationBoundaryLocusSchema> | null,
+  workflow: string | null,
   completedRecovery = false,
 ): boolean {
+  const candidateLoci = [
+    "candidate-review-pending",
+    "candidate-fix-pending",
+    "candidate-convergence-verification-pending",
+    "candidate-publish-ready",
+  ];
   if (sessionType === "prepublication") {
-    return boundary !== null && [
-      "candidate-review-pending",
-      "candidate-fix-pending",
-      "candidate-convergence-verification-pending",
-      "candidate-publish-ready",
-    ].includes(boundary.locus);
+    return boundary !== null && candidateLoci.includes(boundary.locus);
   }
   if (sessionType === "integration") {
     return completedRecovery
       ? boundary === null
-      : boundary !== null && ["publication-pending", "hosted-review-pending"].includes(boundary.locus);
+      : boundary === null
+        ? workflow === "verify-work-unit"
+        : [
+            ...candidateLoci,
+            "publication-pending",
+            "hosted-review-pending",
+            "delivery-status-required",
+          ].includes(boundary.locus);
   }
   return boundary === null;
 }
 
-function workflowForSessionType(
+function sessionTypeAcceptsWorkflow(
   sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
-): string | null {
-  if (sessionType === "planning") return "planning";
-  if (sessionType === "execution") return "process-task-loop";
-  if (sessionType === "prepublication") return "prepare-work-unit";
-  if (sessionType === "integration") return "integrate-work-unit";
-  return null;
+  taskCursor: z.infer<typeof TaskListCursorFileResultSchema> | null,
+  workflow: string | null,
+  completedRecovery = false,
+): boolean {
+  if (sessionType === "planning") return workflow === "planning";
+  if (sessionType === "execution") {
+    return workflow === (taskCursor?.status === "no-open-task"
+      ? "verify-work-unit"
+      : "process-task-loop");
+  }
+  if (sessionType === "prepublication") return workflow === "prepare-work-unit";
+  if (sessionType === "integration") {
+    if (completedRecovery) return workflow === "integrate-work-unit";
+    if (taskCursor?.status === "found") return workflow === "process-task-loop";
+    return workflow === "integrate-work-unit" || workflow === "verify-work-unit";
+  }
+  return workflow === null;
 }
 
 const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
@@ -927,6 +947,7 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     if (!phaseAcceptsBoundary(
       activeSession.sessionType,
       activeSession.integrationBoundary,
+      activeSession.currentWorkflow,
       completedIntegrationRecovery,
     )) {
       context.addIssue({
@@ -935,7 +956,13 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
         message: "must match the resolved session phase",
       });
     }
-    if (activeSession.currentWorkflow !== workflowForSessionType(activeSession.sessionType)) {
+    const projectedTaskCursor = value.taskCursor?.ok === true ? value.taskCursor.value : null;
+    if (!sessionTypeAcceptsWorkflow(
+      activeSession.sessionType,
+      projectedTaskCursor,
+      activeSession.currentWorkflow,
+      completedIntegrationRecovery,
+    )) {
       context.addIssue({
         code: "custom",
         path: ["active", "value", "currentWorkflow"],
@@ -949,6 +976,7 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     if (!phaseAcceptsBoundary(
       derivedContext.sessionType,
       derivedContext.integrationBoundary,
+      derivedContext.workflow,
       completedIntegrationRecovery,
     )) {
       context.addIssue({
@@ -957,7 +985,12 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
         message: "must match the resolved session phase",
       });
     }
-    if (derivedContext.workflow !== workflowForSessionType(derivedContext.sessionType)) {
+    if (!sessionTypeAcceptsWorkflow(
+      derivedContext.sessionType,
+      derivedContext.taskCursor,
+      derivedContext.workflow,
+      completedIntegrationRecovery,
+    )) {
       context.addIssue({
         code: "custom",
         path: ["derivedLocusState", "value", "active", "context", "workflow"],
@@ -1124,7 +1157,9 @@ const SessionRecoverProbeResultRuntimeSchema = SessionRecoverEnvelopeObjectSchem
     const cursorlessPhaseTaskCursorAllowed = value.recoveryFrame.ok
       && value.recoveryFrame.value.kind === "resolved"
       && (value.recoveryFrame.value.sessionType === "prepublication"
-        || value.recoveryFrame.value.sessionType === "integration");
+        || value.recoveryFrame.value.sessionType === "integration"
+        || (value.recoveryFrame.value.sessionType === "execution"
+          && value.recoveryFrame.value.workflow === "verify-work-unit"));
     const taskCursorPresent = Object.hasOwn(value, "taskCursor");
     if (!taskCursorPresent && taskCursorRequired) {
       context.addIssue({

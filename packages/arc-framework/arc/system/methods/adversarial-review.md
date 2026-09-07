@@ -6,6 +6,7 @@ related:
   - implementation-audit
   - review-chunking
   - standard-review
+  - validate-criteria
 override-active: false
 ---
 
@@ -18,7 +19,7 @@ override-active: false
 >   and has a supplied rubric to attack.
 >
 > - **Signature:** `adversarial-review(rubric, artifacts, orientation, pass-cap, prior-findings?,
->   partition-map?)` → findings report
+>   authored-partition?, aggregate-evidence?, partition-map?)` → findings report
 > - **Contract:** Given a supplied rubric and stage artifacts, run that rubric adversarially with fresh context,
 >   primary-held judgment, caller-owned launch policy, and convergence-oriented follow-up. Findings are advisory for
 >   mutation until the primary verifies and disposes them; the method never creates a hard gate or satisfying
@@ -61,11 +62,13 @@ or replaces its interlock.
 ### Invocation contract
 
 The primary agent is the runtime. It marshals the fire-point inputs, spawns each fresh pass, verifies returned
-findings against source, applies dispositions, and decides under the exit gate whether the loop has converged. A
-reviewer performs exactly one pass. The reviewer never edits the target, assigns dispositions, closes conversations,
-or attests its own result. It receives only the pass-specific context serialized from the subagent-context inputs
-below; it never receives private loop-control state such as `pass-cap`, convergence decisions, or spawn bookkeeping.
-After the pass returns, only an authorized adapter may attest a completed exact target as satisfying evidence.
+findings against source, applies dispositions, and decides under the exit gate whether the loop has converged. One
+logical pass uses one fresh reviewer unless the authored-partition or bounded chunk-series carrier applies; each
+reviewer performs one fresh call inside that pass. A reviewer never edits the target, assigns dispositions, closes
+conversations, or attests its own result. It receives only the pass-specific context serialized from the
+subagent-context inputs below; it never receives private loop-control state such as `pass-cap`, convergence
+decisions, or spawn bookkeeping. After the pass returns, only an authorized adapter may attest a completed exact
+target as satisfying evidence.
 
 **Signature — canonical callsite.** The fenced block below is the call expression: a workflow invokes the method
 by instantiating it. Its single top-level key is the method name — the shape that identifies a method call
@@ -80,23 +83,28 @@ adversarial-review:
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3 (§ Exit gate)
   prior-findings:  # pass two onward — prior findings + applied fixes; omitted on pass one
+  authored-partition: # attention carrier only — existing contract-closed groups; omitted otherwise
+  aggregate-evidence: # authored-partition aggregate only — scoped reports + complete coverage facts
   partition-map:   # partitioned pass only — named slices + ownership boundaries; omitted otherwise
 ```
 
 **Named inputs:**
 
-| Input            | Kind                  | Contents                                                       |
-| ---------------- | --------------------- | -------------------------------------------------------------- |
-| `rubric`         | per-stage             | Rubric(s) to attack, including their referents.                |
-| `artifacts`      | per-stage             | Artifact under audit plus its upstream chain.                  |
-| `orientation`    | fixed                 | Artifact-neutral briefings shared with every pass.             |
-| `pass-cap`       | `Class`-scaled        | Primary-side cap on spawned passes; not serialized.            |
-| `prior-findings` | pass two onward       | Prior findings and applied fixes; omitted from the first pass. |
-| `partition-map`  | partitioned pass only | Named slices + ownership boundaries (§ Novel fan-out hook).    |
+| Input                | Kind                  | Contents                                                       |
+| -------------------- | --------------------- | -------------------------------------------------------------- |
+| `rubric`             | per-stage             | Rubric(s) to attack, including their referents.                |
+| `artifacts`          | per-stage             | Artifact under audit plus its upstream chain.                  |
+| `orientation`        | fixed                 | Artifact-neutral briefings shared with every pass.             |
+| `pass-cap`           | `Class`-scaled        | Primary-side cap on spawned passes; not serialized.            |
+| `prior-findings`     | pass two onward       | Prior findings and applied fixes; omitted from the first pass. |
+| `authored-partition` | attention carrier     | Existing contract-closed groups (§ Authored-partition mode).   |
+| `aggregate-evidence` | aggregate call only   | Current scoped reports plus complete coverage facts.           |
+| `partition-map`      | partitioned pass only | Named slices + ownership boundaries (§ Novel fan-out hook).    |
 
-`rubric`, `artifacts`, `orientation`, `prior-findings`, and `partition-map` (when present) are subagent-context
-inputs. Serialize them into the fresh pass prompt. `pass-cap` is a primary-side loop bound only: the primary uses
-it to decide how many fresh passes it may spawn, but the subagent never sees that bound.
+`rubric`, `artifacts`, `orientation`, `prior-findings`, `authored-partition`, `aggregate-evidence`, and
+`partition-map` (when present) are subagent-context inputs. Serialize the inputs needed by each fresh call.
+`pass-cap` is a primary-side loop bound only: the primary uses it to decide how many logical passes it may run, but a
+reviewer never sees that bound.
 
 **Return schema:**
 
@@ -136,6 +144,12 @@ Orientation (paths — read them directly before forming any finding):
 
 Prior findings and fixes:
 {prior-findings | "None. This is pass one."}
+
+Authored partition:
+{authored-partition | "None. Use one whole-target reviewer."}
+
+Aggregate evidence:
+{aggregate-evidence | "None. This is not an authored-partition aggregate call."}
 
 Partition map:
 {partition-map | "None. This is a standard non-partitioned pass."}
@@ -221,6 +235,24 @@ be able to certify the whole artifact against the rubric.
 **Final-fold residual.** The final pass's folded findings are not attacked by a successor pass. That residual is
 why the planning fire-points later wire a post-settle coherence re-read before finalization commit; this method
 states the reason, while the workflow fire-points own the actual re-read step.
+
+### Authored-partition carrier mode
+
+When a large target already has a stable authored partition — delivery-plan members, review chunks, criteria groups,
+or equivalent contract-closed boundaries — the primary may use an authored-partition carrier mode as an advisory
+attention aid. Bundle the partition into at most two or three contract-closed group sets. For each scoped reviewer,
+serialize its exact assigned group set, corresponding artifact slice, and complete rubric for that scope. Then run
+one fresh seam-and-aggregate reviewer over the complete union. The aggregate consumes every scoped report plus the
+authored partition's complete coverage facts, verifies full coverage and cross-group seams, and emits the
+whole-target result; every call together remains one logical pass.
+
+Omit `aggregate-evidence` from the scoped calls. Supply it only to the aggregate call, serialized as every scoped
+report plus the authored partition's complete coverage facts. It is current-pass evidence, never `prior-findings`.
+
+This carrier does not invent or automatically derive partitions, create 1:1 member fan-out, persist state, add a CLI
+surface, or add an interlock. Without a stable authored partition, use one whole-target reviewer. It does not satisfy
+`review-chunking` or weaken that method's closure, seam, and aggregate obligations. It does not use `partition-map`,
+which remains reserved for Novel fan-out with disjoint responsibility and AND-convergence semantics.
 
 ### Bounded chunk-series carrier mode
 

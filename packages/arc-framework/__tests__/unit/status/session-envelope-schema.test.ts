@@ -134,6 +134,25 @@ function expectContractFailure(value: Record<string, unknown>, expectedPath: str
   expect(() => assertSessionInitProbeResult(value)).toThrow(`session-init-envelope: ${expectedPath}:`);
 }
 
+function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    mode: "integration-boundary",
+    workUnit,
+    candidateId: `sha256:${"1".repeat(64)}`,
+    candidateSubjectDigest: `sha256:${"2".repeat(64)}`,
+    terminus: null,
+    locus: "publication-pending",
+    nextAction: {
+      kind: "continue-publication",
+      command: `git push -u origin feat/${workUnit}`,
+      interactionText: "Continue publication.",
+    },
+    policy: null,
+    reservation: null,
+  };
+}
+
 describe("session-init envelope schema", () => {
   it("accepts completed-work-unit integration recovery without a live publication boundary", () => {
     const value = owningWorkUnitFixture();
@@ -146,6 +165,53 @@ describe("session-init envelope schema", () => {
     setPath(value, ["derivedLocusState", "value", "roster", 1, "lifecycleLocation"], "completed");
 
     expectValid(value);
+  });
+
+  it("accepts task and verification substages without changing the integration session type", () => {
+    const taskWork = owningWorkUnitFixture();
+    const boundary = integrationBoundaryFixture();
+    setPath(taskWork, ["active", "value", "sessionType"], "integration");
+    setPath(taskWork, ["active", "value", "currentWorkflow"], "process-task-loop");
+    setPath(taskWork, ["active", "value", "integrationBoundary"], boundary);
+    setPath(taskWork, ["derivedLocusState", "value", "active", "context", "sessionType"], "integration");
+    setPath(taskWork, ["derivedLocusState", "value", "active", "context", "workflow"], "process-task-loop");
+    setPath(taskWork, ["derivedLocusState", "value", "active", "context", "integrationBoundary"], boundary);
+    expectValid(taskWork);
+
+    const verification = clone(taskWork);
+    const closed = { status: "no-open-task" };
+    setPath(verification, ["taskCursor", "value"], closed);
+    setPath(verification, ["active", "value", "currentWorkflow"], "verify-work-unit");
+    setPath(verification, ["derivedLocusState", "value", "active", "context", "workflow"], "verify-work-unit");
+    setPath(verification, ["derivedLocusState", "value", "active", "context", "taskCursor"], closed);
+    expectValid(verification);
+
+    const changedCandidateVerification = clone(verification);
+    setPath(changedCandidateVerification, ["active", "value", "integrationBoundary"], null);
+    setPath(
+      changedCandidateVerification,
+      ["derivedLocusState", "value", "active", "context", "integrationBoundary"],
+      null,
+    );
+    expectValid(changedCandidateVerification);
+
+    const boundarylessIntegration = clone(changedCandidateVerification);
+    setPath(boundarylessIntegration, ["active", "value", "currentWorkflow"], "integrate-work-unit");
+    setPath(
+      boundarylessIntegration,
+      ["derivedLocusState", "value", "active", "context", "workflow"],
+      "integrate-work-unit",
+    );
+    expectContractFailure(boundarylessIntegration, "active.value.integrationBoundary");
+
+    const skippedTask = clone(taskWork);
+    setPath(skippedTask, ["active", "value", "currentWorkflow"], "integrate-work-unit");
+    setPath(
+      skippedTask,
+      ["derivedLocusState", "value", "active", "context", "workflow"],
+      "integrate-work-unit",
+    );
+    expectContractFailure(skippedTask, "active.value.currentWorkflow");
   });
 
   it("requires the delivery-position slot exactly at the owning work-unit locus", () => {

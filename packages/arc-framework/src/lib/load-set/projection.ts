@@ -27,6 +27,9 @@ export type LoadSetSessionType = "planning" | "execution" | "prepublication" | "
 /** Planning-stage workflow basename resolved from `Current Workflow`. */
 export type LoadSetPlanningStage = "draft-design" | "create-spec" | "generate-tasks";
 
+/** Deterministic work substage derived from canonical lifecycle facts. */
+export type LoadSetWorkUnitStage = "task-work" | "verification-closeout" | "delivery-correction";
+
 /** Already-resolved pointers needed to project the session load set. */
 export interface LoadSetProjectionInput {
   /** ARC identity, or `null` when identity is absent. */
@@ -44,6 +47,8 @@ export interface LoadSetProjectionInput {
   sessionType: LoadSetSessionType | null;
   /** Planning lifecycle stage; used only when `sessionType === "planning"`. */
   planningStage: LoadSetPlanningStage | null;
+  /** Derived task or verification substage inside execution or integration. */
+  workUnitStage?: LoadSetWorkUnitStage | null;
   /** Active task-list path relative to the repo root, or `null` when none applies. */
   taskListPath: string | null;
   /**
@@ -98,6 +103,7 @@ const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
 export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetManifest {
   const entries: LoadSetEntry[] = ARC_CONTEXT_ENTRIES.map(cloneEntry);
   const workflowRoot = resolveArcPath({ kind: "procedure-root", family: "workflows" });
+  const workUnitStage = input.workUnitStage ?? null;
 
   if (input.metaPath !== null) {
     entries.push(full(input.metaPath));
@@ -123,18 +129,23 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
     entries.push(full(`${workflowRoot}/arc/${input.planningStage}.md`));
   }
 
-  if (input.sessionType === "execution") {
-    if (input.taskListPath !== null) {
-      entries.push(partialStrategic(input.taskListPath));
+  if (input.sessionType === "execution" || input.sessionType === "integration") {
+    if (workUnitStage === "verification-closeout") {
+      entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/verify-work-unit.md`));
+    } else if (workUnitStage === "task-work" || input.sessionType === "execution") {
+      if (input.taskListPath !== null) {
+        entries.push(partialStrategic(input.taskListPath));
+      }
+      entries.push(full(`${workflowRoot}/arc/process-task-loop.md`));
     }
-    entries.push(full(`${workflowRoot}/arc/process-task-loop.md`));
   }
 
   if (input.sessionType === "prepublication") {
     entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/prepare-work-unit.md`));
   }
 
-  if (input.sessionType === "integration") {
+  if (input.sessionType === "integration"
+    && (workUnitStage === null || workUnitStage === "delivery-correction")) {
     entries.push(full(`${workflowRoot}/arc/work-unit-lifecycle/integrate-work-unit.md`));
   }
 

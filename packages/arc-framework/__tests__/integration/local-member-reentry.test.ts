@@ -44,7 +44,7 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 }
 
 /**
- * A control branch carrying a two-member stack, its successor commit, and an
+ * A work-unit branch carrying a two-member stack, its successor commit, and an
  * uncommitted edit — the locus state that is normal while member work continues.
  */
 async function createRepository(seed: string): Promise<string> {
@@ -248,7 +248,7 @@ describe("member operation re-entry", () => {
 
     // Neither verb re-resolves authority, and confirmation verifies the pinned
     // commits rather than re-deriving, so the successor commit and the
-    // uncommitted edit on the control branch are both invisible here.
+    // uncommitted edit on the work-unit branch are both invisible here.
     await expect(resumeLocalReviewCommand(request, dependencies.resume))
       .resolves.toMatchObject({ state: "review-complete", payload: { currentTarget: target } });
     await expect(reduceReviewCommand(request, dependencies.reduce))
@@ -270,7 +270,7 @@ describe("member operation re-entry", () => {
       .rejects.toMatchObject({ code: "corrupt-state", message: "non-commit-head" });
   });
 
-  it("leaves ordinary operations re-deriving against the control branch", async () => {
+  it("leaves ordinary operations re-deriving against the work-unit branch", async () => {
     const root = await createRepository("ordinary");
     await git(root, "switch", "-c", "feature");
     await writeFile(join(root, "tracked.txt"), "change\n", "utf8");
@@ -284,7 +284,7 @@ describe("member operation re-entry", () => {
     await expect(reduceReviewCommand(request, reentry(root, records).reduce))
       .resolves.toMatchObject({ state: "advisory-complete" });
 
-    // The control branch moving is what an ordinary operation still detects — the
+    // The work-unit branch moving is what an ordinary operation still detects — the
     // incidental drift signal the member path deliberately does not manufacture.
     await writeFile(join(root, "tracked.txt"), "moved\n", "utf8");
     await git(root, "commit", "-am", "moved");

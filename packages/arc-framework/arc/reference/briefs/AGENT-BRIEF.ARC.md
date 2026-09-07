@@ -13,8 +13,9 @@ git hooks, and a CLI package — all agent-platform agnostic.
 **Work pipeline:** PRD → task generation → task execution loop. One task = one review
 increment; see DEV-RULES.ARC § Task Execution.
 
-**Methods and extensions:** Behavior modules under `system/methods/` and `system/extensions/`,
-loaded when workflow YAML frontmatter declares them.
+**Methods and extensions:** Behavior modules under `system/methods/` and `system/extensions/`. Workflows root the
+declared method graph; methods carry their own nested dependencies, and each loads at its direct fire-point.
+Extensions remain workflow-declared.
 
 **Review authority:** Agent-side review methods and extensions are best-effort ergonomics. They improve a change
 and may produce evidence eligible for a review obligation, but an agent workflow can be bypassed by a host-UI merge.

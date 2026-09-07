@@ -21,7 +21,14 @@ function priorRevision(workUnitId = "delivery-plan-record") {
     planRevision: 1,
     previousPlanDigest: null,
     design: { artifacts: [{ artifactId: "spec-delivery-plan-record.md", revisionDigest: digest }], elements: [] },
-    tasks: { inventoryDigest: digest, implementation: [], verificationTaskId: "3.1" },
+    tasks: {
+      inventoryDigest: digest,
+      parents: [{
+        taskId: "3.1",
+        semanticDigest: null,
+        role: { kind: "verification", scope: "work-unit" },
+      }],
+    },
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
     members: [{

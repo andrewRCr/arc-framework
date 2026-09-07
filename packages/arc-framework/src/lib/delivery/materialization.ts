@@ -1,5 +1,6 @@
 /** Ordered delivery-chain derivation and binding through the single operation slot. */
 
+import { canonicalize } from "../kernel/index.js";
 import type { DeliveryHostOpenRequest, DeliveryHostPort } from "./host.js";
 import {
   acceptDeliveryOperationResult,
@@ -21,6 +22,7 @@ import { constructInitialDeliveryState } from "./state.js";
 
 /** One explicitly identified materialization member; ref spelling is never parsed for identity. */
 export interface DeliveryMaterializationMember {
+  readonly kind: "member" | "terminal";
   readonly deliverableId: string;
   readonly chunkKey: string;
   readonly ref: string | null;
@@ -49,28 +51,67 @@ export interface DeliveryMemberReviewerPresentation {
   readonly designReference?: string;
 }
 
+/** Caller-authored ordinary work-unit presentation for the terminal request. */
+export interface DeliveryTerminalPresentation {
+  readonly title: string;
+  readonly body: string;
+}
+
+/** Complete effective presentation set admitted before publication mutation. */
+export interface DeliveryPublicationPresentations {
+  readonly members: ReadonlyMap<string, Pick<DeliveryHostOpenRequest, "title" | "body">>;
+  readonly terminal: DeliveryTerminalPresentation;
+}
+
 /** Validate exact authored presentation coverage without granting caller order authority. */
 export function resolveDeliveryMemberPresentations(
   plan: DeliveryPlanV1,
   presentations: readonly DeliveryMemberReviewerPresentation[],
-): { readonly status: "resolved"; readonly value: ReadonlyMap<string, DeliveryMemberReviewerPresentation> } | {
+): { readonly status: "resolved"; readonly value: ReadonlyMap<string, Pick<DeliveryHostOpenRequest, "title" | "body">> } | {
   readonly status: "refused";
   readonly reason: "presentation-mismatch";
 } {
   const expected = new Set(plan.members.slice(0, -1).map((member) => member.deliverableId));
-  const byDeliverableId = new Map<string, DeliveryMemberReviewerPresentation>();
+  const authoredByDeliverableId = new Map<string, DeliveryMemberReviewerPresentation>();
   for (const presentation of presentations) {
-    if (!expected.has(presentation.deliverableId) || byDeliverableId.has(presentation.deliverableId)) {
+    if (!expected.has(presentation.deliverableId) || authoredByDeliverableId.has(presentation.deliverableId)) {
       return { status: "refused", reason: "presentation-mismatch" };
     }
-    byDeliverableId.set(presentation.deliverableId, presentation);
+    authoredByDeliverableId.set(presentation.deliverableId, presentation);
   }
-  return byDeliverableId.size === expected.size
-    ? { status: "resolved", value: byDeliverableId }
-    : { status: "refused", reason: "presentation-mismatch" };
+  if (authoredByDeliverableId.size !== expected.size) {
+    return { status: "refused", reason: "presentation-mismatch" };
+  }
+  const effectiveByDeliverableId = new Map<string, Pick<DeliveryHostOpenRequest, "title" | "body">>();
+  for (const member of plan.members.slice(0, -1)) {
+    const authored = authoredByDeliverableId.get(member.deliverableId);
+    if (authored === undefined) return { status: "refused", reason: "presentation-mismatch" };
+    const effective = describeDeliveryMemberPresentation(plan, member, authored);
+    if (!isValidRequestPresentation(effective)) {
+      return { status: "refused", reason: "presentation-mismatch" };
+    }
+    effectiveByDeliverableId.set(member.deliverableId, effective);
+  }
+  return { status: "resolved", value: effectiveByDeliverableId };
 }
 
-/** Derive exact refs and predecessor bases; the terminal remains on the control branch. */
+/** Compose and validate the complete member and terminal request presentation set. */
+export function resolveDeliveryPublicationPresentations(
+  plan: DeliveryPlanV1,
+  presentations: readonly DeliveryMemberReviewerPresentation[],
+  terminal: DeliveryTerminalPresentation,
+): { readonly status: "resolved"; readonly value: DeliveryPublicationPresentations } | {
+  readonly status: "refused";
+  readonly reason: "presentation-mismatch";
+} {
+  const members = resolveDeliveryMemberPresentations(plan, presentations);
+  if (members.status === "refused" || !isValidRequestPresentation(terminal)) {
+    return { status: "refused", reason: "presentation-mismatch" };
+  }
+  return { status: "resolved", value: { members: members.value, terminal } };
+}
+
+/** Derive exact member refs and predecessor bases with the terminal on the originating branch. */
 export function deriveDeliveryMaterialization(
   plan: DeliveryPlanV1,
   snapshot: DeliveryEligibilitySnapshot,
@@ -92,17 +133,18 @@ export function deriveDeliveryMaterialization(
       target: snapshot.protectedBase,
       members: plan.members.map((member, index) => {
         const terminal = index === plan.members.length - 1;
-        const candidate = terminal ? snapshot.control : snapshot.members[index];
+        const candidate = terminal ? snapshot.top : snapshot.members[index];
         const predecessor = index === 0 ? snapshot.protectedBase : snapshot.members[index - 1];
         const predecessorMember = index === 0 ? undefined : plan.members[index - 1];
         if (candidate === undefined || predecessor === undefined || (index > 0 && predecessorMember === undefined)) {
           throw new Error("validated materialization snapshot lost plan order");
         }
         return {
+          kind: terminal ? "terminal" : "member",
           deliverableId: member.deliverableId,
           chunkKey: member.chunkKey,
-          ref: terminal ? null : `refs/heads/delivery/${plan.workUnitId}/${member.chunkKey}`,
-          requestBaseRef: terminal ? null : index === 0
+          ref: terminal ? snapshot.top.ref : `refs/heads/delivery/${plan.workUnitId}/${member.chunkKey}`,
+          requestBaseRef: index === 0
             ? snapshot.protectedBase.ref
             : `refs/heads/delivery/${plan.workUnitId}/${predecessorMember?.chunkKey ?? ""}`,
           coordinates: { base: predecessor.head, head: candidate.head, tree: candidate.tree },
@@ -195,6 +237,23 @@ function deliveryPublishEffect(
     baseRef: member.requestBaseRef.replace(/^refs\/heads\//u, ""),
     draft: input.draft,
   };
+}
+
+function isValidRequestPresentation(
+  presentation: Pick<DeliveryHostOpenRequest, "title" | "body">,
+): boolean {
+  return presentation.title.trim() !== ""
+    && presentation.body.trim() !== ""
+    && !/[\r\n]/u.test(presentation.title);
+}
+
+function isSamePublishEffect(left: DeliveryPublishEffectV1, right: DeliveryPublishEffectV1): boolean {
+  return left.providerId === right.providerId
+    && left.repository === right.repository
+    && left.headRef === right.headRef
+    && left.headSha === right.headSha
+    && left.baseRef === right.baseRef
+    && left.draft === right.draft;
 }
 
 /** Bind the first uniquely observed ref event through the shipped state constructor. */
@@ -368,9 +427,13 @@ export async function materializeBoundDeliveryChain(input: {
     current = targetStep.state;
   }
   for (const member of input.materialization.members) {
-    if (member.ref === null) continue;
+    if (member.kind === "terminal" || member.ref === null) continue;
     const stored = current.value.members.find((candidate) => candidate.deliverableId === member.deliverableId);
-    if (stored?.ref === member.ref && stored.coordinates?.head === member.head) continue;
+    if (stored?.ref === member.ref && stored.coordinates?.head === member.head) {
+      const observed = await input.refs.observe(member.ref);
+      if (observed.status === "observed" && observed.head === member.head) continue;
+      if (observed.status !== "absent") return { status: "refused" };
+    }
     const before = snapshot(current.value, member.deliverableId);
     if (before === null) return { status: "refused" };
     const [beforeMember] = before.members;
@@ -408,7 +471,7 @@ export async function materializeBoundDeliveryChain(input: {
   return { status: "materialized", state: current };
 }
 
-/** Open or adopt every non-terminal request through host-assigned operation acceptance. */
+/** Open or adopt every request in plan order through host-assigned operation acceptance. */
 export async function publishDeliveryRequests(input: {
   readonly plan: DeliveryPlanV1;
   readonly materialization: DeliveryMaterializationPlan;
@@ -417,20 +480,26 @@ export async function publishDeliveryRequests(input: {
   readonly providerId: string;
   readonly repository: string;
   readonly draft: boolean;
-  presentation(member: DeliveryMaterializationMember): Pick<DeliveryHostOpenRequest, "title" | "body">;
+  readonly terminalPresentation: DeliveryTerminalPresentation;
+  memberPresentation(member: DeliveryMaterializationMember): Pick<DeliveryHostOpenRequest, "title" | "body">;
 }): Promise<{ readonly status: "published"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> } | {
   readonly status: "refused";
 }> {
   const read = await input.stateStore.read(input.plan.planId);
   if (read.status !== "ok" || read.value === null) return { status: "refused" };
   let current = read.value;
+  if (!isValidRequestPresentation(input.terminalPresentation)) return { status: "refused" };
   const presentations = new Map<string, Pick<DeliveryHostOpenRequest, "title" | "body">>();
   try {
     for (const member of input.materialization.members) {
       if (member.ref === null || member.requestBaseRef === null) continue;
       const stored = current.value.members.find((candidate) => candidate.deliverableId === member.deliverableId);
       if (stored?.changeRequest !== null && stored?.changeRequest !== undefined) continue;
-      presentations.set(member.deliverableId, input.presentation(member));
+      const presentation = member.kind === "terminal"
+        ? input.terminalPresentation
+        : input.memberPresentation(member);
+      if (!isValidRequestPresentation(presentation)) return { status: "refused" };
+      presentations.set(member.deliverableId, presentation);
     }
   } catch {
     return { status: "refused" };
@@ -446,25 +515,46 @@ export async function publishDeliveryRequests(input: {
       requestBaseRef: member.requestBaseRef,
       head: member.head,
     });
-    const reserved = reserveDeliveryOperation(current, input.plan, {
-      operationId: crypto.randomUUID(),
-      kind: "publish",
-      affectedDeliverableIds: [member.deliverableId],
-      expectedStateRevision: current.revision,
-      before,
-      requested: before,
-      effect,
-    });
-    if (reserved.status !== "reserved") return { status: "refused" };
-    const reservation = await input.stateStore.publish(input.plan.planId, reserved.state, current.revision);
-    if (reservation.status !== "ok") return { status: "refused" };
-    const fresh = await input.stateStore.read(input.plan.planId);
-    if (fresh.status !== "ok" || fresh.value === null || fresh.value.revision !== reservation.value.revision) {
+    const requested = {
+      ...before,
+      members: before.members.map((entry) => ({
+        ...entry,
+        ref: member.ref,
+        coordinates: member.coordinates,
+      })),
+    };
+    let fresh = current;
+    const active = current.value.activeOperation;
+    if (active === null) {
+      const reserved = reserveDeliveryOperation(current, input.plan, {
+        operationId: crypto.randomUUID(),
+        kind: "publish",
+        affectedDeliverableIds: [member.deliverableId],
+        expectedStateRevision: current.revision,
+        before,
+        requested,
+        effect,
+      });
+      if (reserved.status !== "reserved") return { status: "refused" };
+      const reservation = await input.stateStore.publish(input.plan.planId, reserved.state, current.revision);
+      if (reservation.status !== "ok") return { status: "refused" };
+      const reread = await input.stateStore.read(input.plan.planId);
+      if (reread.status !== "ok" || reread.value === null || reread.value.revision !== reservation.value.revision) {
+        return { status: "refused" };
+      }
+      fresh = reread.value;
+    } else if (active.kind !== "publish"
+      || active.affectedDeliverableIds.length !== 1
+      || active.affectedDeliverableIds[0] !== member.deliverableId
+      || !isSamePublishEffect(active.effect, effect)
+      || canonicalize(active.requested) !== canonicalize(requested)) {
       return { status: "refused" };
     }
-    const freshBefore = snapshot(fresh.value.value, member.deliverableId);
+    const operation = fresh.value.activeOperation;
+    if (operation === null || operation.kind !== "publish") return { status: "refused" };
+    const freshBefore = snapshot(fresh.value, member.deliverableId);
     if (freshBefore === null
-      || checkDeliveryOperationPrecondition(fresh.value, freshBefore).status !== "ready") {
+      || checkDeliveryOperationPrecondition(fresh, freshBefore).status !== "ready") {
       return { status: "refused" };
     }
     let observed = await input.host.observeRequest(effect);
@@ -477,17 +567,20 @@ export async function publishDeliveryRequests(input: {
     if (observed.status !== "observed") return { status: "refused" };
     if (!isExactOpenRequest(observed, effect)) return { status: "refused" };
     const observedSnapshot = {
-      ...before,
-      members: before.members.map((entry) => ({ ...entry, changeRequest: observed.request.binding })),
+      ...operation.requested,
+      members: operation.requested.members.map((entry) => ({
+        ...entry,
+        changeRequest: observed.request.binding,
+      })),
     };
-    const accepted = acceptDeliveryOperationResult(fresh.value, {
+    const accepted = acceptDeliveryOperationResult(fresh, {
       kind: "publish",
       effect,
       outcome: "applied",
       snapshot: observedSnapshot,
     });
     if (accepted.status !== "applied") return { status: "refused" };
-    const persisted = await input.stateStore.publish(input.plan.planId, accepted.state, fresh.value.revision);
+    const persisted = await input.stateStore.publish(input.plan.planId, accepted.state, fresh.revision);
     if (persisted.status !== "ok") return { status: "refused" };
     current = persisted.value;
   }

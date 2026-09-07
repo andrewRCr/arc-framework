@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   attestNewRootArgv,
   SpineRemedySchema,
@@ -34,7 +35,7 @@ import {
 } from "./gate-contract-v2-schema.js";
 import { LocalReviewerPayloadSchema } from "./local-review-payload.js";
 import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
-import { HostedRequestResultSchema } from "../hosted/request.js";
+import { HostedRequestResultSchema, HostedTargetSchema } from "../hosted/request.js";
 import { HostedAwaitResultSchema } from "../hosted/await.js";
 import { HostedSettleResultSchema } from "../hosted/settle.js";
 
@@ -57,6 +58,7 @@ export const ReviewCommandModeSchema = z.enum([
   "review-hosted-request",
   "review-hosted-await",
   "review-hosted-settle",
+  "review-terminus-accept",
   "review-pre-publication",
 ]);
 export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
@@ -536,6 +538,22 @@ const DispositionPayloadSchema = z.strictObject({
   frontlineFollowUp: FrontlineFollowUpAdviceSchema.optional(),
   hostedSettlementPlan: HostedSettlementPlanSchema.optional(),
 });
+const DeliveryMemberResponsePayloadSchema = z.strictObject({
+  ...DispositionPayloadSchema.shape,
+  fixAuthorizationId: CanonicalDigestSchema,
+  currentTarget: ReviewTargetSchema,
+  hostedFixTarget: HostedTargetSchema,
+});
+const DeliveryCorrectionActionSchema = z.strictObject({
+  argv: z.tuple([
+    z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("continue"),
+    z.literal("-"), z.literal("--json"),
+  ]),
+  input: z.strictObject({
+    repository: z.string().trim().min(1),
+    remote: z.string().trim().min(1),
+  }),
+});
 export const RespondEnvelopeSchema = z.union([
   envelopeVariant(
     "review-respond",
@@ -554,6 +572,17 @@ export const RespondEnvelopeSchema = z.union([
       ...DispositionPayloadSchema.shape,
       fixAuthorization: FixAuthorizationSchema,
       reentryCommand: z.enum(["local-prepare", "frontline-resolve", "hosted-settle"]),
+    }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "delivery-correction-required",
+    "continue-delivery-correction",
+    z.strictObject({
+      ...DispositionPayloadSchema.shape,
+      fixAuthorization: FixAuthorizationSchema,
+      deliveryMember: DeliveryReviewMemberVehicleSchema,
+      correctionAction: DeliveryCorrectionActionSchema,
     }),
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),
@@ -607,6 +636,18 @@ export const RespondEnvelopeSchema = z.union([
       ...DispositionPayloadSchema.shape,
       fixAuthorizationId: CanonicalDigestSchema,
     }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "delivery-member-advanced",
+    "continue-review",
+    DeliveryMemberResponsePayloadSchema,
+  ),
+  envelopeVariant(
+    "review-respond",
+    "delivery-member-current",
+    "continue-review",
+    DeliveryMemberResponsePayloadSchema,
   ),
   // Settlement-replay invalidations. The replay runs unattended behind the merge verb, where an
   // exception is only legible as an operation failure, so each refusal carries its own state.

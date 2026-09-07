@@ -144,8 +144,15 @@ import {
   readCandidateRecordVersioned,
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
-import { projectCandidateCurrentness } from "../lib/work-unit/candidate-attestation.js";
-import { resolveLastCompletedTask } from "../lib/task-list/cursor.js";
+import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
+import {
+  inspectRepositoryDeliveryCandidateRenewal,
+  inspectRepositoryDeliveryReopen,
+} from "../lib/delivery/repository-entry.js";
+import {
+  resolveLastCompletedTask,
+  resolveTaskListCursor,
+} from "../lib/task-list/cursor.js";
 import {
   readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
@@ -153,13 +160,13 @@ import {
 import {
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
   findMaterializableWorkUnits,
   type MaterializableWorkUnit,
 } from "../lib/session-init/materializable-work-units.js";
-import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
@@ -187,6 +194,8 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 // ---------------------------------------------------------------------------
 // Shared dispatch shape — target resolution + candidate surfacing
 // ---------------------------------------------------------------------------
+
+class DeliveryCandidateRenewalRefusal extends Error {}
 
 /** The production filesystem seam for the lifecycle-index scan (mirrors `start`). */
 const lifecycleFs: LifecycleIndexFs = {
@@ -586,7 +595,10 @@ export const PublishCommandInputSchema = z.object({
   allowAdvisories: z.boolean().optional(),
   json: z.boolean().optional(),
 }).strict();
-export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({ keepPr: z.boolean().optional() });
+export const ReopenCommandInputSchema = OptionalLifecycleTargetSchema.extend({
+  keepPr: z.boolean().optional(),
+  task: z.string().trim().min(1).optional(),
+});
 export const ArchiveCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   prUrl: z.string().trim().min(1).optional(),
@@ -631,7 +643,24 @@ export const AttestCommandInputSchema = z.object({
   name: SlugSchema,
   json: z.boolean().optional(),
   newRoot: z.boolean().optional(),
-}).strict();
+  expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+}).strict().superRefine((value, refinement) => {
+  if ((value.expectedCandidate === undefined) !== (value.expectedSubject === undefined)) {
+    refinement.addIssue({
+      code: "custom",
+      path: [value.expectedCandidate === undefined ? "expectedCandidate" : "expectedSubject"],
+      message: "--expected-candidate and --expected-subject must be supplied together.",
+    });
+  }
+  if ((value.expectedCandidate !== undefined || value.expectedSubject !== undefined) && value.newRoot !== true) {
+    refinement.addIssue({
+      code: "custom",
+      path: ["newRoot"],
+      message: "Bound re-root selectors require --new-root.",
+    });
+  }
+});
 export const RepointDesignCommandInputSchema = z.object({
   event: z.enum(["draft-created", "spec-finalized"]),
 }).strict();
@@ -718,7 +747,7 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "reopen",
     schema: ReopenCommandInputSchema,
-    schemaFields: { "operand.slug": "slug", "option.keep-pr": "keepPr" },
+    schemaFields: { "operand.slug": "slug", "option.keep-pr": "keepPr", "option.task": "task" },
   },
   { commandPath: "abandon", schema: AbandonCommandInputSchema, schemaFields: { "operand.slug": "slug" } },
   {
@@ -749,7 +778,13 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "attest",
     schema: AttestCommandInputSchema,
-    schemaFields: { "operand.name": "name", "option.json": "json", "option.new-root": "newRoot" },
+    schemaFields: {
+      "operand.name": "name",
+      "option.json": "json",
+      "option.new-root": "newRoot",
+      "option.expected-candidate": "expectedCandidate",
+      "option.expected-subject": "expectedSubject",
+    },
   },
   {
     commandPath: "repoint-design",
@@ -1828,23 +1863,29 @@ export async function handlePublish(
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);
+  const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
     const record = await readCandidateRecord(base.cwd, target);
     if (record === null) return null;
-    const current = await collectGitCandidateTarget({
+    const effective = await projectGitCandidateEffectiveTarget({
       cwd: base.cwd,
       name: target,
       baseBranch: settings["branch.base"],
+      record,
       exec: base.io.exec,
+      rawExec: rawGit,
     });
-    const currentness = projectCandidateCurrentness({ record, current });
+    const candidateSubjectDigest = effective.state === "current"
+      ? effective.recognizedTarget.subject.subjectDigest
+      : effective.state === "changed" || effective.state === "staged-change"
+        ? effective.currentTarget.subject.subjectDigest
+        : effective.currentTarget.subjectDigest;
     return {
       record,
-      current,
       candidateId: record.attestation.candidateId,
-      candidateSubjectDigest: current.subject.subjectDigest,
-      candidateCurrent: currentness.status === "current"
-        && currentness.convergenceVerification === "satisfied",
+      candidateSubjectDigest,
+      candidateCurrent: effective.state === "current"
+        && effective.convergenceVerification === "satisfied",
     };
   };
   const candidate = await readCandidateAuthorization();
@@ -1966,6 +2007,7 @@ export async function handlePublish(
 /** Options for `arc reopen`. */
 export interface ReopenOptions {
   keepPr?: boolean;
+  task?: string;
 }
 
 /**
@@ -1985,8 +2027,11 @@ async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | 
   }
   if (branch === null) return undefined;
   try {
-    const facts = await createGhWorkUnitPrSource(base.io.exec)([branch]);
-    return facts.get(branch)?.merged;
+    const observed = await base.io.exec("gh", ["pr", "view", branch, "--json", "state"]);
+    const parsed: unknown = JSON.parse(observed.stdout);
+    if (typeof parsed !== "object" || parsed === null || !("state" in parsed)) return undefined;
+    const state = parsed.state;
+    return typeof state === "string" ? state === "MERGED" : undefined;
   } catch {
     return undefined;
   }
@@ -1994,11 +2039,15 @@ async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | 
 
 /**
  * `arc reopen [slug]` — withdraw an `Integrating` WU back to `Active` for more work
- * (defaults to the current WU). Resolves the PR's merge fact via `gh` (never
- * fabricated), degrading to unknown when `gh` / the remote is unavailable — which
- * the `pr-unmerged` guard refuses rather than reopen on an unverifiable merge state;
- * a positively-merged PR is likewise refused — post-merge rework is a new
- * origin-linked WU. `--keep-pr` converts the PR to a draft instead of closing it.
+ * (defaults to the current WU). Exact delivery composition must permit ordinary
+ * withdrawal before the handler observes PR state or enters lifecycle execution.
+ * A coherently bound delivery and every unavailable or incoherent composition
+ * refuse there; singleton and coherent unbound delivery subjects retain the
+ * existing path. The PR merge fact then resolves through `gh` (never fabricated),
+ * degrading to unknown when `gh` / the remote is unavailable — which the
+ * `pr-unmerged` guard refuses rather than reopen on an unverifiable merge state.
+ * A positively-merged PR is likewise refused. `--keep-pr` converts the PR to a
+ * draft instead of closing it.
  */
 export async function handleReopen(
   slug: string | undefined,
@@ -2018,12 +2067,47 @@ export async function handleReopen(
   const target = await resolveVerbTargetOrReport("reopen", input.slug, base.cwd);
   if (target === null) return;
 
+  const { executor, settings } = await buildExecutor(base);
+  const metaPath = projectActiveMetaPath(target);
+  let taskListPath: string | null;
+  try {
+    const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
+    taskListPath = resolveTaskListPath(metaPath, meta.taskList);
+  } catch {
+    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+      + "the active metadata is unavailable.");
+    return;
+  }
+  if (taskListPath === null) {
+    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+      + "the canonical task-list binding is unavailable.");
+    return;
+  }
+  let delivery;
+  try {
+    delivery = await inspectRepositoryDeliveryReopen({
+      cwd: base.cwd,
+      taskListPath,
+      workUnitId: target,
+      baseBranch: settings["branch.base"],
+      exec: base.io.exec,
+    });
+  } catch {
+    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+      + "the plan, state, or transition evidence is unavailable.");
+    return;
+  }
+  if (delivery.status !== "reopen-permitted") {
+    refuse(delivery.recommendedActionText);
+    return;
+  }
+
   const prMerged = await resolvePrMerged(base, target);
-  const { executor } = await buildExecutor(base);
   const result = await runReopen(executor, {
     name: target,
     prMerged,
     withdrawMode: input.keepPr === true ? "draft" : "close",
+    nextTask: input.task,
   });
   if (result.status === "rejected") {
     refuse(result.reason);
@@ -2513,6 +2597,8 @@ export async function handleFinalizeStage(
 export interface AttestOptions {
   json?: boolean;
   newRoot?: boolean;
+  expectedCandidate?: string;
+  expectedSubject?: string;
 }
 
 /** Attest the current verified work-unit subject without changing lifecycle State. */
@@ -2524,7 +2610,13 @@ export async function handleAttest(
   if (opts.json !== true) p.intro("arc attest");
   const input = parseLifecycleCommand(
     AttestCommandInputSchema,
-    { name: name?.trim(), json: opts.json, newRoot: opts.newRoot },
+    {
+      name: name?.trim(),
+      json: opts.json,
+      newRoot: opts.newRoot,
+      expectedCandidate: opts.expectedCandidate,
+      expectedSubject: opts.expectedSubject,
+    },
     ["attest"],
     opts.json === true,
   );
@@ -2575,19 +2667,95 @@ export async function handleAttest(
   }
   let lastCompleted: string | null = null;
   const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
-  if (taskListPath !== null) {
-    try {
-      const taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
-      const terminal = resolveLastCompletedTask(taskList);
-      if (terminal.status === "found") {
-        lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
-      }
-    } catch {
-      // Candidate attestation does not become unavailable solely because the
-      // human-orientation cursor cannot be refreshed from its task list.
-    }
+  if (taskListPath === null) {
+    refuseWithRemedy(
+      `\`arc attest\` requires a canonical task-list binding for \`${input.name}\`.`,
+      spineRemedy(
+        "Candidate attestation requires a resolvable, structurally closed task list.",
+        "Restore the task-list binding and close execution before attesting",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  let taskList: string;
+  try {
+    taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
+  } catch {
+    refuseWithRemedy(
+      `\`arc attest\` requires the canonical task list for \`${input.name}\` to be readable.`,
+      spineRemedy(
+        "Candidate attestation requires a resolvable, structurally closed task list.",
+        "Restore the task list and close execution before attesting",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const taskCursor = resolveTaskListCursor(taskList);
+  if (taskCursor.status === "malformed") {
+    refuseWithRemedy(
+      `\`arc attest\` cannot use the malformed task list for \`${input.name}\` at line `
+        + `${taskCursor.error.line}: ${taskCursor.error.message}`,
+      spineRemedy(
+        "Candidate attestation requires a structurally closed task list.",
+        "Repair the task-list structure and close execution before attesting",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  if (taskCursor.status === "found") {
+    const current = `Task ${taskCursor.cursor.leaf.id} — ${taskCursor.cursor.leaf.title}`;
+    refuseWithRemedy(
+      `\`arc attest\` cannot attest \`${input.name}\` while task remains open: ${current}.`,
+      spineRemedy(
+        "Candidate attestation begins only after canonical task execution is closed.",
+        "Complete the current task and work-unit verification, then attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+  const terminal = resolveLastCompletedTask(taskList);
+  if (terminal.status === "found") {
+    lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
   }
   const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+  let deliveryRenewal: Awaited<ReturnType<typeof inspectRepositoryDeliveryCandidateRenewal>> = {
+    status: "not-applicable",
+  };
+  if (meta.state === "Integrating" || meta.state === "Shipped") {
+    try {
+      deliveryRenewal = await inspectRepositoryDeliveryCandidateRenewal({
+        cwd: base.cwd,
+        taskListPath: validateManagedPath(taskListPath),
+        workUnitId: input.name,
+        baseBranch: settings["branch.base"],
+        exec: base.io.exec,
+        sourceBoundary: boundarySnapshot.boundary,
+      });
+    } catch {
+      deliveryRenewal = { status: "refused", reason: "evidence-unavailable" };
+    }
+    if (deliveryRenewal.status === "refused") {
+      refuseWithRemedy(
+        `\`arc attest\` cannot establish exact public delivery Candidate renewal evidence for \`${input.name}\` `
+          + `(${deliveryRenewal.reason}).`,
+        spineRemedy(
+          "Corrective attestation must preserve the exact public Candidate, plan, state, member, and review binding.",
+          "Restore the exact public delivery continuation before attesting",
+          input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+        ),
+        input.json === true,
+      );
+      return;
+    }
+  }
 
   const unstaged = await collectUnstagedReviewablePaths({
     cwd: base.cwd,
@@ -2608,74 +2776,146 @@ export async function handleAttest(
     return;
   }
 
-  const result = await runAttest({
-    actor: base.identity,
-    now: () => new Date().toISOString(),
-    verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
-    readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
-    currentTarget: (slug) => collectGitCandidateTarget({
-      cwd: base.cwd,
-      name: slug,
-      baseBranch: settings["branch.base"],
-      exec: base.io.exec,
-    }),
-    publish: async (publication) => {
-      const recordPath = await writeCandidateRecord(
-        base.cwd,
-        publication.name,
-        publication.record,
-        publication.expectedRecordVersion,
-      );
-      const priorMeta = parseMetaRecord(metaContent);
-      const existingBoundary = boundarySnapshot.boundary;
-      const boundaryMatches = existingBoundary !== null
-        && existingBoundary.candidateId === publication.candidateId
-        && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
-      const convergenceResume = existingBoundary !== null
-        && boundaryMatches
-        && existingBoundary.locus === "candidate-convergence-verification-pending"
-        ? projectCandidateReviewResumeBoundary({
-            workUnit: publication.name,
-            candidateId: publication.candidateId,
-            candidateSubjectDigest: publication.candidateSubjectDigest,
-            reservation: existingBoundary.reservation,
-            terminus: existingBoundary.terminus,
-          })
-        : null;
-      const locus = convergenceResume
-        ?? (publication.repairCurrent && boundaryMatches
-          ? existingBoundary
-          : projectCandidateReviewBoundary({
-            workUnit: publication.name,
-            candidateId: publication.candidateId,
-            candidateSubjectDigest: publication.candidateSubjectDigest,
-          }));
-      const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
-      const orientation: Record<string, string> = {};
-      if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
-        orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
-      }
-      if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
-        orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
-      }
-      if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
-        orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
-      }
-      metaContent = Object.keys(orientation).length === 0
-        ? withCandidate
-        : setMetaBulletFields(withCandidate, orientation);
-      const workflowDiagnostics = checkCurrentWorkflowConsistency(parseMetaRecord(metaContent));
-      if (workflowDiagnostics.length > 0) throw new Error(workflowDiagnostics[0]);
-      await base.io.writeFile(absoluteMetaPath, metaContent);
-      const boundaryPath = await writeSubmissionBoundary(
-        base.cwd,
-        locus,
-        boundarySnapshot.version,
-      );
-      await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
-      return { recordPath, metaPath, locus };
-    },
-  }, { name: input.name, lifecycle: meta.state, newRoot: input.newRoot === true });
+  let result: Awaited<ReturnType<typeof runAttest>>;
+  try {
+    result = await runAttest({
+      actor: base.identity,
+      now: () => new Date().toISOString(),
+      verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
+      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
+      currentTarget: (slug) => collectGitCandidateTarget({
+        cwd: base.cwd,
+        name: slug,
+        baseBranch: settings["branch.base"],
+        exec: base.io.exec,
+      }),
+      effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
+        cwd: base.cwd,
+        name: slug,
+        baseBranch: settings["branch.base"],
+        record,
+        exec: base.io.exec,
+        rawExec: createRawGitExec(base.cwd),
+      }),
+      publish: async (publication) => {
+        let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryStatusBoundary> | null = null;
+        if (deliveryRenewal.status === "ready") {
+          const fresh = await inspectRepositoryDeliveryCandidateRenewal({
+            cwd: base.cwd,
+            taskListPath: validateManagedPath(taskListPath),
+            workUnitId: input.name,
+            baseBranch: settings["branch.base"],
+            exec: base.io.exec,
+            sourceBoundary: boundarySnapshot.boundary,
+          });
+          if (fresh.status !== "ready") {
+            throw new DeliveryCandidateRenewalRefusal(
+              fresh.status === "refused" ? fresh.reason : "delivery evidence disappeared",
+            );
+          }
+          if (boundarySnapshot.boundary === null) {
+            throw new DeliveryCandidateRenewalRefusal("public delivery boundary disappeared");
+          }
+          try {
+            deliveryLocus = projectCorrectiveDeliveryStatusBoundary({
+              workUnit: publication.name,
+              candidateId: publication.candidateId,
+              candidateSubjectDigest: publication.candidateSubjectDigest,
+              supersedesCandidateId: publication.record.attestation.supersedes ?? null,
+              sourceBoundary: boundarySnapshot.boundary,
+              deliveryContinuation: fresh.deliveryContinuation,
+            });
+          } catch (error) {
+            throw new DeliveryCandidateRenewalRefusal(
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+        }
+        const recordPath = await writeCandidateRecord(
+          base.cwd,
+          publication.name,
+          publication.record,
+          publication.expectedRecordVersion,
+        );
+        const priorMeta = parseMetaRecord(metaContent);
+        const existingBoundary = boundarySnapshot.boundary;
+        const boundaryMatches = existingBoundary !== null
+          && existingBoundary.candidateId === publication.candidateId
+          && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
+        const convergenceResume = existingBoundary !== null
+          && boundaryMatches
+          && existingBoundary.locus === "candidate-convergence-verification-pending"
+          ? projectCandidateReviewResumeBoundary({
+              workUnit: publication.name,
+              candidateId: publication.candidateId,
+              candidateSubjectDigest: publication.candidateSubjectDigest,
+              reservation: existingBoundary.reservation,
+              terminus: existingBoundary.terminus,
+            })
+          : null;
+        const locus = deliveryLocus ?? convergenceResume
+          ?? (publication.repairCurrent && boundaryMatches
+            ? existingBoundary
+            : projectCandidateReviewBoundary({
+                workUnit: publication.name,
+                candidateId: publication.candidateId,
+                candidateSubjectDigest: publication.candidateSubjectDigest,
+              }));
+        const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
+        const orientation: Record<string, string> = {};
+        if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
+          orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
+        }
+        if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
+          orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
+        }
+        if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
+          orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
+        }
+        if (priorMeta.nextTask !== null) {
+          orientation["Next Task"] = "[none]";
+        }
+        metaContent = Object.keys(orientation).length === 0
+          ? withCandidate
+          : setMetaBulletFields(withCandidate, orientation);
+        const workflowDiagnostics = checkCurrentWorkflowConsistency(parseMetaRecord(metaContent));
+        if (workflowDiagnostics.length > 0) throw new Error(workflowDiagnostics[0]);
+        const boundaryPath = await writeSubmissionBoundary(
+          base.cwd,
+          locus,
+          boundarySnapshot.version,
+        );
+        await base.io.writeFile(absoluteMetaPath, metaContent);
+        await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
+        return { recordPath, metaPath, locus };
+      },
+    }, {
+      name: input.name,
+      lifecycle: meta.state,
+      newRoot: input.newRoot === true,
+      ...(input.expectedCandidate === undefined || input.expectedSubject === undefined
+        ? {}
+        : {
+            expectedBlocked: {
+              candidateId: input.expectedCandidate,
+              subjectDigest: input.expectedSubject,
+            },
+          }),
+    });
+  } catch (error) {
+    if (!(error instanceof DeliveryCandidateRenewalRefusal)) throw error;
+    refuseWithRemedy(
+      `\`arc attest\` refused stale or mismatched public delivery Candidate renewal for \`${input.name}\`: `
+        + error.message,
+      spineRemedy(
+        "Corrective attestation writes only one exact version-bound public member-review continuation.",
+        "Restore the exact public Candidate, plan, state, member, and review evidence, then re-attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
 
   if (result.status === "unchanged") {
     const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name);
@@ -2693,7 +2933,9 @@ export async function handleAttest(
   if (input.json === true) {
     process.stdout.write(`${JSON.stringify(AttestResultSchema.parse(result))}\n`);
   } else if (result.status === "blocked") {
-    p.log.error(`${result.nextAction}\n${JSON.stringify(result.delta)}`);
+    p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
+  } else if (result.status === "refused") {
+    p.log.error(result.recommendedActionText);
   } else {
     const lines = [
       `Work unit: ${result.locus.workUnit}`,
@@ -2703,7 +2945,7 @@ export async function handleAttest(
     p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
     p.outro("Done.");
   }
-  if (result.status === "blocked") process.exitCode = 1;
+  if (result.status === "blocked" || result.status === "refused") process.exitCode = 1;
 }
 
 // ---------------------------------------------------------------------------

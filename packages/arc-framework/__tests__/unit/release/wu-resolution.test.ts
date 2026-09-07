@@ -60,6 +60,7 @@ describe("resolveActiveWu — single full-layout candidate", () => {
       status: "resolved",
       path: ".arc/active/meta-foo.md",
       name: "foo",
+      branch: "technical/sample",
     });
   });
 
@@ -124,6 +125,7 @@ describe("resolveActiveWu — lite layout", () => {
       status: "resolved",
       path: ".arc/active/status.md",
       name: "",
+      branch: "technical/sample",
     });
   });
 });

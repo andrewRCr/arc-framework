@@ -4,16 +4,17 @@
 > field — recorded here only as shared coordination, never as a roster or status table._
 
 **Purpose:** Preserve one durable mental and delivery anchor for the program split from
-`decompose-transform-integrity`. The shipped origin owns the trustworthy v3 retirement core; direct members
-deliver independently safe extensions, while `decompose-core-hardening` coordinates post-ship safety,
-operability, performance, and authoring gaps exposed by real cuts.
+`decompose-transform-integrity`. The shipped origin owns the cut-map execution core; direct members deliver
+independently safe extensions, while `decompose-core-hardening` coordinates post-ship safety, operability,
+performance, and authoring gaps exposed by real cuts.
 
 ---
 
 ## Coordination
 
-The shipped core and each remaining member's spec and meta are the planning authorities for this program.
-Transform receipts govern individual cuts; they do not replace cohort coordination or member lifecycle state.
+The shipped core and each remaining member's spec and meta are the planning authorities for this program. Lean
+transition records preserve terminal history for individual cuts; they do not replace cohort coordination or
+member lifecycle state.
 
 ### Sequencing
 
@@ -42,17 +43,15 @@ Current readiness is derived from member metas and `Depends On`, not from this o
 
 ### Shared contracts
 
-- `decompose-transform-integrity` owns the closed v3 cut-map, preparation, receipt, validator, exact-base
-  retirement, topology, planning-profile, finalization, publication, overlay, exact-base integration anchor, and
-  workflow contracts consumed by every member.
-- `decompose-base-mobility` owns movement of a canonical finalized candidate across base advancement and extends
+- `decompose-transform-integrity` owns the authored cut map, inventory, allocation, validation, conservation,
+  topology, rollback, exact transform-delta, pinned-ref, and workflow contracts consumed by every member.
+- `decompose-base-mobility` owns movement of a canonical completed candidate across base advancement and extends
   the shared integration anchor to a descendant current base.
 - `decompose-extraction` reuses the core inventory, allocation, profile, topology, and exact-base result substrate
-  without importing retirement evidence. Its surviving origin remains the durable anchor and it creates no
-  extraction receipt.
-- `decompose-planning-lane` grants an optional host-side exception for one canonical decomposition receipt. The
-  exception is a passthrough to the ordinary planning classifier whenever no receipt is present, so it becomes
-  unnecessary once the record no longer displaces a decomposition out of that classifier.
+  without importing transition-history authority. Its surviving origin remains the durable anchor and it creates
+  no terminal transition record.
+- `decompose-planning-lane` supplied the former receipt-specific host exception. The transition-record cutover
+  retired that exception after the exact transition namespace joined the ordinary planning classifier.
 - `decompose-transition-record` owns the durable record of what became of a retired origin: transition kind,
   successors, and the authored disposition of each incoming dependency edge. It is the sole authority every
   consumer of retirement history reads, and it holds no transaction, preparation, or sealing evidence.
@@ -61,13 +60,13 @@ Current readiness is derived from member metas and `Depends On`, not from this o
 
 ### Soft coordination
 
-The receipt-backed launch handoff stores logical anchor identity, exact publication entries, and the distribution
-interlock's typed initial-continuation disposition. Member metas remain authoritative for current membership,
-dependencies, priority, workflow, and lifecycle state; launch and status surfaces recompute ready and blocked
-frontiers from the landed base.
+The lean transition record stores the retired origin, transition kind, successors, and each authored incoming-edge
+disposition. Member metas remain authoritative for current membership, dependencies, priority, workflow, and
+lifecycle state; ordinary lifecycle and status surfaces recompute ready and blocked frontiers from the landed base.
 
-Extraction intentionally has no retirement receipt. Its separate member must retain that conservative boundary
-and must not fabricate publication evidence merely to automate launch.
+Extraction intentionally has no transition-history authority of its own. Its separate member must retain that
+conservative boundary and rely on ordinary lifecycle and status derivation rather than minting terminal history to
+automate launch.
 
 ### Closeout criteria
 
@@ -98,14 +97,12 @@ plausible hardening, and the estimate checkpoints are what make that drift visib
 ### `decompose-base-mobility`
 
 _Exposes:_ append-only committed-unlanded base advancement, descendant-base landing, and descendant-current-base
-extension of the shared integration anchor — including the landing relations for a candidate that has absorbed the
-base or landed over a descendant base, and authorized advancing-shape arms on the finalized-record commit gate and
-the projection regeneration assert. These extensions name states only this member can produce, so no existing
-verdict moves. Named for advancement rather than refresh: the core owns an
-uncommitted same-base receipt refresh, and the two stay distinguishable at the command surface and in every
-refusal code.
+extension of the shared integration anchor — including pinned candidate/base rereads, first-parent advancement
+validation, exact transform-delta proof, and race-closed refs. Named for advancement rather than execution: the
+core owns the initial same-base transform and transition-record staging, while this member advances that completed
+candidate across a descendant base.
 
-_Consumes:_ canonical v3 evidence, transition patch, validation verdicts, and typed recovery actions from
+_Consumes:_ the authored cut map, topology, exact transform-delta validation, and typed recovery actions from
 `decompose-transform-integrity`.
 
 ### `decompose-extraction`
@@ -113,14 +110,13 @@ _Consumes:_ canonical v3 evidence, transition patch, validation verdicts, and ty
 _Exposes:_ additive-first extraction and independently retryable byte-preserving source finish.
 
 _Consumes:_ the core inventory, allocation, profile, topology, result-planning, and workflow contracts without
-retirement receipt authority.
+transition-history authority.
 
 ### `decompose-planning-lane`
 
-_Exposes:_ an explicitly installed, exact-head `arc-cleared` planning-lane exception for one canonical
-decomposition receipt.
-
-_Consumes:_ core v3 validation and base-mobility exact-ref/descendant-base proof.
+_Historical contribution:_ shipped an explicitly installed, exact-head `arc-cleared` planning-lane exception for
+one canonical decomposition receipt. The transition-record cutover retired the exception and its receipt validation;
+no runtime surface remains.
 
 ### `decompose-transition-record`
 
@@ -129,9 +125,9 @@ incoming dependency edge, keyed by dependent slug. It carries the one fact about
 reconstruct, and retires the sealed receipt spine, its record validator, the transient claim and candidate-discard
 machinery, the launch-readiness and publication cluster, and the planning-lane exception.
 
-_Consumes:_ the core cut map's authored allocation and incoming-edge dispositions. It takes no preparation,
-sealing, or transaction authority, and converts the existing receipts rather than clearing them — their authored
-dispositions are past human decisions and are not regenerable.
+_Consumed at cutover:_ the core cut map's authored allocation and incoming-edge dispositions. It took no
+preparation, sealing, or transaction authority, and converted the existing receipts rather than clearing them —
+their authored dispositions were past human decisions and were not regenerable.
 
 ## Retired members
 

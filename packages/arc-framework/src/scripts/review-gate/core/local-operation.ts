@@ -20,6 +20,7 @@ import {
 } from "./gate-contract-v2-schema.js";
 import type { LocalReviewState } from "./operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./ports.js";
+import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
 
 const LocalOperationIdentityPreimageSchema = z.strictObject({
   domain: z.literal("arc.review-gate.local-operation-id/v1"),
@@ -30,6 +31,7 @@ const LocalOperationIdentityPreimageSchema = z.strictObject({
   laneSourceId: ReviewIdentifierSchema,
   policyBindingDigest: ReviewCanonicalDigestSchema,
   requestMechanism: ReviewIdentifierSchema,
+  deliveryAdmissionDigest: ReviewCanonicalDigestSchema.nullable(),
 });
 
 export interface LocalReviewAdmissionInput {
@@ -39,6 +41,7 @@ export interface LocalReviewAdmissionInput {
   laneSourceId: string;
   policyBindingDigest: string;
   requestMechanism: string;
+  deliveryAdmission?: DeliveryLocalReviewAdmission;
 }
 
 export interface LocalReviewAdmission {
@@ -49,6 +52,7 @@ export interface LocalReviewAdmission {
   laneSourceId: string;
   policyBindingDigest: string;
   requestMechanism: string;
+  deliveryAdmission?: DeliveryLocalReviewAdmission;
   carrier: LocalChangeSetCarrierContract;
 }
 
@@ -112,6 +116,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     laneSourceId: input.laneSourceId,
     policyBindingDigest,
     requestMechanism,
+    deliveryAdmissionDigest: input.deliveryAdmission === undefined
+      ? null
+      : canonicalDigest(input.deliveryAdmission),
   });
   const operationId = `local-${canonicalDigest(preimage).slice("sha256:".length)}`;
   return {
@@ -122,6 +129,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     laneSourceId: input.laneSourceId,
     policyBindingDigest,
     requestMechanism,
+    ...(input.deliveryAdmission === undefined
+      ? {}
+      : { deliveryAdmission: input.deliveryAdmission }),
     carrier,
   };
 }
@@ -155,6 +165,8 @@ export async function resolveLocalReviewAdmission(
     || persisted.state.policyBindingDigest !== admission.policyBindingDigest
     || persisted.state.repositoryId !== admission.target.repositoryId
     || persisted.state.laneSourceId !== admission.laneSourceId
+    || canonicalize(persisted.state.deliveryAdmission ?? null)
+      !== canonicalize(admission.deliveryAdmission ?? null)
     || canonicalize(persisted.state.vehicle) !== canonicalize(admission.authority.vehicle)
     || persisted.state.attestationRuntimeKind !== admission.authority.attestationRuntimeKind) {
     throw new LocalReviewAdmissionError("local-operation-key-mismatch");

@@ -17,9 +17,11 @@ import { stat } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { readActiveMetaCandidates } from "../../lib/active/meta-reader.js";
+import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { resolvePlanningStage } from "../../lib/active/current-workflow-consistency.js";
 import { checkCurrentWorkflowConsistency } from "../../lib/active/current-workflow-consistency.js";
 import { getCurrentBranch } from "../../lib/git/index.js";
+import { createRawGitExec, gitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
 import type {
@@ -36,10 +38,17 @@ import type {
 } from "./types.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
+import { reduceCandidateDurableBaseline } from
+  "../../lib/work-unit/candidate-attestation.js";
+import {
+  type CandidateTargetProjector,
+} from "../../lib/work-unit/candidate-effective-target.js";
+import { projectGitCandidateEffectiveTarget } from
+  "../../lib/work-unit/git-candidate-effective-target.js";
 import {
   projectCandidateReviewBoundary,
   recoverPrePublicationBoundary,
-  recoverPublicationBoundary,
+  recoverIntegratingBoundary,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
@@ -110,8 +119,10 @@ export async function runActiveStatus(
   options: ActiveStatusOptions,
 ): Promise<ActiveStatusResult> {
   const { layout, candidates: rawCandidates, warnings } = await readActiveMetaCandidates(options.cwd);
+  const projectCandidateTarget = options.projectCandidateTarget
+    ?? createRepositoryCandidateTargetProjector(options.exec ?? gitExec);
   const candidates = await Promise.all(rawCandidates.map((candidate) =>
-    projectCandidateIntegrationBoundary(options.cwd, candidate, warnings)));
+    projectCandidateIntegrationBoundary(options.cwd, candidate, warnings, projectCandidateTarget)));
   return {
     mode: "full",
     layout,
@@ -175,8 +186,10 @@ export async function runActiveSessionInitStatusInternal(
     readActiveMetaCandidates(options.cwd, readerOptions),
     getCurrentBranch(options.exec),
   ]);
+  const projectCandidateTarget = options.projectCandidateTarget
+    ?? createRepositoryCandidateTargetProjector(options.exec);
   const projected = await Promise.all(scan.candidates.map((candidate) =>
-    projectCandidateIntegrationBoundary(options.cwd, candidate, scan.warnings)));
+    projectCandidateIntegrationBoundary(options.cwd, candidate, scan.warnings, projectCandidateTarget)));
   const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
   const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
   const resolved = result.resolution === "single"
@@ -347,6 +360,7 @@ async function projectCandidateIntegrationBoundary(
   cwd: string,
   candidate: MetaFileCandidate,
   warnings: string[],
+  projectCandidateTarget: CandidateTargetProjector,
 ): Promise<MetaFileCandidate> {
   if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
@@ -359,12 +373,35 @@ async function projectCandidateIntegrationBoundary(
     );
     return { ...candidate, integrationBoundary: null };
   }
-  const candidateSubjectDigest = record.responses.at(-1)?.newTarget.subject.subjectDigest
-    ?? record.subject.subjectDigest;
+  let candidateSubjectDigest: string;
+  let requireExactDurableBoundary = false;
+  try {
+    const effective = await projectCandidateTarget({ cwd, name: slug, record });
+    if (effective.state === "current") {
+      candidateSubjectDigest = effective.recognizedTarget.subject.subjectDigest;
+    } else if (candidate.state === "Integrating") {
+      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
+      requireExactDurableBoundary = true;
+    } else {
+      warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
+      return { ...candidate, integrationBoundary: null };
+    }
+  } catch (error) {
+    warnings.push(
+      `Candidate target for ${candidate.filename} is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return { ...candidate, integrationBoundary: null };
+  }
   if (candidate.state === "Integrating") {
     const stored = await readSubmissionBoundary(cwd, slug);
     if (candidate.branch === null) return candidate;
-    const recovered = recoverPublicationBoundary({
+    if (requireExactDurableBoundary && stored?.candidateSubjectDigest !== candidateSubjectDigest) {
+      warnings.push(
+        `Candidate boundary for ${candidate.filename} does not match its durable Candidate subject.`,
+      );
+      return { ...candidate, integrationBoundary: null };
+    }
+    const recovered = recoverIntegratingBoundary({
       stored,
       workUnit: slug,
       branch: candidate.branch,
@@ -391,6 +428,33 @@ async function projectCandidateIntegrationBoundary(
       candidateId: candidate.candidateId,
       candidateSubjectDigest,
     }),
+  };
+}
+
+function createRepositoryCandidateTargetProjector(
+  exec: NonNullable<ActiveStatusOptions["exec"]>,
+): CandidateTargetProjector {
+  const baseBranches = new Map<string, Promise<string>>();
+  const rawExecs = new Map<string, ReturnType<typeof createRawGitExec>>();
+  return async ({ cwd, name, record }) => {
+    let baseBranch = baseBranches.get(cwd);
+    if (baseBranch === undefined) {
+      baseBranch = readConfigSettings(cwd).then(({ settings }) => settings["branch.base"]);
+      baseBranches.set(cwd, baseBranch);
+    }
+    let rawExec = rawExecs.get(cwd);
+    if (rawExec === undefined) {
+      rawExec = createRawGitExec(cwd);
+      rawExecs.set(cwd, rawExec);
+    }
+    return projectGitCandidateEffectiveTarget({
+      cwd,
+      name,
+      baseBranch: await baseBranch,
+      record,
+      exec,
+      rawExec,
+    });
   };
 }
 

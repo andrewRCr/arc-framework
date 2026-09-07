@@ -218,7 +218,9 @@ function replaceMarkedRange(content: string, plan: DeliveryPlanV1, lines: TextLi
     return { status: "refused", reason: "replacement-locus-malformed" } as const;
   }
   const startOffset = lines.starts[startLine];
-  const endOffset = lines.starts[endLine + 1] ?? content.length;
+  let suffixLine = endLine + 1;
+  while (lines.values[suffixLine]?.trim() === "") suffixLine += 1;
+  const endOffset = lines.starts[suffixLine] ?? content.length;
   if (startOffset === undefined) {
     return { status: "refused", reason: "replacement-locus-malformed" } as const;
   }

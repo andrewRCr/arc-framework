@@ -11,6 +11,10 @@ import { infrastructureCommandInputPolicyDeclarations } from "./command-input-in
 import { activeCommandInputPolicyDeclarations } from "./handlers/active.js";
 import { baseCommandInputPolicyDeclarations, baseCommandInputRegistrations } from "./handlers/base.js";
 import {
+  candidateCommandInputPolicyDeclarations,
+  candidateCommandInputRegistration,
+} from "./handlers/candidate.js";
+import {
   checkCommitMessageInputPolicyDeclarations,
   checkCommitMessageInputRegistration,
 } from "./handlers/check/commit-msg-cli.js";
@@ -48,7 +52,10 @@ import {
   wuReconcileCommandInputPolicyDeclarations,
   wuReconcileCommandInputRegistration,
 } from "./handlers/reconcile.js";
-import { recoverCommandInputPolicyDeclarations } from "./handlers/recover.js";
+import {
+  recoverCommandInputPolicyDeclarations,
+  recoverCommandInputRegistration,
+} from "./handlers/recover.js";
 import { releaseCommitInputPolicyDeclarations } from "./handlers/release/commit-cli.js";
 import { releasePushInputPolicyDeclarations } from "./handlers/release/push-cli.js";
 import { releaseStatusCommandInputPolicyDeclarations } from "./handlers/release/record.js";
@@ -84,6 +91,7 @@ export const commandInputRegistrations = [
   initCommandInputRegistration,
   joinCommandInputRegistration,
   checkCommitMessageInputRegistration,
+  candidateCommandInputRegistration,
   configValidateCommandInputRegistration,
   startCommandInputRegistration,
   ...lifecycleCommandInputRegistrations,
@@ -95,6 +103,7 @@ export const commandInputRegistrations = [
   deliveryEntryCommandInputRegistration,
   ...deliveryTransferCommandInputRegistrations,
   wuReconcileCommandInputRegistration,
+  recoverCommandInputRegistration,
   statusCommandInputRegistration,
   logStandaloneInputRegistration,
   ...userCommandInputRegistrations,
@@ -112,6 +121,7 @@ export const commandInputRegistrations = [
 export const commandInputPolicyDeclarations = [
   ...activeCommandInputPolicyDeclarations,
   ...baseCommandInputPolicyDeclarations,
+  ...candidateCommandInputPolicyDeclarations,
   ...checkCommitMessageInputPolicyDeclarations,
   ...configCommandInputPolicyDeclarations,
   ...errandCommandInputPolicyDeclarations,

@@ -12,6 +12,10 @@ import type {
   LocalReviewAuthorityResolution,
   LocalReviewMemberCoordinates,
 } from "../../core/local-review-authority.js";
+import {
+  DeliveryLocalReviewAdmissionSchema,
+  type DeliveryLocalReviewAdmission,
+} from "../../policy/delivery-local-review-admission.js";
 
 export type {
   LocalReviewAuthority,
@@ -54,7 +58,7 @@ export class LocalReviewAuthorityError extends Error {
  * Authenticate one named member against the work unit resolved at this checkout.
  *
  * @param headObjectId - The member's exact head object id, as named by the operator.
- * @param workUnitIdentity - The work unit the control locus resolves to.
+ * @param workUnitIdentity - The work unit the originating locus resolves to.
  * @param lookup - Delivery read, or `undefined` where none is bound.
  * @returns The authenticated member binding.
  */
@@ -62,6 +66,7 @@ async function authenticateMember(
   headObjectId: string,
   workUnitIdentity: string,
   lookup: DeliveryMemberLookup | undefined,
+  admission?: DeliveryLocalReviewAdmission,
 ): Promise<DeliveryMemberBinding> {
   if (lookup === undefined) {
     throw new LocalReviewAuthorityError("delivery-state-unavailable");
@@ -76,9 +81,16 @@ async function authenticateMember(
   if (resolution.member.workUnitId !== workUnitIdentity) {
     throw new LocalReviewAuthorityError("delivery-member-work-unit-mismatch");
   }
-  // The final member's change set is its work unit's own, so it reviews under the
-  // work-unit vehicle. Same boundary the readiness lane applies.
-  if (resolution.member.isFinalMember) {
+  if (admission !== undefined
+    && (admission.vehicle.planId !== resolution.member.planId
+      || admission.vehicle.deliverableId !== resolution.member.deliverableId
+      || admission.vehicle.workUnitId !== resolution.member.workUnitId
+      || admission.vehicle.head !== resolution.member.head)) {
+    throw new LocalReviewAuthorityError("delivery-member-admission-mismatch");
+  }
+  // Direct review of the final member remains the work-unit review. Only an exact
+  // standard-lane admission may address that same head as a delivery member.
+  if (resolution.member.isFinalMember && admission === undefined) {
     throw new LocalReviewAuthorityError("delivery-member-terminal");
   }
   return resolution.member;
@@ -96,10 +108,23 @@ async function authenticateMember(
  * @returns The actor-separated local review authority, plus member coordinates when one was named.
  */
 export async function resolveLocalReviewAuthority(
-  input: { evaluatorIdentity: string; memberHeadObjectId?: string },
+  input: {
+    evaluatorIdentity: string;
+    memberHeadObjectId?: string;
+    deliveryAdmission?: DeliveryLocalReviewAdmission;
+  },
   dependencies: LocalReviewAuthorityDependencies,
 ): Promise<LocalReviewAuthorityResolution> {
   const evaluatorIdentity = ReviewIdentifierSchema.parse(input.evaluatorIdentity);
+  const deliveryAdmission = input.deliveryAdmission === undefined
+    ? undefined
+    : DeliveryLocalReviewAdmissionSchema.parse(input.deliveryAdmission);
+  const memberHeadObjectId = deliveryAdmission?.vehicle.head ?? input.memberHeadObjectId;
+  if (deliveryAdmission !== undefined
+    && input.memberHeadObjectId !== undefined
+    && input.memberHeadObjectId !== deliveryAdmission.vehicle.head) {
+    throw new LocalReviewAuthorityError("delivery-member-admission-mismatch");
+  }
   const context = await dependencies.readLiveContext();
   if (context.activeIdentity === null) {
     throw new LocalReviewAuthorityError("active-identity-missing");
@@ -119,13 +144,14 @@ export async function resolveLocalReviewAuthority(
     }
     authorIdentity = owner;
     const workUnitIdentity = ReviewIdentifierSchema.parse(context.workUnit.identity);
-    if (input.memberHeadObjectId === undefined) {
+    if (memberHeadObjectId === undefined) {
       vehicle = { kind: "work-unit", identity: workUnitIdentity };
     } else {
       const binding = await authenticateMember(
-        input.memberHeadObjectId,
+        memberHeadObjectId,
         workUnitIdentity,
         dependencies.memberLookup,
+        deliveryAdmission,
       );
       vehicle = {
         kind: "delivery-member",
@@ -136,7 +162,7 @@ export async function resolveLocalReviewAuthority(
   } else {
     // Naming a member is what failed here, not the vehicle resolution — an Errand
     // context has no work unit to authenticate the member against.
-    if (input.memberHeadObjectId !== undefined) {
+    if (memberHeadObjectId !== undefined) {
       throw new LocalReviewAuthorityError("delivery-member-requires-work-unit");
     }
     vehicle = {

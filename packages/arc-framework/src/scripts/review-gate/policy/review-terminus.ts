@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import { ReviewIdentifierSchema } from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema } from "../core/review-pass.js";
 
@@ -25,3 +26,11 @@ export const OwnerAcceptedReviewTerminusSchema = z.strictObject({
 }).readonly();
 /** Durable Owner-accepted conclusion bound by its containing Candidate boundary. */
 export type OwnerAcceptedReviewTerminus = z.infer<typeof OwnerAcceptedReviewTerminusSchema>;
+
+/** One Owner terminus bound to an exact delivery member and head. */
+export const DeliveryReviewMemberTerminusSchema = z.strictObject({
+  vehicle: DeliveryReviewMemberVehicleSchema,
+  terminus: OwnerAcceptedReviewTerminusSchema,
+}).readonly();
+/** Durable Owner conclusion scoped to one exact delivery-member review subject. */
+export type DeliveryReviewMemberTerminus = z.infer<typeof DeliveryReviewMemberTerminusSchema>;

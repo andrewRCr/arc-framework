@@ -3,8 +3,11 @@
 import { z } from "zod";
 
 import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
-import type { ChecksAwaitResult } from "../review-gate/checks-await.js";
-import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
+import { RequiredCheckSchema, type ChecksAwaitResult } from "../review-gate/checks-await.js";
+import type {
+  MergeMethodResolveResult,
+  MergeMethodStackPosition,
+} from "../review-gate/merge-method.js";
 import {
   MergeLockTransitionRequestSchema,
   type MergeLockTransitionRequest,
@@ -172,6 +175,8 @@ export const IntegrationMergeResultSchema = z.union([
       approvedHead: ObjectIdSchema,
       pullRequest: z.number().int().positive(),
       elapsedMs: z.number().int().nonnegative(),
+      checks: z.array(RequiredCheckSchema),
+      diagnosticFailures: z.array(RequiredCheckSchema),
     }),
   }),
   z.strictObject({
@@ -252,7 +257,7 @@ export interface IntegrationMergeDependencies {
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
   createLockRequest(target?: IntegrationMergeTarget): Promise<MergeLockTransitionRequest>;
   awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
-  resolveMergeMethod(repository: string): Promise<MergeMethodResolveResult>;
+  resolveMergeMethod(repository: string, stackPosition: MergeMethodStackPosition): Promise<MergeMethodResolveResult>;
   readConfiguredBase(): Promise<string>;
   readFinalDrift(): Promise<Pick<BaseDriftResult, "verdict">>;
   mergePinned(target: IntegrationMergeTarget, method: "merge" | "rebase" | "squash"): Promise<{ state: string }>;
@@ -368,11 +373,6 @@ export async function mergeIntegration(
       }, dependencies, target);
     }
 
-    const release = await dependencies.releaseLock(target);
-    if (release.state !== "released" && release.state !== "no-lock") {
-      return await invalidated(base, "release-blocked", { release }, dependencies, target);
-    }
-
     const checks = await dependencies.awaitChecks(target);
     if (checks.state === "pending") {
       return IntegrationMergeResultSchema.parse({
@@ -383,6 +383,8 @@ export async function mergeIntegration(
           approvedHead: checkpoint.approvedHead,
           pullRequest: target.pullRequest,
           elapsedMs: checks.elapsedMs,
+          checks: checks.checks,
+          diagnosticFailures: checks.diagnosticFailures,
         },
       });
     }
@@ -402,10 +404,30 @@ export async function mergeIntegration(
       }, dependencies, target);
     }
 
-    const mergeMethod = await dependencies.resolveMergeMethod(target.repository);
+    const postChecksTarget = IntegrationMergeTargetSchema.parse(await dependencies.refreshTarget(target));
+    if (
+      postChecksTarget.repository !== target.repository
+      || postChecksTarget.pullRequest !== target.pullRequest
+      || postChecksTarget.baseRef !== target.baseRef
+      || postChecksTarget.headRef !== target.headRef
+      || postChecksTarget.headSha !== target.headSha
+    ) {
+      return await invalidated(base, "head-mismatch", {
+        approvedHead: target.headSha,
+        actualHead: postChecksTarget.headSha,
+        checkpointTarget: target,
+        liveTarget: postChecksTarget,
+      }, dependencies, target);
+    }
+
+    const mergeMethod = await dependencies.resolveMergeMethod(
+      target.repository,
+      checkpoint.mergeMethod.stackPosition,
+    );
     if (
       mergeMethod.state !== "validated"
       || mergeMethod.repository?.toLowerCase() !== target.repository.toLowerCase()
+      || mergeMethod.stackPosition !== checkpoint.mergeMethod.stackPosition
       || mergeMethod.method !== checkpoint.mergeMethod.method
       || mergeMethod.policyFingerprint !== checkpoint.mergeMethod.policyFingerprint
     ) {
@@ -422,6 +444,11 @@ export async function mergeIntegration(
         configuredBase: configuredBaseBeforeMerge,
         targetBase: target.baseRef,
       }, dependencies, target);
+    }
+
+    const release = await dependencies.releaseLock(target);
+    if (release.state !== "released" && release.state !== "no-lock") {
+      return await invalidated(base, "release-blocked", { release }, dependencies, target);
     }
 
     const merged = await dependencies.mergePinned(target, mergeMethod.method);

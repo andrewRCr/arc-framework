@@ -154,6 +154,17 @@ describe("readConfiguredIdentity", () => {
     await expect(readConfiguredIdentity(mockExec({}))).resolves.toBeNull();
   });
 
+  it("reads configuration from the supplied working directory", async () => {
+    const exec: GitExec = vi.fn(async () => ({ stdout: "andrew\0" }));
+
+    await expect(readConfiguredIdentity(exec, "/repo/root")).resolves.toBe("andrew");
+    expect(exec).toHaveBeenCalledWith(
+      "git",
+      ["config", "--null", "--get", "arc.identity"],
+      { cwd: "/repo/root" },
+    );
+  });
+
   it.each(["", " Andrew ", "two--segments", "../unsafe", "UPPER"])(
     "rejects present invalid configured bytes %j",
     async (value) => {

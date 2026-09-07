@@ -17,29 +17,21 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import {
   DeliveryEntryInspectionResultSchema,
   DeliveryEntryInspectionRequestSchema,
-  inspectDeliveryEntry,
   type DeliveryEntryInspectionResult,
 } from "../lib/delivery/entry-inspection.js";
-import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
-import {
-  GitDeliveryRenameTransitionSource,
-  resolveExistingDeliveryPlan,
-} from "../lib/delivery/plan-resolution.js";
-import { resolveExistingDeliveryAuthoringMap } from "../lib/delivery/authoring-resolution.js";
-import { RepositoryDeliveryAuthoringStore } from "../lib/delivery/authoring-store.js";
-import {
-  RepositoryDeliveryPlanStore,
-  RepositoryDeliveryStateStore,
-} from "../lib/delivery/local-stores.js";
-import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { createGitExec, createRawGitExec } from "../lib/io-context.js";
+import { inspectRepositoryDeliveryEntry as inspectRepositoryDeliveryEntryAt } from
+  "../lib/delivery/repository-entry.js";
+import { createGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { requireArcProjectRoot } from "./shared.js";
 
-const InputSchema = z.strictObject({
-  boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
-  provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
-});
+const InputSchema = z.union([
+  z.strictObject({
+    boundaryDisposition: z.enum(["not-delivery-candidate", "delivery-candidate"]),
+    provisionalDisposition: z.enum(["not-applicable", "confirmed-reviewed"]),
+  }),
+  z.strictObject({ entryMode: z.enum(["execution", "integrating", "prepublication"]) }),
+]);
 const OptionsSchema = z.strictObject({ input: z.string().min(1), json: z.boolean().optional() });
 
 export interface DeliveryEntryInspectOptions { readonly input?: string; readonly json?: boolean }
@@ -58,7 +50,7 @@ export const deliveryEntryCommandInputPolicyDeclarations = [{
       acquisition: "handler-required", schemaOwnership: "owned", schemaField: "input",
       cancellation: "not-applicable",
       automation: { noInput: "read-explicit-stdin", flags: ["--input"], acceptedSyntax: ["--input <json-path>", "--input -"] },
-      mutationBoundary: "attended delivery entry input validation", subprocess: "explicit-stdin",
+      mutationBoundary: "delivery entry context validation", subprocess: "explicit-stdin",
     }),
     declareCliOptionSite("json", {
       acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
@@ -70,7 +62,7 @@ export const deliveryEntryCommandInputPolicyDeclarations = [{
       {
         acquisition: "explicit-stdin", schemaOwnership: "none", cancellation: "not-applicable",
         automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
-        mutationBoundary: "attended delivery entry request read", subprocess: "explicit-stdin",
+        mutationBoundary: "delivery entry request read", subprocess: "explicit-stdin",
       },
     ),
   ],
@@ -97,7 +89,7 @@ export interface DeliveryEntryInspectHandlerDependencies {
 function defaultDependencies(): DeliveryEntryInspectHandlerDependencies {
   return {
     readText: (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    inspect: inspectRepositoryDeliveryEntry,
+    inspect: inspectActiveRepositoryDeliveryEntry,
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
   };
@@ -105,7 +97,8 @@ function defaultDependencies(): DeliveryEntryInspectHandlerDependencies {
 
 function emit(
   dependencies: DeliveryEntryInspectHandlerDependencies,
-  result: DeliveryEntryInspectionResult | { readonly status: "refused"; readonly reason: string },
+  result: z.output<typeof DeliveryEntryInspectionResultSchema>
+    | { readonly status: "refused"; readonly reason: string },
 ): void {
   dependencies.write(`${JSON.stringify({
     schemaVersion: 1,
@@ -115,7 +108,7 @@ function emit(
   if (result.status === "refused") dependencies.setExitCode(1);
 }
 
-/** Validate attended input and preserve the exact closed inspection route. */
+/** Validate the closed entry context and preserve the exact inspection route. */
 export async function handleDeliveryEntryInspect(
   opts: DeliveryEntryInspectOptions,
   interaction?: InteractionContext,
@@ -158,10 +151,11 @@ function resolveTaskListPath(cwd: string, activePath: string, taskList: string):
   const relation = relative(cwd, target).replaceAll("\\", "/");
   return relation === "" || relation === ".." || relation.startsWith("../") || isAbsolute(relation)
     ? null
-    : target;
+    : relation;
 }
 
-async function inspectRepositoryDeliveryEntry(
+/** Inspect delivery entry for the exact active work-unit checkout without reconstructing repository locators. */
+export async function inspectActiveRepositoryDeliveryEntry(
   input: z.infer<typeof InputSchema>,
   interaction?: InteractionContext,
 ): Promise<DeliveryEntryInspectionResult> {
@@ -175,53 +169,13 @@ async function inspectRepositoryDeliveryEntry(
   }
   const taskListPath = resolveTaskListPath(cwd, active.path, parsedMeta.taskList);
   if (taskListPath === null) throw new Error("Task list path invalid");
-
-  const exec = createGitExec(interaction?.subprocess);
-  const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
-  const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
-  const stateStore = new RepositoryDeliveryStateStore(publisher);
-  const authoringStore = new RepositoryDeliveryAuthoringStore(publisher);
-  const transitionSource = new GitDeliveryRenameTransitionSource(createRawGitExec(cwd));
   const { settings } = await readConfigSettings(cwd);
-  const base = settings["branch.base"].trim();
-  const authority = base === ""
-    ? { status: "unestablished" as const }
-    : { status: "established" as const, ref: `refs/heads/${base}` };
 
-  return inspectDeliveryEntry(DeliveryEntryInspectionRequestSchema.parse({
-    workUnitId: active.name,
-    ...input,
-  }), {
-    readTaskList: () => readFile(taskListPath, "utf8"),
-    resolvePlan: async () => {
-      const result = await resolveExistingDeliveryPlan({
-        planStore: { enumerateCurrent: () => planStore.enumerateCurrentReadOnly() },
-        currentWorkUnitId: active.name, planWorkUnitId: (plan) => plan.workUnitId,
-        authority, transitionSource,
-      });
-      return result.status === "match" ? result : { status: result.status };
-    },
-    resolveAuthoring: async () => {
-      const result = await resolveExistingDeliveryAuthoringMap({
-        store: { enumerate: () => authoringStore.enumerateReadOnly() },
-        currentWorkUnitId: active.name, authority, transitionSource,
-      });
-      if (result.status === "match") {
-        return {
-          status: "match",
-          mapId: result.record.snapshot.mapId,
-          candidatePlanDigest: result.record.snapshot.candidatePlanDigest,
-        };
-      }
-      return { status: result.status };
-    },
-    readState: async (planId) => {
-      const result = await stateStore.read(planId);
-      return result.status === "refused"
-        ? { status: "refused" }
-        : result.value === null
-          ? { status: "ok", value: null, revision: null }
-          : { status: "ok", value: result.value.value, revision: result.value.revision };
-    },
+  return inspectRepositoryDeliveryEntryAt({
+    cwd,
+    taskListPath,
+    request: DeliveryEntryInspectionRequestSchema.parse({ workUnitId: active.name, ...input }),
+    baseBranch: settings["branch.base"],
+    exec: createGitExec(interaction?.subprocess),
   });
 }

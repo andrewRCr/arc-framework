@@ -276,7 +276,7 @@ Full review finished.`,
 
     await expect(adapter.observeHandle(target)).resolves.toEqual({
       kind: "terminal-failure",
-      reason: "malformed-provider-actionable-count",
+      reason: `provider-actionable-count-invalid: {"value":"${count}"}`,
     });
   });
 
@@ -406,12 +406,117 @@ This finding has no inline review thread.
     });
   });
 
+  it("ignores a provider-owned Markdown blockquote around outside-diff comments", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `> [!CAUTION]
+> Some comments are outside the diff and can’t be posted inline due to platform limitations.
+>
+> <details>
+> <summary>⚠️ Outside diff range comments (1)</summary><blockquote>
+>
+> <details>
+> <summary>src/legacy.ts (1)</summary><blockquote>
+>
+> \`12\`: _🩺 Stability & Availability_ | _🟡 Minor_ | _⚡ Quick win_
+>
+> **Preserve the compatibility boundary.**
+>
+> This finding has no inline review thread.
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{
+        origin: "review-body",
+        settlement: "not-applicable",
+        locus: "src/legacy.ts:12",
+      }],
+    });
+  });
+
+  it("does not require adjacent HTML blockquote tags to recognize supplemental sections", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `<details>
+<summary>⚠️ Outside diff range comments (1)</summary>
+<blockquote>
+
+<details>
+<summary>src/legacy.ts (1)</summary>
+<blockquote>
+
+\`12\`: _🩺 Stability & Availability_ | _🟡 Minor_ | _⚡ Quick win_
+
+**Preserve the compatibility boundary.**
+
+<!-- cr-comment:v1:1234567890abcdef12345678 -->
+
+</blockquote></details>
+</blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ locus: "src/legacy.ts:12" }],
+    });
+  });
+
+  it("rejects supplemental findings that contain only locus and severity metadata", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `<summary>⚠️ Outside diff comments (1)</summary>
+<summary>src/legacy.ts (1)</summary>
+
+\`12\`: _🩺 Stability & Availability_ | _🟡 Minor_
+
+<!-- cr-comment:v1:1234567890abcdef12345678 -->`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-body-finding-empty: "
+        + "{\"category\":\"outside-diff\",\"group\":\"src/legacy.ts\","
+        + "\"fingerprint\":\"1234567890abcdef12345678\"}",
+    });
+  });
+
+  it("identifies the supplemental finding component that could not be parsed", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `<summary>⚠️ Outside diff comments (1)</summary>
+<summary>src/legacy.ts (1)</summary>
+
+line 12: _🩺 Stability & Availability_ | _🟡 Minor_
+
+<!-- cr-comment:v1:1234567890abcdef12345678 -->`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-body-finding-locus-unrecognized: "
+        + "{\"category\":\"outside-diff\",\"group\":\"src/legacy.ts\","
+        + "\"fingerprint\":\"1234567890abcdef12345678\"}",
+    });
+  });
+
   it.each([
     {
       name: "inline count",
       review: review({ state: "changes-requested", body: "**Actionable comments posted: 2**" }),
       threads: [findingThread("_🟠 Major_ broken boundary")],
-      reason: "provider-actionable-finding-count-mismatch",
+      reason: "provider-actionable-finding-count-mismatch: "
+        + "{\"advertised\":2,\"inline\":1,\"outsideDiff\":0,\"nitpick\":0}",
     },
     {
       name: "review-body count",
@@ -434,7 +539,8 @@ This finding has no inline review thread.
 </blockquote></details>`,
       }),
       threads: [],
-      reason: "provider-nitpick-group-count-mismatch",
+      reason: "provider-supplemental-group-count-mismatch: "
+        + "{\"category\":\"nitpick\",\"advertised\":2,\"groupTotal\":1}",
     },
   ])("fails closed when the advertised $name cannot be reconciled", async (input) => {
     const adapter = new CodeRabbitHostedAdapter(port({
@@ -462,7 +568,11 @@ This finding has no inline review thread.
 
     await expect(rateLimited.request(target, "complete")).resolves.toEqual({ kind: "rate-limited" });
     await expect(transient.observeHandle(target)).resolves.toEqual({ kind: "transient-unavailable" });
-    await expect(malformed.observeHandle(target)).resolves.toMatchObject({ kind: "terminal-failure" });
+    await expect(malformed.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-thread-finding-severity-unrecognized: "
+        + "{\"threadId\":\"PRRT_1\",\"commentId\":\"123\",\"path\":\"src/a.ts\",\"line\":7}",
+    });
   });
 
   it("threads bounded-await cancellation through every hosted read", async () => {

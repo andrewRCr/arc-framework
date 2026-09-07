@@ -87,11 +87,14 @@ phase — see [§ Verification Phase](#verification-phase)). Count tracks the wo
 
 ### Phase Preamble
 
-Lines between the phase heading and its first parent task heading. Required: `_Purpose:_` line
-(italic) — what the phase delivers and why this granularity. Optional: `_Design decisions:_`
-block summarizing the key calls (one or two short paragraphs; link to `notes-{name}.md` for
-full rationale, alternatives considered, and risks). Soft cap ~12 lines per preamble —
-anything longer belongs in the notes file.
+Lines between the phase heading and its first parent task heading. When a Delivery Plan is present, open with one
+`**Delivery member:**` pointer carrying the ordinal and a backticked chunk key for each member represented in the
+phase, then the required `_Purpose:_` line (italic) — what the phase delivers and why this granularity. The pointer
+is reader orientation,
+not assignment authority: members bind to tasks through the delivery coverage table, never to whole phases. It
+carries the stable ordinal and chunk key, never the free-text member title. Optional: `_Design decisions:_` block
+summarizing the key calls (one or two short paragraphs; link to `notes-{name}.md` for full rationale, alternatives
+considered, and risks). Soft cap ~12 lines per preamble — anything longer belongs in the notes file.
 
 ### Parent Tasks
 
@@ -353,7 +356,18 @@ phases per layer with the same grouped pattern in each, plus a cross-layer valid
 
 ## Verification Phase
 
-Required final phase of every task list — a single task pointing to
+When a Delivery Plan is present, each member task range ends with an assigned member-scope verification parent. It
+is the final assigned task in that member range, and its title ends with the exact role suffix
+`— validate criteria at member scope`:
+
+```markdown
+### `[ ]` **M.N {Member closing title} — validate criteria at member scope**
+```
+
+This member verifier records the boundary criteria report; it does not replace or multiply the sole terminal
+work-unit verification task.
+
+The required final phase of every task list contains that single terminal task pointing to
 [`verify-work-unit.md`][verify-work-unit]:
 
 ```markdown
@@ -373,20 +387,27 @@ Required final section of every task list. Each Scope "Will Do" item maps to a v
 criterion — the checkable operationalization of the PRD's success criteria. See
 [`template-tasks.md`][template-tasks] for the block.
 
-Checked during the [verification phase](#verification-phase), not during implementation or
-archival. Markers backtick-wrapped (matching parent + subtask convention — see
-[§ Subtasks](#subtasks-third-level) for rationale). Always include "All quality gates pass"
-and "Ready for integration" as standard items. Criterion text is immutable — never rewrite
-to match actual implementation. Do not duplicate the PRD's criteria verbatim — operationalize
-them into checkable items.
+When a Delivery Plan is present, group criteria beneath plain `### Member {ordinal} —` headings carrying a
+backticked chunk key and one `### Cross-member seams` heading. A member's ordinary closing task walks its group;
+terminal verification walks
+the seam group and dispositions member groups from their recorded boundary evidence. Assign each criterion to the
+earliest member boundary whose validator can see its evidence; criteria that no member boundary can see belong to
+the seam group. A single-deliverable work unit omits the subgroup headings and retains the flat form.
 
-**Three states** (applied during [`verify-work-unit.md`][verify-work-unit]):
+Headings group; indentation must not. Criterion checkboxes stay at root indent. Two or three leading spaces make a
+criterion inert content and silently drop it from the walk; four or more spaces parse as a subtask without an open
+parent and refuse the task list. A root criterion whose body begins with a task-ID-like token also refuses rather
+than becoming a criterion.
 
-| Marker | Meaning    | Annotation                                                   |
-|--------|------------|--------------------------------------------------------------|
-| `[x]`  | Met        | None needed, or **Deviation** note if addressed differently  |
-| `[~]`  | Superseded | **Superseded** note required — why dropped/deferred          |
-| `[ ]`  | Not met    | Genuine gap — resolve before work is considered complete     |
+Grouped member criteria are checked through `validate-criteria` during each member's ordinary closing task.
+Those checks record boundary evidence but leave the markers unchanged. The terminal
+[verification phase](#verification-phase) consumes those reports, checks seam and union coherence, dispositions
+the member groups, and owns marker changes. Flat criteria are checked during terminal verification. Markers are
+backtick-wrapped
+(matching parent + subtask convention — see [§ Subtasks](#subtasks-third-level) for rationale). Always include
+"All quality gates pass" and "Ready for integration" as seam items for grouped criteria, or standard items in the
+flat form. The [`validate-criteria` method][validate-criteria] owns the three states and immutable-criterion-text
+rule. Do not duplicate the PRD's criteria verbatim — operationalize them into checkable items.
 
 All items must be `[x]` or `[~]` (with annotations) before running archive. Any remaining
 `[ ]` represent genuine gaps requiring resolution.
@@ -405,6 +426,7 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 [generate-tasks]: ../../../system/workflows/arc/generate-tasks.md
 [process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
+[validate-criteria]: ../../../system/methods/validate-criteria.md
 [arc-methods-tf]: ../../../system/methods/test-first.md
 [template-tasks]: ../../templates/arc/work-unit/template-tasks.md
 [work-org-wu-headers]: strategy-work-organization.md#wu-artifact-headers

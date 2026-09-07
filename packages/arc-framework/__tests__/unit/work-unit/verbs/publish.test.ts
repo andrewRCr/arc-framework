@@ -221,6 +221,7 @@ const BASE: PublishParams = {
     policy: null,
     reservation: null,
     terminus: null,
+    deliveryReviewTermini: [],
   },
 };
 
@@ -268,6 +269,7 @@ describe("authorizeSubmission", () => {
         policy: null,
         reservation: null,
         terminus: null,
+        deliveryReviewTermini: [],
       },
     })).toEqual({
       status: "refused",
@@ -310,6 +312,7 @@ describe("authorizeSubmission", () => {
         policy: null,
         reservation,
         terminus: null,
+        deliveryReviewTermini: [],
       },
     })).toEqual({ status: "authorized", reservation, terminus: null });
   });

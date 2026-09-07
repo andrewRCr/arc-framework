@@ -188,6 +188,7 @@ describe("update integration — baseline (real recipe)", () => {
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
         "session-state", "spec-review", "task-audit", "test-first",
+        "validate-criteria",
       ].map((n) => `system/methods/${n}.md`),
       ...[
         "post-context-load", "post-task-completion", "post-task-quality",

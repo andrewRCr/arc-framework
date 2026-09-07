@@ -37,6 +37,14 @@ on:
 permissions:
   contents: read
 
+# Local Vitest runs keep their own 50% shared-machine default. In CI, an ordinary
+# GitHub-hosted Linux runner uses native sizing; selecting a custom Linux runner
+# defaults to one worker so multiple jobs and their CLI/Git subprocesses fit a
+# constrained host. The repository variable can retune that fleet without a code
+# change.
+env:
+  VITEST_MAX_WORKERS: ${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}
+
 # Cancel superseded work for the same ref. The group deliberately omits the
 # event name: a label toggle and a push against one pull request are the same
 # lane of work, and keying on the event let them run concurrently, paying twice
@@ -450,6 +458,9 @@ jobs:
     name: Portability targeted
     permissions:
       contents: read
+    # The Linux fleet capacity policy does not constrain hosted Windows/macOS.
+    env:
+      VITEST_MAX_WORKERS: ''
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || github.event_name == 'schedule' }}
     strategy:
       fail-fast: false

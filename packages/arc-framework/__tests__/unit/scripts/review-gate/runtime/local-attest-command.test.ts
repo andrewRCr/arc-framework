@@ -10,7 +10,10 @@ import type {
   LocalReviewAuthority,
 } from "../../../../../src/scripts/review-gate/core/local-review-authority.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
-import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import type {
+  LocalReviewState,
+  ReviewOperationState,
+} from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
@@ -152,7 +155,7 @@ describe("local attest command", () => {
       ledgerVersion: 1,
       durableEvidenceRef: "receipt.json#1",
     }));
-    const publishOperation = vi.fn();
+    let published: ReviewOperationState | null = null;
 
     await expect(attestLocalReviewCommand({
       schemaVersion: 1,
@@ -162,7 +165,10 @@ describe("local attest command", () => {
       withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
-        publishOperation,
+        publishOperation: async (state) => {
+          published = state;
+          return { version: 2 };
+        },
       },
       sourceStore: {
         readSource: async () => records.source,
@@ -187,16 +193,20 @@ describe("local attest command", () => {
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
     }), 0);
-    expect(publishOperation).toHaveBeenCalledWith(expect.objectContaining({
+    expect(published).toMatchObject({
       kind: "lane-progress",
       completedPasses: 1,
-      attempts: [{
+      attempts: [expect.objectContaining({
         attemptId: records.operation.operationId,
         sourceId: records.operation.laneSourceId,
         outcome: "clean",
         chunkSeriesComplete: true,
-      }],
-    }), 1);
+        local: {
+          vehicle: records.operation.vehicle,
+          target: records.operation.target,
+        },
+      })],
+    });
   });
 
   it("returns not-attestable for a non-terminal result without reading source or receipts", async () => {
@@ -240,7 +250,7 @@ describe("local attest command", () => {
     ["failed", "terminal-failure"],
   ] as const)("classifies and releases a %s evaluator attempt before recomposition", async (status, outcome) => {
     const records = fixture();
-    const publishOperation = vi.fn();
+    let published: ReviewOperationState | null = null;
     const release = vi.fn(async () => undefined);
     const readSource = vi.fn();
     const readReceipts = vi.fn();
@@ -258,7 +268,10 @@ describe("local attest command", () => {
       withSourceLock,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
-        publishOperation,
+        publishOperation: async (state) => {
+          published = state;
+          return { version: 2 };
+        },
       },
       sourceStore: { readSource, appendSource: vi.fn() },
       receiptStore: { readReceipts, appendReceipt: vi.fn() },
@@ -274,17 +287,21 @@ describe("local attest command", () => {
       payload: { result: { status, result: null } },
     });
     if (outcome === null) {
-      expect(publishOperation).not.toHaveBeenCalled();
+      expect(published).toBeNull();
     } else {
-      expect(publishOperation).toHaveBeenCalledWith(expect.objectContaining({
+      expect(published).toMatchObject({
         kind: "lane-progress",
         completedPasses: 0,
-        attempts: [{
+        attempts: [expect.objectContaining({
           attemptId: records.operation.operationId,
           sourceId: records.operation.laneSourceId,
           outcome,
-        }],
-      }), 1);
+          local: {
+            vehicle: records.operation.vehicle,
+            target: records.operation.target,
+          },
+        })],
+      });
     }
     expect(release).toHaveBeenCalledWith(records.operation.operationId);
     expect(readSource).not.toHaveBeenCalled();
@@ -828,7 +845,7 @@ describe("local attest command", () => {
 
     it("re-resolves the persisted member vehicle from the head its target pins", async () => {
       const records = fixture(memberVehicle);
-      // The control locus resolves its own work unit unless a member head is named,
+      // The originating locus resolves its own work unit unless a member head is named,
       // so a resolution that never receives the selector derives the wrong vehicle.
       const resolveAuthority = vi.fn(async (
         _evaluatorIdentity: string,
@@ -852,7 +869,7 @@ describe("local attest command", () => {
 
     it("names no member for a work-unit operation whose head is itself delivery-bound", async () => {
       const records = fixture();
-      // A terminal member's pull request is opened from the control branch, so that
+      // A terminal member's pull request is opened from the work-unit branch, so that
       // head resolves to a member — an unconditional supply would adopt it here.
       const resolveAuthority = vi.fn(async (
         _evaluatorIdentity: string,

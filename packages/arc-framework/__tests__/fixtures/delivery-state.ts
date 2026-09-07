@@ -28,10 +28,11 @@ export function deliveryStateFixture(
       changeRequest: null,
       coordinates: {
         base: "3".repeat(40),
-        head: String(index + 4).repeat(40),
-        tree: String(index + 6).repeat(40),
+        head: (index + 4).toString(16).repeat(40),
+        tree: (index + 6).toString(16).repeat(40),
       },
     })),
     activeOperation: null,
+    pendingReviewFixVerification: null,
   });
 }

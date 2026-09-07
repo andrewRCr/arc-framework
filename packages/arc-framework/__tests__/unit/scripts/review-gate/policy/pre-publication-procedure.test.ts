@@ -11,9 +11,12 @@ import {
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
+  parseIntegrationBoundaryLocus,
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
+  projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
+  recoverIntegratingBoundary,
   recoverPublicationBoundary,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -102,6 +105,199 @@ describe("integration boundary locus", () => {
     });
   });
 
+  it("routes a public delivery reservation through provider-neutral member status", () => {
+    expect(projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    })).toMatchObject({
+      locus: "delivery-status-required",
+      nextAction: {
+        kind: "resolve-delivery-status",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
+      },
+    });
+  });
+
+  it("normalizes the exact legacy delivery placeholder during a persisted-boundary read", () => {
+    const current = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+    if (current.nextAction.kind !== "resolve-delivery-status") {
+      throw new Error("expected delivery status");
+    }
+    const legacy = {
+      ...current,
+      locus: "hosted-review-pending" as const,
+      nextAction: {
+        kind: "continue-hosted-review" as const,
+        command: "arc review status --target '{targetRef}' --json" as const,
+        interactionText: current.nextAction.interactionText,
+      },
+    };
+
+    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
+      locus: "delivery-status-required",
+      nextAction: {
+        kind: "resolve-delivery-status",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
+        interactionText: "Resolve the retained delivery status.",
+      },
+    });
+  });
+
+  it("normalizes the former work-unit delivery action without admitting it as a canonical boundary", () => {
+    const current = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+    const legacy = {
+      ...current,
+      locus: "hosted-review-pending" as const,
+      nextAction: {
+        ...current.nextAction,
+        kind: "continue-hosted-review" as const,
+        interactionText: "Resume the retained delivery-member review conjunction.",
+      },
+    };
+
+    expect(IntegrationBoundaryLocusSchema.safeParse(legacy).success).toBe(false);
+    expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
+      locus: "delivery-status-required",
+      nextAction: {
+        kind: "resolve-delivery-status",
+        interactionText: "Resolve the retained delivery status.",
+      },
+    });
+  });
+
+  it("rebinds the carried public delivery reservation to one exact renewed-Candidate continuation", () => {
+    const sourceCandidateId = `sha256:${"c".repeat(64)}`;
+    const currentCandidateId = `sha256:${"d".repeat(64)}`;
+    const memberTerminus = {
+      vehicle: {
+        kind: "delivery-member" as const,
+        planId: "11111111-1111-4111-8111-111111111111",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: "a".repeat(40),
+      },
+      terminus: ownerAcceptedTerminus,
+    };
+    const source = IntegrationBoundaryLocusSchema.parse({
+      ...projectPublicationBoundary({
+        workUnit: "example",
+        candidateId: sourceCandidateId,
+        candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
+        branch: "feat/example",
+        reservation: deliveryReservation(),
+        changeRequest: null,
+      }),
+      deliveryReviewTermini: [memberTerminus],
+    });
+    expect(IntegrationBoundaryLocusSchema.safeParse({
+      ...source,
+      deliveryReviewTermini: [memberTerminus, memberTerminus],
+    }).success).toBe(false);
+    const deliveryContinuation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId: "11111111-1111-4111-8111-111111111111",
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision: 7,
+      stateDigest: `sha256:${"2".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+    };
+
+    expect(projectCorrectiveDeliveryStatusBoundary({
+      workUnit: "example",
+      candidateId: currentCandidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      supersedesCandidateId: sourceCandidateId,
+      sourceBoundary: source,
+      deliveryContinuation,
+    })).toEqual({
+      schemaVersion: 1,
+      mode: "integration-boundary",
+      workUnit: "example",
+      candidateId: currentCandidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      locus: "delivery-status-required",
+      nextAction: {
+        kind: "resolve-delivery-status",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
+        interactionText: "Resolve the retained delivery status.",
+      },
+      policy: null,
+      reservation: source.reservation,
+      terminus: source.terminus,
+      deliveryReviewTermini: [memberTerminus],
+      deliveryContinuation,
+    });
+  });
+
+  it("refreshes a same-Candidate continuation from newer exact delivery evidence", () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    const source = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: null,
+    });
+    const firstContinuation = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "delivery-public-review-continuation/v1" as const,
+      planId: "11111111-1111-4111-8111-111111111111",
+      planRevision: 1,
+      planDigest: `sha256:${"1".repeat(64)}`,
+      stateRevision: 7,
+      stateDigest: `sha256:${"2".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+    };
+    const carried = projectCorrectiveDeliveryStatusBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      supersedesCandidateId: null,
+      sourceBoundary: source,
+      deliveryContinuation: firstContinuation,
+    });
+    const refreshedContinuation = {
+      ...firstContinuation,
+      stateRevision: 8,
+      stateDigest: `sha256:${"4".repeat(64)}`,
+      memberEvidenceDigest: `sha256:${"5".repeat(64)}`,
+    };
+
+    expect(projectCorrectiveDeliveryStatusBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      supersedesCandidateId: null,
+      sourceBoundary: carried,
+      deliveryContinuation: refreshedContinuation,
+    })).toMatchObject({
+      candidateId,
+      reservation: source.reservation,
+      deliveryContinuation: refreshedContinuation,
+    });
+  });
+
   it("rebinds a carried publication boundary to an approved Candidate response subject", () => {
     const candidateId = `sha256:${"c".repeat(64)}`;
     const priorSubjectDigest = `sha256:${"d".repeat(64)}`;
@@ -125,6 +321,23 @@ describe("integration boundary locus", () => {
       ...carried,
       candidateSubjectDigest: currentSubjectDigest,
     });
+  });
+
+  it("recovers an exact Candidate-review boundary while the work unit remains Integrating", () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+    const stored = projectCandidateReviewBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+    });
+
+    expect(recoverIntegratingBoundary({
+      stored,
+      workUnit: "example",
+      branch: "feat/example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+    })).toEqual(stored);
   });
 
   it("carries an Owner-accepted terminus through convergence resume and publication", () => {
@@ -157,7 +370,6 @@ describe("integration boundary locus", () => {
     "continue-frontline-review",
     "continue-standard-review",
     "respond-to-findings",
-    "continue-hosted-review",
   ])("rejects removed next-action kind %s", (kind) => {
     expect(IntegrationBoundaryLocusSchema.safeParse({
       ...projectCandidateReviewBoundary({
@@ -166,6 +378,42 @@ describe("integration boundary locus", () => {
       }),
       nextAction: {
         kind,
+        command: "arc review pre-publication example --json",
+        interactionText: "Continue review.",
+      },
+    }).success).toBe(false);
+  });
+
+  it("rejects hosted-review actions that disagree with the reservation target kind", () => {
+    const singleton = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: reservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+
+    expect(IntegrationBoundaryLocusSchema.safeParse({
+      ...singleton,
+      nextAction: {
+        kind: "continue-hosted-review",
+        workUnitId: "example",
+        command: "arc review status --work-unit example --json",
+        interactionText: "Resume hosted review.",
+      },
+    }).success).toBe(false);
+
+    const delivery = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+    expect(IntegrationBoundaryLocusSchema.safeParse({
+      ...delivery,
+      nextAction: {
+        kind: "continue-pre-publication-review",
         command: "arc review pre-publication example --json",
         interactionText: "Continue review.",
       },
@@ -214,11 +462,30 @@ function reservation() {
   });
 }
 
+function deliveryReservation() {
+  return createStandardReviewReservation({
+    candidateId: `sha256:${"c".repeat(64)}`,
+    sourceId: "coderabbit-pr",
+    target: {
+      kind: "delivery",
+      repository: "arc-framework/example",
+      workUnitId: "example",
+      planId: "11111111-1111-4111-8111-111111111111",
+    },
+    obligation: standardReview,
+  });
+}
+
 function request(overrides: Record<string, unknown> = {}) {
   return {
     schemaVersion: 1,
     workUnit: "example",
     candidateId: `sha256:${"c".repeat(64)}`,
+    reservationTarget: {
+      kind: "pinned-head",
+      repository: target.repository,
+      headSha: target.headSha,
+    },
     selfReview: "pending",
     frontline: {
       schemaVersion: 1,
@@ -305,7 +572,7 @@ describe("projectPrePublicationReview", () => {
       reservation: {
         reservationId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
         sources: ["codex-pr", "delegated-agent"],
-        target: { repository: target.repository, headSha: target.headSha },
+        target: { kind: "pinned-head", repository: target.repository, headSha: target.headSha },
         obligation: standardReview,
       },
       nextAction: { kind: "publish-candidate" },
@@ -666,7 +933,7 @@ function candidateRecord(): CandidateManagedRecordV1 {
       verificationEvidenceRef: "verification://root",
     }),
     subject: rootSubject,
-    responses: [],
+    transitions: [],
     lineageAttestations: [],
   };
 }
@@ -676,6 +943,7 @@ describe("Candidate delta verification", () => {
     const record = candidateRecord();
     const projection = projectCandidateDeltaVerification({
       record,
+      oldTarget: { revision: record.attestation.baseRevision, subject: record.subject },
       current: { revision: "d".repeat(40), subject: subject("fixed") },
     });
 
@@ -706,6 +974,7 @@ describe("Candidate delta verification", () => {
     const record = candidateRecord();
     const projection = projectCandidateDeltaVerification({
       record,
+      oldTarget: { revision: record.attestation.baseRevision, subject: record.subject },
       current: { revision: "d".repeat(40), subject: subject("fixed") },
     });
 

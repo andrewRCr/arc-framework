@@ -17,9 +17,12 @@ const binding = (overrides: Partial<DeliveryMemberBinding> = {}): DeliveryMember
   deliverableId: DELIVERABLE_ID,
   workUnitId: "review-surface-binding",
   base: "b".repeat(40),
+  baseRef: "main",
   head: MEMBER_HEAD,
+  candidateHead: MEMBER_HEAD,
   isFinalMember: false,
   ...overrides,
+  headRef: overrides.headRef === undefined ? "delivery/stack-1/member-1" : overrides.headRef,
 });
 
 const lookupOf = (result: DeliveryMemberLookupResult): DeliveryMemberLookup => ({
@@ -124,7 +127,7 @@ describe("local review actor authority", () => {
     )).rejects.toThrow(/delivery-state-unavailable/u);
   });
 
-  it("yields a member vehicle when the named head belongs to the control locus's work unit", async () => {
+  it("yields a member vehicle when the named head belongs to the originating locus's work unit", async () => {
     const memberLookup = lookupOf({ status: "resolved", member: binding() });
 
     await expect(resolveLocalReviewAuthority(

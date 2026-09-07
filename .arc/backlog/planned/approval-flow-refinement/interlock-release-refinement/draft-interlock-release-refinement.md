@@ -23,14 +23,6 @@ atomic companion and the personal atomic inbox.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-### `[ ]` **Make asynchronous reviewed-lane Errand settlement explicit**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
-- _Concern:_ reviewed-lane Errands always release the lock and park as `awaiting-merge`, even after exact-head
-  integration authorization and waived review, leaving an unnecessary retained tail.
-- _Approach:_ make synchronous exact-head merge-and-close the normal authorized path; retain `awaiting-merge` only
-  for an explicit asynchronous-review/later-merge choice, preserving re-lock and failure behavior.
-
 ### `[ ]` **Resolve commit-footer artifacts across lifecycle locations**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
@@ -89,8 +81,7 @@ atomic companion and the personal atomic inbox.
   provenance (the commit leg can read the `Context: standalone (…)` / archival footer, but the push leg has no
   message and must key off branch shape) — plus a two-handler + resolver + test-matrix surface over the granularity
   line. The fix must also **keep refusing the multi-candidate ambiguity** case (today both collapse to code 10).
-  The dependent facets below (archival-ceremony tooling, errand approval-collapse) stay here and build on the
-  shipped wrapper change.
+  The archival-ceremony tooling below stays here and builds on the shipped wrapper change.
 - _Coordination:_ dedups with the archival-ceremony-tooling concern now folded in directly below (its remaining
   facets), routed here when `BACKLOG-INBOX` was retired (2026-06-01).
 
@@ -115,27 +106,6 @@ atomic companion and the personal atomic inbox.
   platform-light and explicit first; GitHub inference can layer on later from the integration wrapper.
 - _Scope:_ Quick-tier — a workflow step plus a hook tweak that rides the wrapper-archival work above.
 
-### `[ ]` **Errand approval-collapse: one increment-approval releases the full tail (commit → push → merge → delete)**
-
-- _Routed from:_ follow-up housekeep drain (2026-06-01), surfaced running this session's errands.
-- _Concern:_ an errand is one review increment by definition, so the diff approved at the workflow-interlock IS
-  the complete shipping diff — yet the agent re-prompts at the integration-interlock, and the harness prompts
-  again for each of commit, push, merge, and branch-delete. Four-plus permission stops for a single approved
-  one-line change. The wrapper-routing work above covers the _commit_ leg by approval-provenance, not the
-  errand-specific collapse of the whole tail.
-- _Shape (provisional):_ a configurable mode — modeled on `commit.interlock: on-task-approval` (the existing
-  "one approval releases the next" precedent) — where a single errand increment-approval arms the rest:
-  commit + push + merge + branch-delete fire without re-prompting, with CI + `pre-merge` still gating the
-  actual merge (auto-merge-style). Trigger framed as _one increment_ (an errand-class property), not "one
-  commit." Self-review/lane-aware: in a team the integration stop still carries cross-owner review weight, so
-  the collapse is opt-in and self-review-scoped.
-- _New surface this exposes:_ `push` has `arc release push`, but **merge and branch-delete have no wrapper
-  coverage today** — collapsing the full tail likely requires the wrapper layer to grow (or an errand-finalize
-  wrapper carrying merge + teardown under one validated approval).
-- _Composition:_ with the wrapper-routing migration above (provenance-driven commit routing) and the
-  commit-interlock inclusive-semantic item below. All three are facets of "one approval, then routing follows
-  opt-in + interlock mode."
-
 ### `[ ]` **Scale interlock intensity by work character, decision density, and explicit trust grants**
 
 - _Routed from:_ pre-`finalize-parallelism` errand drain (2026-07-03), after several tiny routing / grooming /
@@ -147,17 +117,16 @@ atomic companion and the personal atomic inbox.
   may want eyes on some reviewed-lane changes while also granting the agent autonomy for known-safe errand classes
   ("lint green → commit, PR, and auto-merge this grooming cleanup; stop for code, design authority, conflicts, or
   uncertainty").
-- _Fold-in:_ design a unified **interlock-intensity / trust-grant model** rather than one-off collapses. Inputs to
+- _Fold-in:_ design a unified **interlock-intensity / trust-grant model** for release-wrapper routing. Inputs to
   price: work character (`Errand` vs WU), artifact/lane risk (code, design-authority, constitutional docs, movable
   planning artifacts), decision density / ambiguity, ownership context (self-review vs team/foreign-owner), and an
   explicit approval-provenance source with declared scope. The floor remains EDD's principle: no judgment without
-  a gate, and no gate without a decision. Outputs may include configurable/autonomy modes for errand and grooming
-  tails, but must preserve CI, `pre-merge` when active, lane requirements, and no self-escalation beyond the
-  human's declared grant.
-- _Composition:_ generalizes the errand approval-collapse and integration-stacking items; coordinates with
-  `unit-scoped-review` for the WU-scale application and `execution-delegation-doctrine` for the constitutional
-  anchor. `finalize-parallelism` burn-in should feed concrete evidence of which stops are decision-bearing versus
-  routine confirmation under real errand / grooming batches.
+  a gate, and no gate without a decision. Outputs may include configurable autonomy for commit and push fires, but
+  must preserve lane requirements and no self-escalation beyond the human's declared grant. Integration settlement,
+  merge authorization, merge execution, and teardown remain outside this wrapper-routing WU.
+- _Composition:_ coordinates with `unit-scoped-review` for the WU-scale commit/push application and
+  `execution-delegation-doctrine` for the constitutional anchor. `finalize-parallelism` burn-in should feed concrete
+  evidence of which wrapper stops are decision-bearing versus routine confirmation under real batches.
 
 ### `[ ]` **Audit interlock-marker convention adoption across remaining workflows**
 
@@ -180,19 +149,6 @@ atomic companion and the personal atomic inbox.
   iteration so the two WUs don't both edit the same callouts.
 - _Scope:_ Quick-tier (touches `.arc/system/workflows/`); package-source-primary with `.arc/` mirror sync.
 
-### `[ ]` **Coordinate the "release the tail" pattern with the new sibling `unit-scoped-review`**
-
-- _Coordination (cross-member, 2026-06-15):_ `unit-scoped-review` joined the cohort — it widens the _review_
-  increment to whole-WU scope. Its batch authorization is the same "one approval releases the tail" pattern as
-  this WU's errand approval-collapse, at _WU_ scope rather than _errand_ scope — but it **stops at validation**
-  (the integration interlock holds; it does **not** collapse the merge). Align the two framings; don't diverge.
-- _Pre-flight config gate:_ its batch mode requires a non-blocking commit/push path, consuming this WU's
-  wrapper-routing + approval-provenance work (the precondition check is `unit-scoped-review`'s; the friction
-  fixes are this WU's). Bypass is **not** required — "normal harness config + release wrappers" (narrow
-  wrapper-allowlist + `releaseOptedIn`) is the expected common shape.
-- _Provenance:_ the approval-provenance-state concept (this WU's watch item + `commit-increments` § Unknowns)
-  composes with its WU-scoped batch authorization. See `cohort-approval-flow-refinement.md`.
-
 ### `[ ]` **`execution-delegation-doctrine` grounding: decision-bearing gates, scoped provenance, wrapper coverage**
 
 - _Routed from:_ `--plan` grooming session (2026-07-02) that minted `execution-delegation-doctrine`
@@ -203,39 +159,9 @@ atomic companion and the personal atomic inbox.
 - _Provenance source type:_ the approval-provenance state gains a source shape — a delegation/batch authorization
   is provenance with declared scope (composes with `unit-scoped-review`'s batch authorization already noted in
   the cohort doc; no structural change to this WU's routing core).
-- _Coverage mandate upgraded:_ the "merge and branch-delete have no wrapper coverage today" gap (errand
-  approval-collapse item above) is now **delegation-critical**, not just errand UX — a delegated/batched run's
-  mutating tail must flow entirely through narrowly-allowlistable, validated, audited envelopes, or mid-run
-  harness permission prompts stall a run the user authorized precisely so they could step away. Wrappers stay
-  constitutionally narrow (recognize new provenance shapes; never validate _less_ — ARC never self-escalates).
-  Same cohort sequence (this WU stays next after `adversarial-review`); upgraded rationale.
-
-### `[ ]` **Audit integration-time interlock stacking — collapse over-conservative stops**
-
-- _Routed from:_ `lifecycle-ux-polish` housekeep-drain discussion (2026-06-27) — raised as a session/WU-lifecycle
-  friction item, then routed here as cohort-core rather than a lifecycle-polish quick-win.
-- _Concern:_ integration carries more interlock stops than the work warrants, for both errands and WUs. The
-  conservative default stacks stops (increment/workflow approval → integration-interlock → per-leg
-  commit/push/merge/delete) where a single approved increment is already the complete shipping diff; in practice a
-  few should collapse (2→1, 3→2). Parallelism is starting up soon and the friction compounds across concurrent
-  sessions.
-- _Coordination:_ the **errand** half is this WU's existing _"Errand approval-collapse: one increment-approval
-  releases the full tail"_ buffer item — this is its WU-scope sibling. The **WU** half neighbors
-  `unit-scoped-review`, which today widens the review increment to WU scope but **deliberately stops at validation
-  (the integration interlock holds; it does not collapse the merge)** — so this proposes _evaluating_ whether the
-  integration stop itself can fold, which is a cohort design call against that current stance, not a given.
-- _Constraint:_ the integration-interlock is constitutionally **always-stop** (`DEV-RULES.ARC` — merge approval may
-  never be inferred). Any collapse must preserve an explicit merge authorization and keep CI / `pre-merge`
-  gating; likely opt-in + self-review-scoped (team integration still carries cross-owner review weight).
-- _Cheap tail:_ once the lines are drawn, the realization is small — markdown edits to the two workflows' interlock
-  callouts. The design (where to draw them, what still gates) is the work, and it is this cohort's, not a
-  `lifecycle-ux-polish` quick-win. Candidate for the same ahead-of-cohort extraction pattern this WU used for the
-  no-active-WU wrapper fix, given the parallelism motivation.
-- _Sequencing update (2026-07-02):_ `finalize-parallelism`'s milestone path was revised — this WU no longer
-  gates FP's start (inverted out of the hard pre-FP path). This item's options are now: slice-extract ahead of
-  the cohort as noted above, or — preferred — consume FP's burn-in evidence of which stops actually hurt under
-  real concurrency, post-waves. The behind-base reconcile-gate errand now carries its `integrate-work-unit` edit
-  alone; this WU rebases its interlock-callout edits onto it.
+- _Coverage boundary:_ delegated commit and push fires must flow through narrowly allowlistable, validated, audited
+  envelopes so a run does not stall on permission prompts already covered by the declared grant. Merge and branch
+  teardown stay with their lifecycle owners rather than expanding release wrappers into general integration verbs.
 
 ### `[ ]` **Settle whether the complex-commit path is workflow-emitted or off-workflow**
 

@@ -131,7 +131,11 @@ describe("resolveReviewChunkingCommand", () => {
   it("returns one bound-delivery remedy", async () => {
     const result = await resolveReviewChunkingCommand(request, {
       readSettings: async () => config("1", "0"),
-      readDeliveryBinding: async () => ({ status: "bound", planId: "plan-1" }),
+      readDeliveryBinding: async () => ({
+        status: "bound",
+        planId: "plan-1",
+        targetKind: "work-unit",
+      }),
       exec: async () => ({ stdout: new TextEncoder().encode("1\t0\tfile.txt\0") }),
     });
     expect(result).toMatchObject({

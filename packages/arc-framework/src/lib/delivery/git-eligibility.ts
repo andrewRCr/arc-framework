@@ -47,38 +47,62 @@ export async function inspectDeliveryCandidateCheckout(
   exec: GitExec,
   checkoutPath: string,
 ): Promise<(DeliveryEligibilityCoordinates & { readonly trackedDirty: boolean }) | null> {
+  return inspectDeliveryCheckoutDirt(exec, checkoutPath, "no");
+}
+
+async function inspectDeliveryCheckoutDirt(
+  exec: GitExec,
+  checkoutPath: string,
+  untrackedFiles: "no" | "all",
+): Promise<(DeliveryEligibilityCoordinates & { readonly trackedDirty: boolean }) | null> {
   const coordinates = await observeDeliveryEligibilityRef(
     (command, args, options) => exec(command, args, { ...options, cwd: checkoutPath }),
     "HEAD",
   );
   if (coordinates === null) return null;
   try {
-    const { stdout } = await exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=no"], {
-      cwd: checkoutPath,
-    });
+    const { stdout } = await exec(
+      "git",
+      ["status", "--porcelain=v1", "-z", `--untracked-files=${untrackedFiles}`],
+      { cwd: checkoutPath },
+    );
     return { ...coordinates, trackedDirty: stdout !== "" };
   } catch {
     return null;
   }
 }
 
-/** Read and compare the normalized control and final-candidate trees. */
+/**
+ * Inspect mutable correction authoring coordinates and all tracked, index, and untracked residue.
+ *
+ * @param exec - Git execution boundary.
+ * @param checkoutPath - Exact correction-authoring checkout path.
+ * @returns Current coordinates and dirt state, or null when either cannot be observed.
+ */
+export async function inspectDeliveryAuthoringCheckout(
+  exec: GitExec,
+  checkoutPath: string,
+): Promise<(DeliveryEligibilityCoordinates & { readonly trackedDirty: boolean }) | null> {
+  return inspectDeliveryCheckoutDirt(exec, checkoutPath, "all");
+}
+
+/** Read and compare the normalized top and final-candidate trees. */
 export async function compareGitNormalizedDeliveryTrees(input: {
   readonly exec: GitExec;
   readonly protectedBaseTree: string;
-  readonly controlTree: string;
+  readonly topTree: string;
   readonly finalCandidateTree: string;
   readonly lifecyclePaths: readonly string[];
 }): Promise<ReturnType<typeof compareNormalizedDeliveryTree> | { readonly status: "unavailable" }> {
-  const [protectedBase, control, finalCandidate] = await Promise.all([
+  const [protectedBase, top, finalCandidate] = await Promise.all([
     readDeliveryEligibilityTree(input.exec, input.protectedBaseTree),
-    readDeliveryEligibilityTree(input.exec, input.controlTree),
+    readDeliveryEligibilityTree(input.exec, input.topTree),
     readDeliveryEligibilityTree(input.exec, input.finalCandidateTree),
   ]);
-  if (protectedBase === null || control === null || finalCandidate === null) return { status: "unavailable" };
+  if (protectedBase === null || top === null || finalCandidate === null) return { status: "unavailable" };
   return compareNormalizedDeliveryTree({
     protectedBase,
-    control,
+    top,
     finalCandidate,
     lifecyclePaths: input.lifecyclePaths,
   });

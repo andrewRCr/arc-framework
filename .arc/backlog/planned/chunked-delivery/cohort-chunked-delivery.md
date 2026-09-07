@@ -169,10 +169,14 @@ review contracts; it does not begin with an assurance-group schema.
 ### `delivery-native-stack-composition`
 
 The v2 topology amendment, consolidated from the v1 self-delivery's field captures: every code-bearing member joins
-the provider stack and the top member is the ordinary terminal integration vehicle (the retained control branch and
-separate terminal request are removed); landing is bottom-up and non-blocking; restack/refresh mechanics delegate to
-the stack provider with ARC adopting the reobserved chain on structural contribution equivalence; native landing is
-the routed path for a registered stack. It preserves the plan/state contracts, member review admission, exact-head
+the stack chain and the top member is the ordinary terminal integration vehicle (the retained control branch and
+separate terminal request are removed); provider registration covers the non-terminal members, keeping the pushed
+WU branch outside provider rewrites; landing is bottom-up and non-blocking; restack/refresh mechanics delegate to
+the stack provider for the registered suffix, with ARC adopting the reobserved chain on structural contribution
+equivalence and the top absorbing movement by append-only predecessor merge; native landing is the routed path for
+a registered stack. It also owns member-boundary verification (member-scoped criteria slices and their firing
+cadence) and the per-member fan-out of a carried hosted-review reservation, the WU obligation discharging as the
+conjunction of member reviews. It preserves the plan/state contracts, member review admission, exact-head
 integration authority, and the complete unlinked landing path.
 
 ## V1 readiness
@@ -197,8 +201,11 @@ the cohort itself closes and archives.
   The shared boundary checkpoint splits along the same line: `delivery-stack-topology` owns the checkpoint chassis
   (the re-chartered `assess-boundary-fit` read and its delivery arm); doctrine owns the split-decision discriminator
   it dispatches to.
-- Existing review contracts own obligation, applicability, findings, and clearance. The external
-  `delivery-slice-review-vehicle` owns the narrow vehicle binding that names a delivery member and exact head.
+- Existing review contracts own obligation, findings, and clearance. Review **applicability** across
+  non-substantive head movement is owned by `delivery-native-stack-composition` (its spec's projection). The
+  shipped `delivery-slice-review-vehicle` owns the narrow vehicle binding that names a delivery member and exact
+  head; `delivery-native-stack-composition` extends the hosted request vehicle with a delivery-member arm that
+  composes with that binding.
 - `integration-boundary-accuracy` and `integration-lane` own shared integration naming and final-window behavior.
 - Storage remains abstract and version checked; delivery records do not assume tracked `.arc/` files or branch-derived
   work-unit identity.
@@ -210,7 +217,7 @@ the cohort itself closes and archives.
 `delivery-integration-target` was retired unimplemented (2026-08-15, at the `delivery-native-stack-composition`
 minting): its private-target accumulator shape is the topology defect the v2 amendment removes, and its activation
 threshold was never met. The retirement disposition — including where a genuinely stack-ineligible concern routes
-instead — is recorded in `draft-delivery-native-stack-composition.md`.
+instead — is recorded in `spec-delivery-native-stack-composition.md`.
 
 ## Scope estimate
 

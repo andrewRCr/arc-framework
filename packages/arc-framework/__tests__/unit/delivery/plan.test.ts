@@ -13,6 +13,7 @@ import {
   type DeliveryPlanV1,
 } from "../../../src/lib/delivery/schema.js";
 import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
+import { deliverySingleMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 
 const planId = "123e4567-e89b-42d3-a456-426614174000";
 
@@ -26,8 +27,13 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
       elements: [{ elementId: "detailed:R1" }, { elementId: "detailed:R2" }],
     },
     tasks: {
-      implementation: [{ taskId: "1.1" }, { taskId: "1.2" }],
-      verificationTaskId: "2.1",
+      parents: [
+        { taskId: "1.1", role: { kind: "implementation" } },
+        { taskId: "1.2", role: { kind: "verification", scope: "member" } },
+        { taskId: "1.3", role: { kind: "implementation" } },
+        { taskId: "1.4", role: { kind: "verification", scope: "member" } },
+        { taskId: "2.1", role: { kind: "verification", scope: "work-unit" } },
+      ],
     },
     entry: "from-tasks",
     projection: { kind: "wu-integration-target" },
@@ -36,7 +42,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         chunkKey: "first",
         title: "First member",
         contract: "Publish the first contract.",
-        taskIds: ["1.1"],
+        taskIds: ["1.1", "1.2"],
         designElementIds: ["detailed:R1"],
         mainlineLandability: "independently-landable",
       },
@@ -44,7 +50,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         chunkKey: "second",
         title: "Second member",
         contract: "Publish the second contract.",
-        taskIds: ["1.2"],
+        taskIds: ["1.3", "1.4"],
         designElementIds: ["detailed:R2"],
         mainlineLandability: "integration-only",
       },
@@ -66,16 +72,38 @@ function constructionInput(overrides: Partial<Parameters<typeof constructDeliver
     }],
   });
   if (design.status !== "bound") throw new Error("fixture design inventory must bind");
-  const implementation = [
-    { taskId: "1.1", semanticDigest: canonicalDigest({ goal: "First" }) },
-    { taskId: "1.2", semanticDigest: canonicalDigest({ goal: "Second" }) },
+  const parents = [
+    {
+      taskId: "1.1",
+      semanticDigest: canonicalDigest({ goal: "First" }),
+      role: { kind: "implementation" as const },
+    },
+    {
+      taskId: "1.2",
+      semanticDigest: canonicalDigest({ goal: "Verify first" }),
+      role: { kind: "verification" as const, scope: "member" },
+    },
+    {
+      taskId: "1.3",
+      semanticDigest: canonicalDigest({ goal: "Second" }),
+      role: { kind: "implementation" as const },
+    },
+    {
+      taskId: "1.4",
+      semanticDigest: canonicalDigest({ goal: "Verify second" }),
+      role: { kind: "verification" as const, scope: "member" },
+    },
+    {
+      taskId: "2.1",
+      semanticDigest: null,
+      role: { kind: "verification" as const, scope: "work-unit" },
+    },
   ];
   return {
     authoring: authoringInput(),
     taskInventory: {
-      inventoryDigest: canonicalDigest(implementation),
-      implementation,
-      verificationTaskId: "2.1",
+      inventoryDigest: canonicalDigest(parents),
+      parents,
     },
     designInventory: design.inventory,
     predecessor: null,
@@ -120,7 +148,6 @@ describe("constructDeliveryPlanRevision", () => {
     const authoring = authoringInput();
     authoring.members[0]!.taskIds = ["1.2", "1.1"];
     authoring.members[0]!.designElementIds = ["detailed:R2", "detailed:R1"];
-    authoring.members[1]!.taskIds = [];
     authoring.members[1]!.designElementIds = [];
 
     const result = constructDeliveryPlanRevision(constructionInput({ authoring }));
@@ -152,7 +179,7 @@ describe("constructDeliveryPlanRevision", () => {
 
   it("refuses authoring identities that disagree with the supplied inventories", () => {
     const taskAuthoring = authoringInput();
-    taskAuthoring.tasks.implementation = [{ taskId: "1.9" }];
+    taskAuthoring.tasks.parents = [{ taskId: "1.9", role: { kind: "implementation" } }];
     const taskResult = constructDeliveryPlanRevision(constructionInput({ authoring: taskAuthoring }));
     expect(taskResult).toEqual({
       status: "refused",
@@ -171,13 +198,37 @@ describe("constructDeliveryPlanRevision", () => {
   it("carries retrofit coverage gaps as advisories", () => {
     const authoring = authoringInput();
     authoring.entry = "from-branch";
-    authoring.members[1]!.taskIds = [];
+    authoring.members[1]!.taskIds = ["1.4"];
 
     const result = constructDeliveryPlanRevision(constructionInput({ authoring }));
 
     expect(result).toMatchObject({
       status: "constructed",
-      advisories: [{ kind: "uncovered-implementation-task", taskId: "1.2" }],
+      advisories: [{ kind: "uncovered-assignable-task", taskId: "1.3" }],
+    });
+  });
+
+  it("refuses a member whose final assigned task is not a member verifier", () => {
+    const input = constructionInput();
+    const authoredTask = input.authoring.tasks.parents.find((task) => task.taskId === "1.2");
+    if (authoredTask === undefined) throw new Error("expected authored task");
+    authoredTask.role = { kind: "implementation" };
+    const parents = input.taskInventory.parents.map((task) => task.taskId === "1.2"
+      ? { ...task, role: { kind: "implementation" as const } }
+      : task);
+
+    const result = constructDeliveryPlanRevision({
+      ...input,
+      taskInventory: {
+        ...input.taskInventory,
+        parents,
+        inventoryDigest: canonicalDigest(parents),
+      },
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      issues: [{ code: "member-verification-task-boundary" }],
     });
   });
 });
@@ -193,7 +244,6 @@ describe("validateDeliveryPlanRevision", () => {
   it("refuses a non-canonical set-like ordering", () => {
     const authoring = authoringInput();
     authoring.members[0]!.taskIds = ["1.2", "1.1"];
-    authoring.members[1]!.taskIds = [];
     const plan = structuredClone(constructedPlan(authoring));
     plan.members[0]!.taskIds = ["1.2", "1.1"];
 
@@ -214,11 +264,13 @@ describe("validateDeliveryPlanRevision", () => {
     expectIssue(redigest(uniqueness), "duplicate-member-chunk-key");
   });
 
-  it("refuses a verification task duplicated into the implementation inventory", () => {
+  it("requires exactly one terminal work-unit verifier", () => {
     const plan = structuredClone(constructedPlan());
-    plan.tasks.verificationTaskId = plan.tasks.implementation[0]!.taskId;
+    const terminal = plan.tasks.parents.at(-1)!;
+    terminal.role = { kind: "verification", scope: "member" };
+    terminal.semanticDigest = canonicalDigest({ goal: "Member close-out" });
 
-    expectIssue(redigest(plan), "verification-task-in-implementation");
+    expectIssue(redigest(plan), "work-unit-verification-task-ambiguous");
   });
 
   it("refuses a repeated seam design-element reference", () => {
@@ -255,18 +307,17 @@ describe("validateDeliveryPlanRevision", () => {
     expectIssue(redigest(plan), "seam-owner-mismatch");
   });
 
-  it("fires the declared task-coverage refinement", () => {
+  it("fires the declared task-coverage refinements", () => {
     const plan = structuredClone(constructedPlan());
     plan.members[1]!.taskIds = [];
 
-    expectIssue(redigest(plan), "uncovered-implementation-task");
+    expectIssue(redigest(plan), "member-task-order");
+    expectIssue(redigest(plan), "uncovered-assignable-task");
   });
 
-  it("refuses stack projection cardinality and landability defects", () => {
-    const tooShort = structuredClone(constructedPlan());
-    tooShort.projection = { kind: "stack-to-main" };
-    tooShort.members = tooShort.members.slice(0, 1);
-    expectIssue(redigest(tooShort), "stack-member-count");
+  it("admits a one-member stack and refuses landability defects", () => {
+    expect(validateDeliveryPlanRevision(deliverySingleMemberStackPlanFixture(), null))
+      .toMatchObject({ status: "valid" });
 
     const notLandable = structuredClone(constructedPlan());
     notLandable.projection = { kind: "stack-to-main" };
@@ -280,20 +331,27 @@ describe("validateDeliveryPlanRevision", () => {
     expectIssue(redigest(plan), "member-fingerprint-mismatch");
   });
 
-  it("re-derives member fingerprints from current inventory semantics", () => {
-    const first = constructedPlan();
-    const next = constructionInput({ predecessor: first });
-    const implementation = next.taskInventory.implementation.map((task) => (
+  it("re-derives member fingerprints from current task roles", () => {
+    const authoring = authoringInput();
+    const first = constructedPlan(authoring);
+    const next = constructionInput({
+      authoring: structuredClone(authoring),
+      predecessor: first,
+    });
+    const authoredTask = next.authoring.tasks.parents.find((task) => task.taskId === "1.1");
+    if (authoredTask === undefined) throw new Error("expected authored task");
+    authoredTask.role = { kind: "verification", scope: "segment" };
+    const parents = next.taskInventory.parents.map((task) => (
       task.taskId === "1.1"
-        ? { ...task, semanticDigest: canonicalDigest({ goal: "Current first-member semantics" }) }
+        ? { ...task, role: { kind: "verification" as const, scope: "segment" } }
         : task
     ));
     const result = constructDeliveryPlanRevision({
       ...next,
       taskInventory: {
         ...next.taskInventory,
-        implementation,
-        inventoryDigest: canonicalDigest(implementation),
+        parents,
+        inventoryDigest: canonicalDigest(parents),
       },
     });
 

@@ -9,6 +9,92 @@ import { mergeExpectedBase } from "../../../../src/scripts/base/merge.js";
 const oid = (character: string): string => character.repeat(40);
 
 describe("base merge composition", () => {
+  it("creates a merge commit only with the exact guarded divergence arguments", async () => {
+    const state = { head: oid("c") };
+    const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "status") return ok();
+      if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
+      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") throw new Error("no merge");
+      if (args[0] === "merge" && args.join(" ") === `merge --no-ff --no-edit ${oid("a")}`) {
+        state.head = oid("d");
+        return ok();
+      }
+      if (args[0] === "rev-list") return ok(`${state.head} ${oid("c")} ${oid("a")}\n`);
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+    const port = createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec });
+    await expect(port.mergeAppendOnly(oid("a"), oid("c"))).resolves.toEqual({
+      status: "merged",
+      headOid: oid("d"),
+    });
+    expect(state.head).toBe(oid("d"));
+  });
+
+  it("removes only an unexpected merge proven to start at the guarded head", async () => {
+    const state = { head: oid("c"), clean: true };
+    const updates: string[][] = [];
+    const resets: string[][] = [];
+    const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "status") return ok(state.clean ? "" : " M merged.txt");
+      if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
+      if (args[0] === "merge") {
+        state.head = oid("d");
+        return ok();
+      }
+      if (args[0] === "rev-list") return ok(`${state.head} ${oid("c")} ${oid("e")}\n`);
+      if (args[0] === "update-ref") {
+        updates.push([...args]);
+        expect(args).toEqual(["update-ref", "HEAD", oid("c"), oid("d")]);
+        state.head = oid("c");
+        state.clean = false;
+        return ok();
+      }
+      if (args[0] === "reset") {
+        resets.push([...args]);
+        state.clean = true;
+        return ok();
+      }
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec })
+      .mergeAppendOnly(oid("a"), oid("c")))
+      .rejects.toThrow("Git created a merge commit with unexpected parents.");
+    expect(state).toEqual({ head: oid("c"), clean: true });
+    expect(updates).toHaveLength(1);
+    expect(resets).toEqual([["reset", "--hard", "HEAD"]]);
+  });
+
+  it("does not reset a foreign commit that advances HEAD after the merge", async () => {
+    const state = { head: oid("c") };
+    const mutations: string[][] = [];
+    const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "status") return ok();
+      if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
+      if (args[0] === "merge") {
+        state.head = oid("d");
+        state.head = oid("e");
+        return ok();
+      }
+      if (args[0] === "rev-list") return ok(`${state.head} ${oid("d")}\n`);
+      if (args[0] === "update-ref" || args[0] === "reset") {
+        mutations.push([...args]);
+        return ok();
+      }
+      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") throw new Error("no merge");
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec })
+      .mergeAppendOnly(oid("a"), oid("c")))
+      .rejects.toThrow("Git created a merge commit with unexpected parents.");
+    expect(state.head).toBe(oid("e"));
+    expect(mutations).toEqual([]);
+  });
+
   it("turns a bounded fetch timeout into a typed operational refusal", async () => {
     const exec: GitExec = async (_command, args, options) => {
       if (args[0] === "check-ref-format") return { stdout: "" };
@@ -22,7 +108,7 @@ describe("base merge composition", () => {
     };
 
     await expect(mergeExpectedBase(
-      { expectedBase: oid("a") },
+      { expectedBase: oid("a"), expectedHead: oid("c") },
       createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec, fetchTimeoutMs: 1 }),
     )).resolves.toMatchObject({
       state: "blocked",
@@ -41,7 +127,7 @@ describe("base merge composition", () => {
         if (!state.merging) throw new Error("no merge");
         return ok(oid("a"));
       }
-      if (args[0] === "merge" && args[1] === "--no-edit") {
+      if (args[0] === "merge" && args[1] === "--no-ff" && args[2] === "--no-edit") {
         state.clean = false;
         state.merging = true;
         throw new Error("conflict");
@@ -56,7 +142,7 @@ describe("base merge composition", () => {
     };
     const port = createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec });
 
-    await expect(port.mergeAppendOnly(oid("a"))).resolves.toBe("conflict");
+    await expect(port.mergeAppendOnly(oid("a"), oid("c"))).resolves.toEqual({ status: "conflict" });
     expect(state).toEqual({ head: oid("c"), clean: true, merging: false });
   });
 
@@ -71,7 +157,7 @@ describe("base merge composition", () => {
         if (!state.merging) throw new Error("no merge");
         return ok(oid("a"));
       }
-      if (args[0] === "merge" && args[1] === "--no-edit") {
+      if (args[0] === "merge" && args[1] === "--no-ff" && args[2] === "--no-edit") {
         state.clean = false;
         state.merging = true;
         throw failure;
@@ -85,7 +171,8 @@ describe("base merge composition", () => {
       throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
     };
 
-    await expect(createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec }).mergeAppendOnly(oid("a")))
+    await expect(createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec })
+      .mergeAppendOnly(oid("a"), oid("c")))
       .rejects.toBe(failure);
     expect(state).toEqual({ head: oid("c"), clean: true, merging: false });
   });

@@ -343,27 +343,28 @@ remote base all name the same exact head. Any tracked change continues through t
    No review-authored commit or push may occur after this checkpoint.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop after the current head is settled and before arming auto-merge or releasing the
-> reviewed lane. Surface the exact head, review applicability calls and targeted verification, proposed final
+> `integration-interlock`: Stop after the current head is settled and before releasing the exact target and
+> executing its merge action. Surface the exact head, review applicability calls and targeted verification, proposed final
 > dispositions, PR checks, required approvals, base freshness, and the resolved lane. State
 > that approval applies final dispositions and channel settlement, ends review, invokes the exact-head release on
-> whichever lane resolves, and authorizes the lane action.
+> whichever lane resolves, and authorizes exact-head merge. A redirect may instead select release-only for
+> asynchronous host review or later manual merge.
 > Close with `Approve (or redirect)?`.
 
-After approval, apply the approved final dispositions and channel settlements, then continue to the lane action.
+After approval, apply the approved final dispositions and channel settlements, then continue to the selected lane
+action.
 
 6. Land per lane:
 
    Immediately before either lane action, invoke `arc base drift --json` once more. Only authoritative `clean`
    continues; `reconcile` returns to Step 5, while unavailable or malformed output stops.
 
+   An explicit release-only redirect skips both normal lane actions and enters **Release-only redirect** below.
+
    **Auto-merge-lane** — re-read the PR's exact base SHA and rerun the canonical classifier immediately before
    arming. Only literal `planning` preserves this lane; `reviewed` returns to Step 5 as reviewed-lane, while command
-   failure or malformed output stops. Invoke `arc review merge-method resolve --json`; `validated / use-method`
-   supplies the method, while `blocked / stop` stops before release. Then invoke `arc merge lock release -` for the
-   exact approved target — auto-merge cannot be armed on a locked PR, so the release is structurally required here
-   rather than a courtesy. Arm native auto-merge with the validated method (`merge` → `--merge`, `squash` →
-   `--squash`, `rebase` → `--rebase`):
+   failure or malformed output stops. Invoke the merge-method resolver, release the exact target, and arm native
+   auto-merge:
 
    ```bash
    arc review planning-lane <base-sha> {approved-head-sha}
@@ -372,22 +373,69 @@ After approval, apply the approved final dispositions and channel settlements, t
    gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}
    ```
 
-   **Reviewed-lane** — invoke `arc merge lock release -` for the exact approved target. On both lanes, follow only
-   the verb's typed action: `released / proceed` continues; `no-lock / none` continues because no lock applies or
-   the PR already holds that state; `blocked / stop` stops on its typed reason.
+   `validated / use-method` supplies the method; `blocked / stop` stops before release. For lock release,
+   `released / proceed` and `no-lock / none` continue, while `blocked / stop` stops. On this lane,
+   `--match-head-commit` is arming-time head validation; native auto-merge remains the host's unattended waiting
+   mechanism after the exact planning classification and release.
 
-   Lock release changes PR state only; the auto-merge command's `--match-head-commit` is the head pin. Report
-   required-check state as observed. The host remains the waiting authority: native auto-merge waits server-side,
-   while the reviewed lane stays open for owner review and host enforcement on `{approved-head-sha}`.
+   **Reviewed-lane** — keep the exact PR locked while awaiting required checks:
 
-   Once a lane releases, **every other exit re-locks first**. This includes a failed or refused auto-merge arm and a
-   later reviewed-lane head change before Step 4 re-entry. Invoke `arc merge lock hold -` for the exact target,
-   dispatch on its typed action, then surface the originating exit rather than the hold in its place.
+   ```bash
+   arc review checks await \
+     --repository <repository> \
+     --pull-request <pr-number> \
+     --head-sha {approved-head-sha} \
+     --json
+   ```
 
-7. **Leave only at a terminal session exit.** When the session is ending with the merge tail unresolved, or work is
-   moving machines, invoke `arc errand leave <slug> --state awaiting-merge --json`. Do not leave merely because the
-   change request is open, checks or owner review are pending, or to start the next Errand. Otherwise retain the
-   owning session and continue to Complete when the host reports the merge.
+   `green / complete` and `not-required / complete` proceed. `pending / await` retains approval for the same exact
+   head, keeps the lock, surfaces the checks, diagnostic failures, and elapsed wait, and ends the foreground attempt;
+   a later retry invokes the same command with no second ARC approval while the head remains unchanged. `failed /
+   stop`, `stale-target / stop`, `target-mismatch / stop`, and `blocked / stop` stop with the lock held.
+
+   After checks permit merge, invoke `arc base drift --json` again while the lock remains held. Only authoritative
+   `clean` continues; `reconcile` returns to Step 5, while unavailable or malformed output stops.
+
+   Then rerun the exact-head change-request resolver:
+
+   ```bash
+   arc review change-request resolve --head-ref <branch> --head-sha {approved-head-sha} --json
+   ```
+
+   Continue only from `open / reuse-change-request` for the same `<pr-number>`; that result proves the configured
+   base and exact approved head. Any other state, action, or candidate stops with the lock held.
+
+   Then validate the method, release the exact target, and invoke the direct head-matched merge:
+
+   ```bash
+   arc review merge-method resolve --json
+   arc merge lock release -
+   gh pr merge <pr-number> <merge-flag> --match-head-commit {approved-head-sha}
+   ```
+
+   The merge-method and lock-release dispatches are the same as the auto-merge lane. Any independently required host
+   approval remains host-enforced; a host refusal stops rather than bypassing it.
+
+   **Release-only redirect** — invoke `arc merge lock release -` for the exact approved target and stop after
+   `released / proceed` or `no-lock / none`; `blocked / stop` stops on its typed reason. Report required-check and
+   approval state, and keep the PR open for asynchronous host review or later manual merge. Do not invoke a merge
+   command: the selection authorizes the unlocked waiting state, not merge.
+
+   Once a lane releases, **every other unapproved exit re-locks first**. The explicitly selected release-only state
+   is the sole exception. A failed or refused auto-merge arm or direct merge, or a later head change before Step 4
+   re-entry, invokes `arc merge lock hold -` for the exact target. Dispatch on its typed action, then surface the
+   originating exit rather than the hold in its place.
+
+7. **Leave at a terminal session exit or before a genuine blocking-Errand detour.** When the session is ending with
+   the merge tail unresolved, or work is moving machines, invoke
+   `arc errand leave <slug> --state awaiting-merge --json`. Do not leave merely because the change request is open,
+   checks or owner review are pending, or for ordinary next-Errand queue advancement. Otherwise retain the owning
+   session and continue to Complete when the host reports the merge.
+
+   When another Errand must land before the current one can complete, first checkpoint a clean pushed head. Leave
+   the current Errand as `awaiting-merge` when its PR exists, or as `paused` before PR creation; consume the returned
+   restoration checkout, then open the blocker there. Never open a different Errand from an active transient. After
+   the blocker lands, resume only the original exact identity through its owning open or materialize driver.
 
    If the session is ending before PR creation, commit and push the checkpoint first, then use `--state paused`.
    Partial mode and unpushed or unproven heads refuse. Post-leave work resumes only through the identity's owning
@@ -415,11 +463,18 @@ checkout paths, and `settlement` are the sole closure evidence.
 - **Partial protection** — the completion arm verifies the direct-base result, pops the exact partial role, and
   removes its origin capture through the inbox mutation boundary. It creates no branch, PR, or portable identity.
 
-When the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`, `key`, and
-`parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the returned
-between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
+When the current conversation has already agreed one exact next Errand, that named target takes precedence over
+`nextOffer` and needs no additional completion offer. From the restored parent/between-WUs frame, derive and confirm
+a branch-safe `<slug>`, then invoke `arc errand open <slug> --from-inbox <exact-entry-title> --json`. Consume the open
+result as the new sibling locus. The target must resolve to one exact Errand entry; stop when it is missing or
+ambiguous.
+
+Otherwise, when the result carries `nextOffer`, offer only that exact file-ordered execute-bound sibling (`kind`,
+`key`, and `parentCheckoutPath`). On acceptance, enter from `parentCheckoutPath` when non-null, otherwise from the
+returned between-WUs frame; derive and confirm a branch-safe `<slug>` for `nextOffer.key`, then invoke
 `arc errand open <slug> --from-inbox <nextOffer.key> --json`. Consume the open result as the new sibling locus. On
-decline, return to the restored parent/between-WUs frame. Never scan the inbox for a replacement continuation.
+decline, return to the restored parent/between-WUs frame. Never scan for a substitute, persist an Errand sequence,
+or reorder inbox captures.
 
 **Post-leave merge.** If the merge lands after the session ends, the [finalize pass][finalize-pass] or next session
 re-enters through the identity's owning open or materialize driver, then invokes `arc errand close`. Exact replay is

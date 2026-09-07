@@ -16,7 +16,7 @@ export interface DeliveryLifecycleContributionPathSource {
     readonly workUnitId: string;
     readonly activeMetaPath: ManagedPath;
     readonly protectedBaseRef?: string;
-    readonly controlRef?: string;
+    readonly topRef?: string;
   }): Promise<DeliveryLifecycleContributionPaths>;
 }
 
@@ -36,6 +36,39 @@ export interface DeliveryLifecycleContributionComparison {
   readonly mismatchedPaths: readonly string[];
 }
 
+/**
+ * Closed classification of one change set against a work unit's lifecycle-contribution group.
+ *
+ * `lifecycle-only` means every changed path belongs to that group. `carries-non-lifecycle` names both
+ * partitions so a consumer can disclose the separating facts without attributing the content to an owner.
+ */
+export type DeliveryTerminalDeltaClassification =
+  | { readonly kind: "lifecycle-only"; readonly lifecyclePaths: readonly string[] }
+  | {
+      readonly kind: "carries-non-lifecycle";
+      readonly lifecyclePaths: readonly string[];
+      readonly nonLifecyclePaths: readonly string[];
+    };
+
+/**
+ * Separate a change set into its lifecycle-contribution and remaining paths.
+ *
+ * @param input - The changed paths and the work unit's lifecycle-contribution path group.
+ * @returns The closed classification with each partition deduplicated and in stable byte order.
+ */
+export function classifyDeliveryTerminalDelta(input: {
+  readonly changedPaths: readonly string[];
+  readonly lifecyclePaths: readonly string[];
+}): DeliveryTerminalDeltaClassification {
+  const lifecycle = new Set(input.lifecyclePaths);
+  const changed = [...new Set(input.changedPaths)].sort(byteSort);
+  const lifecyclePaths = changed.filter((path) => lifecycle.has(path));
+  const nonLifecyclePaths = changed.filter((path) => !lifecycle.has(path));
+  return nonLifecyclePaths.length === 0
+    ? { kind: "lifecycle-only", lifecyclePaths }
+    : { kind: "carries-non-lifecycle", lifecyclePaths, nonLifecyclePaths };
+}
+
 /** Compare exact entry identities only at the supplied lifecycle-contribution paths. */
 export function compareDeliveryLifecycleContribution(_input: {
   readonly paths: readonly string[];
@@ -53,7 +86,7 @@ export function compareDeliveryLifecycleContribution(_input: {
 /** Exact normalized completeness comparison for a final disposable candidate tree. */
 export function compareNormalizedDeliveryTree(input: {
   readonly protectedBase: DeliveryLifecycleTreeState;
-  readonly control: DeliveryLifecycleTreeState;
+  readonly top: DeliveryLifecycleTreeState;
   readonly finalCandidate: DeliveryLifecycleTreeState;
   readonly lifecyclePaths: readonly string[];
 }):
@@ -64,7 +97,7 @@ export function compareNormalizedDeliveryTree(input: {
       readonly inventedPaths: readonly string[];
       readonly mismatchedPaths: readonly string[];
     } {
-  const expected = new Map(input.control);
+  const expected = new Map(input.top);
   for (const path of input.lifecyclePaths) {
     const baseEntry = input.protectedBase.get(path);
     if (baseEntry == null) expected.delete(path);
@@ -114,7 +147,7 @@ implements DeliveryLifecycleContributionPathSource {
     readonly workUnitId: string;
     readonly activeMetaPath: ManagedPath;
     readonly protectedBaseRef?: string;
-    readonly controlRef?: string;
+    readonly topRef?: string;
   }): Promise<DeliveryLifecycleContributionPaths> {
     const currentArtifacts = await listCurrentWuArtifactPaths(
       input.workUnitId,
@@ -123,10 +156,10 @@ implements DeliveryLifecycleContributionPathSource {
     );
     const refArtifacts = this.input.readArtifactsAtRef !== undefined
       && input.protectedBaseRef !== undefined
-      && input.controlRef !== undefined
+      && input.topRef !== undefined
       ? await Promise.all([
           this.input.readArtifactsAtRef(input.protectedBaseRef, input.workUnitId),
-          this.input.readArtifactsAtRef(input.controlRef, input.workUnitId),
+          this.input.readArtifactsAtRef(input.topRef, input.workUnitId),
         ])
       : [[], []] as const;
     const workUnitArtifacts = [...new Set([

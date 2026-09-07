@@ -20,11 +20,15 @@ clean path.
 
 ## 1. Run The Deterministic Recovery Audit
 
-Run the recovery audit:
+Run the exact recovery audit supplied by the recovery injection. When no explicit seed path is supplied, run:
 
 ```bash
 arc recover audit --json
 ```
+
+When the supplied command carries `--seed-path <path>`, preserve that exact operand. It is an adapter-owned locus
+handoff; the audit validates that the path belongs to exactly one registered checkout and binds fresh recovery
+probes to that checkout.
 
 Require `mode: "recover-audit"`. If the command fails or the report is malformed, stop,
 surface that recovery cannot establish live state, and ask for direction.
@@ -34,6 +38,8 @@ The report's required `recover.derivedLocusState` is the sole topology/frame rea
 `recover.loadSet`, and `recover.taskCursor` are reader-owned projections from that same value; consume them rather
 than resolving worktrees, branches, metas, identities, or parent edges again. `recover.locusGuidance` carries
 CLI-composed recovery/refusal narration.
+
+The seed locus selects where the fresh recovery probes run; the command's invocation directory does not override it.
 
 Treat active-meta progress fields as soft orientation after compaction, not recovery authority:
 `Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers` may be stale.
@@ -47,9 +53,17 @@ and non-planning task-cursor drift when a cursor exists. For an unresolved enter
 failure, also render the matching `report.recover.locusGuidance` text verbatim. Do not choose another row or repair
 the graph in workflow prose.
 
+A `seed-locus-unresolved` stop means the selected seed path and registered checkout topology did not select one exact
+recovery checkout. Surface its typed message; do not retry from another directory or degrade it to `seed-missing`.
+
 If `verdict.status === "ready"`, continue to Step 3 without prompting. `ready` attests that the load set is
 trustworthy — no blocking drift between the seed and fresh state — not that context is restored. It is a property
 of the manifest, never a clearance to resume project work: recovery is incomplete until Step 3's reads land.
+
+An `integration-correction-progression` entry in `verdict.explainedDrift` means the audit has already proved the
+closed forward transition and coupled its fresh load set and task cursor. Consume those fresh projections exactly
+as reported; do not reconstruct task-list conservation, Candidate state, delivery reservation, or lifecycle order
+in workflow prose. An `integration-correction-unresolved` reason remains a stop.
 
 Require `verdict.locusHint.match === true`. The audit has already compared the seed's checkout path and optional
 marker-parent path against the fresh entering row and recovery frame. Any mismatch is a stop, never an invitation
@@ -60,8 +74,12 @@ Use the **fresh** report surfaces for context loading:
 
 - `report.recover.loadSet.value` is the canonical context-load plan. The seed's embedded load set
   is only the audit baseline.
-- For execution sessions, require `report.verdict.taskCursor.match === true` and use
-  `report.verdict.taskCursor.actual.cursor` as the verified task-list anchor. For prepublication and integration
+- For execution sessions whose projected workflow is `process-task-loop`, require
+  `report.verdict.taskCursor.match === true` and use `report.verdict.taskCursor.actual.cursor` as the verified
+  task-list anchor. Exact execution closeout normally projects `workflow: verify-work-unit`; when canonical delivery
+  state retains pending scoped review-fix verification, it instead projects `workflow: integrate-work-unit` with
+  `workUnitStage: delivery-correction`. Both cursorless closeout arms carry no verdict cursor comparison and require
+  the fresh task cursor to report `no-open-task`. For prepublication and integration
   sessions, apply the same rule when the report carries a non-null `taskCursor` comparison (seed or fresh recovery
   found a cursor); a cursorless phase state is valid when the task list has no open executable checkbox. If a
   required cursor is absent, malformed, or not `status: "found"`, stop; do not fall back to active-meta `Next Task`.
@@ -81,6 +99,10 @@ supports parallel reads. Never wait on one document before issuing the next unle
 slice genuinely depends on the earlier read. Never load from the seed's paths. The harness
 summary is authoritative for the volatile work in progress, but not for ARC operating
 context; verify it against the recovered files when it names a task.
+
+Run checkout-relative reads and every resumed project command from the resolved
+`report.recover.recoveryFrame.value.checkoutPath`. A recovery audit invoked from primary may have selected a
+spawned transient checkout; the invocation directory is not the resumed work locus.
 
 The recovery load set is ARC-owned context only. Repository-root harness instruction files
 (such as `AGENTS.md` for Codex CLI and `CLAUDE.md` for Claude Code) are expected to come from
@@ -121,8 +143,10 @@ Apply each entry's `readMode`:
 Preserve the manifest order when reconciling loaded content and deciding what procedural
 context applies, even when the reads complete out of order.
 
-The load set already includes the session-type lifecycle workflow when the recovered state has
-one. For an execution, prepublication, or integration resume the mapping is a deterministic shipped table, so an
+The load set already includes the state-selected lifecycle workflow when the recovered state has
+one. Open-task execution maps to `process-task-loop`; ordinary execution closeout maps to `verify-work-unit`; scoped
+delivery-correction closeout maps to `integrate-work-unit`; and prepublication or integration maps to its phase
+workflow. The mapping is a deterministic shipped table, so an
 absent entry is a projection defect rather than a missing decision: load the mapped workflow and
 surface the omission rather than stopping — the gap is itself a signal about the audit that
 produced the load set, so it is reported, never swallowed. A planning resume has no such mapping
