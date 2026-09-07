@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-dnsc-followups",
+  "claimId": "629ed588bdb4dbdfd4540b6986a65d4d",
+  "createdAt": "2026-09-07T14:00:28.946Z",
+  "updatedAt": "2026-09-07T14:00:28.946Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "route-dnsc-followups",
+  "branch": "chore/route-dnsc-followups",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
