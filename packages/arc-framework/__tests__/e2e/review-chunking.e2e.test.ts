@@ -1,5 +1,4 @@
 import { execFileSync, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,34 +17,17 @@ import { runCli } from "../helpers/run-cli.js";
 
 const roots: string[] = [];
 
-function canonical(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  return `{${Object.entries(value).sort(([a], [b]) => Buffer.compare(Buffer.from(a), Buffer.from(b)))
-    .map(([key, member]) => `${JSON.stringify(key)}:${canonical(member)}`).join(",")}}`;
-}
-
 function request(input: {
   readonly diffBaseSha?: string;
-  readonly diffBaseTree?: string;
   readonly headSha?: string;
-  readonly headTree?: string;
   readonly scopeSelected?: boolean;
 } = {}) {
-  const fields = {
-    schemaVersion: 2,
-    semanticsVersion: "review-gate/v2",
+  const target = {
     kind: "change-set",
-    repositoryId: "repo-1",
     baseRef: "main",
     diffBaseSha: input.diffBaseSha ?? "a".repeat(40),
-    diffBaseTree: input.diffBaseTree ?? "b".repeat(40),
     headSha: input.headSha ?? "c".repeat(40),
-    headTree: input.headTree ?? "d".repeat(40),
   };
-  const preimage = { domain: "arc.review-gate.target-id/v2", ...fields };
-  const targetId = `sha256:${createHash("sha256").update(canonical(preimage)).digest("hex")}`;
-  const target = { ...fields, targetId };
   return JSON.stringify({
     schemaVersion: 1,
     target,
@@ -71,21 +53,13 @@ async function enabledRepository(): Promise<{
   execFileSync("git", ["add", "."], { cwd: root });
   execFileSync("git", ["commit", "-qm", "base"], { cwd: root });
   const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
-  const baseTree = execFileSync("git", ["rev-parse", "HEAD^{tree}"], {
-    cwd: root,
-    encoding: "utf8",
-  }).trim();
   await writeFile(join(root, "change.txt"), "change\n");
   execFileSync("git", ["add", "."], { cwd: root });
   execFileSync("git", ["commit", "-qm", "change"], { cwd: root });
   const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
-  const headTree = execFileSync("git", ["rev-parse", "HEAD^{tree}"], {
-    cwd: root,
-    encoding: "utf8",
-  }).trim();
   return {
     root,
-    request: request({ diffBaseSha: base, diffBaseTree: baseTree, headSha: head, headTree }),
+    request: request({ diffBaseSha: base, headSha: head }),
   };
 }
 
@@ -123,17 +97,33 @@ describe("arc review chunking resolve", () => {
       join(root, ".arc/system/arc-config.yml"),
       "changeset.advisory_threshold_lines: 0\nchangeset.advisory_threshold_files: 0\n",
     );
+    execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    execFileSync("git", ["config", "user.name", "Test"], { cwd: root });
+    await writeFile(join(root, "base.txt"), "base\n");
+    execFileSync("git", ["add", "."], { cwd: root });
+    execFileSync("git", ["commit", "-qm", "base"], { cwd: root });
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
     const inputPath = join(root, "request.json");
-    await writeFile(inputPath, request());
+    await writeFile(inputPath, request({ diffBaseSha: head, headSha: head }));
 
     const success = await runCli(["review", "chunking", "resolve", inputPath], { cwd: root });
     expect(success.exitCode).toBe(0);
     expect(success.stderr).not.toMatch(/prompt|review provider/iu);
     expect(success.stdout.trim().split("\n"), success.stdout).toHaveLength(1);
-    expect(JSON.parse(success.stdout)).toMatchObject({
+    const successEnvelope = JSON.parse(success.stdout) as {
+      payload: { target: { repositoryId: string; targetId: string; diffBaseTree: string; headTree: string } };
+    };
+    expect(successEnvelope).toMatchObject({
       mode: "review-chunking-resolve",
       state: "disabled",
+      payload: {
+        target: { kind: "change-set", baseRef: "main", diffBaseSha: head, headSha: head },
+      },
     });
+    expect(successEnvelope.payload.target.repositoryId).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(successEnvelope.payload.target.targetId).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    expect(successEnvelope.payload.target.diffBaseTree).toMatch(/^[0-9a-f]{40}$/u);
+    expect(successEnvelope.payload.target.headTree).toBe(successEnvelope.payload.target.diffBaseTree);
 
     const failure = await runStdin(root, "{}");
     expect(failure.exitCode).not.toBe(0);

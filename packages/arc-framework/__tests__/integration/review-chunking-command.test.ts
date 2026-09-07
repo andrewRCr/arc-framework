@@ -45,6 +45,10 @@ function target(root: string, base: string, head: string) {
   });
 }
 
+function coordinates(base: string, head: string) {
+  return { kind: "change-set" as const, baseRef: "main", diffBaseSha: base, headSha: head };
+}
+
 afterEach(async () => {
   await Promise.all(repositories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
@@ -77,11 +81,10 @@ describe("review chunking command composition", () => {
     git(root, "add", ".");
     git(root, "commit", "-qm", "binary");
     const binaryHead = git(root, "rev-parse", "HEAD");
-    const firstTarget = target(root, base, binaryHead);
     const write = vi.fn();
     await handleReviewChunkingResolve("-", {
       resolveRoot: () => root,
-      readText: async () => JSON.stringify({ schemaVersion: 1, target: firstTarget }),
+      readText: async () => JSON.stringify({ schemaVersion: 1, target: coordinates(base, binaryHead) }),
       resolve: (request) => resolveReviewChunkingCommand(request, {
         readSettings: () => readConfigSettings(root),
         readDeliveryBinding: async () => ({ status: "authoritative-unbound" }),
@@ -116,16 +119,9 @@ describe("review chunking command composition", () => {
   ])("emits typed failure for %s", async (_name, config, missingObject) => {
     const root = await repository(config);
     const head = git(root, "rev-parse", "HEAD");
-    const currentTarget = target(root, head, head);
-    const { targetId: discardedTargetId, ...targetFields } = currentTarget;
-    void discardedTargetId;
     const inputTarget = missingObject
-      ? createReviewTarget({
-        ...targetFields,
-        diffBaseSha: "e".repeat(40),
-        headSha: "f".repeat(40),
-      })
-      : currentTarget;
+      ? coordinates("e".repeat(40), "f".repeat(40))
+      : coordinates(head, head);
     const write = vi.fn();
     const setExitCode = vi.fn();
     await handleReviewChunkingResolve("-", {

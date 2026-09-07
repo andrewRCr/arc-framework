@@ -1,0 +1,40 @@
+/** Public and internal request contracts for an exact-target frontline run. */
+
+import { z } from "zod";
+
+import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
+import { FrontlineResolveEnvelopeSchema } from "./review-command-envelope.js";
+import { ReviewTargetCoordinatesSchema } from "./review-target-coordinates.js";
+
+export const REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID = "review-frontline-run-request";
+
+const frontlineRunFields = {
+  schemaVersion: z.literal(1),
+  resolution: FrontlineResolveEnvelopeSchema,
+  timeoutMs: z.number().int().positive().max(2_147_483_647).optional(),
+} as const;
+
+/** Public request: callers supply exact Git coordinates, never repository-local identities. */
+export const FrontlineRunRequestSchema = z.strictObject({
+  ...frontlineRunFields,
+  target: ReviewTargetCoordinatesSchema,
+});
+export type FrontlineRunRequest = z.infer<typeof FrontlineRunRequestSchema>;
+
+/** Trusted internal request after the public boundary has derived a canonical target. */
+export const FrontlineRunCommandRequestSchema = z.strictObject({
+  ...frontlineRunFields,
+  target: ReviewTargetSchema,
+});
+export type FrontlineRunCommandRequest = z.infer<typeof FrontlineRunCommandRequestSchema>;
+
+/** Register the strict-current public frontline-run request contract. */
+export function registerFrontlineRunCommandSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(FrontlineRunRequestSchema, {
+    id: REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  return registry;
+}

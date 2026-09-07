@@ -68,6 +68,12 @@ const target = {
   headTree: "d".repeat(40),
   targetId: `sha256:${"e".repeat(64)}`,
 };
+const targetCoordinates = {
+  kind: target.kind,
+  baseRef: target.baseRef,
+  diffBaseSha: target.diffBaseSha,
+  headSha: target.headSha,
+};
 const routingFacts = {
   schemaVersion: 1 as const,
   changeSetState: "known" as const,
@@ -81,7 +87,7 @@ const routingFacts = {
 };
 const frontlineRunRequest = {
   schemaVersion: 1,
-  target,
+  target: targetCoordinates,
   resolution: {
     schemaVersion: 1,
     mode: "review-frontline-resolve",
@@ -1294,7 +1300,17 @@ describe("handleReviewChunkingResolve", () => {
     const setExitCode = vi.fn();
     await handleReviewChunkingResolve("-", {
       resolveRoot: () => "/repo",
-      readText: async () => JSON.stringify({ schemaVersion: 1, target }),
+      readText: async () => JSON.stringify({ schemaVersion: 1, target: targetCoordinates }),
+      deriveRequest: async (request) => {
+        const { scopeSelection, ...fields } = request;
+        return {
+          ...fields,
+          target,
+          ...(scopeSelection === undefined
+          ? {}
+          : { scopeSelection: { ...scopeSelection, target } }),
+        };
+      },
       resolve: async () => ({
         schemaVersion: 1,
         mode: "review-chunking-resolve",
@@ -1321,6 +1337,7 @@ describe("handleReviewChunkingResolve", () => {
     await handleReviewChunkingResolve("-", {
       resolveRoot: () => "/repo",
       readText: async () => "{}",
+      deriveRequest: vi.fn(),
       resolve: vi.fn(),
       write,
       setExitCode,
@@ -1367,6 +1384,7 @@ describe("handleReviewFrontlineRun", () => {
     await handleReviewFrontlineRun("-", {
       resolveRoot: () => "/repo",
       readText: async () => JSON.stringify(frontlineRunRequest),
+      deriveRequest: async (request) => ({ ...request, target }),
       run,
       write,
       setExitCode: vi.fn(),
@@ -1428,6 +1446,7 @@ describe("handleReviewFrontlineRun", () => {
         ...frontlineRunRequest,
         resolution,
       }),
+      deriveRequest: async (request) => ({ ...request, target }),
       run: (request) => runFrontlineReviewCommand(request, {
         confirmSource,
         prepareExecutionTarget,
