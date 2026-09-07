@@ -98,6 +98,9 @@ Segments carry **no identifiers**. Phases identify them: a multi-phase segment d
 phase, the criterion lands on its closing phase, and a stub's retiring owner names a phase. This adds zero
 enumeration beside the phases, task numbers, and delivery members a task list already carries.
 
+Phase IDs are unique within a segmented task list. A repeated ID makes a span or retiring-phase reference
+ambiguous, so the scan refuses the second heading rather than selecting by first match, last match, or map order.
+
 ### D2 — The discriminator: locus of residual risk after planning closes
 
 | Residual risk lies in                                           | Mode              | The segment closes on                              |
@@ -157,7 +160,8 @@ Segmentation is recorded on the task-list surface the stage already authors, nev
 **Preamble position.** The landed preamble order is any `**Delivery member:**` pointer, then the required
 `_Purpose:_`, then the optional `_Design decisions:_` block. The two new lines sit **between `_Purpose:_` and
 `_Design decisions:_`**, `_Mode:_` first — the structural claims about the boundary stay together and ahead of
-rationale prose. `_Purpose:_` remains mandatory beside them.
+rationale prose. `_Purpose:_` remains mandatory beside them. Preamble entries separate with a blank line — adjacent
+label lines render as a single flowing paragraph, and the scan is line-oriented either way.
 
 **Line grammar.** `_Mode:_` carries the mode token backticked immediately after the label, an optional span
 `through Phase N` when the segment is multi-phase, and the standard gloss (its closes-on kind from D2's table) after
@@ -165,11 +169,17 @@ an em dash: `` _Mode:_ `slice` through Phase 3 — closes on exercisable end-to-
 closed (`slice` / `layer` / `replication`) so the scan (D6) parses it; the gloss is prose and is not parsed.
 `_Exit criterion:_` carries the specific criterion as prose.
 
+A preamble line whose trimmed content begins with the exact `_Mode:_` label opts the list into the contract even
+when the rest is malformed. A syntactically complete line with a token outside the closed set is `mode-unknown`; a
+line missing the backticked token, carrying malformed span syntax, or lacking the em dash and a non-empty gloss is
+`mode-malformed`. A syntactically valid span whose target is missing or not later is `span-invalid`. An exact
+`_Exit criterion:_` label without non-whitespace prose is `exit-criterion-empty` and cannot close a segment.
+
 Both are preamble prose inside the existing task-list grammar. Two cases are distinct:
 
-- An **unsegmented** list — no `_Mode:_` line and no segment-suffixed task anywhere — is one authored before the
-  contract. It is not subject to it (D6's scan is presence-triggered), which is what keeps every existing task list
-  valid.
+- An **unsegmented** list — no preamble `_Mode:_` line and no segment-suffixed task anywhere — is one authored
+  before the contract. It is not subject to it (D6's scan is presence-triggered), which is what keeps every
+  existing task list valid.
 - A **single-segment** plan authored under the contract records `_Mode:_` and `_Exit criterion:_` like any other
   (on its one opening and closing phase), and owes no separate segment verifier: the terminal task subsumes it
   (D5). Recording the read is never optional once it has been made.
@@ -249,27 +259,44 @@ contiguous exactly-once partition. Two gaps remain, and this design closes them:
   mistyped. Match the segment suffix beside the member suffix and produce `{ kind: "verification", scope: "segment" }`.
   Segment verifiers are member-assignable and partition exactly as member verifiers already do.
 
-**The segmentation scan.** A pure module over the structural scanner's events — the scanner already emits every
-preamble line as content between a phase event and its first parent — reads `_Mode:_`, `_Exit criterion:_`, and
-`_Retired by:_` lines and returns the plan's segments plus diagnostics. It is **presence-triggered**: a task list
-with no `_Mode:_` line and no segment-suffixed parent is unsegmented and produces no diagnostics; either presence
-opts the list into the contract, so an undeclared segment verifier is refused rather than silently typed.
-Diagnostics are precomposed and closed:
+**The segmentation scan.** A pure module over the structural scanner's events and the raw lines those events
+index. Its public entry point, exported segment/reference/result shapes, and two exact-suffix matcher signatures
+are fixed in `notes-plan-segmentation.md` § Segmentation scan interface. The entry point takes one `{ path, content }`
+task-list document and returns the plan's segments, retiring-phase references, and diagnostics carrying `code`,
+`path`, `line`, and a precomposed `message`. The message is exactly `{path}:{line}: {body}`; the stable bodies and
+line loci are recorded in that companion section.
 
+Preamble and detail-bullet lines arrive as content. Only content after a phase event and before that phase's first
+parent may declare `_Mode:_` or `_Exit criterion:_`; the same labels before any phase, after the first parent, or
+under a later non-phase section are inert and cannot opt a list into segmentation or satisfy a declaration.
+`_Retired in:_` remains a task-body detail bullet and therefore scans wherever in a task body it sits. A trailing
+role suffix does not arrive as content: the parent grammar captures the bold title alone and drops it, so both role
+suffixes are matched on the raw line a parent event points at, exactly as the delivery task inventory already
+matches the member suffix. The module owns both matchers.
+
+The scan is **presence-triggered** after one universal failure branch: a malformed structural scan produces one
+`task-list-malformed` diagnostic at the scanner's error line for every selected task list. Structurally valid input
+with no preamble line beginning `_Mode:_` and no segment-suffixed parent is unsegmented and produces no diagnostics;
+either presence opts the list into the contract, so an undeclared segment verifier is refused rather than silently
+typed. Diagnostics are precomposed and closed:
+
+- `task-list-malformed` — the shared structural scanner refuses the task-list grammar;
 - `phase-outside-segment` — a phase belongs to no declared segment;
-- `mode-unknown` / `span-invalid` — a `_Mode:_` token outside the closed set, or a span naming a missing or
-  earlier phase;
+- `phase-id-duplicate` — a second phase heading repeats an existing phase ID;
+- `mode-malformed` / `mode-unknown` / `span-invalid` — a `_Mode:_` declaration violates the line grammar, carries
+  a syntactically valid token outside the closed set, or names a missing or non-forward span target;
 - `segment-missing-exit-criterion` — a segment whose closing phase carries no `_Exit criterion:_`;
 - `segment-verifier-missing` — a `slice` or `replication` segment whose closing phase's last non-member-suffixed
   parent does not carry the segment suffix (D5's position rule); not raised when the plan declares exactly one
   segment, whose verifier the terminal task subsumes;
 - `segment-verifier-orphan` — a segment-suffixed parent anywhere other than that position;
-- `segment-overlap` / `mode-duplicate` / `exit-criterion-orphan` — a phase inside a declared span carrying its
-  own `_Mode:_`; a phase carrying more than one `_Mode:_` or `_Exit criterion:_` line; an `_Exit criterion:_` on a
-  phase that closes no segment;
+- `segment-overlap` / `mode-duplicate` / `exit-criterion-empty` / `exit-criterion-duplicate` /
+  `exit-criterion-orphan` — a phase inside a declared span carrying its own `_Mode:_`; a phase carrying more than
+  one `_Mode:_`; an exit criterion with no prose; a phase carrying more than one `_Exit criterion:_`; an exit
+  criterion on a phase that closes no segment;
 - `terminal-phase-segmented` — the terminal `Verification` phase carries `_Mode:_` or `_Exit criterion:_`;
 - `segment-verifier-terminal` — a segment-suffixed task after the terminal heading;
-- `retiring-phase-missing` — a `_Retired by:_` bullet naming a phase that does not exist.
+- `retiring-phase-missing` — a `_Retired in:_` bullet naming a phase that does not exist.
 
 **Fire sites.** The task-descriptor validator runs at two sites, and the scan registers at both as a sibling
 validator: the **staged Markdown gate**, which certifies index bytes at pre-commit, and the **worktree descriptor
@@ -317,12 +344,12 @@ to the end of its group.
 
 A slice front-loads integration work and usually requires scaffolding for layers it does not yet fully build. Every
 **stub a slice creates names its retiring phase** — the phase whose exit criterion includes replacing or removing it
-— recorded as a `_Retired by:_ Phase N` detail bullet beneath the stub's task, never at root. A plan is not
+— recorded as a `_Retired in:_ Phase N` detail bullet beneath the stub's task, never at root. A plan is not
 Finalize-complete while a stub names no retiring phase. Which tasks are stubs is judgment; that a named retiring
 phase exists is scanned (D6).
 
 **The bullet is a protected post-completion surface.** Completion ordinarily replaces a task's description bullets
-with `_Outcome:_`; `_Retired by:_` survives that pruning, because the interval in which it matters — the stub is
+with `_Outcome:_`; `_Retired in:_` survives that pruning, because the interval in which it matters — the stub is
 live in code, its retiring phase has not run — begins exactly when the creating task completes. The rule that
 prunes fires in the task-loop workflow's completion-notes discipline, which today names `_Goal:_` as the only
 protected surface; the protection lands **there**, beside `_Goal:_`, and the formatting strategy's post-completion
@@ -360,9 +387,13 @@ implementation, batching can be the sequence in which every test genuinely fails
   workflow **and** in the test-first method, whose own copy of the grouping rule takes the same mode input so the
   two cannot diverge.
 - **Execution-time half** — the manufactured-red rule widened to incidentally satisfied behaviors, plus
-  reconstruct-and-revert evidence at completion — lands in the testing-standards method's shipped **default**, the
+  reconstruct-and-revert evidence at completion — lands in the testing-standards method's **default**, the
   declared execution-time owner of the fail-first invariants. This project's own `extend` override already carries
   the narrower reconstruct-pre-fix instance; it is re-read to point at the widened default rather than restate it.
+  That owner is not currently installed, while three installed surfaces declare or link it — the task-loop
+  workflow's `arc.methods` frontmatter and link definition, the test-first method's counterpart link, and the
+  method index — so this design installs it as a configurable method. Without that the split's execution-time half
+  reaches nobody and the fire-point rationale does not hold.
 
 The grouping rule is copied in five places, and every copy takes the mode input in the same edit so no blanket copy
 survives: the task-generation workflow's phase-design principle, its content-fill "Test-first grouping" paragraph,
@@ -400,11 +431,11 @@ Verified against the parsers rather than assumed. These are constraints the desi
   the inventory requires it of every pre-terminal parent.
 - **The segment suffix mirrors the member suffix.** Both are exact trailing role suffixes matched by the inventory,
   and the member's coverage rules (final assignable task in its range) are untouched.
-- **`_Retired by:_` is a detail bullet, never a root peer descriptor.** The descriptor validator closes a root
+- **`_Retired in:_` is a detail bullet, never a root peer descriptor.** The descriptor validator closes a root
   descriptor cluster at the first unknown root label, so the bullet is placed beneath the stub's task where the
   validator does not read it; it is deliberately outside the closed root set.
 - Phase headings, parent-task headings, and subtask bullets are untouched. `_Mode:_`, `_Exit criterion:_`, and a
-  stub's `_Retired by:_` bullet scan as inert content everywhere except the segmentation scan; the cursor, tallies,
+  stub's `_Retired in:_` bullet scan as inert content everywhere except the segmentation scan; the cursor, tallies,
   and compaction seed derive from the same structural scanner and gain no new exposure.
 
 ### D13 — Ship surface
@@ -415,25 +446,29 @@ Each framework edit lands in the package source and the project copy together:
   line rewritten to take the mode read as input, the three grouping-rule copies D10 enumerates, the three new
   Finalize entries, and two existing Finalize entries rewritten (the test-first grouping line takes the mode input;
   the preamble-order line admits `_Mode:_` and `_Exit criterion:_` in their position);
-- the task-loop workflow and its shipped template — the completion-notes discipline names `_Retired by:_` beside
+- the task-loop workflow and its shipped template — the completion-notes discipline names `_Retired in:_` beside
   `_Goal:_` as a protected post-completion surface (D8);
 - the test-first method (grouping rule takes the mode input) and the testing-standards default, per D10's split;
 - the task-list formatting strategy — phase preamble admitting `_Mode:_` and `_Exit criterion:_` in their position,
   the segment-verifier heading beside the member one with **both examples corrected to carry the suffix outside
   the bold**, the verifier-as-evidence-sink rule, the two grouping-rule copies D10 enumerates taking the mode
-  input, and the stub `_Retired by:_` bullet as a protected post-completion surface;
+  input, and the stub `_Retired in:_` bullet as a protected post-completion surface;
 - the task-list template — the same preamble and verifier shapes, member example corrected likewise;
 - the brief vocabulary — D11's single entry.
 
 Code, in the CLI package:
 
-- `lib/task-list/segmentation.ts` (new) — the scan and its diagnostics;
+- `lib/task-list/segmentation.ts` (new) — the scan, its diagnostics, and the two role-suffix matchers;
 - `lib/markdown/indexed-lint.ts` and `lib/markdown/descriptor-worktree.ts` — register the scan beside the descriptor
   validator at both fire sites; `lib/markdown/staged-gate.ts` — the runtime-implementation path list gains the new
   module;
-- `lib/delivery/task-inventory.ts` — segment-suffix match producing `segment` scope;
+- `lib/delivery/task-inventory.ts` — consumes the shared segment-suffix matcher to produce `segment` scope;
 - `lib/delivery/schema.ts` — the closed scope enum;
-- unit tests for the scan and the inventory change, and the staged-gate tests for the new diagnostic family.
+- `init-recipe.json` and `lib/classification.ts` — the testing-standards method joins the install set as a
+  configurable file, with the project instance's manifest entry and the hand-maintained sync inventory refreshed
+  to match;
+- unit tests for the scan and the inventory change, the staged-gate tests for the new diagnostic family, the
+  explicit init/update method inventories, and one full-shape consumer compatibility test.
 
 ## Alternatives & Rationale
 
@@ -447,6 +482,11 @@ Code, in the CLI package:
   source meaning, since tracer code is explicitly lean-but-complete and kept. Adopting it positively would leave the
   term carrying opposite valence in two surfaces. That naming is corrected to **spike calcification**; the term
   stays available as descriptive prose but anchors nothing here.
+- **Label the stub disposition `_Retired by:_`** (D8). Rejected. The field assigns an owning phase — the one whose
+  exit criterion includes replacing or removing the stub — and `by` also reads as a deadline ("gone no later than
+  Phase 3"), which the contract does not mean: nothing forbids earlier removal and nothing checks that it happened.
+  `_Retired in:_` names the owner without the second reading. The verb stays: `retire` is the corpus's word for
+  end-of-service-life and the only one covering both replacement and removal.
 - **Call slice work "impl spikes."** Rejected on attestation grounds. A spike runs before a design exists and cannot
   falsify a spec; a slice runs against a settled one and can. The boundary is deliberately _not_ "slice code is kept
   while spike code is thrown away" — slice scaffolding is slice-side code that is not kept, and its disposition is
@@ -515,12 +555,16 @@ end-to-end capability. By this spec's own discriminator that is `layer` → `sli
 order, since the doctrine's Finalize entry names diagnostics the gate must already emit. Recorded as a candidate on
 this evidence and resolved at task generation; nothing is published or bound here.
 
-**Self-hosting bootstrap.** This work unit's own plan record binds at task generation under the current inventory,
-which types its `slice` segment verifier as `implementation`; the drift check runs only at compose, so nothing
-refuses the stale role once the substrate member lands. The sequence is therefore: bind under current typing, then
-re-author the plan (`arc delivery plan abandon` and recreate from current inputs) after the substrate member lands
-and before the doctrine member's verifier closes, so the exercising instance the success criteria name carries
-`segment` typing in its record.
+**Self-hosting bootstrap.** This work unit's own plan record composes at task generation under the current inventory,
+which types its `slice` segment verifier as `implementation`. That planning-time plan remains unbound: delivery
+state materializes later at candidate eligibility. After Member 1's tasks close and the rebuilt bundle contains
+the new inventory typing, run the read-only delivery-entry inspection with `entryMode: execution`. Continue only
+from its exact canonical-delivery-not-yet-bound result; any other route stops before an authoring map exists, because
+composition may accept and rebind an existing state before returning. Then recreate the authoring map from current
+inputs and compose an accepted successor revision before the doctrine member's verifier closes. The ordinary path
+publishes that successor with no state binding and creates no delivery state. `arc delivery plan abandon` discards
+an outstanding authoring map and is inert once composition has consumed one, so it does not reach a published
+record.
 
 **Composable-workflows seam.** The inlined procedure is the shape that work unit's private-method cell extracts;
 recorded in D3 with its two extraction triggers. No `lane` or fragment vocabulary is introduced here.
@@ -534,17 +578,20 @@ task-generation wall clock. Mechanization earns its place by _improving_ routine
 gets over-applied. A slice front-loads integration work and usually requires scaffolding (D8). Naming the three
 modes side by side exists partly to make the cost of choosing vertical visible next to its alternatives.
 
-**Testing.** The scan is a pure module with unit coverage over the diagnostic family, including the unsegmented
-and single-segment cases; the inventory and schema changes extend existing coverage; the staged-gate tests gain the new
-validator. The doctrine elements are judgment prose in a workflow, and edits to task-generation judgment prose want
+**Testing.** The scan is a pure module with unit coverage over the diagnostic family, including malformed,
+unsegmented, and single-segment cases; the inventory and schema changes extend existing coverage; the staged-gate
+tests gain the new validator. One full-shape compatibility fixture passes through the structural and segmentation
+scans, cursor and tallies, delivery inventory, and preservation of the derived cursor through compaction-seed
+emission. The doctrine elements are judgment prose in a workflow, and edits to task-generation judgment prose want
 **eval coverage** — carried as a line item, owned by the eval-harness work unit.
 
 **Audience boundary.** Every edited framework surface is adopter-facing and ships. Prose states what is, carries no
 transitional framing, and forward-points at no internal roadmap item.
 
-**Migration and rollout.** No adopter-visible migration: the scan is presence-triggered, so a task list with no
-`_Mode:_` line and no segment-suffixed task is unsegmented and produces no diagnostics; the Finalize entries apply
-to newly authored plans. Closing the scope enum changes no existing value, because only `member` and `work-unit` were ever
+**Migration and rollout.** No adopter-visible migration: a structurally valid task list with no preamble line
+beginning `_Mode:_` and no segment-suffixed task is unsegmented and produces no segmentation diagnostics; the
+Finalize entries apply to newly authored plans. Malformed task-list structure fails universally at the two existing
+authoring gates. Closing the scope enum changes no existing value, because only `member` and `work-unit` were ever
 produced.
 
 **Coordination routed at planning close.** `plan-amendment` receives the verifier-as-evidence-sink property and the
@@ -561,16 +608,17 @@ archived delivery task list's evidence on revision anchoring and report replay (
   `_Mode:_` and `_Exit criterion:_` in their preamble position, has every mandatory lifecycle row assigned to a
   `slice`, and closes each `slice` and `replication` segment with a segment-suffixed verifier whose completion is
   an `_Outcome:_`.
-- Both the staged Markdown gate and the worktree descriptor lint emit the D6 diagnostic family for a task list
-  carrying `_Mode:_` lines — a missing segment, criterion, verifier, or retiring-phase target, an overlapping or
-  duplicated declaration, an orphaned verifier, or a segmented terminal phase fails — and emit nothing for a task
-  list with no `_Mode:_` line.
+- Both the staged Markdown gate and the worktree descriptor lint emit the D6 diagnostic family — malformed
+  task-list structure fails universally; for structurally valid input carrying a preamble line beginning `_Mode:_`
+  or a segment-suffixed task, a missing segment, criterion, verifier, or retiring-phase target, an overlapping,
+  duplicated, or malformed declaration, an orphaned verifier, or a segmented terminal phase fails; a valid
+  unsegmented list emits nothing.
 - The delivery task inventory produces `segment` scope from the segment suffix, the scope set is closed to the three
   values, exactly one `work-unit`-scope verifier remains terminal and unassigned, and `segment`-scope verifiers
   partition as `member`-scope ones do.
-- A task list carrying the full segmented shape parses without refusal through the structural scanner, the task
-  cursor, the tallies, the compaction seed, and the delivery task inventory, with the segment verifier typed
-  `verification` / `segment` and every other parent typed as before.
+- A task list carrying the full segmented shape parses without refusal through the structural and segmentation
+  scans, task cursor and tallies, and delivery task inventory, with the segment verifier typed `verification` /
+  `segment`, every other parent typed as before, and the derived cursor preserved through compaction-seed emission.
 - `layer` segments carry an exit criterion and no required verifier; the terminal verification phase carries
   neither mode nor criterion.
 - On this work unit's task list, each mandatory lifecycle row appears as a Success Criteria entry authored before
@@ -578,6 +626,8 @@ archived delivery task list's evidence on revision anchoring and report replay (
 - The test-grouping rule takes the mode as input in both the task-generation workflow and the test-first method;
   the widened manufactured-red rule and reconstruct-and-revert evidence land in testing-standards; neither restates
   the other.
+- The testing-standards method installs as a configurable file, so the workflow frontmatter, link definitions, and
+  method index that already declare it resolve in an installed project rather than dangling.
 - The brief carries one `Segment` entry nesting the three modes and stating the boundaries against `spike`,
   `chunk`, `deliverable`, and delivery member; the task-list formatting strategy carries the definition of record.
 - Every edited framework surface's shipped content is identical in the package source and the project copy —
