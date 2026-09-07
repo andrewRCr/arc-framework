@@ -156,6 +156,7 @@ import {
   handleReviewReadiness,
   handleReviewResolve,
   handleReviewChunkingResolve,
+  handleReviewRequestSchema,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewHostedAwait,
@@ -1671,11 +1672,18 @@ frontlineCmd
 frontlineCmd
   .command("run")
   .description("Execute one exact-target frontline review as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
   .action(withInteractionContext(
     { machineReadable: true },
-    (context, input: string) => handleReviewFrontlineRun(input, {}, context),
+    (context, input: string | undefined, opts: { schema?: boolean }) => {
+      if (opts.schema === true) {
+        handleReviewRequestSchema("review-frontline-run-request", input);
+        return;
+      }
+      return handleReviewFrontlineRun(input ?? "", {}, context);
+    },
   ));
 
 const hostedCmd = reviewCmd
@@ -1716,9 +1724,16 @@ reviewCmd
   .description("Exact-target review chunking operations")
   .command("resolve")
   .description("Resolve one immutable target's chunking recommendation as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewChunkingResolve(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .action((input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      handleReviewRequestSchema("review-chunking-resolve-request", input);
+      return;
+    }
+    return handleReviewChunkingResolve(input ?? "");
+  });
 
 const localReviewCmd = reviewCmd
   .command("local")

@@ -12,6 +12,8 @@ import {
 import {
   createReviewTarget,
 } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { FrontlineRunRequestSchema } from
+  "../../../../src/scripts/review-gate/core/frontline-run-command-schema.js";
 import { ReviewChunkingResolveRequestSchema } from
   "../../../../src/scripts/review-gate/core/review-chunking-command-schema.js";
 import {
@@ -20,6 +22,8 @@ import {
 import {
   assertReviewDurableRecordInventory,
 } from "../../../../src/scripts/review-gate/core/schema-inventory.js";
+import { reduceReviewRouting } from
+  "../../../../src/scripts/review-gate/policy/routing.js";
 
 const kernelIdentities = [
   "priority",
@@ -50,6 +54,7 @@ const reviewIdentities = [
   "frontline-execution-outcome",
   "frontline-outcome-digest-preimage",
   "frontline-outcome-record",
+  "review-frontline-run-request",
   "frontline-run-state",
   "lane-progress-state",
   "local-review-policy-binding",
@@ -222,16 +227,88 @@ describe("review schema registration", () => {
       headTree: "d".repeat(40),
     });
 
+    const coordinates = {
+      kind: target.kind,
+      baseRef: target.baseRef,
+      diffBaseSha: target.diffBaseSha,
+      headSha: target.headSha,
+    };
+
     expect(ReviewChunkingResolveRequestSchema.parse({
       schemaVersion: 1,
-      target,
-      scopeSelection: { mode: "chunked", target },
-    })).toMatchObject({ scopeSelection: { mode: "chunked", target } });
+      target: coordinates,
+      scopeSelection: { mode: "chunked", target: coordinates },
+    })).toMatchObject({ scopeSelection: { mode: "chunked", target: coordinates } });
+    expect(ReviewChunkingResolveRequestSchema.safeParse({
+      schemaVersion: 1,
+      target: coordinates,
+      workUnitId: "delivery-stack-topology",
+    }).success).toBe(false);
     expect(ReviewChunkingResolveRequestSchema.safeParse({
       schemaVersion: 1,
       target,
-      workUnitId: "delivery-stack-topology",
     }).success).toBe(false);
+  });
+
+  it("registers only caller-held coordinates for the two public exact-target requests", () => {
+    const coordinates = {
+      kind: "change-set" as const,
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      headSha: "c".repeat(40),
+    };
+    const facts = {
+      schemaVersion: 1 as const,
+      changeSetState: "known" as const,
+      contentKind: "code-bearing" as const,
+      reviewRisk: "routine" as const,
+      changeDeterminacy: "ordinary" as const,
+      ownership: "self" as const,
+      surfaceAuthority: "ordinary" as const,
+      assurance: { workContext: "errand" as const, workClass: "Light" as const },
+      activity: { selfReview: true, frontlineReview: false },
+    };
+    const decision = reduceReviewRouting(facts);
+    const resolution = {
+      schemaVersion: 1,
+      mode: "review-frontline-resolve",
+      diagnostics: [],
+      state: "skipped",
+      nextAction: "none",
+      payload: {
+        routing: {
+          facts,
+          decision,
+        },
+        frontlineReview: {
+          schemaVersion: 1,
+          semanticsVersion: "frontline-review/v1",
+          action: "skip",
+          reasons: decision.reasons,
+          source: null,
+          maxPasses: 0,
+          promptText: null,
+        },
+      },
+    };
+
+    expect(FrontlineRunRequestSchema.parse({
+      schemaVersion: 1,
+      target: coordinates,
+      resolution,
+    })).toMatchObject({ target: coordinates });
+    for (const extra of [
+      { repositoryId: "repo-1" },
+      { diffBaseTree: "b".repeat(40) },
+      { headTree: "d".repeat(40) },
+      { targetId: `sha256:${"e".repeat(64)}` },
+    ]) {
+      expect(FrontlineRunRequestSchema.safeParse({
+        schemaVersion: 1,
+        target: { ...coordinates, ...extra },
+        resolution,
+      }).success).toBe(false);
+    }
   });
 
   it("keeps review imports and vocabulary out of kernel schema modules", () => {

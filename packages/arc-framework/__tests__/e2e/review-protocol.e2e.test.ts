@@ -491,9 +491,10 @@ describe("built review protocol", () => {
       maxPasses: 2,
     });
     expect(resolved).toMatchObject({ state: "ready", nextAction: "run-frontline" });
+    const { kind, baseRef, diffBaseSha, headSha } = prepared.target;
     const runRequest = {
       schemaVersion: 1,
-      target: prepared.target,
+      target: { kind, baseRef, diffBaseSha, headSha },
       resolution: resolved,
       timeoutMs: 5_000,
     };

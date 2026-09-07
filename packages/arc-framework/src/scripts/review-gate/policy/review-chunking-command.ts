@@ -8,7 +8,7 @@ import {
   ReviewChunkingResolveEnvelopeSchema,
 } from "../core/review-command-envelope.js";
 import {
-  ReviewChunkingResolveRequestSchema,
+  ReviewChunkingResolveCommandRequestSchema,
 } from "../core/review-chunking-command-schema.js";
 import {
   parseReviewChunkingThresholds,
@@ -31,7 +31,7 @@ export async function resolveReviewChunkingCommand(
     exec: RawGitExec;
   },
 ) {
-  const parsed = ReviewChunkingResolveRequestSchema.parse(request);
+  const parsed = ReviewChunkingResolveCommandRequestSchema.parse(request);
   let target;
   try {
     target = validateReviewTarget(parsed.target);

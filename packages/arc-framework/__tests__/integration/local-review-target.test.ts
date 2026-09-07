@@ -16,6 +16,7 @@ import {
   composeDeliveryMemberTarget,
   confirmLocalReviewTarget,
   deriveLocalReviewTarget,
+  deriveLocalReviewTargetFromCoordinates,
   LocalTargetDerivationError,
 } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 
@@ -90,6 +91,34 @@ describe("canonical local review target derivation", () => {
       headSha: await git(root, "rev-parse", "HEAD"),
       headTree: await git(root, "rev-parse", "HEAD^{tree}"),
     });
+  });
+
+  it("derives canonical identity and trees from caller-held exact commit coordinates", async () => {
+    const root = await createRepository();
+    const base = await git(root, "rev-parse", "HEAD");
+    await writeFile(join(root, "tracked.txt"), "next\n", "utf8");
+    await git(root, "commit", "-am", "next");
+    const head = await git(root, "rev-parse", "HEAD");
+
+    for (const kind of ["change-set", "delivery-member"] as const) {
+      const target = await deriveLocalReviewTargetFromCoordinates({
+        exec,
+        cwd: root,
+        repositoryId,
+        coordinates: { kind, baseRef: "main", diffBaseSha: base, headSha: head },
+      });
+
+      expect(target).toMatchObject({
+        kind,
+        repositoryId,
+        baseRef: "main",
+        diffBaseSha: base,
+        diffBaseTree: await git(root, "rev-parse", `${base}^{tree}`),
+        headSha: head,
+        headTree: await git(root, "rev-parse", `${head}^{tree}`),
+      });
+      expect(target.targetId).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    }
   });
 
   it("reports a stale target when coordinates move before publication", async () => {

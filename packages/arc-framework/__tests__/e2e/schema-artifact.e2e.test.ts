@@ -84,6 +84,7 @@ describe("production schema artifact", () => {
       "review-command-error-envelope",
       "review-frontline-resolve-envelope",
       "review-frontline-run-envelope",
+      "review-frontline-run-request",
       "review-guidance-digest-preimage",
       "review-hosted-await-envelope",
       "review-hosted-request-envelope",

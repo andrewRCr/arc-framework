@@ -86,7 +86,8 @@ means the checkout could not compose one; resolve the returned advisory before i
 Before invoking or rendering review attention for each new target, read the latest planning decision prose for the
 selected `assess-boundary-fit` outcome and its evidence basis. A recorded `stays one WU` decision stays silent while
 evidence is semantically unchanged; invocation, elapsed time, and restatement are not material deltas. Otherwise
-invoke `arc review chunking resolve -` with the envelope's `target` and any exact-target `scopeSelection`, then
+invoke `arc review chunking resolve -` with the envelope's `target` projected to
+`{ kind, baseRef, diffBaseSha, headSha }` and any exact-target `scopeSelection` projected the same way, then
 dispatch only on its typed state/action pair:
 
 - `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
@@ -107,7 +108,8 @@ state/action pair:
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
 - `awaiting-change-request / open-change-request` — retain the hosted-first reservation and complete at
   `candidate-publish-ready`.
-- `ready / run-frontline` — invoke `arc review frontline resolve -`, then `arc review frontline run -`.
+- `ready / run-frontline` — invoke `arc review frontline resolve -`, then `arc review frontline run -` with the
+  ready resolution and the target's `{ kind, baseRef, diffBaseSha, headSha }` projection.
 - `ready / local-prepare` — invoke `arc review local prepare -`.
 - `findings / respond` — enter the disposition protocol below.
 - `approval-required / obtain-ceiling-override` — surface the exact consequence and `Approve (or redirect)?`.

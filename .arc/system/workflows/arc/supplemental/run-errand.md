@@ -176,9 +176,10 @@ remote base all name the same exact head. Any tracked change continues through t
 
    Compose the immutable policy target `{ repository, pullRequest: null, headSha }`, the routed `standardReview`
    projection, and explicit review-routing facts. The future merge lane remains downstream presentation, not a
-   routing input. For each new target, invoke `arc review chunking resolve -` once, including an existing exact-target
-   `scopeSelection` when one exists. An Errand has no owning work unit, so ordinary tripped evidence resolves
-   authoritative-unbound. Dispatch the closed result without adding delivery judgment:
+   routing input. For each new target, invoke `arc review chunking resolve -` once, projecting each supplied target
+   to caller-held Git coordinates `{ kind, baseRef, diffBaseSha, headSha }` and including an existing exact-target
+   `scopeSelection` through the same projection when one exists. An Errand has no owning work unit, so ordinary
+   tripped evidence resolves authoritative-unbound. Dispatch the closed result without adding delivery judgment:
 
    - `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
      `evidence-unavailable / continue-review` — render no attention text and continue review.
@@ -196,7 +197,8 @@ remote base all name the same exact head. Any tracked change continues through t
 
    - `skipped | no-op | pass-complete / none` — complete the lane at this boundary.
    - `awaiting-change-request / open-change-request` — retain progress and continue to PR creation.
-   - `ready / run-frontline` — invoke `arc review frontline resolve -` and `arc review frontline run -`.
+   - `ready / run-frontline` — invoke `arc review frontline resolve -`, then invoke `arc review frontline run -`
+     with the ready resolution and the target's `{ kind, baseRef, diffBaseSha, headSha }` projection.
    - `ready / local-prepare` — invoke `arc review local prepare -`; submit evaluator-owned result content through
      `arc review local attest -`, with runtime-owned bindings injected from the immutable operation.
    - `findings / respond` — run [`review-triage`][review-triage] and [`review-response`][review-response], then
