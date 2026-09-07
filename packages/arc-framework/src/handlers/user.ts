@@ -548,7 +548,7 @@ export async function handleUserInboxMarkExecuteBound(
     return;
   }
 
-  const cwd = requireArcProjectRoot();
+  const cwd = resolveArcRoot(process.cwd());
   if (!cwd) {
     emitUserInboxMarkExecuteBound({
       schemaVersion: 1,

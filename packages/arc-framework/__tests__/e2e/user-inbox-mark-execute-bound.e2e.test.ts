@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -127,5 +128,25 @@ describe("arc user inbox-mark-execute-bound", () => {
       diagnostics: [expect.stringContaining("absent from the requested order")],
     });
     expect(await readFile(inboxPath, "utf8")).toBe(marked);
+  });
+
+  it("emits only its refused JSON envelope outside an ARC project", async () => {
+    const outsideProject = await mkdtemp(join(tmpdir(), "arc-inbox-mark-outside-"));
+    try {
+      const result = await runArcWithStdin(
+        ["user", "inbox-mark-execute-bound", "-"],
+        outsideProject,
+        JSON.stringify({ schemaVersion: 1, orderedTitles: ["Example errand"] }),
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        state: "refused",
+        nextAction: "stop",
+        diagnostics: ["ARC project root is unavailable."],
+      });
+    } finally {
+      await cleanupTempDir(outsideProject);
+    }
   });
 });
