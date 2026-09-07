@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "batch-execute-bound-marking",
+  "claimId": "b086cb140aee0b4f2778e374855aa286",
+  "createdAt": "2026-09-07T15:04:16.750Z",
+  "updatedAt": "2026-09-07T15:04:16.750Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Expose lock-safe batch execute-bound marking to housekeep",
+  "branch": "chore/batch-execute-bound-marking",
+  "origin": "inbox",
+  "originEntry": "Expose lock-safe batch execute-bound marking to housekeep",
+  "originEntrySourceDigest": "sha256:4a7b7f7794d28bb313c7f22c5d1764ba2651dc7a5e1a9467030e709b71bab5fa",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
