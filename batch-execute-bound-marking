@@ -3,7 +3,7 @@
   "slug": "batch-execute-bound-marking",
   "claimId": "b086cb140aee0b4f2778e374855aa286",
   "createdAt": "2026-09-07T15:04:16.750Z",
-  "updatedAt": "2026-09-07T15:04:16.750Z",
+  "updatedAt": "2026-09-07T17:24:41.434Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Expose lock-safe batch execute-bound marking to housekeep",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Expose lock-safe batch execute-bound marking to housekeep",
   "originEntrySourceDigest": "sha256:4a7b7f7794d28bb313c7f22c5d1764ba2651dc7a5e1a9467030e709b71bab5fa",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/batch-execute-bound-marking",
+    "headSha": "9655573068babeffc98c94d9941a9522f3008809"
+  }
 }
