@@ -84,6 +84,7 @@ interface PhaseRecord {
   exitCriterionDeclarationCount: number;
   readonly exitCriterionDeclarationLines: number[];
   firstExitCriterionLine: number | null;
+  exitCriterionParagraphOpen: boolean;
   readonly parents: ParentRecord[];
   preambleOpen: boolean;
 }
@@ -164,6 +165,7 @@ export function scanTaskListSegmentation(
         exitCriterionDeclarationCount: 0,
         exitCriterionDeclarationLines: [],
         firstExitCriterionLine: null,
+        exitCriterionParagraphOpen: false,
         parents: [],
         preambleOpen: true,
       };
@@ -190,6 +192,10 @@ export function scanTaskListSegmentation(
       currentTaskId = event.item.id;
       continue;
     }
+    if (event.type === "subtask") {
+      currentTaskId = event.item.id;
+      continue;
+    }
     if (event.type === "section") {
       currentPhase = null;
       currentTaskId = null;
@@ -203,14 +209,43 @@ export function scanTaskListSegmentation(
       }
     }
     if (currentPhase?.preambleOpen === true) {
+      const text = event.text.trim();
+      if (currentPhase.exitCriterionParagraphOpen) {
+        if (text === "") {
+          currentPhase.exitCriterionParagraphOpen = false;
+        } else if (text.startsWith("_Mode:_") || text.startsWith("_Exit criterion:_")) {
+          currentPhase.exitCriterionParagraphOpen = false;
+        } else if (currentPhase.exitCriterion !== null) {
+          currentPhase.exitCriterion = {
+            ...currentPhase.exitCriterion,
+            text: `${currentPhase.exitCriterion.text} ${text}`,
+          };
+          continue;
+        }
+      }
       consumePreambleLine(document.path, event, currentPhase, diagnostics, () => {
         segmentationPresent = true;
       });
     }
   }
 
+  const terminalPhase = phases.at(-1);
+  if (terminalPhase !== undefined) {
+    for (const line of [
+      ...terminalPhase.modeDeclarationLines,
+      ...terminalPhase.exitCriterionDeclarationLines,
+    ]) {
+      diagnostics.push(diagnostic(
+        document.path,
+        line,
+        "terminal-phase-segmented",
+        "Terminal Verification phase must not carry _Mode:_ or _Exit criterion:_",
+      ));
+    }
+  }
   if (!segmentationPresent) {
-    return { segments: [], retiringPhaseReferences: [], diagnostics: [] };
+    diagnostics.sort((left, right) => left.line - right.line);
+    return { segments: [], retiringPhaseReferences: [], diagnostics };
   }
 
   const segments: TaskListSegment[] = [];
@@ -305,7 +340,6 @@ export function scanTaskListSegmentation(
       ));
     }
   }
-  const terminalPhase = phases.at(-1);
   const orphanCandidates = [
     ...phases.slice(0, -1).flatMap((phase) => phase.parents),
     ...outsidePhaseSegmentVerifiers.filter((parent) => (
@@ -322,17 +356,6 @@ export function scanTaskListSegmentation(
     ));
   }
   if (terminalPhase !== undefined) {
-    for (const line of [
-      ...terminalPhase.modeDeclarationLines,
-      ...terminalPhase.exitCriterionDeclarationLines,
-    ]) {
-      diagnostics.push(diagnostic(
-        document.path,
-        line,
-        "terminal-phase-segmented",
-        "Terminal Verification phase must not carry _Mode:_ or _Exit criterion:_",
-      ));
-    }
     for (const parent of [
       ...terminalPhase.parents,
       ...outsidePhaseSegmentVerifiers.filter((candidate) => (
@@ -434,6 +457,7 @@ function consumePreambleLine(
     }
     if (phase.exitCriterion === null) {
       phase.exitCriterion = { line: event.line, text: exitCriterion };
+      phase.exitCriterionParagraphOpen = true;
     }
   }
 }

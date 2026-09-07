@@ -55,6 +55,31 @@ describe("scanTaskListSegmentation", () => {
     });
   });
 
+  it("folds a wrapped exit criterion into the exported segment prose", () => {
+    const result = scanTaskListSegmentation({
+      path: ".arc/active/tasks-example.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled and",
+        "tested through its public interface.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.segments[0]?.exitCriterion).toEqual({
+      line: 5,
+      text: "The structure is settled and tested through its public interface.",
+    });
+  });
+
   it("extends a segment through its named closing phase", () => {
     const result = scanTaskListSegmentation({
       path: "tasks-example.md",
@@ -117,6 +142,39 @@ describe("scanTaskListSegmentation", () => {
     expect(result.retiringPhaseReferences).toEqual([{
       taskId: "1.1",
       line: 9,
+      phaseId: "cleanup",
+    }]);
+  });
+
+  it("attributes a retiring-phase reference to its owning subtask", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-example.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "    - `[ ]` **1.1.a Build temporary scaffolding**",
+        "",
+        "        - _Retired in:_ Phase cleanup",
+        "",
+        "## **Phase cleanup:** Remove scaffolding",
+        "",
+        "### `[ ]` **2.1 Remove temporary scaffolding**",
+        "",
+        "## **Phase final:** Verification",
+        "",
+        "### `[ ]` **3.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.retiringPhaseReferences).toEqual([{
+      taskId: "1.1.a",
+      line: 11,
       phaseId: "cleanup",
     }]);
   });
@@ -846,6 +904,30 @@ describe("scanTaskListSegmentation", () => {
       path: "tasks-terminal.md",
       line: 11,
       message: "tasks-terminal.md:11: Terminal Verification phase must not carry _Mode:_ or _Exit criterion:_",
+    });
+  });
+
+  it("reports a terminal exit criterion without another segmentation trigger", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-terminal.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "### `[ ]` **1.1 Build the work unit**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "_Exit criterion:_ The work unit is complete.",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "terminal-phase-segmented",
+      path: "tasks-terminal.md",
+      line: 7,
+      message: "tasks-terminal.md:7: Terminal Verification phase must not carry _Mode:_ or _Exit criterion:_",
     });
   });
 
