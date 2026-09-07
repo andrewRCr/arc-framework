@@ -139,6 +139,7 @@ export function scanTaskListSegmentation(
   const retiringPhaseReferences: TaskListRetiringPhaseReference[] = [];
   const diagnostics: TaskListSegmentationDiagnostic[] = [];
   const phaseIds = new Set<string>();
+  const outsidePhaseSegmentVerifiers: ParentRecord[] = [];
   let currentPhase: PhaseRecord | null = null;
   let currentTaskId: string | null = null;
   let segmentationPresent = false;
@@ -174,14 +175,17 @@ export function scanTaskListSegmentation(
       const rawLine = lines[event.line - 1] ?? "";
       const segmentVerifier = hasSegmentVerifierSuffix(rawLine);
       if (segmentVerifier) segmentationPresent = true;
+      const parent = {
+        id: event.item.id,
+        line: event.line,
+        segmentVerifier,
+        memberVerifier: hasMemberVerifierSuffix(rawLine),
+      };
       if (currentPhase !== null) {
         currentPhase.preambleOpen = false;
-        currentPhase.parents.push({
-          id: event.item.id,
-          line: event.line,
-          segmentVerifier,
-          memberVerifier: hasMemberVerifierSuffix(rawLine),
-        });
+        currentPhase.parents.push(parent);
+      } else if (segmentVerifier) {
+        outsidePhaseSegmentVerifiers.push(parent);
       }
       currentTaskId = event.item.id;
       continue;
@@ -301,18 +305,22 @@ export function scanTaskListSegmentation(
       ));
     }
   }
-  for (const phase of phases.slice(0, -1)) {
-    for (const parent of phase.parents) {
-      if (!parent.segmentVerifier || allowedSegmentVerifierLines.has(parent.line)) continue;
-      diagnostics.push(diagnostic(
-        document.path,
-        parent.line,
-        "segment-verifier-orphan",
-        `Task ${parent.id} carries the segment-verifier suffix outside a segment-closing position`,
-      ));
-    }
-  }
   const terminalPhase = phases.at(-1);
+  const orphanCandidates = [
+    ...phases.slice(0, -1).flatMap((phase) => phase.parents),
+    ...outsidePhaseSegmentVerifiers.filter((parent) => (
+      terminalPhase === undefined || parent.line < terminalPhase.reference.line
+    )),
+  ];
+  for (const parent of orphanCandidates) {
+    if (!parent.segmentVerifier || allowedSegmentVerifierLines.has(parent.line)) continue;
+    diagnostics.push(diagnostic(
+      document.path,
+      parent.line,
+      "segment-verifier-orphan",
+      `Task ${parent.id} carries the segment-verifier suffix outside a segment-closing position`,
+    ));
+  }
   if (terminalPhase !== undefined) {
     for (const line of [
       ...terminalPhase.modeDeclarationLines,
@@ -325,7 +333,12 @@ export function scanTaskListSegmentation(
         "Terminal Verification phase must not carry _Mode:_ or _Exit criterion:_",
       ));
     }
-    for (const parent of terminalPhase.parents) {
+    for (const parent of [
+      ...terminalPhase.parents,
+      ...outsidePhaseSegmentVerifiers.filter((candidate) => (
+        candidate.line > terminalPhase.reference.line
+      )),
+    ]) {
       if (!parent.segmentVerifier) continue;
       diagnostics.push(diagnostic(
         document.path,

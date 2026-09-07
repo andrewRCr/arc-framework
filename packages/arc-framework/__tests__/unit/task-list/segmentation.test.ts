@@ -701,6 +701,64 @@ describe("scanTaskListSegmentation", () => {
     expect(result.diagnostics.filter(({ code }) => code.startsWith("segment-verifier"))).toEqual([]);
   });
 
+  it("reports a segment verifier before the first phase", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-orphan-verifier.md",
+      content: [
+        "### `[ ]` **0.1 Orphan verifier** — validate exit criterion at segment scope",
+        "",
+        "## **Phase 1:** Layer",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "segment-verifier-orphan",
+      path: "tasks-orphan-verifier.md",
+      line: 1,
+      message: "tasks-orphan-verifier.md:1: Task 0.1 carries the segment-verifier suffix outside a segment-closing position",
+    });
+  });
+
+  it("reports a segment verifier beneath a non-phase section", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-orphan-verifier.md",
+      content: [
+        "## **Phase 1:** Layer",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## Supporting tasks",
+        "",
+        "### `[ ]` **1.2 Orphan verifier** — validate exit criterion at segment scope",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "segment-verifier-orphan",
+      path: "tasks-orphan-verifier.md",
+      line: 11,
+      message: "tasks-orphan-verifier.md:11: Task 1.2 carries the segment-verifier suffix outside a segment-closing position",
+    });
+  });
+
   it("reports a segment verifier outside the closing position", () => {
     const result = scanTaskListSegmentation({
       path: "tasks-orphan-verifier.md",
@@ -814,6 +872,36 @@ describe("scanTaskListSegmentation", () => {
       path: "tasks-terminal-verifier.md",
       line: 11,
       message: "tasks-terminal-verifier.md:11: Task 2.1 places a segment verifier in the terminal Verification phase",
+    });
+  });
+
+  it("reports a segment verifier beneath a section after the terminal phase", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-terminal-verifier.md",
+      content: [
+        "## **Phase 1:** Layer",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+        "",
+        "## Appendix",
+        "",
+        "### `[ ]` **3.1 Verify too late** — validate exit criterion at segment scope",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "segment-verifier-terminal",
+      path: "tasks-terminal-verifier.md",
+      line: 15,
+      message: "tasks-terminal-verifier.md:15: Task 3.1 places a segment verifier in the terminal Verification phase",
     });
   });
 });
