@@ -66,36 +66,14 @@ across the diagnostic family for no gain.
   references, and exact verifier suffixes from structural events and raw parent headings. Compatibility lists remain
   outside the contract, misplaced or fenced declarations stay inert, and malformed structure returns no partial data.
 
-### `[ ]` **1.2 Declaration diagnostics — D6**
+### `[x]` **1.2 Declaration diagnostics — D6**
 
 - _Goal:_ every malformed or incomplete segment declaration surfaces as its own precomposed diagnostic naming the
   offending line, and a well-formed declaration surfaces nothing.
 
-- _Approach:_ diagnostics are a closed set with fixed text — the reader gets a decision, not a rule to re-derive.
-  A phase-level finding names no parent task, so the shape is the minimum both fire sites already render: path,
-  line, and message. The message is self-describing and opens with its own `path:line:` prefix, as the descriptor
-  validator's does — both sites write it to stderr bare, so a message without the prefix loses its location. Spans
-  and ordering compare by document position, never by reading a phase id as a number — the structural grammar
-  admits any non-colon id.
-
-- **Additional Context:** `notes-plan-segmentation.md` § Segmentation scan interface defines the public input,
-  diagnostic fields, exact message bodies, and line loci.
-
-    Build `test-first` (one behavior at a time):
-
-    - a well-formed plan of several segments produces no diagnostics
-    - a second phase heading repeating an existing phase ID produces `phase-id-duplicate` at the second heading
-    - `_Mode:_ slice`, a missing token, malformed span syntax, or a missing em-dash/gloss produces
-      `mode-malformed`; a syntactically valid unknown token remains `mode-unknown`
-    - a phase belonging to no declared segment
-    - the terminal verification phase belongs to no segment and is exempt from that finding
-    - a mode token outside the closed set
-    - a span naming a missing phase, or one no later in document order than the opening phase
-    - a segment whose closing phase carries no exit criterion
-    - a phase inside a declared span carrying its own mode
-    - a phase carrying more than one mode line, or more than one exit criterion, with distinct diagnostic codes
-    - an empty exit criterion, and an exit criterion on a phase that closes no segment
-    - a retiring-phase reference naming a phase that does not exist
+- _Outcome:_ the scan now emits the closed, source-located declaration diagnostic family for phase coverage,
+  duplicate identities and labels, malformed or unknown modes, invalid spans, missing or orphaned exit criteria,
+  overlap, and unresolved retiring phases. Findings retain fixed `path:line:` messages in document order.
 
 ### `[ ]` **1.3 Verifier-position and terminal-phase diagnostics — D5, D6, D12**
 

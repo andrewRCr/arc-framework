@@ -231,4 +231,393 @@ describe("scanTaskListSegmentation", () => {
       }],
     });
   });
+
+  it("reports the second declaration of a duplicate phase id", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-duplicate.md",
+      content: [
+        "## **Phase 1:** First",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 1:** Duplicate",
+        "",
+        "### `[ ]` **1.2 Continue the structure**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "phase-id-duplicate",
+      path: "tasks-duplicate.md",
+      line: 9,
+      message: "tasks-duplicate.md:9: Phase 1 is declared more than once",
+    });
+  });
+
+  it.each([
+    ["_Mode:_ slice — closes on behavior.", "mode-malformed", "Phase 1 has malformed _Mode:_ syntax"],
+    ["_Mode:_", "mode-malformed", "Phase 1 has malformed _Mode:_ syntax"],
+    ["_Mode:_ `slice` through — closes on behavior.", "mode-malformed", "Phase 1 has malformed _Mode:_ syntax"],
+    ["_Mode:_ `slice`", "mode-malformed", "Phase 1 has malformed _Mode:_ syntax"],
+    ["_Mode:_ `wave` — closes on behavior.", "mode-unknown", "Phase 1 declares unknown segment mode wave"],
+  ] as const)("classifies the mode declaration %s", (modeLine, code, body) => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-mode.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        modeLine,
+        "",
+        "_Exit criterion:_ The behavior is complete.",
+        "",
+        "### `[ ]` **1.1 Build the behavior**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code,
+      path: "tasks-mode.md",
+      line: 3,
+      message: `tasks-mode.md:3: ${body}`,
+    });
+  });
+
+  it.each([
+    ["missing", [
+      "## **Phase 1:** Build",
+      "",
+      "_Mode:_ `slice` through Phase absent — closes on behavior.",
+      "",
+      "### `[ ]` **1.1 Build the behavior**",
+      "",
+      "## **Phase 2:** Verification",
+      "",
+      "### `[ ]` **2.1 Verify the work unit**",
+    ], 3, "1", "absent"],
+    ["non-forward", [
+      "## **Phase 1:** Foundation",
+      "",
+      "### `[ ]` **1.1 Build the foundation**",
+      "",
+      "## **Phase 2:** Build",
+      "",
+      "_Mode:_ `slice` through Phase 1 — closes on behavior.",
+      "",
+      "### `[ ]` **2.1 Build the behavior**",
+      "",
+      "## **Phase 3:** Verification",
+      "",
+      "### `[ ]` **3.1 Verify the work unit**",
+    ], 7, "2", "1"],
+  ] as const)("reports a %s segment span", (_kind, lines, line, phaseId, targetPhaseId) => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-span.md",
+      content: lines.join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "span-invalid",
+      path: "tasks-span.md",
+      line,
+      message: `tasks-span.md:${line}: Phase ${phaseId} declares an invalid segment span through Phase ${targetPhaseId}`,
+    });
+  });
+
+  it("reports a segment whose closing phase has no exit criterion", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-exit.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "segment-missing-exit-criterion",
+      path: "tasks-exit.md",
+      line: 1,
+      message: "tasks-exit.md:1: Segment closing at Phase 1 has no _Exit criterion:_",
+    });
+  });
+
+  it.each([
+    [
+      "a duplicate mode",
+      [
+        "_Mode:_ `layer` — closes on settled structure.",
+        "_Mode:_ `slice` — closes on exercised behavior.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+      ],
+      4,
+      "mode-duplicate",
+      "Phase 1 carries more than one _Mode:_ declaration",
+    ],
+    [
+      "a duplicate exit criterion",
+      [
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "_Exit criterion:_ The duplicate must be refused.",
+      ],
+      6,
+      "exit-criterion-duplicate",
+      "Phase 1 carries more than one _Exit criterion:_ declaration",
+    ],
+    [
+      "an empty exit criterion",
+      [
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_   ",
+      ],
+      5,
+      "exit-criterion-empty",
+      "Phase 1 has an empty _Exit criterion:_ declaration",
+    ],
+  ] as const)("reports %s", (_kind, declarations, line, code, body) => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-cardinality.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        ...declarations,
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code,
+      path: "tasks-cardinality.md",
+      line,
+      message: `tasks-cardinality.md:${line}: ${body}`,
+    });
+  });
+
+  it("reports uncovered phases while exempting terminal Verification", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-coverage.md",
+      content: [
+        "## **Phase 1:** Segmented",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 2:** Uncovered",
+        "",
+        "### `[ ]` **2.1 Miss the declaration**",
+        "",
+        "## **Phase 3:** Verification",
+        "",
+        "### `[ ]` **3.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics.filter(({ code }) => code === "phase-outside-segment")).toEqual([{
+      code: "phase-outside-segment",
+      path: "tasks-coverage.md",
+      line: 9,
+      message: "tasks-coverage.md:9: Phase 2 belongs to no declared segment",
+    }]);
+  });
+
+  it("reports a segment opened inside an existing segment span", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-overlap.md",
+      content: [
+        "## **Phase 1:** Open",
+        "",
+        "_Mode:_ `slice` through Phase 2 — closes on exercised behavior.",
+        "",
+        "### `[ ]` **1.1 Open the slice**",
+        "",
+        "## **Phase 2:** Close and reopen",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **2.1 Close the slice**",
+        "",
+        "## **Phase 3:** Verification",
+        "",
+        "### `[ ]` **3.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "segment-overlap",
+      path: "tasks-overlap.md",
+      line: 9,
+      message: "tasks-overlap.md:9: Phase 2 opens a segment inside the span opened at Phase 1",
+    });
+  });
+
+  it("reports an exit criterion on a phase that closes no segment", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-orphan-exit.md",
+      content: [
+        "## **Phase 1:** Open",
+        "",
+        "_Mode:_ `slice` through Phase 2 — closes on exercised behavior.",
+        "",
+        "_Exit criterion:_ This phase does not close the slice.",
+        "",
+        "### `[ ]` **1.1 Open the slice**",
+        "",
+        "## **Phase 2:** Close",
+        "",
+        "_Exit criterion:_ The behavior works end to end.",
+        "",
+        "### `[ ]` **2.1 Exercise the slice**",
+        "",
+        "## **Phase 3:** Verification",
+        "",
+        "### `[ ]` **3.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "exit-criterion-orphan",
+      path: "tasks-orphan-exit.md",
+      line: 5,
+      message: "tasks-orphan-exit.md:5: Phase 1 carries _Exit criterion:_ but closes no segment",
+    });
+  });
+
+  it("reports a retiring-phase reference whose target is missing", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-retiring.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build temporary scaffolding**",
+        "",
+        "    - _Retired in:_ Phase absent",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "retiring-phase-missing",
+      path: "tasks-retiring.md",
+      line: 9,
+      message: "tasks-retiring.md:9: Task 1.1 names missing retiring Phase absent",
+    });
+  });
+
+  it("treats a segment-suffixed parent as segmentation-contract presence", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-suffix-only.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "### `[ ]` **1.1 Exercise behavior** — validate exit criterion at segment scope",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "phase-outside-segment",
+      path: "tasks-suffix-only.md",
+      line: 1,
+      message: "tasks-suffix-only.md:1: Phase 1 belongs to no declared segment",
+    });
+  });
+
+  it("accepts several complete non-overlapping segment declarations", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-complete.md",
+      content: [
+        "## **Phase 1:** First layer",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The first structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the first layer**",
+        "",
+        "## **Phase 2:** Open slice",
+        "",
+        "_Mode:_ `slice` through Phase 3 — closes on exercised behavior.",
+        "",
+        "### `[ ]` **2.1 Open the slice**",
+        "",
+        "## **Phase 3:** Close slice",
+        "",
+        "_Exit criterion:_ The behavior works end to end.",
+        "",
+        "### `[ ]` **3.1 Exercise the slice**",
+        "",
+        "## **Phase 4:** Verification",
+        "",
+        "### `[ ]` **4.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.segments.map(({ mode, phaseIds }) => ({ mode, phaseIds }))).toEqual([
+      { mode: "layer", phaseIds: ["1"] },
+      { mode: "slice", phaseIds: ["2", "3"] },
+    ]);
+  });
+
+  it("orders diagnostics by their source line", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-order.md",
+      content: [
+        "## **Phase 1:** Broken",
+        "",
+        "_Mode:_ layer — malformed token.",
+        "",
+        "_Exit criterion:_ This phase closes no valid segment.",
+        "",
+        "### `[ ]` **1.1 Build the behavior**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics.map(({ line }) => line)).toEqual([1, 3, 5]);
+  });
 });

@@ -78,11 +78,14 @@ interface PhaseRecord {
     readonly line: number;
     readonly throughPhaseId: string | null;
   } | null;
+  modeDeclarationCount: number;
   exitCriterion: { readonly line: number; readonly text: string } | null;
+  exitCriterionDeclarationCount: number;
+  firstExitCriterionLine: number | null;
   preambleOpen: boolean;
 }
 
-const MODE_RE = /^_Mode:_\s+`(?<mode>slice|layer|replication)`(?:\s+through Phase\s+(?<through>.+?))?\s+—\s+(?<gloss>\S.*)$/u;
+const MODE_RE = /^_Mode:_\s+`(?<mode>[^`\s]+)`(?:\s+through Phase\s+(?<through>.+?))?\s+—\s+(?<gloss>\S.*)$/u;
 const EXIT_CRITERION_RE = /^_Exit criterion:_\s+(?<text>\S.*)$/u;
 const RETIRING_PHASE_RE = /^\s*-\s+_Retired in:_\s+Phase\s+(?<phaseId>\S(?:.*\S)?)\s*$/u;
 const SEGMENT_VERIFIER_SUFFIX = "— validate exit criterion at segment scope";
@@ -124,16 +127,30 @@ export function scanTaskListSegmentation(
   const lines = document.content.split(/\r?\n/u);
   const phases: PhaseRecord[] = [];
   const retiringPhaseReferences: TaskListRetiringPhaseReference[] = [];
+  const diagnostics: TaskListSegmentationDiagnostic[] = [];
+  const phaseIds = new Set<string>();
   let currentPhase: PhaseRecord | null = null;
   let currentTaskId: string | null = null;
   let segmentationPresent = false;
 
   for (const event of scan.events) {
     if (event.type === "phase") {
+      if (phaseIds.has(event.id)) {
+        diagnostics.push(diagnostic(
+          document.path,
+          event.line,
+          "phase-id-duplicate",
+          `Phase ${event.id} is declared more than once`,
+        ));
+      }
+      phaseIds.add(event.id);
       currentPhase = {
         reference: { id: event.id, line: event.line },
         mode: null,
+        modeDeclarationCount: 0,
         exitCriterion: null,
+        exitCriterionDeclarationCount: 0,
+        firstExitCriterionLine: null,
         preambleOpen: true,
       };
       phases.push(currentPhase);
@@ -159,7 +176,7 @@ export function scanTaskListSegmentation(
       }
     }
     if (currentPhase?.preambleOpen === true) {
-      consumePreambleLine(event, currentPhase, () => {
+      consumePreambleLine(document.path, event, currentPhase, diagnostics, () => {
         segmentationPresent = true;
       });
     }
@@ -170,6 +187,9 @@ export function scanTaskListSegmentation(
   }
 
   const segments: TaskListSegment[] = [];
+  const coveredPhaseLines = new Set<number>();
+  const closingPhaseLines = new Set<number>();
+  const coveringOpeningPhaseByIndex: Array<PhaseRecord | undefined> = [];
   for (const [openingIndex, phase] of phases.entries()) {
     if (phase.mode === null) continue;
     const closingIndex = phase.mode.throughPhaseId === null
@@ -177,8 +197,42 @@ export function scanTaskListSegmentation(
       : phases.findIndex((candidate, index) => (
         index > openingIndex && candidate.reference.id === phase.mode?.throughPhaseId
       ));
+    if (closingIndex < 0 && phase.mode.throughPhaseId !== null) {
+      diagnostics.push(diagnostic(
+        document.path,
+        phase.mode.line,
+        "span-invalid",
+        `Phase ${phase.reference.id} declares an invalid segment span through Phase ${phase.mode.throughPhaseId}`,
+      ));
+      continue;
+    }
     const closingPhase = phases[closingIndex];
-    if (closingPhase === undefined || closingPhase.exitCriterion === null) continue;
+    if (closingPhase === undefined) continue;
+    closingPhaseLines.add(closingPhase.reference.line);
+    const containingPhase = coveringOpeningPhaseByIndex[openingIndex];
+    if (containingPhase !== undefined) {
+      diagnostics.push(diagnostic(
+        document.path,
+        phase.mode.line,
+        "segment-overlap",
+        `Phase ${phase.reference.id} opens a segment inside the span opened at Phase ${containingPhase.reference.id}`,
+      ));
+    }
+    for (let index = openingIndex + 1; index <= closingIndex; index += 1) {
+      coveringOpeningPhaseByIndex[index] ??= phase;
+    }
+    for (const coveredPhase of phases.slice(openingIndex, closingIndex + 1)) {
+      coveredPhaseLines.add(coveredPhase.reference.line);
+    }
+    if (closingPhase.exitCriterion === null) {
+      diagnostics.push(diagnostic(
+        document.path,
+        closingPhase.reference.line,
+        "segment-missing-exit-criterion",
+        `Segment closing at Phase ${closingPhase.reference.id} has no _Exit criterion:_`,
+      ));
+      continue;
+    }
     segments.push({
       mode: phase.mode.mode,
       openingPhase: phase.reference,
@@ -187,20 +241,77 @@ export function scanTaskListSegmentation(
       exitCriterion: closingPhase.exitCriterion,
     });
   }
-  return { segments, retiringPhaseReferences, diagnostics: [] };
+  for (const phase of phases.slice(0, -1)) {
+    if (coveredPhaseLines.has(phase.reference.line)) continue;
+    diagnostics.push(diagnostic(
+      document.path,
+      phase.reference.line,
+      "phase-outside-segment",
+      `Phase ${phase.reference.id} belongs to no declared segment`,
+    ));
+  }
+  for (const phase of phases.slice(0, -1)) {
+    if (phase.firstExitCriterionLine === null || closingPhaseLines.has(phase.reference.line)) continue;
+    diagnostics.push(diagnostic(
+      document.path,
+      phase.firstExitCriterionLine,
+      "exit-criterion-orphan",
+      `Phase ${phase.reference.id} carries _Exit criterion:_ but closes no segment`,
+    ));
+  }
+  for (const reference of retiringPhaseReferences) {
+    if (phaseIds.has(reference.phaseId)) continue;
+    diagnostics.push(diagnostic(
+      document.path,
+      reference.line,
+      "retiring-phase-missing",
+      `Task ${reference.taskId} names missing retiring Phase ${reference.phaseId}`,
+    ));
+  }
+  diagnostics.sort((left, right) => left.line - right.line);
+  return { segments, retiringPhaseReferences, diagnostics };
 }
 
 function consumePreambleLine(
+  path: string,
   event: Extract<TaskListStructureEvent, { type: "content" }>,
   phase: PhaseRecord,
+  diagnostics: TaskListSegmentationDiagnostic[],
   notePresence: () => void,
 ): void {
   const text = event.text.trim();
   if (text.startsWith("_Mode:_")) {
     notePresence();
+    phase.modeDeclarationCount += 1;
+    if (phase.modeDeclarationCount > 1) {
+      diagnostics.push(diagnostic(
+        path,
+        event.line,
+        "mode-duplicate",
+        `Phase ${phase.reference.id} carries more than one _Mode:_ declaration`,
+      ));
+    }
     const match = MODE_RE.exec(text);
-    const mode = match?.groups?.mode as TaskListSegmentMode | undefined;
-    if (mode !== undefined) {
+    const mode = match?.groups?.mode;
+    if (mode === undefined) {
+      diagnostics.push(diagnostic(
+        path,
+        event.line,
+        "mode-malformed",
+        `Phase ${phase.reference.id} has malformed _Mode:_ syntax`,
+      ));
+      return;
+    }
+    if (!isTaskListSegmentMode(mode)) {
+      diagnostics.push(diagnostic(
+        path,
+        event.line,
+        "mode-unknown",
+        `Phase ${phase.reference.id} declares unknown segment mode ${mode}`,
+      ));
+      return;
+    }
+    if (phase.mode === null) {
       phase.mode = {
         mode,
         line: event.line,
@@ -209,10 +320,35 @@ function consumePreambleLine(
     }
     return;
   }
-  const exitCriterion = EXIT_CRITERION_RE.exec(text)?.groups?.text;
-  if (exitCriterion !== undefined) {
-    phase.exitCriterion = { line: event.line, text: exitCriterion };
+  if (text.startsWith("_Exit criterion:_")) {
+    phase.exitCriterionDeclarationCount += 1;
+    phase.firstExitCriterionLine ??= event.line;
+    if (phase.exitCriterionDeclarationCount > 1) {
+      diagnostics.push(diagnostic(
+        path,
+        event.line,
+        "exit-criterion-duplicate",
+        `Phase ${phase.reference.id} carries more than one _Exit criterion:_ declaration`,
+      ));
+    }
+    const exitCriterion = EXIT_CRITERION_RE.exec(text)?.groups?.text;
+    if (exitCriterion === undefined) {
+      diagnostics.push(diagnostic(
+        path,
+        event.line,
+        "exit-criterion-empty",
+        `Phase ${phase.reference.id} has an empty _Exit criterion:_ declaration`,
+      ));
+      return;
+    }
+    if (phase.exitCriterion === null) {
+      phase.exitCriterion = { line: event.line, text: exitCriterion };
+    }
   }
+}
+
+function isTaskListSegmentMode(value: string): value is TaskListSegmentMode {
+  return value === "slice" || value === "layer" || value === "replication";
 }
 
 function diagnostic(
