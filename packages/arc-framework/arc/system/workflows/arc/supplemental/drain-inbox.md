@@ -192,7 +192,22 @@ routing write.
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
   off that branch (split per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
   plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections, mirroring
-  [run-errand][run-errand] § Ship step 3. Immediately before creating it, invoke `arc merge lock resolve -` with
+  [run-errand][run-errand] § Ship step 3.
+
+  Before creating each routing PR, invoke `arc review planning-grooming resolve -` with its exact base ref,
+  diff-base SHA, head SHA, and only the caller-owned content kind, risk, determinacy, ownership, and surface
+  authority judgments. The command derives repository identity, immutable target trees, planning-lane eligibility,
+  transient assurance, method activity, and the standard-review obligation. Follow its typed result:
+
+    - `exempt / none` — skip both review lanes and continue to PR creation.
+    - `review-required / continue-review` — reuse its exact target, routing, and obligation payload in the
+      reviewed-lane settlement from [run-errand][run-errand]; do not retype those projections.
+    - `not-eligible / continue-review` — enter that reviewed-lane settlement through ordinary fact composition.
+    - A command error carries no action; stop.
+
+  Never infer exemption from `arc review planning-lane`, path intuition, or absence of a work unit. The later
+  planning-lane call still classifies merge presentation only. Immediately before creating the PR, invoke
+  `arc merge lock resolve -` with
   the exact tree root and create on its typed action: `locked / open-locked` opens the PR locked, `none /
   open-plain` opens it plain, and `blocked / stop` halts creation before any PR exists. A write touching a
   **foreign owner's** artifact is reviewed-lane and ships on its own.

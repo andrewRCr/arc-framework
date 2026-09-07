@@ -165,6 +165,10 @@ remote base all name the same exact head. Any tracked change continues through t
 
 1. **Compose Errand review facts.** Atomic determinacy is a routing fact alongside the canonical change facts and
    `vehicle: errand`; it can scale the obligation only through registered policy. Do not select a merge lane yet.
+   When the change is confidently routine planning-grooming and self- or ownerless-owned, retain only the exact Git
+   coordinates plus the caller-owned content kind, risk, determinacy, ownership, and surface authority judgments for
+   the direct adapter below. The adapter derives the remaining routing facts; do not hand-author its change-set
+   state, assurance, method activity, repository identity, target trees, or standard-review projection.
 
 2. **Push** the errand branch upstream.
 
@@ -174,9 +178,41 @@ remote base all name the same exact head. Any tracked change continues through t
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
+   For the confidently recognized planning-grooming case, invoke `arc review planning-grooming resolve -` once with
+   the exact committed target and the three caller-owned judgments:
+
+   ```json
+   {
+     "schemaVersion": 1,
+     "target": { "baseRef": "<base-ref>", "diffBaseSha": "<diff-base-sha>", "headSha": "<head-sha>" },
+     "routingFacts": {
+       "contentKind": "documentation",
+       "reviewRisk": "routine",
+       "changeDeterminacy": "atomic",
+       "ownership": "self",
+       "surfaceAuthority": "planning-grooming"
+     }
+   }
+   ```
+
+   The command independently derives the immutable repository target, proves the exact diff contains only plain
+   planning artifacts, and supplies the transient vehicle's assurance and live method activity. Content kind and
+   surface authority remain caller-owned semantic judgments. Follow only its typed state:
+
+   - `exempt / none` — both review lanes are complete (`frontline: skipped`, `standard: exempt`); skip the remaining
+     review composition in this step and continue to Step 3.
+   - `review-required / continue-review` — reuse its exact target, routing, and obligation payload, preserve its
+     diagnostics, then enter ordinary review below; do not retype those projections.
+   - `not-eligible / continue-review` — surface the typed reason, then enter ordinary review below.
+   - A command error carries no action; stop.
+
+   Never infer this exemption from `arc review planning-lane`, absence of a work unit, file count, or prose. The
+   planning-lane classifier remains the later merge-lane input only.
+
    Compose the immutable policy target `{ repository, pullRequest: null, headSha }`, the routed `standardReview`
-   projection, and explicit review-routing facts. The future merge lane remains downstream presentation, not a
-   routing input. For each new target, invoke `arc review chunking resolve -` once, projecting each supplied target
+   projection, and explicit review-routing facts for every target continuing through ordinary review. The future
+   merge lane remains downstream presentation, not a routing input. For each new target, invoke
+   `arc review chunking resolve -` once, projecting each supplied target
    to caller-held Git coordinates `{ kind, baseRef, diffBaseSha, headSha }` and including an existing exact-target
    `scopeSelection` through the same projection when one exists. An Errand has no owning work unit, so ordinary
    tripped evidence resolves authoritative-unbound. Dispatch the closed result without adding delivery judgment:

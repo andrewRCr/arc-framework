@@ -416,12 +416,34 @@ describe("trusted review-gate workflows", () => {
       readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
     ]);
     expect(project).toBe(packaged);
+    expect(packaged).toContain("arc review planning-grooming resolve -");
+    expect(packaged).toMatch(/`exempt \/ none`[\s\S]*both review lanes/iu);
+    expect(packaged).toMatch(/`review-required \/ continue-review`[\s\S]*ordinary review/iu);
+    expect(packaged).toMatch(/`not-eligible \/ continue-review`[\s\S]*ordinary review/iu);
+    expect(packaged).toMatch(/caller-owned[^.]*content kind[^.]*surface authority/iu);
+    expect(packaged).toMatch(/never infer[^.]*planning-lane/iu);
     expect(packaged).toMatch(/atomic determinacy[\s\S]*routing fact/iu);
     expect(packaged).toMatch(/arc review resolve -[\s\S]*review-response/iu);
     expect(packaged).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
     expect(packaged).not.toMatch(/vehicle-neutral response-state store|review-suspension|promoted watcher/u);
     expect(packaged).toMatch(/merge lane[\s\S]*downstream presentation/u);
     expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
+  });
+
+  it("resolves routing-only grooming exemption before opening a housekeeping PR", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/drain-inbox.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/drain-inbox.md"),
+    ]);
+    expect(project).toBe(packaged);
+    const fullProtection = sectionBetween(packaged, "- **Fully protected**", "- **Partially protected**");
+    const exemption = fullProtection.indexOf("arc review planning-grooming resolve -");
+    const prCreation = fullProtection.indexOf("arc merge lock resolve -");
+    expect(exemption).toBeGreaterThanOrEqual(0);
+    expect(prCreation).toBeGreaterThan(exemption);
+    expect(fullProtection).toMatch(/`exempt \/ none`[\s\S]*skip[^.]*review/iu);
+    expect(fullProtection).toMatch(/continue-review[\s\S]*reviewed-lane/iu);
+    expect(fullProtection).toMatch(/never infer[^.]*planning-lane/iu);
   });
 
   it("surfaces exact-head CI failures while a hosted review remains pending", async () => {

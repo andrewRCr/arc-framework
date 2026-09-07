@@ -20,6 +20,7 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewPlanningGroomingResolve,
   handleReviewPrePublication,
   handleReviewMergeMethodResolve,
   handleReviewChecksAwait,
@@ -45,6 +46,8 @@ import {
 } from "../../../src/scripts/review-gate/hosts/local/record-store-error.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
 import { reduceReviewRouting } from "../../../src/scripts/review-gate/policy/routing.js";
+import { resolvePlanningGroomingReviewCommand } from
+  "../../../src/scripts/review-gate/policy/planning-grooming-command.js";
 import {
   createLocalReviewReceipt,
 } from "../../../src/scripts/review-gate/runtime/local-attestation.js";
@@ -364,6 +367,89 @@ describe("handleReviewPlanningLane", () => {
     expect(output).toEqual([]);
     expect(errors).toEqual(["planning-lane classification failed\n"]);
     expect(exitCodes).toEqual([1]);
+  });
+});
+
+describe("handleReviewPlanningGroomingResolve", () => {
+  const request = {
+    schemaVersion: 1 as const,
+    target: {
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      headSha: "c".repeat(40),
+    },
+    routingFacts: {
+      contentKind: "documentation" as const,
+      reviewRisk: "routine" as const,
+      changeDeterminacy: "atomic" as const,
+      ownership: "self" as const,
+      surfaceAuthority: "planning-grooming" as const,
+    },
+  };
+
+  it("emits one validated exemption composed through the handler seam", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const resolve = vi.fn(async (parsed: typeof request) =>
+      resolvePlanningGroomingReviewCommand({
+        request: parsed,
+        target,
+        changeSet: {
+          changeSet: "known",
+          changes: [{
+            status: "modified",
+            path: ".arc/backlog/planned/example/draft-example.md",
+            oldMode: "100644",
+            newMode: "100644",
+          }],
+        },
+        context: {
+          state: "resolved",
+          assurance: { workContext: "errand", workClass: "none" },
+          activity: { selfReview: true, frontlineReview: true },
+          diagnostics: [],
+        },
+      }));
+
+    await handleReviewPlanningGroomingResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify(request),
+      resolve,
+      write,
+      setExitCode,
+    });
+
+    expect(resolve).toHaveBeenCalledWith(request, "/repo");
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-planning-grooming-resolve",
+      state: "exempt",
+      nextAction: "none",
+    });
+    expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("rejects caller-authored derived facts before repository composition", async () => {
+    const resolve = vi.fn();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewPlanningGroomingResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        ...request,
+        routingFacts: { ...request.routingFacts, changeSetState: "known" },
+      }),
+      resolve,
+      write,
+      setExitCode,
+    });
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-planning-grooming-resolve",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
   });
 });
 
