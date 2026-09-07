@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "e2e-feedback-latency-rebalance",
+  "claimId": "d31ef8fd19334c8b0195e37cbd7829c8",
+  "createdAt": "2026-09-07T18:52:00.491Z",
+  "updatedAt": "2026-09-07T18:52:00.491Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "e2e-feedback-latency-rebalance",
+  "branch": "chore/e2e-feedback-latency-rebalance",
+  "origin": "inbox",
+  "originEntry": "Reduce E2E feedback latency and rebalance CI shards",
+  "originEntrySourceDigest": "sha256:9044ad174b90da9e95ef094165425af4d775d102759bb08d0e338deaa6544b96",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
