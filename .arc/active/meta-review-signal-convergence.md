@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** generate-tasks structural pass and PR-size evaluation
+- **Last Completed:** Consolidated spec accepted after two adversarial passes; second pass returned no findings
 - **Next Task:** [none]
-- **Blockers:** `decompose-transform-integrity` preferred; `chunked-delivery` is the alternate unblocker
+- **Blockers:** [none]
 
-- **Next Action:** Resume from `notes-review-signal-convergence.md` § Blocker and resume condition when unblocked
+- **Next Action:** Rebuild the delivery-aware structural task pass and ground member sizing; see
+  `notes-review-signal-convergence.md` § Consolidated planning baseline — 2026-09-07
 
 - **PR URL:** [none]
 - **Completed:** [none]

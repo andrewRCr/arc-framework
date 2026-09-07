@@ -1,5 +1,152 @@
 # Notes: Review Signal Convergence
 
+## Consolidated planning baseline — 2026-09-07
+
+The reviewed design is accepted for task generation. Pre-activation consolidation removes the spec's resume banner,
+dated acceptance-criterion amendment labels, and review-pending narration; it does not reopen design or renumber the
+eight Proposed Design elements or eighteen Success Criteria. The original retained baseline remains at `fc8f0bd80`.
+The superseded four-child-WU direction, seven-member sizing hypothesis, source reconciliation, explicit approvals,
+and both adversarial results remain below as history. One WU with native-stack delivery is the current direction.
+
+Conservation basis: compare the consolidated spec with the second-pass candidate, SHA-256
+`0b03a417bd5809398cad31c6bf69d3441216720d13cc944b89690dbbdf3a3a52`. Removed narrative is represented by the current
+Goals, Non-Goals, numbered design, rollout constraints, and these notes; no evidence, authority, coverage, response,
+presentation, or verification obligation is retired. The consolidation is editorial, so the two completed
+adversarial passes are not represented as reviews of the new bytes. A primary whole-spec coherence read and exact
+consolidation-diff comparison supplement that design review; no additional adversarial pass is invoked.
+
+Task generation re-derives the native-stack partition from current strict-schema callers and executable lifecycle
+boundaries. Existing task parents remain traceability inputs until the structural pass is replaced and reviewed.
+The delivery plan is provisional during that pass; canonical authoring waits until grounding and finalization.
+
+## Amended-spec adversarial review — 2026-09-07
+
+**Latest result — Pass 2 of 2, no findings.** A second fresh read-only reviewer examined the complete 1,004-line
+spec using the same three rubrics, supplied with F1 and its applied correction but no conversation history.
+Reviewed spec SHA-256: `0b03a417bd5809398cad31c6bf69d3441216720d13cc944b89690dbbdf3a3a52`; the reviewer confirmed it
+remained unchanged. The pass found the self-review boundary corrected and identified no unresolved settle-able
+design decision preventing task generation. Its reported coverage included goals/proportionality, advisory/author
+review, disposition/presentation, pass/coverage, immutable evidence, response/member progression, publication, and
+forward compatibility. These are advisory review observations, not implementation verification or merge clearance.
+
+No further review pass is required by the returned signal. The current allowance is exhausted; any additional
+adversarial pass requires explicit approval. Markdown lint (684 files), all three ARC contract checks, and
+`git diff --check` passed on the corrected spec. The complete candidate awaits the spec acceptance/commit gate,
+then delivery-aware structural task generation with grounded member sizing. No executable list is finalized.
+
+Pass 1 of 2 under the current Heavy planning-review allowance. One fresh read-only reviewer examined the complete
+spec using `assess-design-proportionality`, `design-audit`, and `spec-review`, without conversation history or prior
+finding guidance. Reviewed spec SHA-256: `f078579c7f687cbb8060ba38b8ea1759f1c87adba6256be0535d726937ac662d`.
+Verdict: revise before executable task generation. One finding; no finding-driven correction applied yet.
+
+**F1 — Resolve author self-review's disposition rendering boundary.** Reported `major`; confirmed `major`.
+The new default `review-triage` report requires `respond-command.ts` output from a canonical disposition and exact
+producer. The existing author self-review caller runs before Candidate creation and produces no independent review
+evidence, but still invokes triage. The three admitted command sources are attested-local, frontline, and hosted;
+none accepts an author self-review finding. The advisory planning/criteria exemption does not settle this caller.
+
+Primary source verification: `self-review.md` contract and finding-processing step; `verify-work-unit.md` Step 1;
+`ReviewResponseSettlementSourceSchema` in `core/response-plan-schema.ts`; `RespondProposalRequestSchema` in
+`runtime/respond-command.ts`. The missing decision is presentation admission, not a missing independent evaluator.
+Proposed disposition: fix the spec before task generation, preserving author-side self-review without manufacturing
+receipts or convergence evidence. A scoped non-producer presentation path or a non-evidentiary public renderer
+would address it; select the boundary before editing. Approval pending.
+
+**Forward disposition — approved and applied 2026-09-07:** retain author self-review's non-producer
+triage/presentation/approval path. Limit mandatory CLI rendering and producer-bound canonical identity to the three
+durable code-review sources. Self-review still presents the complete standalone finding set and source verification;
+it neither fabricates a provider/receipt nor contributes convergence evidence or a durable pass. No additional
+public rendering command is added. Spec §§ 3–4 and 7, Non-Goals, Testing, and Success Criteria now state that boundary.
+The second authorized fresh pass reviews the complete amended spec and this correction.
+
+The reviewer reported no findings in the other design regions after examining vocabulary/advisory semantics,
+reported/verified provenance, existing-store sealing, logical accounting, incremental coverage, response/continuation,
+member/Owner boundaries, publication recovery, and the forward-compatibility constraints. Those observations are
+attention reports, not independent correctness attestations. Primary verification of F1 does not certify those
+other claims wholesale.
+
+Markdown lint (684 files), method/extension graph, domain-rules, section-reference checks (1,745 files), and
+`git diff --check` passed for the amended candidate before review. No implementation or task-list rewrite occurred.
+
+## Forward-compatibility amendment — 2026-09-07
+
+Approved after checking `strategy-procedure-evolution.md`, `strategy-knowledge-evolution.md`,
+`draft-composable-workflows.md`, and `analysis-load-set-scoping.md` against the current methods and CLI:
+
+- Render the default code-review disposition report in TypeScript through the existing respond command. Reuse
+  canonical rationale/recommendation for primary-authored narrative and producer evidence for source navigation;
+  keep presentation overrides without changing approval authority.
+- Preserve workflow-owned triage/response. Preparation, integration, delivery, Errand, and self-review callers
+  already own distinct cycles. Reconcile `review-response`'s nested triage instruction with the new approved-input
+  ordering; do not add a generic adversarial-to-triage dependency. Advisory planning/criteria reviews share the
+  verification/disposition/convergence principles, not code-review record and response machinery.
+- Put response-before-continuation selection and target-change routing in existing command composition; methods
+  execute selected leaves and keep judgment and interlocks. No workflow-side reimplementation of the state table.
+- Add bounded fresh-context behavioral exercises alongside renderer, command, declaration, and parity checks.
+  Static instruction checks do not establish judgment adherence; the unshipped generic eval harness is not required.
+
+The initial reachability recommendation conflated shared principles with method invocation. Source inspection
+showed `adversarial-review` is a generic mechanism used by planning and criteria verification, while code-review
+carriers may reuse it under their own activity contract. `related` does not create a load edge, but absence of an
+adversarial-to-triage edge is not itself a defect. Direct declarations must follow the reconciled ownership.
+`init-recipe.json` already includes the affected methods; no new installation or always-loaded surface is needed.
+
+These changes refine the existing candidate and provisional members, not the WU boundary. Renderer work belongs
+with dispositions/navigation; caller closure and behavioral evidence belong at their owning member boundaries.
+Sub-5,000-line headroom remains to be proved during structural task generation. The next action is the approved
+fresh-context adversarial review of the complete amended spec; no implementation is authorized.
+
+## Spec amendment candidate — 2026-09-07
+
+The resume assessment was approved and committed as `fc8f0bd80`. The amended spec retains the existing goals and
+numbered design, adds publication continuation as § 8, and makes these concrete choices for review:
+
+- **Pass accounting:** count every completed logical review once, including incremental review, while deriving a
+  separate complete-coverage count. This deliberately corrects the hosted complete-only ceiling projection so
+  incremental continuation cannot bypass the cap. Preserve retry/fallback/chunk and target-lineage accounting.
+- **Coverage:** a fresh incremental pass can converge with a validated predecessor coverage basis and the complete
+  required correction scope, including material responses. It cannot manufacture whole-target clean evidence.
+  Store its predecessor reference in the existing execution binding; missing/incompatible coverage returns an
+  explicit selection action. No automatic scope optimizer or WU-wide budget ledger is added.
+- **Storage:** seal hosted producer content inside the existing durable attempt, with a separate content digest and
+  transition validation at the current publisher. Compose a common read port over distinct source stores. This
+  replaces the provisional physical-store generalization; Member 4's boundary becomes sealing and result reads.
+- **Navigation:** retain a bounded verbatim label and original capture ordinal in producer evidence, join the
+  canonical disposition report by finding ID, and retain canonical `F1` order. Capture order is not claimed as a
+  provider-assigned number. Source metadata participates in result identity; it is not a disposition-item field.
+- **Approval binding:** include producer ID and immutable result digest in the canonical proposal context so an
+  approval cannot be reused for same-looking findings from another pass. Report-only styling changes no identity.
+- **Publication:** carry the existing opaque prepublication resume action through convergence attestation, keep
+  projections staged until readiness/publication, and fail before review dispatch on premature projection-only head
+  movement. Initial verification/re-root stays distinct; arbitrary Git commits are not mechanically prohibited.
+
+The source check supporting storage reuse found a narrower real defect than missing durability:
+`recordLaneAttempt` compares the entire mutable hosted attempt, so replay after disposition binding or settlement
+conflicts. `LocalReviewOperationStateStore.publishOperation` accepts any schema-valid version-checked rewrite.
+`handleReviewHostedAwait` currently reaches dependencies that re-observe provider state and derive current admission
+context. Sealed immutable content and replay-before-observe address these concrete gaps within existing stores.
+
+For publication, `handleReviewPrePublication` already preserves judgments in `--resume`, but omits the convergence
+action from that transport. `handleAttest` already calls `projectCandidateReviewResumeBoundary`, whose bare command
+loses those judgments. Existing Candidate subject equality permits operational commits after readiness; it does not
+rebind an earlier exact-head receipt before readiness. The proposed continuation uses those seams rather than adding
+a broad applicability exception.
+
+Alignment checks: PROJECT-PRD principles **Operational friction down, judgment friction up**, **Co-development**,
+**Spec-directed, not spec-driven**, and **Configurable methodology, open ecosystem** pass. TECHNICAL-OVERVIEW
+§ 2 Architecture Components, especially **Self-Hosting Review Gate**, supplies the existing CLI/agent judgment split;
+no new technology or backend is introduced. Storage-evolution principles for injectable, version-checked records and
+procedure-evolution principles for CLI-owned dispatch/precomposed actions are preserved.
+
+The lifecycle CLI refuses `set-stage create-spec` while `Design` names an existing spec, because that entry expects
+a draft or no design. Retain the valid `generate-tasks` stage and use its in-place spec-amendment path; do not
+downgrade the design pointer or create a synthetic draft to satisfy a stage transition. The retained task skeleton
+remains unfinalized until this amendment is reviewed and the structural pass is rebuilt.
+
+The three held inbox entries remain available until the amendment is accepted; do not remove them on the strength
+of an unapproved candidate. The seven-member cut and its estimates remain provisional. The next gate is review of
+the amended spec, with a fresh-context adversarial pass recommended before structural task generation.
+
 ## Resume assessment — 2026-09-07
 
 ### Decision and baseline
