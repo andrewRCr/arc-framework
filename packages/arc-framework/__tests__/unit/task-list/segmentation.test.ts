@@ -585,7 +585,7 @@ describe("scanTaskListSegmentation", () => {
         "",
         "_Exit criterion:_ The behavior works end to end.",
         "",
-        "### `[ ]` **3.1 Exercise the slice**",
+        "### `[ ]` **3.1 Exercise the slice** — validate exit criterion at segment scope",
         "",
         "## **Phase 4:** Verification",
         "",
@@ -619,5 +619,201 @@ describe("scanTaskListSegmentation", () => {
     });
 
     expect(result.diagnostics.map(({ line }) => line)).toEqual([1, 3, 5]);
+  });
+
+  it.each(["slice", "replication"] as const)(
+    "requires a closing verifier for a %s segment in a multi-segment plan",
+    (mode) => {
+      const result = scanTaskListSegmentation({
+        path: "tasks-verifier.md",
+        content: [
+          "## **Phase 1:** Behavior",
+          "",
+          `_Mode:_ \`${mode}\` — closes on exercised behavior.`,
+          "",
+          "_Exit criterion:_ The behavior is exercised.",
+          "",
+          "### `[ ]` **1.1 Build the behavior**",
+          "",
+          "## **Phase 2:** Layer",
+          "",
+          "_Mode:_ `layer` — closes on settled structure.",
+          "",
+          "_Exit criterion:_ The structure is settled.",
+          "",
+          "### `[ ]` **2.1 Build the structure**",
+          "",
+          "## **Phase 3:** Verification",
+          "",
+          "### `[ ]` **3.1 Verify the work unit**",
+        ].join("\n"),
+      });
+
+      expect(result.diagnostics).toContainEqual({
+        code: "segment-verifier-missing",
+        path: "tasks-verifier.md",
+        line: 1,
+        message: "tasks-verifier.md:1: Segment closing at Phase 1 requires a final non-member task with the segment-verifier suffix",
+      });
+    },
+  );
+
+  it("exempts a single declared segment from the verifier requirement", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-single.md",
+      content: [
+        "## **Phase 1:** Behavior",
+        "",
+        "_Mode:_ `slice` — closes on exercised behavior.",
+        "",
+        "_Exit criterion:_ The behavior is exercised.",
+        "",
+        "### `[ ]` **1.1 Build the behavior**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics.filter(({ code }) => code === "segment-verifier-missing")).toEqual([]);
+  });
+
+  it.each([false, true])("accepts a layer segment with verifier present: %s", (withVerifier) => {
+    const suffix = withVerifier ? " — validate exit criterion at segment scope" : "";
+    const result = scanTaskListSegmentation({
+      path: "tasks-layer.md",
+      content: [
+        "## **Phase 1:** Layer",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        `### \`[ ]\` **1.1 Build the structure**${suffix}`,
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics.filter(({ code }) => code.startsWith("segment-verifier"))).toEqual([]);
+  });
+
+  it("reports a segment verifier outside the closing position", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-orphan-verifier.md",
+      content: [
+        "## **Phase 1:** Layer",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Exercise too early** — validate exit criterion at segment scope",
+        "",
+        "### `[ ]` **1.2 Finish the layer**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "segment-verifier-orphan",
+      path: "tasks-orphan-verifier.md",
+      line: 7,
+      message: "tasks-orphan-verifier.md:7: Task 1.1 carries the segment-verifier suffix outside a segment-closing position",
+    });
+  });
+
+  it("allows a member verifier to follow the segment verifier", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-member-adjacency.md",
+      content: [
+        "## **Phase 1:** Layer",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 2:** Slice",
+        "",
+        "_Mode:_ `slice` — closes on exercised behavior.",
+        "",
+        "_Exit criterion:_ The behavior is exercised.",
+        "",
+        "### `[ ]` **2.1 Exercise the slice** — validate exit criterion at segment scope",
+        "",
+        "### `[ ]` **2.2 Close the member** — validate criteria at member scope",
+        "",
+        "## **Phase 3:** Verification",
+        "",
+        "### `[ ]` **3.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics.filter(({ code }) => code.startsWith("segment-verifier"))).toEqual([]);
+  });
+
+  it.each([
+    "_Mode:_ `layer` — closes on settled structure.",
+    "_Exit criterion:_ The work unit is complete.",
+  ])("reports a segmentation declaration in the terminal phase: %s", (declaration) => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-terminal.md",
+      content: [
+        "## **Phase 1:** Layer",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        declaration,
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "terminal-phase-segmented",
+      path: "tasks-terminal.md",
+      line: 11,
+      message: "tasks-terminal.md:11: Terminal Verification phase must not carry _Mode:_ or _Exit criterion:_",
+    });
+  });
+
+  it("reports a segment verifier in the terminal phase", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-terminal-verifier.md",
+      content: [
+        "## **Phase 1:** Layer",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit** — validate exit criterion at segment scope",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "segment-verifier-terminal",
+      path: "tasks-terminal-verifier.md",
+      line: 11,
+      message: "tasks-terminal-verifier.md:11: Task 2.1 places a segment verifier in the terminal Verification phase",
+    });
   });
 });

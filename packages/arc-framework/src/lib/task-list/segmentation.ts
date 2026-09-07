@@ -79,10 +79,20 @@ interface PhaseRecord {
     readonly throughPhaseId: string | null;
   } | null;
   modeDeclarationCount: number;
+  readonly modeDeclarationLines: number[];
   exitCriterion: { readonly line: number; readonly text: string } | null;
   exitCriterionDeclarationCount: number;
+  readonly exitCriterionDeclarationLines: number[];
   firstExitCriterionLine: number | null;
+  readonly parents: ParentRecord[];
   preambleOpen: boolean;
+}
+
+interface ParentRecord {
+  readonly id: string;
+  readonly line: number;
+  readonly segmentVerifier: boolean;
+  readonly memberVerifier: boolean;
 }
 
 const MODE_RE = /^_Mode:_\s+`(?<mode>[^`\s]+)`(?:\s+through Phase\s+(?<through>.+?))?\s+—\s+(?<gloss>\S.*)$/u;
@@ -148,9 +158,12 @@ export function scanTaskListSegmentation(
         reference: { id: event.id, line: event.line },
         mode: null,
         modeDeclarationCount: 0,
+        modeDeclarationLines: [],
         exitCriterion: null,
         exitCriterionDeclarationCount: 0,
+        exitCriterionDeclarationLines: [],
         firstExitCriterionLine: null,
+        parents: [],
         preambleOpen: true,
       };
       phases.push(currentPhase);
@@ -158,8 +171,18 @@ export function scanTaskListSegmentation(
       continue;
     }
     if (event.type === "parent") {
-      if (hasSegmentVerifierSuffix(lines[event.line - 1] ?? "")) segmentationPresent = true;
-      if (currentPhase !== null) currentPhase.preambleOpen = false;
+      const rawLine = lines[event.line - 1] ?? "";
+      const segmentVerifier = hasSegmentVerifierSuffix(rawLine);
+      if (segmentVerifier) segmentationPresent = true;
+      if (currentPhase !== null) {
+        currentPhase.preambleOpen = false;
+        currentPhase.parents.push({
+          id: event.item.id,
+          line: event.line,
+          segmentVerifier,
+          memberVerifier: hasMemberVerifierSuffix(rawLine),
+        });
+      }
       currentTaskId = event.item.id;
       continue;
     }
@@ -191,6 +214,7 @@ export function scanTaskListSegmentation(
   const closingPhaseLines = new Set<number>();
   const coveringOpeningPhaseByIndex: Array<PhaseRecord | undefined> = [];
   for (const [openingIndex, phase] of phases.entries()) {
+    if (openingIndex === phases.length - 1) continue;
     if (phase.mode === null) continue;
     const closingIndex = phase.mode.throughPhaseId === null
       ? openingIndex
@@ -259,6 +283,58 @@ export function scanTaskListSegmentation(
       `Phase ${phase.reference.id} carries _Exit criterion:_ but closes no segment`,
     ));
   }
+  const declaredSegmentCount = phases.slice(0, -1).filter((phase) => phase.mode !== null).length;
+  const allowedSegmentVerifierLines = new Set<number>();
+  for (const segment of segments) {
+    const closingPhase = phases.find((phase) => phase.reference.line === segment.closingPhase.line);
+    const verifierCandidate = closingPhase?.parents.filter((parent) => !parent.memberVerifier).at(-1);
+    if (verifierCandidate?.segmentVerifier === true) {
+      allowedSegmentVerifierLines.add(verifierCandidate.line);
+      continue;
+    }
+    if (segment.mode !== "layer" && declaredSegmentCount !== 1) {
+      diagnostics.push(diagnostic(
+        document.path,
+        segment.closingPhase.line,
+        "segment-verifier-missing",
+        `Segment closing at Phase ${segment.closingPhase.id} requires a final non-member task with the segment-verifier suffix`,
+      ));
+    }
+  }
+  for (const phase of phases.slice(0, -1)) {
+    for (const parent of phase.parents) {
+      if (!parent.segmentVerifier || allowedSegmentVerifierLines.has(parent.line)) continue;
+      diagnostics.push(diagnostic(
+        document.path,
+        parent.line,
+        "segment-verifier-orphan",
+        `Task ${parent.id} carries the segment-verifier suffix outside a segment-closing position`,
+      ));
+    }
+  }
+  const terminalPhase = phases.at(-1);
+  if (terminalPhase !== undefined) {
+    for (const line of [
+      ...terminalPhase.modeDeclarationLines,
+      ...terminalPhase.exitCriterionDeclarationLines,
+    ]) {
+      diagnostics.push(diagnostic(
+        document.path,
+        line,
+        "terminal-phase-segmented",
+        "Terminal Verification phase must not carry _Mode:_ or _Exit criterion:_",
+      ));
+    }
+    for (const parent of terminalPhase.parents) {
+      if (!parent.segmentVerifier) continue;
+      diagnostics.push(diagnostic(
+        document.path,
+        parent.line,
+        "segment-verifier-terminal",
+        `Task ${parent.id} places a segment verifier in the terminal Verification phase`,
+      ));
+    }
+  }
   for (const reference of retiringPhaseReferences) {
     if (phaseIds.has(reference.phaseId)) continue;
     diagnostics.push(diagnostic(
@@ -283,6 +359,7 @@ function consumePreambleLine(
   if (text.startsWith("_Mode:_")) {
     notePresence();
     phase.modeDeclarationCount += 1;
+    phase.modeDeclarationLines.push(event.line);
     if (phase.modeDeclarationCount > 1) {
       diagnostics.push(diagnostic(
         path,
@@ -322,6 +399,7 @@ function consumePreambleLine(
   }
   if (text.startsWith("_Exit criterion:_")) {
     phase.exitCriterionDeclarationCount += 1;
+    phase.exitCriterionDeclarationLines.push(event.line);
     phase.firstExitCriterionLine ??= event.line;
     if (phase.exitCriterionDeclarationCount > 1) {
       diagnostics.push(diagnostic(

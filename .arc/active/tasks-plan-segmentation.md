@@ -75,24 +75,14 @@ across the diagnostic family for no gain.
   duplicate identities and labels, malformed or unknown modes, invalid spans, missing or orphaned exit criteria,
   overlap, and unresolved retiring phases. Findings retain fixed `path:line:` messages in document order.
 
-### `[ ]` **1.3 Verifier-position and terminal-phase diagnostics — D5, D6, D12**
+### `[x]` **1.3 Verifier-position and terminal-phase diagnostics — D5, D6, D12**
 
 - _Goal:_ the segment verifier's position is enforced where the doctrine requires one and left alone where it does
   not, so an authored plan cannot claim a closed segment it never proves.
 
-- _Context:_ position is the whole binding — a segment verifier is bound to its phase's exit criterion by being the
-  closing phase's last parent that does not carry the member suffix. Nothing else records the association, and
-  both suffixes are read through the matchers task 1.1 exports.
-
-    Build `test-first` (one behavior at a time):
-
-    - a `slice` or `replication` segment whose closing phase lacks a verifier in that position
-    - the same, exempt when the plan declares exactly one segment
-    - a `layer` segment with no verifier passes; one that carries a verifier in position also passes
-    - a segment-suffixed parent anywhere other than that position
-    - a member-suffixed parent following the segment verifier as the phase's final parent passes
-    - the terminal verification phase carrying a mode or an exit criterion
-    - a segment-suffixed parent after the terminal phase heading
+- _Outcome:_ verifier validation now binds a segment suffix to the closing phase's last non-member parent, requires
+  it for multi-segment `slice` and `replication` plans, permits it for `layer`, and accepts a following member
+  verifier. Orphaned and terminal verifiers and terminal segmentation declarations receive distinct diagnostics.
 
 ## **Phase 2:** Gate fire sites
 
