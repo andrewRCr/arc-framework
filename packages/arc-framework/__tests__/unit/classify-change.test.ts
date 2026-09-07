@@ -1187,6 +1187,7 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     "E2E Tests (1)",
     "E2E Tests (2)",
     "E2E Tests (3)",
+    "E2E Tests (4)",
     "Portability (concurrency guards) (linux)",
   ];
 
