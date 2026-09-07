@@ -137,32 +137,18 @@ and no consumer of the doctrine exists yet; Phase 4 authors the first one.
   canonical records and authoring inputs without changing existing values. Work-unit verification still requires a
   null semantic digest, while every assignable role requires a digest.
 
-### `[ ]` **3.2 Produce `segment` scope from the trailing suffix — D5, D6**
+### `[x]` **3.2 Produce `segment` scope from the trailing suffix — D5, D6**
 
 - _Goal:_ a parent whose title ends in the segment role suffix types as a `segment`-scope verification task, stays
   member-assignable, and partitions through the coverage rules exactly as a `member`-scope verifier does.
 
-- _Approach:_ the inventory consumes `hasSegmentVerifierSuffix` and `hasMemberVerifierSuffix` from task 1.1 rather
-  than carrying its own copies — one definition, two readers, so the two role suffixes cannot drift apart.
+    - `[x]` **3.2.a Guard the coverage rules against a broadened verification predicate**
+        - Added a member-range regression case whose segment verifier immediately precedes its member verifier,
+          preserving the member verifier as the final assignable boundary.
 
-- _Note:_ the coverage rules need no change. Both member-boundary checks key on a `member`-scope role, so a
-  segment verifier falls through them as an ordinary assignable task — counted, assigned to exactly one member,
-  inside the contiguous partition. That is also what makes segment-then-member the only legal adjacent order: a
-  member's verifier must be the final assignable task in its range.
-
-    Build `test-first` (one behavior at a time):
-
-    - the segment suffix produces a verification role at segment scope
-    - the member suffix and terminal positional typing are unchanged
-    - a suffix inside the bold title does not match
-    - a segment verifier carries a semantic digest and is assignable
-    - a segment verifier immediately preceding a member verifier leaves the member's final-assignable-task rule intact
-
-    - `[ ]` **3.2.a Guard the coverage rules against a broadened verification predicate**
-        - the conclusion above holds only while both member-boundary checks stay keyed on `member` scope. An
-          edit broadening either to any verification role would begin rejecting segment verifiers with no other
-          signal, so cover a member range whose final assignable task is its member verifier, immediately
-          preceded by a segment verifier
+- _Outcome:_ task inventory classification now consumes the shared suffix helpers and produces assignable,
+  digest-bearing `segment` verification roles while preserving member and positional work-unit roles. A suffix
+  inside the bold task title remains ordinary title prose.
 
 ### `[ ]` **3.3 Substrate contract close-out — D7** — validate criteria at member scope
 
