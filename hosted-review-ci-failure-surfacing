@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "hosted-review-ci-failure-surfacing",
+  "claimId": "268cfde892dc1cefbeeab7ee13d804af",
+  "createdAt": "2026-09-07T22:04:48.485Z",
+  "updatedAt": "2026-09-07T22:04:48.485Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "hosted-review-ci-failure-surfacing",
+  "branch": "chore/hosted-review-ci-failure-surfacing",
+  "origin": "inbox",
+  "originEntry": "Surface failed CI checks during hosted-review waits",
+  "originEntrySourceDigest": "sha256:0cefff779638f796091eff7faea407c7ae551d9c150f5638672b0e087d682488",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
