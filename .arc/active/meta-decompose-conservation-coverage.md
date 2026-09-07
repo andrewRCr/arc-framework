@@ -8,13 +8,13 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-decompose-conservation-coverage.md`
+- **Design:** `spec-decompose-conservation-coverage.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
-- **Last Completed:** Draft captured formalization-ready after two adversarial passes; stage advanced to
-  create-spec
+- **Current Workflow:** `generate-tasks`
+- **Last Completed:** Spec approved after two adversarial passes and final coherence review; draft retired and
+  stage advanced to generate-tasks
 - **Next Task:** [none]
 - **Blockers:** [none]
 
