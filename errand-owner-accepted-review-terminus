@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "errand-owner-accepted-review-terminus",
+  "claimId": "3ec4e4f233d1cd967c288145421eb2bb",
+  "createdAt": "2026-09-07T21:26:45.621Z",
+  "updatedAt": "2026-09-07T21:26:45.621Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "errand-owner-accepted-review-terminus",
+  "branch": "chore/errand-owner-accepted-review-terminus",
+  "origin": "inbox",
+  "originEntry": "Offer an Owner-accepted review terminus for exact Errand targets",
+  "originEntrySourceDigest": "sha256:eaa256af33deff2daf568afb909bf631679f83187df8e64b20036d7f62e4bd66",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
