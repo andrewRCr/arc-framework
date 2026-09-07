@@ -25,6 +25,14 @@
   multiple separated entries, a post-separator match, and idempotent absence. Re-ground the implementation after
   `session-locus-model` integrates because its completed branch overlaps `inbox-writer.ts`.
 
+### `[ ]` **Make the execute-bound inbox queue discoverable from a cold session**
+
+- _Routed from:_ housekeep drain (2026-09-07), while preparing the first ordered execute-bound queue.
+- _Concern:_ Errand completion can offer the next physical execute-bound entry, but cold session orientation does
+  not make the queue or its next available item comparably visible.
+- _Fold-in:_ carry ordered execute-bound entries as an operational-state projection with one discoverable next
+  item, preserving the inbox as the interim source until managed entry records replace it.
+
 ### `[ ]` **Deterministic same-entry cross-WU notes merge (FP 5.4 fast-follow)**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-18);

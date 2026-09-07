@@ -20,6 +20,9 @@
 - _Concern:_ the strategy and finalization checklist require a verification-phase `_Purpose:_` and task `_Goal:_`,
   while the template and recent shipped task lists consistently use the fixed pointer shape with only
   `_Quality gates:_` and `_Success criteria:_`.
+- _Follow-up evidence:_ `delivery-native-stack-composition` again exposed the same contradiction at generation
+  and verification time; treat the task `_Goal:_` requirement as part of this existing contract decision rather
+  than a second task-list convention.
 - _Fold-in:_ settle the verification-specific exception once and align the strategy, template, and generation
   checklist in both framework copies.
 
