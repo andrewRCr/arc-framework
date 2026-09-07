@@ -275,11 +275,29 @@ remote base all name the same exact head. Any tracked change continues through t
 
    - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
      the project's configured bounded-call defaults.
-   - `pending / await` — pass the newly returned `action` unchanged; do not build an agent polling loop.
-   - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Stop with the
-     request intact. Submitting `action` unchanged checks once; on explicit direction, add
-     `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review
+   - `pending / await` — retain the newly returned `action`; do not build an agent polling loop.
+   - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Retain the
+     request for the diagnostic below, then stop. Submitting `action` unchanged checks once; on explicit direction,
+     add `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review
      or records a provider outcome.
+
+   For either pending outcome, run one short exact-head diagnostic observation before continuing or stopping:
+
+   ```bash
+   arc review checks await \
+     --repository <action.handle.target.repository> \
+     --pull-request <action.handle.target.pullRequest> \
+     --head-sha <action.handle.target.headSha> \
+     --timeout-ms 10000 \
+     --poll-interval-ms 10000 \
+     --json
+   ```
+
+   Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+   `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
+   that action re-enters hosted await.
+   `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This observation does
+   not become review settlement, feed the review driver, move the exact head, or release the draft lock.
 
    Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to
    the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk

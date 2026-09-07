@@ -424,6 +424,35 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
   });
 
+  it("surfaces exact-head CI failures while a hosted review remains pending", async () => {
+    const paths = [
+      "system/workflows/arc/supplemental/run-errand.md",
+      "system/workflows/arc/supplemental/deliver-stack.md",
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    ];
+    for (const path of paths) {
+      const [packaged, project] = await Promise.all([
+        readRepositoryFile(`packages/arc-framework/arc/${path}`),
+        readRepositoryFile(`.arc/${path}`),
+      ]);
+      expect(project).toBe(packaged);
+      const hostedAwait = packaged.indexOf("arc review hosted await -");
+      const checksAwait = packaged.indexOf("arc review checks await", hostedAwait);
+      expect(hostedAwait).toBeGreaterThanOrEqual(0);
+      expect(checksAwait).toBeGreaterThan(hostedAwait);
+      const pendingInspection = packaged.slice(hostedAwait, checksAwait + 1_500);
+      expect(pendingInspection).toContain("--timeout-ms 10000");
+      expect(pendingInspection).toContain("--poll-interval-ms 10000");
+      expect(pendingInspection).toContain("diagnosticFailures");
+      expect(pendingInspection).toMatch(/read-only diagnos/iu);
+      expect(pendingInspection).toMatch(/inspect-or-extend[\s\S]{0,250}diagnostic below, then stop/iu);
+      expect(pendingInspection).toContain("continueAfterAttention: true");
+      expect(pendingInspection).toMatch(/same hosted[^.]*action/iu);
+      expect(pendingInspection).toMatch(/exact head[^.]*draft lock/iu);
+      expect(pendingInspection).toMatch(/does\s+not[^.]*review settlement/iu);
+    }
+  });
+
   it("executes mixed hosted settlement phases in the command-projected order", async () => {
     const paths = [
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
