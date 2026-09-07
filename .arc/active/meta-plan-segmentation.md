@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/plan-segmentation` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `delivery-native-stack-composition`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-plan-segmentation.md`
