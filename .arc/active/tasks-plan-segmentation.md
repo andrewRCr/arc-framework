@@ -128,22 +128,14 @@ _Exit criterion:_ the scan and the typed scope are settled and tested — the di
 fixtures, both fire sites carry it, `segment` scope is produced from the suffix and partitions as `member` does,
 and no consumer of the doctrine exists yet; Phase 4 authors the first one.
 
-### `[ ]` **3.1 Close the verification-scope set — D6**
+### `[x]` **3.1 Close the verification-scope set — D6**
 
 - _Goal:_ a verification role accepts only `segment`, `member`, or `work-unit`, so an unrecognized scope is refused
   at the schema boundary instead of flowing into a canonical record.
 
-- _Note:_ only `member` and `work-unit` were ever produced, so closing the set changes no existing value and the
-  canonical plan digest is unaffected. Pre-public-release posture applies — no compatibility reader, no migration.
-
-- _Note:_ the role shape is shared with the authoring parent schema, so the closure tightens caller-supplied input
-  at plan creation as well as canonical records.
-
-    Build `test-first` (one behavior at a time):
-
-    - each of the three values validates
-    - any other non-empty scope is refused
-    - a work-unit verification role still requires a null semantic digest, and every other role still requires one
+- _Outcome:_ the shared delivery-role schema now accepts only `segment`, `member`, and `work-unit`, closing both
+  canonical records and authoring inputs without changing existing values. Work-unit verification still requires a
+  null semantic digest, while every assignable role requires a digest.
 
 ### `[ ]` **3.2 Produce `segment` scope from the trailing suffix — D5, D6**
 
