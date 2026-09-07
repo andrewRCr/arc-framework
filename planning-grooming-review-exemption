@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "planning-grooming-review-exemption",
+  "claimId": "9ca74673b3507d1ab3b891a15e51cabd",
+  "createdAt": "2026-09-07T23:19:52.383Z",
+  "updatedAt": "2026-09-07T23:19:52.383Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "planning-grooming-review-exemption",
+  "branch": "chore/planning-grooming-review-exemption",
+  "origin": "inbox",
+  "originEntry": "Make planning-grooming review exemption directly invokable",
+  "originEntrySourceDigest": "sha256:b7d3a9b2e9ded9f57744d720bf1d10d384fce92ec648e91b46c2da61d5309404",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
