@@ -31,6 +31,23 @@ describe("runCli", () => {
     expect(result.stdout).toMatch(/skip the live-default network\s+read/u);
   });
 
+  it("documents directly composable hosted-review and merge-lock JSON inputs", async () => {
+    const hostedRequest = await runCli(["review", "hosted", "request", "--help"]);
+    const hostedAwait = await runCli(["review", "hosted", "await", "--help"]);
+    const terminus = await runCli(["review", "terminus", "accept", "--help"]);
+    const lockResolve = await runCli(["merge", "lock", "resolve", "--help"]);
+    const lockRelease = await runCli(["merge", "lock", "release", "--help"]);
+
+    for (const result of [hostedRequest, hostedAwait, terminus, lockResolve, lockRelease]) {
+      expect(result.exitCode).toBe(0);
+    }
+    expect(hostedRequest.stdout).toContain("emitted action unchanged");
+    expect(hostedAwait.stdout).toContain("emitted action unchanged");
+    expect(terminus.stdout).toContain('"judgment":{"mode":"owner-accepted"}');
+    expect(lockResolve.stdout).toContain('{"schemaVersion":1,"treeRoot":"/absolute/checkout"}');
+    expect(lockRelease.stdout).toContain('"vehicle":{"kind":"errand","slug":"example"}');
+  });
+
   it("reserves bare integrate for procedures and points publication scheduling to publish", async () => {
     const result = await runCli(["integrate"]);
 

@@ -243,7 +243,9 @@ remote base all name the same exact head. Any tracked change continues through t
    pre-create validation requires the remote branch itself to carry the exact creation head, including after any
    hook action.
 
-   Then invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action:
+   Then invoke `arc merge lock resolve -` with
+   `{ "schemaVersion": 1, "treeRoot": "<absolute-checkout-path>" }`; `treeRoot` is the checkout path, not a Git
+   tree object ID. Follow only its typed action:
    `locked / open-locked` creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts
    creation before any PR exists. The lane is still unresolved here — it settles in Step 4 — so both lanes open the
    same way, and no lane input reaches this call.
@@ -269,13 +271,13 @@ remote base all name the same exact head. Any tracked change continues through t
    `arc review hosted request -` with the selected provider, exact opened target, `coverage: complete`, and
    `vehicle: { kind: "errand", standardReview }` from the routed Errand review facts:
 
-   - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing
-     uses the project's configured bounded-call defaults.
-   - `pending / await` — re-invoke the same handle; do not build an agent polling loop.
+   - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
+     the project's configured bounded-call defaults.
+   - `pending / await` — pass the newly returned `action` unchanged; do not build an agent polling loop.
    - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Stop with the
-     request intact. Re-invoking the same handle checks once; on explicit direction, pass
-     `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
-     provider outcome.
+     request intact. Submitting `action` unchanged checks once; on explicit direction, add
+     `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review
+     or records a provider outcome.
 
    Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to
    the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk
@@ -406,6 +408,9 @@ action.
    base and exact approved head. Any other state, action, or candidate stops with the lock held.
 
    Then validate the method, release the exact target, and invoke the direct head-matched merge:
+
+   The release request combines `schemaVersion: 1`, the absolute checkout path as `treeRoot`, the exact approved
+   `{ repository, pullRequest, headSha }` target, and `{ kind: "errand", slug: <slug> }` as `vehicle`.
 
    ```bash
    arc review merge-method resolve --json

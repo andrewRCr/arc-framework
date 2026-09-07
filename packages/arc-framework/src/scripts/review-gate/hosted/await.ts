@@ -8,8 +8,10 @@ import {
 } from "../bounded-wait.js";
 
 import {
+  HostedAwaitActionSchema,
   HostedRequestHandleSchema,
   HostedTargetSchema,
+  hostedAwaitAction,
   type HostedProviderId,
   type HostedRequestHandle,
 } from "./request.js";
@@ -109,12 +111,14 @@ export const HostedAwaitResultSchema = z.union([
     ...HostedAwaitResultBaseShape,
     state: z.literal("pending"),
     nextAction: z.literal("await"),
+    action: HostedAwaitActionSchema,
     elapsedMs: z.number().nonnegative(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
     state: z.literal("pending"),
     nextAction: z.literal("inspect-or-extend"),
+    action: HostedAwaitActionSchema,
     ageMs: z.number().nonnegative(),
     attentionAfterMs: z.number().int().positive(),
   }),
@@ -181,6 +185,7 @@ function attentionRequired(
     ...base(handle),
     state: "pending",
     nextAction: "inspect-or-extend",
+    action: hostedAwaitAction(handle),
     ageMs,
     attentionAfterMs,
   };
@@ -306,6 +311,7 @@ export async function awaitHostedReview(
             ...base(request.handle),
             state: "pending",
             nextAction: "await",
+            action: hostedAwaitAction(request.handle),
             elapsedMs,
           };
     },

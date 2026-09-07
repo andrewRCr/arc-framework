@@ -193,7 +193,7 @@ command again for a delivery, or use the exact `targetRef` command for an ordina
 judgment option before `--json`; never narrow a delivery-status action to an agent-reconstructed member target.
 
 `obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
-`terminusAction.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
+`terminusAction.offer.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
 one additional pass; on approval, re-enter the same status scope with the returned consequence serialized unchanged.
 For a delivery, use:
 
@@ -211,8 +211,8 @@ A `review-hosted-request` or `review-local-prepare` result may also carry `termi
 pass. Surface it as an optional Owner alternative without turning it into a stop; absent explicit acceptance,
 execute the returned review action unchanged.
 
-When the Owner accepts any returned delivery-member terminus, pass `terminusAction` unchanged as `offer` beside the
-explicit `judgment.mode: owner-accepted` to:
+When the Owner accepts any returned delivery-member terminus, add
+`judgment: { "mode": "owner-accepted" }` to `terminusAction` and pass the resulting envelope unchanged to:
 
 ```bash
 arc review terminus accept -
@@ -293,13 +293,13 @@ exact bytes before its machine-owned commit and push. `continue` retains the ear
 re-enters status and receives the ordinary hosted request action. Applicability reruns, base movement, and pending
 checks return to their typed checkpoint; `upgrade` and every `stop` remain stops.
 
-- `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing uses
-  the project's configured bounded-call defaults.
-- `pending / await` — re-invoke the same handle; do not build an agent polling loop.
+- `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses the
+  project's configured bounded-call defaults.
+- `pending / await` — pass the newly returned `action` unchanged; do not build an agent polling loop.
 - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Stop with the
-  request intact. Re-invoking the same handle checks once; on explicit direction, pass
-  `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
-  provider outcome.
+  request intact. Submitting `action` unchanged checks once; on explicit direction, add
+  `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review or
+  records a provider outcome.
 
 Hosted delivery-member request and await operations persist their admitted pass in durable lane progress. Re-enter
 through status after each concluded result; do not reconstruct `completedPasses` or route the public member back

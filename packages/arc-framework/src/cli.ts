@@ -1524,11 +1524,23 @@ const mergeLockCmd = mergeCmd
   .command("lock")
   .description("Resolve and transition the host merge lock");
 
+const mergeLockResolveHelp = JSON.stringify({
+  schemaVersion: 1,
+  treeRoot: "/absolute/checkout",
+});
+const mergeLockTransitionHelp = JSON.stringify({
+  schemaVersion: 1,
+  treeRoot: "/absolute/checkout",
+  target: { repository: "owner/repo", pullRequest: 123, headSha: "0".repeat(40) },
+  vehicle: { kind: "errand", slug: "example" },
+});
+
 mergeLockCmd
   .command("resolve")
   .description("Resolve how a pull request should open as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", `\nRequest JSON:\n  ${mergeLockResolveHelp}\n`)
   .action((input: string) => handleMergeLockResolve(input));
 
 mergeLockCmd
@@ -1536,6 +1548,7 @@ mergeLockCmd
   .description("Lock one exact-head pull request as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
   .action((input: string) => handleMergeLockHold(input));
 
 mergeLockCmd
@@ -1543,6 +1556,7 @@ mergeLockCmd
   .description("Unlock one exact-head pull request as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
   .action((input: string) => handleMergeLockRelease(input));
 
 // --- Review ---
@@ -1586,6 +1600,11 @@ reviewCmd
   .description("Accept one exact delivery-member Owner terminus as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    '\nContinuation:\n  Submit the returned terminusAction with one added field:\n  '
+      + '{"judgment":{"mode":"owner-accepted"}}\n',
+  )
   .action(withInteractionContext(
     { machineReadable: true },
     (context, input: string) => handleReviewTerminusAccept(input, context),
@@ -1668,6 +1687,10 @@ hostedCmd
   .description("Request one hosted pull-request review as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nContinuation:\n  Submit the emitted action unchanged to `arc review hosted await -`.\n",
+  )
   .action((input: string) => handleReviewHostedRequest(input));
 
 hostedCmd
@@ -1675,6 +1698,10 @@ hostedCmd
   .description("Await one requested hosted pull-request review as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nPending continuation:\n  Submit the emitted action unchanged to this command.\n",
+  )
   .action((input: string) => handleReviewHostedAwait(input));
 
 hostedCmd

@@ -1215,6 +1215,7 @@ describe("hosted review handlers", () => {
       schemaVersion: 1,
       mode: "review-hosted-await",
       handle: hostedHandle,
+      action: { schemaVersion: 1, handle: hostedHandle },
       state: "pending",
       nextAction: "await",
       elapsedMs: 120_000,

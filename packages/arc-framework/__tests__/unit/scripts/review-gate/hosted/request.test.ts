@@ -5,6 +5,8 @@ import {
   requestHostedReview,
   type HostedReviewAdapter,
 } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { HostedAwaitEnvelopeSchema } from
+  "../../../../../src/scripts/review-gate/hosted/await.js";
 
 const HEAD = "a".repeat(40);
 const STANDARD_REVIEW = {
@@ -86,6 +88,9 @@ describe("hosted review request", () => {
         artifact: { id: "IC_kwDO123" },
       },
     });
+    if (first.state !== "requested") throw new Error("fixture request must be acknowledged");
+    expect(first.action).toEqual({ schemaVersion: 1, handle: first.handle });
+    expect(() => HostedAwaitEnvelopeSchema.parse(first.action)).not.toThrow();
   });
 
   it("carries validated Errand progress authority in the resumable handle", async () => {

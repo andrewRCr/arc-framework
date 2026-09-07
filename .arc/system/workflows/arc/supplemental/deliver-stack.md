@@ -312,14 +312,15 @@ plan through the existing phase-ordered settlement path below, then re-enter thr
 After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
 `payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
 
-On `requested / await`, pass the returned self-contained handle to:
+On `requested / await`, pass the returned `action` unchanged to:
 
 ```bash
 arc review hosted await -
 ```
 
-`pending / await` reuses that handle for one more bounded call; `pending / inspect-or-extend` stops with the request
-intact. Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
+`pending / await` passes the newly returned `action` unchanged for one more bounded call;
+`pending / inspect-or-extend` stops with the request intact. Feed `clean`, `findings`, and safe-unavailability results
+to the existing review driver. For approved hosted
 finding settlement, execute the returned settlement plan in phase order through:
 
 ```bash
