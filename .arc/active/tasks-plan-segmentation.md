@@ -158,11 +158,14 @@ and no consumer of the doctrine exists yet; Phase 4 authors the first one.
 - _Outcome:_ Member 1 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 1 — segmentation-substrate`.
-    - _Span:_ diff `7f61861a5..e42da8fce`; reachability `e42da8fce`; boundary-order deviation: none.
+    - _Span:_ diff `7f61861a5..e42da8fce`; reachability `ff4df0ce2`; boundary-order deviation: the approved
+      post-boundary Frontline correction in `a4cf73cb3` adds exit-only presence detection and is re-cut at
+      `ff4df0ce2`; the original bounded member diff remains unchanged.
     - _Criterion:_ `Success Criteria > Member 1 — segmentation-substrate > 1`; _criterion-digest:_
       `sha256:a6a7b55efe98584d76d8eb9f23ab0016a0d6065c6442d5534152cc186e946d5d`; _State:_ `[x]`; _Evidence:_
       the closed scanner diagnostic family is composed into both worktree and index-byte fire sites, with
-      source-located coverage for malformed, presence-triggered, unphased, terminal, and valid-unsegmented shapes.
+      source-located coverage for malformed, presence-triggered (including exit-only), unphased, terminal, and
+      valid-unsegmented shapes.
     - _Criterion:_ `Success Criteria > Member 1 — segmentation-substrate > 2`; _criterion-digest:_
       `sha256:5c5a22ea44255963649efc261f71e2c200c722c13788ad19e189f42021cd9c56`; _State:_ `[x]`; _Evidence:_
       the shared schema closes the scope enum, suffix classification produces assignable digest-bearing `segment`
@@ -172,7 +175,9 @@ and no consumer of the doctrine exists yet; Phase 4 authors the first one.
       layer fixtures pass with or without a verifier, while terminal mode and criterion declarations fail even
       without another segmentation trigger.
     - _Summary:_ three met, zero superseded, zero unresolved. Two Heavy adversarial passes found four confirmed
-      defects; all were fixed in `bcf304307` and `e42da8fce`, then the settled member passed Tier 2 in isolation.
+      defects, and Frontline review later found the exit-only presence gap; all were fixed in `bcf304307`,
+      `e42da8fce`, and `a4cf73cb3`. The corrected private cut passed focused regression proof and the complete
+      Tier 2 suite in isolation.
 
 ## **Phase 4:** The discriminator at the task-generation entry read
 
@@ -434,11 +439,15 @@ _Purpose:_ terminal work-unit verification.
 
 ### `[x]` **7.1 Complete verification — D1–D13** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Markdown lint, ARC trigger/domain/section-reference checks, TypeScript and shell lint,
-  source/test typechecks, 11,524 tests across 866 passing files with one skipped file/test, and the production
-  build — all passed.
-- _Success criteria:_ 14 met, zero superseded or unresolved; both member reports replayed, cross-member seams and
-  union coherence verified, and two Heavy adversarial passes converged after two confirmed fixes.
+- _Quality gates:_ post-review Tier 3 rerun: Markdown lint, ARC trigger/domain/section-reference checks, TypeScript
+  and shell lint, source/test typechecks, 11,576 tests across 869 passing files with one skipped file/test, and the
+  production build — all passed. Both corrected private delivery cuts also passed complete Tier 2 in isolation;
+  timeout-only parallel runs were reproduced cleanly by focused and unchanged serial reruns before eligibility
+  closed.
+- _Success criteria:_ 14 met, zero superseded or unresolved; both member reports replayed against the corrected
+  private chain, cross-member seams and union coherence verified, and the approved D6.1 deviation retains executable
+  exit-only orphan coverage. Two Heavy adversarial passes had already converged; subsequent Frontline review's one
+  confirmed finding is fixed and fully reverified.
 
 ---
 
