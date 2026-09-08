@@ -244,6 +244,11 @@ only after every mode has executable coverage.
           projection, preserving Phase 2's ownership of actual notes materialization while exposing the source member
           and path instead of the later absent-target symptom.
 
+    - `[x]` **1.6.R.c Keep recovery-failure refusals evidence-free**
+        - Retained comparison evidence only when its comparison reason remains outward; rollback and partial-
+          restoration failures now expose their own locus and recovery facts without inheriting operands from the
+          superseded staged-authority mismatch.
+
     - Run the `validate-criteria.md` member-scope walk for `refusal-contract-and-floor` and record the boundary
       evidence without changing Success Criteria markers.
 

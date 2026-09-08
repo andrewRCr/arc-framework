@@ -651,13 +651,18 @@ describe("executeV3DecomposeOperation", () => {
 
   it("normalizes transition-record rollback diagnostics into a stable refusal", async () => {
     const fixture = operationFixture();
+    const evidence = { expected: fixture.plan.planId, actual: `sha256:${"e".repeat(64)}` };
     const result = await executeV3DecomposeOperation({
       protection: "partial",
       configuredBase: "main",
       plan: fixture.plan,
       completedMap: fixture.completedMap,
     }, dependencies(fixture, partialOccupation(), [], {
-      revalidateStaged: async () => ({ status: "refused", reason: "source-moved-after-stage" }),
+      revalidateStaged: async () => ({
+        status: "refused",
+        reason: "repository-plan-drift",
+        evidence,
+      }),
       transitionRecords: {
         record: async () => ({ status: "recorded" }),
         rollback: async () => ({ status: "unavailable", diagnostic: "index cleanup failed" }),
@@ -672,6 +677,7 @@ describe("executeV3DecomposeOperation", () => {
       report: { status: "reported" },
       recovery: { kind: "partial-restoration", status: "restored" },
     });
+    expect(result).not.toHaveProperty("evidence");
   });
 
   it("normalizes a thrown transition-record rollback into code and locus", async () => {
@@ -765,6 +771,7 @@ describe("executeV3DecomposeOperation", () => {
   it("normalizes failed post-stage restoration with its mismatching path", async () => {
     const fixture = operationFixture();
     delete fixture.plan.prospectiveOverlay;
+    const evidence = { expected: fixture.plan.planId, actual: `sha256:${"e".repeat(64)}` };
     const result = await executeV3ExtractionOperation({
       protection: "partial",
       configuredBase: "main",
@@ -772,7 +779,11 @@ describe("executeV3DecomposeOperation", () => {
       plan: fixture.plan,
       extractionFacts: extractionReportFacts(),
     }, dependencies(fixture, partialOccupation(), [], {
-      revalidateStaged: async () => ({ status: "refused", reason: "source-moved-after-stage" }),
+      revalidateStaged: async () => ({
+        status: "refused",
+        reason: "repository-plan-drift",
+        evidence,
+      }),
       partialRecovery: {
         capture: async () => preimages(fixture.plan),
         restore: async () => undefined,
@@ -788,6 +799,7 @@ describe("executeV3DecomposeOperation", () => {
       report: { status: "reported" },
       recovery: { kind: "partial-restoration", status: "failed", path: fixture.secondPath },
     });
+    expect(result).not.toHaveProperty("evidence");
   });
 
   it("leaves exact ordinary cleanup facts at every full post-occupation failure", async () => {
