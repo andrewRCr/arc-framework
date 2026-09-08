@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "batch-session-init-user-note-discovery",
+  "claimId": "291bfe93a187e4a3928a0d914a28ac93",
+  "createdAt": "2026-09-08T15:04:44.027Z",
+  "updatedAt": "2026-09-08T15:04:44.027Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "batch-session-init-user-note-discovery",
+  "branch": "chore/batch-session-init-user-note-discovery",
+  "origin": "inbox",
+  "originEntry": "Batch session-init user-note discovery",
+  "originEntrySourceDigest": "sha256:4931e05d7ea5825de11a370c4e9efbdc0011e79deca07678895ffd57cfeb3db3",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
