@@ -793,7 +793,12 @@ async function composeRepositoryPlan(
       resultTree: regularTree(input.resultBaseTree),
     });
     if (retirement.status === "refused") {
-      return refuse("retirement", retirement.refusal.code, retirement.refusal.path);
+      return refuse(
+        "retirement",
+        retirement.refusal.code,
+        retirement.refusal.path,
+        retirement.refusal.evidence,
+      );
     }
     if (retirement.riders.length > 0) {
       return refuse("retirement", retirement.riders[0]?.reason ?? "source-rider");

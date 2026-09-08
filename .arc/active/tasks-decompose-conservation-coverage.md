@@ -112,13 +112,10 @@ only after every mode has executable coverage.
         - Added planned-versus-observed final-blob facts and the first differing normalized base prestates while
           missing blobs, unsupported states, and contributor discontinuities remain locus-only.
 
-    - `[ ]` **1.2.e Carry evidence through retirement-delta comparisons**
-        - Add evidence to `decompose-v3-retirement-delta.ts` for unexpected object/mode and changed predecessor
-          comparisons, retaining the exact path as locus.
-        - Build `test-first` (one behavior at a time):
-            - Separate stable reason codes from expected and actual tree states.
-            - Keep source-range and other one-sided structural failures locus-only.
-            - Preserve rider classification and first-refusal ordering.
+    - `[x]` **1.2.e Carry evidence through retirement-delta comparisons**
+        - Added bounded earlier-versus-later tree-state evidence for object/mode and predecessor changes, forwarded it
+          through retirement repository-plan refusals, and preserved exact loci, locus-only structural failures,
+          rider classification, and refusal order.
 
     - `[ ]` **1.2.f Split generic projection refusals by correctable cause**
         - Replace `profile-scaffold-failed` and `target-projection-failed` in

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   planGitV3RetirementDelta,
@@ -147,6 +148,8 @@ describe("Git v3 retirement delta adapter", () => {
 
   it("retains a blob-to-tree replacement and refuses it before rider classification", async () => {
     const path = ".arc/reference/rider";
+    const expectedBytes = encoder.encode(`blob:${RIDER_BLOB}`);
+    const actualBytes = new Uint8Array();
     const output = trees({
       [BASE]: `${trees()[BASE]}${line("100644", "blob", RIDER_BLOB, path)}`,
       [SOURCE]: `${trees()[SOURCE]}${line("040000", "tree", RIDER_TREE, path)}`,
@@ -156,7 +159,26 @@ describe("Git v3 retirement delta adapter", () => {
 
     await expect(planGitV3RetirementDelta({ cwd: "/repo", ...deps }, input())).resolves.toEqual({
       status: "refused",
-      refusal: { code: "unexpected-object-kind", path },
+      refusal: {
+        code: "unexpected-object-kind",
+        path,
+        evidence: {
+          expected: {
+            kind: "object",
+            objectKind: "blob",
+            mode: "100644",
+            contentDigest: digestBytes(expectedBytes),
+            byteLength: expectedBytes.byteLength,
+          },
+          actual: {
+            kind: "object",
+            objectKind: "tree",
+            mode: "040000",
+            contentDigest: digestBytes(actualBytes),
+            byteLength: actualBytes.byteLength,
+          },
+        },
+      },
     });
   });
 

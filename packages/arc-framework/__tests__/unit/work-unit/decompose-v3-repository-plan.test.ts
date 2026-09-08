@@ -29,6 +29,17 @@ function file(content: string) {
   };
 }
 
+function boundedState(state: V3RepositoryPlanTree[string]) {
+  if (state.kind === "absent") return { kind: "absent" };
+  return {
+    kind: "object",
+    objectKind: state.objectKind,
+    mode: state.mode,
+    contentDigest: digestBytes(state.bytes),
+    byteLength: state.bytes.byteLength,
+  };
+}
+
 function stored(path: string, content: string): V3DecomposeStoredArtifact {
   return { path, objectKind: "blob", mode: "100644", bytes: encoder.encode(content) };
 }
@@ -184,6 +195,39 @@ Medium.
 }
 
 describe("v3 repository plan projection", () => {
+  it("preserves retirement comparison evidence at the repository-plan boundary", async () => {
+    const input = fixture();
+    const path = ".arc/backlog/planned/origin/meta-origin.md";
+    const expected = input.mergeBaseTree[path]!;
+    if (expected.kind === "absent") throw new Error("fixture predecessor must exist");
+    const actual = file(new TextDecoder().decode(expected.bytes).replace("`P1`", "`P2`"));
+    input.resultBaseTree[path] = actual;
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "retirement",
+        reason: "predecessor-changed",
+        locus: path,
+        evidence: {
+          expected: boundedState(expected),
+          actual: boundedState(actual),
+        },
+      },
+    });
+  });
+
   it("reports the expected and observed source metadata paths", async () => {
     const input = fixture();
     const actualPath = ".arc/backlog/planned/origin/meta-origin.md";
