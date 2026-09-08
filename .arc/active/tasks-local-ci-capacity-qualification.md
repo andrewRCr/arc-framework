@@ -144,38 +144,49 @@ median at
 or below 120 s continues the trial; anything above it, or any OOM or swap growth, closes the work unit as no-go: the
 recommendation and no-go closeout in Phase 4 still run, and every other later task is marked superseded.
 
-### `[ ]` **2.1 Stage the repository and build `dist` inside the guest**
+### `[x]` **2.1 Stage the repository and build `dist` inside the guest**
 
 - _Goal:_ The guest holds a disposable checkout of current `main` with `dist` built, using an arm64 Node 24 installed
   in the guest, without any credential entering the guest.
 
-    - Transfer a `git archive` of `main` from the workstation over the SSH path and `limactl copy` into the guest;
-      no clone credential is needed and none is created.
-    - Install Node 24 for arm64 in the guest (this phase only; runner jobs use `actions/setup-node`), then
-      `npm ci` and `npm run build -w packages/arc-framework`.
+    - A `git archive` of `main` at `143aaba08` was piped from the workstation into `tar -x` inside the guest over
+      the existing SSH path, rather than staged as a file and copied in. Same result with one fewer artifact: no
+      repository tarball is ever written to the host's disk, which is closer to the scope contract's "no
+      development checkout on the host" than staging a copy there would be. No clone credential exists or is
+      needed.
+    - Node v24.20.0 for arm64 installed from the official tarball, verified against its published SHA-256 before
+      extraction. Node 24 is what the workflow resolves to today — the E2E jobs request `lts/*` and the classify
+      job pins `24` — so the guest matches CI rather than merely matching the plan's wording. `npm ci` and the
+      package build both succeeded.
 
-### `[ ]` **2.2 Run the warmups and the measured repetitions**
+### `[x]` **2.2 Run the warmups and the measured repetitions**
 
 - _Goal:_ At least ten clean measurements of the anchor under the workflow's exact invocation, with memory and swap
   sampled across each run.
 
-    - Invocation, from the checkout root inside the guest:
-      `VITEST_MAX_WORKERS=1 ARC_E2E_SKIP_BUILD=1 npm run test:e2e -w packages/arc-framework --
-      __tests__/e2e/command-input-no-input.e2e.test.ts --passWithNoTests=false`
-    - Two or three warmups discarded, then at least ten measured runs. Wall time from `/usr/bin/time -f %e`; a
-      background sampler records `free -m` every 5 s so peak used memory and swap used are per-run values; after
-      the series, `journalctl -k` is checked for OOM events. In a swapless guest memory pressure surfaces as OOM
-      rather than swap growth, so that check is the one that carries the gate's memory condition.
-    - Record every run in the ledger with median and p95.
+    - Three warmups discarded, then ten measured runs at the workflow's exact invocation. The measurement runs from
+      `scripts/local-ci/anchor-bench.sh` rather than an ad-hoc loop: Task 3.2 reuses this invocation and sampler for
+      the concurrency checks, and a guest rebuild would erase instrumentation that lived only in the guest. One
+      code path is what makes those later figures comparable to these.
+    - Wall time from `/usr/bin/time`, with a background sampler recording peak memory and swap per run, and
+      `journalctl -k` checked for OOM across the series. All ten runs and every table entry are in the ledger.
+    - Integrity check beyond the plan: a separately captured run confirms 77 tests in 1 file passing. Wall time
+      only measures the gate if the work under it is the work CI does, and `--passWithNoTests=false` alone would
+      not have caught a partially-executing suite.
 
-### `[ ]` **2.3 Decide the gate**
+### `[x]` **2.3 Decide the gate**
 
 - _Goal:_ The trial continues only on evidence, and a no-go is recorded as a complete outcome rather than a stall.
 
-    - Continue when the median is at or below 120 s with no OOM and no swap growth across the series.
-    - Otherwise record the no-go in the ledger, mark every task in Phase 3 and Tasks 4.1, 4.2, and 4.4 `[~]` with
-      a one-line note naming this gate, then complete Tasks 4.3 and 4.5. The workstation fallback design is not
-      entered by this work unit.
+    - Median 56.38 s against the 120 s threshold, p95 56.53 s, no OOM events, and no swap growth possible in a
+      guest with no swap device. The gate passes and the trial continues to Phase 3.
+    - The no-go branch is not entered, so no task is marked superseded.
+
+- _Outcome:_ The transplanted speed estimate holds and then some — the anchor runs at 47 percent of the gate
+  threshold, and faster than the 80 s the same anchor takes unpinned on the workstation. The series is unusually
+  tight (0.27 s across thirteen runs including warmups), which is what a guest with dedicated cores, no competing
+  load, and no network in the measured path should look like. This settles per-job speed only: Phase 4's decision
+  is a ratio over full workflow runs, where the serial head and the slot count, not per-job speed, set wall time.
 
 ## **Phase 3:** Services and the routed workflow
 

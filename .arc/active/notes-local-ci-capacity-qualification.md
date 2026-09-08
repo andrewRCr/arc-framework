@@ -102,13 +102,39 @@ Anchor `command-input-no-input.e2e.test.ts` inside the guest, at the workflow's 
 (`VITEST_MAX_WORKERS=1`, `ARC_E2E_SKIP_BUILD=1`, `dist` prebuilt). Warmups discarded; at least ten measured runs.
 Wall time from `/usr/bin/time -f %e`; memory and swap are per-run peaks from a `free -m` sampler at 5 s.
 
+Guest staged with a `git archive` of `main` at `143aaba08`, Node v24.20.0 for arm64 installed from the official
+tarball against its published SHA-256, then `npm ci` and a package build. Node 24 is what the workflow resolves
+today: the E2E jobs request `lts/*` and the classify job pins `24`. That equivalence expires when the next LTS
+promotion moves `lts/*`, so these figures are Node 24 readings, not "whatever CI uses" readings.
+
+Three warmups discarded. Ten measured runs:
+
 | Run | Wall time (s) | Peak used memory (MB) | Peak swap used (MB) |
 | --- | ------------- | --------------------- | ------------------- |
-|     | —             | —                     | —                   |
+| 1   | 56.37         | 1413                  | 0                   |
+| 2   | 56.26         | 1448                  | 0                   |
+| 3   | 56.44         | 1387                  | 0                   |
+| 4   | 56.26         | 1453                  | 0                   |
+| 5   | 56.41         | 1400                  | 0                   |
+| 6   | 56.39         | 1438                  | 0                   |
+| 7   | 56.53         | 1539                  | 0                   |
+| 8   | 56.35         | 1404                  | 0                   |
+| 9   | 56.35         | 1493                  | 0                   |
+| 10  | 56.40         | 1437                  | 0                   |
 
-- Median: — · p95: —
-- OOM events in `journalctl -k` across the series: —
-- Gate verdict (continue at a median at or below 120 s with no OOM and no swap growth): —
+- Median: 56.38 s · p95: 56.53 s (nearest-rank; at ten samples the top sample is p95)
+- Spread across the whole series, warmups included, is 0.27 s. The guest holds eight dedicated vCPU against no
+  competing load and the anchor touches no network, so there is little left to vary.
+- Every run exited zero, and a separately captured run reports 77 tests in 1 file passing. A fast run that had
+  quietly executed fewer tests would clear the gate without measuring it.
+- OOM events in `journalctl -k` across the series: none. Peak memory across all runs was 1539 MB against an 8 GiB
+  allocation, so the series never approached the memory condition.
+- Gate verdict: **continue.** The median is 56.38 s against a 120 s threshold — 47 percent of it — with no OOM and,
+  in a guest with no swap device, no swap growth possible.
+
+For reference, the same anchor measured 80 s unpinned on the workstation under WSL, and full hosted and remote-VPS
+E2E jobs ran 207–392 s. Per-job speed is not the trial's decision, though: Phase 4's threshold is a ratio over full
+workflow runs, where the serial head and slot count dominate.
 
 ### Concurrent services
 
