@@ -78,11 +78,11 @@ function commandReplyCompleted(
     && completionMatches;
 }
 
-function severity(body: string): "blocker" | "major" | "minor" | null {
+function severity(body: string): "critical" | "major" | "minor" | null {
   const match = /_([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)_/iu.exec(body);
   switch (match?.[2]?.toLowerCase()) {
     case "critical":
-      return "blocker";
+      return "critical";
     case "major":
       return "major";
     case "minor":

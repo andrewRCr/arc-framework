@@ -117,7 +117,7 @@ function normalizeFinding(event: AgentFindingEvent): NormalizedReviewFinding {
       mode: CODERABBIT_AGENT_MODE,
       finding: event,
     }),
-    severity: event.severity,
+    severity: event.severity === "blocker" ? "critical" : event.severity,
     locus: event.fileName,
     evidenceUrlOrId: event.codegenInstructions,
   };

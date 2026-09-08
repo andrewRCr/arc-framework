@@ -438,6 +438,37 @@ describe("review gate v2 contract", () => {
     expect(reordered.requirementId).toBe(requirement.requirementId);
   });
 
+  it("accepts critical and rejects retired blocker in receipt findings", () => {
+    const receipt = {
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      requestId: canonicalDigest({ request: "severity" }),
+      targetId: canonicalDigest({ target: "severity" }),
+      requirementId: canonicalDigest({ requirement: "severity" }),
+      applicabilityId: null,
+      reviewRunId: "run-severity",
+      evaluatorIdentity: "reviewer-1",
+      attestingRuntimeIdentity: "review-gate-app",
+      attestationMechanism: "github-app",
+      providerEventIdentity: null,
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "severity" }),
+      result: "findings",
+      findings: [{
+        findingId: "finding-1",
+        severity: "critical",
+        locus: "src/review.ts:42",
+        evidenceUrlOrId: "review:finding-1",
+      }],
+    };
+
+    expect(ReviewReceiptV2Schema.safeParse(receipt).success).toBe(true);
+    expect(ReviewReceiptV2Schema.safeParse({
+      ...receipt,
+      findings: [{ ...receipt.findings[0], severity: "blocker" }],
+    }).success).toBe(false);
+  });
+
   it("separates identical content across the registered ID domains", () => {
     const content = {
       repositoryId: "repo-1",

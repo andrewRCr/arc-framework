@@ -157,6 +157,8 @@ describe("kernel schema artifact generation", () => {
       .toContain('"$ref":"canonical-change.schema.json"');
     expect(firstBundle.schemas["finding-classification"]?.properties?.severity)
       .toEqual({ $ref: "review-severity.schema.json" });
+    expect(firstBundle.schemas["review-severity"]?.enum)
+      .toEqual(["critical", "major", "minor"]);
     expect(firstBundle.schemas["review-routing-facts"]?.properties?.activity)
       .toEqual({ $ref: "review-method-activity.schema.json" });
     const frontlineEnvelope = JSON.stringify(

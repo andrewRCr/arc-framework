@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 
-export const ReviewSeveritySchema = z.enum(["blocker", "major", "minor"]);
+export const ReviewSeveritySchema = z.enum(["critical", "major", "minor"]);
 export type ReviewSeverity = z.infer<typeof ReviewSeveritySchema>;
 
 export const FindingDispositionSchema = z.enum(["fix", "defer", "reject"]);

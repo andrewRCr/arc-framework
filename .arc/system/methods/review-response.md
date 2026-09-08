@@ -51,7 +51,7 @@ provider, compose a provider command, or infer authority from host state.
 When building the disposition set, use one unqualified `severity` when the judgments agree; when they differ, use
 the two labeled `reviewerSeverity` and `arcSeverity` fields instead. An unsupported finding carries only
 `reviewerSeverity` plus `sourceVerification: not-supported`; ARC assigns it no effective grade. Derive every
-verified item's gating from ARC's effective severity plus project policy: `blocker` and `major` are blocking, `nit`
+verified item's gating from ARC's effective severity plus project policy: `critical` and `major` are blocking, `nit`
 is record-only, and an ordinary `minor` uses `minorGating`. Unsupported findings retain the reviewer's gating grade
 for source fidelity. Keep every finding in the set. A blocking recurrence requests another round; a record-only
 finding does not. Carrier-native requested changes and required conversations remain independent blockers outside

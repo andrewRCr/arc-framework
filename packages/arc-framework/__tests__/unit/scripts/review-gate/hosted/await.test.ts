@@ -4,6 +4,8 @@ import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
 import {
   HostedAwaitResultSchema,
+  HostedReviewBodyFindingSchema,
+  HostedThreadFindingSchema,
   awaitHostedReview,
   type HostedAwaitClock,
   type HostedReviewObserver,
@@ -78,6 +80,31 @@ describe("hosted review await", () => {
       }],
       responseSourceRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
     }).success).toBe(true);
+  });
+
+  it.each([
+    [HostedThreadFindingSchema, {
+      findingId: "PRRT_1",
+      origin: "review-thread",
+      commentId: "PRRC_1",
+      threadId: "PRRT_1",
+      settlement: "reply-and-resolve",
+      locus: "src/index.ts:7",
+      url: "https://github.com/owner/repo/pull/42#discussion_r1",
+    }],
+    [HostedReviewBodyFindingSchema, {
+      findingId: "PRR_1:0",
+      origin: "review-body",
+      reviewId: "PRR_1",
+      fingerprint: "finding-fingerprint",
+      settlement: "not-applicable",
+      locus: "src/index.ts:7",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+      body: "Finding body",
+    }],
+  ] as const)("accepts critical and rejects retired blocker in hosted finding schemas", (schema, finding) => {
+    expect(schema.safeParse({ ...finding, severity: "critical" }).success).toBe(true);
+    expect(schema.safeParse({ ...finding, severity: "blocker" }).success).toBe(false);
   });
 
   it("accepts a pending result that asks for inspection or an explicit extension", () => {

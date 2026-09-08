@@ -887,7 +887,7 @@ describe("review response command", () => {
 
   it("collapses matching grades and labels both grades only when ARC re-grades", async () => {
     const records = fixture();
-    const proposal = async (sourceVerification: "verified" | "not-supported", severity: "blocker") =>
+    const proposal = async (sourceVerification: "verified" | "not-supported", severity: "critical") =>
       respondToReviewCommand({
         schemaVersion: 1,
         source: { kind: "attested-local", receiptRef: records.receiptRef },
@@ -905,13 +905,13 @@ describe("review response command", () => {
         },
       }, dependencies(records));
 
-    const regraded = await proposal("verified", "blocker");
+    const regraded = await proposal("verified", "critical");
     if (regraded.state !== "awaiting-approval") throw new Error("regraded proposal was not materialized");
     const regradedFinding = regraded.payload.proposal.dispositionSet.findings[0];
-    expect(regradedFinding).toMatchObject({ reviewerSeverity: "major", arcSeverity: "blocker" });
+    expect(regradedFinding).toMatchObject({ reviewerSeverity: "major", arcSeverity: "critical" });
     expect(regradedFinding).not.toHaveProperty("severity");
 
-    const unsupported = await proposal("not-supported", "blocker");
+    const unsupported = await proposal("not-supported", "critical");
     if (unsupported.state !== "awaiting-approval") throw new Error("unsupported proposal was not materialized");
     const unsupportedFinding = unsupported.payload.proposal.dispositionSet.findings[0];
     expect(unsupportedFinding).toMatchObject({
@@ -921,6 +921,27 @@ describe("review response command", () => {
     });
     expect(unsupportedFinding).not.toHaveProperty("severity");
     expect(unsupportedFinding).not.toHaveProperty("arcSeverity");
+  });
+
+  it("rejects retired blocker severity in an author proposal", async () => {
+    const records = fixture();
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          severity: "blocker",
+          disposition: "fix",
+          rationale: "The finding requires a code change.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }, dependencies(records))).rejects.toThrow();
   });
 
   it("preserves a reviewer's nit qualifier when ARC re-grades the finding as non-minor", async () => {

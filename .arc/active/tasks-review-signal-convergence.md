@@ -73,29 +73,28 @@
 _Purpose:_ Close the severity graph and advisory attention, completeness, convergence, and cap semantics independently
 of code-review persistence.
 
-### `[ ]` **1.1 Migrate the complete review-severity acceptance graph**
+### `[x]` **1.1 Migrate the complete review-severity acceptance graph**
 
 - _Goal:_ Review severity is uniformly `critical > major > minor`, while impediment and blocked-state vocabulary is
   unchanged.
 
-- _Note:_ Spec § 2; SC 2 and 11.
+    - `[x]` **1.1.a Transform the classified severity graph**
 
-- _Approach:_ Inventory all acceptance roots and occurrences before the mechanical rename. Include provider normalizers,
-  generated schema validation, fixtures, and both Framework copies; preserve current versions/domains and distinguish
-  provider-native wire vocabulary from ARC-owned normalized severity.
+        - Replaced ARC-owned top-grade severity with `critical` across schemas, adapters, policy, and both Framework
+          method copies. CodeRabbit agent events retain native `blocker` and event-based identity before normalization;
+          acceptance, strict-rejection, provider-mapping, lower-grade, nested-record, and command-input tests cover the
+          changed graph while impediment and `blocked` vocabulary remain untouched.
 
-    - `[ ]` **1.1.a Transform the classified severity graph**
+    - `[x]` **1.1.b Verify strict-current closure**
 
-        - Change severity-position occurrences and every owning schema/writer/reader together; leave the spec's
-          enumerated non-severity cases untouched. Add acceptance/rejection and preservation checks after the rename.
-          Preserve the CodeRabbit agent parser's accepted native grades and event-based finding identity; normalize
-          provider `blocker` to ARC `critical` without changing provider thresholds.
+        - Proved strict rejection through primitive, hosted, disposition, receipt, settlement, and command-input
+          boundaries; generated schemas expose only `critical | major | minor`. Provider-native top grades normalize
+          without changing lower mappings, both type domains close, Framework copies stay synchronized, and the
+          independent `blocked` state remains present.
 
-    - `[ ]` **1.1.b Verify strict-current closure**
-
-        - Run affected tests, both type checks, schema generation, and mirrored-prose checks. Reject old severity in
-          ARC-owned inputs, including nested hosted/disposition/receipt shapes, without aliases or migration readers.
-          Prove native top-grade normalization and unchanged lower-grade mappings; preserve the `blocked` state.
+- _Outcome:_ ARC-owned review severity now has one strict `critical > major > minor` graph from provider boundaries
+  through durable records, generated schemas, and review prose, while native provider and impediment vocabularies stay
+  independently intact.
 
 ### `[ ]` **1.2 Clarify advisory coverage and preserve claim-type verification**
 

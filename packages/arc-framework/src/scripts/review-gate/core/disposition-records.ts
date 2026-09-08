@@ -78,7 +78,7 @@ export const DispositionReportItemSchema = z.union([
     context.addIssue({ code: "custom", message: "nit findings are record-only", path: ["gating"] });
   }
   if (severity !== "minor" && item.gating !== "blocking") {
-    context.addIssue({ code: "custom", message: "blocker and major findings are blocking", path: ["gating"] });
+    context.addIssue({ code: "custom", message: "critical and major findings are blocking", path: ["gating"] });
   }
 });
 export type DispositionReportItem = z.infer<typeof DispositionReportItemSchema>;

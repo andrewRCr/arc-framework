@@ -22,7 +22,7 @@ export const HostedThreadFindingSchema = z.strictObject({
   commentId: z.string().min(1),
   threadId: z.string().min(1),
   settlement: z.literal("reply-and-resolve"),
-  severity: z.enum(["blocker", "major", "minor"]),
+  severity: z.enum(["critical", "major", "minor"]),
   locus: z.string().min(1),
   url: z.url(),
 });
@@ -33,7 +33,7 @@ export const HostedReviewBodyFindingSchema = z.strictObject({
   reviewId: z.string().min(1),
   fingerprint: z.string().min(1),
   settlement: z.literal("not-applicable"),
-  severity: z.enum(["blocker", "major", "minor"]),
+  severity: z.enum(["critical", "major", "minor"]),
   locus: z.string().min(1),
   url: z.url(),
   body: z.string().min(1),

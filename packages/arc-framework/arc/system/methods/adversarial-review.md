@@ -114,7 +114,7 @@ The report schema below is canonical. The primary uses it when validating a pass
 ```yaml
 findings:
   - title:      # one line
-    severity:   # blocker | major | minor
+    severity:   # critical | major | minor
     locus:      # the specific passage, file, symbol, or diff region at issue
     evidence:   # paths + source-grounded observations
     rationale:  # why it breaks, or what two competent engineers would build differently
@@ -187,13 +187,13 @@ into the enum rather than extending it.
 
 **Fixed core enum:**
 
-- `blocker` — a real correctness defect or gate-breaking gap. A report's `verdict` cannot read clean with a
-  live `blocker`.
+- `critical` — a real correctness defect or gate-breaking gap. A report's `verdict` cannot read clean with a
+  live `critical`.
 - `major` — a substantive design, grounding, or conformance problem that should resolve, but is not independently
   ship-blocking by category alone.
 - `minor` — coherence residue, wording, or another low-materiality finding.
 
-Ordering is `blocker` > `major` > `minor`. The `minor` / `major` boundary is the materiality line the exit gate
+Ordering is `critical` > `major` > `minor`. The `minor` / `major` boundary is the materiality line the exit gate
 reads.
 
 **Severity is not disposition.** Severity measures materiality. Disposition is the primary's verified action on a
@@ -202,7 +202,7 @@ verification.
 
 Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. A finding the
 primary has acted on is resolved for the loop; an open finding above `minor` is what blocks convergence.
-Carry-forward is therefore not a fourth severity, and it does not flatten a `blocker` or `major` into `minor`.
+Carry-forward is therefore not a fourth severity, and it does not flatten a `critical` or `major` into `minor`.
 
 ### Exit gate
 
@@ -213,16 +213,16 @@ zero-findings-based.
 
 - A zero-finding report is a clean convergence.
 - A report with only `minor` findings may converge after the primary folds or disposes those findings.
-- A `blocker` or `major` finding that the primary has fixed, dropped, or carried forward durably is resolved and
+- A `critical` or `major` finding that the primary has fixed, dropped, or carried forward durably is resolved and
   does not force another pass by itself.
-- An open `blocker` or `major` finding prevents convergence.
+- An open `critical` or `major` finding prevents convergence.
 
 The `verdict` distinguishes the clean case from the converged-with-minors-folded case.
 
 **`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass caps. Stop at the
 first condition reached: convergence or pass cap.
 
-Reaching the cap with live `blocker` or `major` findings does not resolve them. Stop the automatic loop and surface
+Reaching the cap with live `critical` or `major` findings does not resolve them. Stop the automatic loop and surface
 the unresolved findings at the stage interlock for the user's call.
 
 **Uniform materiality threshold.** The convergence threshold does not vary by `Class`. `Class` scales the

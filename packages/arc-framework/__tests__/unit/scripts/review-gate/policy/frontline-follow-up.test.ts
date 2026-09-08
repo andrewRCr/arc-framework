@@ -41,7 +41,7 @@ const source = {
 };
 
 function outcome(
-  severity: "blocker" | "major" | "minor" = "major",
+  severity: "critical" | "major" | "minor" = "major",
   maxPasses = 2,
   pass = 1,
   nit = false,
@@ -59,7 +59,7 @@ function outcome(
   };
 }
 
-function approved(severity: "blocker" | "major" | "minor", disposition: "fix" | "defer" = "fix") {
+function approved(severity: "critical" | "major" | "minor", disposition: "fix" | "defer" = "fix") {
   const dispositionSet = createDispositionSet({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -148,7 +148,7 @@ describe("frontline follow-up policy", () => {
     });
   });
 
-  it.each(["major", "blocker"] as const)("permits one follow-up after an approved %s fix changes target", (severity) => {
+  it.each(["major", "critical"] as const)("permits one follow-up after an approved %s fix changes target", (severity) => {
     expect(resolveFrontlineFollowUp({
       outcome: outcome(severity),
       ...approved(severity),

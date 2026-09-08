@@ -446,7 +446,7 @@ describe("PR-open lifecycle extensions", () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");
       const normalized = method.toLowerCase().replace(/\s+/gu, " ");
-      expect(normalized).toContain("severity: `blocker | major | minor`");
+      expect(normalized).toContain("severity: `critical | major | minor`");
       expect(normalized).toContain("disposition: `fix | defer | reject`");
       expect(normalized).toContain("`nit` is valid only with `minor`");
       expect(normalized).toContain("verify every finding against source");

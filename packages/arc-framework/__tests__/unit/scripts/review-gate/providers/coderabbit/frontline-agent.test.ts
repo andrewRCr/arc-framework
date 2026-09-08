@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
+import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import { parseCodeRabbitAgentResult } from "../../../../../../src/scripts/review-gate/providers/coderabbit/frontline-agent.js";
 
 const fixtureUrl = new URL(
@@ -66,7 +67,7 @@ describe("CodeRabbit structured frontline parser", () => {
   it("keeps normalized finding identity stable across executable versions", () => {
     const finding = {
       type: "finding",
-      severity: "minor",
+      severity: "blocker",
       fileName: "src/index.ts",
       codegenInstructions: "Preserve the exact target binding.",
       suggestions: [],
@@ -87,6 +88,16 @@ describe("CodeRabbit structured frontline parser", () => {
     expect(afterUpdate).toMatchObject({ kind: "findings" });
     if (beforeUpdate.kind !== "findings" || afterUpdate.kind !== "findings") return;
     expect(beforeUpdate.findings[0]?.findingId).toBe(afterUpdate.findings[0]?.findingId);
+    expect(beforeUpdate.findings[0]).toMatchObject({
+      findingId: canonicalDigest({
+        schemaVersion: 1,
+        provider: "coderabbit-cli",
+        contract: "coderabbit-agent-ndjson/v1",
+        mode: "agent",
+        finding,
+      }),
+      severity: "critical",
+    });
   });
 
   it("fails closed on incomplete, skipped, duplicated, or unsupported output", () => {

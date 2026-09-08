@@ -193,6 +193,23 @@ describe("CodeRabbit hosted adapter", () => {
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appId).toBe("347564");
   });
 
+  it.each([
+    ["_🔴 Critical_ broken boundary", "critical"],
+    ["_🟠 Major_ broken boundary", "major"],
+    ["_🟡 Minor_ broken boundary", "minor"],
+    ["_🔵 Trivial_ broken boundary", "minor"],
+  ] as const)("normalizes native finding %s to ARC severity %s", async (body, arcSeverity) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({ state: "changes-requested", body: "Review complete." })]),
+      readThreads: () => Promise.resolve([findingThread(body)]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ severity: arcSeverity }],
+    });
+  });
+
   it("recognizes exact-head clean completion without a new review object", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readIssueComments: () => Promise.resolve([summaryComment(), commandReply()]),

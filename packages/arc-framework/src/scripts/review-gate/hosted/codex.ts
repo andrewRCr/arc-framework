@@ -32,10 +32,10 @@ export const CODEX_HOSTED_REGISTRATION = {
   identities: { appId: APP_ID, botUserId: BOT_USER_ID },
 } as const;
 
-function severity(body: string): "blocker" | "major" | "minor" | null {
+function severity(body: string): "critical" | "major" | "minor" | null {
   switch (/\bP([0-3])\b/u.exec(body)?.[1]) {
     case "0":
-      return "blocker";
+      return "critical";
     case "1":
       return "major";
     case "2":

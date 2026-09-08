@@ -56,7 +56,7 @@ function codexReview(): HostedGitHubReview {
   };
 }
 
-function findingThread(): HostedGitHubThread {
+function findingThread(body = "[P1] boundary failure"): HostedGitHubThread {
   return {
     id: "PRRT_1",
     isResolved: false,
@@ -64,7 +64,7 @@ function findingThread(): HostedGitHubThread {
       id: "123",
       reviewId: "PRR_1",
       actorIdentity: "199175422",
-      body: "[P1] boundary failure",
+      body,
       url: "https://github.com/owner/repo/pull/42#discussion_r1",
       path: "src/a.ts",
       line: 7,
@@ -158,6 +158,23 @@ describe("Codex hosted adapter", () => {
     await expect(findings.observeHandle(target)).resolves.toMatchObject({
       kind: "findings",
       findings: [{ severity: "major", locus: "src/a.ts:7" }],
+    });
+  });
+
+  it.each([
+    ["P0", "critical"],
+    ["P1", "major"],
+    ["P2", "minor"],
+    ["P3", "minor"],
+  ] as const)("normalizes native %s findings to ARC severity %s", async (nativeSeverity, arcSeverity) => {
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([codexReview()]),
+      readThreads: () => Promise.resolve([findingThread(`[${nativeSeverity}] boundary failure`)]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ severity: arcSeverity }],
     });
   });
 

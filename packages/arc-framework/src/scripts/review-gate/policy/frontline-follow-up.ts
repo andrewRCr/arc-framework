@@ -67,7 +67,7 @@ export function projectFrontlineFollowUpAdvice(input: {
 
   const materialFix = dispositionSet.findings.some((item) =>
     item.disposition === "fix"
-      && (effectiveDispositionSeverity(item) === "major" || effectiveDispositionSeverity(item) === "blocker"));
+      && (effectiveDispositionSeverity(item) === "major" || effectiveDispositionSeverity(item) === "critical"));
   if (!materialFix) return { action: "stop", reason: "no-approved-material-fix" };
   if (outcome.pass >= outcome.maxPasses) return { action: "stop", reason: "pass-cap-exhausted" };
   return {

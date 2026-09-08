@@ -36,7 +36,7 @@ inventing an effective grade.
 
 Record the applicable grade shape:
 
-- matching verified grades — severity: `blocker | major | minor`
+- matching verified grades — severity: `critical | major | minor`
 - different verified grades — `reviewerSeverity` and `arcSeverity`
 - unsupported finding — `reviewerSeverity` and `sourceVerification: not-supported`
 
@@ -47,7 +47,7 @@ Then record:
 
 Severity measures materiality:
 
-- `blocker` — correctness, safety, authority, or contract failure that independently prevents completion.
+- `critical` — correctness, safety, authority, or contract failure that independently prevents completion.
 - `major` — substantive correctness, coherence, compatibility, or verification gap that must settle before
   completion unless an explicitly approved durable deferral applies.
 - `minor` — low-materiality defect or improvement that does not independently invalidate the change.
@@ -61,7 +61,7 @@ Disposition records the approved action:
 
 `nit` is valid only with `minor`. It is neither a severity nor a disposition, and the finding still requires one of
 `fix | defer | reject`. A nit always resolves as record-only. Other minor findings follow effective `minorGating:
-blocking | record-only`; the package default is `record-only`. Any unresolved `blocker` or `major` remains blocking.
+blocking | record-only`; the package default is `record-only`. Any unresolved `critical` or `major` remains blocking.
 Record-only triage does not override a carrier-native blocking state, required conversation, or host requirement.
 
 ### 3. Approve before mutation
@@ -69,7 +69,7 @@ Record-only triage does not override a carrier-native blocking state, required c
 Present the complete disposition set together: finding identity and stable locus, source-verification result,
 severity, `nit` when present, proposed disposition, rationale, recommendation, and open questions. Render
 `Severity: major` when reviewer and effective grades agree; render both labels, for example
-`Severity: Reviewer blocker · ARC major`, only when they differ. For a rejected unsupported finding, render the
+`Severity: Reviewer critical · ARC major`, only when they differ. For a rejected unsupported finding, render the
 reported grade and `ARC not-supported`.
 
 Obtain approval for the complete disposition set before applying any `fix`. Materialize the canonical set before

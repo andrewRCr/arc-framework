@@ -71,7 +71,7 @@ export function normalizeProviderFindingClassification(
   purePolish: boolean,
 ): z.infer<typeof FindingClassificationSchema> {
   const severity = providerSeverity === "critical"
-    ? "blocker"
+    ? "critical"
     : providerSeverity === "high" || providerSeverity === "medium"
       ? "major"
       : "minor";
