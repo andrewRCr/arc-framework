@@ -212,20 +212,76 @@ describe("v3 decomposition allocation and dependency conservation", () => {
   it.each([
     ["missing", (input: V3DecomposeConservationInput) => {
       input.workUnits = [];
-    }, "machine.incomingEdges", "incoming-edge-set-changed", "live-conservation"],
+    }, "machine.incomingEdges", "incoming-edge-set-changed", "live-conservation", {
+      expected: ["consumer"],
+      actual: [],
+    }],
     ["unwritable", (input: V3DecomposeConservationInput) => {
       delete input.workUnits[0]!.writablePath;
-    }, "workUnits.consumer.writablePath", "unwritable-dependent", "dependency-projection"],
+    }, "workUnits.consumer.writablePath", "unwritable-dependent", "dependency-projection", undefined],
     ["stale", (input: V3DecomposeConservationInput) => {
       input.workUnits[0]!.dependsOn = ["origin", "other"];
-    }, ".arc/active/meta-consumer.md", "stale-dependent", "dependency-projection"],
-  ])("refuses a %s incoming dependent", (_name, mutate, locus, reason, stage) => {
+    }, ".arc/active/meta-consumer.md", "stale-dependent", "dependency-projection", {
+      expected: ["origin"],
+      actual: ["origin", "other"],
+    }],
+  ])("refuses a %s incoming dependent", (_name, mutate, locus, reason, stage, evidence) => {
     const input = validInput();
     mutate(input);
 
     expect(validateV3DecomposeConservation(input)).toEqual({
       status: "refused",
-      refusal: { stage, reason, locus },
+      refusal: {
+        stage,
+        reason,
+        locus,
+        ...(evidence === undefined ? {} : { evidence }),
+      },
+    });
+  });
+
+  it("reports the recorded and live outgoing dependency sets", () => {
+    const input = validInput();
+    input.originDependsOn = ["foundation"];
+
+    expect(validateV3DecomposeConservation(input)).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "live-conservation",
+        reason: "outgoing-edge-set-changed",
+        locus: "originDependsOn",
+        evidence: {
+          expected: [],
+          actual: ["foundation"],
+        },
+      },
+    });
+  });
+
+  it("preserves machine-binding evidence through the conservation refusal", () => {
+    const input = validInput();
+    const currentMachine = input.currentPreflight.starterMap.machine;
+    currentMachine.sourceUnits[0]!.contentDigest = canonicalDigest("changed");
+    currentMachine.preflightId = v3PreflightId({
+      source: currentMachine.source,
+      resultBase: currentMachine.resultBase,
+      planningProfile: currentMachine.planningProfile,
+      sourceUnits: currentMachine.sourceUnits,
+      incomingEdges: currentMachine.incomingEdges,
+      outgoingEdges: currentMachine.outgoingEdges,
+    });
+
+    expect(validateV3DecomposeConservation(input)).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "machine-binding",
+        reason: "source-units",
+        locus: "machine.sourceUnits.0",
+        evidence: {
+          expected: input.completedMap.machine.sourceUnits[0],
+          actual: currentMachine.sourceUnits[0],
+        },
+      },
     });
   });
 

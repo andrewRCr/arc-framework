@@ -10,6 +10,7 @@ import {
   revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
 } from "./decompose-v3-preflight.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 import { replaceDependencySlot } from "./decompose-sweep.js";
 
 export interface V3DecomposeLiveWorkUnit {
@@ -47,6 +48,7 @@ export interface V3DecomposeConservationRefusal {
   stage: V3DecomposeConservationStage;
   reason: string;
   locus: string;
+  evidence?: V3DecomposeRefusalEvidence;
 }
 
 export type V3DecomposeConservationResult =
@@ -66,8 +68,12 @@ function refuse(
   stage: V3DecomposeConservationStage,
   reason: string,
   locus: string,
+  evidence?: V3DecomposeRefusalEvidence,
 ): V3DecomposeConservationResult {
-  return { status: "refused", refusal: { stage, reason, locus } };
+  return {
+    status: "refused",
+    refusal: { stage, reason, locus, ...(evidence === undefined ? {} : { evidence }) },
+  };
 }
 
 function sameTargets(left: readonly string[], right: readonly string[]): boolean {
@@ -130,7 +136,7 @@ export function validateV3DecomposeConservation(
   }
   const binding = revalidateV3DecomposeCutMapBinding(decoded.value, input.currentPreflight);
   if (binding.status === "stale") {
-    return refuse("machine-binding", binding.reason, binding.locus);
+    return refuse("machine-binding", binding.reason, binding.locus, binding.evidence);
   }
   const extraction = decoded.value.authoring.shape === "extraction";
 
@@ -168,6 +174,7 @@ export function validateV3DecomposeConservation(
       "live-conservation",
       "incoming-edge-set-changed",
       index >= 0 ? `workUnits.${liveIncoming[index]}.dependsOn` : "machine.incomingEdges",
+      { expected: expectedIncoming, actual: liveIncoming },
     );
   }
   const liveOutgoing = sortByCanonicalBytes(input.originDependsOn);
@@ -176,7 +183,12 @@ export function validateV3DecomposeConservation(
   );
   if (new Set(input.originDependsOn).size !== input.originDependsOn.length
     || !sameTargets(liveOutgoing, expectedOutgoing)) {
-    return refuse("live-conservation", "outgoing-edge-set-changed", "originDependsOn");
+    return refuse(
+      "live-conservation",
+      "outgoing-edge-set-changed",
+      "originDependsOn",
+      { expected: expectedOutgoing, actual: liveOutgoing },
+    );
   }
 
   const destinations = new Map(
@@ -292,7 +304,15 @@ export function validateV3DecomposeConservation(
       sortByCanonicalBytes(live.dependsOn),
       sortByCanonicalBytes(edge.currentTargets),
     )) {
-      return refuse("dependency-projection", "stale-dependent", live.writablePath);
+      return refuse(
+        "dependency-projection",
+        "stale-dependent",
+        live.writablePath,
+        {
+          expected: sortByCanonicalBytes(edge.currentTargets),
+          actual: sortByCanonicalBytes(live.dependsOn),
+        },
+      );
     }
     const originIndex = live.dependsOn.indexOf(decoded.value.machine.source.origin);
     if (originIndex < 0) {

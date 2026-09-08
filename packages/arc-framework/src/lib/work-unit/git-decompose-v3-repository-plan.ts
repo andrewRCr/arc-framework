@@ -18,6 +18,7 @@ import {
 } from "./decompose-v3-repository-plan.js";
 import { decodeV3DecomposeCutMap } from "./decompose-v3-schema.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 import { transitionOverlayCompositionInput } from "./transition-overlay.js";
 import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
 
@@ -37,6 +38,7 @@ export type GitV3RepositoryPlanResult =
         stage: "git";
         reason: string;
         locus?: string;
+        evidence?: V3DecomposeRefusalEvidence;
       };
     };
 
@@ -233,13 +235,18 @@ export async function renderGitV3RepositoryTreeRoadmap(
   return new TextEncoder().encode(markdown.endsWith("\n") ? markdown : `${markdown}\n`);
 }
 
-function gitRefusal(reason: string, locus?: string): GitV3RepositoryPlanResult {
+function gitRefusal(
+  reason: string,
+  locus?: string,
+  evidence?: V3DecomposeRefusalEvidence,
+): GitV3RepositoryPlanResult {
   return {
     status: "refused",
     refusal: {
       stage: "git",
       reason,
       ...(locus === undefined ? {} : { locus }),
+      ...(evidence === undefined ? {} : { evidence }),
     },
   };
 }
@@ -273,7 +280,11 @@ async function composeGitRepositoryPlan(
       readBlob: async (ref, path) => await dependencies.readBlob(ref, path),
     }, baseBranch, map.machine.source.origin);
     if (refreshed.status === "rejected") {
-      return gitRefusal(refreshed.reason, "locus" in refreshed ? refreshed.locus : undefined);
+      return gitRefusal(
+        refreshed.reason,
+        "locus" in refreshed ? refreshed.locus : undefined,
+        "evidence" in refreshed ? refreshed.evidence : undefined,
+      );
     }
     const sourceHead = map.machine.source.head;
     const resultBaseHead = map.machine.resultBase.head;
@@ -286,8 +297,20 @@ async function composeGitRepositoryPlan(
         { cwd: dependencies.cwd },
       ),
     ]);
-    if (sourceRef !== sourceHead) return gitRefusal("source-ref-moved", map.machine.source.ref);
-    if (resultRef !== resultBaseHead) return gitRefusal("result-ref-moved", map.machine.resultBase.ref);
+    if (sourceRef !== sourceHead) {
+      return gitRefusal(
+        "source-ref-moved",
+        map.machine.source.ref,
+        sourceRef === null ? undefined : { expected: sourceHead, actual: sourceRef },
+      );
+    }
+    if (resultRef !== resultBaseHead) {
+      return gitRefusal(
+        "result-ref-moved",
+        map.machine.resultBase.ref,
+        resultRef === null ? undefined : { expected: resultBaseHead, actual: resultRef },
+      );
+    }
     const mergeBases = mergeBaseResult.stdout.split(/\r?\n/u).filter(Boolean);
     if (mergeBases.length !== 1 || mergeBases[0] === undefined) {
       return gitRefusal(mergeBases.length === 0 ? "missing-merge-base" : "ambiguous-merge-base");
@@ -323,8 +346,20 @@ async function composeGitRepositoryPlan(
       exactRef(dependencies, map.machine.source.ref),
       exactRef(dependencies, map.machine.resultBase.ref),
     ]);
-    if (sourceAfter !== sourceHead) return gitRefusal("source-ref-moved", map.machine.source.ref);
-    if (resultAfter !== resultBaseHead) return gitRefusal("result-ref-moved", map.machine.resultBase.ref);
+    if (sourceAfter !== sourceHead) {
+      return gitRefusal(
+        "source-ref-moved",
+        map.machine.source.ref,
+        sourceAfter === null ? undefined : { expected: sourceHead, actual: sourceAfter },
+      );
+    }
+    if (resultAfter !== resultBaseHead) {
+      return gitRefusal(
+        "result-ref-moved",
+        map.machine.resultBase.ref,
+        resultAfter === null ? undefined : { expected: resultBaseHead, actual: resultAfter },
+      );
+    }
     return result;
   } catch (error) {
     return gitRefusal(

@@ -1573,6 +1573,70 @@ describe("Git v3 repository plan", () => {
     });
   });
 
+  it("reports the recorded and observed source ref tips", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    await git(repo, ["branch", "-f", "plan/origin", "main"]);
+    const actual = (await git(repo, ["rev-parse", "refs/heads/plan/origin"])).trim();
+
+    const result = await composeGitV3RepositoryPlan(dependencies, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "git",
+        reason: "source-ref-moved",
+        locus: "refs/heads/plan/origin",
+        evidence: {
+          expected: completedMap.machine.source.head,
+          actual,
+        },
+      },
+    });
+  });
+
+  it("reports the recorded and observed result-base ref tips", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    await git(repo, ["commit", "--allow-empty", "-m", "move base"]);
+    const actual = (await git(repo, ["rev-parse", "refs/heads/main"])).trim();
+
+    const result = await composeGitV3RepositoryPlan(dependencies, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "git",
+        reason: "result-ref-moved",
+        locus: "refs/heads/main",
+        evidence: {
+          expected: completedMap.machine.resultBase.head,
+          actual,
+        },
+      },
+    });
+  });
+
+  it("keeps a failed one-sided ref read locus-only", async () => {
+    const { completedMap, dependencies } = await startedRepository();
+    const result = await composeGitV3RepositoryPlan({
+      ...dependencies,
+      exec: async (command, args, options) => {
+        if (command === "git" && args[0] === "rev-parse" && args.at(-1)?.startsWith("refs/heads/plan/origin")) {
+          throw new Error("synthetic source-ref read failure");
+        }
+        return await dependencies.exec(command, args, options);
+      },
+    }, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "git",
+        reason: "source-ref-moved",
+        locus: "refs/heads/plan/origin",
+      },
+    });
+  });
+
   it("refuses moved source or base authority before claiming a candidate", async () => {
     for (const movedRef of ["plan/origin", "main"]) {
       const { repo, completedMap, dependencies } = await startedRepository();

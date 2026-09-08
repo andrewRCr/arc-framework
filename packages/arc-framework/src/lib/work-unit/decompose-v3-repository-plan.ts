@@ -33,6 +33,10 @@ import {
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 import type { V3ExtractionReportFacts } from "./decompose-v3-result-report.js";
 import type { V3DecomposePreflight } from "./decompose-v3-preflight.js";
+import type {
+  V3DecomposeEvidenceValue,
+  V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 import {
   decodeV3DecomposeCutMap,
   v3CutMapDigest,
@@ -88,6 +92,7 @@ export interface V3RepositoryPlanRefusal {
   stage: V3RepositoryPlanRefusalStage;
   reason: string;
   locus?: string;
+  evidence?: V3DecomposeRefusalEvidence;
 }
 
 export type V3RepositoryPlanResult =
@@ -114,10 +119,29 @@ function refuse(
   stage: V3RepositoryPlanRefusalStage,
   reason: string,
   locus?: string,
+  evidence?: V3DecomposeRefusalEvidence,
 ): V3RepositoryPlanResult {
   return {
     status: "refused",
-    refusal: { stage, reason, ...(locus === undefined ? {} : { locus }) },
+    refusal: {
+      stage,
+      reason,
+      ...(locus === undefined ? {} : { locus }),
+      ...(evidence === undefined ? {} : { evidence }),
+    },
+  };
+}
+
+function sourceArtifactEvidence(
+  path: string,
+  state: V3RepositoryPlanState,
+): V3DecomposeEvidenceValue {
+  if (state.kind === "absent") return { kind: "absent" };
+  return {
+    path,
+    objectKind: state.objectKind,
+    mode: state.mode,
+    contentDigest: digestBytes(state.bytes),
   };
 }
 
@@ -690,7 +714,15 @@ async function composeRepositoryPlan(
   if (sourceMetas === null || baseMetas === null) return refuse("source", "invalid-meta");
   const sourceMeta = uniqueMeta(sourceMetas, map.machine.source.origin);
   if (sourceMeta === null || sourceMeta.path !== input.currentPreflight.sourceOriginPath) {
-    return refuse("source", "source-meta-mismatch", input.currentPreflight.sourceOriginPath);
+    return refuse(
+      "source",
+      "source-meta-mismatch",
+      input.currentPreflight.sourceOriginPath,
+      {
+        expected: input.currentPreflight.sourceOriginPath,
+        actual: sourceMeta?.path ?? { kind: "absent" },
+      },
+    );
   }
 
   for (const artifact of input.currentPreflight.sourceArtifactInventory) {
@@ -699,7 +731,20 @@ async function composeRepositoryPlan(
       || observed.objectKind !== artifact.objectKind
       || observed.mode !== artifact.mode
       || digestBytes(observed.bytes) !== artifact.contentDigest) {
-      return refuse("source", "source-artifact-mismatch", artifact.path);
+      return refuse(
+        "source",
+        "source-artifact-mismatch",
+        artifact.path,
+        {
+          expected: {
+            path: artifact.path,
+            objectKind: artifact.objectKind,
+            mode: artifact.mode,
+            contentDigest: artifact.contentDigest,
+          },
+          actual: sourceArtifactEvidence(artifact.path, observed),
+        },
+      );
     }
   }
 
@@ -722,6 +767,7 @@ async function composeRepositoryPlan(
       "conservation",
       `${conservation.refusal.stage}:${conservation.refusal.reason}`,
       conservation.refusal.locus,
+      conservation.refusal.evidence,
     );
   }
 

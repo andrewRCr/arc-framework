@@ -13,6 +13,7 @@ import {
   createV3DecomposePreflight,
   type V3DecomposeStoredArtifact,
 } from "../../../src/lib/work-unit/decompose-v3-preflight.js";
+import { v3PreflightId } from "../../../src/lib/work-unit/decompose-v3-schema.js";
 
 const encoder = new TextEncoder();
 const cohortTemplate = readFileSync(
@@ -183,6 +184,114 @@ Medium.
 }
 
 describe("v3 repository plan projection", () => {
+  it("reports the expected and observed source metadata paths", async () => {
+    const input = fixture();
+    const actualPath = ".arc/backlog/planned/origin/meta-origin.md";
+    input.sourceTree[actualPath] = input.sourceTree[".arc/active/meta-origin.md"]!;
+    delete input.sourceTree[".arc/active/meta-origin.md"];
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "source",
+        reason: "source-meta-mismatch",
+        locus: ".arc/active/meta-origin.md",
+        evidence: {
+          expected: ".arc/active/meta-origin.md",
+          actual: actualPath,
+        },
+      },
+    });
+  });
+
+  it("reports the expected and observed source artifact facts", async () => {
+    const input = fixture();
+    const path = ".arc/active/draft-origin.md";
+    input.sourceTree[path] = file("changed source\n");
+    const expected = input.preflight.sourceArtifactInventory.find((artifact) => artifact.path === path)!;
+    const actual = input.sourceTree[path]!;
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "source",
+        reason: "source-artifact-mismatch",
+        locus: path,
+        evidence: {
+          expected,
+          actual: {
+            path,
+            objectKind: actual.kind === "object" ? actual.objectKind : "absent",
+            mode: actual.kind === "object" ? actual.mode : "absent",
+            contentDigest: actual.kind === "object" ? digestBytes(actual.bytes) : "absent",
+          },
+        },
+      },
+    });
+  });
+
+  it("preserves machine-binding evidence through the conservation prefix", async () => {
+    const input = fixture();
+    input.completedMap.machine = structuredClone(input.completedMap.machine);
+    const machine = input.completedMap.machine;
+    const expectedHead = "3".repeat(40);
+    machine.source.head = expectedHead;
+    machine.preflightId = v3PreflightId({
+      source: machine.source,
+      resultBase: machine.resultBase,
+      planningProfile: machine.planningProfile,
+      sourceUnits: machine.sourceUnits,
+      incomingEdges: machine.incomingEdges,
+      outgoingEdges: machine.outgoingEdges,
+    });
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "conservation",
+        reason: "machine-binding:source-head",
+        locus: "machine.source.head",
+        evidence: {
+          expected: expectedHead,
+          actual: input.preflight.starterMap.machine.source.head,
+        },
+      },
+    });
+  });
+
   it("derives every path and byte operand from pinned trees and the completed map", async () => {
     const input = fixture();
     const renderRoadmap = vi.fn(async (

@@ -100,14 +100,9 @@ only after every mode has executable coverage.
         - Stabilized known Git source-condition codes, normalized unclassified failures to `unexpected-error`, and
           added exact scan loci plus bounded evidence and specific preflight remedies across binding and refresh.
 
-    - `[ ]` **1.2.b Carry evidence through conservation and repository planning**
-        - Add evidence to the admitted comparisons in `decompose-v3-conservation.ts`,
-          `decompose-v3-repository-plan.ts`, and `git-decompose-v3-repository-plan.ts` without changing their
-          deterministic refusal precedence.
-        - Build `test-first` (one behavior at a time):
-            - Report source meta/artifact, source/result ref, edge-set, and stale-dependent differences.
-            - Keep internal consistency, projection, cardinality, and one-sided read failures locus-only.
-            - Preserve evidence through each repository-plan prefix instead of embedding it in `reason`.
+    - `[x]` **1.2.b Carry evidence through conservation and repository planning**
+        - Added bounded source, ref-tip, dependency-set, stale-dependent, and machine-binding evidence through
+          conservation and repository-plan prefixes while retaining locus-only one-sided and internal failures.
 
     - `[ ]` **1.2.c Carry evidence through execution-preflight comparison**
         - Add evidence for the admitted completed-map origin comparison in
