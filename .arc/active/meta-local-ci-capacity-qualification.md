@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Planned Light P1 stub created from the live CI-capacity investigation (2026-09-08).
 - **Next Task:** [none]
 - **Blockers:** [none]
@@ -38,6 +38,14 @@ not settle the repository's permanent hosted-versus-self-hosted posture.
   Preserve an immediate hosted/remote fallback and an on-demand start, idle-check, and stop procedure.
 - Deliver the measurement ledger and a go/no-go recommendation to `self-hosted-ci-qualification`; that Heavy WU
   retains authority over the permanent CI route, remote fleet disposition, and recurring-cost decision.
+
+**Forward amendment (2026-09-08):** the motivator is CI speed, not VPS cost. On a go result this work unit ships the
+repository routed to the local runner (label and `ARC_CI_LINUX_RUNNER` routing, runbook, and start/idle/stop
+procedure), with the remote VPS pool left registered as the fallback. `self-hosted-ci-qualification` is being retired
+by errand because daily use already settled the question it was chartered to adjudicate; its measured findings
+informed this draft. Decommissioning the paid VPS allocation stays a separate, approval-gated errand and is not
+decided here. The "Selecting the permanent repository-wide CI architecture" exclusion below narrows accordingly: the
+routing swap on go is in scope; fleet purchase, resize, and decommission remain out.
 
 ## Out of Scope
 
