@@ -428,10 +428,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           phase-split allocations, provisional task/notes destinations, complete predecessor retirement, rider
           isolation, full execute, and base advancement while the completed map and staged plan/report stay unchanged.
 
-    - `[ ]` **2.5.c Rehearse the motivating notes cut on a copy of a real origin**
-        - Use a copied fixture carrying substantive notes content; author allocations, execute the retirement, and
-          compare the complete origin artifact-group content with the resulting destinations and reasoned drops.
-        - Require no manual post-transition repair and keep destructive rehearsal outside the live origin.
+    - `[x]` **2.5.c Rehearse the motivating notes cut on a copy of a real origin**
+        - A temporary repository now copies the real `decompose-transform-integrity` spec, tasks, and substantive
+          notes, proves complete target-or-drop coverage, and executes their retirement without repair; the rehearsal
+          also closed notes allocation classification so the provisional notes destination composes as `notes`.
 
     - `[ ]` **2.5.d Publish companion authoring and extraction handling before member close**
         - Extend the package-source `decompose-work-unit.md` with inventoried companion allocation, retained-only

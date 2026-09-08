@@ -710,9 +710,11 @@ function contentContributions(
             ? "draft"
             : posix.basename(target) === `tasks-${destination.slug}.md`
               ? "tasks"
-              : posix.basename(target).endsWith("-rfc.md")
-                ? "rfc"
-                : "spec";
+              : posix.basename(target) === `notes-${destination.slug}.md`
+                ? "notes"
+                : posix.basename(target).endsWith("-rfc.md")
+                  ? "rfc"
+                  : "spec";
     content.push({
       path: target,
       destinationId: destination.destinationId,

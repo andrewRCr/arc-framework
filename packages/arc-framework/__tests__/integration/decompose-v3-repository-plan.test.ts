@@ -812,6 +812,102 @@ Prove the direct-base retirement.
   };
 }
 
+async function copiedRealNotesRepository() {
+  const origin = "decompose-transform-integrity";
+  const member = "integrity-core";
+  const archive = "../../../../.arc/completed/2026-q3/39_decompose-transform-integrity";
+  const source = {
+    spec: await readFile(new URL(`${archive}/spec-${origin}.md`, import.meta.url), "utf8"),
+    tasks: await readFile(new URL(`${archive}/tasks-${origin}.md`, import.meta.url), "utf8"),
+    notes: await readFile(new URL(`${archive}/notes-${origin}.md`, import.meta.url), "utf8"),
+  };
+  const repo = await mkdtemp(join(tmpdir(), "arc-v3-real-notes-"));
+  roots.push(repo);
+  await git(repo, ["init", "-b", "main"]);
+  await git(repo, ["config", "user.name", "ARC Test"]);
+  await git(repo, ["config", "user.email", "arc@example.test"]);
+  const sourceDirectory = `.arc/backlog/planned/${origin}`;
+  await write(repo, ".arc/backlog/ROADMAP.md", "# Roadmap before\n");
+  await write(repo, ".arc/system/arc-config.yml", "branch.base: main\npm.mode: arc-in-git\n");
+  await write(repo, ".arc/reference/shared.txt", "shared\n");
+  await write(repo, `${sourceDirectory}/spec-${origin}.md`, source.spec);
+  await write(repo, `${sourceDirectory}/tasks-${origin}.md`, source.tasks);
+  await write(repo, `${sourceDirectory}/notes-${origin}.md`, source.notes);
+  await write(repo, `${sourceDirectory}/meta-${origin}.md`, renderMetaFile(origin, {
+    state: "Planning",
+    owner: "andrew",
+    workClass: "Heavy",
+    priority: "P1",
+    origin: "internal",
+    design: [`spec-${origin}.md`],
+    taskList: `tasks-${origin}.md`,
+    currentWorkflow: "generate-tasks",
+    nextAction: "Begin generate-tasks",
+  }));
+  await git(repo, ["add", "."]);
+  await git(repo, ["commit", "-m", "copy real origin"]);
+
+  const dependencies = await repositoryDependencies(repo);
+  const preflight = await createGitV3DecomposePreflight({
+    cwd: repo,
+    exec: dependencies.exec,
+    readBlob: async (ref, path) => await readBlob(repo, ref, path),
+  }, "main", origin);
+  if (preflight.status !== "ready") throw new Error(JSON.stringify(preflight));
+  const machine = preflight.preflight.starterMap.machine;
+  const completedMap = {
+    schemaVersion: 3 as const,
+    machine,
+    authoring: {
+      shape: "heterogeneous" as const,
+      placement: { kind: "direct-member" as const },
+      destinations: [
+        {
+          kind: "existing-home" as const,
+          destinationId: "existing",
+          target: { kind: "document" as const, path: ".arc/reference/shared.txt" },
+        },
+        {
+          kind: "new-member" as const,
+          destinationId: "member",
+          slug: member,
+          workClass: "Heavy" as const,
+        },
+      ],
+      internalEdges: [],
+      sourceAllocations: machine.sourceUnits.map((unit) => ({
+        sourceId: unit.sourceId,
+        ownership: "destination-owned" as const,
+        disposition: unit.sourcePath.endsWith(`/tasks-${origin}.md`)
+          ? { kind: "drop" as const, reason: "the completed delivery record is historical" }
+          : {
+              kind: "target" as const,
+              destinationId: "member",
+              targetLocator: {
+                ...unit.sourceLocator,
+                artifact: unit.sourceLocator.artifact.replace(origin, member),
+              },
+            },
+      })),
+      incomingDispositions: [],
+      outgoingDispositions: [],
+    },
+  };
+  const cutMapPath = join(repo, "cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+  return {
+    repo,
+    origin,
+    member,
+    source,
+    sourceDirectory,
+    dependencies,
+    preflight: preflight.preflight,
+    completedMap,
+    cutMapPath,
+  };
+}
+
 async function claimFiles(repo: string): Promise<string[]> {
   try {
     return await readdir(join(repo, ".git", "arc", "transient-claims"));
@@ -2107,6 +2203,96 @@ describe("Git v3 repository plan", () => {
     await expect(pathExists(join(candidatePath, assurancePredecessor))).resolves.toBe(false);
     await expect(pathExists(join(candidatePath, unrelatedSibling))).resolves.toBe(true);
     expect((await git(repo, ["rev-parse", "plan/origin"])).trim()).toBe(sourceHead);
+  });
+
+  it("retires a copied real notes origin without post-transition repair", async () => {
+    const fixture = await copiedRealNotesRepository();
+    const inventoryPaths = fixture.preflight.sourceArtifactInventory.map(({ path }) => path);
+    const contentPaths = inventoryPaths.filter((path) => !path.endsWith(`/meta-${fixture.origin}.md`));
+    const targetedPaths = new Set<string>();
+    const droppedPaths = new Set<string>();
+    for (const unit of fixture.completedMap.machine.sourceUnits) {
+      const allocation = fixture.completedMap.authoring.sourceAllocations.find(
+        ({ sourceId }) => sourceId === unit.sourceId,
+      );
+      if (allocation?.disposition.kind === "target") targetedPaths.add(unit.sourcePath);
+      if (allocation?.disposition.kind === "drop") droppedPaths.add(unit.sourcePath);
+    }
+    expect([...new Set([...targetedPaths, ...droppedPaths])].sort()).toEqual(contentPaths.sort());
+    expect([...targetedPaths].sort()).toEqual([
+      `${fixture.sourceDirectory}/notes-${fixture.origin}.md`,
+      `${fixture.sourceDirectory}/spec-${fixture.origin}.md`,
+    ]);
+    expect([...droppedPaths]).toEqual([`${fixture.sourceDirectory}/tasks-${fixture.origin}.md`]);
+    expect(fixture.source.notes.length).toBeGreaterThan(40_000);
+    expect(fixture.source.notes).toContain("## Evidence and Conservation Grounding");
+    const scannedTasks = scanV3DecomposeContent(
+      `tasks-${fixture.origin}.md`,
+      new TextEncoder().encode(fixture.source.tasks),
+    );
+    expect(scannedTasks.status).toBe("scanned");
+    if (scannedTasks.status !== "scanned") return;
+    expect(Buffer.concat(scannedTasks.units.map(({ bytes }) => Buffer.from(bytes))).toString())
+      .toBe(fixture.source.tasks);
+    const taskUnits = fixture.completedMap.machine.sourceUnits.filter((unit) =>
+      unit.sourcePath.endsWith(`/tasks-${fixture.origin}.md`));
+    expect(taskUnits).toHaveLength(scannedTasks.units.length);
+    expect(taskUnits.map((unit) => fixture.completedMap.authoring.sourceAllocations.find(
+      ({ sourceId }) => sourceId === unit.sourceId,
+    )?.disposition)).toEqual(taskUnits.map(() => ({
+      kind: "drop",
+      reason: "the completed delivery record is historical",
+    })));
+
+    const staged = await executeGitV3DecomposeCommand({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "partial",
+      baseBranch: "main",
+      origin: fixture.origin,
+      cutMapPath: fixture.cutMapPath,
+    });
+
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged") return;
+    expect(staged.operation.report.status).toBe("reported");
+    const memberDirectory = `.arc/backlog/planned/${fixture.member}`;
+    const memberSpec = `${memberDirectory}/spec-${fixture.member}.md`;
+    const memberNotes = `${memberDirectory}/notes-${fixture.member}.md`;
+    const memberTasks = `${memberDirectory}/tasks-${fixture.member}.md`;
+    expect(staged.operation.report.destinations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: memberNotes,
+        authoring: {
+          artifactRole: "notes",
+          contributorKind: "provisional-notes",
+          disposition: "whole-file",
+        },
+      }),
+      expect.objectContaining({
+        path: memberNotes,
+        authoring: expect.objectContaining({ contributorKind: "allocation" }),
+      }),
+    ]));
+    expect(staged.operation.report.destinations.some(({ path }) => path === memberTasks)).toBe(false);
+    const retitled = (content: string): string => {
+      const lines = content.split("\n");
+      if (lines[0]?.includes(fixture.origin) === true) {
+        lines[0] = lines[0].replace(fixture.origin, fixture.member);
+      }
+      return lines.join("\n");
+    };
+    await expect(readFile(join(fixture.repo, memberSpec), "utf8"))
+      .resolves.toBe(retitled(fixture.source.spec));
+    await expect(readFile(join(fixture.repo, memberNotes), "utf8"))
+      .resolves.toBe(retitled(fixture.source.notes));
+    await expect(pathExists(join(fixture.repo, memberTasks))).resolves.toBe(false);
+    await expect(readFile(join(fixture.repo, memberDirectory, `meta-${fixture.member}.md`), "utf8"))
+      .resolves.toContain("- **Task List:** [none]");
+    for (const sourcePath of inventoryPaths) {
+      await expect(pathExists(join(fixture.repo, sourcePath))).resolves.toBe(false);
+    }
   });
 
   it("stages the same lean transition through exact full and partial repository loci", async () => {
