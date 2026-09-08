@@ -21,7 +21,7 @@ import { LocalApprovedDispositionRecordStore } from
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import {
   laneProgressOperationId,
-  readLaneProgress,
+  readLaneProgressAcrossLineage,
   type LaneProgressProjection,
 } from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
@@ -742,6 +742,16 @@ export function createHostedReservationDischargeReader(input: {
     }
     const span = [baseRevision, ...stdout.trim().split("\n").filter((line) => line !== "")];
     const currentRepositoryId = await repositoryId();
+    const lineage = vehicle !== undefined
+      ? {
+          kind: "delivery-member" as const,
+          planId: vehicle.planId,
+          deliverableId: vehicle.deliverableId,
+          workUnitId: vehicle.workUnitId,
+        }
+      : candidate === undefined
+        ? undefined
+        : { kind: "candidate" as const, candidateId: candidate.attestation.candidateId };
     const snapshot = candidate === undefined || changeRequest === null
       ? null
       : store.readOperationSnapshot();
@@ -795,10 +805,12 @@ export function createHostedReservationDischargeReader(input: {
       target: changeRequest === null
         ? null
         : { ...changeRequest, headSha: approvedHead, ...(vehicle === undefined ? {} : { vehicle }) },
-      readLaneProgress: async (headSha) => readLaneProgress(store, {
+      readLaneProgress: (headSha) => readLaneProgressAcrossLineage(store, {
         lane: "standard",
         repositoryId: currentRepositoryId,
         headSha,
+        lineageHeadShas: [],
+        ...(lineage === undefined ? {} : { lineage }),
       }),
       bindCurrentAttemptRef: (attemptId) => bindReviewSourceReference({
         kind: "hosted",

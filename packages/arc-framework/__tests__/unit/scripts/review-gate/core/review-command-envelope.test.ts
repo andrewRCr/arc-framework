@@ -90,6 +90,8 @@ const request = {
   repositoryId: target.repositoryId,
   targetId: target.targetId,
   requirementId: digest,
+  lineageId: digest,
+  logicalPass: 1,
   carrier: {
     kind: "local-change-set",
     adapterId: "git-local",

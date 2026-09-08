@@ -277,6 +277,7 @@ import { RespondEnvelopeSchema } from
   "../scripts/review-gate/core/review-command-envelope.js";
 import { HostedFindingsResponsePlanSchema } from
   "../scripts/review-gate/core/response-plan-schema.js";
+import type { LaneSubjectLineage } from "../scripts/review-gate/core/lane-admission.js";
 import { settleLaneAttempt } from "../scripts/review-gate/lane-progress.js";
 import { projectGitReviewContributionApplicability } from
   "../scripts/review-gate/policy/git-review-contribution-applicability.js";
@@ -3388,6 +3389,7 @@ async function executeDeliveryCommand(
           settlement: {
             repositoryId: operation.state.repositoryId,
             headSha: operation.state.target.headSha,
+            lineage: operation.state.lineage,
             attemptId: operation.state.operationId,
           },
         };
@@ -3399,6 +3401,7 @@ async function executeDeliveryCommand(
       let localResponseSettlement: {
         readonly repositoryId: string;
         readonly headSha: string;
+        readonly lineage: LaneSubjectLineage;
         readonly attemptId: string;
       } | null = null;
       let verification = parsed.verification;

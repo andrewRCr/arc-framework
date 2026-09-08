@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import { canonicalize } from "../../../lib/kernel/index.js";
+
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
 import type { LocalReviewPolicyBindingResolution } from "../policy/local-review-policy.js";
 import type { LocalReviewGuidance } from "../policy/local-review-guidance.js";
@@ -51,6 +53,12 @@ import {
   REVIEW_VERSION_RETRY_ATTEMPTS,
 } from "../core/version-conflict.js";
 import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js";
+import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import {
+  readLaneProgressOwner,
+  recordLaneAttempt,
+  recordLocalPendingAttempt,
+} from "../lane-progress.js";
 import {
   DeliveryLocalReviewAdmissionSchema,
   type DeliveryLocalReviewAdmission,
@@ -106,6 +114,12 @@ export interface LocalPrepareDependencies {
     memberHeadObjectId?: string,
     deliveryAdmission?: DeliveryLocalReviewAdmission,
   ): Promise<LocalReviewAuthorityResolution>;
+  resolveLineage(
+    vehicle: LocalReviewAuthority["vehicle"],
+    target: ReviewTarget,
+    deliveryAdmission?: DeliveryLocalReviewAdmission,
+    member?: LocalReviewMemberCoordinates,
+  ): Promise<LaneSubjectLineage>;
   composeAssurance(authority: LocalReviewAuthority): Promise<AssuranceComposition>;
   resolvePolicy(): LocalReviewPolicyBindingResolution;
   validatePolicySelection(
@@ -144,13 +158,178 @@ export class LocalPrepareCommandError extends Error {
   }
 }
 
+async function replayPendingLocalAdmission(input: {
+  request: LocalPrepareRequest;
+  dependencies: LocalPrepareDependencies;
+  repositoryId: string;
+  target: ReviewTarget;
+  lineage: LaneSubjectLineage;
+  cleanupTtlMs: number;
+}): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {
+  const owner = await readLaneProgressOwner(input.dependencies.operationStore, {
+    lane: "standard",
+    repositoryId: input.repositoryId,
+    headSha: input.target.headSha,
+    lineage: input.lineage,
+  });
+  const pending = owner?.attempts.filter((attempt) => attempt.outcome === "pending"
+    && attempt.local !== undefined) ?? [];
+  if (pending.length > 1) {
+    throw new LocalPrepareCommandError("local lane has multiple pending admissions");
+  }
+  const completed = owner?.attempts
+    .filter((attempt) => attempt.terminalProducer
+      && attempt.local !== undefined
+      && attempt.headSha === input.target.headSha
+      && (input.request.deliveryAdmission === undefined
+        || attempt.logicalPass === input.request.deliveryAdmission.pass))
+    .sort((left, right) => right.logicalPass - left.logicalPass) ?? [];
+  const attempt = pending[0] ?? completed[0];
+  if (attempt === undefined) return null;
+  const binding = attempt.local;
+  if (binding === undefined) {
+    throw new LocalPrepareCommandError("local pending admission is incomplete");
+  }
+  const persisted = await input.dependencies.operationStore.readOperation(binding.operationId);
+  const state = persisted.state;
+  if (state === null
+    || state.kind !== "local-review"
+    || state.operationId !== attempt.attemptId
+    || state.operationId !== binding.operationId
+    || state.requestId !== binding.requestId
+    || state.logicalPass !== attempt.logicalPass
+    || state.retryGeneration !== attempt.retryGeneration
+    || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
+    throw new LocalPrepareCommandError("local pending admission does not match its operation");
+  }
+  const receipts = (await input.dependencies.readReceipts(state.targetId)).receipts
+    .filter((receipt) => receipt.requestId === state.requestId);
+  if (receipts.length > 1) {
+    throw new LocalPrepareCommandError("local review operation has multiple terminal receipts");
+  }
+  const receipt = receipts[0];
+  if (receipt !== undefined) {
+    await recordLaneAttempt(input.dependencies.operationStore, {
+      lane: "standard",
+      repositoryId: state.repositoryId,
+      changeRequestId: null,
+      headSha: state.target.headSha,
+      lineage: state.lineage,
+      logicalPass: state.logicalPass,
+      retryGeneration: state.retryGeneration,
+      attemptId: state.operationId,
+      sourceId: state.laneSourceId,
+      outcome: receipt.result === "unavailable"
+        ? "transient-unavailable"
+        : receipt.result === "failed" ? "terminal-failure" : receipt.result,
+      consumedPass: receipt.result === "clean" || receipt.result === "findings",
+      chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
+      advancePendingAttempt: true,
+      local: binding,
+      now: input.dependencies.now(),
+    });
+    return LocalPrepareEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-prepare",
+      diagnostics: [],
+      state: "review-complete",
+      nextAction: "reduce",
+      payload: {
+        operationId: state.operationId,
+        persistedVersion: persisted.version,
+        target: state.target,
+      },
+    });
+  }
+  const source = await input.dependencies.sourceStore.readSource(state.sourceRef);
+  if (source === null
+    || source.sourceDigest !== state.sourceDigest
+    || source.targetId !== state.targetId) {
+    throw new LocalPrepareCommandError("local review source reference mismatch");
+  }
+  const confirmation = await input.dependencies.confirmTarget(state.target);
+  if (confirmation.state === "stale-target") {
+    return LocalPrepareEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-prepare",
+      diagnostics: [],
+      state: "stale-target",
+      nextAction: "prepare-current-target",
+      payload: {
+        attemptedTarget: confirmation.attemptedTarget,
+        currentTarget: confirmation.currentTarget,
+      },
+    });
+  }
+  const memberHead = state.vehicle.kind === "delivery-member" ? state.target.headSha : undefined;
+  const authority = state.deliveryAdmission === undefined
+    ? await input.dependencies.resolveAuthority(state.request.evaluatorIdentity, memberHead)
+    : await input.dependencies.resolveAuthority(
+        state.request.evaluatorIdentity,
+        memberHead,
+        state.deliveryAdmission,
+      );
+  if (canonicalize(authority.authority.vehicle) !== canonicalize(state.vehicle)
+    || authority.authority.authorIdentity !== state.request.authorIdentity
+    || authority.authority.evaluatorIdentity !== state.request.evaluatorIdentity
+    || authority.authority.attestationRuntimeKind !== state.attestationRuntimeKind
+    || authority.authority.attestationMechanism !== state.attestation.mechanism) {
+    throw new LocalPrepareCommandError("local pending admission authority mismatch");
+  }
+  let replayState = state;
+  let replayVersion = persisted.version;
+  const refreshLiveness = cleanupExpired(state, input.dependencies.now());
+  if (refreshLiveness || authority.authority.runtimeIdentity !== state.attestation.runtimeIdentity) {
+    replayState = LocalReviewStateSchema.parse({
+      ...state,
+      ...(refreshLiveness
+        ? { updatedAt: input.dependencies.now(), cleanupTtlMs: input.cleanupTtlMs }
+        : {}),
+      attestation: {
+        ...state.attestation,
+        runtimeIdentity: authority.authority.runtimeIdentity,
+      },
+    });
+    replayVersion = (await input.dependencies.operationStore.publishOperation(
+      replayState,
+      persisted.version,
+    )).version;
+  }
+  const materialized = await input.dependencies.materialize(source);
+  return LocalPrepareEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-local-prepare",
+    diagnostics: [],
+    state: "ready",
+    nextAction: "launch-review",
+    payload: {
+      operationId: replayState.operationId,
+      persistedVersion: replayVersion,
+      target: replayState.target,
+      request: replayState.request,
+      reviewerPayload: {
+        schemaVersion: 1,
+        reviewRoot: materialized.reviewRoot,
+        diffBaseSha: replayState.target.diffBaseSha,
+        headSha: replayState.target.headSha,
+        sourceRef: replayState.sourceRef,
+        sourceDigest: replayState.sourceDigest,
+        guidance: replayState.guidance,
+        guidanceDigest: replayState.guidanceDigest,
+        reviewerInstructions: replayState.reviewerInstructions,
+      },
+      sourceRef: replayState.sourceRef,
+      sourceDigest: replayState.sourceDigest,
+    },
+  });
+}
+
 /** Derive, admit, optionally renew liveness, and prove one local review operation. */
 export async function prepareLocalReview(
   requestInput: unknown,
   dependencies: LocalPrepareDependencies,
 ): Promise<z.infer<typeof LocalPrepareEnvelopeSchema>> {
   const request = LocalPrepareRequestSchema.parse(requestInput);
-  await dependencies.sweep();
   const repositoryId = await dependencies.resolveRepositoryId();
   // Authority resolves first: derivation needs the member coordinates it records,
   // and a named member's target is those coordinates rather than the checkout's.
@@ -163,6 +342,38 @@ export async function prepareLocalReview(
       );
   const { authority, member } = authorityResolution;
   const target = await dependencies.deriveTarget(repositoryId, member ?? undefined);
+  const cleanupTtlMs = request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS;
+  const lineage = await dependencies.resolveLineage(
+    authority.vehicle,
+    target,
+    request.deliveryAdmission,
+    member ?? undefined,
+  );
+  const pendingReplay = await dependencies.withSourceLock(() => replayPendingLocalAdmission({
+    request,
+    dependencies,
+    repositoryId,
+    target,
+    lineage,
+    cleanupTtlMs,
+  }));
+  if (pendingReplay !== null) return pendingReplay;
+  await dependencies.sweep();
+  const owner = await readLaneProgressOwner(dependencies.operationStore, {
+    lane: "standard",
+    repositoryId,
+    headSha: target.headSha,
+    lineage,
+  });
+  const logicalPass = request.deliveryAdmission?.pass ?? (owner?.completedPasses ?? 0) + 1;
+  const priorRetryGenerations = owner?.attempts
+    .filter((attempt) => attempt.logicalPass === logicalPass
+      && attempt.sourceId === dependencies.laneSourceId
+      && attempt.local !== undefined)
+    .map(({ retryGeneration }) => retryGeneration) ?? [];
+  const retryGeneration = priorRetryGenerations.length === 0
+    ? 0
+    : Math.max(...priorRetryGenerations) + 1;
   const assurance = await dependencies.composeAssurance(authority);
   if (assurance.status === "refused") {
     return LocalPrepareEnvelopeSchema.parse({
@@ -219,6 +430,9 @@ export async function prepareLocalReview(
     laneSourceId: dependencies.laneSourceId,
     policyBindingDigest: policy.binding.bindingDigest,
     requestMechanism: policy.binding.requestMechanism,
+    lineage,
+    logicalPass,
+    retryGeneration,
     ...(request.deliveryAdmission === undefined
       ? {}
       : { deliveryAdmission: request.deliveryAdmission }),
@@ -244,7 +458,6 @@ export async function prepareLocalReview(
     }
     await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
   }
-  const cleanupTtlMs = request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS;
   const settled = await dependencies.withSourceLock(async () => {
     let admitted:
       | {
@@ -367,7 +580,7 @@ export async function prepareLocalReview(
             materialize: (candidate) => dependencies.materialize(candidate),
             now: () => dependencies.now(),
             cleanupTtlMs,
-            guidanceDigest: assurance.guidance.guidanceDigest,
+            guidance: assurance.guidance,
           },
         );
         admitted = { state: "prepared", resolution, preparation };
@@ -394,6 +607,10 @@ export async function prepareLocalReview(
     });
   }
   const { resolution, preparation } = settled;
+  await recordLocalPendingAttempt(dependencies.operationStore, {
+    state: preparation.state,
+    now: dependencies.now(),
+  });
   const sourcePayload = createLocalReviewSourcePayload(resolution, preparation);
   return LocalPrepareEnvelopeSchema.parse({
     schemaVersion: 1,

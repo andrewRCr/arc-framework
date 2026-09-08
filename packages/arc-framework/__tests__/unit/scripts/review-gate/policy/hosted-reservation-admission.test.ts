@@ -95,6 +95,7 @@ function hostedProgressAttempt(input: {
   vehicle: typeof deliveryVehicle;
   requestedCoverage?: "complete" | "incremental";
   effectiveCoverage?: "complete" | "incremental" | null;
+  logicalPass?: number;
 }) {
   const reviewTarget = createReviewTarget({
     schemaVersion: 2,
@@ -126,6 +127,11 @@ function hostedProgressAttempt(input: {
   };
   return {
     attemptId: input.attemptId,
+    logicalPass: input.logicalPass ?? 1,
+    retryGeneration: 0,
+    changeRequestId: "pull/42",
+    headSha: input.vehicle.head,
+    terminalProducer: input.outcome !== "rate-limited",
     sourceId: input.sourceId,
     outcome: input.outcome,
     hosted: {
@@ -163,9 +169,13 @@ function memberProgressSnapshot(): ReviewOperationStateSnapshot {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: priorVehicle.head,
-          completedPasses: 2,
+          lineage: {
+            kind: "delivery-member",
+            planId: priorVehicle.planId,
+            workUnitId: priorVehicle.workUnitId,
+            deliverableId: priorVehicle.deliverableId,
+          },
+          completedPasses: 1,
           attempts: [
             hostedProgressAttempt({
               attemptId: "attempt-prior",
@@ -192,8 +202,12 @@ function memberProgressSnapshot(): ReviewOperationStateSnapshot {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: deliveryVehicle.head,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
           completedPasses: 0,
           attempts: [hostedProgressAttempt({
             attemptId: "attempt-current",
@@ -248,8 +262,12 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: deliveryVehicle.head,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
           completedPasses: 2,
           attempts: [
             hostedProgressAttempt({
@@ -257,6 +275,7 @@ describe("hosted reservation admission", () => {
               sourceId: "coderabbit-pr",
               outcome: "settled-findings",
               vehicle: deliveryVehicle,
+              logicalPass: 2,
             }),
             hostedProgressAttempt({
               attemptId: "attempt-pass-2",
@@ -320,8 +339,12 @@ describe("hosted reservation admission", () => {
             kind: "lane-progress",
             lane: "standard",
             repositoryId: "repo-1",
-            changeRequestId: "pull/42",
-            headSha: deliveryVehicle.head,
+            lineage: {
+              kind: "delivery-member",
+              planId: deliveryVehicle.planId,
+              workUnitId: deliveryVehicle.workUnitId,
+              deliverableId: deliveryVehicle.deliverableId,
+            },
             completedPasses: 1,
             attempts: [hostedProgressAttempt({
               attemptId: "attempt-settled",
@@ -341,8 +364,12 @@ describe("hosted reservation admission", () => {
             kind: "lane-progress",
             lane: "standard",
             repositoryId: "repo-1",
-            changeRequestId: "pull/42",
-            headSha: deliveryVehicle.head,
+            lineage: {
+              kind: "delivery-member",
+              planId: deliveryVehicle.planId,
+              workUnitId: deliveryVehicle.workUnitId,
+              deliverableId: deliveryVehicle.deliverableId,
+            },
             completedPasses: 0,
             attempts: [hostedProgressAttempt({
               attemptId: "attempt-unavailable",
@@ -396,14 +423,25 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: null,
-          headSha: priorHead,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
           completedPasses: 1,
           attempts: [{
             attemptId: "local-review-1",
+            logicalPass: 1,
+            retryGeneration: 0,
+            changeRequestId: null,
+            headSha: priorHead,
+            terminalProducer: true,
             sourceId: "delegated-agent",
             outcome: "clean",
             local: {
+              operationId: "local-review-1",
+              requestId: canonicalDigest({ request: "local-review-1" }),
               vehicle: { kind: "delivery-member", identity: deliveryVehicle.deliverableId },
               target: localTarget,
               deliveryAdmission: delegatedAdmission(DeliveryReviewMemberVehicleSchema.parse({
@@ -447,8 +485,12 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: deliveryVehicle.head,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
           completedPasses: 1,
           attempts: [hostedProgressAttempt({
             attemptId: "attempt-upgraded",
@@ -495,8 +537,12 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: deliveryVehicle.head,
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
           completedPasses: 0,
           attempts: [hostedProgressAttempt({
             attemptId: "attempt-incremental",
@@ -676,8 +722,12 @@ describe("hosted reservation admission", () => {
           kind: "lane-progress",
           lane: "standard",
           repositoryId: "repo-1",
-          changeRequestId: "pull/42",
-          headSha: priorVehicle.head,
+          lineage: {
+            kind: "delivery-member",
+            planId: priorVehicle.planId,
+            workUnitId: priorVehicle.workUnitId,
+            deliverableId: priorVehicle.deliverableId,
+          },
           completedPasses: 0,
           attempts: [hostedProgressAttempt({
             attemptId: "attempt-prior-unavailable",

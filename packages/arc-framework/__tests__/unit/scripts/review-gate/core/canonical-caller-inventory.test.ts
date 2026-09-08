@@ -70,6 +70,7 @@ describe("review-gate canonical serializer inventory", () => {
       "runtime/frontline-run-command.ts",
       "runtime/local-attest-command.ts",
       "runtime/local-prepare-composition.ts",
+      "runtime/local-prepare.ts",
       "runtime/local-resume-command.ts",
       "runtime/reduce-command.ts",
       "runtime/respond-command.ts",

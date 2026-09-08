@@ -25,6 +25,8 @@ import {
   hostedRequestHandleMatchesProgress,
 } from "../hosted/request.js";
 import { DeliveryLocalReviewAdmissionSchema } from "../policy/delivery-local-review-admission.js";
+import { laneSubjectLineageId, LaneSubjectLineageSchema } from "./lane-admission.js";
+import { StandardReviewGuidanceProjectionSchema } from "../policy/standard-review-guidance.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -89,13 +91,18 @@ export const LocalReviewStateSchema = z.strictObject({
   requestId: CanonicalDigestSchema,
   /** Configured policy source; distinct from the evaluator that produced the attestation. */
   laneSourceId: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
+  lineage: LaneSubjectLineageSchema,
+  logicalPass: z.number().int().positive(),
+  retryGeneration: z.number().int().nonnegative(),
   deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
   policyVersion: CanonicalDigestSchema,
   policyBindingDigest: CanonicalDigestSchema,
   attestationRuntimeKind: IdentifierSchema,
   sourceRef: z.string().trim().min(1),
   sourceDigest: CanonicalDigestSchema,
+  guidance: StandardReviewGuidanceProjectionSchema,
   guidanceDigest: CanonicalDigestSchema,
+  reviewerInstructions: z.string().min(1),
   target: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema,
   request: ReviewRequestV2Schema,
@@ -134,6 +141,15 @@ export const LocalReviewStateSchema = z.strictObject({
     if (state.requestId !== request.requestId
       || request.requirementId !== requirement.requirementId) {
       context.addIssue({ code: "custom", message: "operation request snapshot mismatch", path: ["request"] });
+    }
+    if (request.lineageId !== laneSubjectLineageId(state.lineage)
+      || request.logicalPass !== state.logicalPass
+      || request.generation !== state.retryGeneration) {
+      context.addIssue({
+        code: "custom",
+        message: "operation request admission mismatch",
+        path: ["request"],
+      });
     }
     if (state.attestation.evaluatorIdentity !== request.evaluatorIdentity) {
       context.addIssue({
@@ -199,6 +215,8 @@ const HostedLaneAttemptBindingSchema = z.strictObject({
 });
 
 const LocalLaneAttemptBindingSchema = z.strictObject({
+  operationId: IdentifierSchema,
+  requestId: CanonicalDigestSchema,
   vehicle: ReviewVehicleSchema,
   target: ReviewTargetSchema,
   deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
@@ -225,6 +243,11 @@ const LocalLaneAttemptBindingSchema = z.strictObject({
 
 const LaneAttemptSchema = z.strictObject({
   attemptId: IdentifierSchema,
+  logicalPass: z.number().int().positive(),
+  retryGeneration: z.number().int().nonnegative(),
+  changeRequestId: IdentifierSchema.nullable(),
+  headSha: GitObjectIdSchema,
+  terminalProducer: z.boolean(),
   sourceId: LaneSourceIdSchema,
   outcome: LaneAttemptOutcomeSchema,
   chunkSeriesComplete: z.boolean().optional(),
@@ -245,6 +268,13 @@ const LaneAttemptSchema = z.strictObject({
       message: "local attempt source must be delegated-agent",
     });
   }
+  if (attempt.local !== undefined && attempt.local.operationId !== attempt.attemptId) {
+    context.addIssue({
+      code: "custom",
+      path: ["local", "operationId"],
+      message: "local attempt operation must match its attempt identity",
+    });
+  }
   if (attempt.hosted !== undefined && !HostedProviderIdSchema.safeParse(attempt.sourceId).success) {
     context.addIssue({
       code: "custom",
@@ -252,7 +282,9 @@ const LaneAttemptSchema = z.strictObject({
       message: "hosted attempt source must be a hosted provider",
     });
   }
-  if (attempt.outcome === "pending" && attempt.hosted?.handle === undefined) {
+  if (attempt.outcome === "pending"
+    && attempt.hosted !== undefined
+    && attempt.hosted.handle === undefined) {
     context.addIssue({
       code: "custom",
       path: ["hosted", "handle"],
@@ -339,10 +371,55 @@ export const LaneProgressStateSchema = z.strictObject({
   kind: z.literal("lane-progress"),
   lane: z.enum(["frontline", "standard"]),
   repositoryId: IdentifierSchema,
-  changeRequestId: IdentifierSchema.nullable(),
-  headSha: GitObjectIdSchema,
+  lineage: LaneSubjectLineageSchema,
   completedPasses: z.number().int().nonnegative(),
   attempts: z.array(LaneAttemptSchema),
+}).superRefine((state, context) => {
+  state.attempts.forEach((attempt, index) => {
+    if (state.lineage.kind === "head-bound" && attempt.headSha !== state.lineage.headSha) {
+      context.addIssue({
+        code: "custom",
+        path: ["attempts", index, "headSha"],
+        message: "attempt target must remain inside its head-bound lineage",
+      });
+    }
+    const deliveryVehicle = attempt.hosted?.vehicle;
+    const localDeliverableId = attempt.local?.vehicle.kind === "delivery-member"
+      ? attempt.local.vehicle.identity
+      : null;
+    if (state.lineage.kind === "delivery-member") {
+      const hostedMatches = deliveryVehicle === undefined
+        || (deliveryVehicle.planId === state.lineage.planId
+          && deliveryVehicle.workUnitId === state.lineage.workUnitId
+          && deliveryVehicle.deliverableId === state.lineage.deliverableId);
+      const localMatches = localDeliverableId === null
+        || localDeliverableId === state.lineage.deliverableId;
+      if (!hostedMatches || !localMatches) {
+        context.addIssue({
+          code: "custom",
+          path: ["attempts", index],
+          message: "delivery attempt must remain inside its member lineage",
+        });
+      }
+    }
+  });
+  const terminalPasses = state.attempts
+    .filter(({ terminalProducer }) => terminalProducer)
+    .map(({ logicalPass }) => logicalPass);
+  if (new Set(terminalPasses).size !== terminalPasses.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["attempts"],
+      message: "a logical pass may have only one authoritative terminal producer",
+    });
+  }
+  if (state.completedPasses !== new Set(terminalPasses).size) {
+    context.addIssue({
+      code: "custom",
+      path: ["completedPasses"],
+      message: "completed passes must equal authoritative terminal claims",
+    });
+  }
 });
 export type LaneProgressState = z.infer<typeof LaneProgressStateSchema>;
 

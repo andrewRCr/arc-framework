@@ -75,6 +75,8 @@ const ReviewRequestFieldsSchema = z.strictObject({
   carrier: ReviewCarrierSchema,
   authorIdentity: ReviewIdentifierSchema,
   evaluatorIdentity: ReviewIdentifierSchema,
+  lineageId: ReviewCanonicalDigestSchema,
+  logicalPass: z.number().int().positive(),
   generation: z.number().int().nonnegative(),
   requestMechanism: ReviewIdentifierSchema,
 });

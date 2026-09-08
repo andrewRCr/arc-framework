@@ -146,7 +146,13 @@ describe("local review actor authority", () => {
         runtimeIdentity: "arc-cli/0.1.0",
         attestationMechanism: "local-attestation",
       },
-      member: { base: "b".repeat(40), head: MEMBER_HEAD },
+      member: {
+        planId: "stack-1",
+        workUnitId: "review-surface-binding",
+        deliverableId: DELIVERABLE_ID,
+        base: "b".repeat(40),
+        head: MEMBER_HEAD,
+      },
     });
     expect(memberLookup.resolveMemberByHead).toHaveBeenCalledWith(MEMBER_HEAD);
   });

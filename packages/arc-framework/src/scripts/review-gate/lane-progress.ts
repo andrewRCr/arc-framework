@@ -7,7 +7,12 @@ import {
   LaneProgressStateSchema,
   type LaneProgressState,
 } from "./core/operation-state-schema.js";
+import type { LaneSubjectLineage } from "./core/lane-admission.js";
 import type { ReviewOperationStateStore } from "./core/ports.js";
+import {
+  isReviewVersionConflict,
+  REVIEW_VERSION_RETRY_ATTEMPTS,
+} from "./core/version-conflict.js";
 import type { HostedAwaitResult } from "./hosted/await.js";
 import type {
   HostedRequestEnvelope,
@@ -19,15 +24,40 @@ import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
 
-function pendingHostedAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): boolean {
+function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): boolean {
   const pendingHosted = pending.hosted;
   const nextHosted = next.hosted;
-  if (pending.outcome !== "pending" || next.outcome === "pending"
-    || pendingHosted?.handle === undefined || nextHosted?.handle === undefined
+  if (pending.outcome !== "pending" || next.outcome === "pending") return false;
+  if (pending.local !== undefined || next.local !== undefined) {
+    return pending.local !== undefined
+      && next.local !== undefined
+      && canonicalize({
+        attemptId: pending.attemptId,
+        logicalPass: pending.logicalPass,
+        retryGeneration: pending.retryGeneration,
+        changeRequestId: pending.changeRequestId,
+        headSha: pending.headSha,
+        sourceId: pending.sourceId,
+        local: pending.local,
+      }) === canonicalize({
+        attemptId: next.attemptId,
+        logicalPass: next.logicalPass,
+        retryGeneration: next.retryGeneration,
+        changeRequestId: next.changeRequestId,
+        headSha: next.headSha,
+        sourceId: next.sourceId,
+        local: next.local,
+      });
+  }
+  if (pendingHosted?.handle === undefined || nextHosted?.handle === undefined
     || pendingHosted.findings.length !== 0 || pendingHosted.dispositionSetId !== null
     || pendingHosted.settledFindingIds.length !== 0) return false;
   return canonicalize({
     attemptId: pending.attemptId,
+    logicalPass: pending.logicalPass,
+    retryGeneration: pending.retryGeneration,
+    changeRequestId: pending.changeRequestId,
+    headSha: pending.headSha,
     sourceId: pending.sourceId,
     ...(pending.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: pending.chunkSeriesComplete }),
     handle: pendingHosted.handle,
@@ -40,6 +70,10 @@ function pendingHostedAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt)
     actorIdentity: pendingHosted.actorIdentity,
   }) === canonicalize({
     attemptId: next.attemptId,
+    logicalPass: next.logicalPass,
+    retryGeneration: next.retryGeneration,
+    changeRequestId: next.changeRequestId,
+    headSha: next.headSha,
     sourceId: next.sourceId,
     ...(next.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: next.chunkSeriesComplete }),
     handle: nextHosted.handle,
@@ -105,9 +139,21 @@ export function laneProgressOperationId(input: {
   lane: LaneProgressState["lane"];
   repositoryId: string;
   headSha: string;
+  lineage?: LaneSubjectLineage;
 }): string {
+  const subject = input.lineage ?? {
+    kind: "head-bound" as const,
+    vehicleKind: "review-target",
+    vehicleIdentity: `${input.repositoryId}/${input.headSha}`,
+    headSha: input.headSha,
+  };
   const digest = createHash("sha256")
-    .update(`${input.lane}\0${input.repositoryId}\0${input.headSha}`)
+    .update(canonicalize({
+      domain: "arc.review.lane-progress-owner/v1",
+      lane: input.lane,
+      repositoryId: input.repositoryId,
+      subject,
+    }))
     .digest("hex");
   return `lane-progress/${digest}`;
 }
@@ -130,6 +176,7 @@ export async function recordLaneAttempt(
     repositoryId: string;
     changeRequestId: string | null;
     headSha: string;
+    lineage?: LaneSubjectLineage;
     attemptId: string;
     sourceId: string;
     outcome: LaneAttemptOutcome;
@@ -138,57 +185,83 @@ export async function recordLaneAttempt(
     hosted?: LaneAttempt["hosted"];
     local?: LaneAttempt["local"];
     now: string;
-    advancePendingHostedAttempt?: boolean;
+    advancePendingAttempt?: boolean;
+    logicalPass?: number;
+    retryGeneration?: number;
   },
 ): Promise<LaneProgressState> {
-  const operationId = laneProgressOperationId(input);
-  const { version, state } = await store.readOperation(operationId);
-  const existing = state !== null && state.kind === "lane-progress" ? state : null;
-  const attempt: LaneAttempt = {
-    attemptId: input.attemptId,
-    sourceId: input.sourceId,
-    outcome: input.outcome,
-    ...(input.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: input.chunkSeriesComplete }),
-    ...(input.hosted === undefined ? {} : { hosted: input.hosted }),
-    ...(input.local === undefined ? {} : { local: input.local }),
+  const lineage = input.lineage ?? {
+    kind: "head-bound" as const,
+    vehicleKind: "review-target",
+    vehicleIdentity: `${input.repositoryId}/${input.headSha}`,
+    headSha: input.headSha,
   };
-  const replay = existing?.attempts.find((candidate) => candidate.attemptId === input.attemptId);
-  if (replay !== undefined) {
-    if (canonicalize(replay) === canonicalize(attempt)) {
+  const operationId = laneProgressOperationId({ ...input, lineage });
+  for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
+    const { version, state } = await store.readOperation(operationId);
+    const existing = state !== null && state.kind === "lane-progress" ? state : null;
+    const replay = existing?.attempts.find((candidate) => candidate.attemptId === input.attemptId);
+    const attempt: LaneAttempt = {
+      attemptId: input.attemptId,
+      logicalPass: input.logicalPass ?? replay?.logicalPass ?? (existing?.completedPasses ?? 0) + 1,
+      retryGeneration: input.retryGeneration ?? replay?.retryGeneration ?? 0,
+      changeRequestId: input.changeRequestId,
+      headSha: input.headSha,
+      terminalProducer: input.consumedPass,
+      sourceId: input.sourceId,
+      outcome: input.outcome,
+      ...(input.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: input.chunkSeriesComplete }),
+      ...(input.hosted === undefined ? {} : { hosted: input.hosted }),
+      ...(input.local === undefined ? {} : { local: input.local }),
+    };
+    if (replay !== undefined && canonicalize(replay) === canonicalize(attempt)) {
       if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
       return LaneProgressStateSchema.parse(existing);
     }
-    if (input.advancePendingHostedAttempt !== true || !pendingHostedAttemptCanAdvance(replay, attempt)) {
-      throw new Error("conflicting lane-attempt replay");
+    let next: LaneProgressState;
+    if (replay !== undefined) {
+      if (input.advancePendingAttempt !== true || !pendingAttemptCanAdvance(replay, attempt)) {
+        throw new Error("conflicting lane-attempt replay");
+      }
+      if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
+      const attempts = existing.attempts.map((candidate) => candidate.attemptId === input.attemptId
+        ? attempt
+        : candidate);
+      const completedPasses = new Set(attempts
+        .filter(({ terminalProducer }) => terminalProducer)
+        .map(({ logicalPass }) => logicalPass)).size;
+      next = LaneProgressStateSchema.parse({
+        ...existing,
+        updatedAt: input.now,
+        completedPasses,
+        attempts,
+      });
+    } else {
+      const attempts = [...existing?.attempts ?? [], attempt];
+      const completedPasses = new Set(attempts
+        .filter(({ terminalProducer }) => terminalProducer)
+        .map(({ logicalPass }) => logicalPass)).size;
+      next = LaneProgressStateSchema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "review-operation/v1",
+        operationId,
+        updatedAt: input.now,
+        kind: "lane-progress",
+        lane: input.lane,
+        repositoryId: input.repositoryId,
+        lineage,
+        completedPasses,
+        attempts,
+      });
     }
-    if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
-    const attempts = existing.attempts.map((candidate) => candidate.attemptId === input.attemptId
-      ? attempt
-      : candidate);
-    const advanced = LaneProgressStateSchema.parse({
-      ...existing,
-      updatedAt: input.now,
-      completedPasses: existing.completedPasses + (input.consumedPass ? 1 : 0),
-      attempts,
-    });
-    await store.publishOperation(advanced, version);
-    return advanced;
+    try {
+      await store.publishOperation(next, version);
+      return next;
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
   }
-  const next = LaneProgressStateSchema.parse({
-    schemaVersion: 1,
-    semanticsVersion: "review-operation/v1",
-    operationId,
-    updatedAt: input.now,
-    kind: "lane-progress",
-    lane: input.lane,
-    repositoryId: input.repositoryId,
-    changeRequestId: input.changeRequestId,
-    headSha: input.headSha,
-    completedPasses: (existing?.completedPasses ?? 0) + (input.consumedPass ? 1 : 0),
-    attempts: [...existing?.attempts ?? [], attempt],
-  });
-  await store.publishOperation(next, version);
-  return next;
+  throw new Error("lane progress exceeded version-conflict retry attempts");
 }
 
 /** Persist one successful hosted request before any await call can be lost to restart. */
@@ -278,7 +351,7 @@ export async function recordHostedAwaitAttempt(
     outcome,
     consumedPass: handle.effectiveCoverage === "complete"
       && (outcome === "clean" || outcome === "findings"),
-    advancePendingHostedAttempt: true,
+    advancePendingAttempt: true,
     hosted: {
       handle,
       target: handle.target,
@@ -291,6 +364,35 @@ export async function recordHostedAwaitAttempt(
       findings: input.result.state === "findings" ? input.result.findings : [],
       dispositionSetId: null,
       settledFindingIds: [],
+    },
+    now: input.now,
+  });
+}
+
+/** Persist one admitted local producer before its executable inputs leave the runtime. */
+export async function recordLocalPendingAttempt(
+  store: ReviewOperationStateStore,
+  input: { state: Extract<import("./core/operation-state-schema.js").ReviewOperationState, { kind: "local-review" }>; now: string },
+): Promise<LaneProgressState> {
+  const { state } = input;
+  return recordLaneAttempt(store, {
+    lane: "standard",
+    repositoryId: state.repositoryId,
+    changeRequestId: null,
+    headSha: state.target.headSha,
+    lineage: state.lineage,
+    logicalPass: state.logicalPass,
+    retryGeneration: state.retryGeneration,
+    attemptId: state.operationId,
+    sourceId: state.laneSourceId,
+    outcome: "pending",
+    consumedPass: false,
+    local: {
+      operationId: state.operationId,
+      requestId: state.requestId,
+      vehicle: state.vehicle,
+      target: state.target,
+      ...(state.deliveryAdmission === undefined ? {} : { deliveryAdmission: state.deliveryAdmission }),
     },
     now: input.now,
   });
@@ -499,6 +601,7 @@ export async function settleLaneAttempt(
     lane: LaneProgressState["lane"];
     repositoryId: string;
     headSha: string;
+    lineage?: LaneSubjectLineage;
     attemptId: string;
     now: string;
   },
@@ -508,13 +611,13 @@ export async function settleLaneAttempt(
   if (state === null
     || state.kind !== "lane-progress"
     || state.lane !== input.lane
-    || state.repositoryId !== input.repositoryId
-    || state.headSha !== input.headSha) {
+    || state.repositoryId !== input.repositoryId) {
     throw new Error("lane findings attempt is unavailable");
   }
   const index = state.attempts.findIndex((attempt) => attempt.attemptId === input.attemptId);
   const attempt = state.attempts[index];
   if (attempt === undefined) throw new Error("lane findings attempt is unavailable");
+  if (attempt.headSha !== input.headSha) throw new Error("lane findings attempt is unavailable");
   if (attempt.outcome === "settled-findings") return state;
   if (attempt.outcome !== "findings") throw new Error("lane attempt does not carry findings");
   const attempts = [...state.attempts];
@@ -528,13 +631,45 @@ export async function settleLaneAttempt(
   return next;
 }
 
+type LanePolicyLocalBinding = Omit<
+  NonNullable<LaneAttempt["local"]>,
+  "operationId" | "requestId"
+> & Partial<Pick<NonNullable<LaneAttempt["local"]>, "operationId" | "requestId">>;
+
+export type LanePolicyAttempt = Pick<
+  LaneAttempt,
+  "attemptId" | "sourceId" | "outcome" | "chunkSeriesComplete"
+> & {
+  hosted?: LaneAttempt["hosted"];
+  local?: LanePolicyLocalBinding;
+};
+
 export type LaneProgressProjection =
   | { status: "unrecorded" }
   | {
     status: "recorded";
     completedPasses: number;
-    attempts: readonly LaneAttempt[];
+    attempts: readonly LanePolicyAttempt[];
   };
+
+/** Read one complete lineage owner without applying an exact-head projection. */
+export async function readLaneProgressOwner(
+  store: ReviewOperationStateStore,
+  input: {
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+  },
+): Promise<LaneProgressState | null> {
+  const { state } = await store.readOperation(laneProgressOperationId(input));
+  if (state === null
+    || state.kind !== "lane-progress"
+    || state.lane !== input.lane
+    || state.repositoryId !== input.repositoryId
+    || canonicalize(state.lineage) !== canonicalize(input.lineage)) return null;
+  return state;
+}
 
 /**
  * Read one lane's recorded progress for an exact head.
@@ -552,23 +687,23 @@ export async function readLaneProgress(
     lane: LaneProgressState["lane"];
     repositoryId: string;
     headSha: string;
+    lineage?: LaneSubjectLineage;
   },
 ): Promise<LaneProgressProjection> {
   const { state } = await store.readOperation(laneProgressOperationId(input));
   if (state === null || state.kind !== "lane-progress") return { status: "unrecorded" };
   if (state.lane !== input.lane
-    || state.repositoryId !== input.repositoryId
-    || state.headSha !== input.headSha) {
+    || state.repositoryId !== input.repositoryId) {
     return { status: "unrecorded" };
   }
   return {
     status: "recorded",
     completedPasses: state.completedPasses,
-    attempts: state.attempts,
+    attempts: state.attempts.filter((attempt) => attempt.headSha === input.headSha),
   };
 }
 
-/** Read exact-head attempts while carrying the consumed-pass count across one authorized Candidate lineage. */
+/** Read current-head attempts while carrying consumed-pass counts across one authorized lineage. */
 export async function readLaneProgressAcrossLineage(
   store: ReviewOperationStateStore,
   input: {
@@ -576,21 +711,40 @@ export async function readLaneProgressAcrossLineage(
     repositoryId: string;
     headSha: string;
     lineageHeadShas: readonly string[];
+    lineage?: LaneSubjectLineage;
   },
 ): Promise<LaneProgressProjection> {
+  const owner = input.lineage === undefined
+    ? null
+    : await readLaneProgressOwner(store, {
+      lane: input.lane,
+      repositoryId: input.repositoryId,
+      headSha: input.headSha,
+      lineage: input.lineage,
+    });
   const heads = [...new Set([...input.lineageHeadShas, input.headSha])];
   const records = await Promise.all(heads.map(async (headSha) => ({
     headSha,
-    progress: await readLaneProgress(store, { ...input, headSha }),
+    progress: await readLaneProgress(store, {
+      lane: input.lane,
+      repositoryId: input.repositoryId,
+      headSha,
+    }),
   })));
   const current = records.find(({ headSha }) => headSha === input.headSha)?.progress;
-  const completedPasses = records.reduce((total, { progress }) => (
+  const completedPasses = (owner?.completedPasses ?? 0) + records.reduce((total, { progress }) => (
     total + (progress.status === "recorded" ? progress.completedPasses : 0)
   ), 0);
-  if (completedPasses === 0 && current?.status !== "recorded") return { status: "unrecorded" };
+  const ownerAttempts = owner?.attempts.filter((attempt) => attempt.headSha === input.headSha) ?? [];
+  if (completedPasses === 0 && current?.status !== "recorded" && owner === null) {
+    return { status: "unrecorded" };
+  }
   return {
     status: "recorded",
     completedPasses,
-    attempts: current?.status === "recorded" ? current.attempts : [],
+    attempts: [
+      ...ownerAttempts,
+      ...(current?.status === "recorded" ? current.attempts : []),
+    ],
   };
 }

@@ -6,6 +6,8 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-gate/core/local-carrier.js";
+import { LaneSubjectLineageSchema } from
+  "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import {
   FrontlineRunStateSchema,
   LaneProgressStateSchema,
@@ -15,6 +17,8 @@ import {
   type ReviewOperationState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "../../../../../src/scripts/review-gate/core/ports.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 
 const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
@@ -44,8 +48,11 @@ const localRequirement = createReviewRequirement({
   initialAdmission: "checkpoint",
 });
 if (localRequirement === null) throw new Error("expected local requirement");
+const localLineage = { kind: "candidate" as const, candidateId: digest("candidate") };
 const localCarrier = createLocalChangeSetCarrier({
   target: localTarget,
+  lineage: localLineage,
+  logicalPass: 1,
   requirementId: localRequirement.requirementId,
   snapshot: {
     state: "exact",
@@ -109,6 +116,9 @@ const localReview = {
   updatedAt: "2026-07-20T20:00:00Z",
   kind: "local-review" as const,
   vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+  lineage: localLineage,
+  logicalPass: 1,
+  retryGeneration: 0,
   repositoryId: "repo-1",
   targetId: localTarget.targetId,
   requestId: localCarrier.request.requestId,
@@ -118,7 +128,9 @@ const localReview = {
   attestationRuntimeKind: "arc-cli",
   sourceRef: "refs/arc/review/local-1",
   sourceDigest: digest("source"),
-  guidanceDigest: digest("guidance"),
+  guidance: projectLocalReviewGuidance().projection,
+  guidanceDigest: projectLocalReviewGuidance().guidanceDigest,
+  reviewerInstructions: projectLocalReviewGuidance().reviewerInstructions,
   target: localTarget,
   requirement: localRequirement,
   request: localCarrier.request,
@@ -134,10 +146,18 @@ const laneProgress = {
   kind: "lane-progress" as const,
   lane: "standard" as const,
   repositoryId: "repo-1",
-  changeRequestId: null,
-  headSha: objectId("c"),
-  completedPasses: 1,
-  attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" as const }],
+  lineage: localLineage,
+  completedPasses: 0,
+  attempts: [{
+    attemptId: "hosted/attempt-1",
+    logicalPass: 1,
+    retryGeneration: 0,
+    changeRequestId: null,
+    headSha: objectId("c"),
+    terminalProducer: false,
+    sourceId: "coderabbit-pr",
+    outcome: "rate-limited" as const,
+  }],
 };
 
 const memberTarget = createReviewTarget({
@@ -165,8 +185,16 @@ const memberRequirement = createReviewRequirement({
   initialAdmission: "checkpoint",
 });
 if (memberRequirement === null) throw new Error("expected member requirement");
+const memberLineage = LaneSubjectLineageSchema.parse({
+  kind: "delivery-member" as const,
+  planId: "123e4567-e89b-12d3-a456-426614174000",
+  workUnitId: "review-surface-binding",
+  deliverableId: digest("deliverable"),
+});
 const memberCarrier = createLocalChangeSetCarrier({
   target: memberTarget,
+  lineage: memberLineage,
+  logicalPass: 1,
   requirementId: memberRequirement.requirementId,
   snapshot: {
     state: "exact",
@@ -190,6 +218,7 @@ const memberCarrier = createLocalChangeSetCarrier({
 const memberReview = {
   ...localReview,
   vehicle: { kind: "delivery-member" as const, identity: digest("deliverable") },
+  lineage: memberLineage,
   targetId: memberTarget.targetId,
   requestId: memberCarrier.request.requestId,
   policyVersion: memberRequirement.policyVersion,
@@ -294,50 +323,79 @@ describe("review operation state schemas", () => {
       "source-unbound",
       "terminal-failure",
     ]) {
+      const terminalProducer = outcome === "clean" || outcome === "findings";
       const parsed = LaneProgressStateSchema.parse({
         ...laneProgress,
-        attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome }],
+        completedPasses: terminalProducer ? 1 : 0,
+        attempts: [{ ...laneProgress.attempts[0], outcome, terminalProducer }],
       });
       expect(parsed.attempts[0]?.outcome).toBe(outcome);
     }
   });
 
   it("refuses a collapsed unavailable outcome that loses the fall-through distinction", () => {
-    for (const collapsed of ["unavailable", "failed", "pending"]) {
+    for (const collapsed of ["unavailable", "failed"]) {
       expect(() => LaneProgressStateSchema.parse({
         ...laneProgress,
-        attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: collapsed }],
+        attempts: [{ ...laneProgress.attempts[0], outcome: collapsed }],
       })).toThrow();
     }
   });
 
   it("preserves attempt order as recorded", () => {
     const attempts = [
-      { attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" as const },
-      { attemptId: "hosted/attempt-2", sourceId: "codex-pr", outcome: "transient-unavailable" as const },
-      { attemptId: "local/attempt-3", sourceId: "delegated-agent", outcome: "findings" as const },
+      laneProgress.attempts[0],
+      {
+        ...laneProgress.attempts[0],
+        attemptId: "hosted/attempt-2",
+        retryGeneration: 1,
+        sourceId: "codex-pr",
+        outcome: "transient-unavailable" as const,
+      },
+      {
+        ...laneProgress.attempts[0],
+        attemptId: "local/attempt-3",
+        retryGeneration: 2,
+        terminalProducer: true,
+        sourceId: "delegated-agent",
+        outcome: "findings" as const,
+      },
     ];
-    expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
+    expect(LaneProgressStateSchema.parse({ ...laneProgress, completedPasses: 1, attempts }).attempts).toEqual(attempts);
   });
 
   it("binds hosted and local attempt evidence to their owning source kinds", () => {
     const localAttempt = {
-      attemptId: "local/attempt-1",
+      ...laneProgress.attempts[0],
+      attemptId: "local-1",
+      terminalProducer: true,
       sourceId: "delegated-agent",
       outcome: "clean" as const,
       local: {
+        operationId: "local-1",
+        requestId: localCarrier.request.requestId,
         vehicle: localReview.vehicle,
         target: localTarget,
       },
     };
     expect(LaneProgressStateSchema.parse({
       ...laneProgress,
+      completedPasses: 1,
       attempts: [localAttempt],
     }).attempts).toEqual([localAttempt]);
     expect(() => LaneProgressStateSchema.parse({
       ...laneProgress,
+      completedPasses: 1,
       attempts: [{ ...localAttempt, sourceId: "coderabbit-pr" }],
     })).toThrow(/local attempt source/iu);
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      completedPasses: 1,
+      attempts: [{
+        ...localAttempt,
+        local: { ...localAttempt.local, operationId: "local-other" },
+      }],
+    })).toThrow(/local attempt operation/iu);
 
     const hostedAttempt = {
       ...laneProgress.attempts[0]!,
@@ -372,25 +430,38 @@ describe("review operation state schemas", () => {
     for (const sourceId of ["CodeRabbit_PR", "-leading", "trailing-", "has space"]) {
       expect(() => LaneProgressStateSchema.parse({
         ...laneProgress,
-        attempts: [{ attemptId: "hosted/attempt-1", sourceId, outcome: "clean" }],
+        attempts: [{ ...laneProgress.attempts[0], sourceId }],
       })).toThrow();
     }
   });
 
   it("carries a chunk-series completion flag when the attempt had one", () => {
     const attempts = [{
-      attemptId: "hosted/attempt-1",
-      sourceId: "coderabbit-pr",
-      outcome: "clean" as const,
+      ...laneProgress.attempts[0],
       chunkSeriesComplete: true,
     }];
     expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
   });
 
-  it("accepts an unbound pre-publication target and a change-request-bound one", () => {
-    expect(LaneProgressStateSchema.parse(laneProgress).changeRequestId).toBeNull();
-    const bound = { ...laneProgress, changeRequestId: "pull/42" };
-    expect(LaneProgressStateSchema.parse(bound).changeRequestId).toBe("pull/42");
+  it("retains change-request binding on each attempt", () => {
+    expect(LaneProgressStateSchema.parse(laneProgress).attempts[0]?.changeRequestId).toBeNull();
+    const bound = {
+      ...laneProgress,
+      attempts: [{ ...laneProgress.attempts[0], changeRequestId: "pull/42" }],
+    };
+    expect(LaneProgressStateSchema.parse(bound).attempts[0]?.changeRequestId).toBe("pull/42");
+  });
+
+  it("rejects an attempt outside its head-bound owner lineage", () => {
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: "repair-review-state",
+        headSha: objectId("e"),
+      },
+    })).toThrow(/lineage/iu);
   });
 
   it("keeps the record free of host vocabulary the core boundary forbids", () => {

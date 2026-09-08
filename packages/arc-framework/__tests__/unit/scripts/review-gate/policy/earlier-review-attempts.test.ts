@@ -92,11 +92,22 @@ function laneState(options: { delivery?: boolean } = {}) {
     kind: "lane-progress" as const,
     lane: "standard" as const,
     repositoryId: "repository-1",
-    changeRequestId: "pull/42",
-    headSha: oid("a"),
+    lineage: options.delivery === true
+      ? {
+          kind: "delivery-member",
+          planId: deliveryVehicle(oid("a")).planId,
+          workUnitId: deliveryVehicle(oid("a")).workUnitId,
+          deliverableId: deliveryVehicle(oid("a")).deliverableId,
+        }
+      : { kind: "candidate", candidateId: `sha256:${"8".repeat(64)}` },
     completedPasses: 1,
     attempts: [{
       attemptId: "attempt-prior",
+      logicalPass: 1,
+      retryGeneration: 0,
+      changeRequestId: "pull/42",
+      headSha: oid("a"),
+      terminalProducer: true,
       sourceId: "codex-pr",
       outcome: "clean" as const,
       hosted: {
@@ -219,9 +230,15 @@ describe("earlier review attempt query", () => {
     const base = laneState();
     const variants = [
       { ...base, repositoryId: "repository-2" },
-      { ...base, changeRequestId: "pull/43" },
+      {
+        ...base,
+        attempts: base.attempts.map((attempt) => ({ ...attempt, changeRequestId: "pull/43" })),
+      },
       { ...base, lane: "frontline" as const },
-      { ...base, headSha: oid("c") },
+      {
+        ...base,
+        attempts: base.attempts.map((attempt) => ({ ...attempt, headSha: oid("c") })),
+      },
       {
         ...base,
         attempts: base.attempts.map((attempt) => ({ ...attempt, sourceId: "coderabbit-pr" })),
@@ -280,12 +297,18 @@ describe("earlier review attempt query", () => {
     const priorTarget = prior.attempts[0]!.hosted!.reviewTarget;
     const local = LaneProgressStateSchema.parse({
       ...prior,
-      changeRequestId: null,
       attempts: [{
         attemptId: "local-review-prior",
+        logicalPass: 1,
+        retryGeneration: 0,
+        changeRequestId: null,
+        headSha: oid("a"),
+        terminalProducer: true,
         sourceId: "delegated-agent",
         outcome: "clean",
         local: {
+          operationId: "local-review-prior",
+          requestId: canonicalDigest({ request: "local-review-prior" }),
           vehicle: { kind: "delivery-member", identity: deliveryVehicle(oid("a")).deliverableId },
           target: priorTarget,
           deliveryAdmission: localAdmission(oid("a")),
@@ -342,12 +365,18 @@ describe("earlier review attempt query", () => {
     const prior = laneState({ delivery: true });
     const local = LaneProgressStateSchema.parse({
       ...prior,
-      changeRequestId: null,
       attempts: [{
         attemptId: "local-review-prior",
+        logicalPass: 1,
+        retryGeneration: 0,
+        changeRequestId: null,
+        headSha: oid("a"),
+        terminalProducer: true,
         sourceId: "delegated-agent",
         outcome: "findings",
         local: {
+          operationId: "local-review-prior",
+          requestId: canonicalDigest({ request: "local-review-prior" }),
           vehicle: { kind: "delivery-member", identity: deliveryVehicle(oid("a")).deliverableId },
           target: prior.attempts[0]!.hosted!.reviewTarget,
           deliveryAdmission: localAdmission(oid("a")),
@@ -385,12 +414,18 @@ describe("earlier review attempt query", () => {
     const oldTarget = prior.attempts[0]!.hosted!.reviewTarget;
     const local = LaneProgressStateSchema.parse({
       ...prior,
-      changeRequestId: null,
       attempts: [{
         attemptId: "local-review-prior",
+        logicalPass: 1,
+        retryGeneration: 0,
+        changeRequestId: null,
+        headSha: oid("a"),
+        terminalProducer: true,
         sourceId: "delegated-agent",
         outcome: "settled-findings",
         local: {
+          operationId: "local-review-prior",
+          requestId: canonicalDigest({ request: "local-review-prior" }),
           vehicle: { kind: "delivery-member", identity: deliveryVehicle(oid("a")).deliverableId },
           target: oldTarget,
           deliveryAdmission: localAdmission(oid("a")),
@@ -670,6 +705,12 @@ describe("earlier review attempt query", () => {
       ? prior
       : LaneProgressStateSchema.parse({
           ...prior,
+          lineage: {
+            kind: "delivery-member",
+            planId: laneVehicle.planId,
+            workUnitId: laneVehicle.workUnitId,
+            deliverableId: laneVehicle.deliverableId,
+          },
           attempts: prior.attempts.map((attempt) => ({
             ...attempt,
             hosted: { ...attempt.hosted!, vehicle: laneVehicle },

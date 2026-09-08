@@ -788,6 +788,7 @@ describe("review-fix Candidate lineage", () => {
       "standard",
       candidate.headSha,
       candidate.lineageHeadShas,
+      { kind: "candidate", candidateId: candidate.candidateId },
     )).resolves.toMatchObject({ status: "recorded", completedPasses: 1 });
 
     // The lineage now explains the fixed subject, so the Candidate is current — and unverified at its

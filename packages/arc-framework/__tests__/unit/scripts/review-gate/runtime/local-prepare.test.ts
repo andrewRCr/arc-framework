@@ -12,6 +12,7 @@ import {
   LocalPrepareRequestSchema,
   prepareLocalReview,
 } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
+import { recordLaneAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
 
 const objectId = (character: string): string => character.repeat(40);
 const routingFacts = {
@@ -138,6 +139,9 @@ describe("local review preparation request", () => {
       const memberCoordinates = {
         base: memberTarget.diffBaseSha,
         head: memberTarget.headSha,
+        planId: PLAN_ID,
+        workUnitId: "review-surface-binding",
+        deliverableId: DELIVERABLE_ID,
       };
 
       // Keyed by operation and source ref, so two vehicles over one repository
@@ -145,6 +149,7 @@ describe("local review preparation request", () => {
       const operations = new Map<string, { version: number; state: ReviewOperationState }>();
       const sources = new Map<string, LocalReviewSource>();
       let lastPublished: ReviewOperationState | null = null;
+      let lastLocalPublished: ReviewOperationState | null = null;
       let clockTick = 0;
 
       const authorityOf = (vehicle: { kind: string; identity: string }) => ({
@@ -183,6 +188,29 @@ describe("local review preparation request", () => {
       ));
       const materialize = vi.fn(async () => ({ reviewRoot: "/tmp/review-root" }));
       const validateDeliveryAdmission = vi.fn(async () => undefined);
+      const composeAssurance = vi.fn(async () => ({
+        status: "resolved" as const,
+        assurance: { workContext: "work-unit" as const, workClass: "Heavy" as const },
+        activity: { selfReview: true, frontlineReview: true },
+        guidance: projectLocalReviewGuidance(),
+        diagnostics: [],
+      }));
+      const resolvePolicy = vi.fn(() => ({
+        status: "resolved" as const,
+        binding: DEFAULT_LOCAL_REVIEW_POLICY_BINDING,
+        diagnostics: [] as [],
+      }));
+      const resolveLineage = vi.fn(async (vehicle: { kind: string }) => vehicle.kind === "delivery-member"
+        ? {
+            kind: "delivery-member" as const,
+            planId: PLAN_ID,
+            workUnitId: "review-surface-binding",
+            deliverableId: DELIVERABLE_ID,
+          }
+        : {
+            kind: "candidate" as const,
+            candidateId: `sha256:${"7".repeat(64)}`,
+          });
 
       const dependencies = {
         sweep: async () => undefined,
@@ -192,18 +220,9 @@ describe("local review preparation request", () => {
         deriveTarget,
         confirmTarget: async (target: typeof memberTarget) => ({ state: "current" as const, target }),
         resolveAuthority,
-        composeAssurance: async () => ({
-          status: "resolved" as const,
-          assurance: { workContext: "work-unit" as const, workClass: "Heavy" as const },
-          activity: { selfReview: true, frontlineReview: true },
-          guidance: projectLocalReviewGuidance(),
-          diagnostics: [],
-        }),
-        resolvePolicy: () => ({
-          status: "resolved" as const,
-          binding: DEFAULT_LOCAL_REVIEW_POLICY_BINDING,
-          diagnostics: [] as [],
-        }),
+        resolveLineage,
+        composeAssurance,
+        resolvePolicy,
         validatePolicySelection: () => undefined,
         validateDeliveryAdmission,
         operationStore: {
@@ -218,6 +237,7 @@ describe("local review preparation request", () => {
             const version = current + 1;
             operations.set(state.operationId, { version, state });
             lastPublished = state;
+            if (state.kind === "local-review") lastLocalPublished = state;
             return { version };
           },
         },
@@ -244,9 +264,15 @@ describe("local review preparation request", () => {
         describeSource,
         materialize,
         resolveAuthority,
+        resolveLineage,
+        composeAssurance,
+        resolvePolicy,
         validateDeliveryAdmission,
         operations,
-        published: () => lastPublished,
+        published: () => lastLocalPublished ?? lastPublished,
+        laneProgress: () => [...operations.values()]
+          .map(({ state }) => state)
+          .find((state) => state.kind === "lane-progress") ?? null,
       };
     }
 
@@ -270,6 +296,31 @@ describe("local review preparation request", () => {
         vehicle: { kind: "delivery-member", identity: DELIVERABLE_ID },
         targetId: context.memberTarget.targetId,
         target: { kind: "delivery-member" },
+      });
+    });
+
+    it("persists the admitted local attempt before returning executable review inputs", async () => {
+      const context = fixture();
+
+      const prepared = await prepareLocalReview(request, context.dependencies);
+      if (prepared.state !== "ready") throw new Error("local review preparation was not ready");
+
+      expect(context.laneProgress()).toMatchObject({
+        kind: "lane-progress",
+        lineage: { kind: "candidate", candidateId: `sha256:${"7".repeat(64)}` },
+        completedPasses: 0,
+        attempts: [{
+          attemptId: prepared.payload.operationId,
+          logicalPass: 1,
+          retryGeneration: 0,
+          headSha: context.changeSetTarget.headSha,
+          outcome: "pending",
+          terminalProducer: false,
+          local: {
+            operationId: prepared.payload.operationId,
+            requestId: prepared.payload.request.requestId,
+          },
+        }],
       });
     });
 
@@ -422,9 +473,16 @@ describe("local review preparation request", () => {
 
       expect(context.published()).toMatchObject({
         vehicle: { kind: "work-unit", identity: "review-surface-binding" },
+        lineage: { kind: "candidate", candidateId: `sha256:${"7".repeat(64)}` },
         targetId: context.changeSetTarget.targetId,
         target: { kind: "change-set" },
       });
+      expect(context.resolveLineage).toHaveBeenCalledWith(
+        { kind: "work-unit", identity: "review-surface-binding" },
+        context.changeSetTarget,
+        undefined,
+        undefined,
+      );
     });
 
     it("preserves the no-selector path in an Errand context", async () => {
@@ -469,7 +527,88 @@ describe("local review preparation request", () => {
         }
 
         expect(second.payload.operationId).toBe(first.payload.operationId);
-        expect(context.operations.size).toBe(1);
+        expect(context.operations.size).toBe(2);
+      });
+
+      it("replays a pending admission before current policy and evaluator selection", async () => {
+        const context = fixture();
+        const first = await prepareLocalReview(request, context.dependencies);
+        if (first.state !== "ready") throw new Error("first local preparation was not ready");
+        context.composeAssurance.mockRejectedValueOnce(new Error("current assurance drifted"));
+        context.resolvePolicy.mockImplementationOnce(() => {
+          throw new Error("current policy drifted");
+        });
+
+        const replay = await prepareLocalReview(
+          { ...request, evaluatorIdentity: "replacement-evaluator" },
+          context.dependencies,
+        );
+
+        expect(replay).toMatchObject({
+          state: "ready",
+          payload: {
+            operationId: first.payload.operationId,
+            request: { evaluatorIdentity: "evaluator-1" },
+          },
+        });
+        expect(context.composeAssurance).toHaveBeenCalledTimes(1);
+        expect(context.resolvePolicy).toHaveBeenCalledTimes(1);
+      });
+
+      it("renews an expired pending admission with the requested cleanup lifetime", async () => {
+        const context = fixture();
+        const first = await prepareLocalReview(
+          { ...request, freshnessMs: 1 },
+          context.dependencies,
+        );
+        const initial = context.published();
+        const renewed = await prepareLocalReview(
+          { ...request, freshnessMs: 60_000 },
+          context.dependencies,
+        );
+        const current = context.published();
+
+        if (first.state !== "ready" || renewed.state !== "ready"
+          || initial?.kind !== "local-review" || current?.kind !== "local-review") {
+          throw new Error("pending local admission was not renewed");
+        }
+        expect(renewed.payload.operationId).toBe(first.payload.operationId);
+        expect(current.updatedAt).not.toBe(initial.updatedAt);
+        expect(current.cleanupTtlMs).toBe(60_000);
+      });
+
+      it("advances native retry generation after a failed local attempt", async () => {
+        const context = fixture();
+        const first = await prepareLocalReview(request, context.dependencies);
+        const state = context.published();
+        const owner = context.laneProgress();
+        if (first.state !== "ready"
+          || state?.kind !== "local-review"
+          || owner?.kind !== "lane-progress"
+          || owner.attempts[0]?.local === undefined) {
+          throw new Error("first local attempt was not admitted");
+        }
+        await recordLaneAttempt(context.dependencies.operationStore, {
+          lane: "standard",
+          repositoryId: state.repositoryId,
+          changeRequestId: null,
+          headSha: state.target.headSha,
+          lineage: state.lineage,
+          logicalPass: state.logicalPass,
+          retryGeneration: state.retryGeneration,
+          attemptId: state.operationId,
+          sourceId: state.laneSourceId,
+          outcome: "terminal-failure",
+          consumedPass: false,
+          advancePendingAttempt: true,
+          local: owner.attempts[0].local,
+          now: "2026-08-06T18:00:00Z",
+        });
+
+        const retry = await prepareLocalReview(request, context.dependencies);
+        if (retry.state !== "ready") throw new Error("local retry was not prepared");
+        expect(retry.payload.operationId).not.toBe(first.payload.operationId);
+        expect(retry.payload.request).toMatchObject({ logicalPass: 1, generation: 1 });
       });
 
       it("holds distinct operation identities for a member and a work unit in one repository", async () => {
@@ -487,7 +626,7 @@ describe("local review preparation request", () => {
         // The operation key is derived from the target, so the two vehicles never
         // collide on one key — the second admits fresh rather than mismatching.
         expect(workUnit.payload.operationId).not.toBe(member.payload.operationId);
-        expect(context.operations.size).toBe(2);
+        expect(context.operations.size).toBe(4);
         expect(context.published()).toMatchObject({
           vehicle: { kind: "work-unit", identity: "review-surface-binding" },
           targetId: context.changeSetTarget.targetId,
@@ -506,8 +645,9 @@ describe("local review preparation request", () => {
         await expect(prepareLocalReview(request, context.dependencies))
           .resolves.toMatchObject({ state: "ready" });
 
-        const admitted = [...context.operations.values()].map(({ state }) => state.kind === "local-review"
-          && state.vehicle.kind);
+        const admitted = [...context.operations.values()]
+          .filter(({ state }) => state.kind === "local-review")
+          .map(({ state }) => state.kind === "local-review" && state.vehicle.kind);
         expect(admitted).toEqual(["delivery-member", "work-unit"]);
       });
     });
@@ -551,6 +691,10 @@ describe("local review preparation request", () => {
           attestationMechanism: "local-attestation" as const,
         },
         member: null,
+      }),
+      resolveLineage: async () => ({
+        kind: "candidate" as const,
+        candidateId: `sha256:${"7".repeat(64)}`,
       }),
       composeAssurance: async () => ({
         status: "resolved" as const,
@@ -676,6 +820,10 @@ describe("local review preparation request", () => {
             attestationMechanism: "local-attestation" as const,
           },
           member: null,
+        }),
+        resolveLineage: async () => ({
+          kind: "candidate" as const,
+          candidateId: `sha256:${"7".repeat(64)}`,
         }),
         composeAssurance: async () => ({
           status: "resolved" as const,

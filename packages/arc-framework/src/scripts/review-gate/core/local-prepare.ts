@@ -17,6 +17,7 @@ import {
   LocalReviewSourcePayloadSchema,
   type LocalReviewSourcePayload,
 } from "./local-review-payload.js";
+import type { LocalReviewGuidance } from "../policy/local-review-guidance.js";
 
 export interface LocalReviewPreparation {
   persistedVersion: number;
@@ -57,7 +58,7 @@ export async function publishLocalReviewPreparation(
     materialize(source: LocalReviewSource): Promise<{ reviewRoot: string }>;
     now(): string;
     cleanupTtlMs: number;
-    guidanceDigest: string;
+    guidance: LocalReviewGuidance;
   },
 ): Promise<LocalReviewPreparation> {
   const source = LocalReviewSourceSchema.parse(sourceInput);
@@ -81,6 +82,9 @@ export async function publishLocalReviewPreparation(
     targetId: admission.target.targetId,
     requestId: admission.carrier.request.requestId,
     laneSourceId: admission.laneSourceId,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
     ...(admission.deliveryAdmission === undefined
       ? {}
       : { deliveryAdmission: admission.deliveryAdmission }),
@@ -89,7 +93,9 @@ export async function publishLocalReviewPreparation(
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef,
     sourceDigest: source.sourceDigest,
-    guidanceDigest: dependencies.guidanceDigest,
+    guidance: dependencies.guidance.projection,
+    guidanceDigest: dependencies.guidance.guidanceDigest,
+    reviewerInstructions: dependencies.guidance.reviewerInstructions,
     target: admission.target,
     requirement: admission.requirement,
     request: admission.carrier.request,

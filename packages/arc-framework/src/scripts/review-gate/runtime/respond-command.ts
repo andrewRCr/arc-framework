@@ -38,6 +38,7 @@ import {
   validateDispositionState,
 } from "../core/dispositions.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
+import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
   ReviewTargetSchema,
@@ -191,6 +192,7 @@ export interface RespondCommandDependencies {
     lane: "frontline" | "standard";
     repositoryId: string;
     headSha: string;
+    lineage?: LaneSubjectLineage;
     attemptId: string;
   }): Promise<void>;
   bindHostedDisposition(input: {
@@ -222,6 +224,7 @@ interface ResolvedResponseSource {
   source: ApprovedDispositionRecord["source"];
   dispositionContext: DispositionSourceContext;
   actors: ResponseActors;
+  laneLineage?: LaneSubjectLineage;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
   frontlineOutcome?: FrontlineExecutionOutcome;
   hostedAttempt?: {
@@ -424,6 +427,7 @@ async function resolveLocalSource(
       rubricDigest: state.requirement.rubricDigest,
     },
     actors,
+    laneLineage: state.lineage,
     ...(state.deliveryAdmission === undefined ? {} : { deliveryAdmission: state.deliveryAdmission }),
   };
 }
@@ -500,8 +504,8 @@ async function resolveHostedSource(
     ({ sourceKind, qualifier }) => sourceKind === "hosted" && qualifier === attempt.sourceId,
   )?.qualifier
     || persisted.state.repositoryId !== attempt.hosted.reviewTarget.repositoryId
-    || persisted.state.headSha !== attempt.hosted.target.headSha
-    || persisted.state.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
+    || attempt.headSha !== attempt.hosted.target.headSha
+    || attempt.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
     || attempt.hosted.reviewTarget.headSha !== attempt.hosted.target.headSha
     || (attempt.hosted.reviewTarget.kind === "delivery-member"
       ? attempt.hosted.vehicle === undefined
@@ -1193,6 +1197,7 @@ export async function respondToReviewCommand(
       lane: source.frontlineOutcome === undefined ? "standard" : "frontline",
       repositoryId: source.repositoryId,
       headSha: source.target.headSha,
+      ...(source.laneLineage === undefined ? {} : { lineage: source.laneLineage }),
       attemptId: source.operationId,
     });
   }

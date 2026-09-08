@@ -23,6 +23,8 @@ import {
   deriveLocalReviewTarget,
 } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 import { createLocalReviewReceipt } from "../../src/scripts/review-gate/runtime/local-attestation.js";
+import { projectLocalReviewGuidance } from
+  "../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { resumeLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-resume-command.js";
 import {
   DurableReviewReductionPort,
@@ -108,6 +110,9 @@ function operationOver(target: ReviewTarget) {
       attestationMechanism: "local-attestation",
     },
     laneSourceId: "delegated-agent",
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
+    retryGeneration: 0,
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -137,10 +142,15 @@ function operationOver(target: ReviewTarget) {
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     laneSourceId: admission.laneSourceId,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,
+    guidance: projectLocalReviewGuidance().projection,
     guidanceDigest: digest("guidance"),
+    reviewerInstructions: projectLocalReviewGuidance().reviewerInstructions,
     target,
     requirement,
     request: admission.carrier.request,

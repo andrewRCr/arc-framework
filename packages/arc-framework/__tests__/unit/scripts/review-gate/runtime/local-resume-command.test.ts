@@ -15,6 +15,8 @@ import { createLocalReviewAdmission } from "../../../../../src/scripts/review-ga
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { resumeLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-resume-command.js";
 import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
 
@@ -65,6 +67,9 @@ function fixture() {
       attestationMechanism: "local-attestation",
     },
     laneSourceId: "delegated-agent",
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
+    retryGeneration: 0,
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -94,10 +99,15 @@ function fixture() {
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     laneSourceId: admission.laneSourceId,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,
+    guidance: projectLocalReviewGuidance().projection,
     guidanceDigest: digest("guidance"),
+    reviewerInstructions: projectLocalReviewGuidance().reviewerInstructions,
     target,
     requirement,
     request: admission.carrier.request,

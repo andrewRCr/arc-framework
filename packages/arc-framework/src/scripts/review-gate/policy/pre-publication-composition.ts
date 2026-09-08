@@ -393,11 +393,12 @@ export function createPrePublicationCompositionDependencies(input: {
       return { status: "authorized", ownerIdentity: live.context.workUnit.owner };
     },
 
-    readLaneProgress: async (lane, headSha, lineageHeadShas) => readLaneProgressAcrossLineage(store, {
+    readLaneProgress: async (lane, headSha, lineageHeadShas, lineage) => readLaneProgressAcrossLineage(store, {
       lane,
       repositoryId: await repositoryId(),
       headSha,
       lineageHeadShas,
+      ...(lineage === undefined ? {} : { lineage }),
     }),
 
     readLanePolicy: async (lane) => resolveConfiguredLanePolicy({

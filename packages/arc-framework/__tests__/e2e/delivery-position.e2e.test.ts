@@ -49,6 +49,8 @@ import {
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import type { DeliveryLocalReviewAdmission } from
   "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
+import { projectLocalReviewGuidance } from
+  "../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { ApprovedDispositionRecordSchema } from
   "../../src/scripts/review-gate/core/advisory-records.js";
 import {
@@ -1032,11 +1034,20 @@ describe("arc delivery position", () => {
       kind: "lane-progress",
       lane: "standard",
       repositoryId: "repo-1",
-      changeRequestId: "pull/401",
-      headSha: reviewedHead,
+      lineage: {
+        kind: "delivery-member",
+        planId: fixture.plan.planId,
+        deliverableId: selectedDeliverableId,
+        workUnitId: fixture.plan.workUnitId,
+      },
       completedPasses: 1,
       attempts: [{
         attemptId: "operation-response-loss",
+        logicalPass: 1,
+        retryGeneration: 0,
+        changeRequestId: "pull/401",
+        headSha: reviewedHead,
+        terminalProducer: true,
         sourceId: "codex-pr",
         outcome: "findings",
         hosted: {
@@ -1704,6 +1715,14 @@ describe("arc delivery position", () => {
       requirement,
       authority,
       laneSourceId: "delegated-agent",
+      lineage: {
+        kind: "delivery-member" as const,
+        planId: fixture.plan.planId,
+        workUnitId,
+        deliverableId: selectedDeliverableId,
+      },
+      logicalPass: 1,
+      retryGeneration: 0,
       policyBindingDigest: canonicalDigest({ binding: "local" }),
       requestMechanism: "local-attestation",
     });
@@ -1738,6 +1757,9 @@ describe("arc delivery position", () => {
       targetId: oldTarget.targetId,
       requestId: admission.carrier.request.requestId,
       laneSourceId: admission.laneSourceId,
+      lineage: admission.lineage,
+      logicalPass: admission.logicalPass,
+      retryGeneration: admission.retryGeneration,
       deliveryAdmission: {
         schemaVersion: 1,
         sourceId: "delegated-agent",
@@ -1751,7 +1773,9 @@ describe("arc delivery position", () => {
       attestationRuntimeKind: authority.attestationRuntimeKind,
       sourceRef: "source.json",
       sourceDigest: source.sourceDigest,
+      guidance: projectLocalReviewGuidance().projection,
       guidanceDigest: canonicalDigest({ guidance: "local" }),
+      reviewerInstructions: projectLocalReviewGuidance().reviewerInstructions,
       target: oldTarget,
       requirement,
       request: admission.carrier.request,
@@ -1765,12 +1789,22 @@ describe("arc delivery position", () => {
     await recordLaneAttempt(operationStore, {
       lane: "standard",
       repositoryId: oldTarget.repositoryId,
-      changeRequestId: "pull/403",
+      changeRequestId: null,
       headSha: oldTarget.headSha,
+      lineage: operation.lineage,
+      logicalPass: operation.logicalPass,
+      retryGeneration: operation.retryGeneration,
       attemptId: operation.operationId,
       sourceId: "delegated-agent",
       outcome: "findings",
       consumedPass: true,
+      local: {
+        operationId: operation.operationId,
+        requestId: operation.requestId,
+        vehicle: operation.vehicle,
+        target: operation.target,
+        deliveryAdmission: operation.deliveryAdmission,
+      },
       now: "2026-09-03T12:00:00.000Z",
     });
     const approvedDisposition = approveDispositionState({
@@ -1862,6 +1896,7 @@ describe("arc delivery position", () => {
       lane: "standard",
       repositoryId: oldTarget.repositoryId,
       headSha: oldTarget.headSha,
+      lineage: operation.lineage,
     }))).resolves.toMatchObject({
       state: {
         kind: "lane-progress",
@@ -2041,11 +2076,20 @@ describe("arc delivery position", () => {
         kind: "lane-progress",
         lane: "standard",
         repositoryId,
-        changeRequestId: `pull/${pullRequest}`,
-        headSha: member.coordinates.head,
+        lineage: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: member.deliverableId,
+          workUnitId: fixture.plan.workUnitId,
+        },
         completedPasses: 1,
         attempts: [{
           attemptId: `settled-teardown-${index + 1}`,
+          logicalPass: 1,
+          retryGeneration: 0,
+          changeRequestId: `pull/${pullRequest}`,
+          headSha: member.coordinates.head,
+          terminalProducer: true,
           sourceId: "codex-pr",
           outcome: "clean",
           hosted: {
@@ -2704,11 +2748,20 @@ describe("arc delivery position", () => {
       kind: "lane-progress",
       lane: "standard",
       repositoryId: "repo-1",
-      changeRequestId: "pull/401",
-      headSha: reviewedHead,
+      lineage: {
+        kind: "delivery-member",
+        planId: fixture.plan.planId,
+        deliverableId: selectedDeliverableId,
+        workUnitId: fixture.plan.workUnitId,
+      },
       completedPasses: 1,
       attempts: [{
         attemptId: "operation-published-member-fix",
+        logicalPass: 1,
+        retryGeneration: 0,
+        changeRequestId: "pull/401",
+        headSha: reviewedHead,
+        terminalProducer: true,
         sourceId: "codex-pr",
         outcome: "findings",
         hosted: {
@@ -3313,11 +3366,20 @@ describe("arc delivery position", () => {
       kind: "lane-progress",
       lane: "standard",
       repositoryId,
-      changeRequestId: "pull/401",
-      headSha: reviewedHead,
+      lineage: {
+        kind: "delivery-member",
+        planId: fixture.plan.planId,
+        deliverableId: selectedDeliverableId,
+        workUnitId: fixture.plan.workUnitId,
+      },
       completedPasses: 1,
       attempts: [{
         attemptId: replayAttemptId,
+        logicalPass: 1,
+        retryGeneration: 0,
+        changeRequestId: "pull/401",
+        headSha: reviewedHead,
+        terminalProducer: true,
         sourceId: "codex-pr",
         outcome: "findings",
         hosted: {
@@ -3466,11 +3528,20 @@ describe("arc delivery position", () => {
         kind: "lane-progress",
         lane: "standard",
         repositoryId,
-        changeRequestId: "pull/401",
-        headSha: reviewedHead,
+        lineage: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: selectedDeliverableId,
+          workUnitId: fixture.plan.workUnitId,
+        },
         completedPasses: 1,
         attempts: [{
           attemptId: `operation-${retainedAttemptId}`,
+          logicalPass: 1,
+          retryGeneration: 0,
+          changeRequestId: "pull/401",
+          headSha: reviewedHead,
+          terminalProducer: true,
           sourceId: "codex-pr",
           outcome: "clean",
           hosted: {

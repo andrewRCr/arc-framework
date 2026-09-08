@@ -27,6 +27,8 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { LaneSubjectLineageSchema } from
+  "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type {
@@ -35,6 +37,8 @@ import type {
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import {
   respondToReviewCommand,
   type RespondCommandDependencies,
@@ -96,6 +100,9 @@ function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
     requirement,
     authority,
     laneSourceId: "delegated-agent",
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
+    retryGeneration: 0,
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -125,10 +132,15 @@ function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     laneSourceId: admission.laneSourceId,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
     attestationRuntimeKind: authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,
+    guidance: projectLocalReviewGuidance().projection,
     guidanceDigest: digest("guidance"),
+    reviewerInstructions: projectLocalReviewGuidance().reviewerInstructions,
     target,
     requirement,
     request: admission.carrier.request,
@@ -492,6 +504,14 @@ function hostedResponseFixture(
         url: "https://example.test/review-1",
         body: "Finding body.",
       };
+  const lineage = LaneSubjectLineageSchema.parse(vehicle.kind === "delivery-member"
+    ? {
+        kind: "delivery-member" as const,
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: vehicle.identity,
+        workUnitId: "example" as const,
+      }
+    : { kind: "candidate" as const, candidateId: canonicalDigest({ candidate: records.target.targetId }) });
   const operation = {
     schemaVersion: 1 as const,
     semanticsVersion: "review-operation/v1" as const,
@@ -500,11 +520,15 @@ function hostedResponseFixture(
     kind: "lane-progress" as const,
     lane: "standard" as const,
     repositoryId: records.target.repositoryId,
-    changeRequestId: "pull/42",
-    headSha: records.target.headSha,
+    lineage,
     completedPasses: 1,
     attempts: [{
       attemptId,
+      logicalPass: 1,
+      retryGeneration: 0,
+      changeRequestId: "pull/42",
+      headSha: records.target.headSha,
+      terminalProducer: true,
       sourceId: "codex-pr",
       outcome: "findings" as const,
       hosted: {

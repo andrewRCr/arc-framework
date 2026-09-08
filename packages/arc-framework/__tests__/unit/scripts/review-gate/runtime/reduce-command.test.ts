@@ -29,6 +29,8 @@ import type {
 import { ReduceEnvelopeSchema } from "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import {
   DurableReviewReductionPort,
   reduceReviewCommand,
@@ -81,6 +83,9 @@ function localFixture(result: "clean" | "findings" | "failed" | "unavailable" = 
     requirement,
     authority,
     laneSourceId: "delegated-agent",
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
+    retryGeneration: 0,
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -110,10 +115,15 @@ function localFixture(result: "clean" | "findings" | "failed" | "unavailable" = 
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     laneSourceId: admission.laneSourceId,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
     attestationRuntimeKind: authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,
+    guidance: projectLocalReviewGuidance().projection,
     guidanceDigest: digest("guidance"),
+    reviewerInstructions: projectLocalReviewGuidance().reviewerInstructions,
     target,
     requirement,
     request: admission.carrier.request,

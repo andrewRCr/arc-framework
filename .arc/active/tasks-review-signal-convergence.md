@@ -155,43 +155,23 @@ of code-review persistence.
 _Purpose:_ Close native admission through execution and progress consumers. Shared lane admission supplies pass
 identity; native bindings preserve exactness without a generic persisted execution object.
 
-### `[ ]` **2.1 Compose shared logical-pass admission with native local request and operation identity**
+### `[x]` **2.1 Compose shared logical-pass admission with native local request and operation identity**
 
 - _Goal:_ Local execution has runtime-issued lineage/pass identity: retries reuse admission and a fresh same-target pass
   differs.
 
-- _Note:_ Spec § 3 Logical passes; § 5 Execution admission; SC 8 and 12.
+    - `[x]` **2.1.a Compose shared admission with the complete local binding graph**
 
-- _Approach:_ Extend existing lane progress and native `local-operation.ts`/request binding; keep the receipt's request
-  authority. Key admission ownership by runtime-resolved lineage, with head/PR facts on attempts and head-specific
-  reader projections. Whole-target scope uses existing target identity, without a generic execution envelope.
+        - Added one version-checked owner per runtime-resolved lineage, moved head and change-request facts onto attempts,
+          and bound native local request and operation identities to lineage, logical pass, and retry generation.
 
-    - `[ ]` **2.1.a Compose shared admission with the complete local binding graph**
+    - `[x]` **2.1.b Preserve pending admission across re-entry**
 
-        - Build `test-first` (one behavior at a time):
+        - Pending and completed operations replay from admitted context before current selection; failed reruns advance
+          only native retry generation, while receipts and version-conflict recovery repair the original producer/count.
 
-            - One version-checked lineage owner selects source attempts and claims a single terminal producer per pass.
-              Migrate the strict progress shape with every required writer, reader, and fixture; no schema-only
-              intermediate landing or second admission ledger is allowed.
-
-            - Native local request and operation preimages bind lineage, ordinal, and retry generation. Same-target,
-              same-ordinal sibling members have distinct requests and isolated receipt lookup, not merely distinct
-              operation IDs. Ready/prepare/attest/resume consume the admitted identity rather than caller counters.
-
-    - `[ ]` **2.1.b Preserve pending admission across re-entry**
-
-        - Build `test-first` (one behavior at a time):
-
-            - Resolve pending admission before current policy/evaluator/source selection; drift cannot silently create
-              a replacement operation. Permit only the spec's validated pre-terminal liveness/runtime renewal, and
-              forbid renewal after a receipt. Expose exact executable continuation inputs.
-
-            - Failed local result, explicit rerun, and successful terminal use a new native retry generation within
-              one logical pass; pending replay and completed replay remain idempotent. Preserve failed-attempt history,
-              existing retry bounds, and distinct partial/unavailable behavior.
-
-            - Version conflicts and interrupted producer/progress writes repair the original admission/count. Two
-              fallback sources cannot claim competing authoritative terminals, even with different operation locks.
+- _Outcome:_ Local execution now carries one replay-safe logical-pass identity from trusted lineage resolution through
+  preparation, attestation, resume, receipt lookup, and lane accounting without a second admission ledger.
 
 ### `[ ]` **2.2 Bind frontline pass identity while retaining retry-generation semantics**
 

@@ -6,6 +6,7 @@ import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-sch
 import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
 import type { PreBindingDeliveryReviewTargets } from "./pre-publication-delivery-targets.js";
 import {
@@ -147,6 +148,7 @@ export interface PrePublicationCompositionDependencies {
     lane: ReviewLane,
     headSha: string,
     lineageHeadShas: readonly string[],
+    lineage?: LaneSubjectLineage,
   ): Promise<LaneProgressProjection>;
   readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
 }
@@ -399,10 +401,13 @@ export async function composePrePublicationReviewRequest(
     lane: ReviewLane,
     policyTarget: ReviewPolicyTarget,
     lineageHeadShas: readonly string[],
+    lineage?: LaneSubjectLineage,
   ) => {
     const [policy, progress] = [
       lane === "frontline" ? frontlinePolicy : standardPolicy,
-      await dependencies.readLaneProgress(lane, policyTarget.headSha, lineageHeadShas),
+      await (lineage === undefined
+        ? dependencies.readLaneProgress(lane, policyTarget.headSha, lineageHeadShas)
+        : dependencies.readLaneProgress(lane, policyTarget.headSha, lineageHeadShas, lineage)),
     ];
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];
@@ -464,11 +469,13 @@ export async function composePrePublicationReviewRequest(
   let exactTarget: ReviewTarget | null;
   let policyTarget: ReviewPolicyTarget;
   let policyLineage: readonly string[];
+  let selectedLineage: LaneSubjectLineage;
   let frontline: Awaited<ReturnType<typeof composeLane>>;
   if (deliveryTargets.status === "composed") {
     let selected: {
       exactTarget: ReviewTarget;
       policyTarget: ReviewPolicyTarget;
+      lineage: LaneSubjectLineage;
       frontline: Awaited<ReturnType<typeof composeLane>>;
     } | null = null;
     for (const member of deliveryTargets.targets) {
@@ -485,6 +492,12 @@ export async function composePrePublicationReviewRequest(
       selected = {
         exactTarget: member.target,
         policyTarget: memberPolicyTarget,
+        lineage: {
+          kind: "delivery-member",
+          planId: member.vehicle.planId,
+          deliverableId: member.vehicle.deliverableId,
+          workUnitId: member.vehicle.workUnitId,
+        },
         frontline: memberFrontline,
       };
       const state = resolveReviewPolicy(memberFrontline).state;
@@ -499,11 +512,13 @@ export async function composePrePublicationReviewRequest(
     exactTarget = selected.exactTarget;
     policyTarget = selected.policyTarget;
     policyLineage = [selected.exactTarget.headSha];
+    selectedLineage = selected.lineage;
     frontline = withCeilingOverride("frontline", policyTarget, selected.frontline);
   } else {
     exactTarget = immutable?.status === "resolved" ? immutable.target : null;
     policyTarget = target;
     policyLineage = candidate.lineageHeadShas;
+    selectedLineage = { kind: "candidate", candidateId: candidate.candidateId };
     frontline = withCeilingOverride(
       "frontline",
       policyTarget,
@@ -513,7 +528,7 @@ export async function composePrePublicationReviewRequest(
   const standard = withCeilingOverride(
     "standard",
     policyTarget,
-    await composeLane("standard", policyTarget, policyLineage),
+    await composeLane("standard", policyTarget, policyLineage, selectedLineage),
   );
 
   const composed = {

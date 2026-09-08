@@ -105,6 +105,8 @@ describe("review gate v2 contract", () => {
       },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -123,6 +125,8 @@ describe("review gate v2 contract", () => {
       },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     }));
@@ -158,6 +162,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     })).toThrow();
@@ -184,6 +190,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request" as const, adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     };
@@ -223,6 +231,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request", adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -328,6 +338,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request", adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -395,6 +407,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request", adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -431,7 +445,7 @@ describe("review gate v2 contract", () => {
       requirementId: requirement.requirementId,
     }).toEqual({
       targetId: "sha256:d4289a08f0d41356739446723949aaf892a2de41fb6510f6f065a4c93b26bcbd",
-      requestId: "sha256:2e875e9566792187d4ace2030abdc6f479af30b06741812b2054c02ee706a5e7",
+      requestId: "sha256:18eafe10b6496574361ed462676a171f8142fd69f849dbf3b49c1c40ac276fc2",
       requirementId: "sha256:5bcc86a859459b05b8f8f249017a3eb46ffe3df51e044500329aee6abbdb93cd",
     });
     expect(new Set([target.targetId, request.requestId, requirement.requirementId]).size).toBe(3);
@@ -524,6 +538,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "change-request" as const, adapterId: "github", changeRequestId: "pull/42" },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     };
@@ -588,6 +604,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });
@@ -662,6 +680,8 @@ describe("review gate v2 contract", () => {
       carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
       authorIdentity: "andrew",
       evaluatorIdentity: "reviewer-1",
+      lineageId: canonicalDigest({ lineage: "candidate" }),
+      logicalPass: 1,
       generation: 0,
       requestMechanism: "automatic",
     });

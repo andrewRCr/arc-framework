@@ -11,6 +11,8 @@ import {
   publishLocalReviewPreparation,
 } from "../../../../../src/scripts/review-gate/core/local-prepare.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 
 const digest = (value: string): string => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
@@ -66,6 +68,9 @@ function fixture() {
       attestationMechanism: "local-attestation",
     },
     laneSourceId: "delegated-agent",
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
+    retryGeneration: 0,
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -95,7 +100,7 @@ describe("local prepare publication ordering", () => {
       materialize,
       now: () => "2026-07-23T17:00:00Z",
       cleanupTtlMs: 60_000,
-      guidanceDigest: digest("guidance"),
+      guidance: projectLocalReviewGuidance(),
     })).resolves.toMatchObject({
       persistedVersion: 1,
       sourceRef: "sources/source.json",
@@ -118,7 +123,7 @@ describe("local prepare publication ordering", () => {
       },
       now: () => "2026-07-23T17:00:00Z",
       cleanupTtlMs: 60_000,
-      guidanceDigest: digest("guidance"),
+      guidance: projectLocalReviewGuidance(),
     })).rejects.toThrow(/pin creation interrupted/u);
     expect(publishOperation).toHaveBeenCalledOnce();
   });

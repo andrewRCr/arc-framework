@@ -133,11 +133,16 @@ async function attestLocalReviewWithinSourceLock(
       repositoryId: state.repositoryId,
       changeRequestId: null,
       headSha: state.target.headSha,
+      lineage: state.lineage,
+      logicalPass: state.logicalPass,
+      retryGeneration: state.retryGeneration,
       attemptId: state.operationId,
       sourceId: state.laneSourceId,
       outcome: "terminal-failure",
       consumedPass: false,
       local: {
+        operationId: state.operationId,
+        requestId: state.requestId,
         vehicle: state.vehicle,
         target: state.target,
         ...(state.deliveryAdmission === undefined
@@ -145,6 +150,7 @@ async function attestLocalReviewWithinSourceLock(
           : { deliveryAdmission: state.deliveryAdmission }),
       },
       now: dependencies.now(),
+      advancePendingAttempt: true,
     });
   }
   if (result.status === "unavailable" || result.status === "failed") {
@@ -205,6 +211,9 @@ async function attestLocalReviewWithinSourceLock(
       repositoryId: state.repositoryId,
       changeRequestId: null,
       headSha: state.target.headSha,
+      lineage: state.lineage,
+      logicalPass: state.logicalPass,
+      retryGeneration: state.retryGeneration,
       attemptId: state.operationId,
       sourceId: state.laneSourceId,
       outcome: receipt.result === "unavailable"
@@ -213,6 +222,8 @@ async function attestLocalReviewWithinSourceLock(
       consumedPass: receipt.result === "clean" || receipt.result === "findings",
       chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
       local: {
+        operationId: state.operationId,
+        requestId: state.requestId,
         vehicle: state.vehicle,
         target: state.target,
         ...(state.deliveryAdmission === undefined
@@ -220,6 +231,7 @@ async function attestLocalReviewWithinSourceLock(
           : { deliveryAdmission: state.deliveryAdmission }),
       },
       now: dependencies.now(),
+      advancePendingAttempt: true,
     });
     await dependencies.releaseMaterialization(request.operationId);
     const current = await dependencies.confirmTarget(state.target);
@@ -320,6 +332,9 @@ async function attestLocalReviewWithinSourceLock(
     repositoryId: state.repositoryId,
     changeRequestId: null,
     headSha: state.target.headSha,
+    lineage: state.lineage,
+    logicalPass: state.logicalPass,
+    retryGeneration: state.retryGeneration,
     attemptId: state.operationId,
     sourceId: state.laneSourceId,
     outcome: receipt.result === "unavailable"
@@ -328,6 +343,8 @@ async function attestLocalReviewWithinSourceLock(
     consumedPass: receipt.result === "clean" || receipt.result === "findings",
     chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
     local: {
+      operationId: state.operationId,
+      requestId: state.requestId,
       vehicle: state.vehicle,
       target: state.target,
       ...(state.deliveryAdmission === undefined
@@ -335,6 +352,7 @@ async function attestLocalReviewWithinSourceLock(
         : { deliveryAdmission: state.deliveryAdmission }),
     },
     now: dependencies.now(),
+    advancePendingAttempt: true,
   });
   await dependencies.releaseMaterialization(request.operationId);
   const afterAppend = await dependencies.confirmTarget(state.target);

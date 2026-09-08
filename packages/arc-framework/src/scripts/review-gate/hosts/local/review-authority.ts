@@ -157,7 +157,13 @@ export async function resolveLocalReviewAuthority(
         kind: "delivery-member",
         identity: ReviewIdentifierSchema.parse(binding.deliverableId),
       };
-      member = { base: binding.base, head: binding.head };
+      member = {
+        base: binding.base,
+        head: binding.head,
+        planId: binding.planId,
+        workUnitId: binding.workUnitId,
+        deliverableId: binding.deliverableId,
+      };
     }
   } else {
     // Naming a member is what failed here, not the vehicle resolution — an Errand

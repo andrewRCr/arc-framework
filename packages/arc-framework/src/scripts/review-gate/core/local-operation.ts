@@ -18,6 +18,10 @@ import {
   type ReviewRequirementV2,
   type ReviewTarget,
 } from "./gate-contract-v2-schema.js";
+import {
+  LaneSubjectLineageSchema,
+  type LaneSubjectLineage,
+} from "./lane-admission.js";
 import type { LocalReviewState } from "./operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./ports.js";
 import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
@@ -32,6 +36,9 @@ const LocalOperationIdentityPreimageSchema = z.strictObject({
   policyBindingDigest: ReviewCanonicalDigestSchema,
   requestMechanism: ReviewIdentifierSchema,
   deliveryAdmissionDigest: ReviewCanonicalDigestSchema.nullable(),
+  lineage: LaneSubjectLineageSchema,
+  logicalPass: z.number().int().positive(),
+  retryGeneration: z.number().int().nonnegative(),
 });
 
 export interface LocalReviewAdmissionInput {
@@ -42,6 +49,9 @@ export interface LocalReviewAdmissionInput {
   policyBindingDigest: string;
   requestMechanism: string;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
+  lineage: LaneSubjectLineage;
+  logicalPass: number;
+  retryGeneration: number;
 }
 
 export interface LocalReviewAdmission {
@@ -53,6 +63,9 @@ export interface LocalReviewAdmission {
   policyBindingDigest: string;
   requestMechanism: string;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
+  lineage: LaneSubjectLineage;
+  logicalPass: number;
+  retryGeneration: number;
   carrier: LocalChangeSetCarrierContract;
 }
 
@@ -85,6 +98,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
   const requirement = validateReviewRequirement(target, input.requirement);
   const policyBindingDigest = ReviewCanonicalDigestSchema.parse(input.policyBindingDigest);
   const requestMechanism = ReviewIdentifierSchema.parse(input.requestMechanism);
+  const lineage = LaneSubjectLineageSchema.parse(input.lineage);
+  const logicalPass = z.number().int().positive().parse(input.logicalPass);
+  const retryGeneration = z.number().int().nonnegative().parse(input.retryGeneration);
   const carrier = createLocalChangeSetCarrier({
     target,
     requirementId: requirement.requirementId,
@@ -104,7 +120,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
       runtimeIdentity: input.authority.runtimeIdentity,
       mechanism: input.authority.attestationMechanism,
     },
-    generation: 0,
+    lineage,
+    logicalPass,
+    generation: retryGeneration,
     requestMechanism,
   });
   const preimage = LocalOperationIdentityPreimageSchema.parse({
@@ -119,6 +137,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     deliveryAdmissionDigest: input.deliveryAdmission === undefined
       ? null
       : canonicalDigest(input.deliveryAdmission),
+    lineage,
+    logicalPass,
+    retryGeneration,
   });
   const operationId = `local-${canonicalDigest(preimage).slice("sha256:".length)}`;
   return {
@@ -129,6 +150,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     laneSourceId: input.laneSourceId,
     policyBindingDigest,
     requestMechanism,
+    lineage,
+    logicalPass,
+    retryGeneration,
     ...(input.deliveryAdmission === undefined
       ? {}
       : { deliveryAdmission: input.deliveryAdmission }),
@@ -165,6 +189,9 @@ export async function resolveLocalReviewAdmission(
     || persisted.state.policyBindingDigest !== admission.policyBindingDigest
     || persisted.state.repositoryId !== admission.target.repositoryId
     || persisted.state.laneSourceId !== admission.laneSourceId
+    || canonicalize(persisted.state.lineage) !== canonicalize(admission.lineage)
+    || persisted.state.logicalPass !== admission.logicalPass
+    || persisted.state.retryGeneration !== admission.retryGeneration
     || canonicalize(persisted.state.deliveryAdmission ?? null)
       !== canonicalize(admission.deliveryAdmission ?? null)
     || canonicalize(persisted.state.vehicle) !== canonicalize(admission.authority.vehicle)

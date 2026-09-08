@@ -87,7 +87,7 @@ vi.mock("../../../../src/scripts/review-gate/hosts/local/operation-state-store.j
 }));
 vi.mock("../../../../src/scripts/review-gate/lane-progress.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/scripts/review-gate/lane-progress.js")>(),
-  readLaneProgress: mocks.readLaneProgress,
+  readLaneProgressAcrossLineage: mocks.readLaneProgress,
 }));
 vi.mock("../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js", async (importOriginal) => {
   const actual = await importOriginal<

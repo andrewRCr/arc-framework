@@ -834,7 +834,10 @@ describe("composePrePublicationReviewRequest", () => {
     );
 
     expect(readLaneProgress).toHaveBeenCalledWith("frontline", HEAD, [HEAD]);
-    expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD, [HEAD]);
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD, [HEAD], {
+      kind: "candidate",
+      candidateId: CANDIDATE_ID,
+    });
     expect(composition.status === "composed" && composition.request.standard).toMatchObject({
       completedPasses: 1,
       attempts: [{ sourceId: "codex-pr", outcome: "findings" }],
@@ -856,7 +859,10 @@ describe("composePrePublicationReviewRequest", () => {
       }),
     );
 
-    expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD, [priorHead, HEAD]);
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD, [priorHead, HEAD], {
+      kind: "candidate",
+      candidateId: CANDIDATE_ID,
+    });
     expect(composition.status).toBe("composed");
     if (composition.status !== "composed") return;
     expect(composition.request.standard.completedPasses).toBe(2);

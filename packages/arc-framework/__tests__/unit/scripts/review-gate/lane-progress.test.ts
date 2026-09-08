@@ -73,10 +73,13 @@ describe("lane progress", () => {
     expect(LaneProgressStateSchema.parse(state)).toEqual(state);
     expect(state.lane).toBe("standard");
     expect(state.repositoryId).toBe("repo-1");
-    expect(state.changeRequestId).toBe("pull/42");
-    expect(state.headSha).toBe(objectId("c"));
     expect(state.attempts).toEqual([{
       attemptId: "attempt-1",
+      logicalPass: 1,
+      retryGeneration: 0,
+      changeRequestId: "pull/42",
+      headSha: objectId("c"),
+      terminalProducer: false,
       sourceId: "coderabbit-pr",
       outcome: "rate-limited",
     }]);
@@ -131,6 +134,87 @@ describe("lane progress", () => {
       .toBe(standard);
   });
 
+  it("owns progress by stable delivery-member lineage instead of exact head", () => {
+    const member = DeliveryReviewMemberVehicleSchema.omit({ head: true }).parse({
+      kind: "delivery-member" as const,
+      planId: "123e4567-e89b-12d3-a456-426614174000",
+      workUnitId: "review-signal-convergence",
+      deliverableId: "sha256:" + "2".repeat(64),
+    });
+    const firstHead = laneProgressOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      lineage: member,
+      headSha: objectId("c"),
+    });
+    const movedHead = laneProgressOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      lineage: member,
+      headSha: objectId("d"),
+    });
+    const siblingAtSameHead = laneProgressOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      lineage: { ...member, deliverableId: "sha256:" + "3".repeat(64) },
+      headSha: objectId("c"),
+    });
+
+    expect(movedHead).toBe(firstHead);
+    expect(siblingAtSameHead).not.toBe(firstHead);
+  });
+
+  it("retains exact target facts on attempts owned by one moving lineage", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: "sha256:" + "4".repeat(64),
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      outcome: "rate-limited",
+      consumedPass: false,
+    });
+    const state = await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 1,
+      headSha: objectId("d"),
+      changeRequestId: "pull/43",
+      attemptId: "attempt-2",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      consumedPass: true,
+    });
+
+    expect(state.lineage).toEqual(lineage);
+    expect(state).not.toHaveProperty("headSha");
+    expect(state).not.toHaveProperty("changeRequestId");
+    expect(state.attempts.map(({ headSha, changeRequestId, logicalPass, retryGeneration }) => ({
+      headSha,
+      changeRequestId,
+      logicalPass,
+      retryGeneration,
+    }))).toEqual([
+      {
+        headSha: objectId("c"),
+        changeRequestId: "pull/42",
+        logicalPass: 1,
+        retryGeneration: 0,
+      },
+      {
+        headSha: objectId("d"),
+        changeRequestId: "pull/43",
+        logicalPass: 1,
+        retryGeneration: 1,
+      },
+    ]);
+  });
+
   it("carries the chunk-series flag through to the record", async () => {
     const store = createStore();
     const state = await recordLaneAttempt(store, {
@@ -141,6 +225,11 @@ describe("lane progress", () => {
     });
     expect(state.attempts[0]).toEqual({
       attemptId: "attempt-1",
+      logicalPass: 1,
+      retryGeneration: 0,
+      changeRequestId: "pull/42",
+      headSha: objectId("c"),
+      terminalProducer: true,
       sourceId: "coderabbit-pr",
       outcome: "clean",
       chunkSeriesComplete: true,
@@ -160,6 +249,31 @@ describe("lane progress", () => {
       .rejects.toThrow(/version-conflict/u);
   });
 
+  it("repairs an interrupted identical owner write after a version conflict", async () => {
+    const store = createStore();
+    const publish = store.publishOperation;
+    let interrupted = false;
+    store.publishOperation = async (next, expectedVersion) => {
+      if (!interrupted) {
+        interrupted = true;
+        store.records.set(next.operationId, { version: 1, state: next });
+        throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
+      }
+      return publish(next, expectedVersion);
+    };
+
+    const state = await recordLaneAttempt(store, {
+      ...attempt,
+      logicalPass: 1,
+      outcome: "clean",
+      consumedPass: true,
+    });
+
+    expect(state.completedPasses).toBe(1);
+    expect(state.attempts).toHaveLength(1);
+    expect(state.attempts[0]?.attemptId).toBe(attempt.attemptId);
+  });
+
   it("makes an exact terminal-attempt replay idempotent and rejects a conflicting replay", async () => {
     const store = createStore();
     const first = await recordLaneAttempt(store, { ...attempt, outcome: "findings", consumedPass: true });
@@ -170,6 +284,43 @@ describe("lane progress", () => {
     expect(replay.attempts).toHaveLength(1);
     await expect(recordLaneAttempt(store, { ...attempt, outcome: "clean", consumedPass: true }))
       .rejects.toThrow(/conflicting lane-attempt replay/u);
+  });
+
+  it("allows only one authoritative terminal producer for a logical pass", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: "sha256:" + "5".repeat(64),
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      outcome: "rate-limited",
+      consumedPass: false,
+    });
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: "attempt-2",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      consumedPass: true,
+    });
+
+    await expect(recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: "attempt-3",
+      sourceId: "delegated-agent",
+      outcome: "findings",
+      consumedPass: true,
+    })).rejects.toThrow(/terminal producer/u);
   });
 
   it("settles one findings attempt once and preserves its pass count on replay", async () => {
@@ -330,7 +481,6 @@ describe("hosted await lane recording", () => {
     });
     expect(state?.lane).toBe("standard");
     expect(state?.repositoryId).toBe("repo-1");
-    expect(state?.changeRequestId).toBe("pull/42");
     expect(state?.attempts).toEqual([expect.objectContaining({
       attemptId: expect.any(String),
       sourceId: "coderabbit-pr",
@@ -641,10 +791,13 @@ describe("frontline lane recording", () => {
     });
     expect(state?.lane).toBe("frontline");
     expect(state?.repositoryId).toBe("repo-1");
-    expect(state?.changeRequestId).toBeNull();
-    expect(state?.headSha).toBe(objectId("c"));
     expect(state?.attempts).toEqual([{
       attemptId: expect.any(String),
+      logicalPass: 1,
+      retryGeneration: 0,
+      changeRequestId: null,
+      headSha: objectId("c"),
+      terminalProducer: false,
       sourceId: "coderabbit",
       outcome: "rate-limited",
       chunkSeriesComplete: false,
@@ -692,8 +845,26 @@ describe("lane progress reader", () => {
       status: "recorded",
       completedPasses: 1,
       attempts: [
-        { attemptId: "attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" },
-        { attemptId: "attempt-2", sourceId: "codex-pr", outcome: "findings" },
+        {
+          attemptId: "attempt-1",
+          logicalPass: 1,
+          retryGeneration: 0,
+          changeRequestId: "pull/42",
+          headSha: objectId("c"),
+          terminalProducer: false,
+          sourceId: "coderabbit-pr",
+          outcome: "rate-limited",
+        },
+        {
+          attemptId: "attempt-2",
+          logicalPass: 1,
+          retryGeneration: 0,
+          changeRequestId: "pull/42",
+          headSha: objectId("c"),
+          terminalProducer: true,
+          sourceId: "codex-pr",
+          outcome: "findings",
+        },
       ],
     });
   });
@@ -738,7 +909,61 @@ describe("lane progress reader", () => {
     })).resolves.toEqual({
       status: "recorded",
       completedPasses: 2,
-      attempts: [{ attemptId: "attempt-2", sourceId: "codex-pr", outcome: "clean" }],
+      attempts: [{
+        attemptId: "attempt-2",
+        logicalPass: 1,
+        retryGeneration: 0,
+        changeRequestId: "pull/42",
+        headSha: objectId("d"),
+        terminalProducer: true,
+        sourceId: "codex-pr",
+        outcome: "clean",
+      }],
+    });
+  });
+
+  it("combines stable-lineage and exact-head history without double-counting either owner", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"6".repeat(64)}`,
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      sourceId: "delegated-agent",
+      outcome: "clean",
+      consumedPass: true,
+    });
+    await recordLaneAttempt(store, {
+      ...attempt,
+      attemptId: "attempt-2",
+      sourceId: "coderabbit-pr",
+      outcome: "rate-limited",
+      consumedPass: false,
+    });
+
+    await expect(readLaneProgressAcrossLineage(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("c"),
+      lineageHeadShas: [objectId("c")],
+      lineage,
+    })).resolves.toEqual({
+      status: "recorded",
+      completedPasses: 1,
+      attempts: [
+        expect.objectContaining({
+          attemptId: "attempt-1",
+          sourceId: "delegated-agent",
+          outcome: "clean",
+        }),
+        expect.objectContaining({
+          attemptId: "attempt-2",
+          sourceId: "coderabbit-pr",
+          outcome: "rate-limited",
+        }),
+      ],
     });
   });
 });

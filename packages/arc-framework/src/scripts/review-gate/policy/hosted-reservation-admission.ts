@@ -88,18 +88,18 @@ export function projectHostedReservationPolicyProgress(input: {
     for (const [attemptIndex, attempt] of state.attempts.entries()) {
       const hosted = attempt.hosted;
       const local = attempt.local;
-      const hostedIdentityMatches = state.changeRequestId === `pull/${String(input.target.pullRequest)}`
+      const hostedIdentityMatches = attempt.changeRequestId === `pull/${String(input.target.pullRequest)}`
         && hosted !== undefined
         && hosted.vehicle !== undefined
         && hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
         && hosted.target.pullRequest === input.target.pullRequest
-        && hosted.target.headSha === state.headSha
+        && hosted.target.headSha === attempt.headSha
         && hosted.reviewTarget.repositoryId === input.repositoryId
-        && hosted.reviewTarget.headSha === state.headSha
+        && hosted.reviewTarget.headSha === attempt.headSha
         && sameDeliveryReviewMemberIdentity(input.vehicle, hosted.vehicle);
       const hostedCompleteMatches = hostedIdentityMatches
         && (hosted.requestedCoverage === "complete" || hosted.effectiveCoverage === "complete");
-      const localMatches = state.changeRequestId === null
+      const localMatches = attempt.changeRequestId === null
         && local?.deliveryAdmission !== undefined
         && local.vehicle.kind === "delivery-member"
         && sameDeliveryReviewMemberIdentity(input.vehicle, local.deliveryAdmission.vehicle)
@@ -107,14 +107,14 @@ export function projectHostedReservationPolicyProgress(input: {
         && local.deliveryAdmission.target.pullRequest === input.target.pullRequest
         && local.target.kind === "delivery-member"
         && local.target.repositoryId === input.repositoryId
-        && local.target.headSha === state.headSha;
+        && local.target.headSha === attempt.headSha;
       if (!hostedIdentityMatches && !localMatches) continue;
       historyTimeline.push({
         operationId: state.operationId,
         attemptIndex,
         progress: {
           updatedAt: state.updatedAt,
-          headSha: state.headSha,
+          headSha: attempt.headSha,
           sourceId: attempt.sourceId,
           outcome: attempt.outcome,
           requestedCoverage: localMatches ? "complete" : hosted?.requestedCoverage ?? "complete",
@@ -129,7 +129,7 @@ export function projectHostedReservationPolicyProgress(input: {
         || attempt.outcome === "settled-findings")) {
         completedPasses += 1;
       }
-      if (state.headSha === input.target.headSha
+      if (attempt.headSha === input.target.headSha
         && attempt.outcome !== "pending"
         && (localMatches || (hostedCompleteMatches
           && sameDeliveryReviewMemberVehicle(input.vehicle, hosted.vehicle)))) {

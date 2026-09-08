@@ -15,6 +15,8 @@ import type {
   ReviewOperationState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
 
@@ -81,6 +83,9 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
       attestationMechanism: "local-attestation",
     },
     laneSourceId: "delegated-agent",
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
+    retryGeneration: 0,
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -97,10 +102,15 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     laneSourceId: admission.laneSourceId,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: digest("source"),
+    guidance: projectLocalReviewGuidance().projection,
     guidanceDigest: digest("guidance"),
+    reviewerInstructions: projectLocalReviewGuidance().reviewerInstructions,
     target,
     requirement,
     request: admission.carrier.request,
@@ -202,6 +212,8 @@ describe("local attest command", () => {
         outcome: "clean",
         chunkSeriesComplete: true,
         local: {
+          operationId: records.operation.operationId,
+          requestId: records.operation.requestId,
           vehicle: records.operation.vehicle,
           target: records.operation.target,
         },
@@ -297,6 +309,8 @@ describe("local attest command", () => {
           sourceId: records.operation.laneSourceId,
           outcome,
           local: {
+            operationId: records.operation.operationId,
+            requestId: records.operation.requestId,
             vehicle: records.operation.vehicle,
             target: records.operation.target,
           },

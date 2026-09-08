@@ -108,18 +108,18 @@ export function queryEarlierReviewAttempts(
     const state = record.state;
     if (state.kind !== "lane-progress"
       || state.lane !== selector.lane
-      || state.repositoryId !== selector.repositoryId
-      || state.headSha === selector.currentHead) continue;
+      || state.repositoryId !== selector.repositoryId) continue;
     for (const attempt of state.attempts) {
+      if (attempt.headSha === selector.currentHead) continue;
       const hosted = attempt.hosted;
       if (attempt.sourceId !== selector.sourceId) continue;
       if (hosted !== undefined
-        && state.changeRequestId === `pull/${String(selector.pullRequest)}`
+        && attempt.changeRequestId === `pull/${String(selector.pullRequest)}`
         && hosted.target.repository.toLowerCase() === selector.repository
         && hosted.target.pullRequest === selector.pullRequest
-        && hosted.target.headSha === state.headSha
+        && hosted.target.headSha === attempt.headSha
         && hosted.reviewTarget.repositoryId === selector.repositoryId
-        && hosted.reviewTarget.headSha === state.headSha
+        && hosted.reviewTarget.headSha === attempt.headSha
         && sameVehicleIdentity(selector.currentVehicle, hosted.vehicle)) {
         candidates.push(EarlierReviewAttemptCandidateSchema.parse({
           operationId: state.operationId,
@@ -131,7 +131,7 @@ export function queryEarlierReviewAttempts(
           outcome: attempt.outcome,
           requestedCoverage: hosted.requestedCoverage,
           effectiveCoverage: hosted.effectiveCoverage,
-          priorHead: state.headSha,
+          priorHead: attempt.headSha,
           target: hosted.target,
           ...(hosted.vehicle === undefined ? {} : { priorVehicle: hosted.vehicle }),
           reviewTarget: hosted.reviewTarget,
@@ -143,7 +143,7 @@ export function queryEarlierReviewAttempts(
       const local = attempt.local;
       if (local === undefined
         || local.deliveryAdmission === undefined
-        || state.changeRequestId !== null
+        || attempt.changeRequestId !== null
         || selector.currentVehicle === undefined
         || local.vehicle.kind !== "delivery-member"
         || !sameVehicleIdentity(selector.currentVehicle, local.deliveryAdmission.vehicle)
@@ -151,7 +151,7 @@ export function queryEarlierReviewAttempts(
         || local.deliveryAdmission.target.pullRequest !== selector.pullRequest
         || local.target.kind !== "delivery-member"
         || local.target.repositoryId !== selector.repositoryId
-        || local.target.headSha !== state.headSha) continue;
+        || local.target.headSha !== attempt.headSha) continue;
       candidates.push(EarlierReviewAttemptCandidateSchema.parse({
         operationId: state.operationId,
         version: record.version,
@@ -162,7 +162,7 @@ export function queryEarlierReviewAttempts(
         outcome: attempt.outcome,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
-        priorHead: state.headSha,
+        priorHead: attempt.headSha,
         target: local.deliveryAdmission.target,
         priorVehicle: local.deliveryAdmission.vehicle,
         reviewTarget: local.target,

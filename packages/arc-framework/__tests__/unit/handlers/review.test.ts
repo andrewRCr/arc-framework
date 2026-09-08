@@ -591,6 +591,9 @@ function localReceiptFixture() {
       attestationMechanism: "local-attestation",
     },
     laneSourceId: "delegated-agent",
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
+    retryGeneration: 0,
     policyBindingDigest: canonicalDigest({ policy: "local" }),
     requestMechanism: "local-attestation",
   });

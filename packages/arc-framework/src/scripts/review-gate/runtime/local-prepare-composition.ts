@@ -55,6 +55,8 @@ import { sweepLocalReviewSources } from "../core/local-source-sweep.js";
 import type { LocalPrepareDependencies } from "./local-prepare.js";
 import { resolveReviewStatus } from "../status.js";
 import { createReviewStatusPort } from "../status-composition.js";
+import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
+import { LaneSubjectLineageSchema } from "../core/lane-admission.js";
 
 const LOCAL_STANDARD_SOURCE = {
   sourceKind: "agent",
@@ -137,6 +139,35 @@ export function createLocalPrepareDependencies(input: {
         memberLookup,
       },
     ),
+    resolveLineage: async (vehicle, target, deliveryAdmission, member) => {
+      if (vehicle.kind === "delivery-member") {
+        if (member === undefined) {
+          throw new Error("delivery-member lineage authority is unavailable");
+        }
+        return LaneSubjectLineageSchema.parse({
+          kind: "delivery-member",
+          planId: deliveryAdmission?.vehicle.planId ?? member.planId,
+          workUnitId: deliveryAdmission?.vehicle.workUnitId ?? member.workUnitId,
+          deliverableId: deliveryAdmission?.vehicle.deliverableId ?? member.deliverableId,
+        });
+      }
+      if (vehicle.kind === "work-unit") {
+        const boundary = (await readSubmissionBoundaryVersioned(input.cwd, vehicle.identity)).boundary;
+        if (boundary === null || boundary.workUnit !== vehicle.identity) {
+          throw new Error("Candidate lineage authority is unavailable for local review");
+        }
+        return LaneSubjectLineageSchema.parse({
+          kind: "candidate",
+          candidateId: boundary.candidateId,
+        });
+      }
+      return LaneSubjectLineageSchema.parse({
+        kind: "head-bound",
+        vehicleKind: vehicle.kind,
+        vehicleIdentity: vehicle.identity,
+        headSha: target.headSha,
+      });
+    },
     composeAssurance: async (authority: LocalReviewAuthority) => {
       const live = await readLive();
       // A member's assurance is its owning work unit's: same meta, same work
