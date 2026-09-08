@@ -353,7 +353,7 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 - _Outcome:_ Task-list preambles and phases now retain scanner identity through preflight, authoring, destination
   resolution, immutable composition, and retirement while provisional member copies remain non-authoritative.
 
-### `[ ]` **2.3 Retain companion bytes through extraction preflight, decode, and finish**
+### `[x]` **2.3 Retain companion bytes through extraction preflight, decode, and finish**
 
 - _Goal:_ Extraction can observe started-Planning companions for exact authoring while no supported extraction path
   removes or rewrites their bytes.
@@ -374,18 +374,14 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           with no removed locators, then proves finish preview and apply omit them from pending mutations while
           preserving their bytes and modes through the existing decoder-to-plan pipeline.
 
-    - `[ ]` **2.3.d Exercise the started-Planning extraction lifecycle**
-        - Extend repository integration coverage from preflight through extract, result landing, finish preview, and
-          finish apply with companion content present.
-        - At `proveGitV3ExtractionDestinations()`, run one private pure source-group classifier before accepting either
-          refreshed authority or fallback. Require every companion path, object kind, mode, and byte sequence to equal
-          its common no-op before/after state; admit fallback only when every changed non-companion artifact is exactly
-          a before or after state from the original authenticated thinning plan. Ignore unrelated non-group changes.
-        - Assert the companion allocations remain visible to the author, each companion enters authenticated thinning
-          as a no-op but no pending source mutation, and the origin finishes with byte-identical companions.
-        - Exercise exact partial prior thinning and already-finished states, then add, remove, move, structurally
-          rename, byte-edit, and mode-change companions and require `source:source-units` reauthoring through both
-          authority-selection paths rather than refreshed acceptance, fallback, or a later preimage refusal.
+    - `[x]` **2.3.d Exercise the started-Planning extraction lifecycle**
+        - Finish proof now classifies the origin artifact group against the original authenticated companion no-ops
+          and design before/after states before selecting refreshed or fallback authority. Integration coverage carries
+          started Planning through extraction, landing, partial thinning, apply, and already-finished recognition;
+          every companion drift shape requires reauthoring while unrelated work-unit artifacts remain out of scope.
+
+- _Outcome:_ Extraction now exposes complete started-Planning companion authoring while preserving every companion
+  byte and mode from preflight through finish, including refresh, fallback, partial-progress, and repeat paths.
 
 ### `[ ]` **2.4 Land a notes unit through scaffold, conservation, and result reporting**
 

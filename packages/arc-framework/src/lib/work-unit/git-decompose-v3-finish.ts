@@ -22,8 +22,10 @@ import {
   type V3ExtractionFinishResult,
 } from "./decompose-v3-finish.js";
 import {
+  v3DecomposeAbsentEvidence,
   v3DecomposeByteEvidence,
   v3DecomposeRemedy,
+  type V3DecomposeEvidenceValue,
   type V3DecomposeRefusalEvidence,
 } from "./decompose-v3-refusal.js";
 import { executeV3ExtractionSourceFinish } from "./decompose-v3-finish-operation.js";
@@ -35,6 +37,7 @@ import {
   createV3DecomposePreflight,
   revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
+  type V3DecomposeStoredArtifact,
 } from "./decompose-v3-preflight.js";
 import { refreshV3ExtractionCutMap } from "./decompose-v3-refresh.js";
 import {
@@ -554,6 +557,131 @@ function roadmapBytes(tree: V3RepositoryPlanTree): Uint8Array | null {
     : null;
 }
 
+type V3ExtractionSourceGroupClassification =
+  | { status: "admitted" }
+  | { status: "reauthor"; locus: string; evidence?: V3DecomposeRefusalEvidence };
+
+type V3ExtractionSourceGroupArtifact = Omit<V3DecomposeStoredArtifact, "objectKind"> & {
+  objectKind: string;
+};
+
+function sourceArtifactEvidence(
+  artifact: V3ExtractionSourceGroupArtifact | undefined,
+): V3DecomposeEvidenceValue {
+  return artifact === undefined
+    ? v3DecomposeAbsentEvidence()
+    : {
+        kind: "object",
+        objectKind: artifact.objectKind,
+        mode: artifact.mode,
+        ...v3DecomposeByteEvidence(artifact.bytes),
+      };
+}
+
+function plannedAfterEvidence(
+  file: V3ExtractionSourceThinningFilePlan,
+): V3DecomposeEvidenceValue {
+  return file.after.kind === "absent"
+    ? v3DecomposeAbsentEvidence()
+    : {
+        kind: "object",
+        objectKind: "blob",
+        mode: file.after.mode,
+        ...v3DecomposeByteEvidence(file.after.bytes),
+      };
+}
+
+function artifactsEqual(
+  left: V3ExtractionSourceGroupArtifact | undefined,
+  right: V3ExtractionSourceGroupArtifact,
+): boolean {
+  return left !== undefined
+    && right.objectKind === "blob"
+    && left.objectKind === right.objectKind
+    && left.mode === right.mode
+    && Buffer.from(left.bytes).equals(Buffer.from(right.bytes));
+}
+
+function artifactMatchesAfter(
+  artifact: V3ExtractionSourceGroupArtifact | undefined,
+  file: V3ExtractionSourceThinningFilePlan,
+): boolean {
+  if (file.after.kind === "absent") return artifact === undefined;
+  return artifact !== undefined
+    && artifact.objectKind === "blob"
+    && artifact.mode === file.after.mode
+    && Buffer.from(artifact.bytes).equals(Buffer.from(file.after.bytes));
+}
+
+function companionPlanIsNoop(
+  original: V3ExtractionSourceGroupArtifact,
+  file: V3ExtractionSourceThinningFilePlan | undefined,
+): boolean {
+  return file === undefined || (
+    file.before.mode === original.mode
+    && file.before.contentDigest === digestBytes(original.bytes)
+    && file.before.byteLength === original.bytes.byteLength
+    && file.after.kind === "file"
+    && file.after.mode === original.mode
+    && Buffer.from(file.after.bytes).equals(Buffer.from(original.bytes))
+    && file.removedLocators.length === 0
+  );
+}
+
+function classifyV3ExtractionSourceGroup(
+  map: V3DecomposeCutMap,
+  sourceOriginPath: string,
+  originalArtifacts: readonly V3ExtractionSourceGroupArtifact[],
+  currentArtifacts: readonly V3ExtractionSourceGroupArtifact[],
+  originalFiles: readonly V3ExtractionSourceThinningFilePlan[],
+): V3ExtractionSourceGroupClassification {
+  const original = new Map(originalArtifacts
+    .filter(({ path }) => path !== sourceOriginPath)
+    .map((artifact) => [artifact.path, artifact]));
+  const current = new Map(currentArtifacts
+    .filter(({ path }) => path !== sourceOriginPath)
+    .map((artifact) => [artifact.path, artifact]));
+  const files = new Map(originalFiles.map((file) => [file.path, file]));
+  const paths = sortByCanonicalBytes([...new Set([...original.keys(), ...current.keys()])]);
+
+  for (const path of paths) {
+    const before = original.get(path);
+    const observed = current.get(path);
+    const file = files.get(path);
+    if (before === undefined) {
+      return {
+        status: "reauthor",
+        locus: path,
+        evidence: {
+          expected: v3DecomposeAbsentEvidence(),
+          actual: sourceArtifactEvidence(observed),
+        },
+      };
+    }
+    const companion = !map.machine.planningProfile.sourceDesign.includes(posix.basename(path));
+    const admitted = companion
+      ? companionPlanIsNoop(before, file) && artifactsEqual(observed, before)
+      : file !== undefined
+        && (artifactsEqual(observed, before) || artifactMatchesAfter(observed, file));
+    if (!admitted) {
+      return {
+        status: "reauthor",
+        locus: path,
+        evidence: {
+          expected: companion
+            ? sourceArtifactEvidence(before)
+            : {
+                before: sourceArtifactEvidence(before),
+                after: file === undefined ? v3DecomposeAbsentEvidence() : plannedAfterEvidence(file),
+              },
+          actual: sourceArtifactEvidence(observed),
+        },
+      };
+    }
+  }
+  return { status: "admitted" };
+}
+
 function planRefusal(result: Extract<V3RepositoryPlanResult, { status: "refused" }>):
 GitV3ExtractionDestinationProofResult {
   return refused(
@@ -693,6 +821,37 @@ export async function proveGitV3ExtractionDestinations(
         originalBinding.evidence,
       );
     }
+    const originalSourceTree = Object.fromEntries(originalSourceSnapshot.sourceArtifacts.map((artifact) => [
+      artifact.path,
+      {
+        kind: "object" as const,
+        objectKind: artifact.objectKind,
+        mode: artifact.mode,
+        bytes: artifact.bytes,
+      },
+    ]));
+    const originalThinning = planV3ExtractionSourceThinning({
+      completedMap: map,
+      currentPreflight: originalBinding.preflight,
+      sourceTree: originalSourceTree,
+    });
+    if (originalThinning.status === "refused") {
+      return refused(
+        `source-plan:${originalThinning.reason}`,
+        originalThinning.locus,
+        originalThinning.evidence,
+      );
+    }
+    const sourceGroup = classifyV3ExtractionSourceGroup(
+      map,
+      originalBinding.preflight.sourceOriginPath,
+      originalSourceSnapshot.sourceArtifacts,
+      sourceSnapshot.sourceArtifacts,
+      originalThinning.files,
+    );
+    if (sourceGroup.status === "reauthor") {
+      return refused("source:source-units", sourceGroup.locus, sourceGroup.evidence);
+    }
     if (refreshed.status === "ready") {
       const binding = refreshV3ExtractionCutMap(map, refreshed.preflight);
       if (binding.status !== "reauthor") {
@@ -714,14 +873,16 @@ export async function proveGitV3ExtractionDestinations(
         sourceHead: map.machine.source.head,
       };
     }
-    const [sourceTree, originalSourceTree, originalBaseTree, currentBaseTree] = await Promise.all([
+    const [sourceTree, originalSourceRepositoryTree, originalBaseTree, currentBaseTree] = await Promise.all([
       readGitV3RepositoryTree(dependencies, selected.sourceHead),
       readGitV3RepositoryTree(dependencies, map.machine.source.head),
       readGitV3RepositoryTree(dependencies, map.machine.resultBase.head),
       readGitV3RepositoryTree(dependencies, baseHead),
     ]);
     if (sourceTree === null) return refused("source-tree-unreadable", selected.sourceHead);
-    if (originalSourceTree === null) return refused("source-tree-unreadable", map.machine.source.head);
+    if (originalSourceRepositoryTree === null) {
+      return refused("source-tree-unreadable", map.machine.source.head);
+    }
     if (originalBaseTree === null) return refused("result-base-tree-unreadable", map.machine.resultBase.head);
     if (currentBaseTree === null) return refused("base-tree-unreadable", baseHead);
     const originalRoadmap = roadmapBytes(originalBaseTree);
@@ -729,7 +890,7 @@ export async function proveGitV3ExtractionDestinations(
     const expected = await composeV3ExtractionRepositoryPlan({
       completedMap: map,
       currentPreflight: originalBinding.preflight,
-      sourceTree: originalSourceTree,
+      sourceTree: originalSourceRepositoryTree,
       mergeBaseTree: originalBaseTree,
       resultBaseTree: originalBaseTree,
       mergeBases: [map.machine.resultBase.head],

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -36,7 +36,6 @@ import {
 import {
   v3IncomingEdgeId,
   v3PreflightId,
-  v3SourceId,
 } from "../../src/lib/work-unit/decompose-v3-schema.js";
 import { runCli } from "../helpers/run-cli.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
@@ -260,6 +259,7 @@ async function activeExtractionRepository(
   provisionalTask: boolean,
   incoming = false,
   extraCompanions = false,
+  sourceMaturity: "active" | "started-planning" = "active",
 ) {
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-extraction-plan-"));
   roots.push(repo);
@@ -287,7 +287,8 @@ async function activeExtractionRepository(
   }
   const baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
 
-  await git(repo, ["switch", "-c", "feat/origin"]);
+  const sourceBranch = sourceMaturity === "started-planning" ? "plan/origin" : "feat/origin";
+  await git(repo, ["switch", "-c", sourceBranch]);
   const design = profile === "draft"
     ? ["draft-origin.md"]
     : profile === "single-spec"
@@ -307,14 +308,15 @@ async function activeExtractionRepository(
     await write(repo, ".arc/active/notes-origin.md", "# Notes\n\nPreserve exactly.\n");
   }
   await write(repo, ".arc/active/meta-origin.md", renderMetaFile("origin", {
-    state: "Active",
+    state: sourceMaturity === "started-planning" ? "Planning" : "Active",
     owner: "andrew",
-    branch: "feat/origin",
+    branch: sourceBranch,
     workClass: "Heavy",
     priority: "P1",
     origin: "internal",
     design,
     ...(profile === "draft" ? {} : { taskList: "tasks-origin.md" }),
+    ...(sourceMaturity === "started-planning" ? { currentWorkflow: "generate-tasks" } : {}),
     nextAction: "Continue implementation",
   }));
   await git(repo, ["add", "."]);
@@ -332,6 +334,9 @@ async function activeExtractionRepository(
   if (preflight.status !== "ready") throw new Error(JSON.stringify(preflight));
   const machine = preflight.preflight.starterMap.machine;
   if (machine.sourceUnits.length < 3) throw new Error("extraction fixture needs three source units");
+  const designSourceIds = machine.sourceUnits.filter((unit) =>
+    machine.planningProfile.sourceDesign.includes(unit.sourcePath.split("/").at(-1)!))
+    .map(({ sourceId }) => sourceId);
   const completedMap = {
     schemaVersion: 3 as const,
     machine,
@@ -348,7 +353,16 @@ async function activeExtractionRepository(
       sourceAllocations: machine.sourceUnits.map((unit, index) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned" as const,
-        disposition: provisionalTask && index === 0
+        disposition: sourceMaturity === "started-planning"
+          && !designSourceIds.includes(unit.sourceId)
+          ? { kind: "retained-origin" as const }
+          : sourceMaturity === "started-planning"
+            && designSourceIds.indexOf(unit.sourceId) === 0
+            ? { kind: "retained-origin" as const }
+            : sourceMaturity === "started-planning"
+              && designSourceIds.indexOf(unit.sourceId) === designSourceIds.length - 1
+              ? { kind: "drop" as const, reason: "obsolete framing" }
+              : provisionalTask && index === 0
           ? {
               kind: "target" as const,
               destinationId: "member",
@@ -382,6 +396,7 @@ async function activeExtractionRepository(
     baseHead,
     sourceHead,
     sourceTree,
+    sourceBranch,
   };
 }
 
@@ -417,6 +432,42 @@ async function landedExtractionRepository() {
   await git(fixture.repo, ["switch", "feat/origin"]);
   return { ...fixture, landedHead };
 }
+
+async function landedStartedPlanningCompanionExtractionRepository(
+  profile: "single-spec" | "paired-spec" = "single-spec",
+) {
+  const fixture = await activeExtractionRepository(
+    profile,
+    false,
+    false,
+    true,
+    "started-planning",
+  );
+  const staged = await executeGitV3ExtractionOperation({
+    ...fixture.dependencies,
+    spawningIdentity: "andrew",
+  }, {
+    protection: "full",
+    baseBranch: "main",
+    completedMap: fixture.completedMap,
+  });
+  if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+    throw new Error(JSON.stringify(staged));
+  }
+  const candidatePath = staged.operation.occupation.path;
+  roots.push(candidatePath);
+  await git(candidatePath, ["commit", "-m", "land started planning extraction"]);
+  const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+  await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+  await git(fixture.repo, ["switch", fixture.sourceBranch]);
+  const cutMapPath = join(fixture.repo, "started-planning-cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(fixture.completedMap)}\n`);
+  return { ...fixture, staged, candidatePath, cutMapPath };
+}
+
+type StartedPlanningCompanionFixture = Awaited<
+  ReturnType<typeof landedStartedPlanningCompanionExtractionRepository>
+>;
 
 async function landedCohortExtractionRepository() {
   const fixture = await activeExtractionRepository("single-spec", false);
@@ -767,6 +818,166 @@ describe("Git v3 repository plan", () => {
     }
   });
 
+  it("finishes a partially thinned started-Planning extraction with byte-identical companions", async () => {
+    const fixture = await landedStartedPlanningCompanionExtractionRepository("paired-spec");
+    const companionPaths = [
+      ".arc/active/assurance-origin.md",
+      ".arc/active/draft-origin.md",
+      ".arc/active/notes-origin.md",
+      ".arc/active/tasks-origin.md",
+    ];
+    expect(fixture.completedMap.machine.source.kind).toBe("started-planning");
+    for (const path of companionPaths) {
+      const units = fixture.completedMap.machine.sourceUnits.filter(({ sourcePath }) => sourcePath === path);
+      expect(units.length).toBeGreaterThan(0);
+      expect(units.map(({ sourceId }) => fixture.completedMap.authoring.sourceAllocations.find(
+        (allocation) => allocation.sourceId === sourceId,
+      )?.disposition)).toEqual(units.map(() => ({ kind: "retained-origin" })));
+    }
+    const companionBefore = new Map(await Promise.all(companionPaths.map(async (path) => {
+      const inventory = fixture.preflight.sourceArtifactInventory.find((artifact) => artifact.path === path);
+      if (inventory === undefined) throw new Error(`missing companion inventory ${path}`);
+      const bytes = await readBlob(fixture.repo, fixture.sourceHead, path);
+      if (bytes === null) throw new Error(`missing companion bytes ${path}`);
+      return [path, { bytes, mode: inventory.mode }] as const;
+    })));
+
+    const firstPreview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+    if (firstPreview.status !== "previewed") throw new Error(JSON.stringify(firstPreview));
+    expect(firstPreview.preview.sources).toHaveLength(2);
+    expect(firstPreview.preview.sources.every(({ path }) => !companionPaths.includes(path))).toBe(true);
+
+    const alreadyThinned = firstPreview.preview.sources[0]!;
+    if (alreadyThinned.after.kind === "absent") {
+      await rm(join(fixture.repo, alreadyThinned.path));
+    } else {
+      await writeFile(
+        join(fixture.repo, alreadyThinned.path),
+        Buffer.from(alreadyThinned.after.contentBase64, "base64"),
+      );
+      await chmod(join(fixture.repo, alreadyThinned.path), alreadyThinned.after.mode === "100755" ? 0o755 : 0o644);
+    }
+    await git(fixture.repo, ["add", "-A", "--", alreadyThinned.path]);
+
+    const partialPreview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+    if (partialPreview.status !== "previewed") throw new Error(JSON.stringify(partialPreview));
+    expect(partialPreview.preview.sources).toEqual(firstPreview.preview.sources.slice(1));
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: partialPreview.preview.applyAuthority,
+    })).resolves.toEqual({ status: "finished" });
+    const stagedPaths = (await git(fixture.repo, ["diff", "--cached", "--name-only"]))
+      .trim().split("\n").filter(Boolean);
+    expect(stagedPaths).toEqual(firstPreview.preview.sources.map(({ path }) => path).sort());
+    for (const [path, before] of companionBefore) {
+      await expect(readFile(join(fixture.repo, path))).resolves.toEqual(Buffer.from(before.bytes));
+      expect((await git(fixture.repo, ["ls-files", "-s", "--", path])).split(" ")[0]).toBe(before.mode);
+    }
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toEqual({ status: "already-finished" });
+  });
+
+  it("ignores committed changes outside the origin artifact group", async () => {
+    const fixture = await landedStartedPlanningCompanionExtractionRepository();
+    const unrelatedPath = ".arc/active/notes-other.md";
+    await write(fixture.repo, unrelatedPath, "# Other notes\n\nUnrelated change.\n");
+    await git(fixture.repo, ["add", unrelatedPath]);
+    await git(fixture.repo, ["commit", "-m", "change unrelated work unit"]);
+
+    const result = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+    expect(result.status, JSON.stringify(result)).toBe("previewed");
+    if (result.status !== "previewed") return;
+    expect(result.preview.sources.every(({ path }) => path !== unrelatedPath)).toBe(true);
+  });
+
+  it.each([
+    ["addition", "fallback", ".arc/active/context-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await write(fixture.repo, ".arc/active/context-origin.md", "# Context\n\nAdded later.\n");
+    }],
+    ["removal", "fallback", ".arc/active/notes-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await rm(join(fixture.repo, ".arc/active/notes-origin.md"));
+    }],
+    ["movement", "fallback", ".arc/active/journal-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await git(fixture.repo, [
+        "mv",
+        ".arc/active/notes-origin.md",
+        ".arc/active/journal-origin.md",
+      ]);
+    }],
+    ["structural rename", "fallback", ".arc/active/tasks-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      const path = ".arc/active/tasks-origin.md";
+      const before = await readFile(join(fixture.repo, path), "utf8");
+      await write(fixture.repo, path, before.replace("## Scope 0", "## Renamed scope"));
+    }],
+    ["byte edit", "refreshed", ".arc/active/notes-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await write(fixture.repo, ".arc/active/notes-origin.md", "# Notes\n\nChanged after extraction landing.\n");
+    }],
+    ["mode change", "refreshed", ".arc/active/notes-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await chmod(join(fixture.repo, ".arc/active/notes-origin.md"), 0o755);
+    }],
+  ] as const)("requires reauthoring for companion %s through the %s authority path", async (
+    _mutation,
+    _authorityPath,
+    expectedLocus,
+    mutate,
+  ) => {
+    const fixture = await landedStartedPlanningCompanionExtractionRepository();
+    await mutate(fixture);
+    await git(fixture.repo, ["add", "-A"]);
+    await git(fixture.repo, ["commit", "-m", "change retained companion"]);
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "source:source-units",
+      locus: expectedLocus,
+    });
+  });
+
   it.each([
     ["preview", null],
     [
@@ -991,7 +1202,7 @@ describe("Git v3 repository plan", () => {
     expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", sourcePath])).toBe("");
   });
 
-  it("invalidates preview authority after a committed reasoned-drop byte refresh", async () => {
+  it("requires reauthoring after a committed reasoned-drop byte refresh", async () => {
     const fixture = await landedExtractionRepository();
     const preview = await previewFinish(fixture);
     if (preview.status !== "previewed") throw new Error(JSON.stringify(preview));
@@ -1018,11 +1229,16 @@ describe("Git v3 repository plan", () => {
     await writeFile(sourcePath, changed);
     await git(fixture.repo, ["add", droppedUnit.sourcePath]);
     await git(fixture.repo, ["commit", "-m", "refresh reasoned-drop source bytes"]);
-    const committedSource = await readFile(sourcePath, "utf8");
     const refreshedPreview = await previewFinish(fixture);
-    expect(refreshedPreview).toMatchObject({ status: "previewed" });
-    if (refreshedPreview.status !== "previewed") return;
-    expect(refreshedPreview.preview.applyAuthority).not.toBe(preview.preview.applyAuthority);
+    expect(refreshedPreview).toMatchObject({
+      status: "refused",
+      reason: "source:source-units",
+      locus: droppedUnit.sourcePath,
+      evidence: {
+        expected: { before: { contentDigest: digestBytes(sourceBytes) } },
+        actual: { contentDigest: digestBytes(changed), byteLength: changed.byteLength },
+      },
+    });
 
     await expect(finishGitV3Extraction(fixture.dependencies, {
       cwd: fixture.repo,
@@ -1032,25 +1248,13 @@ describe("Git v3 repository plan", () => {
       applyAuthority: preview.preview.applyAuthority,
     })).resolves.toMatchObject({
       status: "refused",
-      reason: "apply-authority",
-      locus: "apply",
-      evidence: {
-        expected: refreshedPreview.preview.applyAuthority,
-        actual: preview.preview.applyAuthority,
-      },
+      reason: "source:source-units",
+      locus: droppedUnit.sourcePath,
       remedy: {
-        argv: [
-          "arc",
-          "decompose",
-          "origin",
-          "--finish",
-          fixture.cutMapPath,
-          "--apply",
-          preview.preview.applyAuthority,
-        ],
+        argv: ["arc", "decompose", "origin", "--preflight"],
       },
     });
-    await expect(readFile(sourcePath, "utf8")).resolves.toBe(committedSource);
+    await expect(readFile(sourcePath)).resolves.toEqual(changed);
     expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", droppedUnit.sourcePath]))
       .toBe("");
 
@@ -1316,11 +1520,6 @@ describe("Git v3 repository plan", () => {
       Buffer.from("Changed after additive landing.\n", "utf8"),
       sourceBytes.slice(resolved.unit.byteRange.end),
     ]);
-    const changedScan = scanV3DecomposeContent(sourceUnit.sourceLocator.artifact, changed);
-    if (changedScan.status !== "scanned") throw new Error(changedScan.reason);
-    const changedUnit = changedScan.units.find((unit) =>
-      v3SourceId({ sourcePath: sourceUnit.sourcePath, sourceLocator: unit.locator }) === sourceUnit.sourceId);
-    if (changedUnit === undefined) throw new Error("changed source unit did not retain its identity");
     await writeFile(sourcePath, changed);
     await git(fixture.repo, ["add", sourceUnit.sourcePath]);
     await git(fixture.repo, ["commit", "-m", "change transferred source bytes"]);
@@ -1328,10 +1527,10 @@ describe("Git v3 repository plan", () => {
     await expect(previewFinish(fixture)).resolves.toMatchObject({
       status: "refused",
       reason: "source:source-units",
-      locus: expect.stringMatching(/\.contentDigest$/u),
+      locus: sourceUnit.sourcePath,
       evidence: {
-        expected: sourceUnit.contentDigest,
-        actual: digestBytes(changedUnit.bytes),
+        expected: { before: { contentDigest: digestBytes(sourceBytes) } },
+        actual: { contentDigest: digestBytes(changed), byteLength: changed.byteLength },
       },
     });
   });
