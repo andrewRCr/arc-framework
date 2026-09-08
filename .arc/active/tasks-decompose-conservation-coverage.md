@@ -369,14 +369,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           destination-owned retained-origin allocation, reports `companion-disposition` at the exact allocation,
           and routes the code through a specific shared remedy without changing retirement or design-unit choices.
 
-    - `[ ]` **2.3.c Preserve retained companions through thinning and finish**
-        - Carry the decode rule through `planV3ExtractionSourceThinning()` and
-          `executeV3ExtractionSourceFinish()` without adding a second exclusion list.
-        - Build `test-first` (one behavior at a time):
-            - Authenticate retained task, notes, and generic companion paths as no-op thinning entries with equal
-              before/after bytes and no removed locators, then omit them from pending preview and apply mutations.
-            - Preserve exact bytes and modes across preview and apply, with focused coverage in
-              `__tests__/unit/work-unit/decompose-v3-thinning.test.ts`.
+    - `[x]` **2.3.c Preserve retained companions through thinning and finish**
+        - Focused thinning coverage now authenticates task, notes, and generic companions as exact no-op file plans
+          with no removed locators, then proves finish preview and apply omit them from pending mutations while
+          preserving their bytes and modes through the existing decoder-to-plan pipeline.
 
     - `[ ]` **2.3.d Exercise the started-Planning extraction lifecycle**
         - Extend repository integration coverage from preflight through extract, result landing, finish preview, and
