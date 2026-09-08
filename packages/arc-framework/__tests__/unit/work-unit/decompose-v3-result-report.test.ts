@@ -7,7 +7,10 @@ import type {
   V3ValidatedPathMutation,
   ValidatedDecomposePlan,
 } from "../../../src/lib/work-unit/decompose-v3-plan.js";
-import { reportV3DecomposeResult } from "../../../src/lib/work-unit/decompose-v3-result-report.js";
+import {
+  V3DecomposeResultReportSchema,
+  reportV3DecomposeResult,
+} from "../../../src/lib/work-unit/decompose-v3-result-report.js";
 import { createProspectiveTransitionOverlay } from "../../../src/lib/work-unit/transition-overlay.js";
 
 const absent = { kind: "absent" as const };
@@ -107,6 +110,23 @@ function materialized(
 }
 
 describe("v3 decomposition result reporting", () => {
+  it("validates the complete report recursively and rejects extra or incoherent fields", () => {
+    const mutation = contentMutation(".arc/active/meta-member.md");
+    const source = plan([mutation], [{ kind: "none" }]);
+    const report = reportV3DecomposeResult(source, materialized(source, ["applied"]));
+
+    expect(V3DecomposeResultReportSchema.parse(report)).toEqual(report);
+    expect(V3DecomposeResultReportSchema.safeParse({ ...report, extra: true }).success).toBe(false);
+    expect(V3DecomposeResultReportSchema.safeParse({
+      ...report,
+      paths: [{ ...report.paths[0]!, extra: true }],
+    }).success).toBe(false);
+    expect(V3DecomposeResultReportSchema.safeParse({
+      ...report,
+      topology: [{ kind: "topology", action: "none", path: mutation.path, disposition: "no-write" }],
+    }).success).toBe(false);
+  });
+
   it("reports standalone, nested, missing-parent, and at-cap topology actions from planned facts", () => {
     const actions = [
       { kind: "create" as const, path: ".arc/backlog/planned/member/meta-member.md" },

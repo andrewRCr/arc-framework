@@ -91,7 +91,7 @@ only after every mode has executable coverage.
   its exact locus and fold-or-drop preflight remedy through the operation boundary, and exposes the shared strict
   envelope at the public handler seam.
 
-### `[ ]` **1.2 Extend specific remedies across preflight, execute, and extraction**
+### `[x]` **1.2 Extend specific remedies across preflight, execute, and extraction**
 
 - _Goal:_ Preflight, retirement execute, and extraction expose one specific corrective command for every known
   refusal without pushing remedy text into pure validation modules.
@@ -121,36 +121,18 @@ only after every mode has executable coverage.
         - Replaced both generic projection failures with seven member/path-bearing codes, including distinct Active
           scaffold encoding and title failures, and mapped each to a locus-specific preflight or invoked-mode remedy.
 
-    - `[ ]` **1.2.g Map retirement and extraction operation refusals at their command boundaries**
-        - Replace string remedies in `GitV3DecomposeCommandResult` and `GitV3ExtractionCommandResult` with
-          `SpineRemedy`, selecting corrections from stable composed-code segments and attaching admitted operation
-          evidence in `git-decompose-v3-operation.ts`.
-        - Preserve the existing optional refusal `report` beside `stage` and `recovery` on operation-returned
-          refusals. Define its strict schema in `decompose-v3-result-report.ts`; add plan-owned runtime schemas for the
-          existing mutation/contributor shapes, derive their TypeScript types, and compose them with
-          `V3PathStateSchema`. Build the mode-specific execute/extract envelopes as strict unions of those
-          stage-bearing results and the core-only `unexpected-error` arm rather than dropping post-materialization
-          evidence or inventing exception authority.
-        - Build `test-first` (one behavior at a time):
-            - Map repository-plan, execution-preflight, materialization, occupation, and operation refusal codes
-              without adding remedies to pure results; retain the evidence-widened pure refusal shapes.
-            - Report expected and actual remote tips for `source-unpublished`, partial base/index/worktree facts for
-              `partial-projection-drift`, and plan identities for `repository-plan-drift`.
-            - Select the exact execute or extract retry argv from the invoked mode and cut-map path.
-            - Preserve typed recovery facts and optional reports, including report-bearing materialization and
-              post-stage or transition-record refusals, while replacing the free-form `switch` over recovery text.
-            - Normalize transition-record and rollback/restoration diagnostics to stable codes with their variable
-              detail in `locus`.
+    - `[x]` **1.2.g Map retirement and extraction operation refusals at their command boundaries**
+        - Replaced execute/extract string recovery paths with strict mode-specific refusal unions, typed recovery and
+          report schemas, plan-owned mutation/contributor schemas, operation evidence, and stable diagnostic codes
+          whose runtime detail remains in `locus`.
 
-    - `[ ]` **1.2.h Render corrective commands as argv and verbatim guidance**
-        - Add structured argv builders for all six decompose invocations in `decompose-command-renderer.ts`, derive
-          existing display renderers from the same operands, and pass the arrays directly to `spineRemedy()` as the
-          single text composer.
-        - Build `test-first` (one behavior at a time):
-            - Quote display text safely while keeping argv operands unmodified and shell-independent; never parse a
-              rendered command back into argv.
-            - Name cleanup, publication, reauthoring, and retry commands precisely for their stable refusal codes.
-            - Retire the `No recovery command was authorized` fallback without inventing an authoring command.
+    - `[x]` **1.2.h Render corrective commands as argv and verbatim guidance**
+        - Kept all six structured invocation builders as the operand authority, verified shell-safe display rendering,
+          mapped stable repository and operation causes to exact preflight, invoked-mode, publication, or candidate
+          cleanup argv, and removed the unactionable textual recovery fallback.
+
+- _Outcome:_ Preflight, retirement execute, and extraction now preserve actionable comparison and recovery facts while
+  every covered refusal boundary returns a strict `SpineRemedy` composed from opaque argv operands.
 
 ### `[ ]` **1.3 Carry comparison evidence and remedies through finish preview and apply**
 

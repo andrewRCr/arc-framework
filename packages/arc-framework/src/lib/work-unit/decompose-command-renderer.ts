@@ -11,6 +11,11 @@ function renderCommand(argv: readonly string[]): string {
   return argv.map(renderV3DecomposeCommandArgument).join(" ");
 }
 
+/** Render one already-structured decomposition argv without reconstructing its operands. */
+export function renderV3DecomposeArgv(argv: readonly string[]): string {
+  return renderCommand(argv);
+}
+
 /** Build the read-only preflight invocation without shell reconstruction. */
 export function v3DecomposePreflightArgv(origin: string): readonly string[] {
   return ["arc", "decompose", origin, "--preflight"];

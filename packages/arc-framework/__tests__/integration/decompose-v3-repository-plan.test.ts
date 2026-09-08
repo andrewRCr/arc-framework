@@ -14,6 +14,7 @@ import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decom
 import {
   executeGitV3DecomposeCommand,
   executeGitV3DecomposeOperation,
+  executeGitV3ExtractionCommand,
   executeGitV3ExtractionOperation,
 } from "../../src/lib/work-unit/git-decompose-v3-operation.js";
 import { finishGitV3Extraction } from "../../src/lib/work-unit/git-decompose-v3-finish.js";
@@ -1556,7 +1557,12 @@ describe("Git v3 repository plan", () => {
       stage: "repository-plan",
       reason: "source-unpublished",
       locus: "plan/origin",
+      evidence: {
+        expected: completedMap.machine.source.head,
+        actual: completedMap.machine.resultBase.head,
+      },
       recovery: { kind: "none" },
+      remedy: { argv: ["git", "push", "origin", "plan/origin"] },
     });
     expect(await claimFiles(repo)).toEqual([]);
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
@@ -1583,7 +1589,12 @@ describe("Git v3 repository plan", () => {
       stage: "repository-plan",
       reason: "source-unpublished",
       locus: "plan/origin",
+      evidence: {
+        expected: completedMap.machine.source.head,
+        actual: { kind: "absent" },
+      },
       recovery: { kind: "none" },
+      remedy: { argv: ["git", "push", "origin", "plan/origin"] },
     });
     expect(await claimFiles(repo)).toEqual([]);
   });
@@ -1718,7 +1729,7 @@ describe("Git v3 repository plan", () => {
       status: "refused",
       stage: "repository-plan",
       reason: "git-preflight:missing-base",
-      remedy: "Re-preflight: arc decompose origin --preflight",
+      remedy: { argv: ["arc", "decompose", "origin", "--preflight"] },
     });
     expect(await claimFiles(repo)).toEqual([]);
   });
@@ -1781,12 +1792,56 @@ describe("Git v3 repository plan", () => {
       },
     });
     expect(result).toMatchObject({
-      remedy: expect.stringContaining(`Then retry: arc decompose origin --execute ${cutMapPath}`),
+      remedy: { argv: ["arc", "teardown", "--branch", "chore/decompose-origin"] },
     });
-    expect(result.status === "refused" ? result.remedy : "").not.toContain("discard");
+    expect(result.status === "refused" ? result.remedy.text : "").toContain(cutMapPath);
+    expect(result.status === "refused" ? result.remedy.text : "").not.toContain("discard");
     expect(await claimFiles(repo)).toEqual([]);
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"]))
       .toContain("chore/decompose-origin");
+  });
+
+  it("reports the earlier and refreshed repository plan identities", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const roadmapOid = (await git(repo, ["rev-parse", "main:.arc/backlog/ROADMAP.md"])).trim();
+    let drift = false;
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      exec: async (command, args, options) => {
+        const value = await dependencies.exec(command, args, options);
+        if (args[0] === "worktree" && args[1] === "add") drift = true;
+        return value;
+      },
+      readObject: async (oid) => {
+        const bytes = await dependencies.readObject(oid);
+        return drift && oid === roadmapOid
+          ? new Uint8Array([...bytes, ...new TextEncoder().encode("refreshed")])
+          : bytes;
+      },
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(drift).toBe(true);
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "post-occupation-revalidation",
+      reason: "repository-plan-drift",
+      locus: "planId",
+      evidence: {
+        expected: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+        actual: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      },
+      recovery: { kind: "full-candidate" },
+    });
+    if (result.status !== "refused" || result.evidence === undefined) return;
+    expect(result.evidence.expected).not.toBe(result.evidence.actual);
   });
 
   it("refuses an untracked partial destination without staging or replacing it", async () => {
@@ -1829,6 +1884,10 @@ describe("Git v3 repository plan", () => {
       status: "refused",
       stage: "occupation",
       reason: "base-moved",
+      evidence: {
+        expected: completedMap.machine.resultBase.head,
+        actual: { kind: "absent" },
+      },
       recovery: { kind: "none" },
     });
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
@@ -1864,6 +1923,19 @@ describe("Git v3 repository plan", () => {
       status: "refused",
       stage: "post-occupation-revalidation",
       reason: "partial-projection-drift",
+      locus: "main",
+      evidence: {
+        expected: {
+          baseHead: completedMap.machine.resultBase.head,
+          indexClean: true,
+          worktreeClean: true,
+        },
+        actual: {
+          baseHead: completedMap.machine.resultBase.head,
+          indexClean: false,
+          worktreeClean: true,
+        },
+      },
       recovery: { kind: "none" },
     });
     expect(await git(repo, ["diff", "--cached", "--name-only"]))
@@ -1908,6 +1980,47 @@ describe("Git v3 repository plan", () => {
     if (result.recovery.status !== "restored") return;
     expect(result.recovery.restoredPaths).toContain(failedPath);
     expect(await git(repo, ["status", "--porcelain=v1"])).toBe("");
+  });
+
+  it("preserves a report and typed restoration through the extraction command boundary", async () => {
+    const { repo, completedMap, dependencies } = await activeExtractionRepository("single-spec", false);
+    const remote = await mkdtemp(join(tmpdir(), "arc-v3-extraction-command-remote-"));
+    roots.push(remote);
+    await git(remote, ["init", "--bare"]);
+    await git(repo, ["remote", "add", "origin", remote]);
+    await git(repo, ["push", "origin", "main", "feat/origin"]);
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    let stageCount = 0;
+    const result = await executeGitV3ExtractionCommand({
+      ...dependencies,
+      exec: async (command, args, options) => {
+        if (command === "git" && args[0] === "add" && args[1] === "-A") {
+          stageCount += 1;
+          if (stageCount === 2) throw new Error("synthetic stage failure after write");
+        }
+        return await dependencies.exec(command, args, options);
+      },
+      spawningIdentity: "andrew",
+    }, {
+      protection: "partial",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "materialization",
+      reason: "apply-failed",
+      report: {
+        status: "refused",
+        extraction: { anchor: { kind: "surviving-origin", origin: "origin" } },
+      },
+      recovery: { kind: "partial-restoration", status: "restored" },
+      remedy: { argv: ["arc", "decompose", "origin", "--extract", cutMapPath] },
+    });
+    expect(await git(repo, ["status", "--porcelain=v1"])).toBe("?? cut-map.json\n");
   });
 
   it("retires and prunes one configured-ref backlog stub on the partial base", async () => {

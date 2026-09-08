@@ -97,11 +97,11 @@ import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3
 import {
   executeGitV3DecomposeCommand,
   executeGitV3ExtractionCommand,
+  GitV3DecomposeCommandRefusalSchema,
+  GitV3ExtractionCommandRefusalSchema,
 } from "../lib/work-unit/git-decompose-v3-operation.js";
 import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-finish.js";
 import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
-import { V3UncoveredRetirementContentRefusalSchema } from
-  "../lib/work-unit/decompose-v3-refusal.js";
 import { advanceGitDecomposeTransitionBase } from
   "../lib/work-unit/git-decompose-transition-base-advancement.js";
 import { decodeV3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
@@ -443,8 +443,10 @@ function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): vo
   refuse(`${reason}\n${remedy.text}`);
 }
 
-function emitV3DecomposeRefusal(input: unknown): void {
-  const refusal = V3UncoveredRetirementContentRefusalSchema.parse(input);
+function emitV3DecomposeRefusal(input: unknown, mode: "execute" | "extract"): void {
+  const refusal = mode === "execute"
+    ? GitV3DecomposeCommandRefusalSchema.parse(input)
+    : GitV3ExtractionCommandRefusalSchema.parse(input);
   process.stdout.write(`${canonicalize(refusal)}\n`);
   process.stderr.write(`${refusal.reason}\n${refusal.remedy.text}\n`);
   process.exitCode = 1;
@@ -1059,13 +1061,7 @@ export async function handleDecompose(
         cutMapPath: parsed.data.execute,
       });
       if (result.status !== "staged") {
-        if (typeof result.remedy !== "string") {
-          emitV3DecomposeRefusal(result);
-          return;
-        }
-        process.stdout.write(`${canonicalize(result)}\n`);
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
-        process.exitCode = 1;
+        emitV3DecomposeRefusal(result, "execute");
         return;
       }
       process.stdout.write(`${canonicalize(result)}\n`);
@@ -1081,11 +1077,11 @@ export async function handleDecompose(
         origin: parsed.data.origin,
         cutMapPath: parsed.data.extract,
       });
-      process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status !== "staged") {
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
-        process.exitCode = 1;
+        emitV3DecomposeRefusal(result, "extract");
+        return;
       }
+      process.stdout.write(`${canonicalize(result)}\n`);
       return;
     }
     if (parsed.data.advanceBase !== undefined) {

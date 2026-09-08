@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
+  V3DecomposeOperationRecoverySchema,
   executeV3DecomposeOperation,
   executeV3ExtractionOperation,
   type V3DecomposeOperationDependencies,
@@ -208,6 +209,40 @@ function extractionReportFacts() {
 }
 
 describe("executeV3DecomposeOperation", () => {
+  it("validates every recovery arm strictly", () => {
+    const recoveries = [
+      { kind: "none" as const },
+      {
+        kind: "partial-restoration" as const,
+        status: "restored" as const,
+        restoredPaths: [".arc/active/meta-origin.md"],
+      },
+      {
+        kind: "partial-restoration" as const,
+        status: "failed" as const,
+        affectedPaths: [".arc/active/meta-origin.md"],
+        path: ".arc/active/meta-origin.md",
+      },
+      {
+        kind: "full-candidate" as const,
+        path: "/repo/.git/arc/worktrees/candidate",
+        candidateBranch: "chore/decompose-origin",
+        expectedHead: "base-head",
+      },
+    ];
+
+    for (const recovery of recoveries) {
+      expect(V3DecomposeOperationRecoverySchema.parse(recovery)).toEqual(recovery);
+      expect(V3DecomposeOperationRecoverySchema.safeParse({ ...recovery, extra: true }).success)
+        .toBe(false);
+    }
+    expect(V3DecomposeOperationRecoverySchema.safeParse({
+      kind: "partial-restoration",
+      status: "restored",
+      affectedPaths: ["wrong-arm.md"],
+    }).success).toBe(false);
+  });
+
   it("stages an additive result without creating retirement history", async () => {
     const fixture = operationFixture();
     delete fixture.plan.prospectiveOverlay;
@@ -327,6 +362,72 @@ describe("executeV3DecomposeOperation", () => {
     expect(events).not.toContain(`apply:${fixture.firstPath}`);
   });
 
+  it("preserves materialization locus and evidence beside report and recovery", async () => {
+    const fixture = operationFixture();
+    const observedBytes = encoder.encode("wrong final bytes\n");
+    const result = await executeV3DecomposeOperation({
+      protection: "full",
+      configuredBase: "main",
+      plan: fixture.plan,
+      completedMap: fixture.completedMap,
+    }, dependencies(fixture, fullOccupation(), [], {
+      materializer: {
+        observe: async () => ({ kind: "absent" }),
+        readBlob: async () => observedBytes,
+        applyAndStageFinal: async () => ({ status: "applied" }),
+      },
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "materialization",
+      reason: "final-blob-mismatch",
+      locus: fixture.firstPath,
+      evidence: {
+        expected: firstAfter.contentDigest,
+        actual: {
+          contentDigest: digestBytes(observedBytes),
+          byteLength: observedBytes.byteLength,
+        },
+      },
+      report: { status: "refused" },
+      recovery: {
+        kind: "full-candidate",
+        candidateBranch: "chore/decompose-origin",
+      },
+    });
+  });
+
+  it("preserves post-occupation comparison evidence before materialization", async () => {
+    const fixture = operationFixture();
+    const evidence = {
+      expected: fixture.plan.planId,
+      actual: `sha256:${"f".repeat(64)}`,
+    };
+    const result = await executeV3DecomposeOperation({
+      protection: "full",
+      configuredBase: "main",
+      plan: fixture.plan,
+      completedMap: fixture.completedMap,
+    }, dependencies(fixture, fullOccupation(), [], {
+      revalidate: async () => ({
+        status: "refused",
+        reason: "repository-plan-drift",
+        locus: "planId",
+        evidence,
+      }),
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "post-occupation-revalidation",
+      reason: "repository-plan-drift",
+      locus: "planId",
+      evidence,
+      recovery: { kind: "full-candidate" },
+    });
+  });
+
   it.each(["retirement", "extraction"] as const)(
     "restores only actually changed %s paths from distinct index and worktree preimages",
     async (mode) => {
@@ -409,13 +510,44 @@ describe("executeV3DecomposeOperation", () => {
     expect(result).toMatchObject({
       status: "refused",
       stage: "restoration",
-      reason: "history-write-failed",
+      reason: "partial-restoration-failed",
+      locus: fixture.firstPath,
       recovery: {
         kind: "partial-restoration",
         status: "failed",
         affectedPaths: [fixture.firstPath, fixture.secondPath],
         path: fixture.firstPath,
       },
+    });
+  });
+
+  it("normalizes failed materialization restoration with the mismatching path as locus", async () => {
+    const fixture = operationFixture();
+    const result = await executeV3DecomposeOperation({
+      protection: "partial",
+      configuredBase: "main",
+      plan: fixture.plan,
+      completedMap: fixture.completedMap,
+    }, dependencies(fixture, partialOccupation(), [], {
+      materializer: {
+        observe: async () => ({ kind: "absent" }),
+        readBlob: async (digest) => digest === firstAfter.contentDigest ? firstBytes : secondBytes,
+        applyAndStageFinal: async () => ({ status: "refused", mutated: true }),
+      },
+      partialRecovery: {
+        capture: async () => preimages(fixture.plan),
+        restore: async () => undefined,
+        verify: async () => ({ status: "mismatch", path: fixture.firstPath }),
+      },
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "restoration",
+      reason: "partial-restoration-failed",
+      locus: fixture.firstPath,
+      report: { status: "refused" },
+      recovery: { kind: "partial-restoration", status: "failed", path: fixture.firstPath },
     });
   });
 
@@ -455,6 +587,32 @@ describe("executeV3DecomposeOperation", () => {
     expect(restored).toHaveLength(2);
   });
 
+  it("normalizes a thrown transition-record diagnostic into code and locus", async () => {
+    const fixture = operationFixture();
+    const result = await executeV3DecomposeOperation({
+      protection: "full",
+      configuredBase: "main",
+      plan: fixture.plan,
+      completedMap: fixture.completedMap,
+    }, dependencies(fixture, fullOccupation(), [], {
+      transitionRecords: {
+        record: async () => {
+          throw new Error("transition record disk full");
+        },
+        rollback: async () => ({ status: "rolled-back" }),
+      },
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "transition-record",
+      reason: "transition-record-write-failed",
+      locus: "transition record disk full",
+      report: { status: "reported" },
+      recovery: { kind: "full-candidate" },
+    });
+  });
+
   it("rolls back lean history and transform paths when post-stage authority moves", async () => {
     const fixture = operationFixture();
     const events: string[] = [];
@@ -491,6 +649,58 @@ describe("executeV3DecomposeOperation", () => {
     expect(events).toContain(`restore:${fixture.firstPath},${fixture.secondPath}`);
   });
 
+  it("normalizes transition-record rollback diagnostics into a stable refusal", async () => {
+    const fixture = operationFixture();
+    const result = await executeV3DecomposeOperation({
+      protection: "partial",
+      configuredBase: "main",
+      plan: fixture.plan,
+      completedMap: fixture.completedMap,
+    }, dependencies(fixture, partialOccupation(), [], {
+      revalidateStaged: async () => ({ status: "refused", reason: "source-moved-after-stage" }),
+      transitionRecords: {
+        record: async () => ({ status: "recorded" }),
+        rollback: async () => ({ status: "unavailable", diagnostic: "index cleanup failed" }),
+      },
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "restoration",
+      reason: "transition-record-rollback-failed",
+      locus: "index cleanup failed",
+      report: { status: "reported" },
+      recovery: { kind: "partial-restoration", status: "restored" },
+    });
+  });
+
+  it("normalizes a thrown transition-record rollback into code and locus", async () => {
+    const fixture = operationFixture();
+    const result = await executeV3DecomposeOperation({
+      protection: "partial",
+      configuredBase: "main",
+      plan: fixture.plan,
+      completedMap: fixture.completedMap,
+    }, dependencies(fixture, partialOccupation(), [], {
+      revalidateStaged: async () => ({ status: "refused", reason: "source-moved-after-stage" }),
+      transitionRecords: {
+        record: async () => ({ status: "recorded" }),
+        rollback: async () => {
+          throw new Error("transition record rollback crashed");
+        },
+      },
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "restoration",
+      reason: "transition-record-rollback-failed",
+      locus: "transition record rollback crashed",
+      report: { status: "reported" },
+      recovery: { kind: "partial-restoration", status: "restored" },
+    });
+  });
+
   it("restores extraction paths without creating retirement history when post-stage authority moves", async () => {
     const fixture = operationFixture();
     delete fixture.plan.prospectiveOverlay;
@@ -517,6 +727,67 @@ describe("executeV3DecomposeOperation", () => {
     });
     expect(events).not.toContain("record");
     expect(events).toContain(`restore:${fixture.firstPath},${fixture.secondPath}`);
+  });
+
+  it("preserves a report and comparison evidence after staged extraction revalidation", async () => {
+    const fixture = operationFixture();
+    delete fixture.plan.prospectiveOverlay;
+    const evidence = {
+      expected: fixture.plan.planId,
+      actual: `sha256:${"e".repeat(64)}`,
+    };
+    const result = await executeV3ExtractionOperation({
+      protection: "partial",
+      configuredBase: "main",
+      origin: "origin",
+      plan: fixture.plan,
+      extractionFacts: extractionReportFacts(),
+    }, dependencies(fixture, partialOccupation(), [], {
+      revalidateStaged: async () => ({
+        status: "refused",
+        reason: "repository-plan-drift",
+        locus: "planId",
+        evidence,
+      }),
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "post-stage-revalidation",
+      reason: "repository-plan-drift",
+      locus: "planId",
+      evidence,
+      report: { status: "reported", extraction: { anchor: { origin: "origin" } } },
+      recovery: { kind: "partial-restoration", status: "restored" },
+    });
+  });
+
+  it("normalizes failed post-stage restoration with its mismatching path", async () => {
+    const fixture = operationFixture();
+    delete fixture.plan.prospectiveOverlay;
+    const result = await executeV3ExtractionOperation({
+      protection: "partial",
+      configuredBase: "main",
+      origin: "origin",
+      plan: fixture.plan,
+      extractionFacts: extractionReportFacts(),
+    }, dependencies(fixture, partialOccupation(), [], {
+      revalidateStaged: async () => ({ status: "refused", reason: "source-moved-after-stage" }),
+      partialRecovery: {
+        capture: async () => preimages(fixture.plan),
+        restore: async () => undefined,
+        verify: async () => ({ status: "mismatch", path: fixture.secondPath }),
+      },
+    }));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "restoration",
+      reason: "partial-restoration-failed",
+      locus: fixture.secondPath,
+      report: { status: "reported" },
+      recovery: { kind: "partial-restoration", status: "failed", path: fixture.secondPath },
+    });
   });
 
   it("leaves exact ordinary cleanup facts at every full post-occupation failure", async () => {
@@ -589,6 +860,29 @@ describe("executeV3DecomposeOperation", () => {
         candidateBranch: occupied.candidateBranch,
         expectedHead: fixture.plan.expectedBaseHead,
       },
+    });
+  });
+
+  it("preserves occupation comparison evidence", async () => {
+    const fixture = operationFixture();
+    const evidence = { expected: fixture.plan.expectedBaseHead, actual: "moved-base" };
+    const result = await executeV3DecomposeOperation({
+      protection: "full",
+      configuredBase: "main",
+      plan: fixture.plan,
+      completedMap: fixture.completedMap,
+    }, dependencies(fixture, {
+      status: "refused",
+      reason: "base-moved",
+      evidence,
+    }, []));
+
+    expect(result).toEqual({
+      status: "refused",
+      stage: "occupation",
+      reason: "base-moved",
+      evidence,
+      recovery: { kind: "none" },
     });
   });
 });

@@ -12,6 +12,7 @@ import {
   type SpineRemedy,
 } from "../../scripts/integration/spine-refusal.js";
 import {
+  renderV3DecomposeArgv,
   v3DecomposeAdvanceBaseArgv,
   v3DecomposeExecuteArgv,
   v3DecomposeExtractArgv,
@@ -304,12 +305,565 @@ export function isV3DecomposeMappedReason(reason: string): boolean {
     || code === "target-locator-unresolved"
     || code === "source-scan"
     || code === "uncovered-retirement-content"
+    || code === "source-unpublished"
+    || code === "authoring-shape"
+    || V3_OPERATION_RETRY_REMEDIES[code] !== undefined
+    || V3_REPOSITORY_PLAN_REMEDIES[code] !== undefined
     || code === "unexpected-error";
 }
+
+const V3_OPERATION_RETRY_REMEDIES: Readonly<Record<string, V3PreflightRemedyDefinition>> = {
+  "base-moved": {
+    invariant: "The result base must remain at the plan's authenticated commit.",
+    correction: "Refresh the repository state, then retry the selected mode",
+  },
+  "partial-projection-dirty": {
+    invariant: "Partial protection requires a clean index and worktree for every transform-owned path.",
+    correction: "Clean the reported projection, then retry the selected mode",
+  },
+  "branch-exists-unregistered": {
+    invariant: "A deterministic candidate branch must have one matching ARC worktree registration.",
+    correction: "Remove or register the conflicting candidate, then retry the selected mode",
+  },
+  "registered-at-wrong-path": {
+    invariant: "A candidate registration must use its deterministic branch and worktree path.",
+    correction: "Correct the reported registration, then retry the selected mode",
+  },
+  "occupied-path": {
+    invariant: "The deterministic candidate worktree must be unoccupied before decomposition claims it.",
+    correction: "Release the reported worktree occupant, then retry the selected mode",
+  },
+  "duplicate-registration": {
+    invariant: "A deterministic candidate may have only one worktree registration.",
+    correction: "Remove the duplicate registration, then retry the selected mode",
+  },
+  "candidate-head-mismatch": {
+    invariant: "The candidate branch and registration must both remain at the authenticated base head.",
+    correction: "Restore or remove the mismatched candidate, then retry the selected mode",
+  },
+  "marker-mismatch": {
+    invariant: "A reusable candidate worktree must retain ARC marker ownership.",
+    correction: "Restore the candidate marker or remove the candidate, then retry the selected mode",
+  },
+  "concurrent-creation": {
+    invariant: "Candidate creation must win one mutation-free ownership race.",
+    correction: "Inspect the competing candidate, then retry the selected mode",
+  },
+  "recovery-required": {
+    invariant: "A partially created candidate must be cleaned before decomposition can continue.",
+    correction: "Clean the reported candidate, then retry the selected mode",
+  },
+  "occupation-failed": {
+    invariant: "The result locus must be occupied without an unexpected adapter failure.",
+    correction: "Correct the reported occupation failure, then retry the selected mode",
+  },
+  "repository-plan-drift": {
+    invariant: "The repository plan must remain identical through operation revalidation.",
+    correction: "Refresh the repository state, then retry the selected mode",
+  },
+  "partial-projection-drift": {
+    invariant: "The partial base, index, and worktree must remain unchanged after occupation.",
+    correction: "Clean the reported projection, then retry the selected mode",
+  },
+  "result-locus-unavailable": {
+    invariant: "The occupied result locus must remain available through staged revalidation.",
+    correction: "Restore the reported result locus, then retry the selected mode",
+  },
+  "post-occupation-revalidation-failed": {
+    invariant: "Repository authority must be revalidated after result occupation.",
+    correction: "Correct the reported revalidation failure, then retry the selected mode",
+  },
+  "partial-recovery-unavailable": {
+    invariant: "Partial protection requires an exact restoration adapter before mutation.",
+    correction: "Restore partial-recovery support, then retry the selected mode",
+  },
+  "partial-preimage-capture-failed": {
+    invariant: "Partial protection must capture every transform-owned preimage before mutation.",
+    correction: "Correct the reported preimage capture failure, then retry the selected mode",
+  },
+  "partial-preimage-set-mismatch": {
+    invariant: "Partial recovery must capture exactly the plan's transform-owned paths.",
+    correction: "Correct the partial preimage set, then retry the selected mode",
+  },
+  "post-stage-revalidation-failed": {
+    invariant: "Repository authority must be revalidated after staging.",
+    correction: "Correct the reported revalidation failure, then retry the selected mode",
+  },
+  "partial-restoration-failed": {
+    invariant: "Every transform-owned partial mutation must restore to its captured preimage.",
+    correction: "Restore the reported affected paths, then retry the selected mode",
+  },
+  "transition-record-projection-invalid": {
+    invariant: "Retirement must project one valid transition record before staging history.",
+    correction: "Correct the completed map, then retry the selected mode",
+  },
+  "transition-record-origin-occupied": {
+    invariant: "Only one live transition may own an origin.",
+    correction: "Resolve the existing origin transition, then retry the selected mode",
+  },
+  "transition-record-write-failed": {
+    invariant: "Retirement must record its transition intent after materialization.",
+    correction: "Correct the reported record write failure, then retry the selected mode",
+  },
+  "transition-record-rollback-failed": {
+    invariant: "A refused retirement must roll back its staged transition record.",
+    correction: "Restore the reported transition-record state, then retry the selected mode",
+  },
+  "path-conflict": {
+    invariant: "Every planned path must still match its authenticated before or final state.",
+    correction: "Resolve the reported path conflict, then retry the selected mode",
+  },
+  "missing-final-blob": {
+    invariant: "Every planned final file must have its content-addressed blob.",
+    correction: "Restore the reported final blob, then retry the selected mode",
+  },
+  "final-blob-mismatch": {
+    invariant: "Every materialized blob must match its planned content digest.",
+    correction: "Restore the reported final blob, then retry the selected mode",
+  },
+  "invalid-member-projection": {
+    invariant: "Every new member must project exactly one metadata path.",
+    correction: "Correct the reported member projection, then retry the selected mode",
+  },
+  "observe-failed": {
+    invariant: "Every planned path must be observable before materialization.",
+    correction: "Correct the reported path observation failure, then retry the selected mode",
+  },
+  "blob-read-failed": {
+    invariant: "Every content-addressed final blob must be readable before materialization.",
+    correction: "Correct the reported blob read failure, then retry the selected mode",
+  },
+  "apply-failed": {
+    invariant: "Each final path must be written and staged atomically.",
+    correction: "Correct the reported apply failure, then retry the selected mode",
+  },
+  "extraction-facts-missing": {
+    invariant: "An extraction repository plan must retain its authenticated extraction facts.",
+    correction: "Re-run preflight and reauthor the extraction map",
+  },
+  "source-ref-moved": {
+    invariant: "The source ref must remain at the authenticated commit during repository planning.",
+    correction: "Re-run preflight and reauthor the completed map",
+  },
+  "result-ref-moved": {
+    invariant: "The result-base ref must remain at the authenticated commit during repository planning.",
+    correction: "Re-run preflight and reauthor the completed map",
+  },
+};
+
+interface V3RepositoryPlanRemedyDefinition extends V3PreflightRemedyDefinition {
+  command: "preflight" | "invocation";
+}
+
+const V3_REPOSITORY_PLAN_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemedyDefinition>> = {
+  "invalid-structure": {
+    invariant: "A completed cut map must satisfy the closed v3 structure.",
+    correction: "Correct the reported map structure, then retry the selected mode",
+    command: "invocation",
+  },
+  "incomplete-authoring": {
+    invariant: "Every required authoring slot in a completed cut map must be filled.",
+    correction: "Complete the reported authoring slot, then retry the selected mode",
+    command: "invocation",
+  },
+  "machine-order": {
+    invariant: "Machine-owned map collections must retain canonical order.",
+    correction: "Restore the starter map and reauthor the cut, then retry the selected mode",
+    command: "invocation",
+  },
+  "machine-identity": {
+    invariant: "Machine-owned map facts must retain their canonical identities.",
+    correction: "Restore the starter map and reauthor the cut, then retry the selected mode",
+    command: "invocation",
+  },
+  "authoring-identity": {
+    invariant: "Every authored destination, allocation, and edge must reference a declared identity.",
+    correction: "Correct the reported authored identity, then retry the selected mode",
+    command: "invocation",
+  },
+  "authoring-order": {
+    invariant: "Authored map collections must remain in canonical order.",
+    correction: "Reorder the reported authoring collection, then retry the selected mode",
+    command: "invocation",
+  },
+  "source-shape": {
+    invariant: "Source allocations must use dispositions admitted by the selected source shape.",
+    correction: "Correct the reported source disposition, then retry the selected mode",
+    command: "invocation",
+  },
+  "destination-coverage": {
+    invariant: "Every declared destination must own at least one admitted contribution.",
+    correction: "Add or remove the reported destination, then retry the selected mode",
+    command: "invocation",
+  },
+  "placement-cardinality": {
+    invariant: "The authored placement must agree with the number of declared destinations.",
+    correction: "Correct the reported placement, then retry the selected mode",
+    command: "invocation",
+  },
+  "shape-cardinality": {
+    invariant: "The authored decomposition shape must agree with destination cardinality.",
+    correction: "Correct the reported shape or destinations, then retry the selected mode",
+    command: "invocation",
+  },
+  "invalid-meta": {
+    invariant: "Source and result-base metadata must remain decodable repository records.",
+    correction: "Correct the reported metadata, then re-run preflight",
+    command: "preflight",
+  },
+  "source-meta-mismatch": {
+    invariant: "The repository-plan source metadata must match the authenticated preflight path.",
+    correction: "Re-run preflight and reauthor the completed map",
+    command: "preflight",
+  },
+  "source-artifact-mismatch": {
+    invariant: "Every repository-plan source artifact must match its authenticated inventory state.",
+    correction: "Re-run preflight and reauthor the completed map",
+    command: "preflight",
+  },
+  "duplicate-live-work-unit": {
+    invariant: "Each live work-unit identity may appear only once during conservation.",
+    correction: "Resolve the duplicate live record, then re-run preflight",
+    command: "preflight",
+  },
+  "incoming-edge-set-changed": {
+    invariant: "Incoming dependencies must match the set authenticated by preflight.",
+    correction: "Re-run preflight and reauthor the dependency dispositions",
+    command: "preflight",
+  },
+  "outgoing-edge-set-changed": {
+    invariant: "Outgoing dependencies must match the set authenticated by preflight.",
+    correction: "Re-run preflight and reauthor the dependency dispositions",
+    command: "preflight",
+  },
+  "duplicate-destination-identity": {
+    invariant: "Each authored destination must identify one distinct repository home.",
+    correction: "Remove the duplicate destination, then retry the selected mode",
+    command: "invocation",
+  },
+  "retiring-origin-destination": {
+    invariant: "A retirement destination cannot be the origin it removes.",
+    correction: "Choose a surviving destination, then retry the selected mode",
+    command: "invocation",
+  },
+  "unknown-allocation-destination": {
+    invariant: "Every source allocation must name a declared destination.",
+    correction: "Correct the reported destination identity, then retry the selected mode",
+    command: "invocation",
+  },
+  "incompatible-allocation-locator": {
+    invariant: "Every allocation locator must belong to its declared destination artifact.",
+    correction: "Correct the reported target locator, then retry the selected mode",
+    command: "invocation",
+  },
+  "incompatible-source-ownership": {
+    invariant: "Each allocation ownership must agree with its destination kind.",
+    correction: "Correct the reported ownership, then retry the selected mode",
+    command: "invocation",
+  },
+  "occupied-new-member": {
+    invariant: "A new-member destination must not collide with a live work unit.",
+    correction: "Choose an unoccupied member slug, then retry the selected mode",
+    command: "invocation",
+  },
+  "missing-dependent": {
+    invariant: "Every authenticated incoming dependent must remain live through planning.",
+    correction: "Restore the dependent or re-run preflight and reauthor the cut",
+    command: "preflight",
+  },
+  "unwritable-dependent": {
+    invariant: "Every changed dependent must expose one managed writable metadata path.",
+    correction: "Restore the reported dependent metadata, then retry the selected mode",
+    command: "invocation",
+  },
+  "stale-dependent": {
+    invariant: "A dependent's current targets must match the authenticated incoming edge.",
+    correction: "Re-run preflight and reauthor the dependency dispositions",
+    command: "preflight",
+  },
+  "missing-origin-slot": {
+    invariant: "Every authenticated incoming dependent must still reference the origin.",
+    correction: "Re-run preflight and reauthor the dependency dispositions",
+    command: "preflight",
+  },
+  "missing-incoming-disposition": {
+    invariant: "Every authenticated incoming edge must have one authored disposition.",
+    correction: "Author the missing incoming disposition, then retry the selected mode",
+    command: "invocation",
+  },
+  "missing-outgoing-disposition": {
+    invariant: "Every authenticated outgoing edge must have one authored disposition.",
+    correction: "Author the missing outgoing disposition, then retry the selected mode",
+    command: "invocation",
+  },
+  "origin-reference-remains": {
+    invariant: "Retirement must remove every dependency reference to the retiring origin.",
+    correction: "Replace or drop the reported origin reference, then retry the selected mode",
+    command: "invocation",
+  },
+  "unknown-dependency-recipient": {
+    invariant: "Every dependency contribution must target a declared writable recipient.",
+    correction: "Correct the reported dependency recipient, then retry the selected mode",
+    command: "invocation",
+  },
+  "unknown-internal-dependent": {
+    invariant: "Every internal-edge dependent must be a declared new member.",
+    correction: "Correct the reported internal edge, then retry the selected mode",
+    command: "invocation",
+  },
+  "unknown-internal-prerequisite": {
+    invariant: "Every internal-edge prerequisite must be a declared new member.",
+    correction: "Correct the reported internal edge, then retry the selected mode",
+    command: "invocation",
+  },
+  "self-dependency": {
+    invariant: "An authored internal dependency cannot target its own dependent.",
+    correction: "Remove the self-dependency, then retry the selected mode",
+    command: "invocation",
+  },
+  "unchanged-dependency-slot": {
+    invariant: "An authored dependency disposition must change its authenticated slot.",
+    correction: "Remove or correct the redundant disposition, then retry the selected mode",
+    command: "invocation",
+  },
+  "source-kind": {
+    invariant: "Retirement requires a retiring source kind rather than a surviving Active origin.",
+    correction: "Use extraction authoring for a surviving origin, then retry",
+    command: "invocation",
+  },
+  "missing-merge-base": {
+    invariant: "Source and result-base history must have one merge base.",
+    correction: "Restore a shared history, then re-run preflight",
+    command: "preflight",
+  },
+  "ambiguous-merge-base": {
+    invariant: "Source and result-base history must have exactly one merge base.",
+    correction: "Resolve the ambiguous history, then re-run preflight",
+    command: "preflight",
+  },
+  "invalid-tree-path": {
+    invariant: "Every retirement path must be a managed repository path.",
+    correction: "Correct the reported repository path, then retry the selected mode",
+    command: "invocation",
+  },
+  "ambiguous-predecessor": {
+    invariant: "Retirement must resolve exactly one result-base predecessor.",
+    correction: "Resolve the predecessor records, then re-run preflight",
+    command: "preflight",
+  },
+  "predecessor-missing": {
+    invariant: "The authenticated result-base predecessor must remain present.",
+    correction: "Restore the predecessor or re-run preflight and reauthor the cut",
+    command: "preflight",
+  },
+  "predecessor-changed": {
+    invariant: "The result-base predecessor must match the earlier authenticated tree state.",
+    correction: "Re-run preflight and reauthor the completed map",
+    command: "preflight",
+  },
+  "predecessor-absent-from-source": {
+    invariant: "A started source must contain the predecessor artifact it retires.",
+    correction: "Restore the source artifact, then re-run preflight",
+    command: "preflight",
+  },
+  "backlog-predecessor-changed": {
+    invariant: "A backlog predecessor must be unchanged between base and source trees.",
+    correction: "Re-run preflight and reauthor the completed map",
+    command: "preflight",
+  },
+  "origin-artifact-missing": {
+    invariant: "Every authenticated origin artifact must remain present in the source tree.",
+    correction: "Restore the source artifact, then re-run preflight",
+    command: "preflight",
+  },
+  "unexpected-object-kind": {
+    invariant: "Retirement paths must remain regular Git blobs.",
+    correction: "Restore the reported regular file, then re-run preflight",
+    command: "preflight",
+  },
+  "unexpected-mode": {
+    invariant: "Retirement paths must retain a supported regular-file mode.",
+    correction: "Correct the reported file mode, then re-run preflight",
+    command: "preflight",
+  },
+  "git-read-failed": {
+    invariant: "Retirement planning must read every pinned Git tree state.",
+    correction: "Repair the reported Git read, then retry the selected mode",
+    command: "invocation",
+  },
+  "source-private-added": {
+    invariant: "Retirement cannot silently remove a source-private added path.",
+    correction: "Preserve or remove the reported rider deliberately, then re-run preflight",
+    command: "preflight",
+  },
+  "source-private-modified": {
+    invariant: "Retirement cannot silently remove a source-private modified path.",
+    correction: "Preserve or restore the reported rider, then re-run preflight",
+    command: "preflight",
+  },
+  "source-private-deleted": {
+    invariant: "Retirement cannot silently preserve a source-private deletion mismatch.",
+    correction: "Reconcile the reported rider, then re-run preflight",
+    command: "preflight",
+  },
+  "source-rider": {
+    invariant: "Every source-private retirement rider must have a stable disposition.",
+    correction: "Resolve the reported rider, then re-run preflight",
+    command: "preflight",
+  },
+  "no-new-member": {
+    invariant: "A decomposition topology must introduce at least one new member.",
+    correction: "Author a new-member destination, then retry the selected mode",
+    command: "invocation",
+  },
+  "multi-member-cohortless": {
+    invariant: "Multiple new members require an authored cohort placement.",
+    correction: "Author a cohort placement, then retry the selected mode",
+    command: "invocation",
+  },
+  "placement-member-count": {
+    invariant: "A cohort placement must contain enough constituents to form a cohort.",
+    correction: "Correct the placement or destinations, then retry the selected mode",
+    command: "invocation",
+  },
+  "unexpected-coordination-location": {
+    invariant: "Coordination destinations must agree with the authored topology placement.",
+    correction: "Correct the coordination destination, then retry the selected mode",
+    command: "invocation",
+  },
+  "missing-parent": {
+    invariant: "A subcohort placement requires its parent cohort document.",
+    correction: "Restore the parent cohort, then retry the selected mode",
+    command: "invocation",
+  },
+  "nonregular-topology-path": {
+    invariant: "Every existing topology document must be a supported regular file.",
+    correction: "Restore the reported topology file, then retry the selected mode",
+    command: "invocation",
+  },
+  "invalid-topology-utf8": {
+    invariant: "Every existing topology document must be valid UTF-8.",
+    correction: "Convert the reported topology file to UTF-8, then retry the selected mode",
+    command: "invocation",
+  },
+  "wrong-structural-identity": {
+    invariant: "An existing topology document must carry the identity implied by its path.",
+    correction: "Correct the reported topology identity, then retry the selected mode",
+    command: "invocation",
+  },
+  "invalid-cohort-template": {
+    invariant: "The bundled cohort template must be available as valid UTF-8.",
+    correction: "Restore the cohort template, then retry the selected mode",
+    command: "invocation",
+  },
+  "conflicting-at-cap-provenance": {
+    invariant: "An at-cap parent may contain only one compatible provenance block.",
+    correction: "Resolve the reported provenance block, then retry the selected mode",
+    command: "invocation",
+  },
+  "dependency-projection-failed": {
+    invariant: "Every validated dependency edit must project to one repository mutation.",
+    correction: "Correct the reported dependency projection, then retry the selected mode",
+    command: "invocation",
+  },
+  "roadmap-missing": {
+    invariant: "Repository-plan composition requires one regular ROADMAP document.",
+    correction: "Restore the ROADMAP, then retry the selected mode",
+    command: "invocation",
+  },
+  "roadmap-render-failed": {
+    invariant: "The projected repository tree must render one ROADMAP view.",
+    correction: "Correct the reported ROADMAP render failure, then retry the selected mode",
+    command: "invocation",
+  },
+  "roadmap-plan-identity-mismatch": {
+    invariant: "ROADMAP rendering must not change the immutable repository-plan identity.",
+    correction: "Correct the projected plan, then retry the selected mode",
+    command: "invocation",
+  },
+  "invalid-plan-operand": {
+    invariant: "Plan composition requires complete, internally consistent operands.",
+    correction: "Correct the reported plan operand, then retry the selected mode",
+    command: "invocation",
+  },
+  "invalid-managed-path": {
+    invariant: "Every planned mutation must target a managed repository path.",
+    correction: "Correct the reported mutation path, then retry the selected mode",
+    command: "invocation",
+  },
+  "unsupported-path-state": {
+    invariant: "Every planned path state must be absent or a supported regular file.",
+    correction: "Correct the reported path state, then retry the selected mode",
+    command: "invocation",
+  },
+  "incompatible-base-prestate": {
+    invariant: "Every contributor to one path must agree on the authenticated base prestate.",
+    correction: "Correct the reported contribution, then retry the selected mode",
+    command: "invocation",
+  },
+  "exclusive-role-collision": {
+    invariant: "An exclusive retirement or ROADMAP path may have only one owner.",
+    correction: "Remove the conflicting path claim, then retry the selected mode",
+    command: "invocation",
+  },
+  "duplicate-role-owner": {
+    invariant: "Each path role may have only one contributing owner.",
+    correction: "Remove the duplicate role owner, then retry the selected mode",
+    command: "invocation",
+  },
+  "duplicate-whole-file-owner": {
+    invariant: "A composed path may have only one whole-file content owner.",
+    correction: "Remove the duplicate whole-file owner, then retry the selected mode",
+    command: "invocation",
+  },
+  "incompatible-mode-transition": {
+    invariant: "Every path mutation must retain a compatible regular-file mode transition.",
+    correction: "Correct the reported path mode, then retry the selected mode",
+    command: "invocation",
+  },
+  "contributor-prestate-discontinuity": {
+    invariant: "Ordered contributors must form one continuous path-state chain.",
+    correction: "Correct the reported contributor sequence, then retry the selected mode",
+    command: "invocation",
+  },
+  "tree-read-failed": {
+    invariant: "Repository planning must read the complete pinned source, merge-base, and result trees.",
+    correction: "Repair the reported Git tree read, then retry the selected mode",
+    command: "invocation",
+  },
+  "repository-plan-failed": {
+    invariant: "Repository-plan composition must complete without an adapter failure.",
+    correction: "Correct the reported adapter failure, then retry the selected mode",
+    command: "invocation",
+  },
+};
 
 /** Map one stable decomposition refusal to its command-boundary remedy. */
 export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
   const code = innermostReason(input.reason);
+  if (input.recovery?.kind === "full-candidate") {
+    return spineRemedy(
+      "A decomposition candidate that cannot continue must be cleaned through its owned branch.",
+      `Clean the candidate at ${input.recovery.path}, then retry with ${
+        renderV3DecomposeArgv(invocationArgv(input.invocation))
+      }`,
+      ["arc", "teardown", "--branch", input.recovery.candidateBranch],
+    );
+  }
+  if (input.recovery?.kind === "partial-restoration") {
+    const paths = input.recovery.status === "restored"
+      ? input.recovery.restoredPaths
+      : input.recovery.affectedPaths;
+    return spineRemedy(
+      input.recovery.status === "restored"
+        ? "Every transform-owned partial mutation was restored to its captured preimage."
+        : "Every transform-owned partial mutation must restore to its captured preimage.",
+      input.recovery.status === "restored"
+        ? "Retry the selected mode"
+        : `Restore the reported paths (${paths.join(", ")}), then retry the selected mode`,
+      invocationArgv(input.invocation),
+    );
+  }
   const preflightDefinition = preflightRemedyDefinition(input.reason);
   if (preflightDefinition !== undefined) {
     return spineRemedy(
@@ -319,6 +873,37 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
     );
   }
   switch (code) {
+    case "source-unpublished": {
+      const branch = input.locus ?? input.invocation.origin;
+      return spineRemedy(
+        "A branch-backed source must be published at its authenticated commit before mutation.",
+        "Publish the reported source branch, then retry the selected mode",
+        ["git", "push", "origin", branch],
+      );
+    }
+    case "authoring-shape": {
+      if (input.invocation.mode === "execute") {
+        return spineRemedy(
+          "An extraction-shaped map must run through extraction mode.",
+          "Run the completed map through extraction mode",
+          v3DecomposeExtractArgv(
+            input.invocation.origin,
+            input.invocation.cutMapPath,
+          ),
+        );
+      }
+      if (input.invocation.mode === "extract") {
+        return spineRemedy(
+          "A retirement-shaped map must run through execute mode.",
+          "Run the completed map through retirement execute mode",
+          v3DecomposeExecuteArgv(
+            input.invocation.origin,
+            input.invocation.cutMapPath,
+          ),
+        );
+      }
+      break;
+    }
     case "scaffold-source-meta-incomplete": {
       const source = input.locus ?? "the reported member and source metadata";
       return spineRemedy(
@@ -397,7 +982,32 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
         v3DecomposePreflightArgv(input.invocation.origin),
       );
     }
-    default:
+    default: {
+      const operationDefinition = V3_OPERATION_RETRY_REMEDIES[code];
+      if (operationDefinition !== undefined) {
+        const argv = code === "source-ref-moved"
+          || code === "result-ref-moved"
+          || code === "extraction-facts-missing"
+          ? v3DecomposePreflightArgv(input.invocation.origin)
+          : invocationArgv(input.invocation);
+        return spineRemedy(
+          operationDefinition.invariant,
+          operationDefinition.correction,
+          argv,
+        );
+      }
+      const repositoryDefinition = V3_REPOSITORY_PLAN_REMEDIES[code];
+      if (repositoryDefinition !== undefined) {
+        return spineRemedy(
+          repositoryDefinition.invariant,
+          repositoryDefinition.correction,
+          repositoryDefinition.command === "preflight"
+            ? v3DecomposePreflightArgv(input.invocation.origin)
+            : invocationArgv(input.invocation),
+        );
+      }
       throw new Error(`No decomposition remedy is registered for ${input.reason}.`);
+    }
   }
+  throw new Error(`No decomposition remedy is registered for ${input.reason}.`);
 }

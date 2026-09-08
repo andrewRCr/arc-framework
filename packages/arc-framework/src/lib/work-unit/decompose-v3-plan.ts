@@ -22,11 +22,25 @@ const ManagedPathSchema = z.string().refine(
 );
 
 /** Canonical regular-file or absence state retained by a validated plan. */
+const V3AbsentPathStateSchema = z.strictObject({ kind: z.literal("absent") });
+const V3FilePathStateSchema = z.strictObject({
+  kind: z.literal("file"),
+  mode: z.enum(["100644", "100755"]),
+  contentDigest: DigestSchema,
+});
 export const V3PathStateSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("absent") }),
+  V3AbsentPathStateSchema,
+  V3FilePathStateSchema,
+]);
+
+/** Canonical or raw observed path state admitted while building a plan. */
+export const V3PlanObservedPathStateSchema = z.discriminatedUnion("kind", [
+  V3AbsentPathStateSchema,
+  V3FilePathStateSchema,
   z.strictObject({
-    kind: z.literal("file"),
-    mode: z.enum(["100644", "100755"]),
+    kind: z.literal("object"),
+    objectKind: z.string(),
+    mode: z.string(),
     contentDigest: DigestSchema,
   }),
 ]);
@@ -85,57 +99,63 @@ export function v3PlanId(input: {
   return canonicalDigest({ schemaVersion: 3, ...input });
 }
 
-export type V3PlanFileState = {
-  kind: "file";
-  mode: "100644" | "100755";
-  contentDigest: CanonicalDigest;
-};
-export type V3PlanCanonicalPathState = { kind: "absent" } | V3PlanFileState;
-export type V3PlanObservedPathState = V3PlanCanonicalPathState | {
-  kind: "object";
-  objectKind: string;
-  mode: string;
-  contentDigest: CanonicalDigest;
-};
+export type V3PlanFileState = z.infer<typeof V3FilePathStateSchema>;
+export type V3PlanCanonicalPathState = z.infer<typeof V3PathStateSchema>;
+export type V3PlanObservedPathState = z.infer<typeof V3PlanObservedPathStateSchema>;
 
 export type V3PlanExclusiveRole =
   | "retiring-source"
   | "predecessor-retirement"
   | "roadmap";
 
-interface V3PlanContributorBase {
-  before: V3PlanObservedPathState;
-  after: V3PlanObservedPathState;
-}
+const V3PlanContributorStateSchema = {
+  before: V3PlanObservedPathStateSchema,
+  after: V3PlanObservedPathStateSchema,
+};
 
-export interface V3PlanTopologyContributor extends V3PlanContributorBase {
-  kind: "topology";
-  action: "create" | "ensure" | "backfill" | "reuse" | "append";
-  contributorIdentity: string;
-}
+/** One strict topology contributor retained in a composed mutation. */
+export const V3PlanTopologyContributorSchema = z.strictObject({
+  kind: z.literal("topology"),
+  action: z.enum(["create", "ensure", "backfill", "reuse", "append"]),
+  contributorIdentity: z.string(),
+  ...V3PlanContributorStateSchema,
+});
+export type V3PlanTopologyContributor = z.infer<typeof V3PlanTopologyContributorSchema>;
 
-export interface V3PlanContentContributor extends V3PlanContributorBase {
-  kind: "content";
-  destinationId: string;
-  destinationKind: "new-member" | "existing-home" | "cohort-coordination";
-  artifactRole: string;
-  contributorKind: string;
-  contributorIdentity: string;
-  sourceProjection: Array<{ sourceId: string; targetLocator: unknown }>;
-  disposition: "whole-file" | "patch";
-}
+/** One strict authored-content contributor retained in a composed mutation. */
+export const V3PlanContentContributorSchema = z.strictObject({
+  kind: z.literal("content"),
+  destinationId: z.string(),
+  destinationKind: z.enum(["new-member", "existing-home", "cohort-coordination"]),
+  artifactRole: z.string(),
+  contributorKind: z.string(),
+  contributorIdentity: z.string(),
+  sourceProjection: z.array(z.strictObject({
+    sourceId: z.string(),
+    targetLocator: z.json(),
+  })),
+  disposition: z.enum(["whole-file", "patch"]),
+  ...V3PlanContributorStateSchema,
+});
+export type V3PlanContentContributor = z.infer<typeof V3PlanContentContributorSchema>;
 
-export interface V3PlanDependencyContributor extends V3PlanContributorBase {
-  kind: "dependency";
-  edgeId: string;
-  destinationId: string | null;
-  dependent: string;
-}
+/** One strict dependency contributor retained in a composed mutation. */
+export const V3PlanDependencyContributorSchema = z.strictObject({
+  kind: z.literal("dependency"),
+  edgeId: z.string(),
+  destinationId: z.string().nullable(),
+  dependent: z.string(),
+  ...V3PlanContributorStateSchema,
+});
+export type V3PlanDependencyContributor = z.infer<typeof V3PlanDependencyContributorSchema>;
 
-export type V3PlanContributor =
-  | V3PlanTopologyContributor
-  | V3PlanContentContributor
-  | V3PlanDependencyContributor;
+/** Closed runtime schema for every contributor kind in a validated plan. */
+export const V3PlanContributorSchema = z.discriminatedUnion("kind", [
+  V3PlanTopologyContributorSchema,
+  V3PlanContentContributorSchema,
+  V3PlanDependencyContributorSchema,
+]);
+export type V3PlanContributor = z.infer<typeof V3PlanContributorSchema>;
 
 interface V3PlanClaimBase {
   path: string;
@@ -171,25 +191,32 @@ export interface BuildValidatedDecomposePlanInput {
   claims: readonly V3PlanPathClaim[];
 }
 
-export interface V3ValidatedExclusiveMutation {
-  kind: "exclusive";
-  path: string;
-  role: V3PlanExclusiveRole;
-  before: V3PlanCanonicalPathState;
-  after: V3PlanCanonicalPathState;
-}
+/** One strict exclusive mutation owned by a single retirement or roadmap role. */
+export const V3ValidatedExclusiveMutationSchema = z.strictObject({
+  kind: z.literal("exclusive"),
+  path: ManagedPathSchema,
+  role: z.enum(["retiring-source", "predecessor-retirement", "roadmap"]),
+  before: V3PathStateSchema,
+  after: V3PathStateSchema,
+});
+export type V3ValidatedExclusiveMutation = z.infer<typeof V3ValidatedExclusiveMutationSchema>;
 
-export interface V3ValidatedComposedMutation {
-  kind: "composed";
-  path: string;
-  before: V3PlanCanonicalPathState;
-  after: V3PlanCanonicalPathState;
-  contributors: V3PlanContributor[];
-}
+/** One strict mutation composed from ordered topology, content, or dependency contributors. */
+export const V3ValidatedComposedMutationSchema = z.strictObject({
+  kind: z.literal("composed"),
+  path: ManagedPathSchema,
+  before: V3PathStateSchema,
+  after: V3PathStateSchema,
+  contributors: z.array(V3PlanContributorSchema),
+});
+export type V3ValidatedComposedMutation = z.infer<typeof V3ValidatedComposedMutationSchema>;
 
-export type V3ValidatedPathMutation =
-  | V3ValidatedExclusiveMutation
-  | V3ValidatedComposedMutation;
+/** Closed runtime schema for every validated path-mutation kind. */
+export const V3ValidatedPathMutationSchema = z.discriminatedUnion("kind", [
+  V3ValidatedExclusiveMutationSchema,
+  V3ValidatedComposedMutationSchema,
+]);
+export type V3ValidatedPathMutation = z.infer<typeof V3ValidatedPathMutationSchema>;
 
 export interface ValidatedDecomposePlan {
   planId: CanonicalDigest;

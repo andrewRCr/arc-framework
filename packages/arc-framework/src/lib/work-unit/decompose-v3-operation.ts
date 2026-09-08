@@ -1,5 +1,7 @@
 /** One plan-bound v3 decomposition occupation, materialization, and preparation operation. */
 
+import { z } from "zod";
+
 import type { ProtectionMode } from "../git/write-context.js";
 import type { V3DecomposeCutMap } from "./decompose-v3-schema.js";
 import { createDecomposeTransitionRecord } from "./decompose-transition-record.js";
@@ -9,6 +11,7 @@ import {
   type V3MaterializerIO,
 } from "./decompose-v3-materializer.js";
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 import {
   reportV3DecomposeResult,
   type V3DecomposeResultReport,
@@ -38,7 +41,12 @@ export interface V3PartialPathPreimage {
 
 export type V3PostOccupationRevalidation =
   | { status: "valid" }
-  | { status: "refused"; reason: string };
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 type OccupiedResult = Extract<DecomposeResultOccupationResult, { status: "occupied" }>;
 type FullOccupiedResult = Extract<OccupiedResult, { protection: "full" }>;
@@ -74,25 +82,30 @@ export interface V3DecomposeOperationDependencies {
   ) => Promise<V3PostOccupationRevalidation>;
 }
 
-export type V3DecomposeOperationRecovery =
-  | { kind: "none" }
-  | {
-      kind: "partial-restoration";
-      status: "restored";
-      restoredPaths: string[];
-    }
-  | {
-      kind: "partial-restoration";
-      status: "failed";
-      affectedPaths: string[];
-      path?: string;
-    }
-  | {
-      kind: "full-candidate";
-      path: string;
-      candidateBranch: string;
-      expectedHead: string;
-    };
+/** Closed recovery facts preserved on an operation refusal. */
+export const V3DecomposeOperationRecoverySchema = z.union([
+  z.strictObject({ kind: z.literal("none") }),
+  z.strictObject({
+    kind: z.literal("partial-restoration"),
+    status: z.literal("restored"),
+    restoredPaths: z.array(z.string().min(1)),
+  }),
+  z.strictObject({
+    kind: z.literal("partial-restoration"),
+    status: z.literal("failed"),
+    affectedPaths: z.array(z.string().min(1)),
+    path: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("full-candidate"),
+    path: z.string().min(1),
+    candidateBranch: z.string().min(1),
+    expectedHead: z.string().min(1),
+  }),
+]);
+export type V3DecomposeOperationRecovery = z.infer<
+  typeof V3DecomposeOperationRecoverySchema
+>;
 
 export type V3DecomposeOperationResult =
   | {
@@ -115,6 +128,8 @@ export type V3DecomposeOperationResult =
         | "post-stage-revalidation"
         | "restoration";
       reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
       report?: V3DecomposeResultReport;
       recovery: V3DecomposeOperationRecovery;
     };
@@ -151,6 +166,8 @@ export type V3ExtractionOperationResult =
         | "post-stage-revalidation"
         | "restoration";
       reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
       report?: V3DecomposeResultReport;
       recovery: V3DecomposeOperationRecovery;
     };
@@ -182,6 +199,11 @@ interface V3PreparedOperation {
 type V3StagedRollback = () => Promise<
   Awaited<ReturnType<TerminalTransitionRecordWriter["rollback"]>>
 >;
+
+function failureLocus(error: unknown, fallback: string): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  return detail.trim() === "" ? fallback : detail;
+}
 
 function fullRecovery(
   plan: ValidatedDecomposePlan,
@@ -278,6 +300,7 @@ async function prepareV3Operation(
       status: "refused",
       stage: "occupation",
       reason: occupation.reason,
+      ...(occupation.evidence === undefined ? {} : { evidence: occupation.evidence }),
       recovery: refusedOccupationRecovery(input.plan, occupation),
     };
   }
@@ -293,6 +316,8 @@ async function prepareV3Operation(
       status: "refused",
       stage: "post-occupation-revalidation",
       reason: revalidated.reason,
+      ...(revalidated.locus === undefined ? {} : { locus: revalidated.locus }),
+      ...(revalidated.evidence === undefined ? {} : { evidence: revalidated.evidence }),
       recovery: recoveryFor(input.plan, occupation),
     };
   }
@@ -339,12 +364,22 @@ async function prepareV3Operation(
     } else {
       recovery = fullRecovery(input.plan, occupation);
     }
+    const restorationFailureLocus = recovery.kind === "partial-restoration"
+      && recovery.status === "failed"
+      ? recovery.path ?? recovery.affectedPaths[0] ?? materialization.path
+      : null;
     return {
       status: "refused",
-      stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
-        ? "restoration"
-        : "materialization",
-      reason: materialization.reason,
+      stage: restorationFailureLocus === null
+        ? "materialization"
+        : "restoration",
+      reason: restorationFailureLocus === null
+        ? materialization.reason
+        : "partial-restoration-failed",
+      locus: restorationFailureLocus === null
+        ? materialization.path
+        : restorationFailureLocus,
+      ...(materialization.evidence === undefined ? {} : { evidence: materialization.evidence }),
       report,
       recovery,
     };
@@ -385,17 +420,38 @@ async function revalidatePreparedV3Operation(
   }
   if (stagedValidation.status === "valid") return stagedValidation;
 
-  const rollbackResult = rollback === undefined ? null : await rollback();
+  let rollbackResult: Awaited<ReturnType<TerminalTransitionRecordWriter["rollback"]>> | null = null;
+  if (rollback !== undefined) {
+    try {
+      rollbackResult = await rollback();
+    } catch (error) {
+      rollbackResult = {
+        status: "unavailable",
+        diagnostic: failureLocus(error, "transition record rollback failed"),
+      };
+    }
+  }
   const recovery = await prepared.recoverMutation();
-  const rollbackFailed = rollbackResult?.status === "unavailable";
+  const rollbackFailureLocus = rollbackResult?.status === "unavailable"
+    ? rollbackResult.diagnostic
+    : null;
+  const restorationFailed = recovery.kind === "partial-restoration"
+    && recovery.status === "failed";
   return {
     status: "refused",
-    stage: rollbackFailed
-      || (recovery.kind === "partial-restoration" && recovery.status === "failed")
+    stage: rollbackFailureLocus !== null
+      || restorationFailed
       ? "restoration"
       : "post-stage-revalidation",
-    reason: stagedValidation.reason
-      + (rollbackFailed ? `; ${rollbackResult.diagnostic}` : ""),
+    reason: rollbackFailureLocus !== null
+      ? "transition-record-rollback-failed"
+      : restorationFailed ? "partial-restoration-failed" : stagedValidation.reason,
+    ...(rollbackFailureLocus !== null
+      ? { locus: rollbackFailureLocus }
+      : restorationFailed
+        ? { locus: recovery.path ?? recovery.affectedPaths[0] ?? "partial restoration" }
+        : stagedValidation.locus === undefined ? {} : { locus: stagedValidation.locus }),
+    ...(stagedValidation.evidence === undefined ? {} : { evidence: stagedValidation.evidence }),
     report: prepared.report,
     recovery,
   };
@@ -424,12 +480,19 @@ export async function executeV3DecomposeOperation(
   const transitionRecord = createDecomposeTransitionRecord(input.completedMap);
   if (transitionRecord === null) {
     const recovery = await prepared.recoverMutation();
+    const restorationFailureLocus = recovery.kind === "partial-restoration"
+      && recovery.status === "failed"
+      ? recovery.path ?? recovery.affectedPaths[0] ?? "partial restoration"
+      : null;
     return {
       status: "refused",
-      stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
-        ? "restoration"
-        : "transition-record",
-      reason: "transition-record-projection-invalid",
+      stage: restorationFailureLocus === null
+        ? "transition-record"
+        : "restoration",
+      reason: restorationFailureLocus === null
+        ? "transition-record-projection-invalid"
+        : "partial-restoration-failed",
+      ...(restorationFailureLocus === null ? {} : { locus: restorationFailureLocus }),
       report: prepared.report,
       recovery,
     };
@@ -437,19 +500,29 @@ export async function executeV3DecomposeOperation(
   let recorded: Awaited<ReturnType<TerminalTransitionRecordWriter["record"]>>;
   try {
     recorded = await dependencies.transitionRecords.record(transitionRecord);
-  } catch {
-    recorded = { status: "unavailable", diagnostic: "transition record write failed" };
+  } catch (error) {
+    recorded = {
+      status: "unavailable",
+      diagnostic: failureLocus(error, "transition record write failed"),
+    };
   }
   if (recorded.status !== "recorded") {
     const recovery = await prepared.recoverMutation();
+    const restorationFailed = recovery.kind === "partial-restoration"
+      && recovery.status === "failed";
     return {
       status: "refused",
-      stage: recovery.kind === "partial-restoration" && recovery.status === "failed"
+      stage: restorationFailed
         ? "restoration"
         : "transition-record",
-      reason: recorded.status === "origin-occupied"
-        ? "transition-record-origin-occupied"
-        : recorded.diagnostic,
+      reason: restorationFailed
+        ? "partial-restoration-failed"
+        : recorded.status === "origin-occupied"
+          ? "transition-record-origin-occupied"
+          : "transition-record-write-failed",
+      ...(restorationFailed
+        ? { locus: recovery.path ?? prepared.mutatedPaths[0] ?? "partial restoration" }
+        : recorded.status === "unavailable" ? { locus: recorded.diagnostic } : {}),
       report: prepared.report,
       recovery,
     };

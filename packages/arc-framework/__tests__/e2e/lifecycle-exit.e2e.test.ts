@@ -654,10 +654,12 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       stage: "repository-plan",
       recovery: { kind: "none" },
     });
-    expect(JSON.parse(refused.stdout)).toHaveProperty(
-      "remedy",
-      "Re-preflight: arc decompose origin --preflight",
-    );
+    expect(JSON.parse(refused.stdout)).toMatchObject({
+      remedy: {
+        invariant: expect.stringContaining("authored map"),
+        argv: ["arc", "decompose", "origin", "--preflight"],
+      },
+    });
     const afterRefusal = await repositorySnapshot(repo);
     expect(afterRefusal).toEqual(beforeRefusal);
     expect(afterRefusal.worktrees).not.toContain("branch refs/heads/chore/decompose-origin");

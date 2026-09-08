@@ -3,6 +3,7 @@
 import type { ProtectionMode } from "../git/write-context.js";
 import { decomposeCandidateBranch } from "./decompose-candidate.js";
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 
 export interface DecomposeCandidateRegistration {
   path: string;
@@ -74,6 +75,7 @@ export type DecomposeResultOccupationResult =
   | {
       status: "refused";
       reason: DecomposeResultOccupationRefusal;
+      evidence?: V3DecomposeRefusalEvidence;
       recovery?: { path: string; candidateBranch: string };
     };
 
@@ -98,6 +100,35 @@ function validateObservation(
   return registration.markerOwned ? null : "marker-mismatch";
 }
 
+function observationRefusal(
+  reason: DecomposeResultOccupationRefusal,
+  observation: DecomposeCandidateObservation,
+  expectedHead: string,
+): Extract<DecomposeResultOccupationResult, { status: "refused" }> {
+  const registration = observation.registrations[0];
+  if (reason === "candidate-head-mismatch" && registration !== undefined) {
+    return {
+      status: "refused",
+      reason,
+      evidence: {
+        expected: { branchHead: expectedHead, registrationHead: expectedHead },
+        actual: {
+          branchHead: observation.branchHead ?? { kind: "absent" },
+          registrationHead: registration.head,
+        },
+      },
+    };
+  }
+  if (reason === "marker-mismatch" && registration !== undefined) {
+    return {
+      status: "refused",
+      reason,
+      evidence: { expected: true, actual: registration.markerOwned },
+    };
+  }
+  return { status: "refused", reason };
+}
+
 /** Occupy the exact result locus without materializing any planned path. */
 export async function occupyDecomposeResult(
   input: DecomposeResultOccupationInput,
@@ -105,18 +136,33 @@ export async function occupyDecomposeResult(
 ): Promise<DecomposeResultOccupationResult> {
   const baseHead = await adapter.resolveBaseHead(input.configuredBase);
   if (baseHead !== input.plan.expectedBaseHead) {
-    return { status: "refused", reason: "base-moved" };
+    return {
+      status: "refused",
+      reason: "base-moved",
+      evidence: {
+        expected: input.plan.expectedBaseHead,
+        actual: baseHead ?? { kind: "absent" },
+      },
+    };
   }
 
   if (input.protection === "partial") {
     const projection = await adapter.inspectPartial(input.configuredBase, input.plan.allowedPaths);
     if (projection.baseHead !== input.plan.expectedBaseHead
       || !projection.indexClean || !projection.worktreeClean) {
+      if (projection.baseHead !== input.plan.expectedBaseHead) {
+        return {
+          status: "refused",
+          reason: "base-moved",
+          evidence: {
+            expected: input.plan.expectedBaseHead,
+            actual: projection.baseHead ?? { kind: "absent" },
+          },
+        };
+      }
       return {
         status: "refused",
-        reason: projection.baseHead === input.plan.expectedBaseHead
-          ? "partial-projection-dirty"
-          : "base-moved",
+        reason: "partial-projection-dirty",
       };
     }
     return { status: "occupied", protection: "partial" };
@@ -127,7 +173,9 @@ export async function occupyDecomposeResult(
   const path = await adapter.candidatePath(origin);
   const observation = await adapter.observeCandidate(branch, path);
   const refusal = validateObservation(observation, branch, path, input.plan.expectedBaseHead);
-  if (refusal !== null) return { status: "refused", reason: refusal };
+  if (refusal !== null) {
+    return observationRefusal(refusal, observation, input.plan.expectedBaseHead);
+  }
   if (observation.registrations.length === 1) {
     return { status: "occupied", protection: "full", path, candidateBranch: branch };
   }
@@ -152,11 +200,11 @@ export async function occupyDecomposeResult(
     path,
     input.plan.expectedBaseHead,
   );
-  return createdRefusal === null
-    ? { status: "occupied", protection: "full", path, candidateBranch: branch }
-    : {
-        status: "refused",
-        reason: createdRefusal,
-        recovery: { path, candidateBranch: branch },
-      };
+  if (createdRefusal === null) {
+    return { status: "occupied", protection: "full", path, candidateBranch: branch };
+  }
+  return {
+    ...observationRefusal(createdRefusal, created.observation, input.plan.expectedBaseHead),
+    recovery: { path, candidateBranch: branch },
+  };
 }

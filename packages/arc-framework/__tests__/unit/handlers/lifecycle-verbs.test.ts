@@ -176,7 +176,8 @@ vi.mock("../../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
 }));
 const mockExecuteGitV3DecomposeCommand = vi.fn();
 const mockExecuteGitV3ExtractionCommand = vi.fn();
-vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", () => ({
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/work-unit/git-decompose-v3-operation.js")>(),
   executeGitV3DecomposeCommand: (...args: unknown[]) =>
     mockExecuteGitV3DecomposeCommand(...args),
   executeGitV3ExtractionCommand: (...args: unknown[]) =>
@@ -762,7 +763,11 @@ describe("handleDecompose", () => {
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    const remedy = "ADAPTER-ONLY: retry or clean the owned candidate";
+    const remedy = spineRemedy(
+      "The candidate must be recoverable from its typed operation facts.",
+      "Retry the selected mode",
+      ["arc", "decompose", "mono", "--execute", "cut-map.json"],
+    );
     mockExecuteGitV3DecomposeCommand.mockResolvedValue({
       status: "refused",
       stage: "occupation",
@@ -773,11 +778,14 @@ describe("handleDecompose", () => {
 
     await handleDecompose("mono", { execute: "cut-map.json" });
 
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"reason":"candidate-conflict","recovery":{"kind":"none"},`
-      + `"remedy":"${remedy}","stage":"occupation","status":"refused"}\n`,
-    );
-    expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy}\n`);
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({
+      status: "refused",
+      stage: "occupation",
+      reason: "candidate-conflict",
+      recovery: { kind: "none" },
+      remedy,
+    })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy.text}\n`);
     expect(process.exitCode).toBe(1);
   });
 

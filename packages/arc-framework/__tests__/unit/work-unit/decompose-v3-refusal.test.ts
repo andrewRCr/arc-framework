@@ -4,6 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
+  renderV3DecomposeExecuteCommand,
+  v3DecomposeExecuteArgv,
+} from "../../../src/lib/work-unit/decompose-command-renderer.js";
+import {
   V3DecomposeCoreRefusalSchema,
   V3DecomposeRefusalEvidenceSchema,
   isV3DecomposeMappedReason,
@@ -12,10 +16,101 @@ import {
   v3DecomposeRemedy,
   v3DecomposeSetEvidence,
 } from "../../../src/lib/work-unit/decompose-v3-refusal.js";
+import {
+  GitV3DecomposeCommandRefusalSchema,
+  GitV3ExtractionCommandRefusalSchema,
+} from "../../../src/lib/work-unit/git-decompose-v3-operation.js";
 import { SpineRemedySchema } from "../../../src/scripts/integration/spine-refusal.js";
 import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 
 describe("v3 decomposition refusals", () => {
+  it("quotes display text without changing opaque argv operands", () => {
+    const origin = "origin's work";
+    const cutMapPath = "maps/cut map.json";
+
+    expect(v3DecomposeExecuteArgv(origin, cutMapPath)).toEqual([
+      "arc",
+      "decompose",
+      origin,
+      "--execute",
+      cutMapPath,
+    ]);
+    expect(renderV3DecomposeExecuteCommand(origin, cutMapPath))
+      .toBe("arc decompose 'origin'\"'\"'s work' --execute 'maps/cut map.json'");
+  });
+
+  it("validates mode-specific operation envelopes with typed reports and recovery", () => {
+    const remedy = spineRemedy(
+      "The operation must preserve its authenticated repository plan.",
+      "Retry the selected mode",
+      ["arc", "decompose", "origin", "--execute", "map.json"],
+    );
+    const report = {
+      status: "refused" as const,
+      paths: [],
+      topology: [{ kind: "topology" as const, action: "none" as const, disposition: "no-write" as const }],
+      destinations: [],
+    };
+    const retirement = {
+      status: "refused" as const,
+      stage: "transition-record" as const,
+      reason: "transition-record-write-failed",
+      locus: "index write failed",
+      report,
+      recovery: {
+        kind: "full-candidate" as const,
+        path: "/repo/.git/arc/worktrees/candidate",
+        candidateBranch: "chore/decompose-origin",
+        expectedHead: "base-head",
+      },
+      remedy,
+    };
+    const extraction = {
+      ...retirement,
+      stage: "materialization" as const,
+      reason: "final-blob-mismatch",
+      evidence: { expected: "planned-digest", actual: "observed-digest" },
+      recovery: {
+        kind: "partial-restoration" as const,
+        status: "restored" as const,
+        restoredPaths: [".arc/active/meta-origin.md"],
+      },
+    };
+
+    expect(GitV3DecomposeCommandRefusalSchema.parse(retirement)).toEqual(retirement);
+    expect(GitV3ExtractionCommandRefusalSchema.parse(extraction)).toEqual(extraction);
+    expect(GitV3ExtractionCommandRefusalSchema.safeParse(retirement).success).toBe(false);
+    expect(GitV3DecomposeCommandRefusalSchema.safeParse({ ...retirement, extra: true }).success)
+      .toBe(false);
+    expect(GitV3ExtractionCommandRefusalSchema.safeParse({
+      ...extraction,
+      recovery: { ...extraction.recovery, extra: true },
+    }).success).toBe(false);
+  });
+
+  it("keeps unexpected runtime failures on the core-only command arm", () => {
+    const refusal = {
+      status: "refused" as const,
+      reason: "unexpected-error" as const,
+      locus: "cut-map read failed",
+      remedy: spineRemedy(
+        "The selected decomposition mode must complete without an unexpected runtime failure.",
+        "Retry the selected mode",
+        ["arc", "decompose", "origin", "--extract", "map.json"],
+      ),
+    };
+
+    expect(GitV3ExtractionCommandRefusalSchema.parse(refusal)).toEqual(refusal);
+    for (const extra of [
+      { stage: "repository-plan" },
+      { recovery: { kind: "none" } },
+      { report: { status: "refused", paths: [], topology: [], destinations: [] } },
+    ]) {
+      expect(GitV3ExtractionCommandRefusalSchema.safeParse({ ...refusal, ...extra }).success)
+        .toBe(false);
+    }
+  });
+
   it("accepts only the strict core refusal fields", () => {
     const refusal = {
       status: "refused",
@@ -231,6 +326,90 @@ describe("v3 decomposition refusals", () => {
     expect(remedy.text).toContain(locus);
     expect(remedy.text).toMatch(/correct.*target locator.*retry/iu);
     expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--extract", "map.json"]);
+  });
+
+  it("maps source publication to an exact Git push", () => {
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "execute", origin: "origin", cutMapPath: "map.json" },
+      reason: "source-unpublished",
+      locus: "plan/origin",
+    });
+
+    expect(remedy.argv).toEqual(["git", "push", "origin", "plan/origin"]);
+    expect(remedy.text).toMatch(/publish.*reported source branch/iu);
+  });
+
+  it.each([
+    ["execute", ["arc", "decompose", "origin", "--extract", "map.json"]],
+    ["extract", ["arc", "decompose", "origin", "--execute", "map.json"]],
+  ] as const)("maps an authoring-shape refusal from %s to the other mode", (mode, expectedArgv) => {
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode, origin: "origin", cutMapPath: "map.json" },
+      reason: "map:authoring-shape",
+      locus: "authoring.shape",
+    });
+
+    expect(remedy.argv).toEqual(expectedArgv);
+  });
+
+  it("uses exact candidate teardown when full-protection recovery exists", () => {
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "execute", origin: "origin", cutMapPath: "map with spaces.json" },
+      reason: "git:source-ref-moved",
+      locus: "refs/heads/plan/origin",
+      recovery: {
+        kind: "full-candidate",
+        path: "/repo/.git/arc/worktrees/candidate",
+        candidateBranch: "chore/decompose-origin",
+        expectedHead: "base-head",
+      },
+    });
+
+    expect(remedy.argv).toEqual(["arc", "teardown", "--branch", "chore/decompose-origin"]);
+    expect(remedy.text).toContain("arc decompose origin --execute 'map with spaces.json'");
+  });
+
+  it.each(["execute", "extract"] as const)(
+    "selects the invoked %s retry for operation and restored-partial refusals",
+    (mode) => {
+      const expectedArgv = ["arc", "decompose", "origin", `--${mode}`, "map.json"];
+      const operation = v3DecomposeRemedy({
+        invocation: { mode, origin: "origin", cutMapPath: "map.json" },
+        reason: "final-blob-mismatch",
+        locus: ".arc/active/meta-origin.md",
+      });
+      const restored = v3DecomposeRemedy({
+        invocation: { mode, origin: "origin", cutMapPath: "map.json" },
+        reason: "post-stage-revalidation-failed",
+        recovery: {
+          kind: "partial-restoration",
+          status: "restored",
+          restoredPaths: [".arc/active/meta-origin.md"],
+        },
+      });
+
+      expect(operation.argv).toEqual(expectedArgv);
+      expect(restored.argv).toEqual(expectedArgv);
+    },
+  );
+
+  it.each([
+    ["conservation:live-conservation:incoming-edge-set-changed", "preflight"],
+    ["retirement:predecessor-changed", "preflight"],
+    ["topology:missing-parent", "execute"],
+    ["composition:invalid-plan-operand", "execute"],
+    ["git:repository-plan-failed", "execute"],
+  ] as const)("maps repository-plan refusal %s to its corrective command", (reason, command) => {
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "execute", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus: "reported-locus",
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.argv).toEqual(command === "preflight"
+      ? ["arc", "decompose", "origin", "--preflight"]
+      : ["arc", "decompose", "origin", "--execute", "map.json"]);
   });
 
   it.each([
