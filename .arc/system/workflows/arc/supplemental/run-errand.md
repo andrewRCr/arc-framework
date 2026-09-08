@@ -178,8 +178,8 @@ remote base all name the same exact head. Any tracked change continues through t
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
-   For the confidently recognized planning-grooming case, invoke `arc review planning-grooming resolve -` once with
-   the exact committed target and the three caller-owned judgments:
+   For the confidently recognized planning-grooming case, invoke `arc review planning-grooming resolve -` with the
+   exact committed target and the three caller-owned judgments:
 
    ```json
    {
@@ -304,6 +304,20 @@ remote base all name the same exact head. Any tracked change continues through t
    target without a permission stop. A conflict, material interaction, or uncertain product decision stops. This
    advisory never replaces Step 5's authoritative final drift read.
 
+   For every confidently recognized planning-grooming entry at this checkpoint, re-invoke
+   `arc review planning-grooming resolve -` with the opened PR's exact current coordinates and freshly affirmed
+   caller-owned judgments. This opened-target result supersedes the pre-PR result and is the sole exemption
+   authority for this head. Follow its typed result:
+
+   - `exempt / none` — skip the remaining review composition in this step and continue to Step 5.
+   - `review-required / continue-review` — reuse its exact target, routing, and obligation payload below.
+   - `not-eligible / continue-review` — continue below through ordinary fact composition.
+   - A command error carries no action; stop.
+
+   Any head movement invalidates the exemption and returns here before the integration interlock, including after a
+   hook action, review fix, or base reconciliation. Continue only when `openedChangeRequest` and the adapter target
+   name the same exact head.
+
    Rerun `arc review chunking resolve -` for the opened target, follow the closed attention dispatch in Step 2, and
    invoke `arc review resolve -` for each incomplete lane. On `ready / hosted-request`, invoke
    `arc review hosted request -` with the selected provider, exact opened target, `coverage: complete`, and
@@ -394,6 +408,9 @@ remote base all name the same exact head. Any tracked change continues through t
    base, head, requirements, and review are settled.
 
    Compose the final `openedChangeRequest` and retain `openedChangeRequest.headSha` as `{approved-head-sha}`.
+   For a planning-grooming case, require the most recent opened-target adapter target to match this final settled
+   head. A missing or mismatched adapter target returns to Step 4 before the pre-merge extension or integration
+   interlock.
 
    **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled head and render
    their results under this label. Otherwise, skip — an inactive extension renders nothing. The extension fires
@@ -402,8 +419,9 @@ remote base all name the same exact head. Any tracked change continues through t
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the current head is settled and before releasing the exact target and
-> executing its merge action. Surface the exact head, review applicability calls and targeted verification, proposed final
-> dispositions, PR checks, required approvals, base freshness, and the resolved lane. State
+> executing its merge action. Surface the exact head, applicable planning-grooming adapter target, review
+> applicability calls and targeted verification, proposed final dispositions, PR checks, required approvals, base
+> freshness, and the resolved lane. State
 > that approval applies final dispositions and channel settlement, ends review, invokes the exact-head release on
 > whichever lane resolves, and authorizes exact-head merge. A redirect may instead select release-only for
 > asynchronous host review or later manual merge.

@@ -416,7 +416,15 @@ describe("trusted review-gate workflows", () => {
       readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
     ]);
     expect(project).toBe(packaged);
-    expect(packaged).toContain("arc review planning-grooming resolve -");
+    const prePrExemption = packaged.indexOf("arc review planning-grooming resolve -");
+    const openedPr = packaged.indexOf("4. **Enter the open PR.**");
+    const openedTargetExemption = packaged.indexOf("arc review planning-grooming resolve -", openedPr);
+    const finalHead = packaged.indexOf("5. **Settle the final head.**");
+    const integrationInterlock = packaged.indexOf("`integration-interlock`", finalHead);
+    expect(prePrExemption).toBeGreaterThanOrEqual(0);
+    expect(openedTargetExemption).toBeGreaterThan(openedPr);
+    expect(finalHead).toBeGreaterThan(openedTargetExemption);
+    expect(integrationInterlock).toBeGreaterThan(finalHead);
     expect(packaged).toMatch(/`exempt \/ none`[\s\S]*both review lanes/iu);
     expect(packaged).toMatch(/`review-required \/ continue-review`[\s\S]*ordinary review/iu);
     expect(packaged).toMatch(/`not-eligible \/ continue-review`[\s\S]*ordinary review/iu);
@@ -428,6 +436,10 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).not.toMatch(/vehicle-neutral response-state store|review-suspension|promoted watcher/u);
     expect(packaged).toMatch(/merge lane[\s\S]*downstream presentation/u);
     expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
+    expect(packaged).toMatch(/head movement[^.]*invalidates[^.]*exemption[^.]*return/iu);
+    expect(packaged.slice(finalHead, integrationInterlock)).toMatch(
+      /adapter target[^.]*final[^.]*head/iu,
+    );
   });
 
   it("resolves routing-only grooming exemption before opening a housekeeping PR", async () => {
