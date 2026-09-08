@@ -1,8 +1,8 @@
 # Metadata: local-ci-capacity-qualification
 
-| **State**  | **Owner** | **Branch**                             | **Class** | **Priority** |
-| ---------- | --------- | -------------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/local-ci-capacity-qualification` | `Light`   | `P1`         |
+| **State** | **Owner** | **Branch**                              | **Class** | **Priority** |
+| --------- | --------- | --------------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `chore/local-ci-capacity-qualification` | `Light`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,13 +12,13 @@
 - **Task List:** `tasks-local-ci-capacity-qualification.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** Outline spec finalized for the Mac mini runner; draft retired to notes; stage advanced to
   generate-tasks (2026-09-08).
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Open the measurement ledger (line ~18)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Open the measurement ledger
 
 ## Scope Contract
 
