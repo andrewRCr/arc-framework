@@ -255,6 +255,7 @@ describe("hosted reservation admission", () => {
     })).toEqual({
       status: "complete",
       completedPasses: 1,
+      completePasses: 1,
       attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
       attemptHistory: [
         expect.objectContaining({
@@ -273,7 +274,7 @@ describe("hosted reservation admission", () => {
     });
   });
 
-  it("requests a pass-three ceiling override after two findings passes settle without convergence", () => {
+  it("requests a named pass-three override after two incremental findings passes", () => {
     const snapshot: ReviewOperationStateSnapshot = {
       status: "complete",
       records: [{
@@ -299,6 +300,8 @@ describe("hosted reservation admission", () => {
               sourceId: "coderabbit-pr",
               outcome: "settled-findings",
               vehicle: deliveryVehicle,
+              requestedCoverage: "incremental",
+              effectiveCoverage: "incremental",
               logicalPass: 2,
             }),
             hostedProgressAttempt({
@@ -306,6 +309,8 @@ describe("hosted reservation admission", () => {
               sourceId: "coderabbit-pr",
               outcome: "settled-findings",
               vehicle: deliveryVehicle,
+              requestedCoverage: "incremental",
+              effectiveCoverage: "incremental",
             }),
           ],
         },
@@ -320,6 +325,7 @@ describe("hosted reservation admission", () => {
     })).toMatchObject({
       status: "complete",
       completedPasses: 2,
+      completePasses: 0,
       attempts: [],
       attemptHistory: [
         { sourceId: "coderabbit-pr", outcome: "settled-findings" },
@@ -414,6 +420,7 @@ describe("hosted reservation admission", () => {
     })).toMatchObject({
       status: "complete",
       completedPasses: 1,
+      completePasses: 1,
       attempts: [],
       attemptHistory: [
         { updatedAt: "2026-08-27T12:01:00.000Z", outcome: "rate-limited" },
@@ -422,7 +429,7 @@ describe("hosted reservation admission", () => {
     });
   });
 
-  it("counts the exact member's delegated-agent pass across head movement", () => {
+  it("retains delegated-agent coverage while counting its moved-head pass", () => {
     const priorHead = "d".repeat(40);
     const localTarget = createReviewTarget({
       schemaVersion: 2,
@@ -468,6 +475,8 @@ describe("hosted reservation admission", () => {
               requestId: canonicalDigest({ request: "local-review-1" }),
               vehicle: { kind: "delivery-member", identity: deliveryVehicle.deliverableId },
               target: localTarget,
+              requestedCoverage: "incremental",
+              effectiveCoverage: "incremental",
               deliveryAdmission: delegatedAdmission(DeliveryReviewMemberVehicleSchema.parse({
                 ...deliveryVehicle,
                 head: priorHead,
@@ -486,12 +495,15 @@ describe("hosted reservation admission", () => {
     })).toEqual({
       status: "complete",
       completedPasses: 1,
+      completePasses: 0,
       attempts: [],
       attemptHistory: [expect.objectContaining({
         updatedAt: "2026-08-27T12:00:00.000Z",
         headSha: priorHead,
         sourceId: "delegated-agent",
         outcome: "clean",
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
       })],
     });
   });
@@ -536,6 +548,7 @@ describe("hosted reservation admission", () => {
     })).toEqual({
       status: "complete",
       completedPasses: 1,
+      completePasses: 1,
       attempts: [{ sourceId: "coderabbit-pr", outcome: "clean" }],
       attemptHistory: [expect.objectContaining({
         updatedAt: "2026-08-27T12:00:00.000Z",
@@ -548,7 +561,7 @@ describe("hosted reservation admission", () => {
     });
   });
 
-  it("retains a pure supplemental review in member history without steering the complete lane", () => {
+  it("counts an incremental review separately from complete member coverage", () => {
     const snapshot: ReviewOperationStateSnapshot = {
       status: "complete",
       records: [{
@@ -567,7 +580,7 @@ describe("hosted reservation admission", () => {
             workUnitId: deliveryVehicle.workUnitId,
             deliverableId: deliveryVehicle.deliverableId,
           },
-          completedPasses: 0,
+          completedPasses: 1,
           attempts: [hostedProgressAttempt({
             attemptId: "attempt-incremental",
             sourceId: "coderabbit-pr",
@@ -587,7 +600,8 @@ describe("hosted reservation admission", () => {
       vehicle: deliveryVehicle,
     })).toEqual({
       status: "complete",
-      completedPasses: 0,
+      completedPasses: 1,
+      completePasses: 0,
       attempts: [],
       attemptHistory: [expect.objectContaining({
         updatedAt: "2026-08-31T18:00:00.000Z",
@@ -597,6 +611,90 @@ describe("hosted reservation admission", () => {
         requestedCoverage: "incremental",
         effectiveCoverage: "incremental",
       })],
+    });
+  });
+
+  it("retains hosted fallback and local terminal history for one logical pass", () => {
+    const localTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: deliveryVehicle.head,
+      headTree: "c".repeat(40),
+    });
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/mixed-fallback",
+          updatedAt: "2026-08-31T18:05:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
+          completedPasses: 1,
+          attempts: [
+            hostedProgressAttempt({
+              attemptId: "attempt-hosted-unavailable",
+              sourceId: "coderabbit-pr",
+              outcome: "rate-limited",
+              vehicle: deliveryVehicle,
+            }),
+            {
+              attemptId: "attempt-local-clean",
+              logicalPass: 1,
+              retryGeneration: 0,
+              changeRequestId: null,
+              headSha: deliveryVehicle.head,
+              terminalProducer: true,
+              sourceId: "delegated-agent",
+              outcome: "clean",
+              local: {
+                operationId: "attempt-local-clean",
+                requestId: canonicalDigest({ request: "attempt-local-clean" }),
+                vehicle: { kind: "delivery-member", identity: deliveryVehicle.deliverableId },
+                target: localTarget,
+                requestedCoverage: "incremental",
+                effectiveCoverage: "incremental",
+                deliveryAdmission: delegatedAdmission(deliveryVehicle),
+              },
+            },
+          ],
+        },
+      }],
+    };
+
+    expect(projectHostedReservationPolicyProgress({
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toMatchObject({
+      status: "complete",
+      completedPasses: 1,
+      completePasses: 0,
+      attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+      attemptHistory: [
+        { sourceId: "coderabbit-pr", outcome: "rate-limited" },
+        {
+          sourceId: "delegated-agent",
+          outcome: "clean",
+          requestedCoverage: "incremental",
+          effectiveCoverage: "incremental",
+        },
+      ],
     });
   });
 

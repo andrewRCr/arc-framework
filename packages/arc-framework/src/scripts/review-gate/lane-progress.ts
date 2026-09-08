@@ -56,7 +56,7 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
         changeRequestId: pending.changeRequestId,
         headSha: pending.headSha,
         sourceId: pending.sourceId,
-        local: pending.local,
+        local: { ...pending.local, effectiveCoverage: null },
       }) === canonicalize({
         attemptId: next.attemptId,
         logicalPass: next.logicalPass,
@@ -64,7 +64,7 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
         changeRequestId: next.changeRequestId,
         headSha: next.headSha,
         sourceId: next.sourceId,
-        local: next.local,
+        local: { ...next.local, effectiveCoverage: null },
       });
   }
   if (pendingHosted === undefined || nextHosted === undefined
@@ -105,6 +105,25 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
     requirement: nextHosted.requirement,
     actorIdentity: nextHosted.actorIdentity,
   });
+}
+
+/** Derive the local carrier's requested coverage from its admitted requirement. */
+export function localReviewRequestedCoverage(
+  requirement: { readonly retrigger: "none" | "incremental" | "full-final" },
+): "incremental" | "complete" {
+  if (requirement.retrigger === "none") {
+    throw new Error("local review admission requires a reviewable coverage policy");
+  }
+  return requirement.retrigger === "incremental" ? "incremental" : "complete";
+}
+
+function countCompleteLogicalPasses(attempts: readonly LaneAttempt[]): number {
+  return new Set(attempts.filter((attempt) => (
+    attempt.terminalProducer
+      && (attempt.local?.effectiveCoverage === "complete"
+        || attempt.hosted?.effectiveCoverage === "complete"
+        || attempt.frontline?.effectiveCoverage === "complete")
+  )).map(({ logicalPass }) => logicalPass)).size;
 }
 
 /** Resolve the stable identity of one hosted request attempt. */
@@ -608,8 +627,7 @@ export async function recordHostedAwaitAttempt(
     attemptId: hostedLaneAttemptId(handle),
     sourceId: handle.provider,
     outcome,
-    consumedPass: handle.effectiveCoverage === "complete"
-      && (outcome === "clean" || outcome === "findings"),
+    consumedPass: outcome === "clean" || outcome === "findings",
     advancePendingAttempt: true,
     hosted: {
       admission: handle.admission,
@@ -637,6 +655,7 @@ export async function recordLocalPendingAttempt(
   input: { state: Extract<import("./core/operation-state-schema.js").ReviewOperationState, { kind: "local-review" }>; now: string },
 ): Promise<LaneProgressState> {
   const { state } = input;
+  const requestedCoverage = localReviewRequestedCoverage(state.requirement);
   return recordLaneAttempt(store, {
     lane: "standard",
     repositoryId: state.repositoryId,
@@ -654,6 +673,8 @@ export async function recordLocalPendingAttempt(
       requestId: state.requestId,
       vehicle: state.vehicle,
       target: state.target,
+      requestedCoverage,
+      effectiveCoverage: null,
       ...(state.deliveryAdmission === undefined ? {} : { deliveryAdmission: state.deliveryAdmission }),
     },
     now: input.now,
@@ -953,6 +974,7 @@ export type LaneProgressProjection =
   | {
     status: "recorded";
     completedPasses: number;
+    completePasses: number;
     attempts: readonly LanePolicyAttempt[];
   };
 
@@ -1003,6 +1025,7 @@ export async function readLaneProgress(
   return {
     status: "recorded",
     completedPasses: state.completedPasses,
+    completePasses: countCompleteLogicalPasses(state.attempts),
     attempts: state.attempts.filter((attempt) => attempt.headSha === input.headSha),
   };
 }
@@ -1035,20 +1058,28 @@ export async function readLaneProgressAcrossLineage(
       headSha,
     }),
   })));
+  if (owner !== null) {
+    return {
+      status: "recorded",
+      completedPasses: owner.completedPasses,
+      completePasses: countCompleteLogicalPasses(owner.attempts),
+      attempts: owner.attempts.filter((attempt) => attempt.headSha === input.headSha),
+    };
+  }
   const current = records.find(({ headSha }) => headSha === input.headSha)?.progress;
-  const completedPasses = (owner?.completedPasses ?? 0) + records.reduce((total, { progress }) => (
+  const completedPasses = records.reduce((total, { progress }) => (
     total + (progress.status === "recorded" ? progress.completedPasses : 0)
   ), 0);
-  const ownerAttempts = owner?.attempts.filter((attempt) => attempt.headSha === input.headSha) ?? [];
-  if (completedPasses === 0 && current?.status !== "recorded" && owner === null) {
+  const completePasses = records.reduce((total, { progress }) => (
+    total + (progress.status === "recorded" ? progress.completePasses : 0)
+  ), 0);
+  if (completedPasses === 0 && current?.status !== "recorded") {
     return { status: "unrecorded" };
   }
   return {
     status: "recorded",
     completedPasses,
-    attempts: [
-      ...ownerAttempts,
-      ...(current?.status === "recorded" ? current.attempts : []),
-    ],
+    completePasses,
+    attempts: current?.status === "recorded" ? current.attempts : [],
   };
 }

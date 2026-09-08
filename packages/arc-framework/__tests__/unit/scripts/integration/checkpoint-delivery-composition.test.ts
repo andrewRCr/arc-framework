@@ -134,7 +134,13 @@ describe("delivery checkpoint composition", () => {
         detail: "The reserved source has no clean attempt.",
         nextSource: "coderabbit-pr",
       }],
-      progress: [{ status: "complete", completedPasses: 2, attempts: [], attemptHistory: [] }],
+      progress: [{
+        status: "complete",
+        completedPasses: 2,
+        completePasses: 2,
+        attempts: [],
+        attemptHistory: [],
+      }],
       ownerTermini: [{
         vehicle,
         terminus: {
@@ -365,6 +371,7 @@ describe("delivery checkpoint composition", () => {
       return {
         status: "recorded",
         completedPasses: 1,
+        completePasses: 1,
         attempts: [{
           attemptId: `coderabbit-pr-${target.headSha}`,
           sourceId: "coderabbit-pr",

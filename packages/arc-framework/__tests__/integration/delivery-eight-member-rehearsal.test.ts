@@ -191,6 +191,7 @@ describe("eight-member delivery integration rehearsal", () => {
       targets,
       discharges: targets.map((_, index) => ({
         completedPasses: 0,
+        completePasses: 0,
         passCeiling: 2,
         attemptHistory: [],
         ...(index === 0
@@ -229,6 +230,7 @@ describe("eight-member delivery integration rehearsal", () => {
         detail: "Hosted source is settled.",
         nextSource: null,
         completedPasses: 1,
+        completePasses: 1,
         passCeiling: 2,
         attemptHistory: [],
       })),

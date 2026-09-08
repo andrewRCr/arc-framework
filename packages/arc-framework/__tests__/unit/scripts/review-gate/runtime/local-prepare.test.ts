@@ -319,6 +319,8 @@ describe("local review preparation request", () => {
           local: {
             operationId: prepared.payload.operationId,
             requestId: prepared.payload.request.requestId,
+            requestedCoverage: "incremental",
+            effectiveCoverage: null,
           },
         }],
       });

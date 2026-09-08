@@ -241,10 +241,19 @@ function reservation(
     : createStandardReviewReservation({ ...common, target: targetVehicle });
 }
 
+type TestLaneProgressProjection = { status: "unrecorded" } | (
+  Omit<Extract<LaneProgressProjection, { status: "recorded" }>, "completePasses">
+  & { completePasses?: number }
+);
+
 function progress(
-  entries: Record<string, LaneProgressProjection>,
+  entries: Record<string, TestLaneProgressProjection>,
 ): (headSha: string) => Promise<LaneProgressProjection> {
-  return async (headSha) => entries[headSha] ?? { status: "unrecorded" };
+  return async (headSha) => {
+    const entry = entries[headSha];
+    if (entry === undefined || entry.status === "unrecorded") return { status: "unrecorded" };
+    return { ...entry, completePasses: entry.completePasses ?? entry.completedPasses };
+  };
 }
 
 function earlierAttempt<T extends { readonly sourceId: string }>(input: T) {
@@ -868,6 +877,7 @@ describe("hosted reservation discharge", () => {
         [oid("a")]: {
           status: "recorded",
           completedPasses: 1,
+          completePasses: 1,
           attempts: [attempt(oid("a"), "coderabbit-pr", "clean")],
         },
       }),
@@ -956,7 +966,8 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({
         [oid("b")]: {
           status: "recorded",
-          completedPasses: 0,
+          completedPasses: 1,
+          completePasses: 0,
           attempts: [attempt(
             oid("b"),
             "coderabbit-pr",
@@ -1011,6 +1022,8 @@ describe("hosted reservation discharge", () => {
             local: {
               vehicle: { kind: "delivery-member", identity: MEMBER_ONE },
               target: localTarget,
+              requestedCoverage: "complete",
+              effectiveCoverage: "complete",
               deliveryAdmission: delegatedAdmission(vehicle),
             },
           }],
@@ -1057,6 +1070,7 @@ describe("hosted reservation discharge", () => {
         [vehicle.head]: {
           status: "recorded",
           completedPasses: 1,
+          completePasses: 1,
           attempts: [{
             attemptId: "local-review-1",
             sourceId: "delegated-agent",
@@ -1064,6 +1078,8 @@ describe("hosted reservation discharge", () => {
             local: {
               vehicle: { kind: "delivery-member", identity: MEMBER_ONE },
               target: localTarget,
+              requestedCoverage: "complete",
+              effectiveCoverage: "complete",
               deliveryAdmission: delegatedAdmission(vehicle),
             },
           }],

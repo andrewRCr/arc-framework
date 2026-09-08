@@ -200,31 +200,14 @@ identity; native bindings preserve exactness without a generic persisted executi
 - _Outcome:_ Hosted request and await now retain immutable requirement, actor, pass, and requested/effective coverage
   through restart and safe fallback without manufacturing provider exactly-once or reconciliation capability.
 
-### `[ ]` **2.4 Derive logical counts and truthful coverage across history and progress consumers**
+### `[x]` **2.4 Derive logical counts and truthful coverage across history and progress consumers**
 
 - _Goal:_ Every progress consumer counts logical terminal passes once and reports complete coverage separately across
   member heads.
 
-- _Note:_ Spec §§ 3, 5, and 7; SC 12 and 14.
-
-- _Approach:_ Update `lane-progress.ts`, reservation admission, earlier-attempt projection, status, and checkpoint.
-  Preserve source selection; do not activate severity-derived convergence in this accounting migration.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Complete and incremental clean/findings terminals each consume one pass; effective complete upgrades count
-          once.
-
-        - Retries, unavailable attempts, partial chunks, observations, and settlement replay do not add completed
-          passes.
-
-        - Stable member history includes same-head and moved-head passes; local requested/effective coverage is not
-          hardcoded.
-
-        - Mixed hosted/local fallback retains both histories without overwriting a container-level PR discriminator.
-          Same-head sibling members remain isolated; head-specific views and lineage counts use the same owner.
-
-        - All consumers agree on exhausted count and named next-pass override; Owner acceptance remains a separate fact.
+- _Outcome:_ Lane-progress, reservation, history, status, and checkpoint consumers count unique terminal logical passes
+  independently of effective complete coverage. Local and hosted coverage survives fallback and head movement without
+  changing source selection, while exact Owner acceptance remains a separate terminus fact.
 
 ### `[ ]` **2.5 Exercise public admission, fallback, retry, moved-member history, and exact cap authority**
 

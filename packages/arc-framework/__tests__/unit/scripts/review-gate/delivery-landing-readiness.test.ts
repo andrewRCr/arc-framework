@@ -46,6 +46,7 @@ function observation(
           detail: "The exact member review is discharged.",
           progress: {
             completedPasses: 1,
+            completePasses: 1,
             passCeiling: 2,
             attempts: [],
           },

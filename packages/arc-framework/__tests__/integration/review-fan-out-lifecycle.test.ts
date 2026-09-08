@@ -1038,7 +1038,7 @@ async function completeLocalReviewThroughHandlers(
       evaluatorIdentity: "fresh-reviewer",
       routingFacts: {
         contentKind: "code-bearing",
-        reviewRisk: "routine",
+        reviewRisk: "sensitive",
         changeDeterminacy: "ordinary",
         ownership: "self",
         surfaceAuthority: "ordinary",
@@ -2339,7 +2339,8 @@ describe("hosted review fan-out lifecycle", () => {
       deliveryCursor: {
         currentMember: {
           progress: {
-            completedPasses: 0,
+            completedPasses: 1,
+            completePasses: 0,
             attempts: [expect.objectContaining({
               sourceId: "coderabbit-pr",
               requestedCoverage: "incremental",

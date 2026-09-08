@@ -47,11 +47,11 @@ function lastMatchingIndex<T>(values: readonly T[], predicate: (value: T) => boo
 }
 
 function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
-  return attempt.local !== undefined || attempt.hosted?.effectiveCoverage === "complete";
+  return attempt.local?.effectiveCoverage === "complete" || attempt.hosted?.effectiveCoverage === "complete";
 }
 
 function isCompleteStandardRequest(attempt: ProjectedLaneAttempt): boolean {
-  return attempt.local !== undefined || attempt.hosted?.requestedCoverage === "complete";
+  return attempt.local?.requestedCoverage === "complete" || attempt.hosted?.requestedCoverage === "complete";
 }
 
 function attemptMatchesTarget(

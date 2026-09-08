@@ -1859,6 +1859,8 @@ describe("arc delivery position", () => {
         requestId: operation.requestId,
         vehicle: operation.vehicle,
         target: operation.target,
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
         deliveryAdmission: operation.deliveryAdmission,
       },
       now: "2026-09-03T12:00:00.000Z",

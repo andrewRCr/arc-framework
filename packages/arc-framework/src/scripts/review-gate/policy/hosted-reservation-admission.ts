@@ -43,6 +43,7 @@ export type HostedReservationPolicyProgress =
   | {
     readonly status: "complete";
     readonly completedPasses: number;
+    readonly completePasses: number;
     readonly attempts: ReviewPolicyCommandRequest["attempts"];
     readonly attemptHistory: readonly HostedReservationPolicyAttemptProgress[];
   }
@@ -69,7 +70,8 @@ export function projectHostedReservationPolicyProgress(input: {
   if (input.vehicle.head !== input.target.headSha) {
     return { status: "unavailable", detail: "The delivery-member vehicle does not identify the current target head." };
   }
-  let completedPasses = 0;
+  const completedLogicalPasses = new Set<number>();
+  const completeLogicalPasses = new Set<number>();
   const historyTimeline: Array<{
     readonly progress: HostedReservationPolicyAttemptProgress;
     readonly operationId: string;
@@ -109,6 +111,8 @@ export function projectHostedReservationPolicyProgress(input: {
         && local.target.repositoryId === input.repositoryId
         && local.target.headSha === attempt.headSha;
       if (!hostedIdentityMatches && !localMatches) continue;
+      const coverageBinding = localMatches ? local : hosted;
+      if (coverageBinding === undefined) continue;
       historyTimeline.push({
         operationId: state.operationId,
         attemptIndex,
@@ -117,21 +121,24 @@ export function projectHostedReservationPolicyProgress(input: {
           headSha: attempt.headSha,
           sourceId: attempt.sourceId,
           outcome: attempt.outcome,
-          requestedCoverage: localMatches ? "complete" : hosted?.requestedCoverage ?? "complete",
-          effectiveCoverage: localMatches ? "complete" : hosted?.effectiveCoverage ?? null,
+          requestedCoverage: coverageBinding.requestedCoverage,
+          effectiveCoverage: coverageBinding.effectiveCoverage,
           findingCount: hosted?.findings.length ?? 0,
           settledFindingCount: hosted?.settledFindingIds.length ?? 0,
         },
       });
-      if ((localMatches || hosted?.effectiveCoverage === "complete")
+      if (attempt.terminalProducer
         && (attempt.outcome === "clean"
         || attempt.outcome === "findings"
         || attempt.outcome === "settled-findings")) {
-        completedPasses += 1;
+        completedLogicalPasses.add(attempt.logicalPass);
+        if (local?.effectiveCoverage === "complete" || hosted?.effectiveCoverage === "complete") {
+          completeLogicalPasses.add(attempt.logicalPass);
+        }
       }
       if (attempt.headSha === input.target.headSha
         && attempt.outcome !== "pending"
-        && (localMatches || (hostedCompleteMatches
+        && ((localMatches && local.effectiveCoverage === "complete") || (hostedCompleteMatches
           && sameDeliveryReviewMemberVehicle(input.vehicle, hosted.vehicle)))) {
         currentTimeline.push({
           updatedAt: state.updatedAt,
@@ -165,7 +172,13 @@ export function projectHostedReservationPolicyProgress(input: {
   }
   const attempts = currentTimeline.slice(latestSettledIndex + 1).map(({ attempt }) => attempt);
   const attemptHistory = historyTimeline.map(({ progress }) => progress);
-  return { status: "complete", completedPasses, attempts, attemptHistory };
+  return {
+    status: "complete",
+    completedPasses: completedLogicalPasses.size,
+    completePasses: completeLogicalPasses.size,
+    attempts,
+    attemptHistory,
+  };
 }
 
 /** Resolve one delivery member's next request through the configured standard-review driver. */

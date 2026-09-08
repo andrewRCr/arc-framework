@@ -95,8 +95,17 @@ export const DeliveryReviewAttemptProgressSchema = z.strictObject({
 
 export const DeliveryReviewMemberProgressSchema = z.strictObject({
   completedPasses: z.number().int().nonnegative(),
+  completePasses: z.number().int().nonnegative(),
   passCeiling: z.number().int().positive(),
   attempts: z.array(DeliveryReviewAttemptProgressSchema),
+}).superRefine((progress, context) => {
+  if (progress.completePasses > progress.completedPasses) {
+    context.addIssue({
+      code: "custom",
+      path: ["completePasses"],
+      message: "complete passes cannot exceed completed logical passes",
+    });
+  }
 });
 
 export const DeliveryReviewConjunctionMemberSchema = z.strictObject({
@@ -531,6 +540,7 @@ export function composeDeliveryReviewObligation(input: {
     requestCeilingOverride?: ReviewCeilingOverride;
     requestScopeSelection?: z.infer<typeof DeliveryLocalReviewScopeSelectionSchema>;
     completedPasses: number;
+    completePasses: number;
     passCeiling: number;
     attemptHistory: readonly z.infer<typeof DeliveryReviewAttemptProgressSchema>[];
   }[];
@@ -583,6 +593,7 @@ export function composeDeliveryReviewObligation(input: {
       detail: discharge.detail,
       progress: {
         completedPasses: discharge.completedPasses,
+        completePasses: discharge.completePasses,
         passCeiling: discharge.passCeiling,
         attempts: [...discharge.attemptHistory],
       },

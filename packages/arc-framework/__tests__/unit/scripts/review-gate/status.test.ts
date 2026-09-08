@@ -77,11 +77,15 @@ function deliveryTarget(
 }
 
 function deliveryDischarge(
-  input: Omit<DeliveryDischargeInput, "completedPasses" | "passCeiling" | "attemptHistory">
-    & Partial<Pick<DeliveryDischargeInput, "completedPasses" | "passCeiling" | "attemptHistory">>,
+  input: Omit<DeliveryDischargeInput, "completedPasses" | "completePasses" | "passCeiling" | "attemptHistory">
+    & Partial<Pick<
+      DeliveryDischargeInput,
+      "completedPasses" | "completePasses" | "passCeiling" | "attemptHistory"
+    >>,
 ): DeliveryDischargeInput {
   return {
     completedPasses: 0,
+    completePasses: 0,
     passCeiling: 2,
     attemptHistory: [],
     ...input,
@@ -90,6 +94,7 @@ function deliveryDischarge(
 
 const conjunctionMemberProgress = {
   completedPasses: 0,
+  completePasses: 0,
   passCeiling: 2,
   attempts: [],
 };
@@ -543,6 +548,29 @@ describe("review status", () => {
     });
   });
 
+  it("reports logical and complete member-pass counts independently", () => {
+    const discharge = {
+      ...deliveryDischarge({
+        discharged: false,
+        detail: "The member still needs complete coverage.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: readyAdmission("coderabbit-pr"),
+        completedPasses: 2,
+      }),
+      completePasses: 1,
+    };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [discharge],
+    });
+
+    expect(obligation).toMatchObject({
+      conjunction: {
+        members: [{ progress: { completedPasses: 2, completePasses: 1 } }],
+      },
+    });
+  });
+
   it("binds a ceiling stop to one submit-ready exact member terminus offer", async () => {
     const policy = resolveReviewPolicy({
       schemaVersion: 1,
@@ -764,6 +792,7 @@ describe("review status", () => {
       conjunctionMemberProgress,
       {
         completedPasses: 1,
+        completePasses: 0,
         passCeiling: 2,
         attempts: [{
           updatedAt: "2026-09-02T12:00:00.000Z",
@@ -812,6 +841,7 @@ describe("review status", () => {
           nextSource: null,
           applicability,
           completedPasses: progress.completedPasses,
+          completePasses: progress.completePasses,
           passCeiling: progress.passCeiling,
           attemptHistory: progress.attempts,
         })],
@@ -832,6 +862,7 @@ describe("review status", () => {
   it("keeps pending hosted work and findings ahead of a pre-ceiling terminus offer", async () => {
     const completedProgress = {
       completedPasses: 1,
+      completePasses: 1,
       passCeiling: 2,
       attempts: [{
         updatedAt: "2026-09-02T12:00:00.000Z",

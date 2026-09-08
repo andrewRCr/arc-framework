@@ -738,7 +738,7 @@ describe("hosted await lane recording", () => {
     expect(state?.completedPasses).toBe(0);
   });
 
-  it("retains incremental coverage without consuming a complete-review pass", async () => {
+  it("counts an incremental verdict once while retaining its coverage", async () => {
     const store = createStore();
     const incrementalAdmission = createHostedAdmission({
       schemaVersion: 1,
@@ -774,7 +774,7 @@ describe("hosted await lane recording", () => {
       now: "2026-08-15T12:00:00Z",
     });
 
-    expect(state?.completedPasses).toBe(0);
+    expect(state?.completedPasses).toBe(1);
     expect(state?.attempts[0]?.hosted).toMatchObject({
       requestedCoverage: "incremental",
       effectiveCoverage: "incremental",
@@ -1174,6 +1174,7 @@ describe("lane progress reader", () => {
     })).resolves.toEqual({
       status: "recorded",
       completedPasses: 1,
+      completePasses: 0,
       attempts: [
         {
           attemptId: "attempt-1",
@@ -1239,6 +1240,7 @@ describe("lane progress reader", () => {
     })).resolves.toEqual({
       status: "recorded",
       completedPasses: 2,
+      completePasses: 0,
       attempts: [{
         attemptId: "attempt-2",
         logicalPass: 1,
@@ -1252,7 +1254,7 @@ describe("lane progress reader", () => {
     });
   });
 
-  it("combines stable-lineage and exact-head history without double-counting either owner", async () => {
+  it("uses the stable-lineage owner instead of mixing exact-head progress", async () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
@@ -1282,16 +1284,12 @@ describe("lane progress reader", () => {
     })).resolves.toEqual({
       status: "recorded",
       completedPasses: 1,
+      completePasses: 0,
       attempts: [
         expect.objectContaining({
           attemptId: "attempt-1",
           sourceId: "delegated-agent",
           outcome: "clean",
-        }),
-        expect.objectContaining({
-          attemptId: "attempt-2",
-          sourceId: "coderabbit-pr",
-          outcome: "rate-limited",
         }),
       ],
     });

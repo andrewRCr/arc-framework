@@ -216,6 +216,8 @@ describe("local attest command", () => {
           requestId: records.operation.requestId,
           vehicle: records.operation.vehicle,
           target: records.operation.target,
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
         },
       })],
     });
@@ -313,6 +315,8 @@ describe("local attest command", () => {
             requestId: records.operation.requestId,
             vehicle: records.operation.vehicle,
             target: records.operation.target,
+            requestedCoverage: "complete",
+            effectiveCoverage: null,
           },
         })],
       });

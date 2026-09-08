@@ -225,8 +225,19 @@ const LocalLaneAttemptBindingSchema = z.strictObject({
   requestId: CanonicalDigestSchema,
   vehicle: ReviewVehicleSchema,
   target: ReviewTargetSchema,
+  requestedCoverage: HostedReviewCoverageSchema,
+  effectiveCoverage: HostedReviewCoverageSchema.nullable(),
   deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
 }).superRefine((local, context) => {
+  if (local.requestedCoverage === "complete"
+    && local.effectiveCoverage !== null
+    && local.effectiveCoverage !== "complete") {
+    context.addIssue({
+      code: "custom",
+      path: ["effectiveCoverage"],
+      message: "effective coverage must not weaken requested complete coverage",
+    });
+  }
   if ((local.vehicle.kind === "delivery-member") !== (local.target.kind === "delivery-member")) {
     context.addIssue({
       code: "custom",

@@ -381,6 +381,8 @@ describe("review operation state schemas", () => {
         requestId: localCarrier.request.requestId,
         vehicle: localReview.vehicle,
         target: localTarget,
+        requestedCoverage: "complete" as const,
+        effectiveCoverage: "complete" as const,
       },
     };
     expect(LaneProgressStateSchema.parse({
@@ -393,6 +395,14 @@ describe("review operation state schemas", () => {
       completedPasses: 1,
       attempts: [{ ...localAttempt, sourceId: "coderabbit-pr" }],
     })).toThrow(/local attempt source/iu);
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      completedPasses: 1,
+      attempts: [{
+        ...localAttempt,
+        local: { ...localAttempt.local, effectiveCoverage: "incremental" as const },
+      }],
+    })).toThrow(/must not weaken requested complete coverage/iu);
     expect(() => LaneProgressStateSchema.parse({
       ...laneProgress,
       completedPasses: 1,

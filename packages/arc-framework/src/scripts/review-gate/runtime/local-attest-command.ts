@@ -21,7 +21,7 @@ import type {
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import { LocalAttestEnvelopeSchema } from "../core/review-command-envelope.js";
-import { recordLaneAttempt } from "../lane-progress.js";
+import { localReviewRequestedCoverage, recordLaneAttempt } from "../lane-progress.js";
 import {
   isReviewVersionConflict,
   REVIEW_VERSION_RETRY_ATTEMPTS,
@@ -117,6 +117,7 @@ async function attestLocalReviewWithinSourceLock(
     throw new LocalAttestCommandError("corrupt-state", "local review operation is unavailable");
   }
   const state = persisted.state;
+  const requestedCoverage = localReviewRequestedCoverage(state.requirement);
   const result = normalizeLocalReviewResult(request.result, {
     repositoryId: state.repositoryId,
     targetId: state.targetId,
@@ -145,6 +146,8 @@ async function attestLocalReviewWithinSourceLock(
         requestId: state.requestId,
         vehicle: state.vehicle,
         target: state.target,
+        requestedCoverage,
+        effectiveCoverage: null,
         ...(state.deliveryAdmission === undefined
           ? {}
           : { deliveryAdmission: state.deliveryAdmission }),
@@ -226,6 +229,10 @@ async function attestLocalReviewWithinSourceLock(
         requestId: state.requestId,
         vehicle: state.vehicle,
         target: state.target,
+        requestedCoverage,
+        effectiveCoverage: receipt.result === "clean" || receipt.result === "findings"
+          ? requestedCoverage
+          : null,
         ...(state.deliveryAdmission === undefined
           ? {}
           : { deliveryAdmission: state.deliveryAdmission }),
@@ -347,6 +354,10 @@ async function attestLocalReviewWithinSourceLock(
       requestId: state.requestId,
       vehicle: state.vehicle,
       target: state.target,
+      requestedCoverage,
+      effectiveCoverage: receipt.result === "clean" || receipt.result === "findings"
+        ? requestedCoverage
+        : null,
       ...(state.deliveryAdmission === undefined
         ? {}
         : { deliveryAdmission: state.deliveryAdmission }),

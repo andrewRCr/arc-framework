@@ -498,6 +498,7 @@ export async function readRoutedObligation(
           return {
             ...discharge,
             completedPasses: memberProgress.completedPasses,
+            completePasses: memberProgress.completePasses,
             passCeiling: policy.maxPasses,
             attemptHistory: memberProgress.attemptHistory,
           };

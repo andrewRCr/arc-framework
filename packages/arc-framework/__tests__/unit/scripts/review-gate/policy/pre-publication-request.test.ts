@@ -125,6 +125,7 @@ function dependencies(
     readLaneProgress: vi.fn(async (): Promise<LaneProgressProjection> => ({
       status: "recorded",
       completedPasses: 0,
+      completePasses: 0,
       attempts: [],
     })),
     readLanePolicy: vi.fn(async (lane: ReviewLane) => lane === "frontline"
@@ -295,9 +296,10 @@ describe("composePrePublicationReviewRequest", () => {
       ? {
           status: "recorded",
           completedPasses: 1,
+          completePasses: 1,
           attempts: [{ attemptId: "first-clean", sourceId: "coderabbit-cli", outcome: "clean" }],
         }
-      : { status: "recorded", completedPasses: 0, attempts: [] });
+      : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] });
     const deps = Object.assign(dependencies({
       deriveImmutableTarget,
       readAssurance: async () => ({
@@ -364,13 +366,14 @@ describe("composePrePublicationReviewRequest", () => {
         ? {
             status: "recorded" as const,
             completedPasses: 1,
+            completePasses: 1,
             attempts: [{
               attemptId: `clean-${headSha}`,
               sourceId: "coderabbit-cli",
               outcome: "clean" as const,
             }],
           }
-        : { status: "recorded" as const, completedPasses: 0, attempts: [] },
+        : { status: "recorded" as const, completedPasses: 0, completePasses: 0, attempts: [] },
       readReservationTarget: async (_workUnit, singleton) => ({
         status: "resolved" as const,
         target: {
@@ -424,19 +427,21 @@ describe("composePrePublicationReviewRequest", () => {
         ? {
             status: "recorded" as const,
             completedPasses: 1,
+            completePasses: 1,
             attempts: [{ attemptId: "first-clean", sourceId: "coderabbit-cli", outcome: "clean" as const }],
           }
         : lane === "frontline"
           ? {
               status: "recorded" as const,
               completedPasses: 2,
+              completePasses: 2,
               attempts: [{
                 attemptId: "second-rate-limited",
                 sourceId: "coderabbit-cli",
                 outcome: "rate-limited" as const,
               }],
             }
-          : { status: "recorded" as const, completedPasses: 0, attempts: [] },
+          : { status: "recorded" as const, completedPasses: 0, completePasses: 0, attempts: [] },
       readReservationTarget: async (_workUnit, singleton) => ({
         status: "resolved" as const,
         target: {
@@ -713,6 +718,7 @@ describe("composePrePublicationReviewRequest", () => {
         readLaneProgress: async (lane) => ({
           status: "recorded",
           completedPasses: lane === "standard" ? 5 : 0,
+          completePasses: lane === "standard" ? 5 : 0,
           attempts: [],
         }),
       }),
@@ -818,9 +824,10 @@ describe("composePrePublicationReviewRequest", () => {
         ? {
             status: "recorded",
             completedPasses: 1,
+            completePasses: 1,
             attempts: [{ attemptId: "attempt-1", sourceId: "codex-pr", outcome: "findings" }],
           }
-        : { status: "recorded", completedPasses: 0, attempts: [] });
+        : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] });
 
     const composition = await composePrePublicationReviewRequest(
       { workUnit: "example" },
@@ -849,6 +856,7 @@ describe("composePrePublicationReviewRequest", () => {
     const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> => ({
       status: "recorded",
       completedPasses: lane === "standard" ? 2 : 0,
+      completePasses: lane === "standard" ? 2 : 0,
       attempts: [],
     }));
     const composition = await composePrePublicationReviewRequest(
@@ -876,9 +884,10 @@ describe("composePrePublicationReviewRequest", () => {
         ? {
             status: "recorded",
             completedPasses: 1,
+            completePasses: 1,
             attempts: [{ attemptId: "attempt-1", sourceId: "codex-pr", outcome: "findings" }],
           }
-        : { status: "recorded", completedPasses: 0, attempts: [] },
+        : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
     }));
 
     expect(composition.status).toBe("refused");
@@ -890,7 +899,7 @@ describe("composePrePublicationReviewRequest", () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
       readLaneProgress: async (lane) => lane === "standard"
         ? { status: "unrecorded" }
-        : { status: "recorded", completedPasses: 0, attempts: [] },
+        : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
     }));
 
     expect(composition.status).toBe("composed");
