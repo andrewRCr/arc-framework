@@ -473,6 +473,41 @@ interface V3RepositoryPlanRemedyDefinition extends V3PreflightRemedyDefinition {
 }
 
 const V3_REPOSITORY_PLAN_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemedyDefinition>> = {
+  "unknown-destination": {
+    invariant: "Every plan contribution must target one declared destination.",
+    correction: "Correct the reported contribution destination, then retry the selected mode",
+    command: "invocation",
+  },
+  "incompatible-content-role": {
+    invariant: "Every plan contribution must use a content role admitted by its destination.",
+    correction: "Correct the reported contribution role, then retry the selected mode",
+    command: "invocation",
+  },
+  "incomplete-profile-artifacts": {
+    invariant: "Every new member must receive the complete artifact set required by its planning profile.",
+    correction: "Restore the reported profile artifact projection, then retry the selected mode",
+    command: "invocation",
+  },
+  "allocation-projection-mismatch": {
+    invariant: "Every validated allocation must project to exactly one matching content contribution.",
+    correction: "Correct the reported allocation projection, then retry the selected mode",
+    command: "invocation",
+  },
+  "dependency-projection-mismatch": {
+    invariant: "Every dependency contribution must retain its validated identity and destination.",
+    correction: "Correct the reported dependency projection, then retry the selected mode",
+    command: "invocation",
+  },
+  "profile-meta-mismatch": {
+    invariant: "Every new-member metadata projection must match its selected planning profile.",
+    correction: "Correct the reported member metadata projection, then retry the selected mode",
+    command: "invocation",
+  },
+  "managed-path-set-mismatch": {
+    invariant: "The composed plan must claim exactly its expected managed-path set.",
+    correction: "Correct the reported plan path projection, then retry the selected mode",
+    command: "invocation",
+  },
   "invalid-structure": {
     invariant: "A completed cut map must satisfy the closed v3 structure.",
     correction: "Correct the reported map structure, then retry the selected mode",

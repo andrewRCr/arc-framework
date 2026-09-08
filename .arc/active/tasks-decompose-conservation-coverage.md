@@ -194,14 +194,11 @@ only after every mode has executable coverage.
 
 - **Additional Context:** `strategy-workflow-authoring.md` §§ Prose economy, Verbs over mechanics
 
-    - `[ ]` **1.5.a Enumerate stable refusal-code literals from the production source**
-        - Add a TypeScript-AST-backed contract test over the decomposition modules, reusing the recursive traversal
-          pattern in `__tests__/unit/work-unit/decompose-v3-authority-boundary.test.ts`, and require every known literal
-          to resolve to a non-generic remedy.
-        - Exclude only the named `unexpected-error` arm; fail on an unmapped code, a mapping to the retry fallback,
-          a production literal hidden inside runtime detail, or an unapproved nonliteral outward `reason` producer.
-        - Make registry maintenance part of every later leaf that introduces a production refusal code; the code,
-          specific remedy mapping, and source-totality proof land together.
+    - `[x]` **1.5.a Enumerate stable refusal-code literals from the production source**
+        - Added an AST source-totality contract over v3 decomposition modules that inventories typed and emitted codes,
+          rejects unmapped or generic remedies, and permits only audited stable nonliteral reason producers.
+        - Registered specific plan-composition remedies and replaced thinning's generic map reasons with stable composed
+          codes, while keeping `unexpected-error` as the sole excluded runtime arm.
 
     - `[ ]` **1.5.b Prove composed-prefix selection and evidence admission exhaustively**
         - Cover each stable prefix family and its innermost-code selection in the refusal-registry unit suite.

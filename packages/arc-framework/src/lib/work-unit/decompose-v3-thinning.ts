@@ -90,9 +90,9 @@ export function planV3ExtractionSourceThinning(
   input: V3ExtractionSourceThinningInput,
 ): V3ExtractionSourceThinningResult {
   const decoded = decodeV3DecomposeCutMap(input.completedMap);
-  if (decoded.status === "rejected") return refuse("map", decoded.issue.path);
+  if (decoded.status === "rejected") return refuse(`map:${decoded.issue.code}`, decoded.issue.path);
   const map = decoded.value;
-  if (map.authoring.shape !== "extraction") return refuse("map-shape", "authoring.shape");
+  if (map.authoring.shape !== "extraction") return refuse("map:authoring-shape", "authoring.shape");
   const binding = revalidateV3DecomposeCutMapBinding(map, input.currentPreflight);
   if (binding.status === "stale") {
     return refuse(`source-binding:${binding.reason}`, binding.locus, binding.evidence);

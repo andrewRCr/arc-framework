@@ -302,7 +302,7 @@ describe("planV3ExtractionSourceThinning", () => {
 
     expect(planV3ExtractionSourceThinning(input)).toMatchObject({
       status: "refused",
-      reason: "map",
+      reason: "map:authoring-identity",
     });
   });
 });
