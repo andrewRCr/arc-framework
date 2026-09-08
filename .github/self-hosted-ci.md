@@ -1,23 +1,25 @@
 # Self-hosted Linux CI operations
 
-This runbook operates the repository's disposable Linux GitHub Actions capacity. The normal target is one
-user-owned x86-64 VPS running two persistent runner services. GitHub-hosted execution remains the recovery path.
+This runbook operates the repository's disposable Linux GitHub Actions capacity. The normal target is two
+user-owned x86-64 VPS hosts running four persistent runner services, two per host. GitHub-hosted execution remains
+the recovery path.
 
 ## Operating contract
 
 - Use the approved current Ubuntu LTS on x86-64 while it remains supported by the GitHub Actions runner; the
   acquired baseline is Ubuntu 26.04 LTS. Re-check the runner support page before acquiring or rebuilding a host;
   an OS change requires a fresh qualification.
-- Start with approximately 4 shared vCPU, 8 GB RAM, SSD storage, adequate outbound transfer, and a recurring price
-  no higher than USD 15 per month. Buy no premium backup and create no manual snapshot. A bundled rolling backup
-  retained for at most 24 hours is accepted residual exposure, never a recovery dependency: rebuild, do not restore.
+- For each host, start with approximately 4 shared vCPU, 8 GB RAM, SSD storage, adequate outbound transfer, and a
+  recurring price no higher than USD 15 per month. Buy no premium backup and create no manual snapshot. A bundled
+  rolling backup retained for at most 24 hours is accepted residual exposure, never a recovery dependency: rebuild,
+  do not restore.
 - Permit inbound administrative SSH only. The runner needs outbound HTTPS to GitHub and package registries; it
   receives no private-network route and hosts no unrelated service.
 - Install `git`, `gh`, `jq`, `shellcheck`, a POSIX shell, coreutils, and the dependencies reported by the current
   runner package. Workflow Node versions continue to come from `actions/setup-node`.
-- Run exactly two services as the unprivileged `arc-runner` account, from separate application directories, with
-  unique names and the custom repository label `arc-ci-linux`. Keep the default `self-hosted`, `Linux`, and `X64`
-  labels.
+- Run exactly two services per host (four total) as the unprivileged `arc-runner` account, from separate application
+  directories, with fleet-unique names and the custom repository label `arc-ci-linux`. Keep the default
+  `self-hosted`, `Linux`, and `X64` labels.
 - Never store a development checkout, personal notes, PAT, deploy key, provider credential, private key, payment
   detail, or unrelated workload on the host. Runner identity, transient source, job tokens, and build outputs are
   sensitive but disposable.
@@ -29,13 +31,13 @@ category counts, checklist results, exceptions, sanitized runner state, workflow
 
 ## Host provisioning
 
-Perform these steps through the user's local SSH configuration. Substitute transient values locally; do not save
-the host endpoint, administrator identity, SSH mapping, or fingerprint in repository files.
+Repeat these steps for each host through the user's local SSH configuration. Substitute transient values locally;
+do not save a host endpoint, administrator identity, SSH mapping, or fingerprint in repository files.
 
-1. Create an allocation in the approved region and SKU using the approved current Ubuntu LTS on x86-64. Select no
-   premium backup or manual snapshot option; document any non-disableable rolling backup under the operating
-   contract. Add the intended SSH public key through the provider when that option is available. When a provider
-   firewall is available, restrict it to administrative SSH inbound plus established traffic; the host firewall
+1. Create the host's allocation in the approved region and SKU using the approved current Ubuntu LTS on x86-64.
+   Select no premium backup or manual snapshot option; document any non-disableable rolling backup under the
+   operating contract. Add the intended SSH public key through the provider when that option is available. When a
+   provider firewall is available, restrict it to administrative SSH inbound plus established traffic; the host firewall
    remains mandatory. Permit outbound HTTPS and DNS.
 2. Connect as the provider's administrative account, verify the expected host key through a user-held channel, and
    update the operating system. If a rebuild cannot inject the existing public key, use the provider-delivered
@@ -131,8 +133,9 @@ assignment, and cutover.
 
 After the audit passes:
 
-1. Confirm the repository variable `ARC_CI_LINUX_RUNNER` is absent, empty, or `ubuntu-latest`, and confirm no new
-   runner is registered.
+1. Confirm the repository variable `ARC_CI_LINUX_RUNNER` is absent, empty, or `ubuntu-latest`, and confirm the two
+   runner identities being added or rebuilt are absent. The already-qualified sibling host's pair may remain
+   registered during a one-host rebuild.
 2. Create unique runner names as transient operator inputs. Request a short-lived repository registration token
    only when ready to consume it. Do not echo, save, or reuse the token.
 3. In each application directory, as `arc-runner`, run the current configuration command shown by GitHub, adding
@@ -146,17 +149,18 @@ After the audit passes:
    ```
 
 5. Leave automatic runner updates enabled. The generated unit may have `Restart=no`; create a systemd drop-in for
-   each unit with `Restart=always` and `RestartSec=5s`, then reload systemd and restart both services. Confirm both
-   units are enabled and active. Reboot once before cutover, then confirm both runners return online and idle without
-   operator action.
+   each unit with `Restart=always` and `RestartSec=5s`, then reload systemd and restart both services on the host.
+   Confirm both units are enabled and active. Reboot once before cutover, then confirm that host's two runners return
+   online and idle without operator action.
 
 ## Cutover and health checks
 
 Do not select the self-hosted route until all checks below pass:
 
 - The access-control audit is current and explicitly green.
-- Both unique runners are online and idle with `self-hosted`, `Linux`, `X64`, and `arc-ci-linux` labels.
-- Both services survive a controlled restart and reboot; each uses its own application and `_work` directory.
+- All four unique runners are online and idle with `self-hosted`, `Linux`, `X64`, and `arc-ci-linux` labels.
+- Each host's two services survive a controlled restart and reboot; every service uses its own application and
+  `_work` directory.
 - Required tools resolve for `arc-runner`; disk headroom is sufficient; unattended updates and automatic runner
   updates are enabled.
 - `sysstat` samples and persistent journal entries are current, size-bounded, and projected to survive through the
@@ -190,8 +194,9 @@ before rerunning; changing the variable does not migrate work that was already a
 Confirm the new run's Linux jobs report GitHub-hosted runner names before treating fallback as complete. Fallback
 precedes runner maintenance, rebuild, incident response, decommissioning, and any public-repository transition.
 
-For suspected compromise or unexplained residue: select hosted, remove both runners in GitHub, review or revoke
-affected GitHub/provider credentials, preserve only the minimum protected diagnostic export, destroy the VPS, and
+For suspected compromise or unexplained residue: select hosted, remove the affected host's runner pair in GitHub
+(or all four runners when the affected scope cannot be bounded), review or revoke affected GitHub/provider
+credentials, preserve only the minimum protected diagnostic export, destroy the affected VPS host or hosts, and
 rebuild. Do not attempt an in-place forensic repair.
 
 ## Maintenance
@@ -199,10 +204,10 @@ rebuild. Do not attempt an in-place forensic repair.
 Monthly, and after any repository-access change:
 
 - repeat the executable-principal audit;
-- confirm both runners are online, idle when unused, current, and restarting correctly;
+- confirm all four runners are online, idle when unused, current, and restarting correctly;
 - review unattended-update and runner-update logs and schedule any required reboot;
 - inspect disk, journal, `sysstat`, workspace, and runner diagnostic retention;
-- remove obsolete `_work` content and old `_diag` archives only while both services are stopped;
+- remove obsolete `_work` content and old `_diag` archives only while both services on that host are stopped;
 - confirm the hosted fallback command and protected export path remain usable.
 
 Never clean an active workspace or rotate away evidence needed for the current canary or posture decision.
@@ -210,23 +215,27 @@ Never clean an active workspace or rotate away evidence needed for the current c
 ## Rebuild
 
 1. Select and verify hosted fallback.
-2. Stop and deregister both runner services, then destroy the allocation after explicit approval.
+2. Stop and deregister both runner services on the host being rebuilt, then destroy that allocation after explicit
+   approval.
 3. Provision a fresh host from **Host provisioning** without restoring a provider backup. Reuse no machine image,
    runner application directory, runner credential, workspace, or service state.
 4. Re-run the access-control audit. Register only after it passes.
 5. Repeat every health check and a heavy qualification run before restoring `arc-ci-linux`.
 
-Measure rebuild time from the first provisioning action through both runners becoming qualification-ready. A
-rebuild exceeding two hours, or requiring undocumented state, fails the disposability contract.
+Measure rebuild time from the first provisioning action through that host's two runners becoming
+qualification-ready. A rebuild exceeding two hours, or requiring undocumented state, fails the disposability
+contract.
 
 ## Deregistration
 
 1. Select `ubuntu-latest` and verify a hosted run.
-2. Stop and uninstall both services with `sudo ./svc.sh uninstall`. Request short-lived removal tokens at the point
-   of use, then run the current `config.sh remove` command in each directory. The runner refuses registration
-   removal while its service remains installed; enter each mode-`0750` directory from inside the privileged shell.
-3. Confirm the repository runner list contains neither runner and no queued job targets `arc-ci-linux`.
-4. Export only the required protected logs/measurements, then destroy the VPS and any attached storage or snapshot.
+2. On each host, stop and uninstall both services with `sudo ./svc.sh uninstall`. Request short-lived removal tokens
+   at the point of use, then run the current `config.sh remove` command in each directory. The runner refuses
+   registration removal while its service remains installed; enter each mode-`0750` directory from inside the
+   privileged shell.
+3. Confirm the repository runner list contains none of the four runners and no queued job targets `arc-ci-linux`.
+4. Export only the required protected logs/measurements, then destroy both VPS hosts and any attached storage or
+   snapshot.
 5. Confirm billing has stopped and record the sanitized completion result.
 
 Before making the repository public or admitting untrusted pull-request authors, complete Steps 1–4 first. A
