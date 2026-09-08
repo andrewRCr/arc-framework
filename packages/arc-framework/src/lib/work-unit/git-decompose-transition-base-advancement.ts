@@ -8,6 +8,7 @@ import {
   digestBytes,
   sortByCanonicalBytes,
 } from "../canonical/canonical-json.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import { readWorktreeMarker, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import {
@@ -126,22 +127,25 @@ async function resolveCommit(
   }
 }
 
-async function isAncestor(
+type AncestryObservation =
+  | { status: "ancestor" }
+  | { status: "not-ancestor" }
+  | { status: "unavailable"; locus: string };
+
+async function observeAncestry(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
   ancestor: string,
   descendant: string,
-): Promise<boolean | null> {
+): Promise<AncestryObservation> {
+  const args = ["merge-base", "--is-ancestor", ancestor, descendant];
   try {
-    await dependencies.exec(
-      "git",
-      ["merge-base", "--is-ancestor", ancestor, descendant],
-      { cwd: dependencies.cwd },
-    );
-    return true;
+    await dependencies.exec("git", args, { cwd: dependencies.cwd });
+    return { status: "ancestor" };
   } catch (error) {
-    const failure = error as { exitCode?: unknown; code?: unknown };
-    if (failure.exitCode === 1 || failure.code === 1) return false;
-    return null;
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    return failure.kind === "nonzero-exit" && failure.exitCode === 1
+      ? { status: "not-ancestor" }
+      : { status: "unavailable", locus: failure.message };
   }
 }
 
@@ -538,15 +542,15 @@ export async function advanceGitDecomposeTransitionBase(
   }
 
   const authoredBaseHead = map.machine.resultBase.head;
-  const ancestry = await isAncestor(dependencies, authoredBaseHead, currentBaseHead);
-  if (ancestry !== true) {
-    return ancestry === false
+  const ancestry = await observeAncestry(dependencies, authoredBaseHead, currentBaseHead);
+  if (ancestry.status !== "ancestor") {
+    return ancestry.status === "not-ancestor"
       ? refuse(
           "base-not-descendant",
           input.baseBranch,
           { expected: authoredBaseHead, actual: currentBaseHead },
         )
-      : refuse("binding-unavailable");
+      : refuse("base-ancestry-unavailable", ancestry.locus);
   }
   const record = createDecomposeTransitionRecord(map);
   if (record === null) return { status: "refused", reason: "transition-record-projection-invalid" };
@@ -632,7 +636,15 @@ export async function advanceGitDecomposeTransitionBase(
       return { status: "refused", reason: "candidate-advancement-chain-invalid" };
     }
     const absorbedBaseHead = parents[1];
-    if (await isAncestor(dependencies, previousBaseHead, absorbedBaseHead) !== true) {
+    const absorbedBaseAncestry = await observeAncestry(
+      dependencies,
+      previousBaseHead,
+      absorbedBaseHead,
+    );
+    if (absorbedBaseAncestry.status === "unavailable") {
+      return refuse("base-ancestry-unavailable", absorbedBaseAncestry.locus);
+    }
+    if (absorbedBaseAncestry.status === "not-ancestor") {
       return { status: "refused", reason: "candidate-advancement-base-invalid" };
     }
     const mismatch = await exactTransitionTree(
@@ -657,15 +669,19 @@ export async function advanceGitDecomposeTransitionBase(
   if (previousCandidateHead !== candidateHead) {
     return { status: "refused", reason: "candidate-advancement-chain-invalid" };
   }
-  const remainingBaseAncestry = await isAncestor(dependencies, previousBaseHead, currentBaseHead);
-  if (remainingBaseAncestry !== true) {
-    return remainingBaseAncestry === false
+  const remainingBaseAncestry = await observeAncestry(
+    dependencies,
+    previousBaseHead,
+    currentBaseHead,
+  );
+  if (remainingBaseAncestry.status !== "ancestor") {
+    return remainingBaseAncestry.status === "not-ancestor"
       ? refuse(
           "base-not-descendant",
           input.baseBranch,
           { expected: previousBaseHead, actual: currentBaseHead },
         )
-      : refuse("base-not-descendant", input.baseBranch);
+      : refuse("base-ancestry-unavailable", remainingBaseAncestry.locus);
   }
   const preReturnBindingMismatch = await observeBindingMismatch(
     dependencies,

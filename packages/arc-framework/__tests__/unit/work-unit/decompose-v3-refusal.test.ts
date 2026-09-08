@@ -408,6 +408,7 @@ describe("v3 decomposition refusals", () => {
     ["binding-unavailable", "advance"],
     ["candidate-dirty", "advance"],
     ["base-not-descendant", "advance"],
+    ["base-ancestry-unavailable", "advance"],
     ["base-dependency-snapshot-unavailable", "advance"],
     ["base-acquired-incoming-dependency", "preflight"],
     ["candidate-history-unavailable", "cleanup"],
@@ -435,6 +436,23 @@ describe("v3 decomposition refusals", () => {
       : command === "preflight"
         ? ["arc", "decompose", "origin", "--preflight"]
         : ["arc", "decompose", "origin", "--advance-base", "map.json"]);
+  });
+
+  it("maps an unavailable advancement ancestry probe to its own invariant", () => {
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "advance-base", origin: "origin", cutMapPath: "map.json" },
+      reason: "base-ancestry-unavailable",
+      locus: "git merge-base failed",
+    });
+
+    expect(remedy.invariant).toMatch(/base advancement.*determine.*ancestry/iu);
+    expect(remedy.argv).toEqual([
+      "arc",
+      "decompose",
+      "origin",
+      "--advance-base",
+      "map.json",
+    ]);
   });
 
   it("uses exact candidate teardown when full-protection recovery exists", () => {

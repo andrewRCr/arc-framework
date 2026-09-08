@@ -253,6 +253,10 @@ only after every mode has executable coverage.
         - Omitted empty or whitespace-only caught details instead of emitting an invalid locus, preserving the strict
           core-only `unexpected-error` envelope across all six selected modes without inventing diagnostic text.
 
+    - `[x]` **1.6.R.e Distinguish unavailable ancestry probes from topology failures**
+        - Reserved non-descendant refusals for Git's negative ancestry result and routed operational probe failures
+          from finish and every base-advancement check to a diagnostic, retryable refusal without comparison evidence.
+
     - Run the `validate-criteria.md` member-scope walk for `refusal-contract-and-floor` and record the boundary
       evidence without changing Success Criteria markers.
 

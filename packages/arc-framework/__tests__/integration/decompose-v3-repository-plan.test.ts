@@ -495,6 +495,29 @@ async function committedTransitionCandidate() {
   return { ...started, candidatePath, candidateHead };
 }
 
+async function reAdvancedTransitionCandidate() {
+  const fixture = await committedTransitionCandidate();
+  await write(fixture.repo, ".arc/reference/base-growth.txt", "first descendant\n");
+  await git(fixture.repo, ["add", ".arc/reference/base-growth.txt"]);
+  await git(fixture.repo, ["commit", "-m", "first base advance"]);
+  const firstBaseHead = (await git(fixture.repo, ["rev-parse", "main"])).trim();
+  const firstAdvance = await advanceGitDecomposeTransitionBase(fixture.dependencies, {
+    protection: "full",
+    baseBranch: "main",
+    completedMap: fixture.completedMap,
+  });
+  if (firstAdvance.status !== "advanced") throw new Error(JSON.stringify(firstAdvance));
+  await git(fixture.candidatePath, ["commit", "-m", "absorb first base advance"]);
+  const candidateHead = (await git(fixture.candidatePath, ["rev-parse", "HEAD"])).trim();
+
+  await write(fixture.repo, ".arc/reference/base-growth-2.txt", "second descendant\n");
+  await git(fixture.repo, ["add", ".arc/reference/base-growth-2.txt"]);
+  await git(fixture.repo, ["commit", "-m", "second base advance"]);
+  const currentBaseHead = (await git(fixture.repo, ["rev-parse", "main"])).trim();
+
+  return { ...fixture, firstBaseHead, candidateHead, currentBaseHead };
+}
+
 async function backlogStubRepository(options: { preserveParent?: boolean } = {}) {
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-backlog-stub-"));
   roots.push(repo);
@@ -681,6 +704,84 @@ describe("Git v3 repository plan", () => {
         })],
       },
     });
+  });
+
+  it.each([
+    ["preview", null],
+    [
+      "apply",
+      `sha256:${"a".repeat(64)}`,
+    ],
+  ] as const)("reports an unavailable ancestry probe during finish %s", async (
+    _mode,
+    applyAuthority,
+  ) => {
+    const fixture = await landedExtractionRepository();
+    const dependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<typeof fixture.dependencies.exec>) => {
+        if (args[1][0] === "merge-base" && args[1][1] === "--is-ancestor") {
+          throw Object.assign(new Error("ancestry probe unavailable"), {
+            exitCode: 128,
+            stderr: "ancestry probe unavailable",
+          });
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    const result = await finishGitV3Extraction(dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "base-ancestry-unavailable",
+      locus: expect.stringContaining("ancestry probe unavailable"),
+      remedy: {
+        argv: [
+          "arc",
+          "decompose",
+          "origin",
+          "--finish",
+          fixture.cutMapPath,
+          ...(applyAuthority === null ? [] : ["--apply", applyAuthority]),
+        ],
+      },
+    });
+    expect(result).not.toHaveProperty("evidence");
+  });
+
+  it("keeps a negative finish ancestry probe distinct from a probe failure", async () => {
+    const fixture = await landedExtractionRepository();
+    const dependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<typeof fixture.dependencies.exec>) => {
+        if (args[1][0] === "merge-base" && args[1][1] === "--is-ancestor") {
+          throw Object.assign(new Error("not an ancestor"), { exitCode: 1 });
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    const result = await finishGitV3Extraction(dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "base-not-descendant",
+      locus: "refs/heads/main",
+    });
+    expect(result).not.toHaveProperty("evidence");
   });
 
   it("applies exact source thinning to the index and worktree", async () => {
@@ -1568,6 +1669,59 @@ describe("Git v3 repository plan", () => {
     });
     expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
     expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
+  });
+
+  it.each([
+    ["authenticated base", "authored", "current"],
+    ["recorded advancement chain", "authored", "first"],
+    ["remaining live base", "first", "current"],
+  ] as const)("reports an unavailable ancestry probe for the %s", async (
+    _site,
+    ancestorKey,
+    descendantKey,
+  ) => {
+    const fixture = await reAdvancedTransitionCandidate();
+    const authoredBaseHead = fixture.completedMap.machine.resultBase.head;
+    const heads = {
+      authored: authoredBaseHead,
+      first: fixture.firstBaseHead,
+      current: fixture.currentBaseHead,
+    };
+    const failedAncestor = heads[ancestorKey];
+    const failedDescendant = heads[descendantKey];
+    const dependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<typeof fixture.dependencies.exec>) => {
+        if (
+          args[1][0] === "merge-base"
+          && args[1][1] === "--is-ancestor"
+          && args[1][2] === failedAncestor
+          && args[1][3] === failedDescendant
+        ) {
+          throw Object.assign(new Error("ancestry probe unavailable"), {
+            exitCode: 128,
+            stderr: "ancestry probe unavailable",
+          });
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: fixture.completedMap,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "base-ancestry-unavailable",
+      locus: expect.stringContaining("ancestry probe unavailable"),
+    });
+    expect(result).not.toHaveProperty("evidence");
+    expect((await git(fixture.candidatePath, ["rev-parse", "HEAD"])).trim())
+      .toBe(fixture.candidateHead);
+    expect(await git(fixture.candidatePath, ["status", "--porcelain=v1"])).toBe("");
   });
 
   it("preserves a composing plan refusal through base advancement", async () => {

@@ -906,6 +906,11 @@ const V3_ADVANCEMENT_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemedyDef
     correction: "Land or select a descendant base, then retry base advancement",
     command: "invocation",
   },
+  "base-ancestry-unavailable": {
+    invariant: "Base advancement must determine every authenticated and recorded base ancestry relation.",
+    correction: "Restore the reported Git ancestry probe, then retry base advancement",
+    command: "invocation",
+  },
   "candidate-topology-unavailable": {
     invariant: "Base advancement must read the registered candidate-worktree topology.",
     correction: "Restore the worktree registry, then retry base advancement",
@@ -1049,6 +1054,10 @@ const V3_FINISH_REMEDIES: Readonly<Record<string, V3PreflightRemedyDefinition>> 
   "base-not-descendant": {
     invariant: "The live result base must descend from the extraction plan's authenticated base.",
     correction: "Land the extraction result on a descendant base, then retry finish",
+  },
+  "base-ancestry-unavailable": {
+    invariant: "Extraction finish must determine whether the live result base descends from its authenticated base.",
+    correction: "Restore the reported Git ancestry probe, then retry finish",
   },
   "source-tree-unreadable": {
     invariant: "Finish must read the complete authenticated source tree.",

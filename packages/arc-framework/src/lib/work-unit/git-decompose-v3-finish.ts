@@ -11,6 +11,7 @@ import {
 } from "../canonical/canonical-json.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { validateManagedPath } from "../canonical/managed-path.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import { resolveArcPath } from "../layout/index.js";
 import type {
   V3ExtractionFinishPreview,
@@ -619,14 +620,23 @@ export async function proveGitV3ExtractionDestinations(
       );
     }
     if (baseHead === null) return refused("base-missing", baseRef);
+    const ancestryArgs = [
+      "merge-base",
+      "--is-ancestor",
+      map.machine.resultBase.head,
+      baseHead,
+    ];
     try {
       await dependencies.exec(
         "git",
-        ["merge-base", "--is-ancestor", map.machine.resultBase.head, baseHead],
+        ancestryArgs,
         { cwd: dependencies.cwd },
       );
-    } catch {
-      return refused("base-not-descendant", baseRef);
+    } catch (error) {
+      const failure = normalizeGitRejection(error, { command: "git", args: ancestryArgs });
+      return failure.kind === "nonzero-exit" && failure.exitCode === 1
+        ? refused("base-not-descendant", baseRef)
+        : refused("base-ancestry-unavailable", failure.message);
     }
 
     const [sourceSnapshot, originalSourceSnapshot, originalBaseSnapshot] = await Promise.all([
