@@ -444,7 +444,7 @@ scanner or schema primitive closes a lifecycle obligation by itself.
   substantive notes, immutable Git execution and advancement, exact rider boundaries, and operator guidance for
   retained, scaffolded, manually transferred, and reasoned-drop content.
 
-### `[ ]` **2.6 Close companion-conservation delivery** — validate criteria at member scope
+### `[x]` **2.6 Close companion-conservation delivery** — validate criteria at member scope
 
 - _Goal:_ Member 2 has independently reviewable evidence that every retiring companion is covered and every
   supported extraction leaves companion bytes intact.
@@ -455,8 +455,58 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           source-group classifier before refreshed or fallback authority; real-Git symlink coverage proves the
           public refusal remains `source:source-units` with blob-versus-symlink evidence.
 
-    - Run the `validate-criteria.md` member-scope walk for `companion-conservation` and record the boundary evidence
-      without changing Success Criteria markers.
+- _Outcome:_ Member 2 criteria report.
+    - _Criteria slice:_ `Success Criteria > Member 2 — companion-conservation`.
+    - _Span:_ bounded diff `16604eba1..90fc9e53a`; cumulative reachability `90fc9e53a` at tree `5a51f923b`;
+      `boundary-order-deviation: null`.
+    - _Criterion:_ `Success Criteria > Member 2 — companion-conservation > 1`;
+      _criterion-digest:_ `sha256:98846b690d102eb5d69a5ed681b4193e5d583884e1842fd4d5436d1691f88896`;
+      _State:_ `[x]`; _Evidence:_ source snapshots and predecessor planning share the open artifact matcher plus
+      paired-spec admission and same-name cohort exclusion; real-Git relocation coverage retires matching
+      companions while preserving supplemental files under the rider guard.
+    - _Criterion:_ `Success Criteria > Member 2 — companion-conservation > 2`;
+      _criterion-digest:_ `sha256:35e00cf0b05bd20fc9abfa13c7fdc336de4380397e10c8f7dc1362240894fc85`;
+      _State:_ `[x]`; _Evidence:_ source-kind preflight scans all non-meta retirement companions, the task scanner
+      emits one preamble plus H2 phases, and map/repository integration coverage carries those identities through
+      revalidation, execute, and base advancement.
+    - _Criterion:_ `Success Criteria > Member 2 — companion-conservation > 3`;
+      _criterion-digest:_ `sha256:4a758416480b2b068efa18cf331427a42f6dfe3753c99190cecaa1c2210953e3`;
+      _State:_ `[x]`; _Evidence:_ notes targets create role-closed `provisional-notes` contributors from pinned
+      bytes; composition, conservation, and result-report tests prove their immutable path, role, disposition, and
+      plan order through production repository composition.
+    - _Criterion:_ `Success Criteria > Member 2 — companion-conservation > 4`;
+      _criterion-digest:_ `sha256:64fdedfe097650a3713b878704ff1f62c803caf0ea1db47a78ef6087dd81571c`;
+      _State:_ `[x]`; _Evidence:_ the source-kind matrix excludes Active companions and extraction decode rejects
+      every non-retained started-Planning companion allocation; thinning and finish integration coverage preserve
+      retained companion bytes and modes in preview, apply, and repeat paths.
+    - _Criterion:_ `Success Criteria > Member 2 — companion-conservation > 5`;
+      _criterion-digest:_ `sha256:71ed0e45ee17a4203e8d0e5918721ba55ce1dfae3b135966400f11fe84e25a7f`;
+      _State:_ `[x]`; _Evidence:_ finish classifies the original authenticated group against current pinned raw-tree
+      objects before authority selection; the add/remove/move/rename/byte/mode matrix and real-Git blob-to-symlink
+      test return `source:source-units`, while planned partial thinning remains admissible.
+    - _Criterion:_ `Success Criteria > Member 2 — companion-conservation > 6`;
+      _criterion-digest:_ `sha256:c749a64d5ea178f82463be4ffa55018e8d78911d11d8d9851ba9229c185e1091`;
+      _State:_ `[x]`; _Evidence:_ repository composition distinguishes absent, invalid-encoding, and title-less
+      notes sources at member/path loci, and conservation's closed artifact roles reject member-meta allocations
+      before target projection.
+    - _Criterion:_ `Success Criteria > Member 2 — companion-conservation > 7`;
+      _criterion-digest:_ `sha256:23208fc9bb14378538217a5da238ddf095ecaf9148c0b6e57de7c99f1617055c`;
+      _State:_ `[x]`; _Evidence:_ adapter assertions retain the three-tier Git pathspec and existing tree-read and
+      branch-spawn budgets; identity tests keep the machine field set closed while companion values participate only
+      through the canonical `sourceUnits` preimage.
+    - _Criterion:_ `Success Criteria > Member 2 — companion-conservation > 8`;
+      _criterion-digest:_ `sha256:52813599beab26e9491181f8b2c4d1a9eb121fc2a8d2deb3e43dfbc5033f1f95`;
+      _State:_ `[x]`; _Evidence:_ the copy-based `decompose-transform-integrity` rehearsal allocates or drops the
+      real spec, task phases, and substantive notes sections, executes their complete retirement, and requires no
+      repair after the transition.
+    - _Criterion:_ `Success Criteria > Member 2 — companion-conservation > 9`;
+      _criterion-digest:_ `sha256:1bcefe4394831d9d8eb90c13a6e4a4c2fa6992394886d1d9747d421169d94561`;
+      _State:_ `[x]`; _Evidence:_ byte-parity contract coverage requires both workflow copies to retain the Member 1
+      refusal envelope while publishing retirement companion allocation, retained-only extraction, task/notes
+      scaffold pruning, and manual transfer for other companions.
+    - _Adversarial companion:_ not run during the approved deferred-review batch; one fresh Heavy pass remains
+      available at delivery review.
+    - _Summary:_ nine `[x]`, zero `[~]`, zero `[ ]`; terminal Success Criteria markers remain unchanged.
 
 ## **Phase 3:** Authored external edges and the operator workflow
 
