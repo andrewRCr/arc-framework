@@ -519,7 +519,7 @@ _Design decisions:_ First carry a live result-base target from the authored map 
 mutator, and staged ROADMAP output. Completed-target and base-advancement cases extend that working slice; workflow
 prose follows the executable contract.
 
-### `[ ]` **3.1 Land a live-result-base external edge from cut map to staged ROADMAP**
+### `[x]` **3.1 Land a live-result-base external edge from cut map to staged ROADMAP**
 
 - _Goal:_ One authored dependency to a live work unit outside the cut flows from the closed map through conservation
   into the recipient meta and its derived ROADMAP entry.
@@ -534,22 +534,13 @@ prose follows the executable contract.
           canonical `external` edits. It refuses redundant, retiring, unknown, and already-satisfied edges at their
           authored loci, and internal edges now span every live dependency-capable destination admitted by decode.
 
-    - `[ ]` **3.1.c Project the edge through existing meta and ROADMAP composers**
-        - Pass result-base live slugs from `composeRepositoryPlan()` and reuse `dependencies()`,
-          `setMetaBulletFields()`, and the existing staged ROADMAP renderer.
-        - In `dependencies()`, derive the exact add/remove delta between each validated edit's source-bound
-          `beforeTargets` and `afterTargets`, then apply only that delta to the recipient's current pinned result-base
-          sequence. Record contribution prestates and after-states from that sequence; never replace the complete slot
-          with the source-derived list.
-        - Build `test-first` (one behavior at a time):
-            - Append the prerequisite to a scaffolded member and an existing-home meta without rewriting other
-              dependency slots.
-            - Preserve an unrelated prerequisite added or removed on the result base after the source fork; refuse
-              `unchanged-dependency-slot` when the external prerequisite is already present there.
-            - Render the unsatisfied external edge through the current ROADMAP seam.
-            - Preserve exact transform-delta validation while the prerequisite remains live.
-        - Exercise the production caller and projection seam in
-          `packages/arc-framework/__tests__/unit/work-unit/decompose-v3-repository-plan.test.ts`.
+    - `[x]` **3.1.c Project the edge through existing meta and ROADMAP composers**
+        - Repository planning now rebases source-bound dependency deltas onto each pinned result-base sequence,
+          preserving unrelated changes and refusing pinned no-ops at the authored locus. The staged meta projection
+          feeds the existing ROADMAP renderer for new members and existing homes.
+
+- _Outcome:_ Live external authoring now spans the closed map, source-bound conservation, result-base delta
+  projection, and staged ROADMAP rendering without widening plan identity or exact transform-delta authority.
 
 ### `[ ]` **3.2 Admit completed and late-created targets without widening source authority**
 

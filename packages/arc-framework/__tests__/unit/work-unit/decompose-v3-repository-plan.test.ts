@@ -232,6 +232,47 @@ Medium.
   };
 }
 
+function configureExistingHomeExternal(
+  input: ReturnType<typeof fixture>,
+  sourceDependsOn: string[],
+  resultBaseDependsOn: string[],
+): string {
+  const consumerPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+  const consumer = {
+    state: "Planning" as const,
+    owner: "andrew",
+    workClass: "Light" as const,
+    priority: "P2" as const,
+    origin: "internal" as const,
+    design: ["draft-consumer.md"],
+    currentWorkflow: "draft-design",
+    nextAction: "Continue planning",
+  };
+  input.sourceTree[consumerPath] = file(renderMetaFile("consumer", {
+    ...consumer,
+    dependsOn: sourceDependsOn,
+  }));
+  input.mergeBaseTree[consumerPath] = file(renderMetaFile("consumer", {
+    ...consumer,
+    dependsOn: sourceDependsOn,
+  }));
+  input.resultBaseTree[consumerPath] = file(renderMetaFile("consumer", {
+    ...consumer,
+    dependsOn: resultBaseDependsOn,
+  }));
+  input.resultBaseTree[".arc/backlog/planned/foundation/meta-foundation.md"] = file(renderMetaFile(
+    "foundation",
+    consumer,
+  ));
+  input.completedMap.authoring.destinations[0] = {
+    kind: "existing-home",
+    destinationId: "existing",
+    target: { kind: "work-unit", slug: "consumer" },
+  };
+  input.completedMap.authoring.externalEdges = [{ from: "consumer", to: "foundation" }];
+  return consumerPath;
+}
+
 describe("v3 repository plan projection", () => {
   it("scaffolds retitled notes only for the targeted member", async () => {
     const notes = "# Notes: origin\n\n## Evidence\n\nPreserve exactly.\n";
@@ -648,6 +689,109 @@ describe("v3 repository plan projection", () => {
     expect(renderRoadmap.mock.calls[0]?.[0]).toMatchObject({
       ".arc/backlog/planned/member/meta-member.md": { kind: "object" },
       ".arc/backlog/planned/origin/meta-origin.md": { kind: "absent" },
+    });
+  });
+
+  it("projects a live external edge through member metadata and the staged roadmap tree", async () => {
+    const input = fixture();
+    const targetPath = ".arc/backlog/planned/foundation/meta-foundation.md";
+    input.resultBaseTree[targetPath] = file(renderMetaFile("foundation", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      origin: "internal",
+      design: ["draft-foundation.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Continue planning",
+    }));
+    input.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+    const renderRoadmap = vi.fn(async (tree: V3RepositoryPlanTree) => {
+      const member = tree[".arc/backlog/planned/member/meta-member.md"];
+      const memberText = member?.kind === "object" ? new TextDecoder().decode(member.bytes) : "";
+      return encoder.encode(`# Roadmap after\n\n${memberText.includes("Depends On:** `foundation`")}\n`);
+    });
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap,
+    });
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    const memberPath = ".arc/backlog/planned/member/meta-member.md";
+    const memberMutation = result.plan.mutations.find(({ path }) => path === memberPath);
+    expect(memberMutation).toMatchObject({
+      kind: "composed",
+      contributors: expect.arrayContaining([expect.objectContaining({ kind: "dependency" })]),
+    });
+    const roadmapMutation = result.plan.mutations.find(({ path }) => path === ".arc/backlog/ROADMAP.md");
+    if (roadmapMutation?.kind !== "exclusive" || roadmapMutation.after.kind !== "file") {
+      throw new Error("roadmap mutation must contain a staged file");
+    }
+    const roadmapDigest = roadmapMutation.after.contentDigest;
+    const roadmapBlob = result.blobs.find(
+      ({ contentDigest }) => contentDigest === roadmapDigest,
+    );
+    expect(new TextDecoder().decode(roadmapBlob?.bytes)).toContain("true");
+  });
+
+  it("rebases an existing-home external edge onto the pinned dependency sequence", async () => {
+    const input = fixture();
+    const consumerPath = configureExistingHomeExternal(input, ["source-only"], ["base-only"]);
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    const mutation = result.plan.mutations.find(({ path }) => path === consumerPath);
+    if (mutation?.kind !== "composed" || mutation.after.kind !== "file") {
+      throw new Error("consumer mutation must contain a staged file");
+    }
+    const mutationDigest = mutation.after.contentDigest;
+    const blob = result.blobs.find(({ contentDigest }) => contentDigest === mutationDigest);
+    const text = new TextDecoder().decode(blob?.bytes);
+    expect(text).toContain("**Depends On:** `base-only`, `foundation`");
+    expect(text).not.toContain("source-only");
+  });
+
+  it("refuses an external edge already satisfied on the pinned result base", async () => {
+    const input = fixture();
+    configureExistingHomeExternal(input, [], ["foundation"]);
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "dependency",
+        reason: "unchanged-dependency-slot",
+        locus: "authoring.externalEdges.0",
+      },
     });
   });
 

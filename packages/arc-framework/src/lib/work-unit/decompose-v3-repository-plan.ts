@@ -746,12 +746,20 @@ function liveWorkUnits(
   }));
 }
 
+type V3DependencyProjectionResult =
+  | { status: "projected"; contributions: V3PlannedDependencyContribution[] }
+  | {
+      status: "refused";
+      reason: "dependency-projection-failed" | "unchanged-dependency-slot";
+      locus?: string;
+    };
+
 function dependencies(
   edits: V3ValidatedDependencyEdit[],
   map: V3DecomposeCutMap,
   baseTree: V3RepositoryPlanTree,
   states: V3RepositoryPlanTree,
-): V3PlannedDependencyContribution[] | null {
+): V3DependencyProjectionResult {
   const placement = memberPlacement(map);
   const output: V3PlannedDependencyContribution[] = [];
   for (const edit of edits) {
@@ -759,16 +767,29 @@ function dependencies(
       ?? memberArtifactPath(placement, edit.dependent, "meta");
     const before = stateAt(states, path);
     const text = decodeText(before);
-    if (text === null) return null;
+    if (text === null) return { status: "refused", reason: "dependency-projection-failed" };
     let afterText: string;
     try {
+      const currentTargets = parseMetaRecord(text).dependsOn;
+      const removedTargets = new Set(edit.beforeTargets.filter((target) =>
+        !edit.afterTargets.includes(target)));
+      const addedTargets = edit.afterTargets.filter((target) =>
+        !edit.beforeTargets.includes(target));
+      const afterTargets = currentTargets.filter((target) => !removedTargets.has(target));
+      for (const target of addedTargets) {
+        if (!afterTargets.includes(target)) afterTargets.push(target);
+      }
+      if (currentTargets.length === afterTargets.length
+        && currentTargets.every((target, index) => target === afterTargets[index])) {
+        return { status: "refused", reason: "unchanged-dependency-slot", locus: edit.locus };
+      }
       afterText = setMetaBulletFields(text, {
-        "Depends On": edit.afterTargets.length === 0
+        "Depends On": afterTargets.length === 0
           ? "[none]"
-          : formatValue(edit.afterTargets.join(", "), "identifier-list"),
+          : formatValue(afterTargets.join(", "), "identifier-list"),
       });
     } catch {
-      return null;
+      return { status: "refused", reason: "dependency-projection-failed" };
     }
     const after = { ...before, bytes: encoder.encode(afterText) } as Exclude<
       V3RepositoryPlanState,
@@ -785,7 +806,7 @@ function dependencies(
     });
     applyState(states, path, after);
   }
-  return output;
+  return { status: "projected", contributions: output };
 }
 
 function exclusiveRetirements(
@@ -1015,13 +1036,16 @@ async function composeRepositoryPlan(
   if (projectedContent.status === "refused") {
     return refuse("content", projectedContent.reason, projectedContent.locus);
   }
-  const dependencyContributions = dependencies(
+  const dependencyProjection = dependencies(
     conservation.dependencyEdits,
     map,
     input.resultBaseTree,
     projectedContent.states,
   );
-  if (dependencyContributions === null) return refuse("dependency", "dependency-projection-failed");
+  if (dependencyProjection.status === "refused") {
+    return refuse("dependency", dependencyProjection.reason, dependencyProjection.locus);
+  }
+  const dependencyContributions = dependencyProjection.contributions;
 
   const roadmapBefore = stateAt(input.resultBaseTree, ROADMAP_PATH);
   if (!regularFile(roadmapBefore)) return refuse("roadmap", "roadmap-missing", ROADMAP_PATH);

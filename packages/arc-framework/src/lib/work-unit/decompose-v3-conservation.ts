@@ -31,6 +31,7 @@ export interface V3DecomposeConservationInput {
 export interface V3ValidatedDependencyEdit {
   kind: "incoming" | "outgoing" | "internal" | "external";
   edgeId: string;
+  locus: string;
   destinationId: string | null;
   dependent: string;
   writablePath: string | null;
@@ -472,6 +473,7 @@ export function validateV3DecomposeConservation(
     dependencyEdits.push({
       kind: contribution.kind,
       edgeId: contribution.edgeId,
+      locus: contribution.locus,
       destinationId: projected.destinationId,
       dependent: contribution.dependent,
       writablePath: projected.writablePath,

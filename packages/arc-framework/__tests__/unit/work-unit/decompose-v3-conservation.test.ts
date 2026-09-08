@@ -80,6 +80,7 @@ describe("v3 decomposition allocation and dependency conservation", () => {
       dependencyEdits: [{
         kind: "incoming",
         edgeId: input.completedMap.machine.incomingEdges[0]!.edgeId,
+        locus: "authoring.incomingDispositions.0.disposition",
         destinationId: null,
         dependent: "consumer",
         writablePath: ".arc/active/meta-consumer.md",
@@ -456,6 +457,7 @@ describe("v3 decomposition allocation and dependency conservation", () => {
     expect(extended.dependencyEdits).toEqual([{
       kind: "incoming",
       edgeId: extendedInput.completedMap.machine.incomingEdges[0]!.edgeId,
+      locus: "authoring.incomingDispositions.0.disposition",
       destinationId: null,
       dependent: "consumer",
       writablePath: ".arc/active/meta-consumer.md",
@@ -485,6 +487,7 @@ describe("v3 decomposition allocation and dependency conservation", () => {
     expect(result.dependencyEdits).toContainEqual({
       kind: "outgoing",
       edgeId: outgoing.edgeId,
+      locus: "authoring.outgoingDispositions.0.disposition.targets.0",
       destinationId: "member-a",
       dependent: "member-a",
       writablePath: null,
@@ -512,6 +515,7 @@ describe("v3 decomposition allocation and dependency conservation", () => {
         from: "member-a",
         to: "foundation",
       }),
+      locus: "authoring.externalEdges.0",
       destinationId: "member-a",
       dependent: "member-a",
       writablePath: null,
@@ -617,6 +621,7 @@ describe("v3 decomposition allocation and dependency conservation", () => {
         from: "member-a",
         to: "member-b",
       }),
+      locus: "authoring.internalEdges.0",
       destinationId: "member-a",
       dependent: "member-a",
       writablePath: null,
