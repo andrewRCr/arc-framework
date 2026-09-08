@@ -21,6 +21,7 @@ import {
   type V3ExtractionFinishResult,
 } from "./decompose-v3-finish.js";
 import {
+  v3DecomposeByteEvidence,
   v3DecomposeRemedy,
   type V3DecomposeRefusalEvidence,
 } from "./decompose-v3-refusal.js";
@@ -108,12 +109,22 @@ export interface V3ExtractionFinishPreparation {
 /** Git-backed proof result returned before any source mutation. */
 export type GitV3ExtractionDestinationProofResult =
   | { status: "proven"; preparation: V3ExtractionFinishPreparation }
-  | { status: "refused"; reason: string; locus?: string };
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 /** Pure destination-state validation result. */
 export type V3ExtractionDestinationValidationResult =
   | { status: "proven"; destinations: V3ExtractionDestinationState[] }
-  | { status: "refused"; reason: string; locus?: string };
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 /** Semantic authority needed to validate owner-authored extraction destinations. */
 export interface V3ExtractionDestinationValidationAuthority {
@@ -155,6 +166,23 @@ function composeFinishPreview(
   };
 }
 
+function byteComparisonEvidence(
+  expected: CanonicalDigest,
+  actual: Uint8Array,
+): V3DecomposeRefusalEvidence {
+  return {
+    expected: { contentDigest: expected },
+    actual: v3DecomposeByteEvidence(actual),
+  };
+}
+
+function delimitedBlock(text: string, start: string, end: string): string | null {
+  const startIndex = text.indexOf(start);
+  if (startIndex < 0) return null;
+  const endIndex = text.indexOf(end, startIndex + start.length);
+  return endIndex < 0 ? null : text.slice(startIndex, endIndex + end.length);
+}
+
 /**
  * Compare an extraction plan's destination mutations with one pinned base tree.
  *
@@ -183,13 +211,28 @@ export function validateV3ExtractionDestinationStates(
       return { status: "refused", reason: "destination-missing", locus: mutation.path };
     }
     if (observed.objectKind !== "blob") {
-      return { status: "refused", reason: "destination-object-kind", locus: mutation.path };
+      return {
+        status: "refused",
+        reason: "destination-object-kind",
+        locus: mutation.path,
+        evidence: { expected: "blob", actual: observed.objectKind },
+      };
     }
     if (observed.mode !== mutation.after.mode) {
-      return { status: "refused", reason: "destination-mode", locus: mutation.path };
+      return {
+        status: "refused",
+        reason: "destination-mode",
+        locus: mutation.path,
+        evidence: { expected: mutation.after.mode, actual: observed.mode },
+      };
     }
     if (authority === undefined && digestBytes(observed.bytes) !== mutation.after.contentDigest) {
-      return { status: "refused", reason: "destination-bytes", locus: mutation.path };
+      return {
+        status: "refused",
+        reason: "destination-bytes",
+        locus: mutation.path,
+        evidence: byteComparisonEvidence(mutation.after.contentDigest, observed.bytes),
+      };
     }
     if (mutation.kind === "composed") {
       let semanticallyOwned = false;
@@ -229,8 +272,18 @@ export function validateV3ExtractionDestinationStates(
           const fixed = metaContributor === undefined
             ? ["dependsOn"] as const
             : ["state", "owner", "branch", "workClass", "priority", "cohort", "dependsOn", "origin", "design"] as const;
-          if (fixed.some((field) => canonicalDigest(expectedMeta[field]) !== canonicalDigest(observedMeta[field]))) {
-            return { status: "refused", reason: "destination-meta", locus: mutation.path };
+          const differingField = fixed.find((field) =>
+            canonicalDigest(expectedMeta[field]) !== canonicalDigest(observedMeta[field]));
+          if (differingField !== undefined) {
+            return {
+              status: "refused",
+              reason: "destination-meta",
+              locus: mutation.path,
+              evidence: {
+                expected: { field: differingField, value: expectedMeta[differingField] },
+                actual: { field: differingField, value: observedMeta[differingField] },
+              },
+            };
           }
         } catch {
           return { status: "refused", reason: "destination-meta", locus: mutation.path };
@@ -239,7 +292,12 @@ export function validateV3ExtractionDestinationStates(
       if (authority !== undefined && !semanticallyOwned
         && mutation.contributors.every(({ kind }) => kind !== "topology")
         && digestBytes(observed.bytes) !== mutation.after.contentDigest) {
-        return { status: "refused", reason: "destination-bytes", locus: mutation.path };
+        return {
+          status: "refused",
+          reason: "destination-bytes",
+          locus: mutation.path,
+          evidence: byteComparisonEvidence(mutation.after.contentDigest, observed.bytes),
+        };
       }
     }
     destinations.push({
@@ -265,8 +323,15 @@ export function validateV3ExtractionDestinationStates(
       }
       try {
         const actual = parseMetaRecord(new TextDecoder("utf-8", { fatal: true }).decode(match[1].bytes)).dependsOn;
-        if (canonicalDigest(sortByCanonicalBytes(actual)) !== canonicalDigest(sortByCanonicalBytes(expected))) {
-          return { status: "refused", reason: "dependency-claim", locus: match[0] };
+        const expectedSet = sortByCanonicalBytes(expected);
+        const actualSet = sortByCanonicalBytes(actual);
+        if (canonicalDigest(actualSet) !== canonicalDigest(expectedSet)) {
+          return {
+            status: "refused",
+            reason: "dependency-claim",
+            locus: match[0],
+            evidence: { expected: expectedSet, actual: actualSet },
+          };
         }
       } catch {
         return { status: "refused", reason: "dependency-claim", locus: match[0] };
@@ -292,12 +357,32 @@ export function validateV3ExtractionDestinationStates(
       }
       const segments = cohort.split("/");
       const leaf = segments.at(-1);
-      const parent = segments.length === 2 ? segments[0] : null;
+      const parent = segments.length === 2 ? segments[0] ?? null : null;
       const purpose = /^\*\*Purpose:\*\*\s*(.+)$/mu.exec(text)?.[1]?.trim();
-      const parentLines = [...text.matchAll(/^\*\*Parent:\*\*\s*(.+)$/gmu)].map((match) => match[1]);
-      if (leaf === undefined || !text.startsWith(`# Cohort: \`${leaf}\`\n`)
-        || (parent === null ? parentLines.length !== 0 : parentLines.length !== 1 || parentLines[0] !== parent)
-        || purpose === undefined || purpose === "—") {
+      const parentLines = [...text.matchAll(/^\*\*Parent:\*\*\s*(.+)$/gmu)].flatMap((match) =>
+        match[1] === undefined ? [] : [match[1]]);
+      const identity = /^# Cohort: `([^`\r\n]+)`\r?\n/u.exec(text)?.[1];
+      if (leaf === undefined || identity === undefined) {
+        return { status: "refused", reason: "topology-claim", locus: path };
+      }
+      if (identity !== leaf) {
+        return {
+          status: "refused",
+          reason: "topology-claim",
+          locus: path,
+          evidence: { expected: leaf, actual: identity },
+        };
+      }
+      const expectedParents = parent === null ? [] : [parent];
+      if (canonicalDigest(parentLines) !== canonicalDigest(expectedParents)) {
+        return {
+          status: "refused",
+          reason: "topology-claim",
+          locus: path,
+          evidence: { expected: expectedParents, actual: parentLines },
+        };
+      }
+      if (purpose === undefined || purpose === "—") {
         return { status: "refused", reason: "topology-claim", locus: path };
       }
     }
@@ -313,9 +398,31 @@ export function validateV3ExtractionDestinationStates(
         ...members.map((slug) => `- \`${slug}\``),
         `<!-- arc:decompose-fanout:${map.machine.source.origin}:end -->`,
       ].join("\n");
-      if (state === undefined || state.kind === "absent" || state.objectKind !== "blob"
-        || !new TextDecoder().decode(state.bytes).includes(block)) {
+      if (state === undefined || state.kind === "absent" || state.objectKind !== "blob") {
         return { status: "refused", reason: "topology-claim", locus: path };
+      }
+      let text: string;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(state.bytes);
+      } catch {
+        return { status: "refused", reason: "topology-claim", locus: path };
+      }
+      const start = `<!-- arc:decompose-fanout:${map.machine.source.origin}:start -->`;
+      const end = `<!-- arc:decompose-fanout:${map.machine.source.origin}:end -->`;
+      const actualBlock = delimitedBlock(text, start, end);
+      if (actualBlock === null) {
+        return { status: "refused", reason: "topology-claim", locus: path };
+      }
+      if (actualBlock !== block) {
+        return {
+          status: "refused",
+          reason: "topology-claim",
+          locus: path,
+          evidence: {
+            expected: block,
+            actual: actualBlock,
+          },
+        };
       }
     }
     if (roadmapPath === null) {
@@ -327,7 +434,21 @@ export function validateV3ExtractionDestinationStates(
     }
     if (roadmap.objectKind !== "blob"
       || !Buffer.from(roadmap.bytes).equals(Buffer.from(authority.expectedRoadmap))) {
-      return { status: "refused", reason: "roadmap-current-render", locus: roadmapPath };
+      return {
+        status: "refused",
+        reason: "roadmap-current-render",
+        locus: roadmapPath,
+        evidence: {
+          expected: {
+            objectKind: "blob",
+            ...v3DecomposeByteEvidence(authority.expectedRoadmap),
+          },
+          actual: {
+            objectKind: roadmap.objectKind,
+            ...v3DecomposeByteEvidence(roadmap.bytes),
+          },
+        },
+      };
     }
   }
   if (destinations.length === 0) {
@@ -338,11 +459,16 @@ export function validateV3ExtractionDestinationStates(
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
-function refused(reason: string, locus?: string): GitV3ExtractionDestinationProofResult {
+function refused(
+  reason: string,
+  locus?: string,
+  evidence?: V3DecomposeRefusalEvidence,
+): GitV3ExtractionDestinationProofResult {
   return {
     status: "refused",
     reason,
     ...(locus === undefined ? {} : { locus }),
+    ...(evidence === undefined ? {} : { evidence }),
   };
 }
 
@@ -432,6 +558,7 @@ GitV3ExtractionDestinationProofResult {
   return refused(
     `destination-plan:${result.refusal.stage}:${result.refusal.reason}`,
     result.refusal.locus,
+    result.refusal.evidence,
   );
 }
 
@@ -458,10 +585,18 @@ export async function proveGitV3ExtractionDestinations(
   }
   const map = decoded.value;
   if (map.authoring.shape !== "extraction") return refused("map:authoring-shape", "authoring.shape");
-  if (map.machine.source.origin !== input.origin) return refused("map:origin", "machine.source.origin");
+  if (map.machine.source.origin !== input.origin) {
+    return refused("map:origin", "machine.source.origin", {
+      expected: map.machine.source.origin,
+      actual: input.origin,
+    });
+  }
   const baseRef = `refs/heads/${input.baseBranch}`;
   if (map.machine.resultBase.ref !== baseRef) {
-    return refused("base-ref-mismatch", "machine.resultBase.ref");
+    return refused("base-ref-mismatch", "machine.resultBase.ref", {
+      expected: map.machine.resultBase.ref,
+      actual: baseRef,
+    });
   }
 
   try {
@@ -476,7 +611,13 @@ export async function proveGitV3ExtractionDestinations(
       return refused("source-branch", "machine.source.logicalBranch");
     }
     if (head === null) return refused("source-head", "HEAD");
-    if (sourceRef !== head) return refused("source-ref-moved", map.machine.source.ref);
+    if (sourceRef !== head) {
+      return refused(
+        "source-ref-moved",
+        map.machine.source.ref,
+        sourceRef === null ? undefined : { expected: head, actual: sourceRef },
+      );
+    }
     if (baseHead === null) return refused("base-missing", baseRef);
     try {
       await dependencies.exec(
@@ -532,11 +673,15 @@ export async function proveGitV3ExtractionDestinations(
         : [originalSourceSnapshot],
     });
     if (original.status === "rejected") {
-      return refused(`source:${original.reason}`, original.locus);
+      return refused(`source:${original.reason}`, original.locus, original.evidence);
     }
     const originalBinding = revalidateV3DecomposeCutMapBinding(map, original.preflight);
     if (originalBinding.status === "stale") {
-      return refused(`source:${originalBinding.reason}`, originalBinding.locus);
+      return refused(
+        `source:${originalBinding.reason}`,
+        originalBinding.locus,
+        originalBinding.evidence,
+      );
     }
     if (refreshed.status === "ready") {
       const binding = refreshV3ExtractionCutMap(map, refreshed.preflight);
@@ -547,10 +692,10 @@ export async function proveGitV3ExtractionDestinations(
           sourceHead: head,
         };
       } else if (binding.reason !== "source-units" || binding.locus.endsWith(".contentDigest")) {
-        return refused(`source:${binding.reason}`, binding.locus);
+        return refused(`source:${binding.reason}`, binding.locus, binding.evidence);
       }
     } else if (refreshed.reason !== "planning-profile" && refreshed.reason !== "source-scan") {
-      return refused(`source:${refreshed.reason}`, refreshed.locus);
+      return refused(`source:${refreshed.reason}`, refreshed.locus, refreshed.evidence);
     }
     if (selected === null) {
       selected = {
@@ -604,9 +749,29 @@ export async function proveGitV3ExtractionDestinations(
     if (sourceAfter !== head
       || branchAfter !== map.machine.source.logicalBranch
       || headAfter !== head) {
-      return refused("source-raced", map.machine.source.ref);
+      const evidence = sourceAfter === null || branchAfter === null || headAfter === null
+        ? undefined
+        : {
+            expected: {
+              ref: head,
+              branch: map.machine.source.logicalBranch,
+              head,
+            },
+            actual: {
+              ref: sourceAfter,
+              branch: branchAfter,
+              head: headAfter,
+            },
+          };
+      return refused("source-raced", map.machine.source.ref, evidence);
     }
-    if (baseAfter !== baseHead) return refused("base-raced", baseRef);
+    if (baseAfter !== baseHead) {
+      return refused(
+        "base-raced",
+        baseRef,
+        baseAfter === null ? undefined : { expected: baseHead, actual: baseAfter },
+      );
+    }
 
     return {
       status: "proven",
@@ -652,6 +817,7 @@ async function finishGitV3ExtractionOperation(
       status: "refused",
       reason: `source-plan:${thinning.reason}`,
       ...(thinning.locus === undefined ? {} : { locus: thinning.locus }),
+      ...(thinning.evidence === undefined ? {} : { evidence: thinning.evidence }),
     };
   }
   const sourceDir = posix.dirname(proof.preparation.currentPreflight.sourceOriginPath);
@@ -698,10 +864,25 @@ async function finishGitV3ExtractionOperation(
         if (liveSource !== liveHead
           || liveBranch !== proof.preparation.completedMap.machine.source.logicalBranch
           || liveHead !== proof.preparation.completedMap.machine.source.head) {
+          const expectedSource = proof.preparation.completedMap.machine.source;
           return {
             status: "refused" as const,
             reason: "source-raced",
-            locus: proof.preparation.completedMap.machine.source.ref,
+            locus: expectedSource.ref,
+            ...(liveSource === null || liveBranch === null || liveHead === null ? {} : {
+              evidence: {
+                expected: {
+                  ref: expectedSource.head,
+                  branch: expectedSource.logicalBranch,
+                  head: expectedSource.head,
+                },
+                actual: {
+                  ref: liveSource,
+                  branch: liveBranch,
+                  head: liveHead,
+                },
+              },
+            }),
           };
         }
         return liveBase === proof.preparation.proof.baseHead
@@ -710,6 +891,12 @@ async function finishGitV3ExtractionOperation(
               status: "refused" as const,
               reason: "base-raced",
               locus: proof.preparation.proof.baseRef,
+              ...(liveBase === null ? {} : {
+                evidence: {
+                  expected: proof.preparation.proof.baseHead,
+                  actual: liveBase,
+                },
+              }),
             };
       },
     },

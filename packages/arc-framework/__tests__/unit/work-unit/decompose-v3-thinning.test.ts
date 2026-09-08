@@ -22,6 +22,17 @@ const encoder = new TextEncoder();
 const specPath = ".arc/active/spec-origin.md";
 const rfcPath = ".arc/active/rfc-origin.txt";
 
+function reidentify(machine: V3DecomposeCutMap["machine"]): void {
+  machine.preflightId = v3PreflightId({
+    source: machine.source,
+    resultBase: machine.resultBase,
+    planningProfile: machine.planningProfile,
+    sourceUnits: machine.sourceUnits,
+    incomingEdges: machine.incomingEdges,
+    outgoingEdges: machine.outgoingEdges,
+  });
+}
+
 function fixture(specText = [
   "\uFEFFintro",
   "## Transfer",
@@ -173,25 +184,115 @@ describe("planV3ExtractionSourceThinning", () => {
     });
   });
 
-  it.each([
-    ["source-missing", () => ({ kind: "absent" as const })],
-    ["source-object", (state: V3RepositoryPlanTree[string]) => (
-      state.kind === "object" ? { ...state, objectKind: "symlink", mode: "120000" } : state
-    )],
-    ["source-mode", (state: V3RepositoryPlanTree[string]) => (
-      state.kind === "object" ? { ...state, mode: "100644" } : state
-    )],
-    ["source-bytes", (state: V3RepositoryPlanTree[string]) => (
-      state.kind === "object" ? { ...state, bytes: encoder.encode("changed\n") } : state
-    )],
-  ] as const)("refuses %s before deriving any thinning output", (reason, mutate) => {
+  it("refuses a missing source before deriving any thinning output", () => {
     const input = fixture();
-    input.sourceTree[specPath] = mutate(input.sourceTree[specPath]!);
+    input.sourceTree[specPath] = { kind: "absent" };
 
     expect(planV3ExtractionSourceThinning(input)).toMatchObject({
       status: "refused",
-      reason,
+      reason: "source-missing",
       locus: specPath,
+    });
+  });
+
+  it("reports the expected and observed source object kinds", () => {
+    const input = fixture();
+    const state = input.sourceTree[specPath];
+    if (state?.kind !== "object") throw new Error("expected source object fixture");
+    input.sourceTree[specPath] = { ...state, objectKind: "symlink", mode: "120000" };
+
+    expect(planV3ExtractionSourceThinning(input)).toEqual({
+      status: "refused",
+      reason: "source-object",
+      locus: specPath,
+      evidence: { expected: "blob", actual: "symlink" },
+    });
+  });
+
+  it("reports the expected and observed source modes", () => {
+    const input = fixture();
+    const state = input.sourceTree[specPath];
+    if (state?.kind !== "object") throw new Error("expected source object fixture");
+    input.sourceTree[specPath] = { ...state, mode: "100644" };
+
+    expect(planV3ExtractionSourceThinning(input)).toEqual({
+      status: "refused",
+      reason: "source-mode",
+      locus: specPath,
+      evidence: { expected: "100755", actual: "100644" },
+    });
+  });
+
+  it("reports authenticated and observed source byte facts", () => {
+    const input = fixture();
+    const state = input.sourceTree[specPath];
+    if (state?.kind !== "object") throw new Error("expected source object fixture");
+    const changed = encoder.encode("changed\n");
+    input.sourceTree[specPath] = { ...state, bytes: changed };
+    const expected = input.currentPreflight.sourceArtifactInventory.find(({ path }) => path === specPath);
+    if (expected === undefined) throw new Error("expected source inventory fixture");
+
+    expect(planV3ExtractionSourceThinning(input)).toEqual({
+      status: "refused",
+      reason: "source-bytes",
+      locus: specPath,
+      evidence: {
+        expected: { contentDigest: expected.contentDigest },
+        actual: { contentDigest: digestBytes(changed), byteLength: changed.byteLength },
+      },
+    });
+  });
+
+  it("reports authenticated and rescanned source-unit facts", () => {
+    const input = fixture();
+    const machineUnit = input.completedMap.machine.sourceUnits.find(({ sourcePath }) =>
+      sourcePath === specPath);
+    const starterUnit = input.currentPreflight.starterMap.machine.sourceUnits.find(({ sourceId }) =>
+      sourceId === machineUnit?.sourceId);
+    if (machineUnit === undefined || starterUnit === undefined) {
+      throw new Error("expected source-unit fixture");
+    }
+    const expectedDigest = `sha256:${"9".repeat(64)}` as const;
+    machineUnit.contentDigest = expectedDigest;
+    starterUnit.contentDigest = expectedDigest;
+    reidentify(input.completedMap.machine);
+    reidentify(input.currentPreflight.starterMap.machine);
+    const sourceState = input.sourceTree[specPath];
+    if (sourceState?.kind !== "object") throw new Error("expected source object fixture");
+    const scan = scanV3DecomposeContent("spec-origin.md", sourceState.bytes);
+    if (scan.status !== "scanned") throw new Error(scan.reason);
+    const observed = scan.units.find((unit) =>
+      v3SourceId({ sourcePath: specPath, sourceLocator: unit.locator }) === machineUnit.sourceId);
+    if (observed === undefined) throw new Error("expected rescanned source unit");
+
+    expect(planV3ExtractionSourceThinning(input)).toEqual({
+      status: "refused",
+      reason: "source-unit",
+      locus: specPath,
+      evidence: {
+        expected: { sourcePath: specPath, contentDigest: expectedDigest },
+        actual: {
+          sourcePath: specPath,
+          contentDigest: digestBytes(observed.bytes),
+          byteLength: observed.bytes.byteLength,
+        },
+      },
+    });
+  });
+
+  it("threads an admitted source-binding comparison", () => {
+    const input = fixture();
+    input.completedMap = structuredClone(input.completedMap);
+    const actualHead = input.currentPreflight.starterMap.machine.source.head;
+    const expectedHead = "f".repeat(40);
+    input.completedMap.machine.source.head = expectedHead;
+    reidentify(input.completedMap.machine);
+
+    expect(planV3ExtractionSourceThinning(input)).toEqual({
+      status: "refused",
+      reason: "source-binding:source-head",
+      locus: "machine.source.head",
+      evidence: { expected: expectedHead, actual: actualHead },
     });
   });
 

@@ -11,6 +11,10 @@ import {
   revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
 } from "./decompose-v3-preflight.js";
+import {
+  v3DecomposeByteEvidence,
+  type V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 import type { V3RepositoryPlanTree } from "./decompose-v3-repository-plan.js";
 import {
   decodeV3DecomposeCutMap,
@@ -42,10 +46,24 @@ export interface V3ExtractionSourceThinningFilePlan {
 /** Closed pure planning result. */
 export type V3ExtractionSourceThinningResult =
   | { status: "planned"; files: V3ExtractionSourceThinningFilePlan[] }
-  | { status: "refused"; reason: string; locus?: string };
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
-function refuse(reason: string, locus?: string): V3ExtractionSourceThinningResult {
-  return { status: "refused", reason, ...(locus === undefined ? {} : { locus }) };
+function refuse(
+  reason: string,
+  locus?: string,
+  evidence?: V3DecomposeRefusalEvidence,
+): V3ExtractionSourceThinningResult {
+  return {
+    status: "refused",
+    reason,
+    ...(locus === undefined ? {} : { locus }),
+    ...(evidence === undefined ? {} : { evidence }),
+  };
 }
 
 function compareUtf8(left: string, right: string): number {
@@ -76,7 +94,9 @@ export function planV3ExtractionSourceThinning(
   const map = decoded.value;
   if (map.authoring.shape !== "extraction") return refuse("map-shape", "authoring.shape");
   const binding = revalidateV3DecomposeCutMapBinding(map, input.currentPreflight);
-  if (binding.status === "stale") return refuse(`source-binding:${binding.reason}`, binding.locus);
+  if (binding.status === "stale") {
+    return refuse(`source-binding:${binding.reason}`, binding.locus, binding.evidence);
+  }
   const inventoryDigest = v3SourceArtifactDigest(input.currentPreflight.sourceArtifactInventory);
   if (inventoryDigest === null || inventoryDigest !== input.currentPreflight.sourceArtifactDigest) {
     return refuse("source-inventory", "sourceArtifactInventory");
@@ -101,10 +121,25 @@ export function planV3ExtractionSourceThinning(
     if (expected === undefined) return refuse("source-inventory", path);
     const observed = input.sourceTree[path];
     if (observed === undefined || observed.kind === "absent") return refuse("source-missing", path);
-    if (observed.objectKind !== "blob") return refuse("source-object", path);
+    if (observed.objectKind !== "blob") {
+      return refuse("source-object", path, {
+        expected: expected.objectKind,
+        actual: observed.objectKind,
+      });
+    }
     if ((observed.mode !== "100644" && observed.mode !== "100755")
-      || observed.mode !== expected.mode) return refuse("source-mode", path);
-    if (digestBytes(observed.bytes) !== expected.contentDigest) return refuse("source-bytes", path);
+      || observed.mode !== expected.mode) {
+      return refuse("source-mode", path, {
+        expected: expected.mode,
+        actual: observed.mode,
+      });
+    }
+    if (digestBytes(observed.bytes) !== expected.contentDigest) {
+      return refuse("source-bytes", path, {
+        expected: { contentDigest: expected.contentDigest },
+        actual: v3DecomposeByteEvidence(observed.bytes),
+      });
+    }
 
     const scan = scanV3DecomposeContent(posix.basename(path), observed.bytes);
     if (scan.status === "rejected") return refuse("source-scan", path);
@@ -124,7 +159,16 @@ export function planV3ExtractionSourceThinning(
         return refuse("source-allocation", path);
       }
       if (sourceUnit.sourcePath !== path || digestBytes(unit.bytes) !== sourceUnit.contentDigest) {
-        return refuse("source-unit", path);
+        return refuse("source-unit", path, {
+          expected: {
+            sourcePath: sourceUnit.sourcePath,
+            contentDigest: sourceUnit.contentDigest,
+          },
+          actual: {
+            sourcePath: path,
+            ...v3DecomposeByteEvidence(unit.bytes),
+          },
+        });
       }
       consumed.add(sourceId);
       if (allocation.disposition.kind === "retained-origin") {

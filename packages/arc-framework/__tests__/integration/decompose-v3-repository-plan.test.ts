@@ -29,7 +29,7 @@ import {
   composeGitV3ExtractionRepositoryPlan,
   composeGitV3RepositoryPlan,
 } from "../../src/lib/work-unit/git-decompose-v3-repository-plan.js";
-import { v3PreflightId } from "../../src/lib/work-unit/decompose-v3-schema.js";
+import { v3PreflightId, v3SourceId } from "../../src/lib/work-unit/decompose-v3-schema.js";
 import { runCli } from "../helpers/run-cli.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
@@ -404,6 +404,60 @@ async function landedExtractionRepository() {
   return { ...fixture, landedHead };
 }
 
+async function landedCohortExtractionRepository() {
+  const fixture = await activeExtractionRepository("single-spec", false);
+  const completedMap = {
+    ...fixture.completedMap,
+    authoring: {
+      ...fixture.completedMap.authoring,
+      placement: { kind: "cohort" as const, cohort: "group" },
+    },
+  };
+  const staged = await executeGitV3ExtractionOperation({
+    ...fixture.dependencies,
+    spawningIdentity: "andrew",
+  }, {
+    protection: "full",
+    baseBranch: "main",
+    completedMap,
+  });
+  if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+    throw new Error(JSON.stringify(staged));
+  }
+  const candidatePath = staged.operation.occupation.path;
+  roots.push(candidatePath);
+  const cohortPath = ".arc/backlog/planned/group/cohort-group.md";
+  const memberPath = ".arc/backlog/planned/group/member/spec-member.md";
+  await write(
+    candidatePath,
+    cohortPath,
+    (await readFile(join(candidatePath, cohortPath), "utf8")).replace(
+      "**Purpose:** —",
+      "**Purpose:** Coordinate the extracted member with its surviving origin.",
+    ),
+  );
+  const authoredMember = `${await readFile(join(candidatePath, memberPath), "utf8")}`
+    + "\n## Owner-authored plan\n\nReady for task generation.\n";
+  await write(candidatePath, memberPath, authoredMember);
+  await git(candidatePath, ["add", cohortPath, memberPath]);
+  await git(candidatePath, ["commit", "-m", "author grouped extraction"]);
+  const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+  await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+  await git(fixture.repo, ["switch", "feat/origin"]);
+  const cutMapPath = join(fixture.repo, "grouped-cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+  return {
+    ...fixture,
+    completedMap,
+    staged,
+    candidatePath,
+    cohortPath,
+    memberPath,
+    authoredMember,
+    cutMapPath,
+  };
+}
+
 async function previewFinish(fixture: Awaited<ReturnType<typeof stageExtractionRepository>>) {
   return await finishGitV3Extraction(fixture.dependencies, {
     cwd: fixture.repo,
@@ -650,57 +704,13 @@ describe("Git v3 repository plan", () => {
   });
 
   it("accepts finalized cohort and member authoring while preserving extraction claims", async () => {
-    const fixture = await activeExtractionRepository("single-spec", false);
-    const completedMap = {
-      ...fixture.completedMap,
-      authoring: {
-        ...fixture.completedMap.authoring,
-        placement: { kind: "cohort" as const, cohort: "group" },
-      },
-    };
-    const staged = await executeGitV3ExtractionOperation({
-      ...fixture.dependencies,
-      spawningIdentity: "andrew",
-    }, {
-      protection: "full",
-      baseBranch: "main",
-      completedMap,
-    });
-    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
-      throw new Error(JSON.stringify(staged));
-    }
-    const candidatePath = staged.operation.occupation.path;
-    roots.push(candidatePath);
-    const cohortPath = ".arc/backlog/planned/group/cohort-group.md";
-    const memberPath = ".arc/backlog/planned/group/member/spec-member.md";
-    await write(
-      candidatePath,
-      cohortPath,
-      (await readFile(join(candidatePath, cohortPath), "utf8")).replace(
-        "**Purpose:** —",
-        "**Purpose:** Coordinate the extracted member with its surviving origin.",
-      ),
-    );
-    const authoredMember = `${await readFile(join(candidatePath, memberPath), "utf8")}`
-      + "\n## Owner-authored plan\n\nReady for task generation.\n";
-    await write(
-      candidatePath,
-      memberPath,
-      authoredMember,
-    );
-    await git(candidatePath, ["add", cohortPath, memberPath]);
-    await git(candidatePath, ["commit", "-m", "author grouped extraction"]);
-    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
-    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
-    await git(fixture.repo, ["switch", "feat/origin"]);
-    const cutMapPath = join(fixture.repo, "grouped-cut-map.json");
-    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const fixture = await landedCohortExtractionRepository();
 
     const preview = await finishGitV3Extraction(fixture.dependencies, {
       cwd: fixture.repo,
       baseBranch: "main",
       origin: "origin",
-      cutMapPath,
+      cutMapPath: fixture.cutMapPath,
       applyAuthority: null,
     });
     expect(preview).toMatchObject({
@@ -709,10 +719,68 @@ describe("Git v3 repository plan", () => {
     });
     if (preview.status !== "previewed") return;
     expect(preview.preview.liveBase.destinations).toContainEqual({
-      path: memberPath,
+      path: fixture.memberPath,
       mode: "100644",
-      contentDigest: digestBytes(new TextEncoder().encode(authoredMember)),
+      contentDigest: digestBytes(new TextEncoder().encode(fixture.authoredMember)),
     });
+  });
+
+  it("reports authored and landed cohort identities for a topology mismatch", async () => {
+    const fixture = await landedCohortExtractionRepository();
+    await git(fixture.repo, ["switch", "main"]);
+    const before = await readFile(join(fixture.repo, fixture.cohortPath), "utf8");
+    await write(
+      fixture.repo,
+      fixture.cohortPath,
+      before.replace("# Cohort: `group`", "# Cohort: `other`"),
+    );
+    await git(fixture.repo, ["add", fixture.cohortPath]);
+    await git(fixture.repo, ["commit", "-m", "change landed cohort identity"]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "topology-claim",
+      locus: fixture.cohortPath,
+      evidence: { expected: "group", actual: "other" },
+    });
+  });
+
+  it("keeps a malformed-only topology claim evidence-free", async () => {
+    const fixture = await landedCohortExtractionRepository();
+    await git(fixture.repo, ["switch", "main"]);
+    const before = await readFile(join(fixture.repo, fixture.cohortPath), "utf8");
+    await write(
+      fixture.repo,
+      fixture.cohortPath,
+      before.replace(
+        "**Purpose:** Coordinate the extracted member with its surviving origin.",
+        "**Purpose:** —",
+      ),
+    );
+    await git(fixture.repo, ["add", fixture.cohortPath]);
+    await git(fixture.repo, ["commit", "-m", "remove landed cohort purpose"]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+
+    const result = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "topology-claim",
+      locus: fixture.cohortPath,
+    });
+    expect(result).not.toHaveProperty("evidence");
   });
 
   it("refuses a mismatched preview authority without source mutation", async () => {
@@ -868,13 +936,21 @@ describe("Git v3 repository plan", () => {
       origin: "origin",
       cutMapPath,
       applyAuthority: null,
-    })).resolves.toMatchObject({ status: "refused", reason: "dependency-claim" });
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "dependency-claim",
+      locus: ".arc/backlog/planned/dependent/meta-dependent.md",
+      evidence: { expected: ["origin"], actual: [] },
+    });
   });
 
   it("refuses a stale live ROADMAP after the additive result lands", async () => {
     const fixture = await landedExtractionRepository();
     await git(fixture.repo, ["switch", "main"]);
-    await write(fixture.repo, ".arc/backlog/ROADMAP.md", "# Stale roadmap\n");
+    const roadmapPath = ".arc/backlog/ROADMAP.md";
+    const expectedRoadmap = new Uint8Array(await readFile(join(fixture.repo, roadmapPath)));
+    const staleRoadmap = new TextEncoder().encode("# Stale roadmap\n");
+    await writeFile(join(fixture.repo, roadmapPath), staleRoadmap);
     await git(fixture.repo, ["add", ".arc/backlog/ROADMAP.md"]);
     await git(fixture.repo, ["commit", "-m", "make roadmap stale"]);
     await git(fixture.repo, ["switch", "feat/origin"]);
@@ -882,7 +958,19 @@ describe("Git v3 repository plan", () => {
     await expect(previewFinish(fixture)).resolves.toMatchObject({
       status: "refused",
       reason: "roadmap-current-render",
-      locus: ".arc/backlog/ROADMAP.md",
+      locus: roadmapPath,
+      evidence: {
+        expected: {
+          objectKind: "blob",
+          contentDigest: digestBytes(expectedRoadmap),
+          byteLength: expectedRoadmap.byteLength,
+        },
+        actual: {
+          objectKind: "blob",
+          contentDigest: digestBytes(staleRoadmap),
+          byteLength: staleRoadmap.byteLength,
+        },
+      },
     });
   });
 
@@ -912,6 +1000,29 @@ describe("Git v3 repository plan", () => {
     await git(fixture.repo, ["switch", "feat/origin"]);
 
     await expect(previewFinish(fixture)).resolves.toMatchObject({ status: "refused", reason });
+  });
+
+  it("reports the first changed extraction-owned metadata field", async () => {
+    const fixture = await landedExtractionRepository();
+    const metaPath = fixture.staged.plan.mutations.find((mutation) =>
+      mutation.path.endsWith("meta-member.md"))?.path;
+    if (metaPath === undefined) throw new Error("extraction fixture needs a member meta");
+    await git(fixture.repo, ["switch", "main"]);
+    const before = await readFile(join(fixture.repo, metaPath), "utf8");
+    await write(fixture.repo, metaPath, before.replace("`andrew`", "`casey`"));
+    await git(fixture.repo, ["add", metaPath]);
+    await git(fixture.repo, ["commit", "-m", "change landed member owner"]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+
+    await expect(previewFinish(fixture)).resolves.toMatchObject({
+      status: "refused",
+      reason: "destination-meta",
+      locus: metaPath,
+      evidence: {
+        expected: { field: "owner", value: "andrew" },
+        actual: { field: "owner", value: "casey" },
+      },
+    });
   });
 
   it.each([
@@ -950,6 +1061,69 @@ describe("Git v3 repository plan", () => {
     });
   });
 
+  it("reports the recorded and invoked finish origins", async () => {
+    const fixture = await landedExtractionRepository();
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "other",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "map:origin",
+      locus: "machine.source.origin",
+      evidence: { expected: "origin", actual: "other" },
+    });
+  });
+
+  it("reports the recorded and configured finish base refs", async () => {
+    const fixture = await landedExtractionRepository();
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "develop",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "base-ref-mismatch",
+      locus: "machine.resultBase.ref",
+      evidence: { expected: "refs/heads/main", actual: "refs/heads/develop" },
+    });
+  });
+
+  it("reports disagreeing source ref and HEAD reads", async () => {
+    const fixture = await landedExtractionRepository();
+    const movedHead = "f".repeat(40);
+    const movedDependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<GitExec>) => {
+        if (args[0] === "git"
+          && args[1][0] === "rev-parse"
+          && args[1][2] === "refs/heads/feat/origin^{commit}") {
+          return { stdout: `${movedHead}\n` };
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    await expect(finishGitV3Extraction(movedDependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "source-ref-moved",
+      locus: "refs/heads/feat/origin",
+      evidence: { expected: fixture.sourceHead, actual: movedHead },
+    });
+  });
+
   it("refuses refreshed transferred bytes that are absent from the landed destination", async () => {
     const fixture = await landedExtractionRepository();
     const allocation = fixture.completedMap.authoring.sourceAllocations.find(({ disposition }) =>
@@ -972,6 +1146,11 @@ describe("Git v3 repository plan", () => {
       Buffer.from("Changed after additive landing.\n", "utf8"),
       sourceBytes.slice(resolved.unit.byteRange.end),
     ]);
+    const changedScan = scanV3DecomposeContent(sourceUnit.sourceLocator.artifact, changed);
+    if (changedScan.status !== "scanned") throw new Error(changedScan.reason);
+    const changedUnit = changedScan.units.find((unit) =>
+      v3SourceId({ sourcePath: sourceUnit.sourcePath, sourceLocator: unit.locator }) === sourceUnit.sourceId);
+    if (changedUnit === undefined) throw new Error("changed source unit did not retain its identity");
     await writeFile(sourcePath, changed);
     await git(fixture.repo, ["add", sourceUnit.sourcePath]);
     await git(fixture.repo, ["commit", "-m", "change transferred source bytes"]);
@@ -979,6 +1158,11 @@ describe("Git v3 repository plan", () => {
     await expect(previewFinish(fixture)).resolves.toMatchObject({
       status: "refused",
       reason: "source:source-units",
+      locus: expect.stringMatching(/\.contentDigest$/u),
+      evidence: {
+        expected: sourceUnit.contentDigest,
+        actual: digestBytes(changedUnit.bytes),
+      },
     });
   });
 
@@ -1012,7 +1196,12 @@ describe("Git v3 repository plan", () => {
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
       applyAuthority: null,
-    })).resolves.toMatchObject({ status: "refused", reason: "base-raced" });
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "base-raced",
+      locus: "refs/heads/main",
+      evidence: { expected: fixture.landedHead, actual: raceHead },
+    });
   });
 
   it("refuses without source mutation when the base moves after verified source capture", async () => {
@@ -1051,19 +1240,72 @@ describe("Git v3 repository plan", () => {
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
       applyAuthority: preview.preview.applyAuthority,
-    })).resolves.toEqual({
+    })).resolves.toMatchObject({
       status: "refused",
       reason: "base-raced",
       locus: "refs/heads/main",
+      evidence: { expected: fixture.landedHead, actual: raceHead },
     });
     expect(baseReads).toBe(3);
     await expect(readFile(join(fixture.repo, sourcePath), "utf8")).resolves.toBe(sourceBefore);
     expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", sourcePath])).toBe("");
   });
 
+  it("reports source ref and HEAD observations when source moves before apply", async () => {
+    const fixture = await landedExtractionRepository();
+    const preview = await previewFinish(fixture);
+    if (preview.status !== "previewed") throw new Error(JSON.stringify(preview));
+    let sourceReads = 0;
+    let raceHead: string | null = null;
+    const racedDependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<GitExec>) => {
+        if (args[0] === "git"
+          && args[1][0] === "rev-parse"
+          && args[1][2] === "refs/heads/feat/origin^{commit}") {
+          sourceReads += 1;
+          if (sourceReads === 3) {
+            await write(fixture.repo, "source-race-before-apply.txt", "race\n");
+            await git(fixture.repo, ["add", "source-race-before-apply.txt"]);
+            await git(fixture.repo, ["commit", "-m", "race source before finish apply"]);
+            raceHead = (await git(fixture.repo, ["rev-parse", "HEAD"])).trim();
+          }
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    const result = await finishGitV3Extraction(racedDependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: preview.preview.applyAuthority,
+    });
+    if (raceHead === null) throw new Error("source-race fixture did not move HEAD");
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "source-raced",
+      locus: "refs/heads/feat/origin",
+      evidence: {
+        expected: {
+          ref: fixture.sourceHead,
+          branch: "feat/origin",
+          head: fixture.sourceHead,
+        },
+        actual: {
+          ref: raceHead,
+          branch: "feat/origin",
+          head: fixture.sourceHead,
+        },
+      },
+    });
+  });
+
   it("refuses when the surviving source moves during destination proof", async () => {
     const fixture = await landedExtractionRepository();
     let sourceReads = 0;
+    let raceHead: string | null = null;
     const racedDependencies = {
       ...fixture.dependencies,
       exec: async (...args: Parameters<GitExec>) => {
@@ -1075,19 +1317,38 @@ describe("Git v3 repository plan", () => {
             await write(fixture.repo, "source-race.txt", "race\n");
             await git(fixture.repo, ["add", "source-race.txt"]);
             await git(fixture.repo, ["commit", "-m", "race source"]);
+            raceHead = (await git(fixture.repo, ["rev-parse", "HEAD"])).trim();
           }
         }
         return await fixture.dependencies.exec(...args);
       },
     };
 
-    await expect(finishGitV3Extraction(racedDependencies, {
+    const result = await finishGitV3Extraction(racedDependencies, {
       cwd: fixture.repo,
       baseBranch: "main",
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
       applyAuthority: null,
-    })).resolves.toMatchObject({ status: "refused", reason: "source-raced" });
+    });
+    if (raceHead === null) throw new Error("source-race fixture did not move HEAD");
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "source-raced",
+      locus: "refs/heads/feat/origin",
+      evidence: {
+        expected: {
+          ref: fixture.sourceHead,
+          branch: "feat/origin",
+          head: fixture.sourceHead,
+        },
+        actual: {
+          ref: raceHead,
+          branch: "feat/origin",
+          head: fixture.sourceHead,
+        },
+      },
+    });
   });
 
   it("forwards byte input through the repository raw Git boundary", async () => {

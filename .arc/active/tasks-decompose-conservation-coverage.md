@@ -149,16 +149,11 @@ only after every mode has executable coverage.
           digest-and-length evidence, and carried expected-versus-supplied apply authority through the strict result.
           Transient races and one-sided failures remain evidence-free, with exact race and restoration-residue loci.
 
-    - `[ ]` **1.3.c Attach evidence across thinning and committed-destination comparisons**
-        - Thread admitted comparison evidence through `decompose-v3-thinning.ts` and
-          `git-decompose-v3-finish.ts` without adding sides to missing, undecodable, or malformed-only topology
-          observations.
-        - Build `test-first` (one behavior at a time):
-            - Cover source object, mode, bytes, and unit differences during thinning, representing bytes by digest and
-              length rather than carrying `Uint8Array` values.
-            - Cover mode, bytes, meta, dependency, ROADMAP, source/base race, and comparison-site topology claims.
-            - Prove `topology-claim` carries evidence only where an expected claim and observed value both exist.
-            - Preserve the first stable failure code, locus, and destination-proof ordering.
+    - `[x]` **1.3.c Attach evidence across thinning and committed-destination comparisons**
+        - Projected source and destination object, mode, byte, unit, metadata, dependency, ROADMAP, ref, and race
+          comparisons into bounded expected/actual evidence and threaded existing plan/preflight evidence outward.
+          Topology identity, parent, and complete fan-out comparisons carry evidence; missing, undecodable, and
+          malformed-only observations retain the first stable code and locus without fabricated sides.
 
     - `[ ]` **1.3.d Emit finish preview and apply refusals through `handleDecompose()`**
         - Route both finish invocations through the decompose-specific stdout/stderr emitter instead of a reason-only
