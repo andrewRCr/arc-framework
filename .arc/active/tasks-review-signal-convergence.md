@@ -140,15 +140,13 @@ of code-review persistence.
   permission evidence without acquiring producer-backed review state. Fresh signal alone establishes convergence;
   settlement, unused capacity, and confirmed `minor` observations grant no successor pass.
 
-### `[ ]` **1.4 Verify vocabulary and advisory loop behavior** — validate criteria at member scope
+### `[x]` **1.4 Verify vocabulary and advisory loop behavior** — validate criteria at member scope
 
 - _Goal:_ Vocabulary and advisory-loop criteria have traceable static and observed behavioral evidence.
 
-- _Note:_ Spec §§ 1–3; SC 1–4 and 18.
-
-- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
-  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
-  markers unchanged; route any corrective work through normal task review, not this verifier.
+- _Outcome:_ The Member 1 report in `notes-review-signal-convergence.md` binds both immutable criteria to the exact
+  three-commit span and resolves both `[x]` with no boundary deviation. Its fresh companion returned no findings at
+  `Pass 1 of 2`; the primary verified its source claims, and both Success Criteria markers remain unchanged.
 
 ## **Phase 2:** Admit native producer passes and preserve truthful coverage
 

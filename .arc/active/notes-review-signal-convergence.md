@@ -1,5 +1,68 @@
 # Notes: Review Signal Convergence
 
+## Member 1 criteria report — 2026-09-07
+
+```yaml
+criteria-slice: "Success Criteria > Member 1 — `review-vocabulary`"
+span:
+  diff: "d7ac75728667485c96c1b10f7e625364140f3987..2ba656f8a9d94f8ab8b7af68ad91c59a3da7624f"
+  reachability: >-
+    Repository tree at 2ba656f8a9d94f8ab8b7af68ad91c59a3da7624f, including the upstream spec, both Framework
+    methodology copies, registered review-gate roots and adapters, static contracts, generated-schema assertions,
+    and retained behavioral fixtures/results through Delivery Member 1.
+  boundary-order-deviation: null
+criteria:
+  - locus: "Success Criteria > Member 1 — `review-vocabulary` > 1"
+    criterion-digest: sha256:1543a1cde3cf7faf5abe1ba0afc4956e6475a2effbbeb96f3eb41d875ff974be
+    evidence: >-
+      ReviewSeveritySchema and every ARC-owned direct severity input use critical | major | minor across
+      review-primitives.ts, finding-records.ts, disposition-records.ts, hosted/await.ts, and respond-command.ts.
+      Adapter tests cover Codex P0, CodeRabbit Critical, and native CodeRabbit blocker normalization; schema,
+      settlement, disposition, hosted, and generated-kernel tests accept critical and reject retired severity
+      blocker. The occurrence audit preserves provider-native blocker, GateBlocker / GateVerdict.blockers,
+      work-unit impediments, and blocked states. The cumulative full suite passed at the member boundary.
+    state: "[x]"
+  - locus: "Success Criteria > Member 1 — `review-vocabulary` > 2"
+    criterion-digest: sha256:442ee85fd4b1b288dc03c69cd76f9d697447ab77a99bdbc3a970f1dfd7fb8c80
+    evidence: >-
+      adversarial-review.md defines attention-only withstood, independent completeness and pass-result convergence,
+      Pass N of M with named stop reasons, same-turn recommendations, named single-use successor approval, pending
+      response handling, minor non-control, and cap refusal while its evaluator prompt excludes cap state. Direct
+      draft, spec, task-list, and validate-criteria fire-points retain non-producer advisory evidence without lane
+      records. Static contract tests passed across package/project copies and installation. Five attended fresh-context
+      exercises cover contradicted withstood, unsupported and fixed material findings, cap exhaustion, and pending,
+      withdrawn, consumed, and replayed conditional permission; their verbatim observations are retained below.
+    state: "[x]"
+summary: "2 [x], 0 [~], 0 [ ]; no unresolved Member 1 criterion"
+```
+
+### Member 1 fresh-context companion
+
+**Pass 1 of 2 — no findings; converged. Stop reason: converged.** The complete zero-finding result needs no
+disposition set or response, and no successor pass is recommended by its signal.
+
+```yaml
+findings: []
+withstood:
+  - Review-severity roots, adapters, generated-schema checks, and strict rejection tests use `critical`; native
+    CodeRabbit `blocker`, gate blockers, `blocked` states, and enumerated impediment prose remain intact.
+  - Both methodology copies define and prompt attention-only `withstood`, independently model completeness and
+    signal, report pass ordinal and stop reason, co-present recommendations, constrain minors, and require named
+    single-use authority past the cap.
+  - Planning and criteria fire-points plus the installation recipe retain the advisory protocol; four fresh-context
+    exercise records match their bounded scenarios. Focused verification passed: 10 unit files/200 tests and 1
+    integration file/34 tests.
+verdict: >-
+  Both Member 1 success criteria are satisfied by the bounded diff and target tree at
+  2ba656f8a9d94f8ab8b7af68ad91c59a3da7624f.
+```
+
+The primary spot-checked the externally verifiable `withstood` claims against the registered schemas and adapters,
+the preserved provider-native and impediment loci, both methodology copies, all four direct fire-points, the recipe,
+and the retained exercise outputs. The companion's focused test counts agree with the already-recorded targeted runs;
+the member-boundary full suite independently passed 868 files with one intentional skip before this documentation-only
+closure.
+
 ## Advisory-loop behavioral exercises — 2026-09-07
 
 Four attended read-only evaluations ran in separate fresh contexts. Each evaluator received only the shipped
