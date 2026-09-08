@@ -55,6 +55,7 @@ import {
   type V3TopologyPlanInput,
 } from "./decompose-v3-topology.js";
 import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
+import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 
 /** Exact regular-file or absence states read from pinned repository trees. */
 export type V3RepositoryPlanState = V3PlannedByteState;
@@ -256,11 +257,15 @@ function originArtifactPaths(
   origin: string,
 ): string[] {
   const directory = posix.dirname(metaPath);
-  const ordinary = new RegExp(`^(?:meta|draft|spec|tasks|notes)-${origin.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\.md$`, "u");
+  const matcher = artifactMatcher(origin);
   const layered = new Set([`spec-${origin}-prd.md`, `spec-${origin}-rfc.md`]);
+  const cohortName = `cohort-${origin}.md`;
   return Object.keys(tree)
     .filter((path) => posix.dirname(path) === directory)
-    .filter((path) => ordinary.test(posix.basename(path)) || layered.has(posix.basename(path)))
+    .filter((path) => {
+      const name = posix.basename(path);
+      return name !== cohortName && (matcher.test(name) || layered.has(name));
+    })
     .sort(compareUtf8);
 }
 

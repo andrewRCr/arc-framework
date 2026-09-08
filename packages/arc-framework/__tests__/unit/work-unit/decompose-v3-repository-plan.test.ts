@@ -264,6 +264,45 @@ describe("v3 repository plan projection", () => {
     });
   });
 
+  it("retires the open predecessor artifact family in canonical path order", async () => {
+    const input = fixture();
+    const directory = ".arc/backlog/planned/origin";
+    const assurancePath = `${directory}/assurance-origin.md`;
+    const cohortPath = `${directory}/cohort-origin.md`;
+    const assurance = file("# Assurance\n");
+    const cohort = file("# Cohort\n");
+    input.mergeBaseTree[assurancePath] = assurance;
+    input.resultBaseTree[assurancePath] = assurance;
+    input.mergeBaseTree[cohortPath] = cohort;
+    input.sourceTree[cohortPath] = cohort;
+    input.resultBaseTree[cohortPath] = cohort;
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    const predecessorRetirements = result.plan.mutations
+      .filter((mutation) => mutation.kind === "exclusive"
+        && mutation.path.startsWith(`${directory}/`)
+        && mutation.role !== "roadmap")
+      .map(({ path }) => path);
+    expect(predecessorRetirements).toEqual([
+      assurancePath,
+      `${directory}/draft-origin.md`,
+      `${directory}/meta-origin.md`,
+    ]);
+    expect(result.plan.allowedPaths).not.toContain(cohortPath);
+  });
+
   it("reports the expected and observed source metadata paths", async () => {
     const input = fixture();
     const actualPath = ".arc/backlog/planned/origin/meta-origin.md";

@@ -157,12 +157,14 @@ export async function readGitV3DecomposeTreeSnapshot(
   const sourceDir = sourceMeta === undefined ? null : posix.dirname(sourceMeta.path);
   const matcher = artifactMatcher(origin);
   const layeredDesignNames = new Set(v3PlanningDesignNames(origin).pairedSpec);
+  const cohortName = `cohort-${origin}.md`;
   const sourceArtifacts: V3DecomposeStoredArtifact[] = [];
   if (sourceDir !== null) {
     for (const entry of entries) {
       const name = posix.basename(entry.path);
       if (
         posix.dirname(entry.path) !== sourceDir
+        || name === cohortName
         || (!matcher.test(name) && !layeredDesignNames.has(name))
       ) continue;
       if (entry.kind !== "blob" || (entry.mode !== "100644" && entry.mode !== "100755")) {

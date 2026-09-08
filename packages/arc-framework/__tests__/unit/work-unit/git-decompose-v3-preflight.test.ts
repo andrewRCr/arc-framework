@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 import {
   createGitV3DecomposePreflight,
+  readGitV3DecomposeTreeSnapshot,
 } from "../../../src/lib/work-unit/git-decompose-v3-preflight.js";
 
 const encoder = new TextEncoder();
@@ -58,6 +59,47 @@ async function preflightFromBasePlanning(options: {
 }
 
 describe("createGitV3DecomposePreflight", () => {
+  it("selects the open origin artifact family in canonical path order", async () => {
+    const ref = "refs/heads/main";
+    const head = "a".repeat(40);
+    const directory = ".arc/backlog/planned/origin";
+    const metaPath = `${directory}/meta-origin.md`;
+    const selectedPaths = [
+      `${directory}/assurance-origin.md`,
+      `${directory}/draft-origin.md`,
+      metaPath,
+      `${directory}/spec-origin-prd.md`,
+      `${directory}/spec-origin-rfc.md`,
+    ];
+    const listedPaths = [
+      `${directory}/cohort-origin.md`,
+      `${directory}/spec-origin-rfc.md`,
+      ".arc/backlog/planned/supporting/assurance-origin.md",
+      `${directory}/notes-other.md`,
+      metaPath,
+      `${directory}/draft-origin.md`,
+      `${directory}/assurance-origin.md`,
+      `${directory}/spec-origin-prd.md`,
+    ];
+    const blobs = new Map<string, Uint8Array>([
+      [metaPath, meta("origin", "Planning", null)],
+      ...listedPaths
+        .filter((path) => path !== metaPath)
+        .map((path) => [path, encoder.encode(`# ${path}\n`)] as const),
+    ]);
+
+    const snapshot = await readGitV3DecomposeTreeSnapshot({
+      cwd: "/repo",
+      exec: async () => ({
+        stdout: listedPaths.map((path) => `100644 blob ${path}`).join("\0") + "\0",
+        stderr: "",
+      }),
+      readBlob: async (_commit, path) => blobs.get(path) ?? null,
+    }, ref, head, "origin");
+
+    expect(snapshot.sourceArtifacts.map(({ path }) => path)).toEqual(selectedPaths);
+  });
+
   it("infers each sanctioned planning profile from exact metadata pointers and stored artifacts", async () => {
     const cases = [
       {

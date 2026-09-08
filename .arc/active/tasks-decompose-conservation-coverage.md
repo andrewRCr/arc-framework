@@ -313,17 +313,9 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 - _Goal:_ Any valid Markdown artifact belonging to the origin is selected from both pinned trees and reaches the
   retirement proof without making unrelated supporting documents part of the work unit.
 
-    - `[ ]` **2.1.a Use one open artifact-family rule for source and predecessor reads**
-        - Preserve the existing `artifactMatcher(origin)` plus paired-spec source discovery in
-          `git-decompose-v3-preflight.ts`, replace the predecessor's closed prefix list in
-          `decompose-v3-repository-plan.ts`, and exclude exact `cohort-<origin>.md` basenames at both local call sites.
-        - Build `test-first` (one behavior at a time):
-            - Admit ordinary and nonstandard `<prefix>-<origin>.md` companions in the resolved origin directory.
-            - Admit both paired-spec names without accepting a same-name cohort document, unrelated slugs, or
-              supporting files in other locations.
-            - Return the same UTF-8 path order from source and predecessor discovery.
-            - Pin the source seam in `__tests__/unit/work-unit/git-decompose-v3-preflight.test.ts` and the predecessor
-              seam in `__tests__/unit/work-unit/decompose-v3-repository-plan.test.ts`.
+    - `[x]` **2.1.a Use one open artifact-family rule for source and predecessor reads**
+        - Source and predecessor discovery now share `artifactMatcher(origin)` plus paired-spec admission, exclude
+          the exact same-name cohort locally, and return the complete artifact family in canonical UTF-8 path order.
 
     - `[ ]` **2.1.b Scan a generic companion into the started source preflight**
         - Pass the resolved source kind and exact source-meta path into the private `sourceUnits()` path in
