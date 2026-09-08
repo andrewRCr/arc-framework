@@ -1,8 +1,8 @@
 # Metadata: local-ci-capacity-qualification
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P1`         |
+| **State**  | **Owner** | **Branch**                             | **Class** | **Priority** |
+| ---------- | --------- | -------------------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/local-ci-capacity-qualification` | `Light`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,13 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `draft-design`
 - **Last Completed:** Planned Light P1 stub created from the live CI-capacity investigation (2026-09-08).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Plan and execute a staged Hyper-V canary: prove one isolated runner first, then concurrent
-  throughput and local-development coexistence, before any repository routing change.
+- **Next Action:** [begin current workflow]
 
 ## Scope Contract
 
