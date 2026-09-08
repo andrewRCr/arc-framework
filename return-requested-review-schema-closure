@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "return-requested-review-schema-closure",
+  "claimId": "f5486e611788b5ef05758aef8e10f345",
+  "createdAt": "2026-09-08T16:55:21.082Z",
+  "updatedAt": "2026-09-08T16:55:21.082Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "return-requested-review-schema-closure",
+  "branch": "chore/return-requested-review-schema-closure",
+  "origin": "inbox",
+  "originEntry": "Return only the requested review schema closure",
+  "originEntrySourceDigest": "sha256:a06ea4820098f6e91a3d2225478d23949f03985b1fc7f2d0a84efc9b13d9a4f6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
