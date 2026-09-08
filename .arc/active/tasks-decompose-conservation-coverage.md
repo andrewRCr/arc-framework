@@ -134,7 +134,7 @@ only after every mode has executable coverage.
 - _Outcome:_ Preflight, retirement execute, and extraction now preserve actionable comparison and recovery facts while
   every covered refusal boundary returns a strict `SpineRemedy` composed from opaque argv operands.
 
-### `[ ]` **1.3 Carry comparison evidence and remedies through finish preview and apply**
+### `[x]` **1.3 Carry comparison evidence and remedies through finish preview and apply**
 
 - _Goal:_ Finish preview and apply identify the exact recorded-versus-live difference and return the correction
   through the same refusal envelope before any unauthorized thinning survives.
@@ -155,14 +155,13 @@ only after every mode has executable coverage.
           Topology identity, parent, and complete fan-out comparisons carry evidence; missing, undecodable, and
           malformed-only observations retain the first stable code and locus without fabricated sides.
 
-    - `[ ]` **1.3.d Emit finish preview and apply refusals through `handleDecompose()`**
-        - Route both finish invocations through the decompose-specific stdout/stderr emitter instead of a reason-only
-          branch, covering the public seam in `__tests__/unit/handlers/lifecycle-verbs.test.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Emit identical refusal structure for preview and `--apply` while selecting the invoked retry argv.
-            - Keep operand-schema and missing-project failures outside the envelope because mode selection never
-              completed.
-            - Convert an in-mode thrown error to `unexpected-error` with its detail in `locus`.
+    - `[x]` **1.3.d Emit finish preview and apply refusals through `handleDecompose()`**
+        - Routed finish preview and apply through the strict decompose emitter with their exact retry argv, kept
+          pre-mode operand and project failures outside stdout, and normalized in-mode throws to `unexpected-error`
+          with the original detail in `locus`.
+
+- _Outcome:_ Finish now preserves strict remedy and evidence identity from proof and source comparison through
+  preview, apply, recovery, and public emission without exposing raw bytes or inventing one-sided evidence.
 
 ### `[ ]` **1.4 Carry plan refusals and differing evidence through base advancement**
 

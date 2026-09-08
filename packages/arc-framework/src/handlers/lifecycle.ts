@@ -101,6 +101,10 @@ import {
   GitV3ExtractionCommandRefusalSchema,
 } from "../lib/work-unit/git-decompose-v3-operation.js";
 import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-finish.js";
+import {
+  V3DecomposeCoreRefusalSchema,
+  v3DecomposeRemedy,
+} from "../lib/work-unit/decompose-v3-refusal.js";
 import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
 import { advanceGitDecomposeTransitionBase } from
   "../lib/work-unit/git-decompose-transition-base-advancement.js";
@@ -443,10 +447,12 @@ function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): vo
   refuse(`${reason}\n${remedy.text}`);
 }
 
-function emitV3DecomposeRefusal(input: unknown, mode: "execute" | "extract"): void {
+function emitV3DecomposeRefusal(input: unknown, mode: "execute" | "extract" | "finish"): void {
   const refusal = mode === "execute"
     ? GitV3DecomposeCommandRefusalSchema.parse(input)
-    : GitV3ExtractionCommandRefusalSchema.parse(input);
+    : mode === "extract"
+      ? GitV3ExtractionCommandRefusalSchema.parse(input)
+      : V3DecomposeCoreRefusalSchema.parse(input);
   process.stdout.write(`${canonicalize(refusal)}\n`);
   process.stderr.write(`${refusal.reason}\n${refusal.remedy.text}\n`);
   process.exitCode = 1;
@@ -1034,19 +1040,40 @@ export async function handleDecompose(
     };
     const protection = settings["branch.protection"] === "full" ? "full" : "partial";
     if (parsed.data.finish !== undefined) {
-      const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
-        cwd,
-        baseBranch: settings["branch.base"],
-        origin: parsed.data.origin,
-        cutMapPath: parsed.data.finish,
-        applyAuthority: (parsed.data.apply ?? null) as `sha256:${string}` | null,
-      }));
-      process.stdout.write(`${canonicalize(result)}\n`);
-      if (result.status === "refused") {
-        process.stderr.write(
-          `${result.reason}${result.locus === undefined ? "" : `: ${result.locus}`}\n`,
-        );
-        process.exitCode = 1;
+      const applyAuthority = (parsed.data.apply ?? null) as `sha256:${string}` | null;
+      const invocation = applyAuthority === null
+        ? {
+            mode: "finish-preview" as const,
+            origin: parsed.data.origin,
+            cutMapPath: parsed.data.finish,
+          }
+        : {
+            mode: "finish-apply" as const,
+            origin: parsed.data.origin,
+            cutMapPath: parsed.data.finish,
+            applyAuthority,
+          };
+      try {
+        const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
+          cwd,
+          baseBranch: settings["branch.base"],
+          origin: parsed.data.origin,
+          cutMapPath: parsed.data.finish,
+          applyAuthority,
+        }));
+        if (result.status === "refused") {
+          emitV3DecomposeRefusal(result, "finish");
+          return;
+        }
+        process.stdout.write(`${canonicalize(result)}\n`);
+      } catch (error) {
+        const locus = error instanceof Error ? error.message : String(error);
+        emitV3DecomposeRefusal({
+          status: "refused",
+          reason: "unexpected-error",
+          locus,
+          remedy: v3DecomposeRemedy({ invocation, reason: "unexpected-error", locus }),
+        }, "finish");
       }
       return;
     }

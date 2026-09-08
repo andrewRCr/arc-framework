@@ -664,6 +664,7 @@ describe("arc decompose command modes", () => {
           before: {
             mode: "100644",
             contentDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+            byteLength: sourceBytes.byteLength,
           },
           after: {
             kind: "file",
