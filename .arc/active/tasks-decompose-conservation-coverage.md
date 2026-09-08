@@ -433,14 +433,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           notes, proves complete target-or-drop coverage, and executes their retirement without repair; the rehearsal
           also closed notes allocation classification so the provisional notes destination composes as `notes`.
 
-    - `[ ]` **2.5.d Publish companion authoring and extraction handling before member close**
-        - Extend the package-source `decompose-work-unit.md` with inventoried companion allocation, retained-only
-          started-Planning extraction, provisional task/notes scaffolds to prune, and manual transfer for allocated
-          companions no scaffold copies.
-        - Apply the same targeted edit to the project-instance workflow and extend
-          `decompose-workflow-contract.test.ts` to prove required instruction presence and cumulative parity with the
-          Member 1 refusal contract.
-        - Keep CLI-computed eligibility, validation, and refusal selection out of workflow prose.
+    - `[x]` **2.5.d Publish companion authoring and extraction handling before member close**
+        - Both workflow copies now direct retirement companion allocation, retained-only started-Planning extraction,
+          pruning of whole-copy task/notes scaffolds, and manual transfer for other companions; contract coverage
+          proves those instructions remain byte-equal alongside the typed refusal envelope.
 
     - `[ ]` **2.5.e Run the Phase 2 code-quality checkpoint**
         - Run targeted lint and unit/integration/E2E filters as each behavior lands, then both TypeScript type checks

@@ -50,10 +50,12 @@ machine fields.
 Edit only the starter map's authoring slots:
 
 - name each new member or exact existing destination;
-- allocate every source unit once, retaining extraction scope at the origin or dropping scope with a reason;
+- allocate every source unit once; for retirement, inventoried companion units — including task-list phases and notes
+  sections — use the same target or reasoned-drop dispositions as design units;
+- for extraction, set every started-Planning companion allocation to `retained-origin`; Active origins report no
+  companion units;
 - disposition every incoming and outgoing dependency edge once;
-- select the already-settled authoring shape and placement; and
-- for extraction, encode retained or transferred ownership only through the existing source-allocation slots.
+- select the already-settled authoring shape and placement.
 
 Preserve every machine-owned field. Do not calculate paths or identifiers, create unreported destinations, or
 derive machine facts from prose.
@@ -87,6 +89,10 @@ discard or recovery protocol.
 Follow the successful result packets in their reported order:
 
 - complete every new member's reported design family and authoring requirements;
+- treat reported `provisional-task` and `provisional-notes` entries as whole retitled copies of the origin companions,
+  then prune them to their assigned content;
+- manually transfer allocated content from every other companion from its reported source to its admissible reported
+  destination;
 - complete required cohort or parent coordination;
 - apply every reported existing-home semantic edit; and
 - preserve the reported profile, topology, dependency effects, and task-pointer maturity.
