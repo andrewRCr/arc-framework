@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `self-hosted-ci`
+- **Depends On:** `self-hosted-ci`, `local-ci-capacity-qualification`
 
 - **Origin:** `self-hosted-ci` scope split
 - **Design:** [none]
@@ -38,6 +38,10 @@ This Heavy follow-up owns the complete qualification and permanent-posture tail 
 - Reconcile the forward-looking operations runbook, record the settled permanent architecture in
   `TECHNICAL-OVERVIEW.md` only if self-hosting is accepted, and complete full work-unit verification against the
   resulting posture.
+
+**Forward amendment — local booster evidence (2026-09-08):** consume the bounded Hyper-V feasibility result from
+`local-ci-capacity-qualification` alongside the remote-fleet ledger. This WU retains the permanent route and fleet
+disposition decision; do not repeat the local canary or absorb its implementation.
 
 - **PR URL:** [none]
 - **Completed:** [none]
