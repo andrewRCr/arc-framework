@@ -1,14 +1,139 @@
 # Notes: local-ci-capacity-qualification
 
-Reference material for the Mac mini runner qualification: measurements taken before any build, the workstation
-Hyper-V design retained as the fallback, and the accounting that ruled the workstation out.
+Reference material for the Mac mini runner qualification: the trial's measurement ledger, measurements taken
+before any build, the workstation Hyper-V design retained as the fallback, and the accounting that ruled the
+workstation out.
 
 ## Contents
 
+- [Measurement ledger](#measurement-ledger)
 - [Pre-build measurements](#pre-build-measurements)
 - [Workstation accounting](#workstation-accounting)
 - [Fallback: Hyper-V guest on the workstation](#fallback-hyper-v-guest-on-the-workstation)
 - [Rejected routing shapes](#rejected-routing-shapes)
+
+## Measurement ledger
+
+Evidence home for the trial. Every phase writes its readings here as they are produced; an em dash marks a value
+not yet recorded.
+
+**Sanitization rule, applying to this whole section:** record sanitized values only. Never a host endpoint,
+hostname, account name, registration token, key, or filesystem path outside this repository. Runner names, GitHub
+run ids, durations, and label sets are already visible in the repository's Actions surface and are recorded as-is.
+
+### Provisioning readings
+
+Host prerequisites, taken at the mini console before any change:
+
+| Signal          | Reading |
+| --------------- | ------- |
+| macOS version   | —       |
+| Free disk       | —       |
+| FileVault state | —       |
+
+Guest readings at first boot, taken inside the instance:
+
+| Signal                    | Reading |
+| ------------------------- | ------- |
+| `nproc`                   | —       |
+| `free -g` total           | —       |
+| `df -h /` size and free   | —       |
+| `swapon --show`           | —       |
+| Host mounts present       | —       |
+| New listeners on the mini | —       |
+
+_Swap posture:_ — · stated once here from the `swapon --show` reading, because the anchor gate's memory condition
+depends on whether the guest swaps or OOMs under pressure.
+
+Helper proof:
+
+- `status.sh` output: —
+- `rebuild.sh` completion timestamp: —
+
+### Anchor gate
+
+Anchor `command-input-no-input.e2e.test.ts` inside the guest, at the workflow's exact invocation
+(`VITEST_MAX_WORKERS=1`, `ARC_E2E_SKIP_BUILD=1`, `dist` prebuilt). Warmups discarded; at least ten measured runs.
+Wall time from `/usr/bin/time -f %e`; memory and swap are per-run peaks from a `free -m` sampler at 5 s.
+
+| Run | Wall time (s) | Peak used memory (MB) | Peak swap used (MB) |
+| --- | ------------- | --------------------- | ------------------- |
+|     | —             | —                     | —                   |
+
+- Median: — · p95: —
+- OOM events in `journalctl -k` across the series: —
+- Gate verdict (continue at a median at or below 120 s with no OOM and no swap growth): —
+
+### Concurrent services
+
+Simultaneous anchor runs from separate guest shells, runner services idle. Threshold: each run within 1.25x the
+anchor-gate median, guest below 7 GB at peak, no OOM.
+
+Two services:
+
+| Run | Wall time (s) | Ratio to anchor median | Peak guest memory | Peak free memory |
+| --- | ------------- | ---------------------- | ----------------- | ---------------- |
+|     | —             | —                      | —                 | —                |
+
+- OOM check: —
+- Third-service decision (admitted only on at least 2.5 GB free at peak): —
+
+Three services, entered only on that headroom:
+
+| Run | Wall time (s) | Ratio to anchor median | Peak guest memory | Peak free memory |
+| --- | ------------- | ---------------------- | ----------------- | ---------------- |
+|     | —             | —                      | —                 | —                |
+
+- OOM check: —
+
+### Routed dispatch
+
+One full workflow dispatched with routing pointed at the guest, then routing restored.
+
+- `ARC_CI_LINUX_RUNNER` prior state: — · restored to: —
+- Run id: — · duration: —
+
+| Linux job | `runner_name` | `conclusion` |
+| --------- | ------------- | ------------ |
+|           | —             | —            |
+
+### Soak
+
+Three to five representative heads, each dispatched once per route with a routing flip between the runs. Duration is
+`createdAt` to `updatedAt` from the runs API, which lands within seconds of completion and is the stated proxy for
+it. The architecture is part of the `node_modules` cache key, so the guest's first run per lockfile hash pays a cold
+install the other route does not.
+
+| Head | Mini run id | Mini duration | Mini cache | VPS run id | VPS duration | VPS cache |
+| ---- | ----------- | ------------- | ---------- | ---------- | ------------ | --------- |
+|      | —           | —             | —          | —          | —            | —         |
+
+- Mini median: — · VPS median: — · ratio: — (go threshold at or below 0.70)
+- Runner-caused failures (any disqualifies go regardless of the ratio): —
+
+### Restart test
+
+One deliberate macOS restart, issued while routing is off the guest.
+
+| Event                    | Timestamp |
+| ------------------------ | --------- |
+| Restart issued           | —         |
+| SSH to the CI user back  | —         |
+| Instance reports running | —         |
+| Each runner online       | —         |
+
+### Recommendation
+
+| Criterion              | Threshold                                  | Measured | Verdict |
+| ---------------------- | ------------------------------------------ | -------- | ------- |
+| Anchor median          | at or below 120 s, no OOM, no swap growth  | —        | —       |
+| Concurrent services    | each within 1.25x median, guest below 7 GB | —        | —       |
+| Routed dispatch        | every Linux job on a guest runner, green   | —        | —       |
+| Soak ratio             | at or below 0.70                           | —        | —       |
+| Runner-caused failures | none                                       | —        | —       |
+| Restart recovery       | all runners back with no operator action   | —        | —       |
+
+**Verdict:** —
 
 ## Pre-build measurements
 
@@ -35,12 +160,12 @@ Measured 2026-09-08 on the 32 GB workstation with six WSL sessions open and no g
 non-WSL baseline is `total − Available MBytes − vmmemWSL private bytes`; summing process private bytes undercounts
 it by 3 to 5 GB (kernel pools, memory compression, drivers, the long tail of processes).
 
-| Signal                                     | Reading 1 | Reading 2 |
-| ------------------------------------------ | --------- | --------- |
-| Host Available MBytes                      | ~8.0 GB   | 7.35 GB   |
-| `vmmemWSL` private bytes                   | 9.3 GB    | 12.1 GB   |
-| Non-WSL in use (formula above)             | 14.7 GB   | 13.1 GB   |
-| Sum of top-ten process private bytes       | ~10 GB    |           |
+| Signal                               | Reading 1 | Reading 2 |
+| ------------------------------------ | --------- | --------- |
+| Host Available MBytes                | ~8.0 GB   | 7.35 GB   |
+| `vmmemWSL` private bytes             | 9.3 GB    | 12.1 GB   |
+| Non-WSL in use (formula above)       | 14.7 GB   | 13.1 GB   |
+| Sum of top-ten process private bytes | ~10 GB    |           |
 
 WSL2 has no `memory=` cap in `.wslconfig` (default 50 percent, 16 GB), `swap=16GB` (raised from 4 GB after the
 incident), `networkingMode=mirrored`, and `autoMemoryReclaim` unset. Inside WSL, `free` reported about 2 GB used

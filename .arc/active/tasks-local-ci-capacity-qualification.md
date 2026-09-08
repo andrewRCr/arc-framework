@@ -15,17 +15,15 @@ task runs over key-only SSH as the CI user. The recipe, launch agent, and helper
 from this phase on because the trial cannot be operated without them; the no-go closeout removes them. Ledger
 entries record only sanitized values — never a host endpoint, username, token, or key.
 
-### `[ ]` **1.1 Open the measurement ledger**
+### `[x]` **1.1 Open the measurement ledger**
 
 - _Goal:_ Every later phase has a prepared home for its evidence, so results land as they are produced rather than
   being reconstructed at closeout.
 
-    - Add `## Measurement ledger` to `notes-local-ci-capacity-qualification.md` with subsections for provisioning
-      readings, the anchor gate (per-run wall time, guest memory, swap; median and p95), concurrent services
-      (per-run wall time against the Phase 2 median, peak guest memory, peak free memory), the routed dispatch
-      (run id, duration, per-job runner placement and result), the soak (paired run ids and durations, medians,
-      ratio), the restart test (timestamps), and the recommendation.
-    - State the sanitization rule once at the top of the section, and add the section to the file's Contents list.
+- _Outcome:_ `## Measurement ledger` opens `notes-local-ci-capacity-qualification.md`, ahead of the reference
+  material, with the seven subsections and the sanitization rule stated once at the top. Each table and bullet
+  carries the exact signals its task collects, so a later phase fills cells rather than deciding what to record; an
+  em dash marks a value not yet taken.
 
 ### `[ ]` **1.2 Prepare the CI user and the unattended-restart path**
 
