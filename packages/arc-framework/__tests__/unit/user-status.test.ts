@@ -2866,6 +2866,27 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     expect(notesListCalls).toBe(1);
   });
 
+  it("shares one current-WU resolution when no work unit is active", async () => {
+    const io = buildIO({ refState: "same", currentBranch: "main" });
+    const exec = io.exec;
+    let currentBranchCalls = 0;
+    io.exec = async (cmd, args, options) => {
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+        currentBranchCalls += 1;
+      }
+      return exec(cmd, args, options);
+    };
+
+    await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(currentBranchCalls).toBe(1);
+  });
+
   it("surfaces loadNeeded: false when refs match and disk hash matches note hash", async () => {
     const io = buildIO({ refState: "same", diskMatchesNote: true });
 

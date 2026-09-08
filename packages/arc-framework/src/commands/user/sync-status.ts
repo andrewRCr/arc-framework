@@ -80,10 +80,13 @@ export async function inspectUserSyncState(
   options: InspectUserSyncOptions,
 ): Promise<UserSyncState> {
   const { cwd, io, identity } = options;
+  const currentWuNameTask = resolveCurrentWuName(cwd, io.exec);
   const [refInspection, diskInspection, localNoteFreshness] = await Promise.all([
     inspectUserSyncRefsDetailed(io, identity),
-    inspectDiskVsLocalSnapshot(cwd, io, identity),
-    inspectSessionLocalNoteFreshness({ cwd, io, identity }),
+    currentWuNameTask.then((currentWuName) =>
+      inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName)),
+    currentWuNameTask.then((currentWuName) =>
+      inspectSessionLocalNoteFreshness({ cwd, io, identity, currentWuName })),
   ]);
   const coherenceState = await resolveUserSyncCoherenceState({
     cwd,
@@ -388,10 +391,10 @@ async function inspectSessionLocalNoteFreshness(input: {
   cwd: string;
   io: UserIOContext;
   identity: string;
-  currentWuName?: string;
+  currentWuName: string | undefined;
   search?: NearestNoteSearch;
 }): Promise<UserSessionLocalNoteFreshness> {
-  const currentWuName = input.currentWuName ?? await resolveCurrentWuName(input.cwd, input.io.exec);
+  const { currentWuName } = input;
   const { note } = input.search ?? await findNearestUserNote({ ...input, currentWuName });
   if (!note) {
     return {
@@ -1753,10 +1756,9 @@ async function inspectDiskVsLocalSnapshot(
   cwd: string,
   io: UserIOContext,
   identity: string,
-  currentWuName?: string,
+  currentWuName: string | undefined,
   precomputedSearch?: Promise<NearestNoteSearch>,
 ): Promise<DiskVsSnapshotInspection> {
-  const resolvedCurrentWuName = currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
   let diskManifest: SyncManifest | null = null;
 
   try {
@@ -1764,7 +1766,7 @@ async function inspectDiskVsLocalSnapshot(
       cwd,
       io,
       identity,
-      currentWuName: resolvedCurrentWuName,
+      currentWuName,
     });
     if (Object.keys(diskResult.manifest.files).length > 0) {
       diskManifest = diskResult.manifest;
@@ -1779,7 +1781,7 @@ async function inspectDiskVsLocalSnapshot(
       cwd,
       io,
       identity,
-      currentWuName: resolvedCurrentWuName,
+      currentWuName,
     }, precomputedSearch === undefined ? undefined : await precomputedSearch);
   } catch {
     return {
