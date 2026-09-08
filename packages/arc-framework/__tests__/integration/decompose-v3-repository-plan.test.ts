@@ -127,7 +127,11 @@ async function genericPlanningLaneRepository() {
   return { repo, baseHead, planningHead };
 }
 
-async function startedRepository(options: { uncoveredCompanion?: boolean } = {}) {
+async function startedRepository(options: {
+  companionCoverage?: boolean;
+  sourceRider?: boolean;
+  uncoveredCompanion?: boolean;
+} = {}) {
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-repository-plan-"));
   roots.push(repo);
   await git(repo, ["init", "-b", "main"]);
@@ -167,6 +171,37 @@ Medium.
     currentWorkflow: "draft-design",
     nextAction: "Begin draft-design",
   });
+  const taskList = `# Task List: origin
+
+Planning context.
+
+## Phase One
+
+### Task 1
+
+First phase content.
+
+## Phase Two
+
+### Task 2
+
+Second phase content.
+`;
+  const notes = `# Notes: origin
+
+## Evidence
+
+Preserve the motivating evidence.
+`;
+  const assurance = `# Assurance: origin
+
+## Guarantees
+
+Preserve the nonstandard guarantee.
+`;
+  const sharedPath = options.companionCoverage === true
+    ? ".arc/reference/shared.md"
+    : ".arc/reference/shared.txt";
   await write(repo, ".arc/backlog/ROADMAP.md", "# Roadmap before\n");
   await write(
     repo,
@@ -175,7 +210,20 @@ Medium.
   );
   await write(repo, ".arc/backlog/planned/origin/draft-origin.md", draft);
   await write(repo, ".arc/backlog/planned/origin/meta-origin.md", plannedMeta);
-  await write(repo, ".arc/reference/shared.txt", "shared\n");
+  if (options.companionCoverage === true) {
+    await write(repo, ".arc/backlog/planned/origin/assurance-origin.md", assurance);
+    await write(repo, ".arc/backlog/planned/origin/notes-origin.md", notes);
+    await write(repo, ".arc/backlog/planned/origin/tasks-origin.md", taskList);
+    await write(repo, ".arc/backlog/planned/origin/README.md", "# Unrelated sibling\n");
+    await write(
+      repo,
+      sharedPath,
+      "# Shared\n\n## Companion Slot\n\nExisting companion content.\n\n"
+        + "## Task Slot\n\nExisting task content.\n",
+    );
+  } else {
+    await write(repo, sharedPath, "shared\n");
+  }
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "base"]);
   const baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
@@ -184,7 +232,25 @@ Medium.
   await mkdir(join(repo, ".arc/active"), { recursive: true });
   await git(repo, ["mv", ".arc/backlog/planned/origin/draft-origin.md", ".arc/active/draft-origin.md"]);
   await git(repo, ["mv", ".arc/backlog/planned/origin/meta-origin.md", ".arc/active/meta-origin.md"]);
-  await rm(join(repo, ".arc/backlog/planned/origin"), { recursive: true, force: true });
+  if (options.companionCoverage === true) {
+    await git(repo, [
+      "mv",
+      ".arc/backlog/planned/origin/assurance-origin.md",
+      ".arc/active/assurance-origin.md",
+    ]);
+    await git(repo, [
+      "mv",
+      ".arc/backlog/planned/origin/notes-origin.md",
+      ".arc/active/notes-origin.md",
+    ]);
+    await git(repo, [
+      "mv",
+      ".arc/backlog/planned/origin/tasks-origin.md",
+      ".arc/active/tasks-origin.md",
+    ]);
+  } else {
+    await rm(join(repo, ".arc/backlog/planned/origin"), { recursive: true, force: true });
+  }
   await write(repo, ".arc/active/meta-origin.md", renderMetaFile("origin", {
     state: "Planning",
     owner: "andrew",
@@ -198,6 +264,9 @@ Medium.
   }));
   if (options.uncoveredCompanion === true) {
     await write(repo, ".arc/active/notes-origin.md", "# Notes: origin\n\nUnallocated companion content.\n");
+  }
+  if (options.sourceRider === true) {
+    await write(repo, ".arc/reference/supporting-origin.md", "# Source-private rider\n");
   }
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "start"]);
@@ -228,7 +297,7 @@ Medium.
         {
           kind: "existing-home" as const,
           destinationId: "existing",
-          target: { kind: "document" as const, path: ".arc/reference/shared.txt" },
+          target: { kind: "document" as const, path: sharedPath },
         },
         {
           kind: "new-member" as const,
@@ -238,15 +307,81 @@ Medium.
         },
       ],
       internalEdges: [],
-      sourceAllocations: machine.sourceUnits.map((unit) => ({
-        sourceId: unit.sourceId,
-        ownership: "destination-owned" as const,
-        disposition: {
-          kind: "target" as const,
-          destinationId: "member",
-          targetLocator: { ...unit.sourceLocator, artifact: "draft-member.md" },
-        },
-      })),
+      sourceAllocations: machine.sourceUnits.map((unit) => {
+        const artifact = unit.sourceLocator.artifact;
+        if (options.companionCoverage !== true || artifact === "draft-origin.md") {
+          return {
+            sourceId: unit.sourceId,
+            ownership: "destination-owned" as const,
+            disposition: {
+              kind: "target" as const,
+              destinationId: "member",
+              targetLocator: { ...unit.sourceLocator, artifact: "draft-member.md" },
+            },
+          };
+        }
+        if (artifact === "tasks-origin.md") {
+          if (unit.sourceLocator.kind === "section"
+            && unit.sourceLocator.headingSource === "Phase One") {
+            return {
+              sourceId: unit.sourceId,
+              ownership: "destination-owned" as const,
+              disposition: {
+                kind: "target" as const,
+                destinationId: "existing",
+                targetLocator: {
+                  artifact: "shared.md",
+                  kind: "section" as const,
+                  level: 2 as const,
+                  headingSource: "Task Slot",
+                  ancestry: [],
+                  occurrence: 0,
+                },
+              },
+            };
+          }
+          return {
+            sourceId: unit.sourceId,
+            ownership: "destination-owned" as const,
+            disposition: {
+              kind: "target" as const,
+              destinationId: "member",
+              targetLocator: { ...unit.sourceLocator, artifact: "tasks-member.md" },
+            },
+          };
+        }
+        if (artifact === "notes-origin.md") {
+          return {
+            sourceId: unit.sourceId,
+            ownership: "destination-owned" as const,
+            disposition: unit.sourceLocator.kind === "preamble"
+              ? { kind: "drop" as const, reason: "member scaffold supplies the notes preamble" }
+              : {
+                  kind: "target" as const,
+                  destinationId: "member",
+                  targetLocator: { ...unit.sourceLocator, artifact: "notes-member.md" },
+                },
+          };
+        }
+        return {
+          sourceId: unit.sourceId,
+          ownership: "destination-owned" as const,
+          disposition: unit.sourceLocator.kind === "preamble"
+            ? { kind: "drop" as const, reason: "title is represented by the destination" }
+            : {
+                kind: "target" as const,
+                destinationId: "existing",
+                targetLocator: {
+                  artifact: "shared.md",
+                  kind: "section" as const,
+                  level: 2 as const,
+                  headingSource: "Companion Slot",
+                  ancestry: [],
+                  occurrence: 0,
+                },
+              },
+        };
+      }),
       incomingDispositions: [],
       outgoingDispositions: [],
     },
@@ -1799,6 +1934,179 @@ describe("Git v3 repository plan", () => {
     expect(await git(repo, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads"]))
       .toBe(refsBefore);
     expect(await git(repo, ["status", "--porcelain=v1"])).toBe(statusBefore);
+  });
+
+  it("keeps a source-private rider outside relocated companion authority", async () => {
+    const { completedMap, dependencies } = await startedRepository({
+      companionCoverage: true,
+      sourceRider: true,
+    });
+
+    const result = await composeGitV3RepositoryPlan(dependencies, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "retirement",
+        reason: "source-private-added",
+        locus: ".arc/reference/supporting-origin.md",
+      },
+    });
+  });
+
+  it("executes and re-advances relocated companions from pinned Git trees", async () => {
+    const {
+      repo,
+      baseHead,
+      sourceHead,
+      completedMap,
+      dependencies,
+    } = await startedRepository({ companionCoverage: true });
+    const mapBefore = canonicalize(completedMap);
+    const predecessorDirectory = ".arc/backlog/planned/origin";
+    const assurancePredecessor = `${predecessorDirectory}/assurance-origin.md`;
+    const unrelatedSibling = `${predecessorDirectory}/README.md`;
+    const memberDirectory = ".arc/backlog/planned/member";
+    const memberTasks = `${memberDirectory}/tasks-member.md`;
+    const memberNotes = `${memberDirectory}/notes-member.md`;
+
+    expect(await git(repo, ["show", `${baseHead}:${assurancePredecessor}`]))
+      .toContain("Preserve the nonstandard guarantee.");
+    expect(await git(repo, ["show", `${sourceHead}:.arc/active/assurance-origin.md`]))
+      .toContain("Preserve the nonstandard guarantee.");
+    await expect(readBlob(repo, sourceHead, assurancePredecessor)).resolves.toBeNull();
+    const taskPhases = completedMap.machine.sourceUnits.flatMap((unit) =>
+      unit.sourcePath.endsWith("/tasks-origin.md") && unit.sourceLocator.kind === "section"
+        ? [{
+            headingSource: unit.sourceLocator.headingSource,
+            disposition: completedMap.authoring.sourceAllocations.find(
+              ({ sourceId }) => sourceId === unit.sourceId,
+            )?.disposition,
+          }]
+        : []);
+    expect(taskPhases.map(({ headingSource }) => headingSource).sort()).toEqual([
+      "Phase One",
+      "Phase Two",
+    ]);
+    expect(taskPhases.map(({ disposition }) => disposition)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "target", destinationId: "existing" }),
+      expect.objectContaining({ kind: "target", destinationId: "member" }),
+    ]));
+
+    const composed = await composeGitV3RepositoryPlan(dependencies, "main", completedMap);
+
+    expect(composed.status, JSON.stringify(composed)).toBe("composed");
+    if (composed.status !== "composed") return;
+    const composedPlan = canonicalize(composed.plan);
+    const predecessorRetirements = composed.plan.mutations.filter((mutation) =>
+      mutation.kind === "exclusive" && mutation.path.startsWith(`${predecessorDirectory}/`));
+    expect(predecessorRetirements.map(({ path }) => path)).toEqual([
+      assurancePredecessor,
+      `${predecessorDirectory}/draft-origin.md`,
+      `${predecessorDirectory}/meta-origin.md`,
+      `${predecessorDirectory}/notes-origin.md`,
+      `${predecessorDirectory}/tasks-origin.md`,
+    ]);
+    expect(predecessorRetirements).toContainEqual(expect.objectContaining({
+      path: assurancePredecessor,
+      role: "retiring-source",
+      before: expect.objectContaining({ kind: "file" }),
+      after: { kind: "absent" },
+    }));
+    expect(predecessorRetirements).toContainEqual(expect.objectContaining({
+      path: `${predecessorDirectory}/meta-origin.md`,
+      role: "predecessor-retirement",
+    }));
+    expect(composed.plan.mutations).toContainEqual(expect.objectContaining({
+      kind: "exclusive",
+      path: ".arc/active/assurance-origin.md",
+      role: "retiring-source",
+    }));
+    expect(composed.plan.allowedPaths).not.toContain(unrelatedSibling);
+    expect(composed.plan.mutations.some(({ path }) => path === unrelatedSibling)).toBe(false);
+
+    const staged = await executeGitV3DecomposeOperation({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    expect(canonicalize(staged.plan)).toBe(composedPlan);
+    const stagedPlan = canonicalize(staged.plan);
+    const stagedReport = canonicalize(staged.operation.report);
+    expect(staged.operation.report.destinations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: memberTasks,
+        authoring: {
+          artifactRole: "tasks",
+          contributorKind: "provisional-task",
+          disposition: "whole-file",
+        },
+      }),
+      expect.objectContaining({
+        path: memberNotes,
+        authoring: {
+          artifactRole: "notes",
+          contributorKind: "provisional-notes",
+          disposition: "whole-file",
+        },
+      }),
+      expect.objectContaining({
+        path: memberNotes,
+        authoring: expect.objectContaining({ contributorKind: "allocation" }),
+      }),
+      expect.objectContaining({
+        path: ".arc/reference/shared.md",
+        authoring: expect.objectContaining({ contributorKind: "allocation" }),
+      }),
+    ]));
+    const candidatePath = staged.operation.occupation.path;
+    await expect(readFile(join(candidatePath, memberTasks), "utf8"))
+      .resolves.toContain("# Task List: member");
+    await expect(readFile(join(candidatePath, memberNotes), "utf8"))
+      .resolves.toContain("# Notes: member");
+    await expect(readFile(join(candidatePath, ".arc/reference/shared.md"), "utf8"))
+      .resolves.toContain("Existing companion content.");
+    await expect(pathExists(join(candidatePath, assurancePredecessor))).resolves.toBe(false);
+    await expect(pathExists(join(candidatePath, unrelatedSibling))).resolves.toBe(true);
+
+    await git(candidatePath, ["commit", "-m", "commit companion decomposition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    const currentBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
+
+    const advanced = await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(advanced).toEqual({
+      status: "advanced",
+      candidateBranch: "chore/decompose-origin",
+      candidateHead,
+      previousBaseHead: baseHead,
+      currentBaseHead,
+    });
+    expect(canonicalize(completedMap)).toBe(mapBefore);
+    expect(canonicalize(staged.plan)).toBe(stagedPlan);
+    expect(canonicalize(staged.operation.report)).toBe(stagedReport);
+    expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
+    await expect(readFile(join(candidatePath, ".arc/reference/base-growth.txt"), "utf8"))
+      .resolves.toBe("descendant base\n");
+    await expect(readFile(join(candidatePath, memberTasks), "utf8"))
+      .resolves.toContain("Second phase content.");
+    await expect(readFile(join(candidatePath, memberNotes), "utf8"))
+      .resolves.toContain("Preserve the motivating evidence.");
+    await expect(pathExists(join(candidatePath, assurancePredecessor))).resolves.toBe(false);
+    await expect(pathExists(join(candidatePath, unrelatedSibling))).resolves.toBe(true);
+    expect((await git(repo, ["rev-parse", "plan/origin"])).trim()).toBe(sourceHead);
   });
 
   it("stages the same lean transition through exact full and partial repository loci", async () => {

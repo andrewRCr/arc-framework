@@ -423,11 +423,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           profile, scanned paths, unit resolution, and exact author slots; the composed companion unit set also
           closes extraction retention, title classification, role closure, and the retirement floor.
 
-    - `[ ]` **2.5.b Exercise companion relocation and repository composition with real Git objects**
-        - Extend `decompose-v3-repository-plan.test.ts` for a nonstandard companion moved from backlog to active, a
-          task list allocated by phase, and notes allocated into a member scaffold.
-        - Verify predecessor retirement, rider isolation, immutable plan/report output, execute, and base-advance
-          recomposition from pinned trees.
+    - `[x]` **2.5.b Exercise companion relocation and repository composition with real Git objects**
+        - Real repositories now move a nonstandard companion, task list, and notes from backlog to active; exercise
+          phase-split allocations, provisional task/notes destinations, complete predecessor retirement, rider
+          isolation, full execute, and base advancement while the completed map and staged plan/report stay unchanged.
 
     - `[ ]` **2.5.c Rehearse the motivating notes cut on a copy of a real origin**
         - Use a copied fixture carrying substantive notes content; author allocations, execute the retirement, and
