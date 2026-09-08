@@ -372,10 +372,42 @@ describe("v3 decomposition preflight", () => {
     });
   });
 
-  it("carries both source-binding operands when a completed map targets another logical branch", () => {
+  it.each([
+    ["logical branch", "source-logical-branch", "machine.source.logicalBranch",
+      (machine: V3DecomposeMachine) => {
+        const expected = machine.source.logicalBranch;
+        const actual = "plan/other";
+        machine.source.logicalBranch = actual;
+        return { expected, actual };
+      }],
+    ["source ref", "source-ref", "machine.source.ref", (machine: V3DecomposeMachine) => {
+      const expected = machine.source.ref;
+      const actual = "refs/heads/plan/other";
+      machine.source.ref = actual;
+      return { expected, actual };
+    }],
+    ["source head", "source-head", "machine.source.head", (machine: V3DecomposeMachine) => {
+      const expected = machine.source.head;
+      const actual = "f".repeat(40);
+      machine.source.head = actual;
+      return { expected, actual };
+    }],
+    ["result ref", "result-ref", "machine.resultBase.ref", (machine: V3DecomposeMachine) => {
+      const expected = machine.resultBase.ref;
+      const actual = "refs/heads/integration";
+      machine.resultBase.ref = actual;
+      return { expected, actual };
+    }],
+    ["result head", "result-head", "machine.resultBase.head", (machine: V3DecomposeMachine) => {
+      const expected = machine.resultBase.head;
+      const actual = "e".repeat(40);
+      machine.resultBase.head = actual;
+      return { expected, actual };
+    }],
+  ] as const)("carries both %s operands across completed-map binding", (_label, reason, locus, change) => {
     const completedMap = structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
     const currentMachine = structuredClone(completedMap.machine);
-    currentMachine.source.logicalBranch = "plan/other";
+    const evidence = change(currentMachine);
     const refreshedMachine = withPreflightId(currentMachine);
 
     expect(revalidateV3DecomposeCutMapBinding(
@@ -383,12 +415,9 @@ describe("v3 decomposition preflight", () => {
       preflightForMachine(refreshedMachine),
     )).toEqual({
       status: "stale",
-      reason: "source-logical-branch",
-      locus: "machine.source.logicalBranch",
-      evidence: {
-        expected: "plan/origin",
-        actual: "plan/other",
-      },
+      reason,
+      locus,
+      evidence,
     });
   });
 

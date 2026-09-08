@@ -200,10 +200,11 @@ only after every mode has executable coverage.
         - Registered specific plan-composition remedies and replaced thinning's generic map reasons with stable composed
           codes, while keeping `unexpected-error` as the sole excluded runtime arm.
 
-    - `[ ]` **1.5.b Prove composed-prefix selection and evidence admission exhaustively**
-        - Cover each stable prefix family and its innermost-code selection in the refusal-registry unit suite.
-        - Exercise every admitted D1 comparison site for evidence presence and representative excluded codes for
-          absence, including both `topology-claim` variants.
+    - `[x]` **1.5.b Prove composed-prefix selection and evidence admission exhaustively**
+        - Added a registry matrix across all stable prefix families and made candidate-cleanup remedies preserve the
+          innermost mismatch invariant while retaining exact teardown correction.
+        - Expanded scalar binding coverage across all source/result ref fields; the composed evidence suites exercise
+          every admitted comparison family, representative exclusions, and both `topology-claim` variants.
 
     - `[ ]` **1.5.c Exercise all six refusing invocations in a real repository**
         - Extend `decompose-command-modes.e2e.test.ts` across preflight, execute, extract, finish preview, finish apply,

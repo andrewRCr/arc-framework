@@ -452,6 +452,48 @@ describe("v3 decomposition refusals", () => {
   });
 
   it.each([
+    [
+      "repository-plan:composition:invalid-plan-operand",
+      "execute",
+      /complete, internally consistent operands/iu,
+    ],
+    ["map:invalid-structure", "execute", /closed v3 structure/iu],
+    ["source-binding:source-head", "preflight", /exact source commit/iu],
+    ["source-plan:source-index-preimage", "finish", /source index path/iu],
+    ["git-preflight:missing-blob", "preflight", /source blob.*readable/iu],
+    [
+      "advancement-plan-refused:conservation:incoming-edge-set-changed",
+      "preflight",
+      /incoming dependencies.*authenticated by preflight/iu,
+    ],
+    ["candidate-transform-mismatch:path-state", "cleanup", /candidate path.*final state/iu],
+    [
+      "candidate-advancement-chain-invalid:transition-record",
+      "cleanup",
+      /exact decomposition transition record/iu,
+    ],
+    ["post-merge-validation-refused:changed-paths", "advance", /exactly the composed plan paths/iu],
+  ] as const)("selects the innermost code for %s", (reason, command, invariant) => {
+    const invocation = command === "finish"
+      ? { mode: "finish-preview" as const, origin: "origin", cutMapPath: "map.json" }
+      : command === "advance" || command === "cleanup"
+        ? { mode: "advance-base" as const, origin: "origin", cutMapPath: "map.json" }
+        : { mode: "execute" as const, origin: "origin", cutMapPath: "map.json" };
+    const remedy = v3DecomposeRemedy({ invocation, reason, locus: "/repo/candidate" });
+
+    expect(remedy.invariant).toMatch(invariant);
+    expect(remedy.argv).toEqual(command === "preflight"
+      ? ["arc", "decompose", "origin", "--preflight"]
+      : command === "finish"
+        ? ["arc", "decompose", "origin", "--finish", "map.json"]
+        : command === "cleanup"
+          ? ["arc", "teardown", "--branch", "chore/decompose-origin"]
+          : command === "advance"
+            ? ["arc", "decompose", "origin", "--advance-base", "map.json"]
+            : ["arc", "decompose", "origin", "--execute", "map.json"]);
+  });
+
+  it.each([
     [{ mode: "preflight", origin: "origin" }, ["arc", "decompose", "origin", "--preflight"]],
     [
       { mode: "execute", origin: "origin", cutMapPath: "map with spaces.json" },

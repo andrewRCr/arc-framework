@@ -1199,10 +1199,12 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
   }
   if (input.invocation.mode === "advance-base" && advancementNeedsCandidateCleanup(input.reason)) {
     const locus = input.locus ?? "the deterministic candidate worktree";
+    const mismatchDefinition = V3_ADVANCEMENT_REMEDIES[code];
     return spineRemedy(
       code === "candidate-restore-failed"
         ? "A refused base advancement must restore its candidate to the authenticated head."
-        : "A decomposition candidate that cannot advance must be cleaned through its deterministic branch.",
+        : mismatchDefinition?.invariant
+          ?? "A decomposition candidate that cannot advance must be cleaned through its deterministic branch.",
       `Clean the stranded candidate at ${locus}, then retry with ${
         renderV3DecomposeArgv(invocationArgv(input.invocation))
       }`,
