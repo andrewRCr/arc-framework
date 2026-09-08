@@ -420,9 +420,12 @@ Behavior bullets are coverage targets, not an execution sequence — each cycle 
 Implementation detail bullets (fields, file locations, architectural notes) precede the marker.
 No separate "implement" task — test and implementation form one vertical unit.
 
-**Multiple related components:** one task per component within a phase, each with its own
-behavior list and marker. **Multi-layer projects** (backend + frontend, API + CLI): separate
-phases per layer with the same grouped pattern in each, plus a cross-layer validation phase.
+Apply the same mode input to multi-component and multi-layer work. In a `slice`, name tasks by behavior path even
+when one crosses components or layers; its segment boundary closes with end-to-end validation. In a `layer`, name
+tasks by module or concern — multiple components may use one task per component, and multi-layer substrate work may
+use separate phases per layer. In `replication`, let each task own one repeatable transformation batch across the
+components or layers in that batch. Do not add a cross-layer validation phase by default; the resolved segment
+boundaries determine where that validation closes.
 
 ---
 
