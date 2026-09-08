@@ -317,19 +317,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
         - Source and predecessor discovery now share `artifactMatcher(origin)` plus paired-spec admission, exclude
           the exact same-name cohort locally, and return the complete artifact family in canonical UTF-8 path order.
 
-    - `[ ]` **2.1.b Scan a generic companion into the started source preflight**
-        - Pass the resolved source kind and exact source-meta path into the private `sourceUnits()` path in
-          `decompose-v3-preflight.ts`, make this leaf the single owner of scan eligibility, and retire the test-only
-          `deriveV3DecomposeSourceFacts()` export.
-        - Build `test-first` (one behavior at a time):
-            - Include generic companions for `started-planning` and `backlog-stub`, restrict `active-origin` to the
-              profile's design artifacts, and exclude the exact meta under every source kind.
-            - Reject a non-UTF-8 Markdown companion under `started-planning` or `backlog-stub` as `source-scan` with
-              its exact source path before starter-map authoring; never synthesize a member or target locus for that
-              failure. Keep Active companions outside the scan.
-            - Preserve its source path, locator, content digest, canonical ordering, and `preflightId` participation.
-            - Keep production consumers routed through `createV3DecomposePreflight()` and move focused coverage into
-              `__tests__/unit/work-unit/decompose-v3-preflight.test.ts`.
+    - `[x]` **2.1.b Scan a generic companion into the started source preflight**
+        - `createV3DecomposePreflight()` now owns source-kind scan eligibility: started Planning and backlog sources
+          authenticate every non-meta companion unit, while Active sources expose only design units. Exact paths,
+          locators, digests, ordering, identity participation, and path-bearing encoding refusals are covered.
 
     - `[ ]` **2.1.c Carry the same family through predecessor retirement planning**
         - Feed the complete predecessor group to `planV3RetirementDelta()` while preserving its three-tree version

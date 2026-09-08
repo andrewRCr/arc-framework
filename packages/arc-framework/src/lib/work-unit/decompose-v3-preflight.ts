@@ -143,18 +143,6 @@ export type V3DecomposeCutMapBindingResult =
       evidence?: V3DecomposeRefusalEvidence;
     };
 
-/** Tree-derived source facts consumed by exact-ref authority adapters. */
-export type V3DecomposeSourceFactsResult =
-  | {
-      status: "ready";
-      sourceArtifactInventory: V3SourceArtifactEntry[];
-      sourceArtifactDigest: NonNullable<ReturnType<typeof v3SourceArtifactDigest>>;
-      sourceUnits: V3DecomposeMachine["sourceUnits"];
-      incomingEdges: V3DecomposeMachine["incomingEdges"];
-      outgoingEdges: V3DecomposeMachine["outgoingEdges"];
-    }
-  | { status: "rejected"; reason: V3DecomposePreflightMismatch; locus?: string };
-
 function compareBytes(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
@@ -308,6 +296,8 @@ function artifactInventory(
 function sourceUnits(
   artifacts: readonly V3DecomposeStoredArtifact[],
   profile: PlanningProfile,
+  sourceKind: V3DecomposeMachine["source"]["kind"],
+  sourceMetaPath: string,
 ): {
   units: V3DecomposeMachine["sourceUnits"];
   reason: V3DecomposePreflightMismatch | null;
@@ -316,7 +306,8 @@ function sourceUnits(
   const units: V3DecomposeMachine["sourceUnits"] = [];
   const designNames = new Set(profile.sourceDesign);
   for (const artifact of artifacts) {
-    if (!designNames.has(posix.basename(artifact.path))) continue;
+    const isDesign = designNames.has(posix.basename(artifact.path));
+    if (artifact.path === sourceMetaPath || (sourceKind === "active-origin" && !isDesign)) continue;
     const scan = scanV3DecomposeContent(posix.basename(artifact.path), artifact.bytes);
     if (scan.status === "rejected") {
       return { units: [], reason: "source-scan", locus: artifact.path };
@@ -443,7 +434,12 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
   }
   const artifacts = artifactInventory(selected.snapshot.sourceArtifacts);
   if (artifacts.reason !== null) return { status: "rejected", reason: artifacts.reason };
-  const scanned = sourceUnits(selected.snapshot.sourceArtifacts, inferred.profile);
+  const scanned = sourceUnits(
+    selected.snapshot.sourceArtifacts,
+    inferred.profile,
+    selected.kind,
+    selected.meta.path,
+  );
   if (scanned.reason !== null) {
     return {
       status: "rejected",
@@ -484,56 +480,6 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
       sourceArtifactDigest,
       starterMap,
     },
-  };
-}
-
-/** Derive canonical source inventory, units, and dependency edges from one pinned source tree. */
-export function deriveV3DecomposeSourceFacts(
-  snapshot: V3DecomposeTreeSnapshot,
-  origin: string,
-): V3DecomposeSourceFactsResult {
-  const observed = sourceMetaFor(snapshot, origin);
-  if (observed.reason !== null || observed.meta === null) {
-    return { status: "rejected", reason: observed.reason ?? "source-predecessor" };
-  }
-  const meta = observed.meta;
-  const expectedBranch = branchName(snapshot.ref);
-  const validActive = meta.location === "active"
-    && (meta.state === "Planning" || meta.state === "Active")
-    && meta.branch === expectedBranch;
-  const validBacklog = meta.location === "backlog"
-    && (meta.state === "Planning" || meta.state === "Provisional")
-    && meta.branch === null;
-  if (!validActive && !validBacklog) {
-    return { status: "rejected", reason: "source-predecessor", locus: meta.path };
-  }
-  const inferred = inferPlanningProfile(meta, snapshot.sourceArtifacts);
-  if ("locus" in inferred) {
-    return { status: "rejected", reason: "planning-profile", locus: inferred.locus };
-  }
-  const artifacts = artifactInventory(snapshot.sourceArtifacts);
-  if (artifacts.reason !== null) return { status: "rejected", reason: artifacts.reason };
-  const scanned = sourceUnits(snapshot.sourceArtifacts, inferred.profile);
-  if (scanned.reason !== null) {
-    return {
-      status: "rejected",
-      reason: scanned.reason,
-      ...(scanned.locus === undefined ? {} : { locus: scanned.locus }),
-    };
-  }
-  const incoming = incomingEdges(snapshot.incomingEdges);
-  if (incoming.reason !== null) return { status: "rejected", reason: incoming.reason };
-  const outgoing = outgoingEdges(snapshot.outgoingEdges);
-  if (outgoing.reason !== null) return { status: "rejected", reason: outgoing.reason };
-  const sourceArtifactDigest = v3SourceArtifactDigest(artifacts.entries);
-  if (sourceArtifactDigest === null) return { status: "rejected", reason: "source-artifact-inventory" };
-  return {
-    status: "ready",
-    sourceArtifactInventory: artifacts.entries,
-    sourceArtifactDigest,
-    sourceUnits: scanned.units,
-    incomingEdges: incoming.edges,
-    outgoingEdges: outgoing.edges,
   };
 }
 

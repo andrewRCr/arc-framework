@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
+import { resolveV3DecomposeSourceUnit } from "../../../src/lib/work-unit/decompose-content.js";
 import {
   createV3DecomposePreflight,
-  deriveV3DecomposeSourceFacts,
   revalidateV3DecomposeCutMapBinding,
   revalidateV3DecomposePreflight,
   type V3DecomposePreflight,
@@ -90,7 +90,92 @@ function withPreflightId(machine: V3DecomposeMachine): V3DecomposeMachine {
 }
 
 describe("v3 decomposition preflight", () => {
-  it("admits an Active origin through preflight and source-facts derivation", () => {
+  it.each([
+    ["started Planning", "started-planning"],
+    ["backlog", "backlog-stub"],
+  ] as const)("scans every non-meta %s companion into authenticated source units", (_label, kind) => {
+    const value = input();
+    if (kind === "backlog-stub") value.localBranches = [];
+    const snapshot = kind === "backlog-stub" ? value.sourceBase : value.localBranches[0]!;
+    const metaPath = snapshot.origins[0]!.path;
+    const directory = metaPath.slice(0, metaPath.lastIndexOf("/"));
+    const companionPath = `${directory}/assurance-origin.md`;
+    const companion = {
+      path: companionPath,
+      objectKind: "blob" as const,
+      mode: "100644" as const,
+      bytes: bytes("# Assurance\n\n## Guard\n\nPreserve this.\n"),
+    };
+    const design = snapshot.sourceArtifacts[0]!;
+    snapshot.sourceArtifacts = [
+      companion,
+      { path: metaPath, objectKind: "blob", mode: "100644", bytes: new Uint8Array([0xff]) },
+      design,
+    ];
+    const withoutCompanion = structuredClone(value);
+    const baselineSnapshot = kind === "backlog-stub"
+      ? withoutCompanion.sourceBase
+      : withoutCompanion.localBranches[0]!;
+    baselineSnapshot.sourceArtifacts = baselineSnapshot.sourceArtifacts.filter(
+      ({ path }) => path !== companionPath,
+    );
+
+    const result = createV3DecomposePreflight(value);
+    const baseline = createV3DecomposePreflight(withoutCompanion);
+
+    expect(result.status).toBe("ready");
+    expect(baseline.status).toBe("ready");
+    if (result.status !== "ready" || baseline.status !== "ready") return;
+    expect(result.preflight.sourceArtifactInventory.map(({ path }) => path)).toEqual([
+      companionPath,
+      design.path,
+      metaPath,
+    ].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))));
+    const companionUnits = result.preflight.starterMap.machine.sourceUnits.filter(
+      ({ sourcePath }) => sourcePath === companionPath,
+    );
+    expect(companionUnits).toHaveLength(2);
+    expect(companionUnits.every((unit) =>
+      resolveV3DecomposeSourceUnit(unit, companion.bytes).status === "resolved")).toBe(true);
+    expect(result.preflight.starterMap.machine.sourceUnits.some(
+      ({ sourcePath }) => sourcePath === metaPath,
+    )).toBe(false);
+    expect(result.preflight.starterMap.machine.sourceUnits.map(({ sourceId }) => sourceId)).toEqual(
+      [...result.preflight.starterMap.machine.sourceUnits.map(({ sourceId }) => sourceId)]
+        .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))),
+    );
+    expect(result.preflight.starterMap.machine.preflightId)
+      .not.toBe(baseline.preflight.starterMap.machine.preflightId);
+  });
+
+  it.each([
+    ["started Planning", "started-planning"],
+    ["backlog", "backlog-stub"],
+  ] as const)("rejects invalid UTF-8 in a scanned %s companion at its source path", (_label, kind) => {
+    const value = input();
+    if (kind === "backlog-stub") value.localBranches = [];
+    const snapshot = kind === "backlog-stub" ? value.sourceBase : value.localBranches[0]!;
+    const metaPath = snapshot.origins[0]!.path;
+    const directory = metaPath.slice(0, metaPath.lastIndexOf("/"));
+    const companionPath = `${directory}/assurance-origin.md`;
+    snapshot.sourceArtifacts = [
+      ...snapshot.sourceArtifacts,
+      {
+        path: companionPath,
+        objectKind: "blob",
+        mode: "100644",
+        bytes: new Uint8Array([0xff]),
+      },
+    ];
+
+    expect(createV3DecomposePreflight(value)).toEqual({
+      status: "rejected",
+      reason: "source-scan",
+      locus: companionPath,
+    });
+  });
+
+  it("admits an Active origin through production preflight", () => {
     const value = input();
     const source = value.localBranches[0]!;
     source.ref = "refs/heads/feat/origin";
@@ -111,6 +196,18 @@ describe("v3 decomposition preflight", () => {
         mode: "100644",
         bytes: bytes("# Tasks\n\n## Work\n"),
       },
+      {
+        path: ".arc/active/assurance-origin.md",
+        objectKind: "blob",
+        mode: "100644",
+        bytes: new Uint8Array([0xff]),
+      },
+      {
+        path: ".arc/active/meta-origin.md",
+        objectKind: "blob",
+        mode: "100644",
+        bytes: new Uint8Array([0xff]),
+      },
     ];
 
     const result = createV3DecomposePreflight(value);
@@ -130,10 +227,9 @@ describe("v3 decomposition preflight", () => {
     expect(parseV3DecomposeStarterMap(result.preflight.starterMap)).not.toBeNull();
     expect(result.preflight.starterMap.machine.sourceUnits.every(({ sourcePath }) =>
       sourcePath.endsWith("spec-origin.md"))).toBe(true);
-    expect(deriveV3DecomposeSourceFacts(source, "origin")).toMatchObject({
-      status: "ready",
-      sourceUnits: result.preflight.starterMap.machine.sourceUnits,
-    });
+    expect(result.preflight.sourceArtifactInventory.map(({ path }) => path)).toContain(
+      ".arc/active/assurance-origin.md",
+    );
   });
 
   it("selects a self-authenticating branch tree, scans exact stored bytes, and leaves input unchanged", () => {
@@ -160,10 +256,6 @@ describe("v3 decomposition preflight", () => {
       path: ".arc/active/draft-origin.md",
       mode: "100644",
     })]);
-    expect(deriveV3DecomposeSourceFacts(value.localBranches[0]!, "origin")).toMatchObject({
-      status: "ready",
-      sourceUnits: result.preflight.starterMap.machine.sourceUnits,
-    });
     expect(value).toEqual(before);
   });
 
@@ -175,12 +267,6 @@ describe("v3 decomposition preflight", () => {
       status: "ready",
       preflight: { starterMap: { machine: { source: { kind: "backlog-stub" } } } },
     });
-    expect(deriveV3DecomposeSourceFacts(value.localBranches[0]!, "origin")).toEqual({
-      status: "rejected",
-      reason: "source-predecessor",
-      locus: ".arc/active/meta-origin.md",
-    });
-
     value.localBranches = [];
     value.sourceBase.origins[0]!.state = "Completed";
     expect(createV3DecomposePreflight(value)).toEqual({
