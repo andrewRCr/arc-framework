@@ -25,11 +25,29 @@ run ids, durations, and label sets are already visible in the repository's Actio
 
 Host prerequisites, taken at the mini console before any change:
 
-| Signal          | Reading |
-| --------------- | ------- |
-| macOS version   | —       |
-| Free disk       | —       |
-| FileVault state | —       |
+| Signal          | Reading                                          |
+| --------------- | ------------------------------------------------ |
+| macOS version   | 15.6.1 (build 24G90) — vz backend supported      |
+| Free disk       | 93 GiB available of 228 GiB                      |
+| FileVault state | Off before any change; no decryption wait needed |
+
+Account isolation, established at the console before any remote access:
+
+- CI user created Standard (non-admin); first login completed with iCloud, Siri, and analytics all declined.
+- Home directories defaulted to `drwxr-x---` group `staff` — a group every ordinary macOS account joins — so the
+  CI user could read the admin home. Admin home tightened to `700`; the cross-account read is now refused and the
+  directory's ACL carries no `allow` entries.
+- Mounted external volumes defaulted to ignore-ownership, which discards on-disk modes entirely. Ownership
+  enabled per volume and each volume root set to `700`; cross-account read refused. The volumes stay mounted.
+- Unattended boot: automatic login to the CI user, automatic sleep disabled, wake for network access on, and
+  automatic restart after a power failure on.
+- Remote access: Remote Login restricted to the CI user with full disk access for remote users off; a dedicated
+  key proves a passwordless session, and password and keyboard-interactive authentication are disabled through an
+  `sshd_config.d` drop-in. The host and account reach the agent session only as an `~/.ssh/config` alias.
+- Link: wired Ethernet on a fixed address (DHCP with manual address, so the router still supplies DNS). Wi-Fi is
+  off, so no wireless variance reaches the Phase 4 timings.
+- Toolchain: Homebrew and Lima installed by the admin account; `limactl 2.2.0` runs as the CI user by absolute
+  path out of the Homebrew prefix.
 
 Guest readings at first boot, taken inside the instance:
 

@@ -25,40 +25,47 @@ entries record only sanitized values — never a host endpoint, username, token,
   carries the exact signals its task collects, so a later phase fills cells rather than deciding what to record; an
   em dash marks a value not yet taken.
 
-### `[ ]` **1.2 Prepare the CI user and the unattended-restart path**
+### `[x]` **1.2 Prepare the CI user and the unattended-restart path**
 
 - _Goal:_ The mini boots without operator action into a non-admin CI user that can run Lima and accepts key-only
   SSH from the workstation, while the primary user's account and files stay unreachable.
 
-- _Approach:_ Operator-run at the mini console from the admin account. The agent supplies each step and records the
-  reported result in the ledger.
+    - `[x]` **1.2.a Confirm the host prerequisites**
+        - macOS 15.6.1 (build 24G90), 93 GiB free of 228 GiB, and FileVault already off. Free disk is below the
+          plan's rough estimate but well clear of the 60 GB image budget. Recorded in the ledger.
 
-    - `[ ]` **1.2.a Confirm the host prerequisites**
-        - Record macOS version (13 or later is required for the Virtualization backend), free disk (the image
-          budget is 60 GB against roughly 108 GB free), and FileVault state before any change.
+    - `[x]` **1.2.b Create the CI user**
+        - Standard account created, first login completed with iCloud, Siri, and analytics declined. Home
+          directories defaulted to `drwxr-x---` group `staff`, a group every ordinary account joins, so the CI
+          user could read the admin home until it was tightened to `700`. Mounted external volumes defaulted to
+          ignore-ownership, discarding their on-disk modes; ownership was enabled and each root set to `700`.
+          Both cross-account reads are now refused.
 
-    - `[ ]` **1.2.b Create the CI user**
-        - A Standard (non-admin) account with no iCloud sign-in, no SSH keys, no GitHub CLI login, and no access
-          to the admin user's home. Its name is an operator-held input and stays out of tracked files.
+    - `[x]` **1.2.c Turn FileVault off and wait for decryption to finish**
+        - `fdesetup status` reported `FileVault is Off.` before any change, so no decryption wait applied and the
+          automatic-login option was already available.
 
-    - `[ ]` **1.2.c Turn FileVault off and wait for decryption to finish**
-        - `fdesetup status` must report `FileVault is Off.` before continuing; a locked disk at boot defeats
-          auto-login and launchd.
+    - `[x]` **1.2.d Set automatic login to the CI user and keep the machine awake**
+        - Automatic login set to the CI user; automatic sleep disabled and wake for network access enabled.
+          Automatic restart after a power failure was enabled as well, since the goal is a host that returns
+          without operator action and a power interruption is the restart nobody attends.
 
-    - `[ ]` **1.2.d Set automatic login to the CI user and keep the machine awake**
-        - Automatic login in Users & Groups (macOS refuses to enable it while FileVault is on, which is why the
-          previous step precedes this one); in Energy settings prevent sleep and enable wake for network access.
-          The console session belonging to the CI user is the accepted posture.
+    - `[x]` **1.2.e Enable Remote Login for the CI user only**
+        - Remote Login restricted to the CI user, with full disk access for remote users left off. A dedicated
+          key proves a passwordless session from WSL; password and keyboard-interactive authentication are then
+          disabled through an `sshd_config.d` drop-in and the key path re-proven against the restarted listener.
+          The host and account reach the agent session only as a `~/.ssh/config` alias. The mini was moved to
+          wired Ethernet on a fixed address, which also removes Wi-Fi variance from the Phase 4 timings.
 
-    - `[ ]` **1.2.e Enable Remote Login for the CI user only**
-        - Sharing → Remote Login, access restricted to the CI user. Install the workstation's public key in that
-          user's `~/.ssh/authorized_keys`, then prove a key-only session from the workstation before closing the
-          console. Map the host and key in WSL's `~/.ssh/config` on the workstation (the agent session runs
-          there), never in repository files.
+    - `[x]` **1.2.f Install Homebrew and Lima from the admin account**
+        - Homebrew and Lima installed from the admin account; `limactl 2.2.0` runs over SSH as the CI user by
+          absolute path, since the Homebrew prefix is not on that account's `PATH`. Later phases and the launch
+          agent use the same absolute form.
 
-    - `[ ]` **1.2.f Install Homebrew and Lima from the admin account**
-        - `brew install lima` (Homebrew's prefix needs an admin to install; the CI user only runs `limactl`).
-          Confirm `limactl --version` succeeds in an SSH session as the CI user.
+- _Outcome:_ The mini now boots unattended into a non-admin account reachable only by key, with the admin account
+  and the external volumes closed to it. Two of those closures were not in the plan: macOS's default home and
+  external-volume permissions both read as restrictive while granting access through group membership and
+  ignore-ownership respectively, so the mode bits alone would have certified an isolation the host did not have.
 
 ### `[ ]` **1.3 Author the Lima recipe and the launch agent**
 
