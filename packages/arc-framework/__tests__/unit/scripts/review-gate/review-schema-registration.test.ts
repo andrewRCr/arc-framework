@@ -95,6 +95,8 @@ const reviewIdentities = [
   "review-lifecycle-tail-proof",
   "review-method-activity",
   "review-operation-state",
+  "review-planning-grooming-resolve-envelope",
+  "review-planning-grooming-resolve-request",
   "review-policy-version-preimage",
   "review-pre-publication-envelope",
   "review-readiness-envelope",

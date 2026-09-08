@@ -166,6 +166,7 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewPlanningGroomingResolve,
   handleReviewPrePublication,
   handleReviewChangeRequestResolve,
   handleReviewMergeMethodResolve,
@@ -1650,6 +1651,42 @@ reviewCmd
   .option("--repository <path>", "Repository containing both exact commits")
   .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
     handleReviewPlanningLane(base, head, opts));
+
+const planningGroomingResolveHelp = JSON.stringify({
+  schemaVersion: 1,
+  target: {
+    baseRef: "main",
+    diffBaseSha: "0".repeat(40),
+    headSha: "1".repeat(40),
+  },
+  routingFacts: {
+    contentKind: "documentation",
+    reviewRisk: "routine",
+    changeDeterminacy: "atomic",
+    ownership: "self",
+    surfaceAuthority: "planning-grooming",
+  },
+});
+
+reviewCmd
+  .command("planning-grooming")
+  .description("Transient planning-grooming review applicability")
+  .command("resolve")
+  .description("Resolve exact planning-grooming review exemption as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addHelpText("after", `\nRequest JSON:\n  ${planningGroomingResolveHelp}\n`)
+  .action(withInteractionContext(
+    { machineReadable: true },
+    (context, input: string | undefined, opts: { schema?: boolean }) => {
+      if (opts.schema === true) {
+        handleReviewRequestSchema("review-planning-grooming-resolve-request", input);
+        return;
+      }
+      return handleReviewPlanningGroomingResolve(input ?? "", {}, context);
+    },
+  ));
 
 reviewCmd
   .command("resolve")
