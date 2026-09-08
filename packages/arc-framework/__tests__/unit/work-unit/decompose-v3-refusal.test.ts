@@ -128,6 +128,111 @@ describe("v3 decomposition refusals", () => {
     expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--preflight"]);
   });
 
+  it("maps an incomplete scaffold source meta to field correction and preflight", () => {
+    const locus = "member:.arc/active/meta-origin.md";
+    const reason = "content:scaffold-source-meta-incomplete";
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "execute", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus,
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.text).toContain(locus);
+    expect(remedy.text).toMatch(/owner.*priority.*origin.*re-run preflight/iu);
+    expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--preflight"]);
+  });
+
+  it("maps a missing scaffold source to restoration and preflight", () => {
+    const reason = "content:scaffold-source-missing";
+    const locus = "member:.arc/active/tasks-origin.md";
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "execute", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus,
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.text).toContain(locus);
+    expect(remedy.text).toMatch(/restore.*scaffold source.*re-run preflight/iu);
+    expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--preflight"]);
+  });
+
+  it("maps invalid scaffold encoding to conversion and preflight", () => {
+    const reason = "content:scaffold-source-invalid-encoding";
+    const locus = "member:.arc/active/tasks-origin.md";
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "extract", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus,
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.text).toContain(locus);
+    expect(remedy.text).toMatch(/convert.*UTF-8.*re-run preflight/iu);
+    expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--preflight"]);
+  });
+
+  it("maps a missing scaffold title to title repair and preflight", () => {
+    const reason = "content:scaffold-title-missing";
+    const locus = "member:.arc/active/tasks-origin.md";
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "execute", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus,
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.text).toContain(locus);
+    expect(remedy.text).toMatch(/add.*title.*re-run preflight/iu);
+    expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--preflight"]);
+  });
+
+  it("maps an unresolvable existing home to restoration and preflight", () => {
+    const reason = "content:existing-home-unresolvable";
+    const locus = "existing:.arc/reference/shared.txt";
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "execute", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus,
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.text).toContain(locus);
+    expect(remedy.text).toMatch(/restore.*regular-file existing home.*re-run preflight/iu);
+    expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--preflight"]);
+  });
+
+  it("maps an absent target artifact to map correction and the invoked retry", () => {
+    const reason = "content:target-artifact-absent";
+    const locus = "member:.arc/backlog/planned/member/notes-member.md";
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "execute", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus,
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.text).toContain(locus);
+    expect(remedy.text).toMatch(/target artifact.*projected.*correct.*map.*retry/iu);
+    expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--execute", "map.json"]);
+  });
+
+  it("maps an unresolved target locator to locator correction and the invoked retry", () => {
+    const reason = "content:target-locator-unresolved";
+    const locus = "member:.arc/backlog/planned/member/draft-member.md";
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "extract", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus,
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.text).toContain(locus);
+    expect(remedy.text).toMatch(/correct.*target locator.*retry/iu);
+    expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--extract", "map.json"]);
+  });
+
   it.each([
     [{ mode: "preflight", origin: "origin" }, ["arc", "decompose", "origin", "--preflight"]],
     [

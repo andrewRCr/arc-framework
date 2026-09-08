@@ -295,6 +295,13 @@ function preflightRemedyDefinition(reason: string): V3PreflightRemedyDefinition 
 export function isV3DecomposeMappedReason(reason: string): boolean {
   const code = innermostReason(reason);
   return preflightRemedyDefinition(reason) !== undefined
+    || code === "scaffold-source-meta-incomplete"
+    || code === "scaffold-source-missing"
+    || code === "scaffold-source-invalid-encoding"
+    || code === "scaffold-title-missing"
+    || code === "existing-home-unresolvable"
+    || code === "target-artifact-absent"
+    || code === "target-locator-unresolved"
     || code === "source-scan"
     || code === "uncovered-retirement-content"
     || code === "unexpected-error";
@@ -312,6 +319,62 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
     );
   }
   switch (code) {
+    case "scaffold-source-meta-incomplete": {
+      const source = input.locus ?? "the reported member and source metadata";
+      return spineRemedy(
+        "Every new-member scaffold requires complete source metadata.",
+        `Set the owner, priority, and origin fields at ${source}, then re-run preflight`,
+        v3DecomposePreflightArgv(input.invocation.origin),
+      );
+    }
+    case "scaffold-source-missing": {
+      const source = input.locus ?? "the reported member and source artifact";
+      return spineRemedy(
+        "Every requested member scaffold must have a regular-file source artifact.",
+        `Restore the scaffold source at ${source}, then re-run preflight`,
+        v3DecomposePreflightArgv(input.invocation.origin),
+      );
+    }
+    case "scaffold-source-invalid-encoding": {
+      const source = input.locus ?? "the reported member and source artifact";
+      return spineRemedy(
+        "Every scaffold source artifact must be valid UTF-8.",
+        `Convert ${source} to UTF-8, then re-run preflight`,
+        v3DecomposePreflightArgv(input.invocation.origin),
+      );
+    }
+    case "scaffold-title-missing": {
+      const source = input.locus ?? "the reported member and source artifact";
+      return spineRemedy(
+        "Every scaffold source artifact must open with a title line.",
+        `Add a title line at ${source}, then re-run preflight`,
+        v3DecomposePreflightArgv(input.invocation.origin),
+      );
+    }
+    case "existing-home-unresolvable": {
+      const target = input.locus ?? "the reported existing home";
+      return spineRemedy(
+        "Every existing-home destination must resolve to a regular file.",
+        `Restore the regular-file existing home at ${target}, then re-run preflight`,
+        v3DecomposePreflightArgv(input.invocation.origin),
+      );
+    }
+    case "target-artifact-absent": {
+      const target = input.locus ?? "the reported destination and target artifact";
+      return spineRemedy(
+        "Every target artifact must exist in the projected destination tree.",
+        `Correct the map allocation for ${target}, then retry the selected mode`,
+        invocationArgv(input.invocation),
+      );
+    }
+    case "target-locator-unresolved": {
+      const target = input.locus ?? "the reported destination and target artifact";
+      return spineRemedy(
+        "Every authored target locator must resolve exactly once in the projected artifact.",
+        `Correct the target locator for ${target}, then retry the selected mode`,
+        invocationArgv(input.invocation),
+      );
+    }
     case "unexpected-error":
       return spineRemedy(
         "The selected decomposition mode must complete without an unexpected runtime failure.",

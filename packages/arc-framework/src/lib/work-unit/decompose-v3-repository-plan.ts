@@ -109,6 +109,18 @@ type Destination = V3DecomposeCutMap["authoring"]["destinations"][number];
 type NewMember = Extract<Destination, { kind: "new-member" }>;
 type Allocation = V3DecomposeCutMap["authoring"]["sourceAllocations"][number];
 type TargetAllocation = Allocation & { disposition: Extract<Allocation["disposition"], { kind: "target" }> };
+type V3ContentProjectionRefusal = {
+  status: "refused";
+  reason:
+    | "scaffold-source-meta-incomplete"
+    | "scaffold-source-missing"
+    | "scaffold-source-invalid-encoding"
+    | "scaffold-title-missing"
+    | "existing-home-unresolvable"
+    | "target-artifact-absent"
+    | "target-locator-unresolved";
+  locus: string;
+};
 
 const ABSENT = { kind: "absent" } as const;
 const encoder = new TextEncoder();
@@ -316,36 +328,98 @@ function memberProfileArtifacts(
   ];
 }
 
-function retitleScaffold(bytes: Uint8Array, origin: string, member: string): Uint8Array | null {
+function retitleScaffold(
+  bytes: Uint8Array,
+  origin: string,
+  member: string,
+):
+  | { status: "retitled"; bytes: Uint8Array }
+  | { status: "invalid-encoding" }
+  | { status: "title-missing" } {
   let text: string;
   try {
     text = decoder.decode(bytes);
   } catch {
-    return null;
+    return { status: "invalid-encoding" };
   }
   const lines = text.split("\n");
   const first = lines[0];
-  if (first === undefined || !first.startsWith("# ")) return null;
+  if (first === undefined || !first.startsWith("# ")) return { status: "title-missing" };
   lines[0] = first.includes(origin) ? first.replace(origin, member) : first;
-  return encoder.encode(lines.join("\n"));
+  return { status: "retitled", bytes: encoder.encode(lines.join("\n")) };
 }
 
 function sourceArtifactState(
   map: V3DecomposeCutMap,
   sourceTree: V3RepositoryPlanTree,
   sourceName: string,
-): V3RepositoryPlanState {
+): { path: string; state: V3RepositoryPlanState } {
   const sourceDir = posix.dirname(map.machine.sourceUnits[0]?.sourcePath ?? "");
-  return stateAt(sourceTree, posix.join(sourceDir, sourceName));
+  const path = posix.join(sourceDir, sourceName);
+  return { path, state: stateAt(sourceTree, path) };
+}
+
+function scaffoldSource(
+  map: V3DecomposeCutMap,
+  sourceTree: V3RepositoryPlanTree,
+  destination: NewMember,
+  sourceName: string,
+):
+  | {
+      status: "ready";
+      source: Exclude<V3RepositoryPlanState, { kind: "absent" }>;
+      bytes: Uint8Array;
+    }
+  | V3ContentProjectionRefusal {
+  const sourceArtifact = sourceArtifactState(map, sourceTree, sourceName);
+  if (!regularFile(sourceArtifact.state)) {
+    return {
+      status: "refused",
+      reason: "scaffold-source-missing",
+      locus: `${destination.slug}:${sourceArtifact.path}`,
+    };
+  }
+  const retitled = retitleScaffold(
+    sourceArtifact.state.bytes,
+    map.machine.source.origin,
+    destination.slug,
+  );
+  if (retitled.status !== "retitled") {
+    return {
+      status: "refused",
+      reason: retitled.status === "invalid-encoding"
+        ? "scaffold-source-invalid-encoding"
+        : "scaffold-title-missing",
+      locus: `${destination.slug}:${sourceArtifact.path}`,
+    };
+  }
+  return { status: "ready", source: sourceArtifact.state, bytes: retitled.bytes };
 }
 
 function newMemberScaffolds(
   map: V3DecomposeCutMap,
   sourceTree: V3RepositoryPlanTree,
+  sourceMetaPath: string,
   sourceRecord: ParsedMetaRecord,
-): { content: V3PlannedContentContribution[]; states: V3RepositoryPlanTree } | null {
+):
+  | {
+      status: "scaffolded";
+      content: V3PlannedContentContribution[];
+      states: V3RepositoryPlanTree;
+    }
+  | V3ContentProjectionRefusal {
   const priority = MetaPrioritySchema.safeParse(sourceRecord.priority);
-  if (sourceRecord.owner === null || !priority.success || sourceRecord.origin === null) return null;
+  if (sourceRecord.owner === null || !priority.success || sourceRecord.origin === null) {
+    const member = map.authoring.destinations.find(
+      (destination): destination is NewMember => destination.kind === "new-member",
+    );
+    if (member === undefined) return { status: "scaffolded", content: [], states: {} };
+    return {
+      status: "refused",
+      reason: "scaffold-source-meta-incomplete",
+      locus: `${member.slug}:${sourceMetaPath}`,
+    };
+  }
   const placement = memberPlacement(map);
   const cohort = placement.kind === "backlog" && placement.cohort.length > 0
     ? placement.cohort.join("/")
@@ -388,11 +462,9 @@ function newMemberScaffolds(
     });
     states[metaPath] = metaAfter;
     for (const artifact of artifacts) {
-      const source = sourceArtifactState(map, sourceTree, artifact.sourceName);
-      if (!regularFile(source)) return null;
-      const bytes = retitleScaffold(source.bytes, map.machine.source.origin, destination.slug);
-      if (bytes === null) return null;
-      const after = { ...source, bytes };
+      const scaffold = scaffoldSource(map, sourceTree, destination, artifact.sourceName);
+      if (scaffold.status === "refused") return scaffold;
+      const after = { ...scaffold.source, bytes: scaffold.bytes };
       content.push({
         path: artifact.path,
         destinationId: destination.destinationId,
@@ -413,15 +485,14 @@ function newMemberScaffolds(
       && allocation.disposition.destinationId === destination.destinationId
       && allocation.disposition.targetLocator.artifact === posix.basename(taskPath));
     if (taskTargeted) {
-      const source = sourceArtifactState(
+      const scaffold = scaffoldSource(
         map,
         sourceTree,
+        destination,
         `tasks-${map.machine.source.origin}.md`,
       );
-      if (!regularFile(source)) return null;
-      const bytes = retitleScaffold(source.bytes, map.machine.source.origin, destination.slug);
-      if (bytes === null) return null;
-      const after = { ...source, bytes };
+      if (scaffold.status === "refused") return scaffold;
+      const after = { ...scaffold.source, bytes: scaffold.bytes };
       content.push({
         path: taskPath,
         destinationId: destination.destinationId,
@@ -437,7 +508,7 @@ function newMemberScaffolds(
       states[taskPath] = after;
     }
   }
-  return { content, states };
+  return { status: "scaffolded", content, states };
 }
 
 function existingDestinationPath(
@@ -450,6 +521,26 @@ function existingDestinationPath(
   return destination.target.kind === "draft-block"
     ? posix.join(posix.dirname(meta.path), destination.target.locator.artifact)
     : meta.path;
+}
+
+function destinationIdentity(destination: Destination): string {
+  if (destination.kind === "new-member") return destination.slug;
+  if (destination.kind === "cohort-coordination") return destination.cohort;
+  return destination.target.kind === "document"
+    ? destination.destinationId
+    : destination.target.slug;
+}
+
+function projectionLocus(destination: Destination, path: string): string {
+  return `${destinationIdentity(destination)}:${path}`;
+}
+
+function unresolvedExistingPath(
+  destination: Extract<Destination, { kind: "existing-home" }>,
+): string {
+  if (destination.target.kind === "document") return destination.target.path;
+  if (destination.target.kind === "draft-block") return destination.target.locator.artifact;
+  return `meta-${destination.target.slug}.md`;
 }
 
 function allocationPath(
@@ -496,8 +587,14 @@ function contentContributions(
   baseTree: V3RepositoryPlanTree,
   baseMetas: readonly TreeMeta[],
   topology: readonly V3TopologyAction[],
-  scaffolds: NonNullable<ReturnType<typeof newMemberScaffolds>>,
-): { content: V3PlannedContentContribution[]; states: V3RepositoryPlanTree } | null {
+  scaffolds: Extract<ReturnType<typeof newMemberScaffolds>, { status: "scaffolded" }>,
+):
+  | {
+      status: "projected";
+      content: V3PlannedContentContribution[];
+      states: V3RepositoryPlanTree;
+    }
+  | V3ContentProjectionRefusal {
   const content = [...scaffolds.content];
   const states = cloneTree(baseTree);
   for (const action of topology) {
@@ -509,9 +606,21 @@ function contentContributions(
   for (const destination of map.authoring.destinations) {
     if (destination.kind !== "existing-home") continue;
     const path = existingDestinationPath(destination, baseMetas);
-    if (path === null) return null;
+    if (path === null) {
+      return {
+        status: "refused",
+        reason: "existing-home-unresolvable",
+        locus: projectionLocus(destination, unresolvedExistingPath(destination)),
+      };
+    }
     const current = stateAt(states, path);
-    if (!regularFile(current)) return null;
+    if (!regularFile(current)) {
+      return {
+        status: "refused",
+        reason: "existing-home-unresolvable",
+        locus: projectionLocus(destination, path),
+      };
+    }
     content.push({
       path,
       destinationId: destination.destinationId,
@@ -529,11 +638,35 @@ function contentContributions(
   for (const allocation of map.authoring.sourceAllocations) {
     if (allocation.disposition.kind !== "target") continue;
     const destination = destinationById.get(allocation.disposition.destinationId);
-    if (destination === undefined) return null;
+    if (destination === undefined) {
+      throw new Error("Validated allocation references an unknown destination.");
+    }
     const target = allocationPath(destination, allocation as TargetAllocation, baseMetas, map);
-    if (target === null) return null;
+    if (target === null) {
+      const unresolvedPath = destination.kind === "existing-home"
+        ? unresolvedExistingPath(destination)
+        : allocation.disposition.targetLocator.artifact;
+      return {
+        status: "refused",
+        reason: "existing-home-unresolvable",
+        locus: projectionLocus(destination, unresolvedPath),
+      };
+    }
     const current = stateAt(states, target);
-    if (!targetLocatorResolves(target, current, allocation.disposition.targetLocator)) return null;
+    if (current.kind === "absent") {
+      return {
+        status: "refused",
+        reason: "target-artifact-absent",
+        locus: projectionLocus(destination, target),
+      };
+    }
+    if (!targetLocatorResolves(target, current, allocation.disposition.targetLocator)) {
+      return {
+        status: "refused",
+        reason: "target-locator-unresolved",
+        locus: projectionLocus(destination, target),
+      };
+    }
     const artifactRole = destination.kind === "cohort-coordination"
       ? "coordination"
       : destination.kind === "existing-home"
@@ -563,7 +696,7 @@ function contentContributions(
       after: current,
     });
   }
-  return { content, states };
+  return { status: "projected", content, states };
 }
 
 function liveWorkUnits(
@@ -826,8 +959,15 @@ async function composeRepositoryPlan(
   if (topology.status === "refused") {
     return refuse("topology", topology.refusal.code, topology.refusal.path);
   }
-  const scaffolds = newMemberScaffolds(map, input.sourceTree, sourceMeta.record);
-  if (scaffolds === null) return refuse("content", "profile-scaffold-failed");
+  const scaffolds = newMemberScaffolds(
+    map,
+    input.sourceTree,
+    sourceMeta.path,
+    sourceMeta.record,
+  );
+  if (scaffolds.status === "refused") {
+    return refuse("content", scaffolds.reason, scaffolds.locus);
+  }
   const projectedContent = contentContributions(
     map,
     input.resultBaseTree,
@@ -835,7 +975,9 @@ async function composeRepositoryPlan(
     topology.plan.actions,
     scaffolds,
   );
-  if (projectedContent === null) return refuse("content", "target-projection-failed");
+  if (projectedContent.status === "refused") {
+    return refuse("content", projectedContent.reason, projectedContent.locus);
+  }
   const dependencyContributions = dependencies(
     conservation.dependencyEdits,
     map,

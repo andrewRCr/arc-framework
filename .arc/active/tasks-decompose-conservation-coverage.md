@@ -117,16 +117,9 @@ only after every mode has executable coverage.
           through retirement repository-plan refusals, and preserved exact loci, locus-only structural failures,
           rider classification, and refusal order.
 
-    - `[ ]` **1.2.f Split generic projection refusals by correctable cause**
-        - Replace `profile-scaffold-failed` and `target-projection-failed` in
-          `decompose-v3-repository-plan.ts` with the seven cause-specific codes and exact member/path loci settled by
-          the design.
-        - Build `test-first` (one behavior at a time):
-            - Distinguish incomplete source meta, absent scaffold source, an unscanned Active-origin task/notes source
-              with invalid UTF-8, and a valid UTF-8 source missing its title. Scanned invalid UTF-8 remains the earlier
-              path-bearing `source-scan` refusal.
-            - Distinguish unresolvable existing home, absent target artifact, and unresolved target locator.
-            - Map each code to its own correction rather than a generic reattempt.
+    - `[x]` **1.2.f Split generic projection refusals by correctable cause**
+        - Replaced both generic projection failures with seven member/path-bearing codes, including distinct Active
+          scaffold encoding and title failures, and mapped each to a locus-specific preflight or invoked-mode remedy.
 
     - `[ ]` **1.2.g Map retirement and extraction operation refusals at their command boundaries**
         - Replace string remedies in `GitV3DecomposeCommandResult` and `GitV3ExtractionCommandResult` with

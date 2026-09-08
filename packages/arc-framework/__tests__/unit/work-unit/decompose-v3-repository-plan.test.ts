@@ -13,7 +13,10 @@ import {
   createV3DecomposePreflight,
   type V3DecomposeStoredArtifact,
 } from "../../../src/lib/work-unit/decompose-v3-preflight.js";
-import { v3PreflightId } from "../../../src/lib/work-unit/decompose-v3-schema.js";
+import {
+  v3PreflightId,
+  v3SourceArtifactDigest,
+} from "../../../src/lib/work-unit/decompose-v3-schema.js";
 
 const encoder = new TextEncoder();
 const cohortTemplate = readFileSync(
@@ -44,7 +47,7 @@ function stored(path: string, content: string): V3DecomposeStoredArtifact {
   return { path, objectKind: "blob", mode: "100644", bytes: encoder.encode(content) };
 }
 
-function fixture() {
+function fixture(options: { sourceState?: "Planning" | "Active" } = {}) {
   const origin = "origin";
   const member = "member";
   const sourceHead = "2".repeat(40);
@@ -73,7 +76,7 @@ One unknown.
 Medium.
 `;
   const activeMeta = renderMetaFile(origin, {
-    state: "Planning",
+    state: options.sourceState ?? "Planning",
     owner: "andrew",
     branch: "plan/origin",
     workClass: "Heavy",
@@ -195,6 +198,39 @@ Medium.
 }
 
 describe("v3 repository plan projection", () => {
+  it("identifies an incomplete source meta needed for a member scaffold", async () => {
+    const input = fixture();
+    const path = ".arc/active/meta-origin.md";
+    const current = input.sourceTree[path]!;
+    if (current.kind === "absent") throw new Error("fixture source meta must exist");
+    const changed = file(new TextDecoder().decode(current.bytes).replace("`andrew`", "[none]"));
+    input.sourceTree[path] = changed;
+    const inventory = input.preflight.sourceArtifactInventory;
+    const meta = inventory.find((artifact) => artifact.path === path)!;
+    meta.contentDigest = digestBytes(changed.bytes);
+    input.preflight.sourceArtifactDigest = v3SourceArtifactDigest(inventory)!;
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "content",
+        reason: "scaffold-source-meta-incomplete",
+        locus: "member:.arc/active/meta-origin.md",
+      },
+    });
+  });
+
   it("preserves retirement comparison evidence at the repository-plan boundary", async () => {
     const input = fixture();
     const path = ".arc/backlog/planned/origin/meta-origin.md";
@@ -482,11 +518,176 @@ describe("v3 repository plan projection", () => {
       renderRoadmap,
     });
 
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       status: "refused",
-      refusal: { stage: "content", reason: "target-projection-failed" },
+      refusal: {
+        stage: "content",
+        reason: "existing-home-unresolvable",
+        locus: "existing:.arc/reference/shared.txt",
+      },
     });
     expect(renderRoadmap).not.toHaveBeenCalled();
+  });
+
+  it("identifies an absent projected target artifact", async () => {
+    const input = fixture();
+    const allocation = input.completedMap.authoring.sourceAllocations[0]!;
+    if (allocation.disposition.kind !== "target") throw new Error("fixture allocation must target");
+    allocation.disposition.targetLocator = {
+      ...allocation.disposition.targetLocator,
+      artifact: "notes-member.md",
+    };
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "content",
+        reason: "target-artifact-absent",
+        locus: "member:.arc/backlog/planned/member/notes-member.md",
+      },
+    });
+  });
+
+  it("identifies a locator that does not resolve in projected target bytes", async () => {
+    const input = fixture();
+    const allocation = input.completedMap.authoring.sourceAllocations[0]!;
+    if (allocation.disposition.kind !== "target") throw new Error("fixture allocation must target");
+    allocation.disposition.targetLocator = {
+      artifact: "draft-member.md",
+      kind: "section",
+      level: 2,
+      headingSource: "Missing",
+      ancestry: [],
+      occurrence: 0,
+    };
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "content",
+        reason: "target-locator-unresolved",
+        locus: "member:.arc/backlog/planned/member/draft-member.md",
+      },
+    });
+  });
+
+  it("identifies a missing target-driven scaffold source", async () => {
+    const input = fixture();
+    const allocation = input.completedMap.authoring.sourceAllocations[0]!;
+    if (allocation.disposition.kind !== "target") throw new Error("fixture allocation must target");
+    allocation.disposition.targetLocator = {
+      ...allocation.disposition.targetLocator,
+      artifact: "tasks-member.md",
+    };
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "content",
+        reason: "scaffold-source-missing",
+        locus: "member:.arc/active/tasks-origin.md",
+      },
+    });
+  });
+
+  it("distinguishes invalid UTF-8 in an unscanned target-driven scaffold source", async () => {
+    const input = fixture({ sourceState: "Active" });
+    input.completedMap.authoring.shape = "extraction" as never;
+    const allocation = input.completedMap.authoring.sourceAllocations[0]!;
+    if (allocation.disposition.kind !== "target") throw new Error("fixture allocation must target");
+    allocation.disposition.targetLocator = {
+      ...allocation.disposition.targetLocator,
+      artifact: "tasks-member.md",
+    };
+    input.sourceTree[".arc/active/tasks-origin.md"] = {
+      ...file("# Tasks: origin\n"),
+      bytes: Uint8Array.from([0xff]),
+    };
+
+    const result = await composeV3ExtractionRepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "content",
+        reason: "scaffold-source-invalid-encoding",
+        locus: "member:.arc/active/tasks-origin.md",
+      },
+    });
+  });
+
+  it("distinguishes a valid UTF-8 scaffold source without a title", async () => {
+    const input = fixture({ sourceState: "Active" });
+    input.completedMap.authoring.shape = "extraction" as never;
+    const allocation = input.completedMap.authoring.sourceAllocations[0]!;
+    if (allocation.disposition.kind !== "target") throw new Error("fixture allocation must target");
+    allocation.disposition.targetLocator = {
+      ...allocation.disposition.targetLocator,
+      artifact: "tasks-member.md",
+    };
+    input.sourceTree[".arc/active/tasks-origin.md"] = file("body without title\n");
+
+    const result = await composeV3ExtractionRepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "content",
+        reason: "scaffold-title-missing",
+        locus: "member:.arc/active/tasks-origin.md",
+      },
+    });
   });
 
   it("routes additive cohort planning through surviving-origin topology without retirement authority", async () => {
