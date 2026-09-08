@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Outline spec finalized for the Mac mini runner; draft retired to notes; stage advanced to
-  generate-tasks (2026-09-08).
+- **Last Completed:** Task list generated and work unit activated on `chore/local-ci-capacity-qualification`;
+  implementation has not begun (2026-09-08).
 - **Next Task:** Task 1.1 — Open the measurement ledger (line ~18)
 - **Blockers:** [none]
 
