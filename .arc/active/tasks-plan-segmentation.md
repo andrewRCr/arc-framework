@@ -368,30 +368,19 @@ types the segment verifier as a segment-scope verification task.
 - _Outcome:_ accepted unbound delivery-plan revision 2 from the rebuilt CLI and current authoring inputs; Task 6.5
   now carries `verification` / `segment` while member coverage, landability, and seam ownership remain stable.
 
-### `[ ]` **6.5 Exercise the segmented contract end to end — D7, D9, D12** — validate exit criterion at segment scope
+### `[x]` **6.5 Exercise the segmented contract end to end — D7, D9, D12** — validate exit criterion at segment scope
 
 - _Goal:_ the executable scenario for this phase's exit criterion — a real segmented plan authored through the
   shipped procedure, scanned clean at both fire sites, refused when broken, and typed correctly in its record.
 
-- _Approach:_ exercise both production paths, not a fixture: run the worktree descriptor lint over this repository;
-  use a disposable `GIT_INDEX_FILE` seeded from `HEAD` to stage a selected clean task-list copy and then each broken
-  variant, proving indexed certification actually triggers and returns the expected verdicts without touching the
-  real index; confirm each precomposed message; then read the segment verifier's role out of the re-authored plan
-  record.
+    - `[x]` **6.5.a Lock the full-shape consumer chain**
+        - one segmented compatibility fixture now crosses structure and segmentation scans, cursor and tally
+          analysis, delivery role inventory, and compaction-seed emission with the derived cursor preserved
 
-- _Shape:_ drive refusal against a temporary task list placed where the selector genuinely reaches it, never by
-  breaking the live one. The worktree path sees the untracked copy; the indexed path sees bytes staged only in the
-  disposable index. Remove the temporary list and index before the phase closes, and verify the real index is
-  unchanged.
-
-    - `[ ]` **6.5.a Lock the full-shape consumer chain**
-        - pass one segmented compatibility fixture through `scanTaskListStructure`, `scanTaskListSegmentation`,
-          `analyzeTaskList` (cursor plus tallies), and `buildDeliveryTaskInventory`; feed that derived cursor through
-          `emitCompactionSeed` and assert it is preserved
-
-- _Note:_ this list creates no stubs — the substrate tasks close first, so the doctrine segment needs no
-  scaffolding. The retiring-phase diagnostic is proven by fixture in Phase 1, not by self-exercise. Record that,
-  rather than manufacturing a stub to demonstrate it.
+- _Outcome:_ the live task list passed its worktree scan; trusted alternate-index certification selected only the
+  temporary list, accepted its clean bytes, and emitted the exact missing-criterion and orphan-verifier messages for
+  its broken bytes. Temporary artifacts were removed, the real index stayed at `HEAD`, delivery revision 2 retained
+  Task 6.5 as `verification` / `segment`, and the exercise created no stubs.
 
 ### `[ ]` **6.6 Doctrine contract close-out — D7** — validate criteria at member scope
 
