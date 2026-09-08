@@ -178,6 +178,7 @@ Medium.
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: machine.sourceUnits.map((unit) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned" as const,

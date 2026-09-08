@@ -121,6 +121,7 @@ describe("v3 decomposition preflight read-only boundary", () => {
           { kind: "new-member" as const, destinationId: "member-b", slug: "member-b", workClass: "Light" as const },
         ],
         internalEdges: [],
+        externalEdges: [],
         sourceAllocations: machine.sourceUnits.map(({ sourceId }) => ({
           sourceId,
           ownership: "destination-owned" as const,

@@ -524,18 +524,10 @@ prose follows the executable contract.
 - _Goal:_ One authored dependency to a live work unit outside the cut flows from the closed map through conservation
   into the recipient meta and its derived ROADMAP entry.
 
-    - `[ ]` **3.1.a Add the closed external-edge authoring slot**
-        - Extend the starter authoring schema with the whole-field `{ status: "author" }` slot and the completed
-          authoring schema with canonically ordered, unique `{ from, to }` external edges. Treat explicit `[]` as a
-          completed empty value; the starter never prefills authored content.
-        - Build `test-first` (one behavior at a time):
-            - Accept new-member and existing-home `from` slugs declared by the map.
-            - Reject missing, extra, duplicate, reordered, malformed, and undeclared-`from` authoring values; defer
-              `to` eligibility to conservation.
-            - Keep machine and `preflightId` identity plus existing edge-identity preimages unchanged while making
-              `v3CutMapDigest()` and downstream plan identity cover `externalEdges`.
-        - Exercise the contract in
-          `packages/arc-framework/__tests__/unit/work-unit/decompose-v3-schema.test.ts`.
+    - `[x]` **3.1.a Add the closed external-edge authoring slot**
+        - Starter maps now expose one whole-field `externalEdges` author slot, while completed maps require an
+          explicit, strict, canonically ordered unique edge list whose sources are declared dependency-capable
+          destinations. External authoring changes the cut-map digest without widening machine or edge identities.
 
     - `[ ]` **3.1.b Validate a live external target and derive its dependency edit**
         - Add `resultBaseLiveSlugs` to `V3DecomposeConservationInput` and emit a canonical `external`

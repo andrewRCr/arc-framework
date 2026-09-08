@@ -80,6 +80,7 @@ export function v3DecompositionEvidenceFixture(): {
         { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: [{
         sourceId: sourceUnit.sourceId,
         ownership: "destination-owned",

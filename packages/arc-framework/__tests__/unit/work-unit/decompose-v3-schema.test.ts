@@ -103,6 +103,7 @@ function completed(): V3DecomposeCutMap {
         { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Heavy" },
       ],
       internalEdges: [{ from: "member-a", to: "member-b" }],
+      externalEdges: [],
       sourceAllocations: [{
         sourceId: facts.sourceUnits[0]!.sourceId,
         ownership: "destination-owned",
@@ -334,6 +335,7 @@ function comprehensiveCompleted(): V3DecomposeCutMap {
         { from: "existing-work-unit", to: "new-a" },
         { from: "new-a", to: "new-b" },
       ],
+      externalEdges: [],
       sourceAllocations: facts.sourceUnits.map(({ sourceId }, index) => ({
         sourceId,
         ownership: index === 1 ? "cohort-shared" as const : "destination-owned" as const,
@@ -388,6 +390,7 @@ interface LooseCompletedMap {
     placement: unknown;
     destinations: unknown;
     internalEdges: unknown;
+    externalEdges: unknown;
     sourceAllocations: Array<{ ownership: unknown; disposition: unknown }>;
     incomingDispositions: Array<{ disposition: unknown }>;
     outgoingDispositions: Array<{ disposition: unknown }>;
@@ -396,6 +399,95 @@ interface LooseCompletedMap {
 }
 
 describe("v3 decomposition map schema", () => {
+  it("opens and closes external dependency authoring without changing the machine envelope", () => {
+    const facts = machine();
+    const starter = createV3DecomposeStarterMap(facts);
+    const baseline = completed();
+    const authored = {
+      ...baseline,
+      authoring: {
+        ...baseline.authoring,
+        externalEdges: [
+          { from: "member-a", to: "external-a" },
+          { from: "member-b", to: "external-b" },
+        ],
+      },
+    };
+
+    expect(starter?.authoring).toMatchObject({ externalEdges: { status: "author" } });
+    expect(Object.keys(starter?.machine ?? {}).sort()).toEqual(Object.keys(facts).sort());
+    expect(starter?.machine.preflightId).toBe(facts.preflightId);
+    expect(starter?.machine.incomingEdges[0]?.edgeId).toBe(facts.incomingEdges[0]?.edgeId);
+    expect(starter?.machine.outgoingEdges[0]?.edgeId).toBe(facts.outgoingEdges[0]?.edgeId);
+    expect(decodeV3DecomposeCutMap(authored)).toMatchObject({ status: "accepted" });
+    expect(v3CutMapDigest(authored)).not.toBe(v3CutMapDigest({
+      ...authored,
+      authoring: { ...authored.authoring, externalEdges: [] },
+    }));
+  });
+
+  it("requires external edges in unique canonical pair order", () => {
+    for (const externalEdges of [
+      [
+        { from: "member-b", to: "external-b" },
+        { from: "member-a", to: "external-a" },
+      ],
+      [
+        { from: "member-a", to: "external-a" },
+        { from: "member-a", to: "external-a" },
+      ],
+    ]) {
+      const value = completed();
+      value.authoring.externalEdges = externalEdges;
+      expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+        status: "rejected",
+        issue: { code: "authoring-order", path: "authoring.externalEdges" },
+      });
+    }
+  });
+
+  it("accepts only dependency-capable declared external-edge sources", () => {
+    const accepted = comprehensiveCompleted();
+    accepted.authoring.externalEdges = [
+      { from: "existing-work-unit", to: "external-a" },
+      { from: "new-a", to: "external-b" },
+    ];
+    expect(decodeV3DecomposeCutMap(accepted)).toMatchObject({ status: "accepted" });
+
+    for (const from of ["existing-document", "existing-draft", "missing"]) {
+      const value = comprehensiveCompleted();
+      value.authoring.externalEdges = [{ from, to: "external" }];
+      expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+        status: "rejected",
+        issue: { code: "authoring-identity", path: "authoring.externalEdges.0.from" },
+      });
+    }
+  });
+
+  it("requires an explicit completed external-edge value", () => {
+    const value = completed();
+    const authoring = { ...value.authoring } as Partial<typeof value.authoring>;
+    delete authoring.externalEdges;
+    expect(decodeV3DecomposeCutMap({ ...value, authoring })).toMatchObject({
+      status: "rejected",
+      issue: { code: "invalid-structure", path: "authoring.externalEdges" },
+    });
+  });
+
+  it("rejects malformed or open external-edge values", () => {
+    for (const externalEdge of [
+      { from: "member-a", to: "Not A Slug" },
+      { from: "member-a", to: "external", extra: true },
+    ]) {
+      const value = completed();
+      const authoring = { ...value.authoring, externalEdges: [externalEdge] };
+      expect(decodeV3DecomposeCutMap({ ...value, authoring })).toMatchObject({
+        status: "rejected",
+        issue: { code: "invalid-structure" },
+      });
+    }
+  });
+
   it("binds task phases into the unchanged machine and allocation identity contracts", () => {
     const baseline = machine();
     const facts = machineWithTaskPhases();
@@ -742,9 +834,9 @@ describe("v3 decomposition map schema", () => {
     const starterBytes = canonicalize(starter);
     const completedBytes = canonicalize(complete);
     expect(canonicalDigest(starterBytes))
-      .toBe("sha256:810d29e2c6983a18169d74d769f4d423dc909260ebae08b657eacb156d7378a0");
+      .toBe("sha256:ae6c92ad4a8602488beaeac59f0a2feaf1c5ca18c0ccb01d4a2201a7dcbce486");
     expect(canonicalDigest(completedBytes))
-      .toBe("sha256:7a75d04b5f04423427b1e9a7c049dfb46cd46026caaa6a6b53a686882622ef36");
+      .toBe("sha256:240ded3cb232dc1e7322f52ca07a00a868d06b3557720699ae941200d8bfd1e2");
     expect(canonicalize(parseV3DecomposeStarterMap(JSON.parse(starterBytes)))).toBe(starterBytes);
     expect(canonicalize(parseV3DecomposeCutMap(JSON.parse(completedBytes)))).toBe(completedBytes);
 
@@ -926,6 +1018,7 @@ describe("v3 decomposition map schema", () => {
       (value) => { value.authoring.placement = { status: "author" }; },
       (value) => { value.authoring.destinations = { status: "author" }; },
       (value) => { value.authoring.internalEdges = { status: "author" }; },
+      (value) => { value.authoring.externalEdges = { status: "author" }; },
       (value) => { value.authoring.sourceAllocations[0]!.ownership = { status: "author" }; },
       (value) => { value.authoring.sourceAllocations[0]!.disposition = { status: "author" }; },
       (value) => { value.authoring.incomingDispositions[0]!.disposition = { status: "author" }; },
@@ -1163,7 +1256,7 @@ describe("v3 decomposition map schema", () => {
       sourceId: "sha256:1746baa12ae6a59ab3f2798506769ada531f3c4bd54eddc7b81fe5020bbe4c0e",
       incomingEdgeId: "sha256:6562eeb5557735ce19d452629a0b9dec7c57c0bb75ab5405b2a903699e448038",
       outgoingEdgeId: "sha256:09a2ee82c7ab19d5e8761e65d92c9d2d271afd660910473eea0c19b38fa746c3",
-      cutMapDigest: "sha256:220124864fd22f6743df622ad7c369749208047b9a729349aaff26bd5f30d591",
+      cutMapDigest: "sha256:e8a3305b566ad111c9e4aa677dab076e02b5878cae570b2d339897a6da82fe5c",
       allowedPathsDigest: "sha256:3a7859f5699f28d740ac1a17e3eadc456104ffe68bfd93779ed8e40fdb51100c",
       topologyDigest: "sha256:e82afa273ab2091806eb2b776fba0b97d4d207dc8f4221ba3f505d27980ea1ba",
       sourceArtifactDigest:

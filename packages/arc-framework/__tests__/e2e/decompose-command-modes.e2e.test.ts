@@ -182,6 +182,7 @@ async function writeCompletedCutMap(repo: string): Promise<string> {
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: starter.machine.sourceUnits.map((unit) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned",
@@ -228,6 +229,7 @@ async function writeExtractionCutMap(repo: string): Promise<string> {
         workClass: "Heavy",
       }],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: starter.machine.sourceUnits.map((unit, index) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned",
@@ -283,6 +285,7 @@ async function writeMultiMemberCohortlessCutMap(repo: string): Promise<string> {
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: starter.machine.sourceUnits.map((unit, index) => {
         const destinationId = index % 2 === 0 ? "alpha" : "beta";
         return {
@@ -358,6 +361,7 @@ async function writePartialHeterogeneousCutMap(repo: string): Promise<{
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: starter.machine.sourceUnits.map((unit, index) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned",

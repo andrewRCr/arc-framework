@@ -175,12 +175,14 @@ const OutgoingDispositionSchema = z.discriminatedUnion("kind", [
   DropSchema,
 ]);
 const InternalEdgeSchema = z.strictObject({ from: DecomposeSlugSchema, to: DecomposeSlugSchema });
+const ExternalEdgeSchema = z.strictObject({ from: DecomposeSlugSchema, to: DecomposeSlugSchema });
 
 const StarterAuthoringSchema = z.strictObject({
   shape: AuthorSlotSchema,
   placement: AuthorSlotSchema,
   destinations: AuthorSlotSchema,
   internalEdges: AuthorSlotSchema,
+  externalEdges: AuthorSlotSchema,
   sourceAllocations: z.array(z.strictObject({
     sourceId: DigestSchema,
     ownership: AuthorSlotSchema,
@@ -194,6 +196,7 @@ const CompletedAuthoringSchema = z.strictObject({
   placement: PlacementSchema,
   destinations: z.array(DestinationSchema),
   internalEdges: z.array(InternalEdgeSchema),
+  externalEdges: z.array(ExternalEdgeSchema),
   sourceAllocations: z.array(z.strictObject({
     sourceId: DigestSchema,
     ownership: z.enum(["destination-owned", "cohort-shared"]),
@@ -533,10 +536,12 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
   }
   const destinationIds = authoring.destinations.map(({ destinationId }) => destinationId);
   const internalIds = authoring.internalEdges.map(({ from, to }) => `${from}\0${to}`);
+  const externalIds = authoring.externalEdges.map(({ from, to }) => `${from}\0${to}`);
   const newCount = authoring.destinations.filter(({ kind }) => kind === "new-member").length;
   const existingCount = authoring.destinations.filter(({ kind }) => kind === "existing-home").length;
   const unorderedPath = !ordered(destinationIds) ? "authoring.destinations"
     : !ordered(internalIds) ? "authoring.internalEdges"
+      : !ordered(externalIds) ? "authoring.externalEdges"
       : authoring.incomingDispositions.findIndex(({ disposition }) =>
         disposition.kind === "replace" && !ordered(disposition.replacementTargets)) >= 0
         ? "authoring.incomingDispositions"
@@ -586,6 +591,18 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
           },
         };
       }
+    }
+  }
+  for (const [index, edge] of authoring.externalEdges.entries()) {
+    if (!dependencyRecipients.has(edge.from)) {
+      return {
+        status: "rejected",
+        issue: {
+          code: "authoring-identity",
+          path: `authoring.externalEdges.${index}.from`,
+          message: "Reference one dependency-capable destination declared by authoring.destinations.",
+        },
+      };
     }
   }
   for (const [index, edge] of authoring.incomingDispositions.entries()) {
@@ -679,6 +696,7 @@ export function createV3DecomposeStarterMap(machine: V3DecomposeMachine): V3Deco
       placement: author,
       destinations: author,
       internalEdges: author,
+      externalEdges: author,
       sourceAllocations: machine.sourceUnits.map(({ sourceId }) => ({
         sourceId,
         ownership: author,

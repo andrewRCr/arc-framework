@@ -119,6 +119,7 @@ function atCapAuthorityFixture() {
         workClass: "Light",
       }],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: [{
         sourceId,
         ownership: "destination-owned",

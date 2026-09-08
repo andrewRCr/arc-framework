@@ -329,6 +329,7 @@ function completedSymmetricMap(starter: PublicStarterMap): unknown {
       placement: { kind: "cohort", cohort: "origin" },
       destinations,
       internalEdges: [{ from: "blocked-leaf", to: "selected-leaf" }],
+      externalEdges: [],
       sourceAllocations: starter.machine.sourceUnits.map((unit) => {
         const destinationId = destinationFor(unit.sourceLocator.artifact);
         return {

@@ -307,6 +307,7 @@ Preserve the nonstandard guarantee.
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: machine.sourceUnits.map((unit) => {
         const artifact = unit.sourceLocator.artifact;
         if (options.companionCoverage !== true || artifact === "draft-origin.md") {
@@ -485,6 +486,7 @@ async function activeExtractionRepository(
         workClass: "Heavy" as const,
       }],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: machine.sourceUnits.map((unit, index) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned" as const,
@@ -781,6 +783,7 @@ Prove the direct-base retirement.
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: machine.sourceUnits.map((unit, index) => {
         const destinationId = index % 2 === 0 ? "alpha" : "beta";
         return {
@@ -875,6 +878,7 @@ async function copiedRealNotesRepository() {
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: machine.sourceUnits.map((unit) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned" as const,

@@ -101,6 +101,7 @@ function fixture(specText = [
         workClass: "Light",
       }],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: sourceUnits.map((unit) => {
         const locator = unit.sourceLocator;
         const artifact = unit.sourcePath.split("/").at(-1)!;
