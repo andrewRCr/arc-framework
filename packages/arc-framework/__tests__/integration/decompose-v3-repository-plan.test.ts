@@ -259,6 +259,7 @@ async function activeExtractionRepository(
   profile: "draft" | "single-spec" | "paired-spec",
   provisionalTask: boolean,
   incoming = false,
+  extraCompanions = false,
 ) {
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-extraction-plan-"));
   roots.push(repo);
@@ -300,6 +301,11 @@ async function activeExtractionRepository(
     await write(repo, `.arc/active/${artifact}`, designBodies[index]!);
   }
   await write(repo, ".arc/active/tasks-origin.md", designBodies[0]!);
+  if (extraCompanions) {
+    await write(repo, ".arc/active/assurance-origin.md", "# Assurance\n\nPreserve exactly.\n");
+    await write(repo, ".arc/active/draft-origin.md", "# Retired draft\n\nPreserve exactly.\n");
+    await write(repo, ".arc/active/notes-origin.md", "# Notes\n\nPreserve exactly.\n");
+  }
   await write(repo, ".arc/active/meta-origin.md", renderMetaFile("origin", {
     state: "Active",
     owner: "andrew",
@@ -704,6 +710,61 @@ describe("Git v3 repository plan", () => {
         })],
       },
     });
+  });
+
+  it("rebuilds Active finish authority with inventory-only companions", async () => {
+    const fixture = await activeExtractionRepository("single-spec", false, false, true);
+    const companionPaths = [
+      ".arc/active/assurance-origin.md",
+      ".arc/active/draft-origin.md",
+      ".arc/active/notes-origin.md",
+      ".arc/active/tasks-origin.md",
+    ];
+    expect(fixture.preflight.sourceArtifactInventory.map(({ path }) => path))
+      .toEqual([...companionPaths, ".arc/active/meta-origin.md", ".arc/active/spec-origin.md"].sort());
+    expect(new Set(fixture.preflight.starterMap.machine.sourceUnits.map(({ sourcePath }) => sourcePath)))
+      .toEqual(new Set([".arc/active/spec-origin.md"]));
+    const companionBytes = new Map(await Promise.all(companionPaths.map(async (path) => [
+      path,
+      await readBlob(fixture.repo, "feat/origin", path),
+    ] as const)));
+    const staged = await executeGitV3ExtractionOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: fixture.completedMap,
+    });
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+      throw new Error(JSON.stringify(staged));
+    }
+    roots.push(staged.operation.occupation.path);
+    await git(staged.operation.occupation.path, ["commit", "-m", "land companion extraction"]);
+    const candidateHead = (await git(
+      staged.operation.occupation.path,
+      ["rev-parse", "HEAD"],
+    )).trim();
+    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+    const cutMapPath = join(fixture.repo, "companion-cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(fixture.completedMap)}\n`);
+
+    const preview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    });
+
+    expect(preview.status, JSON.stringify(preview)).toBe("previewed");
+    if (preview.status !== "previewed") return;
+    expect(preview.preview.sources.map(({ path }) => path)).toEqual([".arc/active/spec-origin.md"]);
+    for (const [path, bytes] of companionBytes) {
+      expect(bytes).not.toBeNull();
+      await expect(readFile(join(fixture.repo, path))).resolves.toEqual(Buffer.from(bytes ?? []));
+    }
   });
 
   it.each([

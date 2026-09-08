@@ -100,6 +100,80 @@ describe("createGitV3DecomposePreflight", () => {
     expect(snapshot.sourceArtifacts.map(({ path }) => path)).toEqual(selectedPaths);
   });
 
+  it("applies source-kind companion visibility after committed Git discovery", async () => {
+    const base = "refs/heads/main";
+    const source = "refs/heads/plan/origin";
+    const baseHead = "a".repeat(40);
+    const sourceHead = "b".repeat(40);
+    const sourceDirectory = ".arc/active";
+    const sourcePaths = [
+      `${sourceDirectory}/assurance-origin.md`,
+      `${sourceDirectory}/draft-origin.md`,
+      `${sourceDirectory}/meta-origin.md`,
+      `${sourceDirectory}/notes-origin.md`,
+      `${sourceDirectory}/spec-origin.md`,
+      `${sourceDirectory}/tasks-origin.md`,
+    ];
+    const baseMetaPath = ".arc/backlog/planned/origin/meta-origin.md";
+    const baseDraftPath = ".arc/backlog/planned/origin/draft-origin.md";
+    const run = async (state: "Planning" | "Active") => {
+      const blobs = new Map<string, Uint8Array>([
+        [`${baseHead}:${baseMetaPath}`, meta("origin", "Planning", null)],
+        [`${baseHead}:${baseDraftPath}`, encoder.encode("# Draft\n\n## Base\n")],
+        [`${sourceHead}:${sourceDirectory}/meta-origin.md`, meta(
+          "origin",
+          state,
+          "plan/origin",
+          [],
+          { design: ["spec-origin.md"], taskList: null },
+        )],
+        ...sourcePaths
+          .filter((path) => !path.endsWith("/meta-origin.md"))
+          .map((path) => [
+            `${sourceHead}:${path}`,
+            encoder.encode(`# ${path}\n\n## ${path}\n`),
+          ] as const),
+      ]);
+      const listings = new Map([
+        [baseHead, [
+          `100644 blob ${baseMetaPath}`,
+          `100644 blob ${baseDraftPath}`,
+        ].join("\0") + "\0"],
+        [sourceHead, sourcePaths.map((path) => `100644 blob ${path}`).join("\0") + "\0"],
+      ]);
+      return await createGitV3DecomposePreflight({
+        cwd: "/repo",
+        exec: async (_command, args) => {
+          if (args[0] === "for-each-ref") {
+            return { stdout: `${base}\0${baseHead}\0${source}\0${sourceHead}\0`, stderr: "" };
+          }
+          const head = args.find((arg) => /^[0-9a-f]{40}$/u.test(arg));
+          return { stdout: listings.get(head ?? "") ?? "", stderr: "" };
+        },
+        readBlob: async (ref, path) => blobs.get(`${ref}:${path}`) ?? null,
+      }, "main", "origin");
+    };
+
+    const planning = await run("Planning");
+    const active = await run("Active");
+
+    expect(planning.status).toBe("ready");
+    expect(active.status).toBe("ready");
+    if (planning.status !== "ready" || active.status !== "ready") return;
+    expect(planning.preflight.starterMap.machine.planningProfile).toEqual({
+      kind: "single-spec",
+      sourceDesign: ["spec-origin.md"],
+    });
+    expect(active.preflight.starterMap.machine.planningProfile)
+      .toEqual(planning.preflight.starterMap.machine.planningProfile);
+    expect(planning.preflight.sourceArtifactInventory.map(({ path }) => path)).toEqual(sourcePaths);
+    expect(active.preflight.sourceArtifactInventory.map(({ path }) => path)).toEqual(sourcePaths);
+    expect(new Set(planning.preflight.starterMap.machine.sourceUnits.map(({ sourcePath }) => sourcePath)))
+      .toEqual(new Set(sourcePaths.filter((path) => !path.endsWith("/meta-origin.md"))));
+    expect(new Set(active.preflight.starterMap.machine.sourceUnits.map(({ sourcePath }) => sourcePath)))
+      .toEqual(new Set([`${sourceDirectory}/spec-origin.md`]));
+  });
+
   it("infers each sanctioned planning profile from exact metadata pointers and stored artifacts", async () => {
     const cases = [
       {

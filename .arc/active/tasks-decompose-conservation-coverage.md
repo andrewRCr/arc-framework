@@ -358,14 +358,11 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 - _Goal:_ Extraction can observe started-Planning companions for exact authoring while no supported extraction path
   removes or rewrites their bytes.
 
-    - `[ ]` **2.3.a Prove extraction inherits authenticated companion visibility**
-        - Exercise initial Git preflight and finish's `createV3DecomposePreflight()` rebuild against the source-kind
-          policy owned by Task 2.1.b; add no extraction-specific scanner or companion filter.
-        - Build `test-first` (one behavior at a time):
-            - Exclude Active-origin task, notes, draft, and nonstandard companion bytes from the starter map.
-            - Include the same companions for a started-Planning source without changing source-artifact inventory.
-            - Exclude the exact source meta in both paths and preserve profile inference, source selection, and fixed
-              first-mismatch ordering.
+    - `[x]` **2.3.a Prove extraction inherits authenticated companion visibility**
+        - Initial Git preflight now proves that Active sources retain task, notes, draft, and nonstandard companions
+          in authenticated inventory while exposing design units only, whereas started Planning exposes every
+          non-meta companion unit. Finish preview exercises the same rebuild policy and leaves inventory-only Active
+          companions byte-identical without an extraction-specific filter.
 
     - `[ ]` **2.3.b Refuse non-retained companion dispositions in extraction maps**
         - Add the `companion-disposition` decode issue beside `source-shape` in `decodeV3DecomposeCutMap()`, deriving
