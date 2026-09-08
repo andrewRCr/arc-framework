@@ -67,6 +67,11 @@ runner services the memory partition admits, not by CPU.
   the shared-host answer is no-go.
 - **Hosted-only or remote-fleet-only.** The status quo and the immediate fallback throughout the trial. Neither is
   changed here.
+- **Hybrid routing.** Rejected in all three shapes. Routing the trivial jobs to hosted was measured on the remote
+  fleet at about 2 percent relief, because `classify` and `setup` are serial dependencies of the fan-out. Pooling the
+  guest with the VPS slots under one label lets GitHub place a heavy shard on the slow slot, so wall time falls back to
+  VPS speed on a bad draw. Label-splitting E2E shards to the guest and the rest to the VPS is the only shape with
+  merit, and it only exists while the VPS does. One routing variable keeps the swap reversible in one action.
 
 ## Design
 
@@ -169,6 +174,8 @@ the runner and package tooling need. The guest is a disposable host under the ex
 - The incident cause is unattributed. The design removes the two suspected contributors (Dynamic Memory and an
   unpartitioned host) rather than proving either one.
 - Assumes `ARC_CI_LINUX_RUNNER` routes by label as it does for the remote fleet; verified at Phase 4 entry.
+- Offline behavior is an open decision for the spec: when the guest is powered off, heavy jobs either queue until it
+  starts or a scheduled check flips routing to hosted. Today that flip is manual.
 
 ## Scope boundary (Won't Do)
 
