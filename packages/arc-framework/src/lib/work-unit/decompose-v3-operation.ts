@@ -438,22 +438,22 @@ async function revalidatePreparedV3Operation(
     : null;
   const restorationFailed = recovery.kind === "partial-restoration"
     && recovery.status === "failed";
-  const outwardReason = rollbackFailureLocus !== null
-    ? "transition-record-rollback-failed"
-    : restorationFailed ? "partial-restoration-failed" : stagedValidation.reason;
+  const stagedReasonSuperseded = rollbackFailureLocus !== null || restorationFailed;
   return {
     status: "refused",
     stage: rollbackFailureLocus !== null
       || restorationFailed
       ? "restoration"
       : "post-stage-revalidation",
-    reason: outwardReason,
+    reason: rollbackFailureLocus !== null
+      ? "transition-record-rollback-failed"
+      : restorationFailed ? "partial-restoration-failed" : stagedValidation.reason,
     ...(rollbackFailureLocus !== null
       ? { locus: rollbackFailureLocus }
       : restorationFailed
         ? { locus: recovery.path ?? recovery.affectedPaths[0] ?? "partial restoration" }
         : stagedValidation.locus === undefined ? {} : { locus: stagedValidation.locus }),
-    ...(outwardReason !== stagedValidation.reason || stagedValidation.evidence === undefined
+    ...(stagedReasonSuperseded || stagedValidation.evidence === undefined
       ? {}
       : { evidence: stagedValidation.evidence }),
     report: prepared.report,
