@@ -187,7 +187,7 @@ only after every mode has executable coverage.
   evidence through candidate restoration and public emission, while the command boundary alone selects the actionable
   correction.
 
-### `[ ]` **1.5 Prove source-wide remedy totality and all six command boundaries**
+### `[x]` **1.5 Prove source-wide remedy totality and all six command boundaries**
 
 - _Goal:_ The refusal contract cannot silently regress when a new code or prefix path is added, and every public mode
   demonstrates the same failure behavior against a real repository.
@@ -221,11 +221,13 @@ only after every mode has executable coverage.
         - Extended workflow-contract coverage for the cumulative instructions and package/project parity while
           preserving the shipped bare `arc ...` command surface.
 
-    - `[ ]` **1.5.e Run the Phase 1 code-quality checkpoint**
-        - Run targeted TypeScript lint and unit/integration/E2E filters throughout the task, then run both source and
-          test type checks plus focused workflow-contract coverage over the composed member.
-        - Record any failure against the behavior path it invalidates; a primitive-only or code/workflow-divergent
-          green result does not close this phase.
+    - `[x]` **1.5.e Run the Phase 1 code-quality checkpoint**
+        - The composed checkpoint exposed and corrected two stale preflight-handler expectations so selected-mode
+          refusals now assert exact canonical stdout and verbatim stderr while project-root failure remains outside
+          the machine envelope.
+
+- _Outcome:_ Static source totality, composed prefix/evidence coverage, real-repository six-mode execution, and the
+  shipped workflow contract now close the refusal regression surface from producer through operator guidance.
 
 ### `[ ]` **1.6 Close refusal-contract delivery** — validate criteria at member scope
 
