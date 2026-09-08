@@ -951,8 +951,9 @@ async function composeRepositoryPlan(
         retirement.refusal.evidence,
       );
     }
-    if (retirement.riders.length > 0) {
-      return refuse("retirement", retirement.riders[0]?.reason ?? "source-rider");
+    const firstRider = retirement.riders[0];
+    if (firstRider !== undefined) {
+      return refuse("retirement", firstRider.reason, firstRider.path);
     }
     retirements = exclusiveRetirements(retirement, input.resultBaseTree);
   }

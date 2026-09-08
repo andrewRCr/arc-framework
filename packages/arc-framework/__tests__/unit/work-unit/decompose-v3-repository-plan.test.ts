@@ -303,6 +303,65 @@ describe("v3 repository plan projection", () => {
     expect(result.plan.allowedPaths).not.toContain(cohortPath);
   });
 
+  it("keeps an unrelated source-private file visible as a rider", async () => {
+    const input = fixture();
+    const riderPath = ".arc/reference/supporting-origin.md";
+    input.sourceTree[riderPath] = file("# Supporting material\n");
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "retirement",
+        reason: "source-private-added",
+        locus: riderPath,
+      },
+    });
+  });
+
+  it("refuses a changed nonstandard predecessor companion at its exact path", async () => {
+    const input = fixture();
+    const path = ".arc/backlog/planned/origin/assurance-origin.md";
+    const expected = file("# Assurance before\n");
+    const actual = file("# Assurance after\n");
+    input.mergeBaseTree[path] = expected;
+    input.resultBaseTree[path] = actual;
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "retirement",
+        reason: "predecessor-changed",
+        locus: path,
+        evidence: {
+          expected: boundedState(expected),
+          actual: boundedState(actual),
+        },
+      },
+    });
+  });
+
   it("reports the expected and observed source metadata paths", async () => {
     const input = fixture();
     const actualPath = ".arc/backlog/planned/origin/meta-origin.md";

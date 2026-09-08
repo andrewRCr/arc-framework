@@ -308,7 +308,7 @@ _Design decisions:_ Land one generic companion through source discovery and reti
 notes, and extraction behavior. Every specialization reaches a command plan, result report, or finish boundary; no
 scanner or schema primitive closes a lifecycle obligation by itself.
 
-### `[ ]` **2.1 Retire a generic companion through complete source and predecessor discovery**
+### `[x]` **2.1 Retire a generic companion through complete source and predecessor discovery**
 
 - _Goal:_ Any valid Markdown artifact belonging to the origin is selected from both pinned trees and reaches the
   retirement proof without making unrelated supporting documents part of the work unit.
@@ -322,13 +322,13 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           authenticate every non-meta companion unit, while Active sources expose only design units. Exact paths,
           locators, digests, ordering, identity participation, and path-bearing encoding refusals are covered.
 
-    - `[ ]` **2.1.c Carry the same family through predecessor retirement planning**
-        - Feed the complete predecessor group to `planV3RetirementDelta()` while preserving its three-tree version
-          checks and unrelated-file rider classification.
-        - Build `test-first` (one behavior at a time):
-            - Retire an unchanged companion and accept a valid backlog-to-active relocation without a false rider.
-            - Refuse a changed predecessor companion at its exact path.
-            - Keep an unrelated source-private file visible as a rider rather than absorbing it into the group.
+    - `[x]` **2.1.c Carry the same family through predecessor retirement planning**
+        - Repository composition now retires unchanged generic predecessors across backlog-to-active relocation,
+          refuses changed companions with bounded evidence at the exact path, and preserves unrelated files as named
+          source-private riders.
+
+- _Outcome:_ One canonical artifact-family boundary now governs pinned discovery, authenticated source units, and
+  retirement planning without absorbing cohort documents or unrelated supporting material.
 
 ### `[ ]` **2.2 Allocate task-list phases through preflight and retirement**
 
