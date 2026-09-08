@@ -100,6 +100,7 @@ const rawGitCommandPaths = [
   "resume",
   "review chunking resolve",
   "review change-request resolve",
+  "review planning-grooming resolve",
   "review planning-lane",
   "review pre-publication",
   "review status",

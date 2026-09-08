@@ -407,15 +407,22 @@ function isPlainPlanningContentChange(change: CanonicalChange): boolean {
   }
 }
 
-/** Reduce canonical exact-ref changes to the planning-clearance lane. */
-export function classifyPlanningLane(changeSet: ChangeSet): "planning" | "reviewed" {
+function classifyPlanningPaths(
+  changeSet: ChangeSet,
+  pathEligible: (path: string) => boolean,
+): "planning" | "reviewed" {
   if (changeSet.changeSet === "unknown") return "reviewed";
   for (const change of changeSet.changes) {
     if (!isPlainPlanningContentChange(change)) return "reviewed";
     const endpoints = [change.path, ...(change.previousPath === undefined ? [] : [change.previousPath])];
-    if (!endpoints.every(isPlanningArtifactPath)) return "reviewed";
+    if (!endpoints.every(pathEligible)) return "reviewed";
   }
   return "planning";
+}
+
+/** Reduce canonical exact-ref changes to the planning-clearance lane. */
+export function classifyPlanningLane(changeSet: ChangeSet): "planning" | "reviewed" {
+  return classifyPlanningPaths(changeSet, isPlanningArtifactPath);
 }
 
 /** Reduce canonical changes to the CI-weight classification. */

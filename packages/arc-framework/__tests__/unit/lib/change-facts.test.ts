@@ -332,4 +332,13 @@ describe("classifyPlanningLane", () => {
       changes: [change(transition, { newMode: "100755" })],
     })).toBe("reviewed");
   });
+
+  it("keeps the shared inbox in the reviewed lane", () => {
+    const sharedInbox = {
+      changeSet: "known" as const,
+      changes: [change(".arc/backlog/ATOMIC-INBOX.md")],
+    };
+
+    expect(classifyPlanningLane(sharedInbox)).toBe("reviewed");
+  });
 });

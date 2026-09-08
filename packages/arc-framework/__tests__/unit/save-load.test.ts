@@ -464,6 +464,78 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
     ]);
   });
 
+  it("batches WU-filter content reads as annotated-note history grows", async () => {
+    const commits = Array.from({ length: 64 }, (_, index) => index.toString(16).padStart(40, "0"));
+    const blobs = Array.from({ length: 64 }, (_, index) => (index + 64).toString(16).padStart(40, "0"));
+    const latest = commits.at(-1) as string;
+    const noteContent = manifestJson({ "wu-a/SESSION-NOTES.md": "café notes 🚀" });
+    const { io, execCalls } = mockIO({
+      head: latest,
+      annotatedNoteCommits: commits,
+      reachableHeadCommits: commits,
+      maximalCommits: [latest],
+    });
+    const exec = io.exec;
+    io.exec = async (cmd, args, options) => {
+      if (args[0] === "notes" && args[2] === "list") {
+        return {
+          stdout: commits.map((commit, index) => `${blobs[index]} ${commit}`).join("\n"),
+          stderr: "",
+        };
+      }
+      return exec(cmd, args, options);
+    };
+    const execInput = vi.fn(async (args: string[], input: string) => {
+      const requestedBlobs = input.trim().split("\n");
+      expect(requestedBlobs).toEqual(blobs);
+      if (args[1]?.startsWith("--batch-check=")) {
+        return requestedBlobs.map((blob) => (
+          `${blob} blob ${Buffer.byteLength(noteContent, "utf8")}`
+        )).join("\n") + "\n";
+      }
+      expect(args).toEqual(["cat-file", "--batch"]);
+      return requestedBlobs.map((blob) => (
+        `${blob} blob ${Buffer.byteLength(noteContent, "utf8")}\n${noteContent}\n`
+      )).join("");
+    });
+    io.execInput = execInput;
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(result.note?.commit).toBe(latest);
+    expect(execInput).toHaveBeenCalledTimes(2);
+    expect(
+      execCalls.filter(([, args]) => args[0] === "notes" && args[2] === "show"),
+    ).toHaveLength(0);
+  });
+
+  it("retains tolerant per-note reads when batch inspection is unavailable", async () => {
+    const matching = "a".repeat(40);
+    const malformed = "b".repeat(40);
+    const noteContent = manifestJson({ "wu-a/SESSION-NOTES.md": "notes" });
+    const { io, execCalls } = mockIO({
+      head: matching,
+      annotatedNoteCommits: [malformed, matching],
+      reachableHeadCommits: [malformed, matching],
+      maximalCommits: [matching],
+      noteContentByCommit: { [malformed]: null, [matching]: noteContent },
+    });
+    const execInput = vi.fn(async () => "malformed batch output\n");
+    io.execInput = execInput;
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(result.note?.commit).toBe(matching);
+    expect(execInput).toHaveBeenCalledTimes(1);
+    expect(
+      execCalls.filter(([, args]) => args[0] === "notes" && args[2] === "show"),
+    ).toHaveLength(2);
+  });
+
   it("can resolve different commits for whole-tree and per-WU reads over the same notes", async () => {
     const matchingWu = "a".repeat(40);
     const otherWu = "b".repeat(40);

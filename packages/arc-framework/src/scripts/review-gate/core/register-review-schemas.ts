@@ -13,6 +13,7 @@ import { registerAdvisoryRecordSchemas } from "./advisory-records.js";
 import { registerReviewCommandEnvelopeSchemas } from "./review-command-envelope.js";
 import { registerMergeLockCommandEnvelopeSchemas } from "../merge-lock-command-envelope.js";
 import { registerReviewChunkingCommandSchemas } from "./review-chunking-command-schema.js";
+import { registerPlanningGroomingCommandSchemas } from "./planning-grooming-command-schema.js";
 import { registerFrontlineRunCommandSchemas } from "./frontline-run-command-schema.js";
 import { registerFrontlineOutcomeSchema } from "../policy/frontline-outcome.js";
 import { registerLocalReviewPolicySchemas } from "../policy/local-review-policy.js";
@@ -46,6 +47,7 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerReviewSupportCommandSchemas(registry);
   registerMergeLockCommandEnvelopeSchemas(registry);
   registerReviewChunkingCommandSchemas(registry);
+  registerPlanningGroomingCommandSchemas(registry);
   registerFrontlineRunCommandSchemas(registry);
   registerForwardReceiptLedgerSchema(registry);
   registerForwardLifecycleTailSchema(registry);

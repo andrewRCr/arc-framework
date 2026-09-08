@@ -42,6 +42,7 @@ import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
   ReviewChunkingResolveEnvelopeSchema,
+  PlanningGroomingReviewEnvelopeSchema,
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
@@ -61,6 +62,11 @@ import {
   type ReviewChunkingResolveCommandRequest,
   type ReviewChunkingResolveRequest,
 } from "../scripts/review-gate/core/review-chunking-command-schema.js";
+import {
+  REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID,
+  ReviewPlanningGroomingResolveRequestSchema,
+  type ReviewPlanningGroomingResolveRequest,
+} from "../scripts/review-gate/core/planning-grooming-command-schema.js";
 import {
   REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
   FrontlineRunRequestSchema,
@@ -166,6 +172,15 @@ import { resolveReviewHeadRef } from "../scripts/review-gate/core/review-subject
 import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
+import {
+  composePlanningGroomingMethodActivity,
+  resolvePlanningGroomingReviewCommand,
+} from
+  "../scripts/review-gate/policy/planning-grooming-command.js";
+import { readLocalReviewLiveContext } from
+  "../scripts/review-gate/hosts/local/live-context.js";
+import { createLocalReviewMethodFilePort } from
+  "../scripts/review-gate/hosts/local/method-files.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
   HostedRequestEnvelopeSchema,
@@ -351,6 +366,7 @@ const REVIEW_JSON_COMMAND_PATHS = [
 /** Interim schema-discoverable request boundaries; the full family remains owned by P1 design. */
 export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review chunking resolve",
+  "review planning-grooming resolve",
   "review frontline run",
 ] as const;
 
@@ -1158,6 +1174,16 @@ export const reviewCommandInputPolicyDeclarations = [
     )],
   },
   {
+    commandPath: "review planning-grooming resolve", aliases: [], sites: [declareInteractionSite(
+      { file: "lib/change-facts.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "planning-grooming exact diff read", subprocess: "close-stdin",
+      },
+    )],
+  },
+  {
     commandPath: "review frontline run", aliases: [], sites: [
       "scripts/review-gate/providers/coderabbit/executable.ts",
       "scripts/review-gate/providers/coderabbit/process.ts",
@@ -1242,6 +1268,92 @@ export async function handleReviewPlanningLane(
     return;
   }
   dependencies.write(`${result}\n`);
+}
+
+export interface ReviewPlanningGroomingResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  resolve(
+    request: ReviewPlanningGroomingResolveRequest,
+    root: string,
+    interaction: InteractionContext,
+  ): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewPlanningGroomingResolveDependencies(
+): ReviewPlanningGroomingResolveHandlerDependencies {
+  return {
+    ...defaultReviewHandlerBoundary(),
+    resolve: async (request, root, interaction) => {
+      const exec = createGitExec(interaction.subprocess);
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const [repositoryId, config] = await Promise.all([
+        resolveRepositoryIdentity(publisher),
+        readConfigSettings(root),
+      ]);
+      const target = await deriveLocalReviewTarget({
+        exec,
+        cwd: root,
+        repositoryId,
+        baseRef: config.settings["branch.base"],
+      });
+      const [changeSet, live] = await Promise.all([
+        resolveChangeSet(createRawGitExec(root), target.diffBaseSha, target.headSha),
+        readLocalReviewLiveContext({ exec, cwd: root }),
+      ]);
+      const context = live.context.workUnit === null && live.context.errand !== null
+        ? (() => {
+            const activity = composePlanningGroomingMethodActivity(
+              createLocalReviewMethodFilePort({ cwd: root }),
+            );
+            return {
+              state: "resolved" as const,
+              assurance: { workContext: "errand" as const, workClass: "none" as const },
+              activity: activity.activity,
+              diagnostics: activity.diagnostics,
+            };
+          })()
+        : {
+            state: "not-applicable" as const,
+            reason: "transient-vehicle-required" as const,
+          };
+      return resolvePlanningGroomingReviewCommand({ request, target, changeSet, context });
+    },
+  };
+}
+
+/**
+ * Resolve one exact transient planning-grooming change to a closed exemption or
+ * a fail-closed continuation into the ordinary review protocol.
+ */
+export async function handleReviewPlanningGroomingResolve(
+  source: string,
+  overrides: Partial<ReviewPlanningGroomingResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = {
+    ...defaultReviewPlanningGroomingResolveDependencies(),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode: "review-planning-grooming-resolve",
+    source,
+    requestSchema: ReviewPlanningGroomingResolveRequestSchema,
+    resultSchema: PlanningGroomingReviewEnvelopeSchema,
+    dependencies,
+    execute: (request, root) => dependencies.resolve(
+      ReviewPlanningGroomingResolveRequestSchema.parse(request),
+      root,
+      context,
+    ),
+  });
 }
 
 interface ReviewHandlerBoundary {
@@ -2210,6 +2322,7 @@ export async function handleReviewFrontlineRun(
 
 export type ReviewPublicRequestSchemaId =
   | typeof REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
   | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID;
 
 /** Emit one public request root together with the complete registry bundle its refs require. */
