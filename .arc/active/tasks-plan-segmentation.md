@@ -317,34 +317,24 @@ types the segment verifier as a segment-scope verification task.
 - _Outcome:_ both the execution fire-point and formatting definition preserve retiring-phase ownership through
   completion, keeping live scaffolding tied to its removal boundary.
 
-### `[ ]` **6.2 Install the testing-standards method — D10, D13**
+### `[x]` **6.2 Install the testing-standards method — D10, D13**
 
 - _Goal:_ the execution-time owner of the fail-first invariants reaches the projects whose installed workflow
   already declares it, so the fire-point split below lands where its rationale says it does.
 
-- _Context:_ three installed surfaces reference the method and none of them installs it — the task-loop workflow
-  declares it in frontmatter, carries a link definition to it, and twice tells the executing agent to load it; the
-  test-first method links it as its counterpart; the method index tables it. The corpus trigger audit cannot see
-  the gap, because it reads a project instance where the file is present.
+    - `[x]` **6.2.a Add the method to the install set and the configurable classification**
+        - `testing-standards.md` now resolves from the install recipe as a core Configurable method
 
-- _Approach:_ install it as a per-file configurable method, the classification every other method carrying an
-  override slot already uses — installing it as a framework file would put a project's own override at odds with
-  the drift check. Configurable files sit outside that check either way, so the two copies stay hand-synced under
-  the same rule as the test-first method beside it.
+    - `[x]` **6.2.b Reconcile the recipe-derived installed-file inventory**
+        - the self-hosting manifest records the method's core Configurable baseline, and the package-sync strategy
+          now inventories 101 Framework, 43 Configurable, and 4 Scaffolded files — 148 installed total
 
-    - `[ ]` **6.2.a Add the method to the install set and the configurable classification**
+    - `[x]` **6.2.c Reconcile every explicit test inventory to the resulting recipe**
+        - integration init, E2E init, and update inventories now include `testing-standards`; the E2E inventory also
+          includes `validate-criteria`, and the manifest assertion proves every listed method is Configurable
 
-    - `[ ]` **6.2.b Reconcile the recipe-derived installed-file inventory**
-        - record the project instance's manifest entry, then reconcile the package-sync strategy's complete
-          installed Configurable list and counts to the resulting manifest: 101 Framework, 43 Configurable, 4
-          Scaffolded, 148 total
-        - scope is the installed inventory only; package-source files with no recipe disposition remain outside the
-          manifest and outside this task
-
-    - `[ ]` **6.2.c Reconcile every explicit test inventory to the resulting recipe**
-        - add `testing-standards` to the complete method lists in `init.test.ts`, `init.e2e.test.ts`, and
-          `update.test.ts`; also add the already-installed `validate-criteria` entry missing from the E2E list, and
-          retain the direct manifest assertion that every listed method is Configurable
+- _Outcome:_ the task-loop's execution-time testing owner now installs as a core Configurable method, with recipe,
+  self-hosting manifest, documented inventory, and install/update tests agreeing on the 148-file result.
 
 ### `[ ]` **6.3 Mode-sensitive grouping and the widened fail-first rules — D2, D10**
 
