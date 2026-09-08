@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   affectedPaths,
+  classifyPlanningGroomingLane,
   classifyPlanningLane,
   parseRawDiff,
   resolveChangeSet,
@@ -330,6 +331,20 @@ describe("classifyPlanningLane", () => {
     expect(classifyPlanningLane({
       changeSet: "known",
       changes: [change(transition, { newMode: "100755" })],
+    })).toBe("reviewed");
+  });
+
+  it("reserves the shared-inbox carve-out for planning-grooming composition", () => {
+    const sharedInbox = {
+      changeSet: "known" as const,
+      changes: [change(".arc/backlog/ATOMIC-INBOX.md")],
+    };
+
+    expect(classifyPlanningLane(sharedInbox)).toBe("reviewed");
+    expect(classifyPlanningGroomingLane(sharedInbox)).toBe("planning");
+    expect(classifyPlanningGroomingLane({
+      changeSet: "known",
+      changes: [change(".arc/backlog/ATOMIC-INBOX.md", { newMode: "100755" })],
     })).toBe("reviewed");
   });
 });

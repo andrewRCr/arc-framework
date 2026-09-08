@@ -1677,13 +1677,16 @@ reviewCmd
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
   .addHelpText("after", `\nRequest JSON:\n  ${planningGroomingResolveHelp}\n`)
-  .action((input: string | undefined, opts: { schema?: boolean }) => {
-    if (opts.schema === true) {
-      handleReviewRequestSchema("review-planning-grooming-resolve-request", input);
-      return;
-    }
-    return handleReviewPlanningGroomingResolve(input ?? "");
-  });
+  .action(withInteractionContext(
+    { machineReadable: true },
+    (context, input: string | undefined, opts: { schema?: boolean }) => {
+      if (opts.schema === true) {
+        handleReviewRequestSchema("review-planning-grooming-resolve-request", input);
+        return;
+      }
+      return handleReviewPlanningGroomingResolve(input ?? "", {}, context);
+    },
+  ));
 
 reviewCmd
   .command("resolve")

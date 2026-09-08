@@ -32,6 +32,8 @@ import {
 } from "../../../src/handlers/review.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
+import { resolveProcessInteractionContext } from
+  "../../../src/lib/command-input/interaction-context.js";
 import { IntegrationBoundaryLocusSchema } from
   "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -390,6 +392,11 @@ describe("handleReviewPlanningGroomingResolve", () => {
   it("emits one validated exemption composed through the handler seam", async () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
+    const interaction = resolveProcessInteractionContext({
+      noInput: true,
+      machineReadable: true,
+      yes: "absent",
+    });
     const resolve = vi.fn(async (parsed: typeof request) =>
       resolvePlanningGroomingReviewCommand({
         request: parsed,
@@ -417,9 +424,9 @@ describe("handleReviewPlanningGroomingResolve", () => {
       resolve,
       write,
       setExitCode,
-    });
+    }, interaction);
 
-    expect(resolve).toHaveBeenCalledWith(request, "/repo");
+    expect(resolve).toHaveBeenCalledWith(request, "/repo", interaction);
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "review-planning-grooming-resolve",
       state: "exempt",

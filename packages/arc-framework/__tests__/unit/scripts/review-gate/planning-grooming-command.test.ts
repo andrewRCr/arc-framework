@@ -97,6 +97,28 @@ describe("resolvePlanningGroomingReviewCommand", () => {
     },
   );
 
+  it("closes both lanes for a disciplined shared-inbox flush", () => {
+    const result = resolvePlanningGroomingReviewCommand({
+      request,
+      target,
+      changeSet: {
+        changeSet: "known",
+        changes: [{
+          status: "modified",
+          path: ".arc/backlog/ATOMIC-INBOX.md",
+          oldMode: "100644",
+          newMode: "100644",
+        }],
+      },
+      context: transientContext,
+    });
+
+    expect(result).toMatchObject({
+      state: "exempt",
+      nextAction: "none",
+    });
+  });
+
   it.each([
     [{ contentKind: "code-bearing" as const }, "recommended"],
     [{ ownership: "foreign" as const }, "required"],

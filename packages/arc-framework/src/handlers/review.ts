@@ -1267,17 +1267,21 @@ export async function handleReviewPlanningLane(
 export interface ReviewPlanningGroomingResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  resolve(request: ReviewPlanningGroomingResolveRequest, root: string): Promise<unknown>;
+  resolve(
+    request: ReviewPlanningGroomingResolveRequest,
+    root: string,
+    interaction: InteractionContext,
+  ): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
 function defaultReviewPlanningGroomingResolveDependencies(
 ): ReviewPlanningGroomingResolveHandlerDependencies {
-  const exec = createGitExec();
   return {
     ...defaultReviewHandlerBoundary(),
-    resolve: async (request, root) => {
+    resolve: async (request, root, interaction) => {
+      const exec = createGitExec(interaction.subprocess);
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const [repositoryId, config] = await Promise.all([
         resolveRepositoryIdentity(publisher),
@@ -1321,7 +1325,13 @@ function defaultReviewPlanningGroomingResolveDependencies(
 export async function handleReviewPlanningGroomingResolve(
   source: string,
   overrides: Partial<ReviewPlanningGroomingResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
   const dependencies = {
     ...defaultReviewPlanningGroomingResolveDependencies(),
     ...overrides,
@@ -1335,6 +1345,7 @@ export async function handleReviewPlanningGroomingResolve(
     execute: (request, root) => dependencies.resolve(
       ReviewPlanningGroomingResolveRequestSchema.parse(request),
       root,
+      context,
     ),
   });
 }
