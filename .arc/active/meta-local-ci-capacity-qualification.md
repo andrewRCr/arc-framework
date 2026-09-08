@@ -47,6 +47,15 @@ informed this draft. Decommissioning the paid VPS allocation stays a separate, a
 decided here. The "Selecting the permanent repository-wide CI architecture" exclusion below narrows accordingly: the
 routing swap on go is in scope; fleet purchase, resize, and decommission remain out.
 
+**Forward amendment (2026-09-08, second):** the trial target moves from a Hyper-V guest on the Windows workstation
+to a Linux VM on the always-on M4 Mac mini already on the desk. Re-measured host accounting showed the 32 GB
+workstation cannot hold a 12 GB WSL cap, its 13 to 15 GB Windows footprint, and a useful guest at once; a RAM
+upgrade is priced out by current memory costs; and a single memory-starved slot would roughly tie the four-slot VPS
+route on wall time. The mini is not a development machine, stays powered on, and will sit idle whenever CI is
+active, which removes the coexistence, reclamation-proof, and guest-offline concerns entirely. The workstation
+Hyper-V design is retained in the draft as the recorded fallback. The scope contract's bullets above are read with
+"Mac mini Linux VM" in place of "Ubuntu Hyper-V guest" and without the local-development coexistence bullet.
+
 ## Out of Scope
 
 - Unconditionally increasing the E2E shard count.
