@@ -11,7 +11,7 @@
 - **Design:** `spec-plan-segmentation.md`
 - **Task List:** `tasks-plan-segmentation.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:077deffb1905f963d7d38524220d90bf3493ccc5cc0f6d30ab99addd3c73a0d5`
+- **Candidate:** `sha256:a5135bc231326dccca478e1c452ee626dc9ade78808e610619de2ef8a22aae9b`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 7.1 — Complete verification — D1–D13
