@@ -302,6 +302,7 @@ function contributorKey(contributor: V3PlanContributor): readonly string[] {
     const kindOrder: Record<string, string> = {
       scaffold: "0",
       "provisional-task": "0",
+      "provisional-notes": "0",
       allocation: "1",
       "existing-home-edit": "1",
     };

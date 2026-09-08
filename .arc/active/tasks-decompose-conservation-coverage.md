@@ -388,17 +388,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 - _Goal:_ An author can place notes content in a real member artifact, and every impossible placement identifies the
   exact member, path, and correction before projection.
 
-    - `[ ]` **2.4.a Scaffold a targeted member notes artifact from the pinned origin**
-        - Extend `newMemberScaffolds()` and `memberArtifactPath()` for `notes`, using `retitleScaffold()` over the
-          pinned origin notes bytes only when an allocation targets that member path.
-        - Build `test-first` (one behavior at a time):
-            - Produce one whole retitled notes scaffold for a targeted member and none for an untargeted member.
-            - Refuse a missing source as `scaffold-source-missing` and a valid UTF-8 source without a title as
-              `scaffold-title-missing` with member and path locus.
-            - Under an Active origin, let a design-unit target request the unscanned notes scaffold and refuse its
-              invalid UTF-8 source as `scaffold-source-invalid-encoding` with member/source locus and conversion plus
-              re-preflight remedy. Rerun refusal-registry source totality in the same leaf.
-            - Keep member meta rendering unchanged because no notes pointer exists.
+    - `[x]` **2.4.a Scaffold a targeted member notes artifact from the pinned origin**
+        - Targeted notes now materialize as one provisional, whole-file scaffold retitled from the pinned origin
+          bytes; untargeted notes remain absent, modes stay stable, and member meta rendering gains no notes pointer.
+          Missing, invalid-UTF-8, and title-less sources retain their member/path refusals and re-preflight remedies.
 
     - `[ ]` **2.4.b Admit notes as a closed content role and provisional contributor**
         - Add `notes` to `V3ContentArtifactRole`, `provisional-notes` to `V3ContentContributorKind`, and their exact

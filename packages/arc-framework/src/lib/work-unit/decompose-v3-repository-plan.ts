@@ -288,7 +288,7 @@ function memberPlacement(map: V3DecomposeCutMap): WorkUnitPlacement {
 function memberArtifactPath(
   placement: WorkUnitPlacement,
   slugInput: string,
-  artifact: "meta" | "draft" | "spec" | "tasks",
+  artifact: "meta" | "draft" | "spec" | "tasks" | "notes",
 ): string {
   return resolveArcPath({
     kind: "work-unit-artifact",
@@ -512,10 +512,11 @@ function newMemberScaffolds(
       });
       states[taskPath] = after;
     }
+    const notesPath = memberArtifactPath(placement, destination.slug, "notes");
     const notesTargeted = map.authoring.sourceAllocations.some((allocation) =>
       allocation.disposition.kind === "target"
       && allocation.disposition.destinationId === destination.destinationId
-      && allocation.disposition.targetLocator.artifact === `notes-${destination.slug}.md`);
+      && allocation.disposition.targetLocator.artifact === posix.basename(notesPath));
     if (notesTargeted) {
       const scaffold = scaffoldSource(
         map,
@@ -524,6 +525,20 @@ function newMemberScaffolds(
         `notes-${map.machine.source.origin}.md`,
       );
       if (scaffold.status === "refused") return scaffold;
+      const after = { ...scaffold.source, bytes: scaffold.bytes };
+      content.push({
+        path: notesPath,
+        destinationId: destination.destinationId,
+        destinationKind: destination.kind,
+        artifactRole: "notes",
+        contributorKind: "provisional-notes",
+        disposition: "whole-file",
+        sourceProjection: [],
+        base: ABSENT,
+        before: ABSENT,
+        after,
+      });
+      states[notesPath] = after;
     }
   }
   return { status: "scaffolded", content, states };

@@ -16,6 +16,7 @@ import {
 import {
   v3PreflightId,
   v3SourceArtifactDigest,
+  type V3DecomposeCutMap,
 } from "../../../src/lib/work-unit/decompose-v3-schema.js";
 
 const encoder = new TextEncoder();
@@ -50,6 +51,7 @@ function stored(path: string, content: string): V3DecomposeStoredArtifact {
 function fixture(options: {
   sourceState?: "Planning" | "Active";
   taskList?: string;
+  notes?: string;
 } = {}) {
   const origin = "origin";
   const member = "member";
@@ -105,6 +107,9 @@ Medium.
     ...(options.taskList === undefined
       ? []
       : [stored(".arc/active/tasks-origin.md", options.taskList)]),
+    ...(options.notes === undefined
+      ? []
+      : [stored(".arc/active/notes-origin.md", options.notes)]),
   ];
   const preflight = createV3DecomposePreflight({
     origin,
@@ -126,6 +131,9 @@ Medium.
         ...(options.taskList === undefined
           ? []
           : [stored(".arc/backlog/planned/origin/tasks-origin.md", options.taskList)]),
+        ...(options.notes === undefined
+          ? []
+          : [stored(".arc/backlog/planned/origin/notes-origin.md", options.notes)]),
       ],
       incomingEdges: [],
       outgoingEdges: [],
@@ -150,7 +158,7 @@ Medium.
   });
   if (preflight.status !== "ready") throw new Error(`preflight failed: ${preflight.reason}`);
   const machine = preflight.preflight.starterMap.machine;
-  const completedMap = {
+  const completedMap: V3DecomposeCutMap = {
     schemaVersion: 3 as const,
     machine,
     authoring: {
@@ -195,6 +203,9 @@ Medium.
     ...(options.taskList === undefined
       ? {}
       : { ".arc/backlog/planned/origin/tasks-origin.md": file(options.taskList) }),
+    ...(options.notes === undefined
+      ? {}
+      : { ".arc/backlog/planned/origin/notes-origin.md": file(options.notes) }),
     ".arc/reference/shared.txt": file("shared\n"),
   };
   const sourceTree: V3RepositoryPlanTree = {
@@ -203,6 +214,9 @@ Medium.
     ...(options.taskList === undefined
       ? {}
       : { ".arc/active/tasks-origin.md": file(options.taskList) }),
+    ...(options.notes === undefined
+      ? {}
+      : { ".arc/active/notes-origin.md": file(options.notes) }),
     ".arc/backlog/ROADMAP.md": file("# Source roadmap\n"),
     ".arc/reference/shared.txt": file("shared\n"),
   };
@@ -218,6 +232,97 @@ Medium.
 }
 
 describe("v3 repository plan projection", () => {
+  it("scaffolds retitled notes only for the targeted member", async () => {
+    const notes = "# Notes: origin\n\n## Evidence\n\nPreserve exactly.\n";
+    const input = fixture({ notes });
+    for (const unit of input.completedMap.machine.sourceUnits.filter((candidate) =>
+      candidate.sourcePath.endsWith("/notes-origin.md"))) {
+      const allocation = input.completedMap.authoring.sourceAllocations.find(
+        ({ sourceId }) => sourceId === unit.sourceId,
+      );
+      if (allocation === undefined) throw new Error("fixture must allocate every notes unit");
+      allocation.disposition = unit.sourceLocator.kind === "section"
+        ? {
+            kind: "target",
+            destinationId: "member",
+            targetLocator: {
+              ...unit.sourceLocator,
+              artifact: "notes-member.md",
+            },
+          }
+        : { kind: "drop", reason: "member scaffold supplies the notes preamble" };
+    }
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    const notesPath = ".arc/backlog/planned/member/notes-member.md";
+    const notesMutation = result.plan.mutations.find(({ path }) => path === notesPath);
+    expect(notesMutation).toMatchObject({
+      kind: "composed",
+      before: { kind: "absent" },
+      after: { kind: "file", mode: "100644" },
+      contributors: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "content",
+          artifactRole: "notes",
+          contributorKind: "provisional-notes",
+          disposition: "whole-file",
+        }),
+      ]),
+    });
+    if (notesMutation?.kind !== "composed" || notesMutation.after.kind !== "file") {
+      throw new Error("member notes mutation must materialize a file");
+    }
+    const notesDigest = notesMutation.after.contentDigest;
+    const notesBlob = result.blobs.find(({ contentDigest }) => contentDigest === notesDigest);
+    expect(new TextDecoder().decode(notesBlob?.bytes)).toBe(notes.replace("origin", "member"));
+    const memberMeta = result.plan.mutations.find(
+      ({ path }) => path === ".arc/backlog/planned/member/meta-member.md",
+    );
+    if (memberMeta?.kind !== "composed" || memberMeta.after.kind !== "file") {
+      throw new Error("member meta mutation must materialize a file");
+    }
+    const memberMetaDigest = memberMeta.after.contentDigest;
+    const memberMetaBlob = result.blobs.find(({ contentDigest }) => contentDigest === memberMetaDigest);
+    expect(new TextDecoder().decode(memberMetaBlob?.bytes)).not.toMatch(/^- \*\*Notes:\*\*/mu);
+
+    const untargeted = fixture({ notes });
+    for (const unit of untargeted.completedMap.machine.sourceUnits.filter((candidate) =>
+      candidate.sourcePath.endsWith("/notes-origin.md"))) {
+      const allocation = untargeted.completedMap.authoring.sourceAllocations.find(
+        ({ sourceId }) => sourceId === unit.sourceId,
+      );
+      if (allocation === undefined) throw new Error("fixture must allocate every notes unit");
+      allocation.disposition = { kind: "drop", reason: "notes do not belong in this member" };
+    }
+    const untargetedResult = await composeV3RepositoryPlan({
+      completedMap: untargeted.completedMap,
+      currentPreflight: untargeted.preflight,
+      sourceTree: untargeted.sourceTree,
+      mergeBaseTree: untargeted.mergeBaseTree,
+      resultBaseTree: untargeted.resultBaseTree,
+      mergeBases: [untargeted.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+    expect(untargetedResult.status, JSON.stringify(untargetedResult)).toBe("composed");
+    if (untargetedResult.status !== "composed") return;
+    expect(untargetedResult.plan.mutations.some(
+      ({ path }) => path === ".arc/backlog/planned/member/notes-member.md",
+    )).toBe(false);
+  });
+
   it("identifies an incomplete source meta needed for a member scaffold", async () => {
     const input = fixture();
     const path = ".arc/active/meta-origin.md";

@@ -38,6 +38,7 @@ export type V3ContentArtifactRole =
   | "spec"
   | "rfc"
   | "tasks"
+  | "notes"
   | "coordination"
   | "existing-home";
 
@@ -45,6 +46,7 @@ export type V3ContentContributorKind =
   | "scaffold"
   | "allocation"
   | "provisional-task"
+  | "provisional-notes"
   | "existing-home-edit";
 
 type Destination = V3DecomposeCutMap["authoring"]["destinations"][number];
@@ -234,6 +236,9 @@ function destinationRoleIsApplicable(contribution: V3PlannedContentContribution)
   }
   if (contribution.contributorKind === "provisional-task") {
     return contribution.artifactRole === "tasks" && contribution.disposition === "whole-file";
+  }
+  if (contribution.contributorKind === "provisional-notes") {
+    return contribution.artifactRole === "notes" && contribution.disposition === "whole-file";
   }
   if (contribution.contributorKind === "scaffold") {
     return contribution.artifactRole !== "coordination"
