@@ -474,6 +474,10 @@ adversarial-review:
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
+After each returned pass, apply the method's complete-disposition and bounded-continuation protocol. Retain the
+complete source-verified finding/account/action set, `Pass N of M`, stop reason, and any conditional next-pass
+decision in the existing task-list review evidence. This advisory evidence creates no lane-progress record.
+
 ### Canonicalize active delivery authoring
 
 Run this only for a selected delivery-plan candidate in an active Planning flow, after all grounding,

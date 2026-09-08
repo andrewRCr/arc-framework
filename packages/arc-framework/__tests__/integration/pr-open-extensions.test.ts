@@ -468,6 +468,90 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("separates advisory disposition completeness from pass convergence and bounded continuation", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      const prompt = method.match(/\*\*Prompt template:\*\*\s+```text\s+([\s\S]*?)\s+```/u)?.[1];
+      const frontmatter = method.match(/^---\n([\s\S]*?)\n---/u)?.[1];
+      if (prompt === undefined) throw new Error("missing adversarial-review prompt template");
+      if (frontmatter === undefined) throw new Error("missing adversarial-review frontmatter");
+
+      expect(method).toContain("override-active: false");
+      expect(method).toContain("[No override configured]");
+      expect(frontmatter).not.toContain("review-triage");
+
+      expect(normalized).toContain("completeness is a property of the disposition backlog");
+      expect(normalized).toContain("every reported finding has one approved disposition");
+      expect(normalized).toContain("including a `reject` disposition for an unsupported finding");
+      expect(normalized).toContain("convergence is a property of the pass result");
+      expect(normalized).toContain("a disposed confirmed `critical` or `major` finding still withholds convergence");
+      expect(normalized).toContain("all-refuted and confirmed-minors-only passes converge");
+      expect(normalized).toContain("a confirmed `minor` never authorizes another pass");
+      expect(normalized).toContain("never raises its verified severity");
+      expect(normalized).toContain("follow-up observation in the converged completion report");
+
+      expect(method).toContain("`Pass N of M`");
+      expect(normalized).toContain("converged, `cap-exhausted`, suspended, or owner-accepted");
+      expect(normalized).toContain("stop before another evaluator invocation");
+      expect(normalized).toContain("same turn as the complete disposition report");
+      expect(normalized).toContain("a recommendation is not authorization");
+      expect(normalized).toContain("names the activity and the next pass");
+      expect(normalized).toContain("authorizes exactly one additional pass");
+      expect(normalized).toContain("disposition approval alone authorizes no additional pass");
+
+      expect(normalized).toContain("existing advisory evidence");
+      expect(normalized).toContain("pending and unusable while any approved response remains incomplete");
+      expect(normalized).toContain("withdrawal or supersession invalidates it");
+      expect(normalized).toContain("consumes that permission");
+      expect(normalized).toContain("replay cannot authorize another pass");
+      expect(normalized).toContain("creates no lane-progress record");
+
+      expect(prompt).not.toMatch(/pass-cap|Pass N of M|cap-exhausted/iu);
+      expect(prompt.toLowerCase().replace(/\s+/gu, " ")).toContain(
+        "do not decide loop state, continuation, or authorization",
+      );
+    }
+  });
+
+  it("keeps the advisory settlement protocol reachable at every direct planning and criteria caller", async () => {
+    const callers = [
+      ["system/workflows/arc/draft-design.md", "draft review evidence"],
+      ["system/workflows/arc/create-spec.md", "spec review evidence"],
+      ["system/workflows/arc/generate-tasks.template.md", "task-list review evidence"],
+      ["system/methods/validate-criteria.md", "ordinary closing-task evidence"],
+    ] as const;
+
+    for (const base of [packageArc, projectArc]) {
+      for (const [packagedPath, evidenceLocus] of callers) {
+        const path = base === projectArc && packagedPath.endsWith("generate-tasks.template.md")
+          ? "system/workflows/arc/generate-tasks.md"
+          : packagedPath;
+        const content = await readFile(resolve(base, path), "utf8");
+        const normalized = content.toLowerCase().replace(/\s+/gu, " ");
+
+        expect(content).toContain("    - adversarial-review");
+        expect(content).toContain("adversarial-review:");
+        expect(normalized).toContain("apply the method's complete-disposition and bounded-continuation protocol");
+        expect(normalized).toContain(evidenceLocus);
+        expect(normalized).toContain("creates no lane-progress record");
+      }
+    }
+
+    const recipe = JSON.parse(
+      await readFile(resolve(root, "packages/arc-framework/init-recipe.json"), "utf8"),
+    ) as { include_files: string[] };
+    for (const path of [
+      "system/methods/adversarial-review.md",
+      "system/methods/validate-criteria.md",
+      "system/workflows/arc/draft-design.md",
+      "system/workflows/arc/create-spec.md",
+      "system/workflows/arc/generate-tasks.template.md",
+    ]) {
+      expect(recipe.include_files).toContain(path);
+    }
+  });
+
   it("retains a bounded contradicted-withstood exercise without claiming behavioral adherence", async () => {
     const fixtureRoot = resolve(
       root,
@@ -490,6 +574,31 @@ describe("PR-open lifecycle extensions", () => {
     expect(exercise).toContain("Do not read `expected.md`");
     expect(expected).toContain("refuse to relay or credit the contradicted entry");
     expect(expected).toContain("only an attended fresh-context run supplies behavioral evidence");
+  });
+
+  it("retains bounded advisory-loop exercises without treating fixtures as behavioral proof", async () => {
+    const fixtureRoot = resolve(root, "packages/arc-framework/__tests__/fixtures/adversarial-review");
+    const cases = [
+      ["unsupported-material", "all-refuted pass converges"],
+      ["fixed-material", "settlement does not rewrite the original pass as converged"],
+      ["over-cap", "stop before another evaluator invocation"],
+      ["conditional-permission", "replay cannot authorize another pass"],
+    ] as const;
+
+    for (const [name, expectedSignal] of cases) {
+      const caseRoot = resolve(fixtureRoot, name);
+      const [scenario, exercise, expected] = await Promise.all([
+        readFile(resolve(caseRoot, "scenario.md"), "utf8"),
+        readFile(resolve(caseRoot, "exercise.md"), "utf8"),
+        readFile(resolve(caseRoot, "expected.md"), "utf8"),
+      ]);
+
+      expect(scenario).toContain("Pass");
+      expect(exercise).toContain("packages/arc-framework/arc/system/methods/adversarial-review.md");
+      expect(exercise).toContain("Do not read `expected.md`");
+      expect(expected.toLowerCase()).toContain(expectedSignal);
+      expect(expected).toContain("only an attended fresh-context run supplies behavioral evidence");
+    }
   });
 
   it("keeps review severity, disposition, and polish orthogonal", async () => {

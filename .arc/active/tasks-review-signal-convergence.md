@@ -117,34 +117,28 @@ of code-review persistence.
 - _Outcome:_ `withstood` now reports selective reviewer attention only, with proportional primary-side verification and
   one source-grounded behavioral observation demonstrating that a contradicted entry is not relayed as clearance.
 
-### `[ ]` **1.3 Close advisory convergence, cap reporting, and caller fire-points**
+### `[x]` **1.3 Close advisory convergence, cap reporting, and caller fire-points**
 
 - _Goal:_ Advisory loops complete approved dispositions, distinguish fresh signal from settlement, and stop at the pass
   cap.
 
-- _Note:_ Spec § 3; § 7 Invocation ownership; SC 3, 4, and 18.
+    - `[x]` **1.3.a Close advisory loop and authority instructions**
 
-- _Approach:_ Keep planning/criteria review non-producer-backed. Change the invoked method, prompt, and actual direct
-  planning/criteria fire-points without changing audit activation policy.
+        - Separated complete approved dispositions from pass-result convergence, added `Pass N of M` and named stop
+          reasons, kept cap state outside evaluator context, and made every successor pass require explicit named
+          authorization. Conditional permission remains pending through unfinished response work, is invalidated by
+          withdrawal or supersession, and is consumed once without creating lane-progress state.
 
-    - `[ ]` **1.3.a Close advisory loop and authority instructions**
+    - `[x]` **1.3.b Verify invocation reachability and behavior**
 
-        - Report `Pass N of M` and name the stop reason, keep the cap out of evaluator context, require a complete
-          approved disposition set, and distinguish recommendation from exactly one named additional-pass
-          authorization. Present the recommendation in the same turn as the disposition report.
+        - Contract checks cover both Framework copies, direct declarations/fire-points, installation, the inactive
+          override, and evaluator-context exclusion. Four attended fresh-context exercises covered unsupported and
+          fixed material findings, over-cap refusal, pending/withdrawn permission, and one-use continuation; verbatim
+          results and the corrected fixed-material oracle are retained in `notes-review-signal-convergence.md`.
 
-        - Retain an explicitly granted conditional next-pass decision in existing advisory evidence. Pending response
-          work preserves but cannot consume it; completion permits the named pass, withdrawal/supersession does not.
-          Disposition approval alone grants no extra pass, and advisory callers acquire no durable lane record.
-
-        - A confirmed `minor` never buys a pass and never justifies raising `verifiedSeverity`; a signal-rich minor
-          appears as a converged-report follow-up observation, not a control state.
-
-    - `[ ]` **1.3.b Verify invocation reachability and behavior**
-
-        - Check declarations, fire-points, installation, and overrides. Exercise unsupported material severity, a fixed
-          material finding, and a tempting over-cap pass in bounded fresh contexts; record deviations. Include pending
-          conditional permission, withdrawal, and one-use continuation after the approved response completes.
+- _Outcome:_ Planning and criteria callers now retain complete advisory judgment, response, pass, and conditional
+  permission evidence without acquiring producer-backed review state. Fresh signal alone establishes convergence;
+  settlement, unused capacity, and confirmed `minor` observations grant no successor pass.
 
 ### `[ ]` **1.4 Verify vocabulary and advisory loop behavior** — validate criteria at member scope
 

@@ -50,9 +50,9 @@ findings to satisfy the assignment: if the artifact holds up, the report says th
 The primary owns validation, disposition, gate decisions, and any edits that land from the pass; findings are
 never applied blindly.
 
-**Loop to convergence.** The primary may run additional fresh passes after addressing confirmed findings. Later
-passes attack the settled artifact and the prior fixes, not only the original report, so the loop can catch
-regressions or second-order breaks before the stage closes.
+**Loop to convergence.** Each returned pass first enters source verification, complete disposition approval, and
+approved response performance. A permitted successor pass attacks the settled artifact and the prior fixes, not only
+the original report, so fresh signal — rather than settlement of old signal — determines convergence.
 
 **Launch-neutral and caller-scaled.** The caller owns launch policy. An offer callout marks a discretionary
 invocation whose recommendation posture and pass cap may scale with the work unit's `Class`; a required invocation
@@ -61,14 +61,15 @@ or replaces its interlock.
 
 ### Invocation contract
 
-The primary agent is the runtime. It marshals the fire-point inputs, spawns each fresh pass, verifies returned
-findings against source, applies dispositions, and decides under the exit gate whether the loop has converged. One
-logical pass uses one fresh reviewer unless the authored-partition or bounded chunk-series carrier applies; each
-reviewer performs one fresh call inside that pass. A reviewer never edits the target, assigns dispositions, closes
-conversations, or attests its own result. It receives only the pass-specific context serialized from the
-subagent-context inputs below; it never receives private loop-control state such as `pass-cap`, convergence
-decisions, or spawn bookkeeping. After the pass returns, only an authorized adapter may attest a completed exact
-target as satisfying evidence.
+The primary agent is the runtime. It marshals the fire-point inputs, spawns each fresh pass, verifies every returned
+finding against source, presents the complete disposition set for approval, performs approved responses, and decides
+under the exit gate whether the loop has converged or stopped. One logical pass uses one fresh reviewer unless the
+authored-partition or bounded chunk-series carrier applies; each reviewer performs one fresh call inside that pass. A
+reviewer never edits the target, assigns dispositions, closes conversations, or attests its own result. It receives
+only the pass-specific context serialized from the subagent-context inputs below; it never receives private
+loop-control state such as `pass-cap`, convergence decisions, or spawn bookkeeping. The primary adds the pass ordinal,
+verified disposition report, continuation recommendation, and stop reason only after the reviewer returns. Only an
+authorized adapter may attest a completed exact target as satisfying evidence.
 
 **Signature — canonical callsite.** The fenced block below is the call expression: a workflow invokes the method
 by instantiating it. Its single top-level key is the method name — the shape that identifies a method call
@@ -171,6 +172,7 @@ artifact is correct, complete, or cleared. Include it only where the absence of 
 is informative; do not enumerate every touched region.
 
 Do not edit the target, assign dispositions, close conversations, or attest the result.
+Do not decide loop state, continuation, or authorization.
 
 Return exactly this report shape:
 {report-schema}
@@ -211,32 +213,59 @@ reads.
 
 **Severity is not disposition.** Severity measures materiality. Disposition is the primary's verified action on a
 finding: fix it in place, carry it forward durably, or drop it. The primary assigns disposition only after source
-verification.
+verification and obtains approval for the complete set before any finding-driven response.
 
-Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. A finding the
-primary has acted on is resolved for the loop; an open finding above `minor` is what blocks convergence.
-Carry-forward is therefore not a fourth severity, and it does not flatten a `critical` or `major` into `minor`.
+Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. Disposing a finding
+settles the approved response backlog; it does not rewrite what the pass surfaced. Carry-forward is therefore not a
+fourth severity, and no disposition flattens a confirmed `critical` or `major` into `minor`.
 
 ### Exit gate
 
-The loop exits by convergence first and by pass cap only as a cost ceiling. Convergence is materiality-based, not
-zero-findings-based.
+Completeness and convergence are independent. Complete the approved response backlog for the current pass before
+closing or continuing the normal loop; then read the pass's verified signal without treating that settlement as new
+review evidence.
 
-**Convergence.** A pass converges when it surfaces no open primary-confirmed finding above `minor`.
+**Completeness.** Completeness is a property of the disposition backlog. Every reported finding has one approved
+disposition, including a `reject` disposition for an unsupported finding. An undisposed refuted or `minor` finding
+therefore leaves completeness open even when the pass signal converges.
+
+**Convergence.** Convergence is a property of the pass result. A pass converges when it surfaces no
+triage-confirmed finding above `minor`, independent of what the primary subsequently did with the findings.
 
 - A zero-finding report is a clean convergence.
-- A report with only `minor` findings may converge after the primary folds or disposes those findings.
-- A `critical` or `major` finding that the primary has fixed, dropped, or carried forward durably is resolved and
-  does not force another pass by itself.
-- An open `critical` or `major` finding prevents convergence.
+- All-refuted and confirmed-minors-only passes converge once the complete disposition set is approved.
+- A disposed confirmed `critical` or `major` finding still withholds convergence; only a later fresh pass can
+  establish a new converged result.
+- A confirmed `minor` never authorizes another pass and never raises its verified severity to manufacture material
+  signal. When it remains unusually informative, name it as a follow-up observation in the converged completion
+  report; that observation is not control state or a permission request.
 
-The `verdict` distinguishes the clean case from the converged-with-minors-folded case.
+The primary-facing report distinguishes clean convergence, converged signal with disposed non-material findings, and
+non-convergence. Disposition settlement never changes which one the completed pass established.
 
-**`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass caps. Stop at the
-first condition reached: convergence or pass cap.
+**`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass caps. Present every
+completed result as `Pass N of M`. Every ended loop names one stop reason: converged, `cap-exhausted`, suspended, or
+Owner-accepted. Owner acceptance is an accepted-risk terminus, not a converged result.
 
-Reaching the cap with live `critical` or `major` findings does not resolve them. Stop the automatic loop and surface
-the unresolved findings at the stage interlock for the user's call.
+At `N == M`, a non-converged pass reports `cap-exhausted`; stop before another evaluator invocation. A converged
+pass completes normally and reports that its allowance is exhausted. Neither outcome bypasses completeness for the
+current pass, and cap exhaustion resolves no material finding.
+
+When another pass may yield useful fresh signal, the primary may recommend it with a cost-and-signal rationale in the
+same turn as the complete disposition report. A recommendation is not authorization. Disposition approval alone
+authorizes no additional pass, and unused capacity under the cap is not permission. Every successor pass requires
+explicit approval naming that activity and pass.
+
+Explicit approval that names the activity and the next pass authorizes exactly one additional pass. When granted in
+the disposition-report turn, retain that separate conditional decision in the caller's existing advisory evidence.
+It is pending and unusable while any approved response remains incomplete. Complete response performance permits the
+named pass; withdrawal or supersession invalidates it, as does an incompatible artifact, activity, or pass binding.
+Launching the named fresh pass consumes that permission, and replay cannot authorize another pass. Any further
+over-cap pass requires fresh approval.
+
+Advisory planning and criteria callers keep the finding/account/action set, conditional decision, response-performance
+check, and consumption fact in their existing evidence. This creates no lane-progress record, code-review operation,
+Candidate, policy binding, or receipt.
 
 **Uniform materiality threshold.** The convergence threshold does not vary by `Class`. `Class` scales the
 recommendation posture and pass cap, not the meaning of material severity.

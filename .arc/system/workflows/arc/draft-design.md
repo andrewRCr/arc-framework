@@ -198,6 +198,10 @@ adversarial-review:
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
+After each returned pass, apply the method's complete-disposition and bounded-continuation protocol. Retain the
+complete source-verified finding/account/action set, `Pass N of M`, stop reason, and any conditional next-pass
+decision in the existing draft review evidence. This advisory evidence creates no lane-progress record.
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
 > approval before persisting `Class` and committing the capture.
