@@ -2847,6 +2847,25 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     expect(result.loadNeeded).toBe(true);
   });
 
+  it("shares one nearest-note discovery across freshness and disk comparison", async () => {
+    const io = buildIO({ refState: "same" });
+    const exec = io.exec;
+    let notesListCalls = 0;
+    io.exec = async (cmd, args, options) => {
+      if (args[0] === "notes" && args[2] === "list") notesListCalls += 1;
+      return exec(cmd, args, options);
+    };
+
+    await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(notesListCalls).toBe(1);
+  });
+
   it("surfaces loadNeeded: false when refs match and disk hash matches note hash", async () => {
     const io = buildIO({ refState: "same", diskMatchesNote: true });
 
