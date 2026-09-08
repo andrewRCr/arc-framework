@@ -132,6 +132,11 @@ describe("v3 decomposition allocation and dependency conservation", () => {
 
   it("accepts paired-spec artifacts owned by a new member", () => {
     const input = validInput();
+    input.completedMap.machine.planningProfile = {
+      kind: "paired-spec",
+      sourceDesign: ["spec-origin-prd.md", "spec-origin-rfc.md"],
+    };
+    rebindCurrentPreflight(input);
     input.completedMap.authoring.sourceAllocations[0]!.disposition = {
       kind: "target",
       destinationId: "member-a",
@@ -141,6 +146,81 @@ describe("v3 decomposition allocation and dependency conservation", () => {
     expect(validateV3DecomposeConservation(input)).toMatchObject({
       status: "validated",
     });
+  });
+
+  it.each([
+    "draft-member-a.md",
+    "tasks-member-a.md",
+    "notes-member-a.md",
+  ])("accepts the member content artifact %s", (artifact) => {
+    const input = validInput();
+    input.completedMap.authoring.sourceAllocations[0]!.disposition = {
+      kind: "target",
+      destinationId: "member-a",
+      targetLocator: { artifact, kind: "preamble" },
+    };
+
+    const result = validateV3DecomposeConservation(input);
+    expect(result, JSON.stringify(result)).toMatchObject({ status: "validated" });
+  });
+
+  it.each([
+    "meta-member-a.md",
+    "context-member-a.md",
+    "draft-member-b.md",
+  ])("refuses the non-member content artifact %s", (artifact) => {
+    const input = validInput();
+    input.completedMap.authoring.sourceAllocations[0]!.disposition = {
+      kind: "target",
+      destinationId: "member-a",
+      targetLocator: { artifact, kind: "preamble" },
+    };
+
+    expect(validateV3DecomposeConservation(input)).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "ownership",
+        reason: "incompatible-allocation-locator",
+        locus: "authoring.sourceAllocations.0.disposition.targetLocator",
+      },
+    });
+  });
+
+  it("preserves exact document targeting for an existing-home destination", () => {
+    const input = validInput();
+    input.completedMap.authoring.shape = "heterogeneous";
+    input.completedMap.authoring.destinations.unshift({
+      kind: "existing-home",
+      destinationId: "existing",
+      target: { kind: "document", path: ".arc/reference/shared.md" },
+    });
+    input.completedMap.authoring.sourceAllocations[0]!.disposition = {
+      kind: "target",
+      destinationId: "existing",
+      targetLocator: { artifact: "shared.md", kind: "preamble" },
+    };
+
+    const result = validateV3DecomposeConservation(input);
+    expect(result, JSON.stringify(result)).toMatchObject({ status: "validated" });
+  });
+
+  it("preserves exact artifact and ownership targeting for cohort coordination", () => {
+    const input = validInput();
+    input.completedMap.authoring.destinations.unshift({
+      kind: "cohort-coordination",
+      destinationId: "coordination",
+      cohort: "origin",
+    });
+    const allocation = input.completedMap.authoring.sourceAllocations[0]!;
+    allocation.ownership = "cohort-shared";
+    allocation.disposition = {
+      kind: "target",
+      destinationId: "coordination",
+      targetLocator: { artifact: "cohort-origin.md", kind: "preamble" },
+    };
+
+    const result = validateV3DecomposeConservation(input);
+    expect(result, JSON.stringify(result)).toMatchObject({ status: "validated" });
   });
 
   it("refuses duplicate destination identities before allocation projection", () => {

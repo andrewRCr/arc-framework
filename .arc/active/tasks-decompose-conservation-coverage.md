@@ -398,14 +398,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           allocated patches, binds contributor identity to the notes role, rejects role, disposition, identity, and
           duplicate-owner mismatches, and preserves deterministic ordering for every pre-existing contributor kind.
 
-    - `[ ]` **2.4.c Close compatible member destinations over content-bearing roles**
-        - Replace the suffix-only `artifactBelongsToWorkUnit()` test with the member's design, tasks, and notes
-          artifact set in `decompose-v3-conservation.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Admit design, task, and notes locators for the exact member.
-            - Refuse `meta-<member>.md`, an unknown prefix, and another member's artifact as
-              `incompatible-allocation-locator`.
-            - Preserve existing-home and cohort-coordination destination rules.
+    - `[x]` **2.4.c Close compatible member destinations over content-bearing roles**
+        - New-member allocations now admit only the profile-specific design artifacts plus task and notes content;
+          member meta, arbitrary suffix matches, and another member's artifacts refuse at the exact locator, while
+          existing-home and cohort-coordination destination rules remain unchanged.
 
     - `[ ]` **2.4.d Report the notes scaffold as an authoring destination**
         - Carry `provisional-notes` through `decompose-v3-result-report.ts` beside `provisional-task` without making

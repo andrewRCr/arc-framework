@@ -84,19 +84,35 @@ function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
-function artifactBelongsToWorkUnit(artifact: string, slug: string): boolean {
+function artifactBelongsToExistingWorkUnit(artifact: string, slug: string): boolean {
   return artifact.endsWith(`-${slug}.md`)
     || artifact === `spec-${slug}-prd.md`
     || artifact === `spec-${slug}-rfc.md`;
 }
 
+function artifactBelongsToNewMember(
+  artifact: string,
+  slug: string,
+  profile: V3DecomposeCutMap["machine"]["planningProfile"],
+): boolean {
+  const designArtifacts = profile.kind === "draft"
+    ? [`draft-${slug}.md`]
+    : profile.kind === "single-spec"
+      ? [`spec-${slug}.md`]
+      : [`spec-${slug}-prd.md`, `spec-${slug}-rfc.md`];
+  return designArtifacts.includes(artifact)
+    || artifact === `tasks-${slug}.md`
+    || artifact === `notes-${slug}.md`;
+}
+
 function locatorBelongsToDestination(
+  map: V3DecomposeCutMap,
   destination: V3DecomposeCutMap["authoring"]["destinations"][number],
   locator: V3SourceTargetLocator,
 ): boolean {
   const artifact = locator.artifact;
   if (destination.kind === "new-member") {
-    return artifactBelongsToWorkUnit(artifact, destination.slug);
+    return artifactBelongsToNewMember(artifact, destination.slug, map.machine.planningProfile);
   }
   if (destination.kind === "cohort-coordination") {
     return artifact === `cohort-${destination.cohort.split("/").at(-1)}.md`;
@@ -107,7 +123,7 @@ function locatorBelongsToDestination(
   if (destination.target.kind === "draft-block") {
     return canonicalDigest(destination.target.locator) === canonicalDigest(locator);
   }
-  return artifactBelongsToWorkUnit(artifact, destination.target.slug);
+  return artifactBelongsToExistingWorkUnit(artifact, destination.target.slug);
 }
 
 function destinationIdentity(
@@ -221,7 +237,7 @@ export function validateV3DecomposeConservation(
     }
     if (allocation.disposition.kind === "target"
       && destination !== undefined
-      && !locatorBelongsToDestination(destination, allocation.disposition.targetLocator)) {
+      && !locatorBelongsToDestination(decoded.value, destination, allocation.disposition.targetLocator)) {
       return refuse(
         "ownership",
         "incompatible-allocation-locator",
