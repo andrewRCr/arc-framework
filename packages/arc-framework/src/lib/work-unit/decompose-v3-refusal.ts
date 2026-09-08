@@ -901,6 +901,11 @@ const V3_ADVANCEMENT_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemedyDef
     correction: "Correct the completed map, then retry base advancement",
     command: "invocation",
   },
+  "base-not-descendant": {
+    invariant: "The live result base must descend from the decomposition plan's authenticated base.",
+    correction: "Land or select a descendant base, then retry base advancement",
+    command: "invocation",
+  },
   "candidate-topology-unavailable": {
     invariant: "Base advancement must read the registered candidate-worktree topology.",
     correction: "Restore the worktree registry, then retry base advancement",
@@ -969,6 +974,10 @@ const V3_ADVANCEMENT_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemedyDef
 };
 
 const V3_FINISH_REMEDIES: Readonly<Record<string, V3PreflightRemedyDefinition>> = {
+  "invalid": {
+    invariant: "Extraction finish requires one valid completed extraction map for the invoked origin.",
+    correction: "Correct the completed extraction map, then retry finish",
+  },
   "destination-plan-state": {
     invariant: "Every extraction destination plan must end in a regular file.",
     correction: "Correct the reported destination plan, then retry finish",
@@ -1315,15 +1324,6 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
         "Retry the selected mode",
         invocationArgv(input.invocation),
       );
-    case "base-not-descendant":
-      if (input.invocation.mode === "advance-base") {
-        return spineRemedy(
-          "The live result base must descend from the decomposition plan's authenticated base.",
-          "Land or select a descendant base, then retry base advancement",
-          invocationArgv(input.invocation),
-        );
-      }
-      break;
     case "source-scan": {
       const sourcePath = input.locus ?? "the reported source artifact";
       return spineRemedy(

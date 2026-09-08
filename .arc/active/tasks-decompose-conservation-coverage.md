@@ -234,6 +234,11 @@ only after every mode has executable coverage.
 - _Goal:_ Member 1 has independently reviewable evidence that its public refusal path is complete and that retirement
   cannot cross the uncovered-content floor.
 
+    - `[x]` **1.6.R.a Make finish refusal remedies mode-total**
+        - Added finish-specific remedies for invalid maps and non-descendant bases, moved base ancestry selection into
+          the mode-aware registries, and made source totality require every finish-emitted code to map for preview and
+          apply rather than accepting a mapping from an unrelated mode.
+
     - Run the `validate-criteria.md` member-scope walk for `refusal-contract-and-floor` and record the boundary
       evidence without changing Success Criteria markers.
 

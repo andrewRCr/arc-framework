@@ -370,6 +370,36 @@ describe("v3 decomposition refusals", () => {
   );
 
   it.each([
+    ["map:invalid", /valid completed extraction map/iu],
+    ["base-not-descendant", /live result base.*descend.*extraction plan/iu],
+  ] as const)("maps finish refusal %s in preview and apply", (reason, invariant) => {
+    for (const invocation of [
+      { mode: "finish-preview" as const, origin: "origin", cutMapPath: "map.json" },
+      {
+        mode: "finish-apply" as const,
+        origin: "origin",
+        cutMapPath: "map.json",
+        applyAuthority: `sha256:${"a".repeat(64)}`,
+      },
+    ]) {
+      const remedy = v3DecomposeRemedy({ invocation, reason, locus: "reported-locus" });
+
+      expect(remedy.invariant).toMatch(invariant);
+      expect(remedy.argv).toEqual(invocation.mode === "finish-preview"
+        ? ["arc", "decompose", "origin", "--finish", "map.json"]
+        : [
+            "arc",
+            "decompose",
+            "origin",
+            "--finish",
+            "map.json",
+            "--apply",
+            `sha256:${"a".repeat(64)}`,
+          ]);
+    }
+  });
+
+  it.each([
     ["full-protection-required", "advance"],
     ["map:invalid", "advance"],
     ["candidate-topology-unavailable", "advance"],

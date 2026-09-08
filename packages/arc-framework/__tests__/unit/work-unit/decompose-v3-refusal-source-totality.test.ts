@@ -30,6 +30,9 @@ const INVOCATIONS: readonly V3DecomposeInvocation[] = [
   { mode: "advance-base", origin: "origin", cutMapPath: "map.json" },
 ];
 
+const FINISH_INVOCATIONS = INVOCATIONS.filter((invocation) =>
+  invocation.mode === "finish-preview" || invocation.mode === "finish-apply");
+
 const REFUSAL_STATUSES = new Set(["refused", "rejected", "reauthor", "stale"]);
 const REFUSAL_TYPE_NAME = /(?:Mismatch|RefusalCode|DecomposeResultOccupationRefusal)$/u;
 const REASON_FORWARDERS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
@@ -284,7 +287,10 @@ describe("decomposition refusal source totality", () => {
 
     const failures = [...literals].flatMap(([reason, loci]) => {
       if (!isV3DecomposeMappedReason(reason)) return [`${reason} is unmapped (${[...loci].join(", ")})`];
-      const remedies = INVOCATIONS.flatMap((invocation) => {
+      const finishReachable = [...loci].some((locus) =>
+        locus.startsWith("lib/work-unit/git-decompose-v3-finish.ts:"))
+      const candidateInvocations = finishReachable ? FINISH_INVOCATIONS : INVOCATIONS;
+      const remedies = candidateInvocations.flatMap((invocation) => {
         try {
           return [{
             invocation,
@@ -294,11 +300,15 @@ describe("decomposition refusal source totality", () => {
           return [];
         }
       });
+      if (finishReachable && remedies.length !== candidateInvocations.length) {
+        return [`${reason} is not mapped for every required mode (${[...loci].join(", ")})`];
+      }
       if (remedies.length === 0) return [`${reason} has no invocable remedy (${[...loci].join(", ")})`];
-      const specific = remedies.some(({ invocation, remedy }) => {
+      const isSpecific = ({ invocation, remedy }: (typeof remedies)[number]): boolean => {
         const retry = v3DecomposeRemedy({ invocation, reason: "unexpected-error" });
         return remedy.invariant !== retry.invariant;
-      });
+      };
+      const specific = finishReachable ? remedies.every(isSpecific) : remedies.some(isSpecific);
       return specific ? [] : [`${reason} maps only to the unexpected-error retry (${[...loci].join(", ")})`];
     });
 
