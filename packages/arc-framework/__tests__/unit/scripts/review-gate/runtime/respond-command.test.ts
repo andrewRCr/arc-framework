@@ -1170,11 +1170,16 @@ describe("review response command", () => {
       kind: "frontline-run",
       operationId: record.operationId,
       updatedAt: "2026-07-23T17:00:00Z",
+      repositoryId: records.target.repositoryId,
       targetId: records.target.targetId,
       sourceIdentity: source.sourceId,
-      generation: 0,
+      lineage: {
+        kind: "candidate",
+        candidateId: digest("frontline-candidate"),
+      },
+      logicalPass: 1,
+      retryGeneration: 0,
       outcome: "findings",
-      passCount: 1,
       policyVersion: digest("frontline-policy"),
       sourceBindingId: digest("frontline-source-binding"),
     };

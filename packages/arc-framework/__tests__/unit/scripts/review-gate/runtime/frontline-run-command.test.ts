@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { createFrontlineAdmission } from
+  "../../../../../src/scripts/review-gate/core/frontline-admission.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   ReviewOperationStateSchema,
@@ -10,7 +12,10 @@ import type {
   FrontlineOutcomeStore,
   ReviewOperationStateStore,
 } from "../../../../../src/scripts/review-gate/core/ports.js";
-import { laneProgressOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import {
+  laneProgressOperationId,
+  recordLaneAttempt,
+} from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { reduceReviewRouting } from "../../../../../src/scripts/review-gate/policy/routing.js";
 import { runFrontlineReviewCommand } from "../../../../../src/scripts/review-gate/runtime/frontline-run-command.js";
@@ -55,7 +60,38 @@ const routingFacts = {
   assurance: { workContext: "work-unit", workClass: "Light" },
   activity: { selfReview: true, frontlineReview: true },
 } as const;
-const resolution = {
+const defaultLineage = {
+  kind: "candidate" as const,
+  candidateId: canonicalDigest({ candidate: "frontline-run" }),
+};
+const routing = {
+  facts: routingFacts,
+  decision: reduceReviewRouting(routingFacts),
+};
+const frontlineReview = {
+  schemaVersion: 1 as const,
+  semanticsVersion: "frontline-review/v1" as const,
+  action: "attempt" as const,
+  reasons: ["routine-code"],
+  source,
+  maxPasses: 2 as const,
+  promptText: "Review the aggregate candidate.",
+};
+
+function admissionFor(reviewTarget = target("c"), logicalPass = 2, retryGeneration = 0) {
+  return createFrontlineAdmission({
+    lineage: defaultLineage,
+    target: reviewTarget,
+    routing,
+    frontlineReview,
+    logicalPass,
+    retryGeneration,
+    maxPasses: 2,
+  });
+}
+
+function readyResolution(admission = admissionFor()) {
+  return {
   schemaVersion: 1,
   mode: "review-frontline-resolve",
   diagnostics: [],
@@ -63,22 +99,17 @@ const resolution = {
   nextAction: "run-frontline",
   payload: {
     routing: {
-      facts: routingFacts,
-      decision: reduceReviewRouting(routingFacts),
+      facts: admission.routing.facts,
+      decision: admission.routing.decision,
     },
-    frontlineReview: {
-      schemaVersion: 1,
-      semanticsVersion: "frontline-review/v1",
-      action: "attempt",
-      reasons: ["routine-code"],
-      source,
-      maxPasses: 2,
-      promptText: "Review the aggregate candidate.",
-    },
-    pass: 2,
-    maxPasses: 2,
+    frontlineReview: admission.frontlineReview,
+    pass: admission.logicalPass,
+    maxPasses: admission.maxPasses,
+    admission,
   },
-} as const;
+  } as const;
+}
+const resolution = readyResolution();
 
 function memoryStores(): {
   operationStore: ReviewOperationStateStore;
@@ -134,10 +165,95 @@ function memoryStores(): {
   };
 }
 
+async function admittedRun(reviewTarget = target("c")) {
+  const stores = memoryStores();
+  const admission = admissionFor(reviewTarget);
+  await recordLaneAttempt(stores.operationStore, {
+    lane: "frontline",
+    repositoryId: reviewTarget.repositoryId,
+    changeRequestId: null,
+    headSha: reviewTarget.headSha,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
+    attemptId: admission.operationId,
+    sourceId: source.sourceId,
+    outcome: "pending",
+    consumedPass: false,
+    frontline: { admission, effectiveCoverage: null },
+    now: "2026-09-08T13:00:00Z",
+  });
+  return { stores, resolution: readyResolution(admission) };
+}
+
 describe("frontline run command", () => {
+  it("rejects a schema-valid ready envelope that is not the durable lineage admission", async () => {
+    const stores = memoryStores();
+    const admittedLineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"1".repeat(64)}`,
+    };
+    const admitted = createFrontlineAdmission({
+      lineage: admittedLineage,
+      target: target("c"),
+      routing: resolution.payload.routing,
+      frontlineReview: resolution.payload.frontlineReview,
+      logicalPass: 1,
+      retryGeneration: 0,
+      maxPasses: 2,
+    });
+    await recordLaneAttempt(stores.operationStore, {
+      lane: "frontline",
+      repositoryId: target("c").repositoryId,
+      changeRequestId: null,
+      headSha: target("c").headSha,
+      lineage: admittedLineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: admitted.operationId,
+      sourceId: source.sourceId,
+      outcome: "pending",
+      consumedPass: false,
+      frontline: { admission: admitted, effectiveCoverage: null },
+      now: "2026-09-08T13:00:00Z",
+    });
+    const forged = createFrontlineAdmission({
+      ...admitted,
+      lineage: {
+        kind: "candidate",
+        candidateId: `sha256:${"2".repeat(64)}`,
+      },
+    });
+
+    await expect(runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: target("c"),
+      resolution: {
+        ...resolution,
+        payload: {
+          routing: forged.routing,
+          frontlineReview: forged.frontlineReview,
+          pass: forged.logicalPass,
+          maxPasses: forged.maxPasses,
+          admission: forged,
+        },
+      },
+    }, {
+      confirmSource: async () => source,
+      prepareExecutionTarget: async () => {
+        throw new Error("effect-called");
+      },
+      execute: async () => {
+        throw new Error("effect-called");
+      },
+      ...stores,
+      now: () => "2026-09-08T13:01:00Z",
+    })).rejects.toThrow("frontline ready admission is unavailable");
+  });
+
   it("publishes pending before materializing the checkout", async () => {
     const reviewTarget = target("c");
-    const stores = memoryStores();
+    const { stores, resolution } = await admittedRun(reviewTarget);
     const events: string[] = [];
     const publishOperation = stores.operationStore.publishOperation;
     stores.operationStore.publishOperation = async (state, expectedVersion) => {
@@ -216,7 +332,7 @@ describe("frontline run command", () => {
   });
 
   it("persists stale-target when the exact-head checkout re-derives a different head", async () => {
-    const stores = memoryStores();
+    const { stores, resolution } = await admittedRun();
     const execute = vi.fn();
     const release = vi.fn();
     await expect(runFrontlineReviewCommand({
@@ -254,7 +370,7 @@ describe("frontline run command", () => {
   it("persists stale-target when the exact-head checkout re-derives a different diff base", async () => {
     const attemptedTarget = targetWithBase("a", "c");
     const currentTarget = targetWithBase("e", "c");
-    const stores = memoryStores();
+    const { stores, resolution } = await admittedRun(attemptedTarget);
     const execute = vi.fn();
     const release = vi.fn();
 
@@ -291,13 +407,14 @@ describe("frontline run command", () => {
       lane: "frontline",
       repositoryId: attemptedTarget.repositoryId,
       headSha: attemptedTarget.headSha,
+      lineage: resolution.payload.admission.lineage,
     }))).resolves.toMatchObject({
       state: { kind: "lane-progress", attempts: [{ outcome: "stale-target" }] },
     });
   });
 
   it("persists source-unbound when the ready source registration no longer resolves", async () => {
-    const stores = memoryStores();
+    const { stores, resolution } = await admittedRun();
     const execute = vi.fn();
     await expect(runFrontlineReviewCommand({
       schemaVersion: 1,
@@ -336,7 +453,7 @@ describe("frontline run command", () => {
     "persists %s as a truthful operator-repair terminal",
     async (reasonClass, state, providerResult, executableIdentity) => {
       const reviewTarget = target("c");
-      const stores = memoryStores();
+      const { stores, resolution } = await admittedRun(reviewTarget);
       await expect(runFrontlineReviewCommand({
         schemaVersion: 1,
         target: reviewTarget,
@@ -390,7 +507,7 @@ describe("frontline run command", () => {
         qualifiedVersion: "reviewer/1.0.0",
       },
     }));
-    const stores = memoryStores();
+    const { stores, resolution } = await admittedRun(reviewTarget);
 
     await expect(runFrontlineReviewCommand({
       schemaVersion: 1,

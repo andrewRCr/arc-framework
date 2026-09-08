@@ -1,5 +1,7 @@
 /** Registered command-result envelopes for the public review transition protocol. */
 
+import { isDeepStrictEqual } from "node:util";
+
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
@@ -34,6 +36,7 @@ import {
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
 import { LocalReviewerPayloadSchema } from "./local-review-payload.js";
+import { FrontlineAdmissionSchema } from "./frontline-admission.js";
 import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
 import { HostedRequestResultSchema, HostedTargetSchema } from "../hosted/request.js";
 import { HostedAwaitResultSchema } from "../hosted/await.js";
@@ -347,6 +350,7 @@ const FrontlineReadyPayloadSchema = z.strictObject({
   ...FrontlineResolveBasePayload,
   pass: ReviewPassSchema,
   maxPasses: ReviewPassSchema,
+  admission: FrontlineAdmissionSchema,
 }).superRefine((payload, context) => {
   if (payload.pass > payload.maxPasses) {
     context.addIssue({
@@ -360,6 +364,16 @@ const FrontlineReadyPayloadSchema = z.strictObject({
       code: "custom",
       message: "frontline ready allowance does not match the semantic record",
       path: ["maxPasses"],
+    });
+  }
+  if (payload.pass !== payload.admission.logicalPass
+    || payload.maxPasses !== payload.admission.maxPasses
+    || !isDeepStrictEqual(payload.routing, payload.admission.routing)
+    || !isDeepStrictEqual(payload.frontlineReview, payload.admission.frontlineReview)) {
+    context.addIssue({
+      code: "custom",
+      message: "frontline ready payload must match its durable admission",
+      path: ["admission"],
     });
   }
 });

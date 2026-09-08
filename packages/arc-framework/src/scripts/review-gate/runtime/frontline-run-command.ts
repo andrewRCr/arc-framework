@@ -2,7 +2,8 @@
 
 import { z } from "zod";
 
-import { canonicalDigest, canonicalize } from "../../../lib/kernel/index.js";
+import { canonicalize } from "../../../lib/kernel/index.js";
+import { FrontlineAdmissionSchema } from "../core/frontline-admission.js";
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
 import {
   type ReviewTarget,
@@ -24,7 +25,7 @@ import {
 import {
   normalizeFrontlineOutcome,
 } from "../policy/frontline-outcome.js";
-import { recordFrontlineAttempt } from "../lane-progress.js";
+import { readLaneProgressOwner, recordFrontlineAttempt } from "../lane-progress.js";
 import {
   FrontlineSemanticRecordSchema,
 } from "../policy/frontline-semantic.js";
@@ -116,11 +117,29 @@ export async function runFrontlineReviewCommand(
   if (!("pass" in readyPayload) || !("maxPasses" in readyPayload)) {
     throw new FrontlineRunCommandError("frontline ready resolution lacks its pass binding");
   }
-  const semantic = FrontlineSemanticRecordSchema.parse(readyPayload.frontlineReview);
+  const admission = FrontlineAdmissionSchema.parse(readyPayload.admission);
+  const semantic = FrontlineSemanticRecordSchema.parse(admission.frontlineReview);
   if (semantic.action !== "attempt" || semantic.source === null) {
     throw new FrontlineRunCommandError("frontline ready resolution lacks an executable source");
   }
   const target = validateReviewTarget(request.target);
+  if (canonicalize(target) !== canonicalize(admission.target)) {
+    throw new FrontlineRunCommandError("frontline ready admission is unavailable");
+  }
+  const owner = await readLaneProgressOwner(dependencies.operationStore, {
+    lane: "frontline",
+    repositoryId: target.repositoryId,
+    headSha: target.headSha,
+    lineage: admission.lineage,
+  });
+  const admittedAttempts = owner?.attempts.filter((attempt) => (
+    attempt.attemptId === admission.operationId
+    && attempt.frontline !== undefined
+    && canonicalize(attempt.frontline.admission) === canonicalize(admission)
+  )) ?? [];
+  if (admittedAttempts.length !== 1) {
+    throw new FrontlineRunCommandError("frontline ready admission is unavailable");
+  }
   const source = semantic.source;
   const execute: FrontlineRunExecutionDependencies["execute"] = async () => {
     const prepared = await dependencies.prepareExecutionTarget(target);
@@ -142,8 +161,8 @@ export async function runFrontlineReviewCommand(
                 },
             source,
             target,
-            pass: readyPayload.pass,
-            maxPasses: readyPayload.maxPasses,
+            pass: admission.logicalPass,
+            maxPasses: admission.maxPasses,
           }),
           executableIdentity: null,
         };
@@ -155,8 +174,8 @@ export async function runFrontlineReviewCommand(
             providerResult: { kind: "source-unbound" },
             source,
             target,
-            pass: readyPayload.pass,
-            maxPasses: readyPayload.maxPasses,
+            pass: admission.logicalPass,
+            maxPasses: admission.maxPasses,
           }),
           executableIdentity: null,
         };
@@ -166,8 +185,8 @@ export async function runFrontlineReviewCommand(
         execute: ({ remainingMs, signal }) => dependencies.execute({
           source: confirmed,
           target: executionTarget,
-          pass: readyPayload.pass,
-          maxPasses: readyPayload.maxPasses,
+          pass: admission.logicalPass,
+          maxPasses: admission.maxPasses,
           remainingMs,
           signal,
           reviewRoot: prepared.reviewRoot,
@@ -188,22 +207,14 @@ export async function runFrontlineReviewCommand(
     execute,
     now: () => dependencies.now(),
   }, {
-    target,
-    source,
-    generation: 0,
-    pass: readyPayload.pass,
-    maxPasses: readyPayload.maxPasses,
+    admission,
     lockWaitMs: Math.min(
       MAX_TIMER_DELAY_MS,
       (request.timeoutMs ?? DEFAULT_FRONTLINE_TIMEOUT_MS) + OPERATION_LOCK_COMPLETION_MARGIN_MS,
     ),
-    policyVersion: canonicalDigest({
-      routing: readyPayload.routing,
-      frontlineReview: semantic,
-    }),
   });
   await recordFrontlineAttempt(dependencies.operationStore, {
-    attemptId: terminal.operationId,
+    admission,
     outcome: terminal.outcome,
     now: dependencies.now(),
   });

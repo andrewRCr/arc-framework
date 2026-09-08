@@ -474,8 +474,10 @@ describe("built review protocol", () => {
       COUNT_FILE: countFile,
       PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
     };
+    const { kind, baseRef, diffBaseSha, headSha } = prepared.target;
     const resolved = await invoke(root, ["review", "frontline", "resolve", "-"], {
       schemaVersion: 1,
+      target: { kind, baseRef, diffBaseSha, headSha },
       changeSet: {
         schemaVersion: 1,
         changeSetState: "known",
@@ -488,10 +490,8 @@ describe("built review protocol", () => {
         activity: { selfReview: true, frontlineReview: true },
       },
       invocation: { mode: "force", sourceId: "coderabbit-cli" },
-      maxPasses: 2,
     });
     expect(resolved).toMatchObject({ state: "ready", nextAction: "run-frontline" });
-    const { kind, baseRef, diffBaseSha, headSha } = prepared.target;
     const runRequest = {
       schemaVersion: 1,
       target: { kind, baseRef, diffBaseSha, headSha },

@@ -173,28 +173,14 @@ identity; native bindings preserve exactness without a generic persisted executi
 - _Outcome:_ Local execution now carries one replay-safe logical-pass identity from trusted lineage resolution through
   preparation, attestation, resume, receipt lookup, and lane accounting without a second admission ledger.
 
-### `[ ]` **2.2 Bind frontline pass identity while retaining retry-generation semantics**
+### `[x]` **2.2 Bind frontline pass identity while retaining retry-generation semantics**
 
 - _Goal:_ Frontline retries preserve their logical pass, while fresh same-target passes cannot reuse an earlier outcome.
 
-- _Note:_ Spec § 5 Execution admission; SC 8, 12, and 17.
-
-- _Approach:_ Close `frontline-command.ts`, handler resolve/run composition, `frontline-operation.ts`, and
-  `frontline-run-command.ts` together. Resolve durable admission before execution; existing outcome pass information
-  must agree with it rather than being copied into another persisted object.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Native lineage/pass identity preserves source/target/policy checks and distinct retry generations. Public
-          resolve derives pass/allowance; run rejects forged-but-schema-valid or stale ready inputs.
-
-        - Exact replay returns the matching durable outcome; another pass or contradictory outcome binding refuses
-          reuse.
-
-        - Pending policy/source/evaluator drift cannot implicitly invalidate admission into another generation;
-          explicit new-attempt selection remains separate from safe transport renewal and pending replay.
-
-        - Whole-target frontline coverage remains complete; unsupported incremental execution is not advertised.
+- _Outcome:_ Frontline resolve now derives target, lineage, allowance, logical pass, and retry generation before
+  persisting one complete-coverage admission. Run revalidates that exact pending admission before effects; exact
+  terminal replay is idempotent, while failed deliberate reruns advance only retry generation and contradictory
+  target, source, policy, lineage, pass, or outcome bindings fail closed.
 
 ### `[ ]` **2.3 Persist hosted admission before dispatch and preserve request/await context**
 

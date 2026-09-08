@@ -522,11 +522,16 @@ function frontlineFixture(outcomeKind: "clean" | "findings" | "unavailable" | "p
     operationId: record.operationId,
     updatedAt: "2026-07-23T20:00:00Z",
     kind: "frontline-run",
+    repositoryId: local.target.repositoryId,
     targetId: local.target.targetId,
     sourceIdentity: source.sourceId,
-    generation: 0,
+    lineage: {
+      kind: "candidate",
+      candidateId: digest("frontline-candidate"),
+    },
+    logicalPass: record.outcome.pass,
+    retryGeneration: 0,
     outcome: record.outcome.outcome,
-    passCount: record.outcome.pass,
     policyVersion: digest("frontline-policy"),
     sourceBindingId: digest("source-binding"),
   };

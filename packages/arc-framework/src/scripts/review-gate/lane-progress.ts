@@ -7,6 +7,7 @@ import {
   LaneProgressStateSchema,
   type LaneProgressState,
 } from "./core/operation-state-schema.js";
+import type { FrontlineAdmission } from "./core/frontline-admission.js";
 import type { LaneSubjectLineage } from "./core/lane-admission.js";
 import type { ReviewOperationStateStore } from "./core/ports.js";
 import {
@@ -28,6 +29,11 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
   const pendingHosted = pending.hosted;
   const nextHosted = next.hosted;
   if (pending.outcome !== "pending" || next.outcome === "pending") return false;
+  if (pending.frontline !== undefined || next.frontline !== undefined) {
+    return pending.frontline !== undefined
+      && next.frontline !== undefined
+      && canonicalize(pending.frontline.admission) === canonicalize(next.frontline.admission);
+  }
   if (pending.local !== undefined || next.local !== undefined) {
     return pending.local !== undefined
       && next.local !== undefined
@@ -184,6 +190,7 @@ export async function recordLaneAttempt(
     chunkSeriesComplete?: boolean;
     hosted?: LaneAttempt["hosted"];
     local?: LaneAttempt["local"];
+    frontline?: LaneAttempt["frontline"];
     now: string;
     advancePendingAttempt?: boolean;
     logicalPass?: number;
@@ -213,6 +220,7 @@ export async function recordLaneAttempt(
       ...(input.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: input.chunkSeriesComplete }),
       ...(input.hosted === undefined ? {} : { hosted: input.hosted }),
       ...(input.local === undefined ? {} : { local: input.local }),
+      ...(input.frontline === undefined ? {} : { frontline: input.frontline }),
     };
     if (replay !== undefined && canonicalize(replay) === canonicalize(attempt)) {
       if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
@@ -575,22 +583,39 @@ export function frontlineLaneOutcome(outcome: string, reasonClass: string | null
  */
 export async function recordFrontlineAttempt(
   store: ReviewOperationStateStore,
-  input: { attemptId: string; outcome: FrontlineExecutionOutcome; now: string },
+  input: { admission: FrontlineAdmission; outcome: FrontlineExecutionOutcome; now: string },
 ): Promise<LaneProgressState | null> {
-  const { outcome } = input;
+  const { admission, outcome } = input;
+  const admittedSource = admission.frontlineReview.source;
+  if (admittedSource === null
+    || canonicalize(outcome.target) !== canonicalize(admission.target)
+    || canonicalize(outcome.source) !== canonicalize(admittedSource)
+    || outcome.pass !== admission.logicalPass
+    || outcome.maxPasses !== admission.maxPasses) {
+    throw new Error("frontline outcome does not match its admission");
+  }
   const laneOutcome = frontlineLaneOutcome(outcome.outcome, outcome.reason?.class ?? null);
   if (laneOutcome === null) return null;
+  const complete = laneOutcome === "clean" || laneOutcome === "findings";
   return await recordLaneAttempt(store, {
     lane: "frontline",
     repositoryId: outcome.target.repositoryId,
     changeRequestId: null,
     headSha: outcome.target.headSha,
-    attemptId: input.attemptId,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
+    attemptId: admission.operationId,
     sourceId: outcome.source.sourceId,
     outcome: laneOutcome,
-    consumedPass: laneOutcome === "clean" || laneOutcome === "findings",
-    chunkSeriesComplete: laneOutcome === "clean" || laneOutcome === "findings",
+    consumedPass: complete,
+    chunkSeriesComplete: complete,
+    frontline: {
+      admission,
+      effectiveCoverage: complete ? "complete" : null,
+    },
     now: input.now,
+    advancePendingAttempt: true,
   });
 }
 
@@ -642,6 +667,7 @@ export type LanePolicyAttempt = Pick<
 > & {
   hosted?: LaneAttempt["hosted"];
   local?: LanePolicyLocalBinding;
+  frontline?: LaneAttempt["frontline"];
 };
 
 export type LaneProgressProjection =

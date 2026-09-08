@@ -119,8 +119,14 @@ import {
 } from "../scripts/review-gate/hosts/local/repository-target.js";
 import {
   FrontlineCommandRequestSchema,
+  FrontlineResolveRequestSchema,
   resolveFrontlineCommand,
+  type FrontlineCommandRequest,
+  type FrontlineResolveRequest,
 } from "../scripts/review-gate/policy/frontline-command.js";
+import { LaneSubjectLineageSchema } from "../scripts/review-gate/core/lane-admission.js";
+import { readLocalReviewLiveContext } from
+  "../scripts/review-gate/hosts/local/live-context.js";
 import {
   ReviewPolicyCommandRequestSchema,
   ReviewResolveEnvelopeSchema,
@@ -1504,7 +1510,8 @@ export async function handleReviewResolve(
 export interface ReviewFrontlineResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  resolve(request: unknown, root: string): Promise<unknown>;
+  deriveRequest(request: FrontlineResolveRequest, root: string): Promise<FrontlineCommandRequest>;
+  resolve(request: FrontlineCommandRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -1940,16 +1947,89 @@ async function resolveHostedProgressContext(input: {
 }
 
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
+  const exec = createGitExec();
   return {
     ...defaultReviewHandlerBoundary(),
-    resolve: (request, root) => resolveFrontlineCommand(request, {
-      preferences: createLocalFrontlineSourcePreferenceReader({
-        cwd: root,
-        exec: gitExec,
-        readFile: (path) => readFile(path, "utf8"),
-      }),
-      registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
-    }),
+    deriveRequest: async (request, root) => {
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      return FrontlineCommandRequestSchema.parse({
+        ...request,
+        target: await deriveLocalReviewTargetFromCoordinates({
+          exec,
+          cwd: root,
+          repositoryId,
+          coordinates: request.target,
+        }),
+      });
+    },
+    resolve: async (request, root) => {
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const operationStore = new LocalReviewOperationStateStore(publisher);
+      return resolveFrontlineCommand(request, {
+        preferences: createLocalFrontlineSourcePreferenceReader({
+          cwd: root,
+          exec,
+          readFile: (path) => readFile(path, "utf8"),
+        }),
+        registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
+        operationStore,
+        resolveLineage: async (target, vehicle) => {
+          const live = await readLocalReviewLiveContext({ exec, cwd: root });
+          if (vehicle !== undefined) {
+            if (live.context.workUnit?.identity !== vehicle.workUnitId) {
+              throw new Error("frontline delivery-member lineage authority is unavailable");
+            }
+            const targets = await new RepositoryDeliveryMemberLookup({ exec, cwd: root })
+              .resolveDischargeTargets(vehicle.workUnitId);
+            const matches = targets.status === "resolved"
+              ? targets.targets.filter((candidate) => (
+                  candidate.planId === vehicle.planId
+                  && candidate.deliverableId === vehicle.deliverableId
+                  && candidate.head === vehicle.head
+                  && target.headSha === candidate.head
+                  && target.diffBaseSha === candidate.base
+                ))
+              : [];
+            if (matches.length !== 1) {
+              throw new Error("frontline delivery-member lineage authority is unavailable");
+            }
+            return LaneSubjectLineageSchema.parse({
+              kind: "delivery-member",
+              planId: vehicle.planId,
+              workUnitId: vehicle.workUnitId,
+              deliverableId: vehicle.deliverableId,
+            });
+          }
+          if (live.context.workUnit !== null) {
+            const boundary = (await readSubmissionBoundaryVersioned(
+              root,
+              live.context.workUnit.identity,
+            )).boundary;
+            if (boundary === null || boundary.workUnit !== live.context.workUnit.identity) {
+              throw new Error("frontline Candidate lineage authority is unavailable");
+            }
+            return LaneSubjectLineageSchema.parse({
+              kind: "candidate",
+              candidateId: boundary.candidateId,
+            });
+          }
+          if (live.context.errand === null) {
+            throw new Error("frontline review lineage authority is unavailable");
+          }
+          return LaneSubjectLineageSchema.parse({
+            kind: "head-bound",
+            vehicleKind: "errand",
+            vehicleIdentity: live.context.errand.identity,
+            headSha: target.headSha,
+          });
+        },
+        readMaxPasses: async () => Number((
+          await readConfigSettings(root)
+        ).settings["review.frontline_max_passes"]),
+        now: () => new Date().toISOString(),
+      });
+    },
   };
 }
 
@@ -1968,10 +2048,13 @@ export async function handleReviewFrontlineResolve(
   await executeReviewHandler({
     mode: "review-frontline-resolve",
     source,
-    requestSchema: FrontlineCommandRequestSchema,
+    requestSchema: FrontlineResolveRequestSchema,
     resultSchema: FrontlineResolveEnvelopeSchema,
     dependencies,
-    execute: dependencies.resolve,
+    execute: async (request, root) => dependencies.resolve(
+      await dependencies.deriveRequest(FrontlineResolveRequestSchema.parse(request), root),
+      root,
+    ),
   });
 }
 

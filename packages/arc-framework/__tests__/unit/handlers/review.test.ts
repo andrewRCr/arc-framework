@@ -37,6 +37,8 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createFrontlineAdmission } from
+  "../../../src/scripts/review-gate/core/frontline-admission.js";
 import {
   createLocalReviewAdmission,
 } from "../../../src/scripts/review-gate/core/local-operation.js";
@@ -85,6 +87,47 @@ const routingFacts = {
   assurance: { workContext: "work-unit" as const, workClass: "Light" as const },
   activity: { selfReview: true, frontlineReview: true },
 };
+const frontlineTarget = createReviewTarget({
+  schemaVersion: 2,
+  semanticsVersion: "review-gate/v2",
+  kind: "change-set",
+  repositoryId: "repo-1",
+  baseRef: "main",
+  diffBaseSha: "a".repeat(40),
+  diffBaseTree: "b".repeat(40),
+  headSha: "c".repeat(40),
+  headTree: "d".repeat(40),
+});
+const frontlineRouting = {
+  facts: routingFacts,
+  decision: reduceReviewRouting(routingFacts),
+};
+const frontlineSemanticRecord = {
+  schemaVersion: 1 as const,
+  semanticsVersion: "frontline-review/v1" as const,
+  action: "attempt" as const,
+  reasons: ["routine-code"],
+  source: {
+    sourceId: "review-cli",
+    kind: "command" as const,
+    executable: "reviewer",
+    argv: ["--plain"],
+  },
+  maxPasses: 2,
+  promptText: "Review the aggregate candidate.",
+};
+const frontlineAdmission = createFrontlineAdmission({
+  lineage: {
+    kind: "candidate",
+    candidateId: canonicalDigest({ candidate: "frontline-handler" }),
+  },
+  target: frontlineTarget,
+  routing: frontlineRouting,
+  frontlineReview: frontlineSemanticRecord,
+  logicalPass: 1,
+  retryGeneration: 0,
+  maxPasses: 2,
+});
 const frontlineRunRequest = {
   schemaVersion: 1,
   target: targetCoordinates,
@@ -96,25 +139,13 @@ const frontlineRunRequest = {
     nextAction: "run-frontline",
     payload: {
       routing: {
-        facts: routingFacts,
-        decision: reduceReviewRouting(routingFacts),
+        facts: frontlineAdmission.routing.facts,
+        decision: frontlineAdmission.routing.decision,
       },
-      frontlineReview: {
-        schemaVersion: 1,
-        semanticsVersion: "frontline-review/v1",
-        action: "attempt",
-        reasons: ["routine-code"],
-        source: {
-          sourceId: "review-cli",
-          kind: "command",
-          executable: "reviewer",
-          argv: ["--plain"],
-        },
-        maxPasses: 2,
-        promptText: "Review the aggregate candidate.",
-      },
-      pass: 1,
-      maxPasses: 2,
+      frontlineReview: frontlineAdmission.frontlineReview,
+      pass: frontlineAdmission.logicalPass,
+      maxPasses: frontlineAdmission.maxPasses,
+      admission: frontlineAdmission,
     },
   },
 };
@@ -1387,7 +1418,7 @@ describe("handleReviewFrontlineRun", () => {
     await handleReviewFrontlineRun("-", {
       resolveRoot: () => "/repo",
       readText: async () => JSON.stringify(frontlineRunRequest),
-      deriveRequest: async (request) => ({ ...request, target }),
+      deriveRequest: async (request) => ({ ...request, target: frontlineTarget }),
       run,
       write,
       setExitCode: vi.fn(),
@@ -1449,7 +1480,7 @@ describe("handleReviewFrontlineRun", () => {
         ...frontlineRunRequest,
         resolution,
       }),
-      deriveRequest: async (request) => ({ ...request, target }),
+      deriveRequest: async (request) => ({ ...request, target: frontlineTarget }),
       run: (request) => runFrontlineReviewCommand(request, {
         confirmSource,
         prepareExecutionTarget,

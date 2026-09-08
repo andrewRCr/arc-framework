@@ -2,10 +2,20 @@
 
 import { z } from "zod";
 
+import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   FrontlineResolveEnvelopeSchema,
 } from "../core/review-command-envelope.js";
+import {
+  createFrontlineAdmission,
+  type FrontlineAdmission,
+} from "../core/frontline-admission.js";
+import { ReviewTargetSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import { ReviewTargetCoordinatesSchema } from "../core/review-target-coordinates.js";
+import type { ReviewOperationStateStore } from "../core/ports.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
+import { readLaneProgressOwner, recordLaneAttempt } from "../lane-progress.js";
 import { FrontlineInvocationOverrideSchema } from "./frontline-resolution.js";
 import { resolveFrontlineReview, type FrontlineSemanticRecord } from "./frontline-semantic.js";
 import type {
@@ -14,21 +24,38 @@ import type {
 } from "./frontline-source.js";
 import { resolveReviewRouting, type ReviewRoutingResolution } from "./routing.js";
 
-export const FrontlineCommandRequestSchema = z.strictObject({
+const FrontlineRequestFields = {
   schemaVersion: z.literal(1),
   changeSet: z.unknown(),
   invocation: FrontlineInvocationOverrideSchema,
-  pass: ReviewPassSchema.optional(),
-  maxPasses: ReviewPassSchema.optional(),
-}).superRefine((request, context) => {
-  if (request.pass !== undefined && request.pass > (request.maxPasses ?? 1)) {
+  vehicle: DeliveryReviewMemberVehicleSchema.optional(),
+} as const;
+
+function validateFrontlineRequestVehicle(
+  request: { target: { kind: string }; vehicle?: { kind: "delivery-member" } },
+  context: z.RefinementCtx,
+): void {
+  if ((request.target.kind === "delivery-member") !== (request.vehicle !== undefined)) {
     context.addIssue({
       code: "custom",
-      message: "frontline pass cannot exceed maxPasses",
-      path: ["pass"],
+      path: ["vehicle"],
+      message: "frontline delivery targets require one exact member vehicle",
     });
   }
-});
+}
+
+/** Public frontline resolve request composed only from caller-held facts. */
+export const FrontlineResolveRequestSchema = z.strictObject({
+  ...FrontlineRequestFields,
+  target: ReviewTargetCoordinatesSchema,
+}).superRefine(validateFrontlineRequestVehicle);
+export type FrontlineResolveRequest = z.infer<typeof FrontlineResolveRequestSchema>;
+
+/** Trusted frontline resolve request after repository-local target derivation. */
+export const FrontlineCommandRequestSchema = z.strictObject({
+  ...FrontlineRequestFields,
+  target: ReviewTargetSchema,
+}).superRefine(validateFrontlineRequestVehicle);
 export type FrontlineCommandRequest = z.infer<typeof FrontlineCommandRequestSchema>;
 
 export interface FrontlineCommandResult {
@@ -40,6 +67,7 @@ export interface FrontlineCommandResult {
     frontlineReview: FrontlineSemanticRecord;
     pass?: ReviewPass;
     maxPasses?: ReviewPass;
+    admission?: FrontlineAdmission;
   };
   state: "skipped" | "offered" | "ready";
   nextAction: "none" | "bind-source" | "obtain-authorization" | "run-frontline";
@@ -57,10 +85,46 @@ export async function resolveFrontlineCommand(
   dependencies: {
     preferences: FrontlineSourcePreferenceReader;
     registry: FrontlineSourceRegistry;
+    operationStore: ReviewOperationStateStore;
+    resolveLineage(
+      target: ReviewTarget,
+      vehicle: FrontlineCommandRequest["vehicle"],
+    ): Promise<LaneSubjectLineage>;
+    readMaxPasses(): Promise<number>;
+    now(): string;
   },
 ): Promise<FrontlineCommandResult> {
   const parsed = FrontlineCommandRequestSchema.parse(request);
+  const lineage = await dependencies.resolveLineage(parsed.target, parsed.vehicle);
+  let owner = await readLaneProgressOwner(dependencies.operationStore, {
+    lane: "frontline",
+    repositoryId: parsed.target.repositoryId,
+    headSha: parsed.target.headSha,
+    lineage,
+  });
+  const pending = owner?.attempts.filter((attempt) => (
+    attempt.outcome === "pending" && attempt.frontline !== undefined
+  )) ?? [];
+  if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
+  const pendingAdmission = pending[0]?.frontline?.admission;
+  if (pendingAdmission !== undefined) {
+    return FrontlineResolveEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-frontline-resolve",
+      diagnostics: [],
+      state: "ready",
+      nextAction: "run-frontline",
+      payload: {
+        routing: pendingAdmission.routing,
+        frontlineReview: pendingAdmission.frontlineReview,
+        pass: pendingAdmission.logicalPass,
+        maxPasses: pendingAdmission.maxPasses,
+        admission: pendingAdmission,
+      },
+    });
+  }
   const routing = resolveReviewRouting(parsed.changeSet);
+  const maxPasses = ReviewPassSchema.parse(await dependencies.readMaxPasses());
   const semantic = await resolveFrontlineReview({
     methodActive: routing.facts.activity.frontlineReview,
     routerAction: routing.decision.frontlineAction,
@@ -68,7 +132,7 @@ export async function resolveFrontlineCommand(
     invocation: parsed.invocation,
     preferences: dependencies.preferences,
     registry: dependencies.registry,
-    maxPasses: parsed.maxPasses,
+    maxPasses,
   });
   const payload = {
     routing: { facts: routing.facts, decision: routing.decision },
@@ -107,14 +171,76 @@ export async function resolveFrontlineCommand(
       payload,
     });
   }
+  const logicalPass = ReviewPassSchema.parse((owner?.completedPasses ?? 0) + 1);
+  if (logicalPass > maxPasses) {
+    throw new Error("frontline pass allowance is exhausted");
+  }
+  const admittedSource = semantic.frontlineReview.source;
+  if (admittedSource === null) throw new Error("frontline ready resolution lacks an executable source");
+  const retryGeneration = (owner?.attempts
+    .filter((attempt) => attempt.logicalPass === logicalPass)
+    .reduce((maximum, attempt) => Math.max(maximum, attempt.retryGeneration), -1) ?? -1) + 1;
+  const admission = createFrontlineAdmission({
+    lineage,
+    target: parsed.target,
+    routing: payload.routing,
+    frontlineReview: semantic.frontlineReview,
+    logicalPass,
+    retryGeneration,
+    maxPasses,
+  });
+  try {
+    await recordLaneAttempt(dependencies.operationStore, {
+      lane: "frontline",
+      repositoryId: parsed.target.repositoryId,
+      changeRequestId: null,
+      headSha: parsed.target.headSha,
+      lineage,
+      logicalPass,
+      retryGeneration,
+      attemptId: admission.operationId,
+      sourceId: admittedSource.sourceId,
+      outcome: "pending",
+      consumedPass: false,
+      frontline: { admission, effectiveCoverage: null },
+      now: dependencies.now(),
+    });
+  } catch (error) {
+    owner = await readLaneProgressOwner(dependencies.operationStore, {
+      lane: "frontline",
+      repositoryId: parsed.target.repositoryId,
+      headSha: parsed.target.headSha,
+      lineage,
+    });
+    const concurrent = owner?.attempts.filter((attempt) => (
+      attempt.outcome === "pending" && attempt.frontline !== undefined
+    )) ?? [];
+    const concurrentAdmission = concurrent.length === 1 ? concurrent[0]?.frontline?.admission : undefined;
+    if (concurrentAdmission === undefined) throw error;
+    return FrontlineResolveEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-frontline-resolve",
+      diagnostics: [],
+      state: "ready",
+      nextAction: "run-frontline",
+      payload: {
+        routing: concurrentAdmission.routing,
+        frontlineReview: concurrentAdmission.frontlineReview,
+        pass: concurrentAdmission.logicalPass,
+        maxPasses: concurrentAdmission.maxPasses,
+        admission: concurrentAdmission,
+      },
+    });
+  }
   return FrontlineResolveEnvelopeSchema.parse({
     ...base,
     state: "ready",
     nextAction: "run-frontline",
     payload: {
       ...payload,
-      pass: parsed.pass ?? 1,
-      maxPasses: semantic.frontlineReview.maxPasses,
+      pass: logicalPass,
+      maxPasses,
+      admission,
     },
   });
 }

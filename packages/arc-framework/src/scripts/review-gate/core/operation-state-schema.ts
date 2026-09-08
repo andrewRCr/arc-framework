@@ -16,6 +16,7 @@ import {
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
+import { FrontlineAdmissionSchema } from "./frontline-admission.js";
 import { HostedFindingSchema } from "../hosted/await.js";
 import {
   HostedProviderIdSchema,
@@ -45,9 +46,12 @@ const ReviewVehicleSchema = z.discriminatedUnion("kind", [
 export const FrontlineRunStateSchema = z.strictObject({
   ...OperationEnvelopeShape,
   kind: z.literal("frontline-run"),
+  repositoryId: IdentifierSchema,
   targetId: CanonicalDigestSchema,
   sourceIdentity: IdentifierSchema,
-  generation: z.number().int().nonnegative(),
+  lineage: LaneSubjectLineageSchema,
+  logicalPass: z.number().int().positive(),
+  retryGeneration: z.number().int().nonnegative(),
   outcome: z.enum([
     "pending",
     "clean",
@@ -58,7 +62,6 @@ export const FrontlineRunStateSchema = z.strictObject({
     "stale-target",
     "pass-cap-exhausted",
   ]),
-  passCount: z.number().int().nonnegative(),
   policyVersion: CanonicalDigestSchema,
   sourceBindingId: CanonicalDigestSchema,
 });
@@ -241,6 +244,11 @@ const LocalLaneAttemptBindingSchema = z.strictObject({
   }
 });
 
+const FrontlineLaneAttemptBindingSchema = z.strictObject({
+  admission: FrontlineAdmissionSchema,
+  effectiveCoverage: z.literal("complete").nullable(),
+});
+
 const LaneAttemptSchema = z.strictObject({
   attemptId: IdentifierSchema,
   logicalPass: z.number().int().positive(),
@@ -253,12 +261,14 @@ const LaneAttemptSchema = z.strictObject({
   chunkSeriesComplete: z.boolean().optional(),
   hosted: HostedLaneAttemptBindingSchema.optional(),
   local: LocalLaneAttemptBindingSchema.optional(),
+  frontline: FrontlineLaneAttemptBindingSchema.optional(),
 }).superRefine((attempt, context) => {
-  if (attempt.hosted !== undefined && attempt.local !== undefined) {
+  const bindingCount = [attempt.hosted, attempt.local, attempt.frontline]
+    .filter((binding) => binding !== undefined).length;
+  if (bindingCount > 1) {
     context.addIssue({
       code: "custom",
-      path: ["local"],
-      message: "one lane attempt cannot carry both hosted and local progress",
+      message: "one lane attempt cannot carry multiple source bindings",
     });
   }
   if (attempt.local !== undefined && attempt.sourceId !== "delegated-agent") {
@@ -281,6 +291,35 @@ const LaneAttemptSchema = z.strictObject({
       path: ["sourceId"],
       message: "hosted attempt source must be a hosted provider",
     });
+  }
+  const frontline = attempt.frontline;
+  const frontlineSource = frontline?.admission.frontlineReview.source;
+  if (frontline !== undefined
+    && (frontlineSource === undefined
+      || frontlineSource === null
+      || attempt.attemptId !== frontline.admission.operationId
+      || attempt.logicalPass !== frontline.admission.logicalPass
+      || attempt.retryGeneration !== frontline.admission.retryGeneration
+      || attempt.headSha !== frontline.admission.target.headSha
+      || attempt.sourceId !== frontlineSource.sourceId)) {
+    context.addIssue({
+      code: "custom",
+      path: ["frontline"],
+      message: "frontline progress must match its admitted producer",
+    });
+  }
+  if (frontline !== undefined) {
+    const complete = attempt.outcome === "clean"
+      || attempt.outcome === "findings"
+      || attempt.outcome === "settled-findings";
+    if (complete !== (frontline.effectiveCoverage === "complete")
+      || complete !== attempt.terminalProducer) {
+      context.addIssue({
+        code: "custom",
+        path: ["frontline"],
+        message: "frontline coverage and terminal authority must match a complete result",
+      });
+    }
   }
   if (attempt.outcome === "pending"
     && attempt.hosted !== undefined
@@ -376,6 +415,13 @@ export const LaneProgressStateSchema = z.strictObject({
   attempts: z.array(LaneAttemptSchema),
 }).superRefine((state, context) => {
   state.attempts.forEach((attempt, index) => {
+    if (state.lane === "frontline" && attempt.frontline === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["attempts", index, "frontline"],
+        message: "frontline lane attempts require durable admission",
+      });
+    }
     if (state.lineage.kind === "head-bound" && attempt.headSha !== state.lineage.headSha) {
       context.addIssue({
         code: "custom",
@@ -402,7 +448,27 @@ export const LaneProgressStateSchema = z.strictObject({
         });
       }
     }
+    if (attempt.frontline !== undefined
+      && (state.lane !== "frontline"
+        || attempt.frontline.admission.target.repositoryId !== state.repositoryId
+        || laneSubjectLineageId(attempt.frontline.admission.lineage) !== laneSubjectLineageId(state.lineage))) {
+      context.addIssue({
+        code: "custom",
+        path: ["attempts", index, "frontline"],
+        message: "frontline attempt must remain inside its lane owner",
+      });
+    }
   });
+  const pendingPasses = state.attempts
+    .filter(({ outcome }) => outcome === "pending")
+    .map(({ logicalPass }) => logicalPass);
+  if (new Set(pendingPasses).size !== pendingPasses.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["attempts"],
+      message: "a logical pass may have only one pending source attempt",
+    });
+  }
   const terminalPasses = state.attempts
     .filter(({ terminalProducer }) => terminalProducer)
     .map(({ logicalPass }) => logicalPass);

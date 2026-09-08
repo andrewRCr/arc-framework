@@ -10,6 +10,8 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createFrontlineAdmission } from
+  "../../../../src/scripts/review-gate/core/frontline-admission.js";
 import {
   frontlineLaneOutcome,
   bindHostedAttemptDisposition,
@@ -26,6 +28,8 @@ import {
   settleLaneAttempt,
   settleHostedAttemptFinding,
 } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { reduceReviewRouting } from
+  "../../../../src/scripts/review-gate/policy/routing.js";
 
 const objectId = (character: string): string => character.repeat(40);
 
@@ -728,6 +732,70 @@ const frontlineTarget = createReviewTarget({
   headSha: objectId("c"),
   headTree: objectId("d"),
 });
+const frontlineLineage = {
+  kind: "candidate" as const,
+  candidateId: `sha256:${"1".repeat(64)}`,
+};
+const frontlineSource = {
+  sourceId: "coderabbit",
+  kind: "agent" as const,
+  handle: { capabilityId: "coderabbit" },
+};
+const frontlineFacts = {
+  schemaVersion: 1 as const,
+  changeSetState: "known" as const,
+  contentKind: "code-bearing" as const,
+  reviewRisk: "routine" as const,
+  changeDeterminacy: "ordinary" as const,
+  ownership: "self" as const,
+  surfaceAuthority: "ordinary" as const,
+  assurance: { workContext: "work-unit", workClass: "Light" },
+  activity: { selfReview: true, frontlineReview: true },
+} as const;
+
+function frontlineAdmission() {
+  return createFrontlineAdmission({
+    lineage: frontlineLineage,
+    target: frontlineTarget,
+    routing: {
+      facts: frontlineFacts,
+      decision: reduceReviewRouting(frontlineFacts),
+    },
+    frontlineReview: {
+      schemaVersion: 1,
+      semanticsVersion: "frontline-review/v1",
+      action: "attempt",
+      reasons: ["routine-code"],
+      source: frontlineSource,
+      maxPasses: 2,
+      promptText: "Review the aggregate candidate.",
+    },
+    logicalPass: 1,
+    retryGeneration: 0,
+    maxPasses: 2,
+  });
+}
+
+async function recordPendingFrontline(store: ReturnType<typeof createStore>) {
+  const admission = frontlineAdmission();
+  await recordLaneAttempt(store, {
+    lane: "frontline",
+    repositoryId: frontlineTarget.repositoryId,
+    changeRequestId: null,
+    headSha: frontlineTarget.headSha,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    retryGeneration: admission.retryGeneration,
+    attemptId: admission.operationId,
+    sourceId: frontlineSource.sourceId,
+    outcome: "pending",
+    consumedPass: false,
+    chunkSeriesComplete: false,
+    frontline: { admission, effectiveCoverage: null },
+    now: "2026-08-15T11:59:00Z",
+  });
+  return admission;
+}
 
 function frontlineOutcome(
   outcome: string,
@@ -736,7 +804,7 @@ function frontlineOutcome(
   return {
     schemaVersion: 1,
     semanticsVersion: "frontline-review/v1",
-    source: { sourceId: "coderabbit", kind: "agent", handle: { agent: "coderabbit" } },
+    source: frontlineSource,
     target: frontlineTarget,
     pass: 1,
     maxPasses: 2,
@@ -784,15 +852,16 @@ describe("frontline lane recording", () => {
 
   it("records a concluded frontline attempt against the frontline lane", async () => {
     const store = createStore();
+    const admission = await recordPendingFrontline(store);
     const state = await recordFrontlineAttempt(store, {
-      attemptId: "frontline-attempt-1",
+      admission,
       outcome: frontlineOutcome("unavailable", { class: "rate-limited" }),
       now: "2026-08-15T12:00:00Z",
     });
     expect(state?.lane).toBe("frontline");
     expect(state?.repositoryId).toBe("repo-1");
     expect(state?.attempts).toEqual([{
-      attemptId: expect.any(String),
+      attemptId: admission.operationId,
       logicalPass: 1,
       retryGeneration: 0,
       changeRequestId: null,
@@ -801,14 +870,16 @@ describe("frontline lane recording", () => {
       sourceId: "coderabbit",
       outcome: "rate-limited",
       chunkSeriesComplete: false,
+      frontline: { admission, effectiveCoverage: null },
     }]);
     expect(state?.completedPasses).toBe(0);
   });
 
   it("consumes a pass for a verdict-bearing frontline outcome", async () => {
     const store = createStore();
+    const admission = await recordPendingFrontline(store);
     const state = await recordFrontlineAttempt(store, {
-      attemptId: "frontline-attempt-1",
+      admission,
       outcome: frontlineOutcome("findings", null),
       now: "2026-08-15T12:00:00Z",
     });

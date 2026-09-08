@@ -16,6 +16,10 @@ import {
   createDispositionSet,
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import { createFrontlineAdmission } from
+  "../../../../../src/scripts/review-gate/core/frontline-admission.js";
+import { createReviewTarget } from
+  "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   projectLocalReviewGuidance,
 } from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
@@ -81,8 +85,27 @@ const offeredFrontlineReview = {
 const readyFrontlineReview = {
   ...offeredFrontlineReview,
   action: "attempt",
-  reasons: ["frontline-policy-attempt", "source-project"],
+  reasons: ["frontline-policy-attempt", "source-project"] as string[],
 } as const;
+const readyFrontlineAdmission = createFrontlineAdmission({
+  lineage: { kind: "candidate", candidateId: `sha256:${"b".repeat(64)}` },
+  target: createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: "a".repeat(40),
+    diffBaseTree: "b".repeat(40),
+    headSha: "c".repeat(40),
+    headTree: "d".repeat(40),
+  }),
+  routing,
+  frontlineReview: readyFrontlineReview,
+  logicalPass: 1,
+  retryGeneration: 0,
+  maxPasses: 2,
+});
 const guidance = projectLocalReviewGuidance();
 const request = {
   schemaVersion: 2,
@@ -231,7 +254,13 @@ describe("review command envelopes", () => {
     [FrontlineResolveEnvelopeSchema, {
       ...header("review-frontline-resolve"),
       state: "ready", nextAction: "run-frontline",
-      payload: { routing, frontlineReview: readyFrontlineReview, pass: 1, maxPasses: 2 },
+      payload: {
+        routing,
+        frontlineReview: readyFrontlineReview,
+        pass: 1,
+        maxPasses: 2,
+        admission: readyFrontlineAdmission,
+      },
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),

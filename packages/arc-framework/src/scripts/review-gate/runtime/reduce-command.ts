@@ -342,7 +342,7 @@ async function reduceFrontline(
     || outcome.target.targetId !== state.targetId
     || outcome.source.sourceId !== state.sourceIdentity
     || outcome.outcome !== state.outcome
-    || outcome.pass !== state.passCount) {
+    || outcome.pass !== state.logicalPass) {
     throw new ReduceCommandError("frontline outcome does not match its operation");
   }
   const confirmation = await dependencies.confirmTarget(outcome.target);

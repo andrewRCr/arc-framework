@@ -456,7 +456,7 @@ async function resolveFrontlineSource(
   if (state.targetId !== record.outcome.target.targetId
     || state.sourceIdentity !== record.sourceIdentity
     || state.outcome !== record.outcome.outcome
-    || state.passCount !== record.outcome.pass) {
+    || state.logicalPass !== record.outcome.pass) {
     throw new RespondCommandError("corrupt-state", "frontline response source snapshot mismatch");
   }
   if (record.outcome.outcome !== "findings") {

@@ -11,12 +11,16 @@ import {
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import { LaneProgressStateSchema } from
   "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { createFrontlineAdmission } from
+  "../../../../../src/scripts/review-gate/core/frontline-admission.js";
 import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { queryEarlierReviewAttempts } from
   "../../../../../src/scripts/review-gate/policy/earlier-review-attempts.js";
+import { reduceReviewRouting } from
+  "../../../../../src/scripts/review-gate/policy/routing.js";
 import {
   candidateExpectsEarlierReviewAttempt,
   earlierAttemptRetainsReservationPosition,
@@ -124,6 +128,59 @@ function laneState(options: { delivery?: boolean } = {}) {
       },
     }],
   });
+}
+
+function frontlineLaneState() {
+  const base = laneState();
+  const prior = base.attempts[0];
+  if (prior === undefined || prior.hosted === undefined) throw new Error("expected hosted attempt");
+  const facts = {
+    schemaVersion: 1 as const,
+    changeSetState: "known" as const,
+    contentKind: "code-bearing" as const,
+    reviewRisk: "routine" as const,
+    changeDeterminacy: "ordinary" as const,
+    ownership: "self" as const,
+    surfaceAuthority: "ordinary" as const,
+    assurance: { workContext: "work-unit" as const, workClass: "Light" as const },
+    activity: { selfReview: true, frontlineReview: true },
+  };
+  const source = {
+    sourceId: "review-cli",
+    kind: "command" as const,
+    executable: "reviewer",
+    argv: ["--plain"],
+  };
+  const admission = createFrontlineAdmission({
+    lineage: base.lineage,
+    target: prior.hosted.reviewTarget,
+    routing: { facts, decision: reduceReviewRouting(facts) },
+    frontlineReview: {
+      schemaVersion: 1,
+      semanticsVersion: "frontline-review/v1",
+      action: "attempt",
+      reasons: ["routine-code"],
+      source,
+      maxPasses: 2,
+      promptText: "Review the aggregate candidate.",
+    },
+    logicalPass: prior.logicalPass,
+    retryGeneration: prior.retryGeneration,
+    maxPasses: 2,
+  });
+  const attempt = { ...prior };
+  delete attempt.hosted;
+  return {
+    ...base,
+    lane: "frontline" as const,
+    attempts: [{
+      ...attempt,
+      attemptId: admission.operationId,
+      changeRequestId: null,
+      sourceId: source.sourceId,
+      frontline: { admission, effectiveCoverage: "complete" as const },
+    }],
+  };
 }
 
 function selector() {
@@ -234,7 +291,7 @@ describe("earlier review attempt query", () => {
         ...base,
         attempts: base.attempts.map((attempt) => ({ ...attempt, changeRequestId: "pull/43" })),
       },
-      { ...base, lane: "frontline" as const },
+      frontlineLaneState(),
       {
         ...base,
         attempts: base.attempts.map((attempt) => ({ ...attempt, headSha: oid("c") })),
