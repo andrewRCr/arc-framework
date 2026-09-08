@@ -71,20 +71,11 @@ only after every mode has executable coverage.
 - _Goal:_ A retirement that would delete unproved companion content fails before mutation and returns the same
   strict, actionable refusal shape the complete command family will use.
 
-    - `[ ]` **1.1.a Define the shared refusal envelope and first remedy mapping**
-        - Add the strict core refusal and `{ expected, actual }` JSON evidence schemas plus the command-boundary
-          mapper in `src/lib/work-unit/decompose-v3-refusal.ts`, composing the existing `SpineRemedy` contract without
-          duplicating it. Give the mapper closed invoked-mode context — origin, cut-map path and apply authority where
-          applicable — plus typed recovery facts.
-        - Build `test-first` (one behavior at a time):
-            - Accept only `status`, stable `reason`, optional `locus`, optional typed `evidence`, and a structured
-              remedy; refuse extra or malformed fields.
-            - Project byte operands as content digest plus byte length, absence as an explicit state, and sets as
-              canonical arrays; reject runtime containers that are not JSON values.
-            - Map `uncovered-retirement-content` to its invariant, fold-or-drop guidance, and re-preflight argv.
-            - Keep `unexpected-error` as the only named generic retry arm.
-            - Give every mode a strict core-only `unexpected-error` arm with no fabricated operation stage, recovery,
-              or report.
+    - `[x]` **1.1.a Define the shared refusal envelope and first remedy mapping**
+        - Added the strict core refusal and evidence schemas, canonical JSON evidence projections, all six structured
+          decompose argv builders, and command-boundary mappings for uncovered retirement content and the sole generic
+          `unexpected-error` retry; focused coverage rejects malformed fields, runtime containers, and unnamed
+          fallback codes.
 
     - `[ ]` **1.1.b Enforce the uncovered-content floor from the pinned source inventory**
         - Extend `validateV3DecomposeConservation()` and `composeRepositoryPlan()` without changing the existing
