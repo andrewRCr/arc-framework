@@ -108,12 +108,9 @@ only after every mode has executable coverage.
         - Added authenticated-versus-map origin evidence and preserved source-resolution and binding evidence through
           execute/extract operation results while malformed or unreadable maps remain locus-only.
 
-    - `[ ]` **1.2.d Carry evidence through materialization and plan prestates**
-        - Add evidence for `final-blob-mismatch` in `decompose-v3-materializer.ts` and
-          `incompatible-base-prestate` in `decompose-v3-plan.ts` with their focused tests.
-        - Build `test-first` (one behavior at a time):
-            - Report the planned and materialized blob or base prestate at its managed path.
-            - Keep missing objects, unsupported shapes, and contributor-consistency refusals locus-only.
+    - `[x]` **1.2.d Carry evidence through materialization and plan prestates**
+        - Added planned-versus-observed final-blob facts and the first differing normalized base prestates while
+          missing blobs, unsupported states, and contributor discontinuities remain locus-only.
 
     - `[ ]` **1.2.e Carry evidence through retirement-delta comparisons**
         - Add evidence to `decompose-v3-retirement-delta.ts` for unexpected object/mode and changed predecessor

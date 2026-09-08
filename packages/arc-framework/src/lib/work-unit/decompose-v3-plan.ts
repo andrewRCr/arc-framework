@@ -13,6 +13,7 @@ import {
   createProspectiveTransitionOverlay,
   type ProspectiveTransitionOverlay,
 } from "./transition-overlay.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 
 const DigestSchema = z.custom<CanonicalDigest>(isCanonicalDigest, "must be a canonical digest");
 const ManagedPathSchema = z.string().refine(
@@ -225,6 +226,7 @@ export interface V3PlanRefusal {
   code: V3PlanRefusalCode;
   path?: string;
   contributorIdentity?: string;
+  evidence?: V3DecomposeRefusalEvidence;
 }
 
 export type BuildValidatedDecomposePlanResult =
@@ -383,8 +385,16 @@ export function buildValidatedDecomposePlan(
       return { ok: false, refusal: { code: "invalid-plan-operand" } };
     }
     const base = firstEntry.base;
-    if (entries.some((entry) => !statesEqual(entry.base, base))) {
-      return { ok: false, refusal: { code: "incompatible-base-prestate", path } };
+    const incompatibleBase = entries.find((entry) => !statesEqual(entry.base, base));
+    if (incompatibleBase !== undefined) {
+      return {
+        ok: false,
+        refusal: {
+          code: "incompatible-base-prestate",
+          path,
+          evidence: { expected: base, actual: incompatibleBase.base },
+        },
+      };
     }
 
     const exclusive = entries.filter(

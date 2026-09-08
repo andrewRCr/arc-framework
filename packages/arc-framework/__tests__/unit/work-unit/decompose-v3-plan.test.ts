@@ -368,7 +368,14 @@ describe("validated v3 decomposition plan path registry", () => {
       claims: [contributor(file("before")), contributor(file("other"))],
     })).toEqual({
       ok: false,
-      refusal: { code: "incompatible-base-prestate", path },
+      refusal: {
+        code: "incompatible-base-prestate",
+        path,
+        evidence: {
+          expected: file("before"),
+          actual: file("other"),
+        },
+      },
     });
 
     expect(buildValidatedDecomposePlan({
