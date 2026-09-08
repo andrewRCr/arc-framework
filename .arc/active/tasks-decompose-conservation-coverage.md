@@ -340,15 +340,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           headings inside their phase bytes. ATX/Setext identity, repeated phases, BOM/CRLF/fence preservation,
           byte-exact reconstruction, and ordinary H2-H6 locator behavior remain covered.
 
-    - `[ ]` **2.2.b Bind phase units into preflight and completed-map authoring**
-        - Extend preflight and schema fixtures so a task-list inventory yields canonically ordered source units and
-          exact author slots without changing the machine field set or identity formula; the machine bytes and
-          `preflightId` update deterministically with the added units.
-        - Build `test-first` (one behavior at a time):
-            - Include phase and preamble identities for started-Planning and backlog retirement profiles.
-            - Reject omitted, duplicated, reordered, or tampered phase allocations through the existing identity
-              checks.
-            - Keep a task list under a draft profile admissible as companion content rather than design authority.
+    - `[x]` **2.2.b Bind phase units into preflight and completed-map authoring**
+        - Started Planning and backlog preflights now prove canonical task preamble/phase identities and exact author
+          slots under the unchanged machine envelope and identity formula. Draft profiles admit task lists as
+          companions, while missing, duplicate, reordered, or tampered allocations fail existing identity checks.
 
     - `[ ]` **2.2.c Resolve task-list destinations through repository composition**
         - Exercise phase locators through `composeRepositoryPlan()`, `contentContributions()`, and the immutable plan

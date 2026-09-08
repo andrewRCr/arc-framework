@@ -55,6 +55,41 @@ function machine(): V3DecomposeMachine {
   return { preflightId: v3PreflightId(facts), ...facts };
 }
 
+function machineWithTaskPhases(): V3DecomposeMachine {
+  const value = machine();
+  const taskPath = ".arc/active/tasks-origin.md";
+  const taskLocators = [
+    { artifact: "tasks-origin.md", kind: "preamble" as const },
+    {
+      artifact: "tasks-origin.md",
+      kind: "section" as const,
+      level: 2,
+      headingSource: "Phase One",
+      ancestry: [],
+      occurrence: 0,
+    },
+    {
+      artifact: "tasks-origin.md",
+      kind: "section" as const,
+      level: 2,
+      headingSource: "Phase Two",
+      ancestry: [],
+      occurrence: 0,
+    },
+  ];
+  value.sourceUnits = [
+    ...value.sourceUnits,
+    ...taskLocators.map((sourceLocator, index) => ({
+      sourceId: v3SourceId({ sourcePath: taskPath, sourceLocator }),
+      sourcePath: taskPath,
+      sourceLocator,
+      contentDigest: canonicalDigest(`task-phase-${index}`),
+    })),
+  ].sort((left, right) => Buffer.compare(Buffer.from(left.sourceId), Buffer.from(right.sourceId)));
+  value.preflightId = v3PreflightId(machinePreimage(value));
+  return value;
+}
+
 function completed(): V3DecomposeCutMap {
   const facts = machine();
   return {
@@ -87,6 +122,27 @@ function completed(): V3DecomposeCutMap {
       }],
     },
   };
+}
+
+function completedWithTaskPhases(): V3DecomposeCutMap {
+  const value = completed();
+  const facts = machineWithTaskPhases();
+  value.machine = facts;
+  value.authoring.sourceAllocations = facts.sourceUnits.map(({ sourceId, sourceLocator }) => ({
+    sourceId,
+    ownership: "destination-owned",
+    disposition: {
+      kind: "target",
+      destinationId: "member-a",
+      targetLocator: {
+        ...sourceLocator,
+        artifact: sourceLocator.artifact.startsWith("tasks-")
+          ? "tasks-member-a.md"
+          : "draft-member-a.md",
+      },
+    },
+  }));
+  return value;
 }
 
 function extractionCompleted(sourceKind: "active-origin" | "started-planning" = "active-origin"):
@@ -312,6 +368,42 @@ interface LooseCompletedMap {
 }
 
 describe("v3 decomposition map schema", () => {
+  it("binds task phases into the unchanged machine and allocation identity contracts", () => {
+    const baseline = machine();
+    const facts = machineWithTaskPhases();
+    const starter = createV3DecomposeStarterMap(facts);
+    const value = completedWithTaskPhases();
+
+    expect(Object.keys(facts).sort()).toEqual(Object.keys(baseline).sort());
+    expect(canonicalize(facts)).not.toBe(canonicalize(baseline));
+    expect(facts.preflightId).not.toBe(baseline.preflightId);
+    expect(starter?.authoring.sourceAllocations.map(({ sourceId }) => sourceId))
+      .toEqual(facts.sourceUnits.map(({ sourceId }) => sourceId));
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({ status: "accepted" });
+
+    const mutations = [
+      (candidate: V3DecomposeCutMap) => { candidate.authoring.sourceAllocations.shift(); },
+      (candidate: V3DecomposeCutMap) => {
+        candidate.authoring.sourceAllocations.push(candidate.authoring.sourceAllocations[0]!);
+      },
+      (candidate: V3DecomposeCutMap) => { candidate.authoring.sourceAllocations.reverse(); },
+      (candidate: V3DecomposeCutMap) => {
+        const phaseIndex = candidate.authoring.sourceAllocations.findIndex((allocation) =>
+          allocation.sourceId === facts.sourceUnits.find(({ sourcePath }) =>
+            sourcePath.endsWith("tasks-origin.md"))?.sourceId);
+        candidate.authoring.sourceAllocations[phaseIndex]!.sourceId = canonicalDigest("tampered phase");
+      },
+    ];
+    for (const mutate of mutations) {
+      const candidate = structuredClone(value);
+      mutate(candidate);
+      expect(decodeV3DecomposeCutMap(candidate)).toMatchObject({
+        status: "rejected",
+        issue: { code: "authoring-identity", path: "authoring.sourceAllocations" },
+      });
+    }
+  });
+
   it("prepopulates every starter author slot without changing machine identity", () => {
     const facts = machine();
     const starter = createV3DecomposeStarterMap(facts);

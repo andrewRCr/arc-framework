@@ -15,6 +15,7 @@ import {
   v3OutgoingEdgeId,
   v3PreflightId,
   v3SourceArtifactDigest,
+  v3SourceId,
   type V3DecomposeMachine,
 } from "../../../src/lib/work-unit/decompose-v3-schema.js";
 
@@ -144,6 +145,77 @@ describe("v3 decomposition preflight", () => {
       [...result.preflight.starterMap.machine.sourceUnits.map(({ sourceId }) => sourceId)]
         .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))),
     );
+    expect(result.preflight.starterMap.machine.preflightId)
+      .not.toBe(baseline.preflight.starterMap.machine.preflightId);
+  });
+
+  it.each([
+    ["started Planning", "started-planning"],
+    ["backlog", "backlog-stub"],
+  ] as const)("binds %s task-list phases into machine identity and author slots", (_label, kind) => {
+    const value = input();
+    if (kind === "backlog-stub") value.localBranches = [];
+    const snapshot = kind === "backlog-stub" ? value.sourceBase : value.localBranches[0]!;
+    const metaPath = snapshot.origins[0]!.path;
+    const directory = metaPath.slice(0, metaPath.lastIndexOf("/"));
+    const taskPath = `${directory}/tasks-origin.md`;
+    snapshot.sourceArtifacts = [
+      ...snapshot.sourceArtifacts,
+      {
+        path: taskPath,
+        objectKind: "blob",
+        mode: "100644",
+        bytes: bytes("# Tasks\n\n## Phase One\n### Task 1\nBody.\n\n## Phase Two\nBody.\n"),
+      },
+    ];
+    const withoutTaskList = structuredClone(value);
+    const baselineSnapshot = kind === "backlog-stub"
+      ? withoutTaskList.sourceBase
+      : withoutTaskList.localBranches[0]!;
+    baselineSnapshot.sourceArtifacts = baselineSnapshot.sourceArtifacts.filter(
+      ({ path }) => path !== taskPath,
+    );
+
+    const result = createV3DecomposePreflight(value);
+    const baseline = createV3DecomposePreflight(withoutTaskList);
+
+    expect(result.status).toBe("ready");
+    expect(baseline.status).toBe("ready");
+    if (result.status !== "ready" || baseline.status !== "ready") return;
+    const taskUnits = result.preflight.starterMap.machine.sourceUnits.filter(
+      ({ sourcePath }) => sourcePath === taskPath,
+    );
+    const expectedLocators: Array<V3DecomposeMachine["sourceUnits"][number]["sourceLocator"]> = [
+      { artifact: "tasks-origin.md", kind: "preamble" },
+      {
+        artifact: "tasks-origin.md",
+        kind: "section",
+        level: 2,
+        headingSource: "Phase One",
+        ancestry: [],
+        occurrence: 0,
+      },
+      {
+        artifact: "tasks-origin.md",
+        kind: "section",
+        level: 2,
+        headingSource: "Phase Two",
+        ancestry: [],
+        occurrence: 0,
+      },
+    ];
+    expect(taskUnits.map(({ sourceLocator }) => sourceLocator)).toEqual(
+      [...expectedLocators].sort((left, right) => Buffer.compare(
+        Buffer.from(v3SourceId({ sourcePath: taskPath, sourceLocator: left })),
+        Buffer.from(v3SourceId({ sourcePath: taskPath, sourceLocator: right })),
+      )),
+    );
+    expect(result.preflight.starterMap.authoring.sourceAllocations.map(({ sourceId }) => sourceId))
+      .toEqual(result.preflight.starterMap.machine.sourceUnits.map(({ sourceId }) => sourceId));
+    expect(result.preflight.starterMap.machine.planningProfile).toEqual({
+      kind: "draft",
+      sourceDesign: ["draft-origin.md"],
+    });
     expect(result.preflight.starterMap.machine.preflightId)
       .not.toBe(baseline.preflight.starterMap.machine.preflightId);
   });
