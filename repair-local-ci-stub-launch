@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "repair-local-ci-stub-launch",
+  "claimId": "0535ceb6df154c32db6e06b650a9fe0c",
+  "createdAt": "2026-09-08T15:54:06.997Z",
+  "updatedAt": "2026-09-08T15:54:06.997Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the planned local CI qualification stub consumable by the current start contract without changing its design.",
+  "branch": "chore/repair-local-ci-stub-launch",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
