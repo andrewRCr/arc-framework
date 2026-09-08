@@ -507,6 +507,19 @@ function newMemberScaffolds(
       });
       states[taskPath] = after;
     }
+    const notesTargeted = map.authoring.sourceAllocations.some((allocation) =>
+      allocation.disposition.kind === "target"
+      && allocation.disposition.destinationId === destination.destinationId
+      && allocation.disposition.targetLocator.artifact === `notes-${destination.slug}.md`);
+    if (notesTargeted) {
+      const scaffold = scaffoldSource(
+        map,
+        sourceTree,
+        destination,
+        `notes-${map.machine.source.origin}.md`,
+      );
+      if (scaffold.status === "refused") return scaffold;
+    }
   }
   return { status: "scaffolded", content, states };
 }

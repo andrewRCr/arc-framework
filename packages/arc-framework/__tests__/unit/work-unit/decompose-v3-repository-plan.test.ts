@@ -535,7 +535,7 @@ describe("v3 repository plan projection", () => {
     if (allocation.disposition.kind !== "target") throw new Error("fixture allocation must target");
     allocation.disposition.targetLocator = {
       ...allocation.disposition.targetLocator,
-      artifact: "notes-member.md",
+      artifact: "other-member.md",
     };
 
     const result = await composeV3RepositoryPlan({
@@ -554,7 +554,7 @@ describe("v3 repository plan projection", () => {
       refusal: {
         stage: "content",
         reason: "target-artifact-absent",
-        locus: "member:.arc/backlog/planned/member/notes-member.md",
+        locus: "member:.arc/backlog/planned/member/other-member.md",
       },
     });
   });
@@ -654,6 +654,46 @@ describe("v3 repository plan projection", () => {
         stage: "content",
         reason: "scaffold-source-invalid-encoding",
         locus: "member:.arc/active/tasks-origin.md",
+      },
+    });
+  });
+
+  it.each([
+    ["missing", undefined, "scaffold-source-missing"],
+    [
+      "invalid UTF-8",
+      { ...file("# Notes: origin\n"), bytes: Uint8Array.from([0xff]) },
+      "scaffold-source-invalid-encoding",
+    ],
+    ["missing title", file("body without title\n"), "scaffold-title-missing"],
+  ] as const)("classifies a %s unscanned notes scaffold source", async (_case, source, reason) => {
+    const input = fixture({ sourceState: "Active" });
+    input.completedMap.authoring.shape = "extraction" as never;
+    const allocation = input.completedMap.authoring.sourceAllocations[0]!;
+    if (allocation.disposition.kind !== "target") throw new Error("fixture allocation must target");
+    allocation.disposition.targetLocator = {
+      ...allocation.disposition.targetLocator,
+      artifact: "notes-member.md",
+    };
+    if (source !== undefined) input.sourceTree[".arc/active/notes-origin.md"] = source;
+
+    const result = await composeV3ExtractionRepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "content",
+        reason,
+        locus: "member:.arc/active/notes-origin.md",
       },
     });
   });

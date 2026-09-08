@@ -239,6 +239,11 @@ only after every mode has executable coverage.
           the mode-aware registries, and made source totality require every finish-emitted code to map for preview and
           apply rather than accepting a mapping from an unrelated mode.
 
+    - `[x]` **1.6.R.b Classify target-driven notes scaffold sources before projection**
+        - Routed targeted notes sources through the existing missing, encoding, and title classifier before target
+          projection, preserving Phase 2's ownership of actual notes materialization while exposing the source member
+          and path instead of the later absent-target symptom.
+
     - Run the `validate-criteria.md` member-scope walk for `refusal-contract-and-floor` and record the boundary
       evidence without changing Success Criteria markers.
 
