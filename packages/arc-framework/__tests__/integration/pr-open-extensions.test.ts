@@ -442,6 +442,56 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("keeps withstood advisory and applies claim-type verification proportionally", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      const prompt = method.match(/\*\*Prompt template:\*\*\s+```text\s+([\s\S]*?)\s+```/u)?.[1];
+      if (prompt === undefined) throw new Error("missing adversarial-review prompt template");
+      const normalizedPrompt = prompt.toLowerCase().replace(/\s+/gu, " ");
+
+      expect(normalized).toContain(
+        "the reviewer examined this decision-relevant claim or region and has no finding to report",
+      );
+      expect(normalized).toContain("does not mean that the artifact is correct, complete, or cleared");
+      expect(normalized).toContain("externally verifiable claims about source, behavior, or the diff");
+      expect(normalized).toContain("are worth spot-checking");
+      expect(normalized).toContain("internal judgments about what the reviewer considered convincing or coherent");
+      expect(normalized).toContain("does not require independent verification of every attention entry");
+      expect(normalized).toContain("the field stays freeform");
+      expect(normalized).toContain(
+        "`withstood` remains outside severity, disposition, convergence, and evidence attestation",
+      );
+      expect(normalizedPrompt).toContain("`withstood` records decision-relevant attention without a finding");
+      expect(normalizedPrompt).toContain("does not mean the artifact is correct, complete, or cleared");
+      expect(method).not.toContain("checked and cleared");
+    }
+  });
+
+  it("retains a bounded contradicted-withstood exercise without claiming behavioral adherence", async () => {
+    const fixtureRoot = resolve(
+      root,
+      "packages/arc-framework/__tests__/fixtures/adversarial-review/contradicted-withstood",
+    );
+    const [source, artifact, report, exercise, expected] = await Promise.all([
+      readFile(resolve(fixtureRoot, "source.ts"), "utf8"),
+      readFile(resolve(fixtureRoot, "artifact.md"), "utf8"),
+      readFile(resolve(fixtureRoot, "review-report.md"), "utf8"),
+      readFile(resolve(fixtureRoot, "exercise.md"), "utf8"),
+      readFile(resolve(fixtureRoot, "expected.md"), "utf8"),
+    ]);
+
+    expect(source).toContain('return "manual"');
+    expect(artifact).toContain("returns `automatic`");
+    expect(report).toContain("withstood:");
+    expect(report).toContain("defaultMode returns automatic");
+    expect(exercise).toContain("packages/arc-framework/arc/system/methods/adversarial-review.md");
+    expect(exercise).toContain("packages/arc-framework/arc/system/methods/validate-criteria.md");
+    expect(exercise).toContain("Do not read `expected.md`");
+    expect(expected).toContain("refuse to relay or credit the contradicted entry");
+    expect(expected).toContain("only an attended fresh-context run supplies behavioral evidence");
+  });
+
   it("keeps review severity, disposition, and polish orthogonal", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");

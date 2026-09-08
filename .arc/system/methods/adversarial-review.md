@@ -120,10 +120,19 @@ findings:
     rationale:  # why it breaks, or what two competent engineers would build differently
 
 withstood:
-  - # claims and artifact regions checked and cleared
+  - # decision-relevant claim or region examined with no finding to report
 
 verdict:        # one line keyed to the fire-point's gate question
 ```
+
+One `withstood` entry means: the reviewer examined this decision-relevant claim or region and has no finding to
+report. It does not mean that the artifact is correct, complete, or cleared. The field stays freeform because the
+reviewer chooses where absence of a finding is informative; do not turn it into an inventory of every touched region.
+
+Before relaying a `withstood` statement, the primary applies a claim-type risk gradient. Externally verifiable claims
+about source, behavior, or the diff are worth spot-checking. Internal judgments about what the reviewer considered
+convincing or coherent are not independently verifiable. This gradient does not require independent verification of
+every attention entry. `withstood` remains outside severity, disposition, convergence, and evidence attestation.
 
 **Prompt template:**
 
@@ -156,6 +165,10 @@ Partition map:
 
 Attack the artifact against the rubric. Try to break it. Do not manufacture findings:
 if the artifact holds up, say that plainly and specifically.
+
+`withstood` records decision-relevant attention without a finding. It does not mean the
+artifact is correct, complete, or cleared. Include it only where the absence of a finding
+is informative; do not enumerate every touched region.
 
 Do not edit the target, assign dispositions, close conversations, or attest the result.
 

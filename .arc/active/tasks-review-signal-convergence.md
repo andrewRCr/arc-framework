@@ -96,24 +96,26 @@ of code-review persistence.
   through durable records, generated schemas, and review prose, while native provider and impediment vocabularies stay
   independently intact.
 
-### `[ ]` **1.2 Clarify advisory coverage and preserve claim-type verification**
+### `[x]` **1.2 Clarify advisory coverage and preserve claim-type verification**
 
 - _Goal:_ A `withstood` entry communicates attention without licensing correctness or clearance.
 
-- _Note:_ Spec § 1; SC 1 and 18.
+    - `[x]` **1.2.a Clarify the claim and primary verification gradient**
 
-- _Approach:_ Update the existing adversarial method and prompt in package source and synchronize the project copy. Keep
-  the field freeform, decision-relevant, and outside evidence or severity schemas.
+        - Defined `withstood` in the method and embedded prompt as selective, decision-relevant attention without a
+          finding—not correctness, completeness, clearance, or evidence. The primary spot-checks externally verifiable
+          source, behavior, and diff claims without pretending subjective reviewer judgments or every attention entry
+          can be independently verified; dual-copy contract tests lock the boundary.
 
-    - `[ ]` **1.2.a Clarify the claim and primary verification gradient**
+    - `[x]` **1.2.b Exercise a contradicted source claim**
 
-        - Keep externally verifiable source/behavior claims distinct from subjective reviewer judgments. Add contract
-          checks after the prose edit; do not require independent verification of every attention entry.
+        - Retained a bounded false-source fixture, hidden expected behavior, and actual shipped method/caller inputs.
+          An attended no-history evaluator inspected `source.ts`, rejected the contradicted `withstood` claim, denied
+          correctness and evidence authority, and recommended renewed validation; `notes-review-signal-convergence.md`
+          records the verbatim output, no observed deviation, and the single-run limitation.
 
-    - `[ ]` **1.2.b Exercise a contradicted source claim**
-
-        - Run a bounded fresh-context exercise with the actual method/caller instructions. Retain input, expected
-          behavior, observed output, and deviations as evidence; static parity is not behavioral proof.
+- _Outcome:_ `withstood` now reports selective reviewer attention only, with proportional primary-side verification and
+  one source-grounded behavioral observation demonstrating that a contradicted entry is not relayed as clearance.
 
 ### `[ ]` **1.3 Close advisory convergence, cap reporting, and caller fire-points**
 

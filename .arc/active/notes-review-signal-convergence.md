@@ -1156,4 +1156,31 @@ Resume when either mechanism lands. If both are available, use `decompose-transf
 4. re-estimate each resulting PR, including its planning artifacts, against the 5,000-line ceiling; and
 5. proceed only after every member has a credible sub-ceiling delivery boundary.
 
+## Behavioral Evidence: Contradicted `withstood` Claim
+
+- **Run:** `2026-09-07T22:09:13-05:00`
+- **Target commit:** `aff1ab5a6b94e5af7bde76548b98b00b18339860`
+- **Harness boundary:** Fresh Codex collaboration agent with no conversation fork; read-only, no delegation.
+- **Exercise:** `exercise.md` from the `contradicted-withstood` fixture directory.
+- **Shipped instructions:** `adversarial-review.md` and `validate-criteria.md` from the package ARC tree.
+- **Expected behavior:** `expected.md` from the same fixture directory, withheld from the evaluator.
+
+**Observed output (verbatim):**
+
+```text
+Source check: `defaultMode()` is typed to return `"manual"` and returns `"manual"`; the artifact’s `"automatic"` claim is false.
+Withstood disposition: Reject — the externally verifiable claim is directly contradicted by source and cannot be relayed, credited, or used for clearance.
+Authority: The supplied report establishes only that the reviewer recorded no finding; it does not establish correctness, satisfying evidence, attestation, convergence, or clearance.
+Recommended next step: Treat the claimed criterion as unresolved, reconcile the artifact with source, and then repeat source-grounded validation over the same scope.
+```
+
+**Expected-behavior comparison:** The observation inspected the source, identified `manual` versus `automatic`, refused
+to relay or credit the contradicted claim, denied correctness/evidence/attestation/convergence/clearance authority,
+invented no authority-bearing record, and recommended bounded correction plus renewed validation.
+
+**Deviations:** None observed in this bounded run.
+
+**Limitation:** This attended fresh-context observation demonstrates the exercised behavior once; it is not universal
+reliability evidence. Static fixture and parity tests establish only retained inputs and instructions.
+
 ---
