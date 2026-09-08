@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** `e2e-feedback-six-shard-rebalance` Errand follow-up
-- **Design:** [none]
+- **Design:** `draft-local-ci-capacity-qualification.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
