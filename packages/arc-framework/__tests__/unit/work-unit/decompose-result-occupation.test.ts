@@ -76,6 +76,7 @@ describe("decomposition result occupation", () => {
       )).toEqual({
         status: "refused",
         reason: "base-moved",
+        locus: "main",
         evidence: { expected: "base-head", actual: "moved-base" },
       });
     }
@@ -116,6 +117,7 @@ describe("decomposition result occupation", () => {
     )).toEqual({
       status: "refused",
       reason: "base-moved",
+      locus: "main",
       evidence: { expected: "base-head", actual: "moved-projection" },
     });
   });
@@ -252,6 +254,7 @@ describe("decomposition result occupation", () => {
     )).toEqual({
       status: "refused",
       reason: "candidate-head-mismatch",
+      locus: "chore/decompose-origin",
       evidence: {
         expected: { branchHead: "base-head", registrationHead: "base-head" },
         actual: {
@@ -281,6 +284,7 @@ describe("decomposition result occupation", () => {
     )).toEqual({
       status: "refused",
       reason: "marker-mismatch",
+      locus: "/repo/worktrees/decompose-origin",
       evidence: { expected: true, actual: false },
     });
   });

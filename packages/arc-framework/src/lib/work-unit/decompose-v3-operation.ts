@@ -300,6 +300,7 @@ async function prepareV3Operation(
       status: "refused",
       stage: "occupation",
       reason: occupation.reason,
+      ...(occupation.locus === undefined ? {} : { locus: occupation.locus }),
       ...(occupation.evidence === undefined ? {} : { evidence: occupation.evidence }),
       recovery: refusedOccupationRecovery(input.plan, occupation),
     };

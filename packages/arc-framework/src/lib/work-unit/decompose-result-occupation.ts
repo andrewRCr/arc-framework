@@ -75,6 +75,7 @@ export type DecomposeResultOccupationResult =
   | {
       status: "refused";
       reason: DecomposeResultOccupationRefusal;
+      locus?: string;
       evidence?: V3DecomposeRefusalEvidence;
       recovery?: { path: string; candidateBranch: string };
     };
@@ -104,12 +105,15 @@ function observationRefusal(
   reason: DecomposeResultOccupationRefusal,
   observation: DecomposeCandidateObservation,
   expectedHead: string,
+  branch: string,
+  path: string,
 ): Extract<DecomposeResultOccupationResult, { status: "refused" }> {
   const registration = observation.registrations[0];
   if (reason === "candidate-head-mismatch" && registration !== undefined) {
     return {
       status: "refused",
       reason,
+      locus: branch,
       evidence: {
         expected: { branchHead: expectedHead, registrationHead: expectedHead },
         actual: {
@@ -123,6 +127,7 @@ function observationRefusal(
     return {
       status: "refused",
       reason,
+      locus: path,
       evidence: { expected: true, actual: registration.markerOwned },
     };
   }
@@ -139,6 +144,7 @@ export async function occupyDecomposeResult(
     return {
       status: "refused",
       reason: "base-moved",
+      locus: input.configuredBase,
       evidence: {
         expected: input.plan.expectedBaseHead,
         actual: baseHead ?? { kind: "absent" },
@@ -154,6 +160,7 @@ export async function occupyDecomposeResult(
         return {
           status: "refused",
           reason: "base-moved",
+          locus: input.configuredBase,
           evidence: {
             expected: input.plan.expectedBaseHead,
             actual: projection.baseHead ?? { kind: "absent" },
@@ -174,7 +181,7 @@ export async function occupyDecomposeResult(
   const observation = await adapter.observeCandidate(branch, path);
   const refusal = validateObservation(observation, branch, path, input.plan.expectedBaseHead);
   if (refusal !== null) {
-    return observationRefusal(refusal, observation, input.plan.expectedBaseHead);
+    return observationRefusal(refusal, observation, input.plan.expectedBaseHead, branch, path);
   }
   if (observation.registrations.length === 1) {
     return { status: "occupied", protection: "full", path, candidateBranch: branch };
@@ -204,7 +211,7 @@ export async function occupyDecomposeResult(
     return { status: "occupied", protection: "full", path, candidateBranch: branch };
   }
   return {
-    ...observationRefusal(createdRefusal, created.observation, input.plan.expectedBaseHead),
+    ...observationRefusal(createdRefusal, created.observation, input.plan.expectedBaseHead, branch, path),
     recovery: { path, candidateBranch: branch },
   };
 }

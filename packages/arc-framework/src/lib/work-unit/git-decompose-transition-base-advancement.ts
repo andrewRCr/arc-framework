@@ -3,7 +3,11 @@
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { canonicalize, digestBytes } from "../canonical/canonical-json.js";
+import {
+  canonicalize,
+  digestBytes,
+  sortByCanonicalBytes,
+} from "../canonical/canonical-json.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import { readWorktreeMarker, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import {
@@ -12,7 +16,10 @@ import {
 } from "../git/worktree-roster.js";
 import { createDecomposeTransitionRecord } from "./decompose-transition-record.js";
 import { decomposeCandidateBranch } from "./decompose-candidate.js";
-import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
+import type {
+  V3DecomposeEvidenceValue,
+  V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 import type { V3PlanCanonicalPathState, ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 import {
   decodeV3DecomposeCutMap,
@@ -145,6 +152,16 @@ function markerMatches(marker: WorktreeMarkerReadResult, candidateBranch: string
     && marker.marker.createdFor.ref === candidateBranch;
 }
 
+function markerEvidence(marker: WorktreeMarkerReadResult): V3DecomposeEvidenceValue | null {
+  if (marker.kind === "malformed") return null;
+  if (marker.kind === "absent") return { kind: "absent" };
+  return {
+    kind: "present",
+    spawnedByArc: marker.marker.spawnedByArc,
+    createdFor: marker.marker.createdFor ?? { kind: "absent" },
+  };
+}
+
 async function changedPaths(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
   cwd: string,
@@ -238,6 +255,49 @@ function firstMismatchingPath(expected: string[], actual: string[]): string {
   return "changed-paths";
 }
 
+function bindingMismatch(
+  candidateBranch: string,
+  baseBranch: string,
+  expectedCandidateHead: string,
+  expectedBaseHead: string,
+  actualCandidateHead: string | null,
+  actualBaseHead: string | null,
+): AdvancementMismatch | null {
+  if (actualCandidateHead === expectedCandidateHead && actualBaseHead === expectedBaseHead) return null;
+  return {
+    reason: "binding-raced",
+    locus: actualCandidateHead !== expectedCandidateHead ? candidateBranch : baseBranch,
+    evidence: {
+      expected: { candidateHead: expectedCandidateHead, baseHead: expectedBaseHead },
+      actual: {
+        candidateHead: actualCandidateHead ?? { kind: "absent" },
+        baseHead: actualBaseHead ?? { kind: "absent" },
+      },
+    },
+  };
+}
+
+async function observeBindingMismatch(
+  dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
+  candidateBranch: string,
+  baseBranch: string,
+  expectedCandidateHead: string,
+  expectedBaseHead: string,
+): Promise<AdvancementMismatch | null> {
+  const [actualCandidateHead, actualBaseHead] = await Promise.all([
+    resolveCommit(dependencies, candidateBranch),
+    resolveCommit(dependencies, baseBranch),
+  ]);
+  return bindingMismatch(
+    candidateBranch,
+    baseBranch,
+    expectedCandidateHead,
+    expectedBaseHead,
+    actualCandidateHead,
+    actualBaseHead,
+  );
+}
+
 async function exactTransitionTree(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
   baseHead: string,
@@ -269,29 +329,38 @@ async function exactTransitionTree(
     }
   }
   const record = await committedState(dependencies, candidateHead, recordPath);
-  return record?.kind === "file"
-    && record.mode === "100644"
-    && record.contentDigest === digestBytes(recordBytes)
+  const expectedRecord = {
+    kind: "file" as const,
+    mode: "100644" as const,
+    contentDigest: digestBytes(recordBytes),
+  };
+  return statesEqual(record, expectedRecord)
     ? null
-    : { reason: `transition-record:${recordPath}` };
+    : {
+        reason: "transition-record",
+        locus: recordPath,
+        ...(record === null ? {} : { evidence: { expected: expectedRecord, actual: record } }),
+      };
 }
 
 async function applyPlan(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
   cwd: string,
   composed: ComposedPlan,
-): Promise<string | null> {
+): Promise<AdvancementMismatch | null> {
   const blobs = new Map(composed.blobs.map(({ contentDigest, bytes }) => [contentDigest, bytes]));
+  let locus = cwd;
   try {
     for (const mutation of composed.plan.mutations) {
       if (statesEqual(mutation.before, mutation.after)) continue;
+      locus = mutation.path;
       const target = join(cwd, mutation.path);
       if (mutation.after.kind === "absent") {
         await rm(target, { force: true });
         await dependencies.exec("git", ["update-index", "--force-remove", "--", mutation.path], { cwd });
       } else {
         const bytes = blobs.get(mutation.after.contentDigest);
-        if (bytes === undefined) return `blob-unavailable:${mutation.path}`;
+        if (bytes === undefined) return { reason: "blob-unavailable", locus: mutation.path };
         await mkdir(dirname(target), { recursive: true });
         await writeFile(target, bytes);
         await chmod(target, mutation.after.mode === "100755" ? 0o755 : 0o644);
@@ -299,8 +368,8 @@ async function applyPlan(
       }
     }
     return null;
-  } catch (error) {
-    return `write-failed:${error instanceof Error ? error.message : String(error)}`;
+  } catch {
+    return { reason: "write-failed", locus };
   }
 }
 
@@ -333,11 +402,18 @@ async function exactIndexTree(
     }
   }
   const record = await indexState(dependencies, cwd, recordPath);
-  return record?.kind === "file"
-    && record.mode === "100644"
-    && record.contentDigest === digestBytes(recordBytes)
+  const expectedRecord = {
+    kind: "file" as const,
+    mode: "100644" as const,
+    contentDigest: digestBytes(recordBytes),
+  };
+  return statesEqual(record, expectedRecord)
     ? null
-    : { reason: `transition-record:${recordPath}` };
+    : {
+        reason: "transition-record",
+        locus: recordPath,
+        ...(record === null ? {} : { evidence: { expected: expectedRecord, actual: record } }),
+      };
 }
 
 async function restoreCandidate(
@@ -415,11 +491,34 @@ export async function advanceGitDecomposeTransitionBase(
   if (!scan.ok) return { status: "refused", reason: "candidate-topology-unavailable" };
   const registrations = scan.worktrees.filter(({ branch }) => branch === candidateBranch);
   if (registrations.length !== 1 || registrations[0] === undefined) {
-    return { status: "refused", reason: "candidate-registration-mismatch" };
+    return refuse(
+      "candidate-registration-mismatch",
+      candidateBranch,
+      {
+        expected: { candidateBranch, registrationCount: 1 },
+        actual: { candidateBranch, registrationCount: registrations.length },
+      },
+    );
   }
   const registration = registrations[0];
   const marker = await (dependencies.readMarker ?? readWorktreeMarker)(registration.path);
-  if (!markerMatches(marker, candidateBranch)) return { status: "refused", reason: "candidate-marker-mismatch" };
+  if (!markerMatches(marker, candidateBranch)) {
+    const actual = markerEvidence(marker);
+    return refuse(
+      "candidate-marker-mismatch",
+      marker.kind === "malformed" ? marker.path : registration.path,
+      actual === null
+        ? undefined
+        : {
+            expected: {
+              kind: "present",
+              spawnedByArc: true,
+              createdFor: { kind: "branch", ref: candidateBranch },
+            },
+            actual,
+          },
+    );
+  }
   const [candidateHead, currentBaseHead] = await Promise.all([
     resolveCommit(dependencies, candidateBranch),
     resolveCommit(dependencies, input.baseBranch),
@@ -441,7 +540,13 @@ export async function advanceGitDecomposeTransitionBase(
   const authoredBaseHead = map.machine.resultBase.head;
   const ancestry = await isAncestor(dependencies, authoredBaseHead, currentBaseHead);
   if (ancestry !== true) {
-    return { status: "refused", reason: ancestry === false ? "base-not-descendant" : "binding-unavailable" };
+    return ancestry === false
+      ? refuse(
+          "base-not-descendant",
+          input.baseBranch,
+          { expected: authoredBaseHead, actual: currentBaseHead },
+        )
+      : refuse("binding-unavailable");
   }
   const record = createDecomposeTransitionRecord(map);
   if (record === null) return { status: "refused", reason: "transition-record-projection-invalid" };
@@ -465,8 +570,25 @@ export async function advanceGitDecomposeTransitionBase(
   } catch {
     return { status: "refused", reason: "base-dependency-snapshot-unavailable" };
   }
-  if (canonicalize(currentIncomingEdges) !== canonicalize(map.machine.incomingEdges)) {
-    return { status: "refused", reason: "base-acquired-incoming-dependency" };
+  const expectedIncomingEdges = sortByCanonicalBytes(map.machine.incomingEdges);
+  const actualIncomingEdges = sortByCanonicalBytes(currentIncomingEdges);
+  if (canonicalize(actualIncomingEdges) !== canonicalize(expectedIncomingEdges)) {
+    const length = Math.max(expectedIncomingEdges.length, actualIncomingEdges.length);
+    let locus = map.machine.source.origin;
+    for (let index = 0; index < length; index += 1) {
+      if (canonicalize(expectedIncomingEdges[index] ?? null)
+        !== canonicalize(actualIncomingEdges[index] ?? null)) {
+        locus = actualIncomingEdges[index]?.dependent
+          ?? expectedIncomingEdges[index]?.dependent
+          ?? locus;
+        break;
+      }
+    }
+    return refuse(
+      "base-acquired-incoming-dependency",
+      locus,
+      { expected: expectedIncomingEdges, actual: actualIncomingEdges },
+    );
   }
   const currentMap = restateMap(map, map.machine.resultBase.ref, currentBaseHead);
   const currentPlan = await compose(input.baseBranch, currentMap);
@@ -535,20 +657,47 @@ export async function advanceGitDecomposeTransitionBase(
   if (previousCandidateHead !== candidateHead) {
     return { status: "refused", reason: "candidate-advancement-chain-invalid" };
   }
-  if (await isAncestor(dependencies, previousBaseHead, currentBaseHead) !== true) {
-    return { status: "refused", reason: "base-not-descendant" };
+  const remainingBaseAncestry = await isAncestor(dependencies, previousBaseHead, currentBaseHead);
+  if (remainingBaseAncestry !== true) {
+    return remainingBaseAncestry === false
+      ? refuse(
+          "base-not-descendant",
+          input.baseBranch,
+          { expected: previousBaseHead, actual: currentBaseHead },
+        )
+      : refuse("base-not-descendant", input.baseBranch);
   }
-  if (await resolveCommit(dependencies, candidateBranch) !== candidateHead
-    || await resolveCommit(dependencies, input.baseBranch) !== currentBaseHead) {
-    return { status: "refused", reason: "binding-raced" };
+  const preReturnBindingMismatch = await observeBindingMismatch(
+    dependencies,
+    candidateBranch,
+    input.baseBranch,
+    candidateHead,
+    currentBaseHead,
+  );
+  if (preReturnBindingMismatch !== null) {
+    return refuse(
+      preReturnBindingMismatch.reason,
+      preReturnBindingMismatch.locus,
+      preReturnBindingMismatch.evidence,
+    );
   }
 
   if (currentBaseHead === previousBaseHead) {
     return { status: "unchanged", candidateBranch, candidateHead, currentBaseHead };
   }
-  if (await resolveCommit(dependencies, candidateBranch) !== candidateHead
-    || await resolveCommit(dependencies, input.baseBranch) !== currentBaseHead) {
-    return { status: "refused", reason: "binding-raced" };
+  const preMergeBindingMismatch = await observeBindingMismatch(
+    dependencies,
+    candidateBranch,
+    input.baseBranch,
+    candidateHead,
+    currentBaseHead,
+  );
+  if (preMergeBindingMismatch !== null) {
+    return refuse(
+      preMergeBindingMismatch.reason,
+      preMergeBindingMismatch.locus,
+      preMergeBindingMismatch.evidence,
+    );
   }
   try {
     await dependencies.exec(
@@ -570,13 +719,21 @@ export async function advanceGitDecomposeTransitionBase(
         recordPath,
         recordBytes,
       )
-    : { reason: applicationMismatch };
+    : applicationMismatch;
   const candidateAfter = await resolveCommit(dependencies, candidateBranch);
   const baseAfter = await resolveCommit(dependencies, input.baseBranch);
-  if (indexMismatch !== null || candidateAfter !== candidateHead || baseAfter !== currentBaseHead) {
+  const racedBinding = bindingMismatch(
+    candidateBranch,
+    input.baseBranch,
+    candidateHead,
+    currentBaseHead,
+    candidateAfter,
+    baseAfter,
+  );
+  if (indexMismatch !== null || racedBinding !== null) {
     const restored = await restoreCandidate(dependencies, registration.path, candidateHead);
     if (!restored) return refuse("candidate-restore-failed");
-    const mismatch = indexMismatch ?? { reason: "binding-raced" };
+    const mismatch = indexMismatch ?? racedBinding ?? { reason: "binding-raced" };
     return refuse(
       `post-merge-validation-refused:${mismatch.reason}`,
       mismatch.locus,

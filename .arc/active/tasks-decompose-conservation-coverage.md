@@ -173,17 +173,10 @@ only after every mode has executable coverage.
           stabilized changed-path and path-state mismatch codes with bounded expected/actual evidence, and proved
           candidate and base binding failures remain ahead of merge mutation while success arms stay unchanged.
 
-    - `[ ]` **1.4.b Attach evidence to candidate, marker, transition, and base comparisons**
-        - Thread admitted comparisons through `decompose-result-occupation.ts` and
-          `git-decompose-transition-base-advancement.ts`; leave availability and malformed-shape failures locus-only.
-        - Build `test-first` (one behavior at a time):
-            - Report expected and observed base heads, candidate heads, worktree markers, transition records, and
-              canonically sorted dependency sets at their exact loci.
-            - Carry comparison evidence through composed prefixes such as `candidate-transform-mismatch` and
-              `post-merge-validation-refused`.
-            - Replace `applyPlan()`'s embedded blob path and exception messages with stable mismatch codes and exact
-              loci before composing the outer advancement reason.
-            - Preserve candidate restoration and refuse a raced binding without claiming recovery succeeded.
+    - `[x]` **1.4.b Attach evidence to candidate, marker, transition, and base comparisons**
+        - Added exact loci and bounded expected/actual facts for occupation, registration, marker, transition-record,
+          descendant-base, binding-race, and canonically ordered dependency comparisons; threaded them through
+          composed mismatch prefixes, stabilized apply-plan diagnostics, and preserved exact candidate restoration.
 
     - `[ ]` **1.4.c Emit the actionable advancement refusal at the public boundary**
         - Map the remedy in `handleDecompose()` from the structured advance-base argv, parsed origin, and exact

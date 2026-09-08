@@ -7,7 +7,11 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { canonicalize, digestBytes } from "../../src/lib/canonical/canonical-json.js";
+import {
+  canonicalize,
+  digestBytes,
+  sortByCanonicalBytes,
+} from "../../src/lib/canonical/canonical-json.js";
 import { createRawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
@@ -29,7 +33,11 @@ import {
   composeGitV3ExtractionRepositoryPlan,
   composeGitV3RepositoryPlan,
 } from "../../src/lib/work-unit/git-decompose-v3-repository-plan.js";
-import { v3PreflightId, v3SourceId } from "../../src/lib/work-unit/decompose-v3-schema.js";
+import {
+  v3IncomingEdgeId,
+  v3PreflightId,
+  v3SourceId,
+} from "../../src/lib/work-unit/decompose-v3-schema.js";
 import { runCli } from "../helpers/run-cli.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
@@ -1684,19 +1692,113 @@ describe("Git v3 repository plan", () => {
   });
 
   it("refuses a committed candidate whose lean transition result was altered", async () => {
-    const { candidatePath, completedMap, dependencies } = await committedTransitionCandidate();
+    const { candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
     const recordPath = resolveTransitionRecordRelativePath("origin");
+    const expectedBytes = await readBlob(candidatePath, candidateHead, recordPath);
+    if (expectedBytes === null) throw new Error("missing expected transition record");
     await writeFile(join(candidatePath, recordPath), "{}\n");
     await git(candidatePath, ["add", recordPath]);
     await git(candidatePath, ["commit", "--amend", "--no-edit"]);
+    const actualBytes = await readBlob(candidatePath, "HEAD", recordPath);
+    if (actualBytes === null) throw new Error("missing altered transition record");
 
     expect(await advanceGitDecomposeTransitionBase(dependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
-    })).toMatchObject({
+    })).toEqual({
       status: "refused",
-      reason: `candidate-transform-mismatch:transition-record:${recordPath}`,
+      reason: "candidate-transform-mismatch:transition-record",
+      locus: recordPath,
+      evidence: {
+        expected: {
+          kind: "file",
+          mode: "100644",
+          contentDigest: digestBytes(expectedBytes),
+        },
+        actual: {
+          kind: "file",
+          mode: "100644",
+          contentDigest: digestBytes(actualBytes),
+        },
+      },
+    });
+  });
+
+  it("reports the expected and observed candidate registration count", async () => {
+    const { completedMap, dependencies } = await committedTransitionCandidate();
+
+    expect(await advanceGitDecomposeTransitionBase({
+      ...dependencies,
+      scanWorktrees: async () => ({ ok: true, worktrees: [] }),
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-registration-mismatch",
+      locus: "chore/decompose-origin",
+      evidence: {
+        expected: { candidateBranch: "chore/decompose-origin", registrationCount: 1 },
+        actual: { candidateBranch: "chore/decompose-origin", registrationCount: 0 },
+      },
+    });
+  });
+
+  it("reports the expected and observed candidate worktree marker", async () => {
+    const { candidatePath, completedMap, dependencies } = await committedTransitionCandidate();
+
+    expect(await advanceGitDecomposeTransitionBase({
+      ...dependencies,
+      readMarker: async () => ({
+        kind: "present",
+        marker: {
+          spawnedByArc: true,
+          spawningIdentity: "andrew",
+          createdAt: "2026-09-08T00:00:00.000Z",
+          createdFor: { kind: "branch", ref: "chore/decompose-other" },
+        },
+      }),
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-marker-mismatch",
+      locus: candidatePath,
+      evidence: {
+        expected: {
+          kind: "present",
+          spawnedByArc: true,
+          createdFor: { kind: "branch", ref: "chore/decompose-origin" },
+        },
+        actual: {
+          kind: "present",
+          spawnedByArc: true,
+          createdFor: { kind: "branch", ref: "chore/decompose-other" },
+        },
+      },
+    });
+  });
+
+  it("keeps a malformed candidate worktree marker locus-only", async () => {
+    const { candidatePath, completedMap, dependencies } = await committedTransitionCandidate();
+    const markerPath = join(candidatePath, ".arc/system/.internal/worktree-marker.json");
+
+    expect(await advanceGitDecomposeTransitionBase({
+      ...dependencies,
+      readMarker: async () => ({ kind: "malformed", message: "invalid marker", path: markerPath }),
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-marker-mismatch",
+      locus: markerPath,
     });
   });
 
@@ -1716,36 +1818,67 @@ describe("Git v3 repository plan", () => {
   it("refuses a configured base that regressed behind the authored base", async () => {
     const { repo, completedMap, dependencies } = await committedTransitionCandidate();
     await git(repo, ["reset", "--hard", `${completedMap.machine.resultBase.head}^`]);
+    const regressedBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
 
     expect(await advanceGitDecomposeTransitionBase(dependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
-    })).toMatchObject({ status: "refused", reason: "base-not-descendant" });
+    })).toEqual({
+      status: "refused",
+      reason: "base-not-descendant",
+      locus: "main",
+      evidence: {
+        expected: completedMap.machine.resultBase.head,
+        actual: regressedBaseHead,
+      },
+    });
   });
 
   it("refuses a descendant base that acquired a new incoming dependency", async () => {
     const { repo, completedMap, dependencies } = await committedTransitionCandidate();
-    await write(repo, ".arc/backlog/planned/dependent/meta-dependent.md", renderMetaFile("dependent", {
-      state: "Planning",
-      owner: "andrew",
-      workClass: "Light",
-      priority: "P2",
-      dependsOn: ["origin"],
-      origin: "internal",
-      design: ["draft-dependent.md"],
-      currentWorkflow: "draft-design",
-      nextAction: "Begin draft-design",
-    }));
-    await git(repo, ["add", ".arc/backlog/planned/dependent/meta-dependent.md"]);
+    const addedDependents = ["z-dependent", "a-dependent"];
+    for (const dependent of addedDependents) {
+      await write(repo, `.arc/backlog/planned/${dependent}/meta-${dependent}.md`, renderMetaFile(dependent, {
+        state: "Planning",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        dependsOn: ["origin"],
+        origin: "internal",
+        design: [`draft-${dependent}.md`],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }));
+    }
+    await git(repo, ["add", ".arc/backlog/planned"]);
     await git(repo, ["commit", "-m", "add incoming dependency"]);
+    const expected = sortByCanonicalBytes(completedMap.machine.incomingEdges);
+    const actual = sortByCanonicalBytes([
+      ...expected,
+      ...addedDependents.map((dependent) => ({
+        edgeId: v3IncomingEdgeId({ dependent, currentTargets: ["origin"] }),
+        dependent,
+        currentTargets: ["origin"],
+      })),
+    ]);
+    const locus = actual.find((edge, index) => {
+      const expectedEdge = expected[index];
+      return expectedEdge === undefined || canonicalize(edge) !== canonicalize(expectedEdge);
+    })?.dependent;
+    if (locus === undefined) throw new Error("missing incoming-dependency mismatch locus");
 
     const result = await advanceGitDecomposeTransitionBase(dependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
     });
-    expect(result).toMatchObject({ status: "refused", reason: "base-acquired-incoming-dependency" });
+    expect(result).toEqual({
+      status: "refused",
+      reason: "base-acquired-incoming-dependency",
+      locus,
+      evidence: { expected, actual },
+    });
   });
 
   it("restores the pinned candidate after a conflicting base merge", async () => {
@@ -1771,24 +1904,113 @@ describe("Git v3 repository plan", () => {
     await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
     await git(repo, ["add", ".arc/reference/base-growth.txt"]);
     await git(repo, ["commit", "-m", "advance base"]);
+    const expectedBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
     let raced = false;
+    let racedBaseHead: string | null = null;
     const racingDependencies = {
       ...dependencies,
       exec: async (...args: Parameters<typeof dependencies.exec>) => {
         if (!raced && args[1][0] === "ls-files" && args[2]?.cwd === candidatePath) {
           raced = true;
           await git(repo, ["commit", "--allow-empty", "-m", "race base after merge"]);
+          racedBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
         }
         return await dependencies.exec(...args);
       },
     };
 
-    expect(await advanceGitDecomposeTransitionBase(racingDependencies, {
+    const result = await advanceGitDecomposeTransitionBase(racingDependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
-    })).toMatchObject({ status: "refused", reason: "post-merge-validation-refused:binding-raced" });
-    expect(raced).toBe(true);
+    });
+    if (racedBaseHead === null) throw new Error("base binding did not race");
+    expect(result).toEqual({
+      status: "refused",
+      reason: "post-merge-validation-refused:binding-raced",
+      locus: "main",
+      evidence: {
+        expected: { candidateHead, baseHead: expectedBaseHead },
+        actual: { candidateHead, baseHead: racedBaseHead },
+      },
+    });
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it("reports a missing advancement-plan blob at its mutation path", async () => {
+    const { repo, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    let missingPath: string | null = null;
+    const missingBlobDependencies = {
+      ...dependencies,
+      composePlan: async (baseRef: string, map: unknown) => {
+        const composed = await composeGitV3RepositoryPlan(dependencies, baseRef, map);
+        if (composed.status !== "composed") return composed;
+        const mutation = composed.plan.mutations.find(({ before, after }) =>
+          after.kind === "file" && canonicalize(before) !== canonicalize(after));
+        if (mutation?.after.kind !== "file") throw new Error("missing file mutation");
+        missingPath = mutation.path;
+        const missingDigest = mutation.after.contentDigest;
+        return {
+          ...composed,
+          blobs: composed.blobs.filter(({ contentDigest }) =>
+            contentDigest !== missingDigest),
+        };
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase(missingBlobDependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    if (missingPath === null) throw new Error("missing blob path was not selected");
+    expect(result).toEqual({
+      status: "refused",
+      reason: "post-merge-validation-refused:blob-unavailable",
+      locus: missingPath,
+    });
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it("reports an advancement-plan write failure at its mutation path", async () => {
+    const { repo, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    let failedPath: string | null = null;
+    const failingDependencies = {
+      ...dependencies,
+      exec: async (...args: Parameters<typeof dependencies.exec>) => {
+        const command = args[1][0];
+        if (args[2]?.cwd === candidatePath && (command === "add" || command === "update-index")) {
+          failedPath = args[1].at(-1) ?? null;
+          throw new Error(`write exploded at ${failedPath ?? "unknown"}`);
+        }
+        return await dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase(failingDependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    if (failedPath === null) throw new Error("advancement-plan write did not fail");
+    expect(result).toEqual({
+      status: "refused",
+      reason: "post-merge-validation-refused:write-failed",
+      locus: failedPath,
+    });
+    expect(canonicalize(result)).not.toContain("write exploded");
     expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
     expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
     await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
@@ -1826,12 +2048,27 @@ describe("Git v3 repository plan", () => {
       },
     };
 
-    expect(await advanceGitDecomposeTransitionBase(racingDependencies, {
+    const result = await advanceGitDecomposeTransitionBase(racingDependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
-    })).toMatchObject({ status: "refused", reason: "binding-raced" });
-    expect(racedHead).not.toBeNull();
+    });
+    if (racedHead === null) throw new Error("candidate binding did not race");
+    expect(result).toEqual({
+      status: "refused",
+      reason: "binding-raced",
+      locus: "chore/decompose-origin",
+      evidence: {
+        expected: {
+          candidateHead,
+          baseHead: completedMap.machine.resultBase.head,
+        },
+        actual: {
+          candidateHead: racedHead,
+          baseHead: completedMap.machine.resultBase.head,
+        },
+      },
+    });
   });
 
   it("refuses a root commit masquerading as the initial transition", async () => {
@@ -2307,6 +2544,7 @@ describe("Git v3 repository plan", () => {
       status: "refused",
       stage: "occupation",
       reason: "base-moved",
+      locus: "main",
       evidence: {
         expected: completedMap.machine.resultBase.head,
         actual: { kind: "absent" },
