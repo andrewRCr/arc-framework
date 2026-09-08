@@ -1,5 +1,735 @@
 # Notes: Review Signal Convergence
 
+## Planning finalization — 2026-09-07
+
+The settled task list and canonical delivery projection were approved for commit and activation. The temporary
+planning-draft banner is removed; task Goals, criteria, design bytes, and canonical delivery coverage are unchanged.
+The member-verifier heading mismatch is captured as a held Errand in the identity-global inbox. Earlier pending
+approval and no-commit statements below describe their recorded stages, not the current authorization.
+
+## Canonical delivery authoring — 2026-09-07
+
+The task-derived plan is composed as revision 1, `stack-to-main`, with the same seven members and four named seams.
+Plan ID: `23a90e73-c8cd-4336-9b6f-0ae9acd2aaeb`.
+Plan digest: `sha256:a8e7fe7fea41deb38482d04483fba11ec5b9f6bd73a27de2bb9fdcd211c6cd24`.
+The CLI published the canonical Git-common plan and rendered its task-list projection without advisories, then
+removed transient authoring state. This is replaceable prebinding intent, not materialized branches, review vehicles,
+landing authority, or final task-list approval. The seven-member estimates remain advisory, not measured bounds.
+
+Inventory convention: `rfc:design-1` through `rfc:design-8` identify the spec's eight numbered Proposed Design sections.
+The artifact revision digest hashes exact UTF-8 spec bytes. Each element digest hashes its complete numbered section,
+including nested headings, with trailing whitespace removed and one final newline. These are explicit author-owned
+bindings supplied to the generated inventory contract, not a CLI-derived design interpretation. Success Criteria and
+Alternatives remain governing context rather than additional enumerated design elements.
+
+Final formatting checks normalized Task 5.2.a's test-first marker and placed member-verifier suffixes outside bold.
+The latter works around a source/template mismatch: `task-inventory.ts` matches the raw line's terminal suffix, while
+`strategy-task-list-formatting.md` shows that suffix inside bold. The first composition refused all seven boundaries;
+after recreating the transient map, the CLI recognized seven member verifiers and the sole unassigned WU verifier.
+No production parser or template was changed. These formatting edits and the renderer replacement postdate the exact
+adversarial snapshot; its recorded no-findings result is not represented as a review of these new bytes.
+
+The post-render full-suite coherence read found no new design issue. It clarified the remaining Task 5.4 summary of
+conditional permission to say pending/unusable while unfinished, matching the approved spec and Task 5.3 contract.
+All other task bodies and criterion text were preserved by rendering. Final checklist approval remains; no commit
+or activation has occurred.
+
+## Task-suite adversarial review — 2026-09-07
+
+**Pass 1 of 2 — no findings; converged.** One fresh read-only reviewer applied the full-depth `task-audit` rubric
+to the complete spec and task list, inspecting source directly without historical notes or prior finding guidance.
+The review covered grounding plus all eight categories and found no material planning, contract, ordering, or
+acceptance gap. No finding-driven correction or successor pass is required by this result; the second allowance
+remains unused. This is task-generation review, separate from the earlier two-pass spec review.
+
+Exact reviewed SHA-256 identities:
+
+- Spec: `d9d3607374af07ab5d39b6d982d7e94df5d34ead5adc3ba11b8a4800a62579b9`.
+- Task list: `80b89f0b241a7517d06fe3fc8530af5ab83f7208ed989185cdb248624d6eed10`.
+
+The reviewer and primary independently rechecked both file hashes after the pass. Reported attention included native
+admission, producer/approval binding, severity/navigation, response and conditional-permission continuation, member
+coverage, publication recovery, executable scenarios, and strict-current/mirrored contract closure. These observations
+are advisory coverage reports, not implementation verification, measured sizing evidence, or merge authority.
+
+Full Markdown lint passed on 684 files; ARC contract checks and task/design inventory checks also passed. All task
+and criterion markers remain open. Canonical delivery authoring, post-render coherence, and the final checklist and
+approval ceremony remain. No canonical plan, implementation, activation, or commit was performed by this review.
+
+## Conditional-override grounding correction — 2026-09-07
+
+The two follow-up corrections were approved and folded into spec §§ 3/7, trust/testing/SC 4, and Tasks 1.3/5.3.
+Unfinished response work leaves conditional permission pending and unusable; it is not proof of invalidation.
+Withdrawal, superseded approval, and incompatible response/lineage/pass bindings remain invalidating conditions.
+
+Source grounding corrected the persistence analogy: `respond-command.ts` appends `fixAuthorization` inside
+`ApprovedDispositionRecordSchema`, and `LocalDispositionRecordStore` permits only narrowly defined record advances.
+There is no separate persisted response-plan owner to reuse as the amendment originally implied. Conditional review
+permission instead uses the existing lane-progress owner already extended by Member 2, linked to the exact producer,
+approved set, authorizer, lineage, exhausted count, and next ordinal. It does not alter immutable disposition content.
+Member 5 owns capture/withdrawal and single-use consumption with admission, including failed-write repair and replay
+that cannot resurrect permission. Advisory callers retain their existing evidence rather than acquiring lane records.
+
+This supersedes the amendment's unperformed-means-invalid wording and storage analogy below, while preserving its
+ergonomic intent. The whole-suite adversarial hold is released for the requested review; no commit is authorized.
+
+## Convergence-signal amendment — 2026-09-07
+
+A review of the spec against the work unit's originating idea — review continues only while the signal stays strong —
+confirmed the idea is intact in § 3's convergence rule and § 6's reducer. Three corrections followed.
+
+**Signal-rich minor.** The prior text let the primary recommend another within-cap pass for an unusually signal-rich
+`minor`. No driver arm, task, or criterion implemented it: a converged pass resolves `pass-complete / none` and § 7
+completes the loop. Building the arm was rejected — it would return an approval state on the good path and buy a new
+operator interrupt to catch a rare case. The clause kept its real work, the prohibition on raising `verifiedSeverity`
+to withhold convergence, and the recommendation became a converged-report follow-up observation. Report content costs
+no interrupt, since the operator reads the completion anyway and can request a new review through normal entry points.
+
+**Stop-reason legibility.** With no decision turn at within-cap convergence, an ended loop must say why it ended.
+Every ended loop now names converged, `cap-exhausted`, suspended, or Owner-accepted beside `Pass N of M`.
+
+**Conditional ceiling override.** The cap recommendation previously arrived after the approved response was performed,
+a second operator turn. The claim that continuation is unknowable earlier does not hold: verified severities under
+approval already establish the signal. What is genuinely unavailable pre-performance is a valid binding, because a
+performed fix moves the head. That is solved the way `fixAuthorization` already solves it — derive the authorization
+at the preparation boundary, materialize it later. The override may now be captured with the disposition set and is
+bound after performance against the produced head, invalidating when runtime observes the approved plan unperformed;
+over-scope judgment stays with the primary. It persists at the `respond-command.ts` preparation boundary beside the
+response plan, and its absence leaves the existing request path unchanged.
+
+The decisive asymmetry: the cap bounds automatic cost, not safety, and the authorized action is a review rather than a
+mutation. A capture granted on a slightly stale picture costs one pass; refusing to capture costs an operator
+interrupt every time. Exact binding, one-pass scope, and recommendation-is-not-authorization are unchanged.
+
+## Suite coherence after grounding
+
+The full spec, task list, and notes have been read together after all seven substantive grounding dispositions.
+No new design issue was identified. Coherence corrections distinguish original producer admission from current-target
+applicability, response-action selection from execution, and outstanding material evidence from member progression.
+Publication criteria and test summaries now include the already-approved guard lifetime, explicit recovery, real
+write-failure windows, and non-regression after readiness. No scope or delivery boundary changes are introduced.
+
+Current inventory: eight numbered design sections, eighteen spec criteria, seven provisional delivery members,
+34 parents (26 substantive, seven member verifiers, one terminal verifier), and twenty lettered subtasks. The task
+list is the current forward plan. Earlier notes below preserve decisions and evidence at their recorded stage:
+old task IDs, four-/nine-member cuts, pending gates, and hard sizing holds are history, not current instructions.
+
+The current raw-line bands total 16,200–27,200 plus Member 4's approximately 500-line contingency. Member 2 uses
+3,400–5,200, Member 4 uses 2,600–4,200 plus contingency, and Member 5 uses 3,300–4,900; other bands remain the reduced
+structural estimates. These are overlapping planning allowances, not measured diffs or an approved total. Preserve
+the advisory-based sizing decision and count any planning/projection changes actually present in each delivery diff;
+do not silently exclude tracked documentation or treat generated untracked schemas as committed churn.
+
+Whole-suite adversarial review is explicitly held, not run or declined. Canonical delivery authoring and the final
+checklist/approval ceremony remain; no task-list finalization, commit, activation, or implementation is authorized.
+
+## Phase 7 grounding disposition
+
+The two approved interface decisions and recovery-test correction are folded into spec § 8 and Tasks 7.1–7.3.
+This closes the final substantive phase's planning disposition, not implementation or final task-list readiness.
+The whole-suite coherence read, final review gates, and canonical delivery finalization remain. No additional
+authority record, session store, production failure switch, or Git hook is introduced.
+
+- **Ordering-context lifetime.** `projectCandidateReviewResumeBoundary` currently replaces the convergence action
+  with a plain continuation and retains no reviewed head. Task 7.1 carries typed post-attest context on the resumed
+  boundary until readiness or explicitly selected recovery. Both token and ordinary prepublication re-entry consult
+  it; replay after readiness cannot recreate the pending guard or regress advanced authority.
+- **Explicit recovery input.** Existing resume decoding carries judgments, not an ordering-recovery selection. The
+  diagnostic now supplies the planned `attestationOrderingRecovery` input through that same transport, bound to
+  Candidate/subject, reviewed/current heads, and expected boundary version. Selected recovery revalidates and replaces
+  the guard using the existing version-checked write before normal composition. Plain invocation is not selection,
+  stale input cannot replace newer state, and recovery grants no pass or clearance. Equivalent-head applicability
+  and valid carried decisions remain reusable without reflexive re-review.
+- **Actual failed-write evidence.** `publication-spine.e2e.test.ts` currently restores the old boundary after a fully
+  successful attest, and the verb unit test checks repeated publication rather than a failed write. Those cases do
+  not prove the real Candidate → boundary → metadata → staging failure windows in `handlers/lifecycle.ts`.
+  Task 7.3 separately injects boundary and later metadata/staging failures using existing test seams, retries, and
+  checks the index as well as returned continuation. Fresh CLI builds and preceding producer/count fixtures underpin
+  clean-at-cap assertions; existing post-readiness operational-commit tests provide the opposite ordering control.
+
+The workflow distinction remains initial/root verification versus convergence re-entry: the latter keeps projections
+staged through returned readiness and the existing publication commit. Earlier phases own evidence-derived review
+and response continuation. This member preserves those results through publication rather than introducing another
+review decision algorithm.
+
+## Phase 6 grounding disposition
+
+The three approved corrections are folded into spec § 5 and Tasks 6.1–6.4. Their planning disposition is closed;
+implementation remains unstarted. The existing result reader, applicability machinery, operation-owned pins, and
+cleanup remain the substrate. No new history ledger, provider capability, or permanent retention service is added.
+
+- **Reviewed endpoints versus response retention.** `earlier-review-applicability.ts` can substitute a verified fix
+  response's new endpoints for the original reviewed endpoints, and skip projection when that response reaches the
+  current target. This retains response history; it cannot establish reviewed coverage of the fix. Task 6.1 derives
+  correction endpoints from the immutable predecessor producer. The A-review/B-fix/C-correction regression includes
+  the unreviewed A→B change while retaining established equivalent-head applicability and covered-decision carry.
+- **Explicit predecessor lookup.** `queryEarlierReviewAttempts` filters by source and excludes the current head;
+  reservation selection can also truncate settled history. Those projections are not a predecessor resolver.
+  Tasks 6.1/6.3 use the common result reader against the complete snapshot, validate each producer's source context,
+  and retain shared lane/lineage/policy compatibility. Public coverage includes hosted-complete → local-incremental
+  selection and same-head successors without weakening incompatible-basis refusal.
+- **Correction-object lifetime.** `review-materialization.ts` currently pins only the current head; predecessor
+  terminal receipts permit immediate cleanup through `local-source-sweep.ts`. After amend/rebase, that head may not
+  retain the prior correction commit. Task 6.2 makes the admitted operation retain every required endpoint for its
+  existing lifetime and closes pin verification, enumeration, and cleanup together. `hosts/local/source-sweep.ts`
+  currently interprets each ref suffix as one operation ID, so merely adding child refs would break ownership.
+  Extend the existing materialization maintenance test with a nonancestor endpoint, predecessor cleanup, and replay
+  after Git maintenance. Objects unavailable before admission remain a typed scope failure, not invented evidence.
+
+The local incremental path still must close public status/admission with transport: current `status.ts` refuses
+explicit incremental coverage when delegated local review is selected. The member's existing public-action scenarios
+must prove the capable-source choice actually reaches the new payload rather than merely changing a stored label.
+Frontline remains complete, and hosted adapter limits/upgrades retain the settled spec behavior. These are existing
+task obligations made concrete by the source inventory, not additional scope or a new convergence rule.
+
+## Phase 5 grounding disposition and equivalent-head review reuse
+
+The three approved Phase 5 corrections are folded into spec §§ 6–7 and Tasks 5.2–5.4. The historical-clean correction
+is explicitly bounded to preserve equivalent-head reuse and existing applicability judgment. This closes the
+planning disposition, not implementation or final suite review. Existing resume, applicability, and Owner authority
+mechanisms remain the substrate; no additional session store or review engine is introduced.
+
+- **Caller-owned context.** Prepublication carries `selfReview`, `changeSet`, lane judgments, and the consumed
+  frontline-ceiling head in its returned resume token. `handlers/review.ts` persists a publication boundary only at
+  publish-ready/convergence-verification loci, not at every pending review/response. Approved `respond` currently
+  receives source and dispositions, so source lookup cannot recover those pending judgments. Task 5.3 carries and
+  revalidates existing caller context through internal policy and returned continuation, including public lifecycle
+  paths and restart. Exact head-bound override and terminus invalidation remain separate from context transport.
+- **Historical applicability.** `hosted-reservation-discharge.ts` still accepts any clean in the Candidate span when
+  its earlier-applicability reader is absent, and its unit test explicitly endorses that fallback. Task 5.2 replaces
+  that inference with current applicability while preserving earlier producer identity and signal. Missing evidence
+  must reach the existing applicability decision/refusal; it must not silently clear or automatically launch review.
+- **Positive member progression.** Discharge currently recognizes clean but treats settled findings uniformly as
+  outstanding. Tasks 5.2/5.4 add approved, performed all-refuted/minors-only positives alongside material, pending
+  response, and unavailable-evidence negatives. Status selects its member before policy admission; checkpoint uses
+  raw discharge plus Owner acceptance. Test both compositions against the same durable multi-member state rather
+  than treating reducer tests as proof of their agreement.
+
+### Why span-based discharge existed
+
+The original implementation at `9e8433295` deliberately read lane verdicts across the Candidate span. Its code
+comment explains two realized concerns: a reservation with no clearing writer otherwise remained outstanding, and
+requiring a verdict at the latest head would replace the workflow's own applicability judgment after a later fix.
+`9dc85065d` tightened repository/PR/head binding while retaining span-based discharge. `0f2350474` later narrowed
+the unconditional span shortcut to callers lacking an applicability reader. Thus the fallback preserves an older
+contract; it was not an arbitrary exemption, and deleting its useful behavior would regress the intended posture.
+
+Current contribution applicability is more precise: `review-contribution-applicability.ts` recognizes unchanged
+heads, tree equality, and mechanical reapplication. `review-applicability-authority.ts` recognizes exact `covered`
+decisions; `earlier-review-applicability.ts` can carry them through a mechanically equivalent later head without
+another decision. Candidate currentness likewise distinguishes ceremony movement from contribution change. RSC must
+compose these paths, not replace them with SHA equality or invent another semantic-equivalence classifier.
+
+A new head therefore does not itself demand another review, invalidate the prior result, consume a pass, or require
+renewed applicability approval. Mechanically unproven semantic equivalence remains the existing bounded judgment
+decision, not an automatic clean inference. The producer continues to describe its original reviewed target and
+signal. Retaining an earlier material result does not establish convergence; exact-head merge authority and explicit
+Owner accepted-risk authority retain their own checks. Regression coverage preserves both reuse and refusal sides.
+
+## Phase 4 grounding disposition
+
+The three approved corrections are folded into spec §§ 4 and 7 and Tasks 4.1, 4.2, and 4.4. Their planning
+disposition is closed; no implementation is attested. The reporting member remains one coherent boundary, with no
+additional evaluator narrative field, renderer service, or review mechanism. Its size remains an estimate subject
+to the recorded advisory-based reviewability decision, not an approved final diff.
+
+- **Runtime navigation boundary.** `local-review-result.ts` shares evaluator and normalized finding shapes today;
+  requiring navigation on that shared shape would ask evaluators to supply runtime ordinals. Task 4.2 separates the
+  input shape and assigns ordinals during normalization. Complete producer arrays validate one-based index
+  correspondence. Hosted CodeRabbit combines thread and supplemental body arrays, so numbering follows combination;
+  filtered projections preserve rather than reassign it. Local wire has no title/body: labels remain absent, and
+  opaque evidence references are not interpreted as source text. Hosted adapters capture labels before discarding
+  comment text; frontline retains its existing native event identity while adding normalized navigation.
+- **Caller choreography and loading.** Existing `review-gate-workflows.test.ts` and `delivery-workflow.test.ts`
+  assert triage/response before the response command. Task 4.4 distinguishes proposal/report production from the
+  approved command and performance, including retained delivery attempts and both Errand arms. `self-review.md`
+  invokes triage but currently names it only under `related`; the actual method dependency must be declared.
+  Verification's direct self-review triage stays non-producer. The relevant methods/workflows already appear in
+  `init-recipe.json`; no new installation entry or global preload is needed.
+- **Mixed-set gating.** `dispositions.ts` currently reconstructs retained minor policy from a finding's effective
+  or reported grade and gating. Once unsupported findings always become record-only, they must not select policy for
+  verified ordinary minors. Task 4.1 adds mixed-set round trips under blocking-minor policy and nit disagreement in
+  both directions, retaining source comparison independently from verified gating. This changes neither the existing
+  policy axis nor the later convergence rule.
+
+The renderer remains a pure projection of canonical author rationale/recommendation and source-owned navigation.
+Static command/workflow tests establish shape and order; bounded fresh-context exercises separately assess faithful
+standalone narrative and the self-review approval path. Member 3 owns producer-bound approval, and Member 5 owns
+evidence-derived continuation; neither is deferred into or activated prematurely by reporting.
+
+## Phase 3 grounding disposition
+
+The three approved corrections are folded into spec § 5 and Tasks 3.1–3.3. Their planning disposition is closed;
+implementation and final suite review remain separate gates. The existing-store boundary and seven-member candidate
+are unchanged. No result journal, replacement storage harness, or additional review mechanism is introduced.
+
+- **Producer-binding consumer closure.** `DispositionSourceContext` and its matcher are consumed by both
+  `respond-command.ts` and `reduce-command.ts`; local resume consumes the latter's projection. Adding required
+  producer/result binding only in proposal preparation would leave another validator unable to establish the same
+  authority, or defer a required constructor change into the later grade migration. Task 3.2 explicitly owns the
+  complete binding graph and reduction/resume/response/follow-up evidence. Member 4 retains grade representation work.
+- **Concurrent equality.** `LocalReviewOperationStateStore.publishOperation` currently accepts stale replay only
+  when the entire state matches. `recordLaneAttempt` changes `updatedAt`, and settlement changes other progress fields.
+  The existing real-store sibling replay test supplies byte-identical states, so it cannot establish idempotence of
+  equal evidence under those differences. Tasks 3.1 and 3.3 compare sealed evidence, reread on version conflict, and
+  preserve current progress; tests interleave distinct clocks and settlement/another attempt update.
+- **Interruption boundary.** Hosted provider observation precedes `recordHostedAwaitAttempt`, where terminal content
+  first becomes durable today. An observation lost before sealing cannot be replayed from storage. Task 3.3 separates
+  pre-seal failure from successful sealing with lost acknowledgment or later progress failure. The latter repairs
+  from saved evidence without polling; the former retains acknowledged pending admission and may re-observe without
+  dispatching another request or pass. Unknown write outcomes read storage first.
+
+These corrections make the existing consumer and failure-path obligations explicit rather than add scope. Current
+provider clean/findings contracts already supply a review URL; no new URL-absence capability is needed to preserve
+their results. Hosted snapshot readers, settlement writers, reservation/discharge projections, and the existing
+operation/outcome/receipt test surfaces remain the migration inventory. Phase 2 owns their logical-count changes;
+Phase 3 must not retain the old incremental-count fixture expectation as current policy.
+
+## Changeset advisory and sizing judgment
+
+The sizing direction is clarified forward: prefer sub-5,000 members, but 5,200 or 5,500 raw changed lines can be
+reasonable for a coherent, reviewable boundary. Crossing the advisory requires a recommendation and an explicit
+review-scope decision, not an automatic split or a proof that every estimate's upper bound is below 5,000. This
+supersedes the hard sub-ceiling interpretation and sizing hold recorded below; it does not approve any unbuilt diff.
+Member 2's 3,400–5,200 band remains an uncertainty to assess, not a reason by itself to add a member.
+
+Source inspection found two different behaviors. `.arc/system/arc-config.yml` sets 5,000 lines and 150 files;
+package config and `src/lib/config/schema.ts` default both to zero (disabled). `change-stats.ts` counts raw additions
+plus deletions over the exact base/head range; equality trips either enabled threshold. Ordinary preparation permits
+whole-target or chunked selection. However, `policy/review-chunking-command.ts` acknowledges only chunked selection,
+and delivery `status-composition.ts` converts `consider-chunks` directly to chunked scope. Current hosted sources
+cannot carry that scope. Delivery status judgment has no corresponding whole-target override; changing the global
+threshold is the existing broad workaround.
+
+The gap is captured separately as “Honor an explicit whole-target choice above the changeset advisory” in the
+identity-global USER-INBOX, as an errand candidate subject to intake scope review. RSC neither implements that escape
+hatch nor depends on it. Final delivery planning must disclose the routing actually available at that time and seek
+direction if a preferred whole-target review cannot be expressed; no configured threshold is changed here.
+
+## Phase 2 grounding disposition and sizing
+
+The four approved Phase 2 corrections are folded into spec § 5, its tests/criteria, and Tasks 2.1–2.5. This closes
+their planning disposition, not implementation or delivery finalization. The seven-member cut remains provisional;
+Member 2 now has an explicit sizing hold. The prior estimates and rationale below remain historical inputs.
+
+### Applied contracts
+
+- **Admission ownership and native identity.** Existing lane progress becomes one version-checked owner per
+  repository, lane, and runtime-resolved subject lineage. Head and PR coordinates belong to attempts, not a mutable
+  container discriminator. Local request identity binds lineage/pass/generation as well as operation identity, so
+  sibling members sharing a target and ordinal cannot share receipts. Source selection and the single terminal
+  producer claim use that owner; separate source-operation locks cannot arbitrate competing fallback terminals.
+- **Public authority and renewal.** Frontline resolve/run derive and revalidate durable admission rather than trust
+  caller pass values or a schema-valid ready envelope. Pending admission resolves before current policy/source/actor
+  selection. Existing pre-terminal cleanup and attesting-runtime renewal remain narrowly authorized; review actors,
+  policy, and scope stay fixed, and terminal receipts cannot renew.
+- **Failed local rerun.** A failed attempt without a terminal receipt remains in history. Deliberate rerun advances
+  native retry generation within the same logical pass; pending and completed replays do not. Completion counts once,
+  with existing retry bounds and partial/unavailable distinctions preserved.
+- **Hosted interruption.** Singleton, Errand, and member paths persist admission before dispatch and bind the returned
+  acknowledgment using the existing version check. Acknowledged replay returns stored await context. Interrupted or
+  ambiguous dispatch without durable acknowledgment stops without automatic redispatch, fallback, or a new pass.
+  No provider exactly-once engine is introduced; uncertainty requires an explicit recovery decision.
+
+Delivery lineage uses existing plan/WU/member identity across heads. A Candidate-backed singleton uses its current
+authorized Candidate lineage, not every root belonging to a WU. Other head-bound paths retain exact-head allowance
+scoped to their vehicle. Historical results keep their exact target; current-head actions and lineage counts remain
+distinct projections. These scope rules prevent both accidental allowance sharing and an unrequested WU-wide budget.
+
+### Grounding evidence
+
+`lane-progress.ts` currently keys progress by lane/repository/head. Its append replaces container `changeRequestId`,
+while reservation and earlier-attempt readers discriminate hosted/local history through that field. A read-only
+in-memory probe against `recordLaneAttempt` retained two attempts while changing the container from `pull/42` to
+`null`; failed-local then clean under the same attempt ID returned `conflicting lane-attempt replay`. No persisted
+state was changed. The correction closes this actual storage/reader contract, not an abstract concurrency concern.
+
+`core/local-operation.ts` includes delivery admission in operation identity, but `core/local-carrier.ts` and the
+request preimage in `core/gate-contract-v2-schema.ts` do not bind member lineage. Receipt lookup uses request identity.
+`policy/frontline-command.ts` accepts caller pass values; `runtime/frontline-run-command.ts` validates the ready
+envelope without durable pass admission. `runtime/local-prepare.ts` resolves current policy before pending lookup
+and already contains nonterminal transport-renewal behavior, which must be preserved under the fixed admission.
+
+Hosted request performs the external effect before `handlers/review.ts` records acknowledged pending progress.
+Existing provider adapters distinguish safe unavailability from ambiguous delivery. Their current acknowledgment
+contracts cannot prove whether an unacknowledged interrupted request took effect. Pending await also derives current
+context today, so preserving original admission must cover request, await, and their public callers together.
+
+Tasks 2.1–2.5 now own the strict graph migration and public-path evidence. Member 3 still owns immutable terminal
+sealing and completed replay-before-observation; Member 5 still owns evidence-derived convergence. Neither capability
+is silently pulled into admission, and no second ledger or generic persisted execution envelope is added.
+
+### Revised Member 2 budget
+
+The earlier 2,500–4,500 band already included shared admission, native identity, pre-effect hosted persistence, and
+retry coverage. Fresh grounding adds lineage-owned storage/selectors, member-bound requests, public frontline
+validation, and pending-renewal closure. The incremental allowance is approximately 900–1,600 raw added/deleted lines,
+partly replacing existing contingency; the revised estimate is **3,400–5,200**, not a proven sub-5,000 bound.
+
+Retain the seven-member candidate while the remaining grounding audits finish, but resolve this sizing risk before
+canonical delivery finalization. No oversized member is approved. Reuse existing prepare, frontline, attestation,
+reservation, and fan-out fixtures; migrate shared shapes once. Do not split schemas from required callers, omit
+failed-retry behavior, or invent a replacement test framework to improve the estimate. A further delivery cut needs
+an independently valid contract boundary, not an arbitrary line-count division.
+
+## Phase 1 grounding disposition
+
+The full-depth Phase 1 audit identified one major interface-boundary ambiguity in Task 1.1: rejection of the old ARC
+grade could be misread as renaming a provider wire contract. The approved correction is now in the spec and task:
+the CodeRabbit agent parser retains its accepted native `blocker | major | minor` vocabulary and event-based finding
+identity, while normalization produces ARC `critical`. ARC-owned severity fields reject `blocker`; top-grade and
+lower-grade adapter mappings and nested ARC-input rejection have explicit tests. This is source-boundary translation,
+not an old-record compatibility path. No other material Phase 1 finding was identified; audit completion does not
+attest implementation. The embedded method prompt, direct planning/criteria callers, installation recipe, and existing
+contract-test surfaces were inspected without adding a new review or evaluation runtime.
+
+## Content-fill readiness — concrete budget reconciliation
+
+The seven-member structure was accepted for content fill. Targeted fixture and caller inventories support retaining
+the cut without a new member or a scope reduction. The resulting task list has 34 parents: 26 substantive parents,
+seven member verifiers, and the sole terminal WU verifier. Two coupled pairs were consolidated during content fill:
+hosted schema/publisher/writer/reader/replay closure is `3.1`, and verified disposition schema plus complete consumer
+migration is `4.1`. This avoids planning a schema-only task that cannot pass checks until a later caller task.
+Member identities and acceptance boundaries are unchanged. Earlier structural task IDs below are historical.
+
+### Reporting budget
+
+Member 4's revised estimate is 2,600–4,200 raw changed lines plus approximately 500 contingency, not a proven bound.
+The useful evidence is fixture centralization, not a claim that every file is small. The shared `fixture()`,
+`approved()`, and `hostedResponseFixture()` in `runtime/respond-command.test.ts` construct the local finding,
+canonical disposition, and hosted variants reused by many settlement scenarios. Targeted regrade/nit assertions
+still need behavioral changes. Immutable producer approval binding belongs to Member 3, not another Member 4 charge.
+
+A read-only TypeScript object-literal scout found 29 disposition-item candidates, 10 author/expectation candidates,
+30 normalized-finding candidates, and 19 hosted-finding candidates across tracked tests. These are structural search
+hits, not 88 mandatory full-object rewrites: some are expectations or legacy fixtures, and spread-only alterations
+are not counted. Primary inspection confirmed the shared helper construction and old grade branches. Remaining
+classification, fixtures added by predecessors, and encoded examples are covered by contingency, not silently omitted.
+
+The revised allocation is 450–700 for grade schemas/consumers, 300–500 for native capture/preservation, 250–450 for
+renderer/envelope integration, 250–450 for mechanical fixture adaptation, 750–1,200 for behavioral tests, and
+600–900 for paired methods/callers and bounded examples. Keep the existing response-plan, reduce, resume,
+frontline-follow-up, record-store, delivery, and fan-out fixtures rather than replacing their harnesses. The
+generated schema bundle is untracked; generation remains verification work, not a wholesale committed diff.
+
+### Convergence budget
+
+Member 5's revised planning band is 3,300–4,900, retaining a working target near 4,300–4,700. The prior production,
+focused-test, and paired-procedure allocations total 3,150–4,650; replace the broad 450–750 contract/fixture reserve
+with 150–250 for remaining request/expectation adaptation. This is supported by shared reservation fixture builders,
+the existing fan-out harness, and a narrow terminal-literal inventory: eight in the direct policy test and six in
+the status test. These are not an exhaustive semantic test inventory; complete caller and refusal coverage remains
+required. The envelope references `ReviewAttemptSchema` rather than repeating its source definition, and no tracked
+generated-schema snapshot multiplies that edit.
+
+Primary inspection retained all direct policy consumers, separate discharge, response continuation, and the actual
+test setup in this budget. Native pass/count migrations belong to Member 2, immutable reads to Member 3, and grade
+fixtures to Member 4; this member changes signal/action assertions rather than recreating those prerequisites.
+Existing `review-cli-surfaces`, handler, prepublication, delivery/Candidate, and fallback tests remain in the
+contract-adaptation inventory even where they need no semantic change. Use one common evidence/policy composition
+helper; a second hosted materiality algorithm would invalidate both this estimate and the design.
+
+### Execution and remaining gates
+
+The inventories provide a credible sub-5,000 planning basis, not a guarantee about an unbuilt diff. They clear the
+content-fill hold without approving an oversized delivery member. Recheck actual raw additions/deletions against
+the previous member at delivery review, including fixture growth from predecessors. If headroom is exhausted,
+surface the concrete indivisible boundary before landing; do not delete required tests or invent a compatibility
+path to fit. The earlier fallback split remains unselected.
+
+Content fill assigns test-first to schemas, validation, state, rendering transformations, and command behavior;
+mechanical severity and prose changes use test-after plus bounded behavioral evidence where appropriate. Member
+verifiers consume preceding implementation/scenario evidence and introduce no correction bucket. Coverage chain
+validation, local correction payloads, public re-entry, and publication repair all have explicit behavioral owners.
+No implementation, activation, commit, or canonical delivery binding has occurred. The next gate is review of the
+content-filled draft before the per-phase grounding audit and final suite review.
+
+## Reduced structural pass — boundaries and budget
+
+The 2026-09-07 reduction assessment was approved and applied to the current spec: native admission facts replace a
+uniform persisted execution envelope; one terminal aggregate producer replaces speculative multi-producer chunk
+aggregation; approved response handling composes policy internally. Required evidence, approval, pass, coverage,
+and publication guarantees remain. The spec's alternatives retain the reasons for these choices. The original
+two-pass adversarial result covers its recorded baseline, not these subsequent approved corrections.
+
+The scale re-read retains Heavy and the high three-pass generation path. Three producer paths, strict record
+migrations, the independent discharge path, response replay, and publication authority still require substantial
+grounding. Boundary outcome remains one WU with a native-stack delivery candidate. Seven candidate members replace
+the nine-member provisional skeleton; earlier cuts below are history. The rebuilt skeleton has 35 substantive
+parents including seven member verifiers, plus one terminal WU verifier. It has no executable Goals/content fill.
+
+### Member budgets and concrete ownership
+
+Raw budgets count added plus deleted source, tests, fixtures, and mirrored prose. They are estimates, not measured
+diffs, and no oversized member is approved. Generated schema validation is required, but the untracked
+`dist/schemas/kernel.json` contributes no committed lines. Production fixture builders are updated with the contract
+they construct; later members add assertions/scenarios rather than budgeting a duplicate replacement harness.
+
+| Member                   | Raw-change band | Concrete ownership and main uncertainty                                                                                                                             |
+| ------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — vocabulary/advisory  | 800–1,800       | Severity acceptance graph plus attention, loop/cap prose and bounded exercises; no durable review runtime.                                                          |
+| 2 — native admission     | 2,500–4,500     | Local request/operation, frontline pass preimage, hosted pre-effect admission, shared counts and progress projections; fallback/admission coordination is the risk. |
+| 3 — immutable evidence   | 2,200–4,000     | Hosted snapshot/publisher, replay-before-observe, every direct reader, and proposal producer binding; no new store.                                                 |
+| 4 — verified reports     | 3,000–5,000     | Grade variant replacement, response helpers, native normalization, renderer, and default callers; scattered normalized-finding fixtures dominate uncertainty.       |
+| 5 — convergence          | 3,600–5,400     | Shared evidence/policy composition, all direct callers and independent discharge, approved response continuation, and public lifecycle assertions.                  |
+| 6 — incremental coverage | 2,500–4,500     | Retained predecessor validation, exact local correction payload, capability refusals/upgrades, and member scenarios; not a cumulative-anchor redesign.              |
+| 7 — publication          | 1,400–2,600     | Persisted continuation, replay judgments, attestation repair, readiness refusal, and existing publication-spine scenarios.                                          |
+
+The bands sum to 16,000–27,800 raw lines if every allowance is spent. That is still substantial and is not a target
+or an accepted total. Removing two member boundaries does not imply removing their required behavior; the credible
+reductions are removal of duplicated binding propagation, unused chunk union contracts, and an extra agent control
+phase. No claim is made that prose or test counts precisely predict implementation size.
+
+Member 5's working target is approximately 4,300–4,700, with an upper risk of 5,400. Its approximate production
+allocation is 350–550 for evidence composition, 250–400 for driver/request changes, 220–360 for direct callers,
+400–620 for discharge/status/checkpoint, and 450–650 for approved response/continuation. Focused tests on existing
+fixtures add roughly 1,200–1,650; paired procedure edits add 280–420. Contract/fixture fan-out remains a reserve,
+not a charge for the untracked generated bundle. These figures explain the risk rather than certify a ceiling.
+
+No content fill yet: Member 5's upper bound and Member 4's lack of headroom remain explicit structural sizing
+decisions. If the convergence boundary cannot credibly fit, keep the all-caller switch together and surface the
+exception. Do not create a local-versus-hosted semantic split. A report split, if needed, has a real independent
+boundary between verified judgment/gating and native navigation/rendering; both sides still close their own strict
+caller graph. Neither fallback cut is selected by this skeleton.
+
+### Early evidence and lifecycle ownership
+
+The active plan-segmentation direction still applies manually: use existing member verifiers, put executable
+composition evidence before the verifier, and introduce no unshipped segment grammar or infrastructure.
+
+| Lifecycle / contract                               | Production ownership                                                                         | Earliest new skeleton evidence                                                                      |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Attention, severity, advisory completeness and cap | Severity roots, adversarial method/prompt, planning/criteria callers                         | `1.1`–`1.3`: occurrence inventory, contract checks, bounded agent exercises                         |
+| Local/frontline fresh pass versus retry            | `core/local-operation.ts`, `policy/frontline-operation.ts`, prepare/run/attest               | `2.1`–`2.2`, `2.5`: real native records and returned actions                                        |
+| Hosted pre-effect admission and truthful counts    | Hosted request/await, `lane-progress.ts`, admission/history/status/checkpoint                | `2.3`–`2.5`: fallback, coverage upgrade, same/moved-head member and cap                             |
+| Immutable result and exact approval                | Operation publisher, hosted await, respond source branches, direct hosted readers            | `3.1`–`3.4`: concurrent seal, settled replay, wrong-result approval                                 |
+| Verified gating and recognizable reports           | Disposition core/helpers, normalizers, respond renderer, triage/response/self-review callers | `4.1`–`4.5`: source/proposal/approved path plus bounded report exercise                             |
+| One terminal aggregate, verified signal            | Driver, common evidence composition, all direct policy callers                               | `5.1`–`5.2`, `5.4`: missing/partial evidence and complete aggregate outcomes                        |
+| Response precedes continuation and member advance  | Respond, independent discharge, status and checkpoint                                        | `5.2`–`5.4`: material settlement, minors/refutation, cap, changed target, Owner, interrupted replay |
+| Incremental coverage and source limits             | Existing applicability, predecessor reader, local materialization, adapter admission         | `6.1`–`6.4`: exact payload, missing/cyclic/gapped history, material loci, sibling sequence          |
+| Attestation through publish-readiness              | Prepublication, boundary, attest, readiness, prepare/verify                                  | `7.1`–`7.3`: public clean-at-cap spine, partial-write repair and premature commit                   |
+
+Source paths above are relative to `packages/arc-framework/src/scripts/review-gate/`, except host command composition
+in `src/handlers/review.ts` and Candidate/publication libraries. Existing `review-fan-out-lifecycle.test.ts` and
+`publication-spine.e2e.test.ts` supply production harnesses; extending them is preferable to a new parallel harness.
+The complete direct-caller and independent-discharge inventory in the historical structural assessment still
+applies; its task IDs do not. Member 6 owns replacing Member 5's conservative inadequate-basis outcome for valid
+incremental chains; no temporary bypass survives the finished suite.
+
+### Coordination disposition
+
+The `chunk-scope-binding` draft owns scope-aware receipts and union proof but lacks the revised RSC consumer seam.
+Captured the delta in identity-global USER-INBOX under that exact WU target: one logical pass across chunks/retries,
+native identity composition, complete producer/disposition binding, and preservation of manual aggregation. This is
+coordination, not a new dependency or a settled future carrier API; no sibling tracked draft was edited. The old
+cohort D6 operation-list wording is historical input to reconcile when that carrier is designed, not authority to
+reintroduce speculative aggregation into RSC. Right-sizing's broader correction loop and physical history retirement
+remain in its existing draft; no duplicate capture was needed.
+
+## Bounded proportionality assessment — 2026-09-07
+
+**Verdict: revise; dispositions subsequently approved and applied above.** The assessment compares the consolidated
+spec and
+nine-member skeleton with current source and `draft-review-orchestration-right-sizing.md`. The required outcomes
+remain cohesive. Two mechanisms can be reduced without losing those outcomes; a third clarification keeps their
+composition from adding agent ceremony. The prior sizing bands are overlapping forecasts, not demonstrated need
+for 20,400–37,800 lines or nine members. Neither the spec nor skeleton is changed by this assessment.
+
+### Proposed corrections
+
+1. **Missed composition — spec § 5, Execution admission.** Replace the uniformly persisted
+   `ReviewExecutionBindingSchema` and separate whole-target `scopeBindingDigest` with the existing source-specific
+   bindings plus their missing pass/scope facts. `core/local-operation.ts` already binds target, requirement,
+   actors, source, policy, and mechanism; the local receipt binds its request. `policy/frontline-operation.ts`
+   already binds target, source, and retry generation, while the outcome already carries pass information.
+   `lane-progress.ts` derives the hosted attempt ID from its request handle. Requiring the same new object through
+   every root duplicates authority and expands schema, fixture, and recovery obligations unnecessarily.
+
+   **Alternative:** allocate shared logical-pass admission in existing lane progress; retain it across fallback,
+   retries, and member head movement. Add the admitted pass to local operation/request identity and frontline
+   operation identity; associate hosted admission before its external request effect and preserve it through the
+   returned handle. Retry generation remains distinct from logical pass. Bind incremental endpoints, prior-result
+   reference, and material re-examination instructions directly into the owning source's existing digest inputs.
+   Complete whole-target scope already has exact target identity. Normalize these facts in the read-side result
+   view, without another persisted uniform envelope or whole-target hash. Source-specific admission context and
+   immutable content binding remain mandatory; this is not removal of pass or scope validation.
+
+2. **Speculative capability — spec §§ 5–6 and SC 9, multi-producer chunk aggregation.** RSC currently prepays for
+   ordered `reviewOperationIds`, distinct per-chunk bindings, and terminal union validation while explicitly leaving
+   the producer of that proof to `chunk-scope-binding`. Current `runtime/reduce-command.ts` admits one terminal
+   receipt for the local request and refuses multiple terminal receipts. The existing terminal-aggregate carrier
+   is the available evidence boundary; independently scope-bound chunk receipts are not an available substrate.
+
+   **Alternative:** consume one real terminal producer per completed pass, including an existing aggregate result
+   produced after manual chunk review. Preserve manual chunk orchestration and partial-progress behavior, but do
+   not combine independent partial results into convergence authority. An incomplete aggregate cannot close the
+   pass. Leave new per-chunk identities, ordered producer unions, and their tests with the carrier that owns them.
+   Every finding in the actual aggregate still needs exact source binding and an approved disposition. This changes
+   a settled mechanism and SC wording, so it requires explicit approval rather than a task-only omission.
+
+3. **Composition clarification — spec § 7, no additional agent control phase.** Keep the required order
+   `approval → durable append → policy → response`, but compose policy selection inside existing approved-response
+   command handling. `runtime/respond-command.ts` already validates and appends the record, projects response work,
+   and returns typed correction actions. Its current premature settlement must change; its public boundary can be
+   reused. The spec already calls this a command-composition contract: make that concrete rather than budgeting a
+   separate agent-invoked policy round trip. Keep the pure policy function and existing fix/verification/commit
+   interlocks. Do not absorb the broader correction-loop redesign from right-sizing.
+
+Source paths in this section are relative to `packages/arc-framework/src/scripts/review-gate/`.
+
+### Keep, and rejected shortcuts
+
+- **Keep exact immutable evidence and approval binding.** The current operation publisher checks expected version
+  but permits schema-valid content replacement. CAS is not terminal immutability. Hosted sealing and replay before
+  observation therefore address a real evidence defect; another store is unnecessary. Same-looking findings from
+  a later pass must not inherit an earlier approval.
+- **Keep logical-pass admission and truthful coverage.** Existing earlier-attempt projection hardcodes local
+  requested/effective coverage to complete, and excludes same-head history. Reusing native identities does not fix
+  these defects by itself. Fallback, retry, completed pass, and complete coverage remain separate concepts.
+- **Keep narrow incremental review and validated coverage provenance.** A single complete anchor with every later
+  review covering the cumulative anchor-to-current residual would remove predecessor-chain traversal, but repeats
+  already-reviewed corrections. Current hosted handles carry target plus coverage labels, not arbitrary range or
+  finding instructions; CodeRabbit dispatches only its fixed incremental command, while hosted Codex upgrades to
+  complete. The alternative neither preserves the same review cost nor has established transport support. Retain
+  the predecessor design unless an equivalent smaller mechanism is demonstrated. Do not substitute complete-only
+  review or claim a coverage label proves exact correction coverage. Existing contribution applicability proves
+  retained code contribution, not that the evaluator received and reviewed the required scope. Adapter-specific
+  scope support must be made explicit in the corrected design, including unavailable/complete-upgrade behavior.
+- **Keep verified severity, recognizable finding identity, deterministic reports, response-before-continuation,
+  Owner/convergence separation, publication ordering, and public-path behavioral tests.** These map directly to
+  observed friction or authority failures. A read-side helper is justified composition, not a new storage system.
+- **Leave physical history retirement and general orchestration pruning with right-sizing.** Its draft explicitly
+  owns evidence retirement and a simpler correction loop. RSC must establish which evidence supports current
+  convergence without growing a collection ledger, checkpoint redesign, or replacement orchestration engine.
+
+### Agent-path cost and planning consequence
+
+The normal clean path creates no empty disposition record or approval turn. A findings path returns a rendered,
+source-bound proposal, takes one complete judgment approval, and returns the selected response/continuation from
+the approved command. Fix work retains its existing execution and commit gates. Resume consumes returned operation
+references/actions without reconstructing history, reposting a sealed review, or allocating another pass. A genuine
+cap overrun still needs authorization; publication consumes the preserved prepublication continuation. Coverage
+uncertainty may require a scope/source decision, never a silently launched expensive review. Exact command counts
+vary by source and response; these are interaction constraints, not a promise of one command for every lifecycle.
+
+On approval, correct the spec coherently, preserve this rationale as history, re-resolve scale/Class, and rebuild
+the provisional skeleton under the generate-tasks proportionality re-entry rule. Re-derive member boundaries from
+the reduced design and budget shared fixture migrations once. Prefer members below 5,000 raw changed lines; surface
+any indivisible exception rather than promising a new member count before the design is sized. Content fill,
+grounding, final suite review, and activation remain separate gates. This assessment is not another formal
+adversarial spec pass and does not extend or replace the recorded two-pass review history.
+
+## Structural task pass — source boundaries and sizing
+
+The consolidated spec was committed as `d9d56953e`. The refreshed structural task pass retains Heavy and the high
+three-pass generation path: strict schemas, three producer paths, two clearance decision paths, persisted responses,
+and publication recovery make the grounding surface substantial. No implementation is authorized. The skeleton is
+uncommitted until normal generation finalization and contains no Goals or executable content fill yet.
+
+### Boundary evidence
+
+The concern remains one WU. Nine candidate delivery members across seven substantive phases separate concrete
+acceptance migrations and executable capabilities, not independent designs. This supersedes the seven-member
+resume hypothesis as the current structural candidate, while leaving both earlier cuts below as history.
+
+The important source correction is that a local/frontline-versus-hosted convergence split is not landable. Direct
+`resolveReviewPolicy` consumers are `handlers/review.ts`, `policy/pre-publication-procedure.ts` (two calls),
+`policy/pre-publication-request.ts`, and `policy/hosted-reservation-admission.ts`. The last reconstructs bare
+outcomes, counts only effective-complete hosted terminals, labels local history complete, and slices through the
+last settled attempt. `policy/hosted-reservation-discharge.ts` separately treats settled findings as clearance;
+status, hosted-request admission, and integration checkpoint consume that discharge. These callers must switch
+together when evidence-derived convergence activates. Primary inspection confirmed both shortcuts and the shared
+reducer's clean/settled completion arm.
+
+Hosted sealing also has a real vertical boundary: `core/operation-state-schema.ts`, `lane-progress.ts`, the existing
+version-checked operation publisher, hosted request/await composition in `handlers/review.ts`, and direct snapshot
+readers in `runtime/respond-command.ts`, reservation discharge, and earlier-attempt projection. Moving only the
+findings array or adding a store validator cannot close replay-before-observation.
+
+All source paths above are under `packages/arc-framework/src/scripts/review-gate/`, except `handlers/review.ts`
+under `packages/arc-framework/src/`. Methods/workflows have package and project copies. The generated schema bundle
+is currently untracked: generated validation remains required, but its whole size is not committed line churn.
+
+### Raw-change budget hypotheses
+
+Bands estimate added plus deleted lines, not final file length or implementation effort. They are source-grounded
+forecasts, not measured diffs or permission to exceed the preferred 5,000-line member ceiling.
+
+| Member                        | Estimated raw lines | Basis and remaining uncertainty                                                                                                                                          |
+| ----------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 — vocabulary                | 400–1,000           | Observed severity scan: 21 source matches/11 files, 12 test matches/7 files, 29 package-prose matches/13 files; classify occurrences and include mirrors/advisory cases. |
+| 2 — dispositions              | 1,500–3,500         | Current disposition core 279 + 175 lines; response composition 1,251 with 1,796 test lines; migrate required fields and downstream fixtures, not whole files.            |
+| 3 — local/frontline execution | 2,500–4,800         | Complete admission, operation preimages, ready actions, terminal writers, and readers for two carriers; exact fixture churn still to enumerate.                          |
+| 4 — hosted/accounting         | 3,500–5,500         | Hosted request/await plus all progress/admission/status/checkpoint projections; joined surface may exceed the ceiling.                                                   |
+| 5 — sealed evidence           | 3,000–5,000         | Sealing/replay forecast 2,500–4,500 plus common result reader and producer-bound approval; overlapping tests may reduce this, not assumed.                               |
+| 6 — navigation/report         | 1,500–3,500         | Required capture ordinal migrates all normalized producers/readers before renderer and mirrored caller closure; no provider-body ledger.                                 |
+| 7 — convergence               | 4,000–7,000         | Shared reducer, five call expressions, independent discharge, response continuation, and production scenarios; highest uncertainty and dominant size risk.               |
+| 8 — incremental/member        | 2,500–4,500         | Predecessor chain, material-scope/applicability checks, and member lifecycle scenarios after complete-coverage convergence is wired.                                     |
+| 9 — publication               | 1,500–3,000         | Existing typed boundary, replay encoder, attestation repair, and public CLI publication spine; no new authority store.                                                   |
+
+Current total hypothesis is roughly 20,400–37,800 raw lines. The old 15,000–28,000 estimate is not promoted to a
+budget: the refreshed scope includes more explicit caller and behavioral closure. Summed bands overlap, particularly
+shared fixture migrations, and cannot establish a reliable final total. Known file sizes are exposure indicators:
+driver 850/1,018 source/test lines, admission 413/1,019, discharge 917/1,583, status 1,203/1,869, prepublication
+request 572/930; existing lifecycle integration and delivery-position E2E files exceed 3,400 and 4,100 lines.
+
+Before content fill, refine Members 4, 5, and 7 with a per-owner change budget. Candidate refinements are to complete
+hosted admission separately from its cross-consumer accounting projection, and to make evidence admission reusable
+through a real existing command consumer before the all-caller policy switch. Neither is selected yet: splitting
+must not strand required fields, create a dual evidence authority, leave an unused alternative runtime, or revive
+settlement-as-clearance in one lane. If no credible sub-ceiling cut exists, surface the indivisible boundary and
+request a sizing decision; do not silently understate estimates or decompose the WU.
+
+### Lifecycle coverage and early evidence
+
+This applies the active `plan-segmentation` spec's reasoning manually, not its unshipped syntax or machinery.
+Vocabulary is an enumerated transformation; producer/record migrations settle substrate contracts through complete
+public paths; convergence, coverage, and publication are composition-risk slices. Every member closes with the
+existing member verifier. Scenario construction belongs to preceding parents, so a verifier never becomes a fix
+bucket. No segment-scope task or new phase-preamble grammar is introduced.
+
+| Required behavior                                                  | Production owner / boundary                                          | Skeleton owner / evidence                                                         |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Advisory attention and occurrence-sensitive severity               | adversarial prompt, severity roots, provider normalizers             | `1.1`, `1.2`: exhausted occurrence inventory and bounded claim exercise           |
+| Explicit verified grades, unsupported rejection, complete approval | disposition core, respond, reduce/resume/response readers            | `2.1`–`2.3`: proposal through approved response planning                          |
+| Local pass/scope admission and exact retry                         | local prepare/attest/resume and operation identity                   | `3.1`, `3.3`: real store-backed public actions                                    |
+| Frontline operation and terminal identity                          | frontline operation/run/outcome                                      | `3.2`, `3.3`: same-pass replay versus new pass                                    |
+| Hosted admission stable through pending/await                      | request handle, handler composition, lane progress                   | `3.5`, `3.7`: restart with original actor/policy/scope                            |
+| Count terminal logical passes, not observations                    | progress, reservation admission, earlier attempts, status/checkpoint | `3.6`, `3.7`: complete/incremental/upgrade, fallback, head movement, cap          |
+| Seal and replay before observation, even after settlement          | version-checked publisher, hosted await, all snapshot readers        | `4.1`, `4.2`, `4.4`: concurrent terminal and post-settlement replay               |
+| Bind approval to exact immutable producer                          | result reader and respond preparation/re-resolution                  | `4.3`, `4.4`: same-looking new-pass proposal cannot reuse approval                |
+| Native finding identity survives canonical sorting                 | local/frontline/hosted normalization, report join                    | `4.6`, `4.8`: duplicate/titleless/mixed-origin/clipped sources                    |
+| Deterministic report without fabricated self-review evidence       | respond renderer, triage callers, self-review                        | `4.7`, `4.8`: returned report and non-producer approval exercise                  |
+| Clean and findings have equally exact evidence admission           | resolve composition and all policy callers                           | `5.1`, `5.2`, `5.5`: wrong/missing/duplicate/stale producer refusal               |
+| Source-bound chunk aggregation fails closed without carrier proof  | common evidence admission                                            | `5.1`, `5.5`: missing union, duplicate scope, mixed clean/findings contract tests |
+| Verified signal controls every lane and member                     | reducer plus independent reservation discharge                       | `5.2`, `5.5`: all-refuted/minors/material; settlement cannot clear                |
+| Approved response precedes every continuation                      | respond/resolve/status, delivery and Errand dispatch                 | `5.3`, `5.5`: complete, cap, coverage, Owner, pending chunk, and interruption     |
+| Fix changes target without losing remaining settlement             | response completion and reroute                                      | `5.3`, `5.5`: current target selection and retained response replay               |
+| Advisory loop completes dispositions and respects cap              | planning callers, validate-criteria, adversarial method              | `5.4`: installed fire-points and bounded agent exercises                          |
+| Incremental basis covers current material correction scope         | applicability and predecessor reader                                 | `6.1`, `6.3`: valid chain and missing/gapped/cyclic/stale/incompatible cases      |
+| Fresh signal and explicit Owner advance members distinctly         | reservation/status/checkpoint conjunction                            | `6.2`, `6.3`: `6, 7, 5, 2, 3` sequence and one-pass sibling                       |
+| Preserve attestation continuation and repair partial writes        | prepublication handler, boundary, attest handler                     | `7.1`–`7.3`: clean-at-cap and interrupted Candidate/boundary writes               |
+| Publication ordering and head movement                             | readiness admission, publish, prepare/verify workflow                | `7.2`, `7.3`: premature commit refusal, changed subject, post-ready projection    |
+
+Existing scenario foundations: `review-fan-out-lifecycle.test.ts` exercises member progress, hosted restart,
+incremental admission, settlement/fixes, local fallback, and the combined lifecycle; `delivery-position.e2e.test.ts`
+exercises member fix and replay; `publication-spine.e2e.test.ts` runs public CLI through attestation and publication.
+Reuse them without copying whole fixture bodies into each member. Existing internal fixture imports do not prove
+public resumption ergonomics: the new command-spine scenario must consume returned actions without private imports
+or hand-built IDs, digests, or counters. Contract tests for unshipped chunk transport never imply a working carrier.
+
+The only planned temporary behavioral restriction is conservative incremental coverage refusal before the complete
+predecessor validator lands; Phase 6 owns admitting valid chains. Invalid chains continue to refuse afterward.
+There is no temporary host/local convergence fork or compatibility reader. A more elaborate scaffold discovered
+during detailed planning must name its owning removal task before finalization.
+
+### Structural gate status
+
+Every numbered design element and success criterion has a skeleton owner and an evidence boundary. Proportionality
+does not expose another concern or a need for new governing machinery; the added parents close real acceptance and
+lifecycle surfaces. The unresolved issue is delivery sizing, not a masked redesign. The three high-risk boundaries
+must be refined or explicitly resolved before content fill; this is not a finalized nine-member commitment.
+
 ## Consolidated planning baseline — 2026-09-07
 
 The reviewed design is accepted for task generation. Pre-activation consolidation removes the spec's resume banner,

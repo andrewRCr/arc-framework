@@ -73,8 +73,8 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 - Redesign provider selection, source fallback, chunk capability declarations, or provider registration.
 - Configure or automatically activate planning and verification audit activities. Those fire-points must consume
   the pass-cap contract defined here, but their activation policy belongs to `review-activity-contracts`.
-- Build automated chunk partition transport, construct per-chunk scope identities, or change the meaning of a
-  logical pass. This work only makes operation identity capable of consuming a carrier-issued scope binding.
+- Build automated chunk partition transport, per-chunk scope identities, multi-producer aggregation, or union proofs.
+  Consume the existing terminal aggregate producer without changing the meaning of a logical pass.
 - Add a durable multidimensional budget ledger for evaluator calls, tokens, or work-unit-wide review spend.
 - Make reviewer output authoritative, let a provider assign ARC's verified severity, or let a reviewer attest its
   own result.
@@ -120,6 +120,13 @@ The change follows the complete acceptance graph:
 - adapters, fixtures, generated schema artifacts, and command envelopes;
 - the adversarial-review method, review rubrics, and adopter-facing review prose.
 
+Strict rejection of `blocker` applies to ARC-owned severity inputs and records, not provider-native wire vocabulary.
+Preserve the CodeRabbit agent parser's accepted `blocker | major | minor` event contract and normalize its top grade
+to ARC `critical`; retain native-event hashing for finding identity. Hosted native P0/Critical and other provider
+classifications keep their existing materiality thresholds while their normalized ARC top grade becomes `critical`.
+This boundary translation is not an alias or compatibility reader for old ARC records. Test top-grade mappings and
+unchanged lower grades, plus old-grade rejection through nested ARC-owned hosted, disposition, and receipt inputs.
+
 The sweep is occurrence-sensitive. It must not rename:
 
 - work-unit impediment fields or prose in `session-init.md`, `session-init.contributor.md`,
@@ -152,12 +159,16 @@ completeness gate open.
 
 Cap exhaustion is an admitted bounded exit, not a third disposition:
 
-- Every completed adversarial result reports `Pass N of M` beside its outcome.
+- Every completed adversarial result reports `Pass N of M` beside its outcome, and every ended loop names its stop
+  reason — converged, `cap-exhausted`, suspended, or Owner-accepted — so a later reader never confuses them.
 - At `N == M`, a non-converged result reports `cap-exhausted` and stops before another evaluator invocation. A
   converged result completes normally and reports that the allowance is exhausted; the cap does not negate evidence.
 - The primary reports unresolved material findings and may recommend another pass with a cost-and-signal rationale.
+  It presents that recommendation in the same turn as the disposition report, not as a later checkpoint: the signal
+  that warrants another pass is already established by the verified severities under approval.
 - A recommendation is not authorization.
-- Explicit approval naming the activity and next pass authorizes exactly one additional pass.
+- Explicit approval naming the activity and next pass authorizes exactly one additional pass. Approval granted with
+  the disposition set is conditional on that set's approved response; § 7 binds it after performance.
 - After an over-cap pass, any further continuation requires fresh approval.
 
 The pass cap remains absent from evaluator context so it cannot bias the review. It stays explicit in primary control
@@ -177,8 +188,11 @@ Author `self-review` remains a separate aggregate-diff preflight, not an atteste
 pass. Its existing triage/approval path is preserved under § 4's non-producer presentation boundary; it supplies
 neither independent review evidence nor a completed pass to the durable lanes.
 
-Convergence is deterministic at the materiality threshold. The primary may recommend another within-cap pass for an
-unusually signal-rich `minor`, but that judgment does not redefine severity or authorize an over-cap pass.
+Convergence is deterministic at the materiality threshold. A confirmed `minor` never buys a pass: the primary must
+not raise `verifiedSeverity` to withhold convergence from a pass the evidence converged. Where a confirmed minor
+still carries unusual signal, the converged completion report names it as a follow-up observation. That observation
+is report content, not a driver state — it neither reopens the completed loop nor requests approval, and a new
+review remains available through the normal entry points.
 
 **Logical passes and coverage.** A logical pass is one completed review over its admitted scope, potentially using
 safe fallback or a carrier-proven chunk series. A complete review and an incremental correction review each consume
@@ -188,17 +202,17 @@ it to complete. Counting only complete effective reviews toward the ceiling woul
 loop; the cap therefore counts both complete and incremental terminal reviews.
 
 `completedPasses` counts distinct completed logical passes within the lane's review lineage; `completePasses` is a
-derived display count of those whose effective coverage is complete. Both derive from durable execution bindings,
+derived display count of those whose effective coverage is complete. Both derive from durable native admission facts,
 not caller counters or the number of result records. Retries, pending observations, unavailable attempts, failed
-results, disposition/settlement replays, and target movement consume no additional pass. A successful chunk union
+results, disposition/settlement replays, and target movement consume no additional pass. A complete chunk aggregate
 consumes one; individual chunks do not. For delivery, lineage is the existing stable member identity within the
 plan, never the WU as one shared allowance. Non-delivery lanes retain their existing target lineage.
 
 Runtime allocates `logicalPass = completedPasses + 1` at admission and preserves it through retries, fallback, and
 chunks. A completed pass followed by a fix remains counted on the old target; the next fresh review receives the
 next ordinal on the current target. Count advancement and terminal publication are replay-safe within the existing
-operation store. Parallel attempts for one admitted pass cannot produce two authoritative terminal results; conflict
-or duplicate scope evidence fails closed. An adapter upgrade consumes one pass, not two.
+operation store. Parallel attempts for one admitted pass cannot produce two authoritative terminal results; conflicting
+or duplicate terminal evidence fails closed. An adapter upgrade consumes one pass, not two.
 
 Operator output includes `Pass N of M`, requested/effective coverage, and complete-coverage count. Recommendations
 name incremental versus complete coverage and the outstanding material signal; they never invoke an extra pass.
@@ -225,13 +239,18 @@ questions. Enforce these relationships:
 - `gating` is computed from verified severity, verified nit, and the existing minor-gating policy. Reported fields
   never control ARC gating.
 
+When canonical validation reconstructs retained minor-gating policy, use only verified ordinary minors. Unsupported
+findings remain record-only independently and cannot select that policy; reported nit markers cannot supply verified
+nit intent. Mixed-set validation must preserve blocking ordinary minors alongside unsupported findings, regardless
+of canonical order. Reported and verified nit may disagree in either direction without changing source comparison.
+
 The proposal-side `AuthorDispositionSchema` requires explicit nullable `verifiedSeverity` and optional `verifiedNit`;
 omission never silently adopts the reviewer grade. It never asks the caller to copy reported severity, reported nit,
 source identity, locus, or gating. Retain the existing three-lane `RespondProposalRequestSchema.source` union and
 extend its hosted result binding as specified below. The first `arc review respond -` call resolves the durable
 source, copies its source-owned fields, derives gating, and returns the complete canonical proposed disposition set.
 The approved second call re-resolves that source before appending the source-bound record and returning the response
-plan. No lane constructs a disposition-set identity by importing internal code.
+plan and policy-selected continuation. No lane constructs a disposition-set identity by importing internal code.
 
 The new fields replace the collapsed `severity`, differing `reviewerSeverity`/`arcSeverity`, and shared `nit` forms
 in place, including the unsupported branch. They participate in the existing canonical
@@ -241,8 +260,8 @@ Bind every canonical proposal's source context to the runtime-resolved producer 
 addition to its existing policy/rubric or executable-source context. Both participate in the disposition-set
 preimage. Approval of the same-looking findings from an earlier pass therefore cannot authorize a different result.
 The command supplies this context in both proposal and approved re-resolution; the caller never computes it. For
-local results compute a domain-separated read-side digest of the canonical receipt plus its admitted execution
-binding, retaining the existing store-issued receipt reference; for frontline use its outcome digest; for hosted
+local results compute a domain-separated read-side digest of the canonical receipt plus its native admission
+context, retaining the existing store-issued receipt reference; for frontline use its outcome digest; for hosted
 use the sealed `hostedResultId`. The approved record retains the same producer binding.
 
 Update both Framework copies of `review-triage.md` and `review-response.md`, plus every integration-workflow
@@ -308,11 +327,21 @@ the original normalized producer result, before canonical disposition sorting; i
 order, never asserted to be a provider-assigned number. Mixed thread/review-body results use their captured combined
 order; an exact replay preserves it. Provider-native numbering, if present in the label, stays verbatim there.
 
+Keep evaluator input distinct from runtime-normalized findings. Local input supplies its existing finding fields,
+not runtime navigation metadata; normalization assigns ordinals from the submitted finding array. Complete normalized
+producer arrays retain capture order and validate `sourceOrdinal === index + 1` at persistence/read boundaries.
+Assign hosted ordinals after combining thread and body findings, not independently within each subset. Report joins
+and filtered projections retain the producer's ordinals rather than renumbering them as fresh evidence.
+
 Select the label from an actual provider title/heading or the first non-empty line of that finding's source body.
 Retain a verbatim prefix of at most 512 Unicode code points, marking clipping; do not invent a title or keep an
 unbounded body solely for navigation. Escape it as inert display text. If no source text is available, show
 `source #N` plus the existing stable locus and evidence reference. Duplicate labels remain distinct by finding ID
 and source ordinal. Labels never substitute for the standalone account of the allegation.
+
+The existing local evaluator wire carries no source title/body, so local normalization leaves the label absent.
+Do not add an evaluator narrative field for navigation or interpret an opaque `evidenceUrlOrId` as source text.
+Provider adapters extract labels where actual source text is available, before their existing projections discard it.
 
 Canonical proposal order and `F1` labels remain unchanged. The report joins each approved/proposed item to the exact
 producer finding by `findingId`, showing source ordinal alongside canonical order. Navigation metadata belongs to
@@ -324,29 +353,75 @@ proposal, while merely reordering or styling the report changes no identity.
 
 #### Execution admission
 
-Add a runtime-owned `ReviewExecutionBindingSchema` carrying lane/lineage identity, positive `logicalPass`, and an
-opaque `scopeBindingDigest`. The command composition resolves the current target, progress, policy, rubric, source,
-and scope and emits the binding in the ready action. A pure reducer selects policy; it neither reads storage nor
-mints caller-authoritative evidence. Producing commands consume that exact admitted action and persist its binding.
-Local requirements continue to own policy/rubric admission; frontline executable identity and policy stay source
-bound, with rubric fields required only for sources whose existing contract actually binds a rubric.
+Use existing lane progress to admit a positive `logicalPass` within the lane/subject lineage before execution.
+Persist the selected source attempt and requested scope there before dispatch, retaining admission through retries,
+fallback, and member head movement. No new admission ledger is introduced. Command composition resolves target,
+progress, policy, rubric, source, and scope and returns exact ready inputs; the pure reducer neither reads storage
+nor mints evidence. Producing commands consume the admitted inputs, not caller-selected counters.
 
-Persist the concrete admitted scope descriptor with the operation and return it through the ready action; the
-digest alone cannot reconstruct or validate scope. The scope digest binds the exact target, requested coverage,
-and that descriptor. A complete whole-target review derives it directly from the target. An incremental review
-additionally binds the prior result reference, exact correction range, and applicability basis described below.
-A chunked execution requires a carrier-issued scope binding; the caller cannot fabricate it. These are distinct
-dimensions: complete/incremental describes coverage, whole-target/chunked describes execution partitioning.
+Make the existing progress record's ownership explicit: one version-checked admission owner per repository, lane,
+and runtime-resolved subject lineage. For delivery, use the existing plan/work-unit/member identity without head;
+for a Candidate-backed singleton use its current authorized Candidate lineage; other head-bound paths retain their
+existing exact-head allowance, scoped to the active vehicle identity. Do not infer identity from a caller string,
+merge unrelated Candidate roots, or turn this into WU-wide allowance. Missing lineage authority refuses admission.
+Head, host change-request coordinates, and source-specific vehicle facts belong to each attempt, not one mutable
+container discriminator. Head-specific readers become projections of this owner. Hosted/local fallback must retain
+both source histories, and members sharing a head must not share requests, pending admissions, or counts.
 
-Local, frontline, and hosted identities consume the execution binding. Another pass over the same target receives a
-different operation; exact same-pass retries reuse it; fallback retains the logical pass and admitted requested scope
-while creating source-specific operation IDs. A bounded retry generation does not increment logical pass. Adapter
-coverage upgrades are persisted as source-owned effective scope alongside the unchanged requested binding.
+Use that owner's version check to select the active source attempt and claim at most one authoritative terminal
+producer for each logical pass. A source-specific operation lock alone cannot arbitrate competing fallback sources.
+Producer publication and progress may be separate existing writes: interrupted publication repairs the same
+admitted producer/count, never allocates a replacement pass or selects a second terminal. Preserve exact targets on
+historical results and derive current-head actions separately from lineage-wide counts.
 
-The hosted request handle retains the admitted binding and immutable requirement context across request/await. No
-terminal producer derives a new policy, rubric, actor, pass, or scope from current configuration. Producer identity is
-distinct from content identity: use the existing hosted attempt ID derived from its admitted handle, never a result
-digest as operation ID. Local and frontline sources retain their existing source-specific identity inputs.
+Extend each source's native binding only where a required fact is missing:
+
+- Local operation identity retains target, requirement, actors, source, policy, mechanism, and delivery admission;
+  bind runtime-issued lineage, logical pass, and native retry generation in both operation and request identity.
+  The receipt already binds that request; distinct members at the same target and ordinal must have distinct request
+  IDs as well as operations. Local requirements continue to own policy/rubric admission.
+- Frontline operation identity binds the admitted lineage and logical pass alongside its existing target, source,
+  and retry generation. Its outcome already carries pass information; validate agreement instead of duplicating it.
+  Public resolve derives admission and allowance from durable state/configured policy; run re-resolves the returned
+  admission before execution. A schema-valid caller-authored ready envelope or `pass`/`maxPasses` pair is not
+  authority. Executable identity and policy remain source bound, with rubric fields only where the source binds one.
+- Hosted admission is durable before the external request effect, not first established by its returned handle.
+  The handle retains admitted pass/scope and immutable requirement context across request/await; the existing attempt
+  ID remains derived from that handle. A result digest is never substituted for producer identity.
+
+Another pass over the same target receives a different operation; exact same-attempt replays reuse it; fallback retains
+the logical pass and requested scope while creating source-specific attempts. Retry generation does not increment
+logical pass. Adapter upgrades persist source-owned effective coverage alongside the unchanged requested coverage.
+No terminal producer re-derives policy, rubric, actor, pass, or scope from current configuration.
+
+Resolve a pending admission before fresh policy, evaluator, or source selection. Keep its author/evaluator identity,
+source, policy/rubric, pass, and scope fixed. Preserve existing pre-terminal cleanup/materialization renewal and
+attesting-runtime transport renewal only after the existing separation/authority checks, with no terminal receipt
+and no change to admitted review actors or scope. The resulting receipt binds the authorized attesting runtime;
+terminal evidence cannot renew. Policy/source/evaluator changes require an explicitly selected and validated new
+attempt, not an implicit replacement under a pending operation ID.
+
+A failed local evaluation that produced no terminal receipt retains its failed attempt. A deliberate rerun advances
+the existing native retry generation, giving it a distinct operation/request within the same admitted logical pass.
+Pending replay does not advance generation, and successful terminal replay returns the existing producer. Preserve
+the existing bounded retry/fallback policy; missing or partial results do not become clean or gain a new allowance.
+
+Hosted admission covers singleton, Errand, and delivery-member requests while retaining their existing authority
+checks. Distinguish admission without a durably acknowledged request from acknowledged result-pending state. Persist
+admission before the effect; a failed admission write prevents dispatch. Bind a successful handle back to that
+admitted attempt using the existing version check. Acknowledged replay returns the stored await action without
+another request. Interrupted or ambiguous dispatch without a bound acknowledgment returns the existing typed
+ambiguous-delivery stop: no automatic redispatch, fallback, or fresh pass. A crash before the effect may be
+indistinguishable from effect-before-acknowledgment loss; recovery needs an explicit decision rather than an invented
+provider exactly-once or reconciliation capability. Pending await uses stored admission even after config/actor
+changes; later terminal sealing adds replay-before-observation for completed results.
+
+Complete whole-target scope uses the existing exact target identity, without a redundant scope hash. Incremental
+execution persists its concrete prior-result reference, correction endpoints, applicability basis, and material
+re-examination instructions in the source's admitted context and existing identity/digest inputs. Ready actions
+carry that context. Normalize the source-specific facts in the read-side view; do not propagate a generic persisted
+execution object through every schema root. Coverage (complete/incremental) remains distinct from execution
+partitioning (whole-target/chunked).
 
 #### Coverage and incremental continuation
 
@@ -374,11 +449,22 @@ lane/member from it, runtime must resolve a coverage basis through the existing 
    dropped by selecting a narrow delta. A deferred/rejected supported material issue outside the delta still
    requires review at its locus or explicit Owner termination. A current reviewer may refute or confirm it anew.
 
-Use one optional predecessor result reference in the execution binding to retain this coverage chain in existing
+Use one optional predecessor result reference in the source's admitted context to retain this chain in existing
 records. The command resolves it back to a complete basis, rejects cycles, missing links, incompatible identities,
 and gaps between exact endpoints, and revalidates applicability for the current target. The chain is coverage
 provenance, not a new budget store or a rewritten receipt. If an adapter cannot carry the required correction scope,
 do not claim it did: offer a capable source or complete coverage through the existing selection boundary.
+
+Resolve the explicit predecessor through `ReviewResultReader` against the complete snapshot, not a source-filtered
+earlier-attempt query or a settlement-truncated selection view. Compatible predecessors may use another source or
+the same head; validate each producer's own admission context plus shared lane/lineage and policy/rubric compatibility.
+Switching from hosted complete review to a capable local correction review must not make that basis disappear.
+
+Derive reviewed endpoints from the immutable predecessor producer. Existing performed-fix retention may project an
+attempt at its response's new target for response handling; that projection is not evidence of review at that target.
+If review at A leads to a performed fix at B and correction review at C, the required correction scope includes the
+unreviewed A→B change, not merely B→C. Preserve established equivalent-head applicability and covered-decision carry
+without substituting response completion for reviewed coverage.
 
 An effective complete result needs no predecessor basis for coverage. An incremental result without an adequate
 basis can still be triaged and its approved response performed, but resolves `coverage-required / select-coverage`
@@ -389,9 +475,27 @@ Convergence uses the fresh pass's verified signal after coverage validation; it 
 historical severities. Earlier material findings remain historical evidence, and only actual subsequent review can
 establish a new no-material signal. Neither applicability nor settlement changes the earlier result's severity.
 
-`chunk-scope-binding` still owns automated partition transport, per-chunk identities, scope-aware receipts, reduction,
-and union proof. Missing carrier-issued bindings produce typed unavailability. This WU consumes that seam and adds
-no substitute chunk carrier. Incremental correction binding does not assert automated chunk coverage.
+Adapter support is checked at admission, not inferred from `incremental` labels. Extend local materialization to
+carry exact correction endpoints separately from the whole review target and include required finding instructions
+in its payload. Frontline's existing whole-target execution stays complete. Hosted Codex retains its explicit
+complete upgrade. CodeRabbit's current fixed incremental command carries neither arbitrary endpoints nor a material
+finding instruction list; its label alone therefore cannot establish the required correction scope. Such a result
+may be triaged and counted but cannot close coverage without an established source-specific scope binding. Return
+the existing capable-source/complete-coverage selection action; do not silently launch a complete review or add an
+unproven provider capability. Contribution applicability establishes retained code, not evaluator scope.
+
+An admitted local correction operation owns reachability for every required correction endpoint during its existing
+materialization lifetime, including a nonancestor prior head after amend/rebase. Extend existing pin verification,
+enumeration, and cleanup together; a current-head pin alone cannot retain such an endpoint. Check required objects
+on prepare, replay, and attestation. Already-unavailable predecessor objects return typed scope unavailability rather
+than invented coverage. Predecessor cleanup must not remove the current operation's pins; retain existing terminal
+and expiry cleanup, without a permanent history-retention service.
+
+`chunk-scope-binding` owns automated partition transport, per-chunk identities, scope-aware receipts, multi-producer
+reduction, and union proof. RSC consumes one terminal aggregate producer already supported by the selected carrier,
+including the existing aggregate after manual chunk review. Partial progress cannot establish terminal convergence;
+independent partial producers cannot be combined into clearance here. Preserve the current manual chunk procedure
+and its complete aggregate finding set. Incremental correction binding does not assert automated chunk coverage.
 
 #### One read contract, distinct persistence responsibilities
 
@@ -428,51 +532,61 @@ Every hosted terminal await returns the opaque reference and digest after durabl
 findings. On retry, resolve the persisted admitted handle before provider observation. A sealed result returns its
 original outcome/reference without repolling, re-deriving actors or requirements, rewriting evidence, or advancing
 counts. After settlement, replay still returns the original findings result while retaining settled operational
-state. Equal concurrent terminal writes are idempotent; different terminal content conflicts. A pending replay
-continues under its original admission, with the existing version-conflict retry discipline.
+state. Equal concurrent terminal writes are idempotent; different terminal content conflicts. Equality here compares
+sealed producer evidence, not the entire mutable progress record. On a version conflict, reread the winner and
+validate the same admitted producer/content; return current progress without overwriting newer settlement, other
+attempts, timestamps, or counts. A pending replay continues under its original admission, with the existing bounded
+version-conflict retry discipline.
+
+Replay without provider observation requires a durably sealed result. If sealing succeeded but its acknowledgment
+was lost, or a subsequent progress write failed, reread the seal and repair the same producer/count without polling.
+If no seal was persisted, retain acknowledged pending admission and permit observation under that admission; do not
+claim to reconstruct the unstored result or allocate another pass. Resolve uncertain write outcomes by reading the
+store first. No additional result journal or provider request is needed for this distinction.
 
 `respond-command.ts` resolves the same immutable result for proposal and approved preparation, compares the complete
 finding set, and appends the existing approved record. Clean results go directly to evidence admission, with no empty
 disposition record. Historical result replay grants no current-target applicability or integration authority.
 
+The producer-binding migration closes every constructor, validator, and replay consumer of the canonical disposition
+context at the same delivery boundary. This includes `reduce-command.ts` and the local resume path that consumes its
+projection, plus response/follow-up consumers and their fixtures. Reuse the shared source-context validation rather
+than accepting weaker binding outside proposal preparation. The later reported/verified grade migration changes
+judgment representation, not whether these consumers can read and validate producer-bound approvals.
+
 ### 6. Bind terminal review attempts to durable source records
 
-Extend `ReviewAttemptSchema` with conditionally required, ordered-unique `reviewOperationIds`:
+Extend `ReviewAttemptSchema` with one conditionally required `reviewOperationId`: terminal `clean` or `findings`
+attempts name their producer; unavailable, failed, and partial-progress attempts cannot supply terminal convergence
+evidence. A manual chunk series reaches this boundary through its existing complete terminal aggregate, not an
+ordered list of independently scoped producers.
 
-- A `clean` or `findings` attempt supplies a non-empty list.
-- Safe-unavailable, failure, and other non-terminal outcomes omit the field.
-- A non-terminal chunk call names only the current scope-bound operation because it can resolve only
-  `chunk-pending`.
-- The terminal call for a completed chunk series names every scope-bound operation in series order because
-  convergence applies to the logical pass as a whole.
+At the command boundary, resolve the current v2 target from repository state and load the named producer through
+`ReviewResultReader`. Reject unless it resolves uniquely, its original terminal outcome matches the attempt, and
+its original exact target, source, admitted logical pass/scope, and source-appropriate policy/rubric context match
+the durable admission. Separately establish applicability to the current target as below; a historical producer
+need not claim that it reviewed the current SHA. An incomplete aggregate or competing authoritative terminal
+producers for one logical pass fails closed.
 
-At the command boundary, resolve the current v2 target from repository state and load every named producer through
-`ReviewResultReader`. For the fresh pass, reject unless:
+Head movement alone neither erases review evidence nor requires another evaluator call. Validate a historical
+producer against its original admitted target, then establish current applicability through the existing Candidate
+and contribution machinery. Preserve automatic recognition through tree equality or mechanical reapplication, and
+existing exact `covered` decisions with their validated mechanical carry. Do not replace those paths with a blanket
+current-SHA requirement or repeatedly ask for an unchanged applicability decision. Conversely, a clean result merely
+occurring somewhere in the Candidate span is not sufficient when current applicability is unavailable; surface the
+existing applicability decision/refusal rather than silently clearing or automatically requesting another review.
+Retaining a result retains its original signal and completed-pass count: applicability cannot turn an earlier
+material result into a new no-material result or substitute for Owner accepted-risk termination.
 
-1. every operation ID resolves to exactly one producer with terminal outcome `clean` or `findings`;
-2. every producer belongs to the attempt's source and current exact target;
-3. every producer matches its runtime-issued execution and source-appropriate policy/rubric admission binding;
-4. producers combined for one logical pass agree on those bindings and logical pass; and
-5. every combined chunk producer carries a distinct carrier-issued scope binding, with terminal-series and union
-   coverage proven by the chunk carrier.
+For a findings producer, additionally load exactly one `ApprovedDispositionRecordSchema`. It must point back to
+that producer and immutable result, and the producing boundary's exact comparison must cover every finding in the
+complete result, including the aggregate of a manual chunk review. A clean producer needs no disposition record.
 
-For a non-chunked attempt, the single producer outcome matches the attempt. For a chunked aggregate, `clean`
-requires every producer to be clean; `findings` requires at least one findings producer and permits the remaining
-producers to be clean.
-
-For every findings-producing operation, additionally load exactly one `ApprovedDispositionRecordSchema` and reject
-unless the record points back to that producer and operation and the producing boundary's exact comparison covered
-every finding. A clean-producing operation has no disposition record; its complete producer is the source-bound
-convergence evidence. The confirmed count and maximum combine only the approved records from findings producers
-while coverage validation still spans the whole ordered operation series.
-
-The external request supplies producer operation IDs, not record bodies, clean assertions without producers, or a
-caller-computed severity summary. Result/continuation actions carry those IDs and runtime-owned progress; commands
-re-resolve durable progress before dispatch, refusing caller counter drift. Duplicate execution bindings fail even
-when operation IDs differ. A settled operational attempt resolves to its original producer outcome and approved
-record; `settled-findings` is never accepted as standalone convergence evidence. Until the
-automated chunk carrier can issue and prove scope bindings, the multi-record validation is fail-safe infrastructure
-rather than a claim that automated local chunk convergence ships in this work unit.
+The external request supplies the producer operation ID, not record bodies, an unsupported clean assertion, or a
+caller-computed severity summary. Result/continuation actions carry that reference and runtime-owned progress;
+commands re-resolve durable progress before dispatch, refusing caller counter drift. A settled operational attempt
+resolves to its original producer outcome and approved record; `settled-findings` is never standalone convergence
+evidence. No list-based aggregation contract or speculative chunk-union validator is introduced.
 
 After validation, derive internally:
 
@@ -503,7 +617,7 @@ resolves `coverage-required / select-coverage`; a material finding remains visib
 plan is preserved in either case. Once coverage selection seeks another evaluator call, the existing ceiling check
 fires before invocation, including an incremental request at the cap.
 
-The non-empty operation binding distinguishes positively refuted findings from an unbound assertion that findings
+The exact operation binding distinguishes positively refuted findings from an unbound assertion that findings
 occurred. A clean operation binding likewise distinguishes a durable clean result from an unbound caller assertion.
 The reducer never receives reported severity as its control value.
 
@@ -542,6 +656,18 @@ validation, canonical proposal construction, approval validation, approved-recor
 projection happen there before policy resolution. The preparation step may derive and persist a
 `fixAuthorization`, but it does not apply a fix or close a finding.
 
+Compose that post-append policy resolution inside the approved `respond` command boundary; no extra agent-invoked
+policy round trip or reapproval is required. Return the selected response action and retain its policy continuation
+through existing response/resolve/status composition. Fix execution, verification, and commit retain their existing
+interlocks. This is not a replacement correction-loop engine.
+
+Carry the governing caller's nonrecoverable review judgments into this composition and its returned continuation.
+Reuse the existing prepublication resume context and corresponding caller-owned inputs for other lifecycle paths;
+a source reference or publication-boundary lookup alone cannot recover pending scope, invocation, or ceiling choices.
+Revalidate the supplied context through its existing owner and preserve current head-bound override/terminus
+invalidation rules. Runtime returns the exact continuation inputs; it neither silently substitutes defaults nor asks
+the agent to reconstruct them. No second session-context store is introduced.
+
 For hosted sources, persist the normalized result during terminal await handling, feed its returned source reference
 through the same proposal and approved preparation calls, and perform thread settlement only after the driver call.
 
@@ -569,25 +695,59 @@ exact request inputs; workflow prose never compares targets, reconstructs the ta
 response to discard. Fix execution and its approval/commit interlocks remain human/agent leaves, not automatic CLI
 mutations. No new resident coordinator is introduced.
 
-| Driver result                                     | Required behavior before target-movement resolution       |
-| ------------------------------------------------- | --------------------------------------------------------- |
-| `findings / respond`                              | Perform the approved response.                            |
-| `pass-complete / none` with an outstanding set    | Perform the approved response.                            |
-| `pass-complete / none` without an outstanding set | No response performance is required.                      |
-| `chunk-pending / continue-chunks`                 | Perform the current scope's approved response.            |
-| `approval-required / obtain-ceiling-override`     | Perform the approved response before requesting approval. |
-| `coverage-required / select-coverage`             | Perform the approved response before selecting coverage.  |
-| `owner-accepted / none`                           | Perform any already-approved outstanding response.        |
+| Driver result                                     | Required behavior before target-movement resolution               |
+| ------------------------------------------------- | ----------------------------------------------------------------- |
+| `findings / respond`                              | Perform the approved response.                                    |
+| `pass-complete / none` with an outstanding set    | Perform the approved response.                                    |
+| `pass-complete / none` without an outstanding set | No response performance is required.                              |
+| `chunk-pending / continue-chunks`                 | Perform the current scope's approved response.                    |
+| `approval-required / obtain-ceiling-override`     | Perform the approved response, then bind or request the override. |
+| `coverage-required / select-coverage`             | Perform the approved response before selecting coverage.          |
+| `owner-accepted / none`                           | Perform any already-approved outstanding response.                |
 
 Response performance returns one of two target-movement states:
 
 - `unchanged-target` — apply the driver result: complete a converged pass, continue the existing chunk series,
-  execute `resolve-next-pass` after a material response, suspend, or request the named one-pass override.
+  execute `resolve-next-pass` after a material response, suspend, or admit the named one-pass override — binding
+  the capture taken with the disposition set, or requesting approval when no capture exists — and then execute
+  `resolve-next-pass` for the named pass.
 - `changed-target` — any performed fix created a new exact target. Discard the old-target driver action, abort the
   old chunk series, and return through the existing reroute boundary. Preserve the originating pass count and
-  approved response plan, including remaining thread settlement. The new target receives a fresh applicability
-  judgment, scope selection, and policy resolution. Earlier evidence may contribute only through the validated
-  coverage/applicability path; exact-head clearance and old chunk-series completion never carry implicitly.
+  approved response plan, including remaining thread settlement and any captured ceiling override. Re-resolve
+  applicability, scope, and policy for the new target while preserving valid existing decisions through the
+  established equivalence/carry paths. A changed SHA alone does not mandate a new judgment or evaluator call.
+  Earlier evidence may contribute only through validated coverage/applicability; exact-head clearance and old
+  chunk-series completion never carry implicitly.
+
+**Conditional ceiling override.** The one-pass override may be captured with the disposition set, before that set's
+approved response is performed. Approval of the disposition set alone does not grant it: the caller records explicit
+authorization for the named activity and next pass. In the approved `respond-command.ts` path, append the approved
+record first, then persist the capture as response-continuation state in § 5's existing version-checked lane-progress
+owner. Bind its authorizer, repository/lane/member or singleton lineage, originating producer and disposition-set ID,
+exhausted count, and named next ordinal. It enters neither the immutable disposition content nor evaluator context;
+no new store is added.
+
+An unapplied, unverified, or uncommitted fix, incomplete thread settlement, or another outstanding approved item
+keeps the capture pending and unusable, not invalidated. Restart and status preserve it without another approval.
+After complete response performance, runtime resolves the existing durable response evidence and binds the exact
+produced head — unchanged, or created by the fix — under normal target, lineage, count, scope, and policy checks.
+An unrelated current head cannot substitute for that result. Explicit withdrawal, a superseded approved set, or an
+incompatible response/lineage/pass binding invalidates the capture. Whether the performed fix exceeded its proposed
+scope remains primary judgment; when it did, withdraw through the same continuation input and seek fresh approval.
+
+Consume the capture with admission of its one named logical pass through the lane owner's existing version check,
+before dispatch. Retain the consumed admission reference: retry/fallback resumes that same pass, while replay of the
+old approval cannot recreate permission for another. Concurrent re-entry and interrupted acknowledgment reread the
+owner; a failed capture write dispatches nothing, and exact approval replay may repair it without resurrecting a
+withdrawn, superseded, or consumed capture. A pending capture is not a portable exact-head override. When no usable
+capture exists, the existing request path applies unchanged; every evaluator invocation still requires admission.
+
+For advisory planning/criteria reviews, retain the conditional decision and performance check in the caller's
+existing evidence, not lane-progress records. The primary consumes the named permission for one fresh pass only
+after the approved response is complete; unfinished work preserves it, while withdrawal or supersession does not.
+
+Capturing the decision with the disposition report keeps one operator turn per pass instead of two, without making
+any pass beyond the cap automatic.
 
 The no-outstanding-set completion arm confirms the exact target is still current before completing. Convergence,
 suspension, and cap exhaustion therefore end only an unchanged-target loop and never discard approved work.
@@ -628,6 +788,12 @@ through the three planning callers and `validate-criteria`, including direct met
 through `init-recipe.json`, not file presence alone. Use existing declaration/loading mechanisms and minimal
 operation-local constraints; add no global load-set entry or blanket method preload.
 
+Producer-backed caller choreography distinguishes the two response-command uses: triage supplies the proposal input,
+the proposal command returns the report, complete-set approval precedes the approved command, and response performance
+follows its returned action. Update existing ordering assertions as well as prose, including retained delivery attempts
+and private/public Errand paths. Self-review declares its direct triage dependency; verification's direct self-review
+triage remains on the non-producer approval path and acquires no response-command requirement.
+
 ### 8. Preserve convergence attestation ordering through publication readiness
 
 Extend the existing `run-convergence-verification` action on the persisted publication boundary with a typed
@@ -646,6 +812,12 @@ Convergence `arc attest` consumes the matching Candidate/boundary and returns th
 succeeded before boundary/meta persistence failed. Preserve the continuation after repair and on later retries.
 Initial root/re-root attestation stays on its existing path; it does not acquire a fictitious reviewed-head basis.
 
+Retain the typed post-attest context, including reviewed head and projection disposition, on the resulting
+`CandidateReviewResumeBoundary` until readiness or explicit recovery replaces it. It must survive removal of the
+original convergence action, so plain prepublication invocation and later re-entry apply the same ordering guard.
+After readiness, retries honor the advanced boundary rather than reinstalling the pending guard or regressing its
+authority. This context stays inside the existing boundary, not only in caller-carried text.
+
 `prepare-work-unit.md` follows this sequence:
 
 ```text
@@ -661,10 +833,17 @@ Before invoking policy on that continuation, re-resolve Candidate, reviewable su
   naming the reviewed/current heads and pending continuation, before policy execution, evaluator dispatch, or pass
   consumption. Repeated status must not turn this into a fresh above-ceiling review request.
 
-The premature-commit diagnostic offers explicit recovery through a newly selected current-head review path with
-normal applicability/cap authority. It performs no reset, history rewrite, automatic evaluator invocation, or receipt
-rebinding. Existing authorization of subject-stable operational commits after `candidate-publish-ready` remains
-valid. The distinction is whether readiness was established before the projection changed the exact reviewed head.
+The premature-commit diagnostic offers a CLI-generated recovery continuation using the existing opaque resume
+transport. Its explicit `attestationOrderingRecovery` input binds Candidate ID/subject digest, reviewed/current heads,
+and expected boundary version. Following it requires an explicit recovery decision; ordinary re-entry or omission of
+`--resume` cannot imply that choice. Revalidate all bindings before replacing the pending guard through the existing
+version-checked boundary write, then re-enter current-head review composition with the preserved judgments and normal
+applicability/cap authority. Stale recovery input refuses without replacing newer state. Equivalent-head evidence and
+valid carried applicability decisions remain reusable; recovery itself grants neither a pass nor clearance.
+
+Recovery performs no reset, history rewrite, automatic evaluator invocation, or receipt rebinding. Existing
+authorization of subject-stable operational commits after `candidate-publish-ready` remains valid. The distinction is
+whether readiness was established before the projection changed the exact reviewed head.
 
 These typed actions enforce safe continuation at ARC boundaries. They do not prevent an arbitrary external
 `git commit`; no new commit hook is claimed. `verify-work-unit.md` distinguishes convergence re-entry from its
@@ -701,6 +880,32 @@ Rejected. It makes incremental continuation effectively unbounded and conflates 
 completed logical pass once and expose complete-coverage count separately. This keeps a cheaper incremental check
 available while preserving one-extra-pass authority at the configured cap.
 
+### Persist one generic execution object and a separate whole-target scope hash
+
+Rejected. Native operation/request/handle identities already bind the target and source admission. Add missing pass
+and incremental scope facts there; use existing lane progress for shared admission and normalize at the read side.
+Uniform persistence adds schema and replay obligations without stronger authority. Retry generation and logical pass
+still differ, and hosted admission must precede its external request effect.
+
+### Prebuild multi-producer chunk convergence before its carrier
+
+Rejected. Without independently scope-bound receipts and a proven union, list validation supplies no working
+capability. Consume the existing complete terminal aggregate, preserving manual chunk review. The automated carrier
+must own scope transport, identities, and complete union proof together; no incomplete aggregate can converge.
+
+### Replace incremental lineage with a single cumulative complete anchor
+
+Rejected as a mandatory simplification. Reviewing the entire residual since the last complete review repeats earlier
+corrections and cannot be expressed by every current adapter. Retain narrow predecessor-based correction review,
+using existing applicability facts without mistaking them for evaluator scope. A capable source may perform a wider
+review, but reducing traversal code does not justify making every reviewer repeatedly cover the cumulative delta.
+
+### Add an agent-invoked policy step after approved response preparation
+
+Rejected. The existing response command can append approval, resolve policy, and return the selected action in that
+order. Exposing those deterministic internal stages as separate required calls increases ceremony without adding
+authority. Actual judgment, fix execution, verification, and commit retain their existing boundaries.
+
 ### Treat an incremental clean result as a whole-target clean review
 
 Rejected. It overstates what was reviewed. A current correction result can close convergence only with a validated
@@ -715,9 +920,10 @@ its approval binding still detect altered source metadata; report-only styling c
 
 ### Accept any attestation-only head change as prior review applicability
 
-Rejected for the publication-ordering fix. The existing typed continuation can preserve the reviewed head until
+Rejected for the publication-ordering fix. The typed continuation can preserve the reviewed head until
 readiness. Extending receipt applicability to compensate for a premature commit would add authority machinery for
-an avoidable sequencing error. Fail before another review dispatch and offer the existing explicit recovery path.
+an avoidable sequencing error. Fail before another review dispatch and offer § 8's explicit recovery through the
+existing resume transport, preserving established applicability rather than adding an exception.
 
 ### Call the driver once before triage and again afterward
 
@@ -765,7 +971,10 @@ Clean convergence resolves from the same exact operation, target, pass, scope, a
 inventing an empty disposition record.
 
 Pass-cap overrides bind the exact target, lane or activity, exhausted count, and next pass. They authorize one
-additional invocation, not a continuing exception.
+additional invocation, not a continuing exception. An override captured with the disposition set binds only after
+its approved response is performed, against the head that response produces. Incomplete performance keeps it pending;
+withdrawal, supersession, or incompatible bindings invalidate it. Capture reduces operator turns without replacing
+exact admission, authorizing another pass on replay, or granting permission from disposition approval alone.
 
 ### Procedure evolution
 
@@ -809,12 +1018,16 @@ Do not add aliases, dual-input readers, or data migrations.
 
 ### Performance
 
-Each terminal attempt adds bounded reads for its named operation IDs. A clean whole-target pass reads one producer; a
-findings whole-target pass also reads one disposition record. A terminal chunk-series call reads one producer per
-scope plus disposition records for findings producers. Review execution dominates this local I/O. The configured
-ceiling bounds logical pass recurrence, not raw evaluator-call count; bounded chunk-series and scout orchestration own
-any intra-pass calls. Incremental coverage reads its predecessor chain from the existing snapshot, memoizing within
-the command to avoid repeated traversal. Missing or cyclic history fails closed; no new history store is introduced.
+Each terminal attempt reads its one named producer; a findings result also reads its approved disposition record.
+The existing manual chunk carrier supplies one complete aggregate at this boundary. Review execution dominates local
+I/O. The configured ceiling bounds logical pass recurrence, not raw evaluator-call count; bounded chunk and scout
+orchestration own intra-pass calls. Incremental coverage reads its predecessor chain from the existing snapshot,
+memoizing within the command. Missing or cyclic history fails closed; no new history store is introduced.
+
+The clean path adds no empty record or approval. Findings require one complete judgment approval; the approved
+command returns the selected response/continuation without caller reconstruction of counters or history. Replays
+reuse admitted actions and sealed results. Scope uncertainty and cap overruns retain their genuine decision turns;
+mechanical continuation introduces no new permission turn.
 
 ### Testing
 
@@ -824,18 +1037,25 @@ the command to avoid repeated traversal. Missing or cyclic history fails closed;
 - Result-reader/store tests cover frontline parity, hosted sealing, conflicting replay, direct publisher mutation
   refusal, malformed state, and operation/result-ID separation. An await replay after approval or settlement returns
   the original result with no provider call, count increment, or progress regression.
-- Operation tests prove same-target passes have different identities, same-pass retries are idempotent, retry
-  generations do not advance logical pass, and fallback sources retain one execution binding.
-- Command tests reject stale targets, missing or duplicate operation IDs or execution bindings, wrong sources,
-  incomplete result bindings, mixed pass, policy, rubric, or scope identities, caller-supplied summary state, and
-  chunked execution without a carrier-issued scope binding. Clean attempts additionally reject a missing producer,
-  mismatched terminal outcome, or caller-only clean assertion.
-- Reducer tests cover all-refuted, minors-only, material, multi-record, and properly scope-bound terminal
-  chunk-series summaries. Material unchanged-target responses re-enter with the returned completed-pass count and an
-  empty next-pass attempt history; ceiling exhaustion stops before invocation. A verified material `reject` retains
-  its severity and withholds convergence. Chunk aggregation accepts all-clean and mixed clean/findings producer series,
-  requires a disposition record only for each findings producer, and rejects an aggregate outcome inconsistent with
-  its producer set.
+- Operation tests prove same-target passes have different identities, same-attempt replays are idempotent, retry
+  generations do not advance logical pass, and fallback sources retain one admitted pass and requested scope.
+- Admission tests separate same-head/same-ordinal members through request/receipt identity, preserve mixed hosted/local
+  histories, and serialize competing terminal claims at the lineage owner. Public frontline run rejects forged or
+  stale ready admission. Pending policy/source/actor changes cannot replace original admission; narrowly authorized
+  pre-terminal runtime renewal remains possible. Failed local rerun uses a new generation and counts one completion.
+- Hosted dispatch tests cover all three vehicle paths: admission-write failure prevents the effect, acknowledged
+  replay uses the stored await action, and unacknowledged interruption/ambiguity stops without redispatch or fallback.
+  Pending await retains original admission under changed config/actor; no external exactly-once guarantee is assumed.
+- Command tests reject invalid target/admission or current-applicability bindings, missing or ambiguous producer
+  identity, competing terminal producers, wrong sources, incomplete results, mismatched pass/policy/rubric/scope facts,
+  and caller-supplied summaries. Clean attempts additionally reject missing producers, mismatched terminal outcomes,
+  and caller-only clean assertions.
+- Reducer tests cover all-refuted, minors-only, and material results, including a complete manual-chunk aggregate.
+  Every finding in that aggregate contributes; missing aggregate completion or partial-only evidence refuses
+  convergence. No independent partial producer union is accepted. Material unchanged-target responses re-enter with
+  the returned completed-pass count and an empty next-pass attempt history; ceiling exhaustion stops before
+  invocation. A verified material `reject` retains its severity and withholds convergence.
+
 - Workflow and integration tests cover the triage-before-driver order, every outstanding-disposition arm, unchanged
   target continuation, changed-target rerouting after a fix, early approval of record-only sets, and removal of the
   old final-gate approval deferral.
@@ -845,6 +1065,10 @@ the command to avoid repeated traversal. Missing or cyclic history fails closed;
 - Pass-ceiling tests retain exact-target/lane/count/next-pass override validation and prove an override grants only
   the named next pass. Complete and incremental terminal passes each count once; partial chunks, retries, status,
   and response replay do not. An effective complete upgrade changes coverage reporting without double counting.
+- Conditional-capture tests cover explicit consent versus disposition-only approval, pending work across restart,
+  failed capture writes and exact repair, unchanged/fixed-head binding from durable response evidence, withdrawal,
+  supersession, incompatible member/count/head, and concurrent single-use admission. Consumed or invalidated capture
+  cannot revive through old approval replay; pending-pass retry/fallback does not require a second permission.
 - Native-navigation cases cover duplicate labels, titleless sources, bounded verbatim clipping, mixed thread/body
   capture order, canonical proposal reordering, stable evidence links, and metadata/result-digest tampering.
 - Coverage cases prove complete basis plus a fresh bounded correction can converge, incremental-only evidence cannot,
@@ -855,9 +1079,10 @@ the command to avoid repeated traversal. Missing or cyclic history fails closed;
   outstanding; a valid fresh signal advances it; Owner acceptance remains a distinct exact-member route.
 - Publication-spine coverage reaches a clean result at the cap, follows convergence attestation's returned action
   verbatim, then publishes with one projection commit and no extra evaluator call. Preserve non-default replay
-  judgments, repair interruption after Candidate persistence, and resume from staged durable records. A premature
-  projection commit refuses before policy/pass consumption; changed reviewable content reroutes; a subject-stable
-  projection commit after readiness remains publishable.
+  judgments through actual boundary and later metadata/staging failures after Candidate persistence. Plain and token
+  re-entry retain the ordering guard; a premature projection commit refuses before policy/pass consumption. Explicit
+  version-bound recovery preserves equivalent-head reuse; stale recovery and post-readiness replay cannot regress the
+  boundary. Changed reviewable content reroutes; a subject-stable projection commit after readiness remains publishable.
 - Public-command lifecycle scenarios resume without private schema imports or hand-built digests/counters. Each
   behavioral delivery member owns an executable production-path scenario; helpers and workflow text alone cannot
   satisfy the lifecycle. Member verifiers consume that evidence and do not accumulate corrective implementation.
@@ -882,25 +1107,26 @@ the command to avoid repeated traversal. Missing or cyclic history fails closed;
 
 ### Rollout order
 
-1. Rename the severity vocabulary across the complete acceptance graph.
-2. Split reported and verified disposition fields; update proposal construction, the triage/response methods, and
-   integration presentation sites.
-3. Add pass/scope execution binding, logical counting, and faithful local/hosted requested/effective coverage.
-4. Seal hosted terminal content in existing attempts and expose source-specific immutable result reads.
+1. Rename severity across the complete acceptance graph; align advisory attention, convergence, and cap semantics.
+2. Extend native source admissions with missing pass/scope facts, logical counting, and truthful coverage.
+3. Seal hosted terminal content in existing attempts, expose immutable reads, and bind proposals to exact producers.
+4. Split reported/verified dispositions and add native navigation and command-rendered reports through all consumers.
 5. Bind clean and findings attempts to their source operations, bind findings to approved disposition records, and
    derive the convergence summary.
 6. Reorder all lane workflows, move every disposition approval before the driver, add unchanged-target
    `resolve-next-pass`, preserve outstanding responses, and reroute changed targets.
-7. Close hosted/member convergence and publication attestation continuation; keep Owner acceptance distinct.
+7. Close incremental/member convergence, then publication attestation continuation; keep Owner acceptance distinct.
 8. Update adversarial coverage, convergence, cap visibility, tests, generated schemas, and both methodology copies
    at their owning delivery boundary, not as a final disconnected documentation sweep.
 
 Boundary outcome is `stays one WU + delivery-plan candidate`. Structural task generation derives the delivery
-partition from the complete caller graph; the seven-member proposal in `notes-review-signal-convergence.md` is an
-input, not a fixed boundary. Producer sealing/read composition requires no physical store generalization. Each
-member must be independently coherent with its complete strict-current caller graph, tests, generated artifacts,
-and both methodology copies. Target headroom below 5,000 raw changed lines per member; estimates do not authorize
-an oversized boundary.
+partition from the reduced design and complete caller graph; earlier proposals retained in
+`notes-review-signal-convergence.md` are history, not fixed boundaries. Producer sealing/read composition requires no
+physical store generalization. Each member must be coherent with its complete strict-current caller graph, tests,
+generated artifacts, and both methodology copies. Target headroom below 5,000 raw changed lines per member. This is
+a review-size advisory, not a mandatory split boundary: a modest exceedance needs a recommendation and explicit
+review-scope decision based on the actual change. Estimates alone authorize neither extra scope nor a review bypass.
+Do not assume the separately captured delivery whole-target escape hatch is available.
 
 Use the plan-segmentation design's reasoning manually: settle necessary substrate, then exercise complete producer,
 convergence, member, and publication paths as early as their dependencies permit. Inventory every mandatory lifecycle
@@ -917,9 +1143,14 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
    template-blocker, and `blocked` occurrence remains unchanged.
 3. The adversarial method states completeness and convergence as separate rules. Every reported finding receives an
    approved disposition, while a disposed confirmed material finding still withholds convergence; all-refuted and
-   confirmed-minors-only passes converge.
-4. Every adversarial result exposes `Pass N of M`. At the cap, no evaluator is invoked without explicit approval
-   for the named next pass, and each over-cap pass consumes that authority completely.
+   confirmed-minors-only passes converge. A confirmed minor never withholds convergence, and a signal-rich minor
+   surfaces as a completion-report observation rather than a driver state or a severity raise.
+4. Every adversarial result exposes `Pass N of M` and every ended loop names its stop reason. At the cap, no
+   evaluator is invoked without explicit approval for the named next pass, and each over-cap pass consumes that
+   authority completely. An override approved with the disposition set binds only after the approved response is
+   performed, against the head it produces. Incomplete work keeps permission pending; withdrawal, supersession, or
+   incompatible bindings invalidate it. Durable lanes consume it at single-pass admission without revival on replay;
+   advisory callers retain their non-producer evidence path. An absent capture leaves the existing request unchanged.
 5. `arc review respond -` produces canonical proposals and source-bound approved records for local, frontline, and
    hosted result references. Durable items preserve provider-reported severity and ARC-verified severity separately;
    exact-source validation checks the reported lane, while gating and convergence use only the verified lane.
@@ -933,15 +1164,17 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
    producer identity, separate content identity, idempotent replay before and after settlement, and exact
    approved-disposition binding. A common result
    reader composes existing source stores; no second physical hosted-result store is required.
-8. Every clean or findings attempt references the exact durable operations that produced it, and every findings
-   operation additionally resolves its approved disposition record. Another pass on the same target has a distinct
-   operation identity, while an exact same-pass retry is idempotent. Missing, duplicate, stale, incomplete,
+8. Every clean or findings attempt references its one exact durable terminal producer, and a findings producer
+   additionally resolves its approved disposition record. Another pass on the same target has a distinct
+   operation identity, while an exact same-attempt replay is idempotent. A failed local rerun advances native retry
+   generation within the same logical pass. Missing, duplicate, stale, incomplete,
    wrong-outcome, wrong-source, wrong-target, wrong-pass, wrong-policy, wrong-rubric, or wrong-scope bindings fail
-   closed.
-9. The driver derives confirmed count and maximum severity internally. It accepts no caller-computed summary, and a
-   terminal chunk-series maximum spans every distinctly scope-bound approved record. Automated chunk convergence
-   remains unavailable until its carrier can issue and prove those bindings. Every verified non-null severity
-   contributes regardless of disposition.
+   closed. Historical producers retain their original exact target and remain reusable through validated current
+   applicability; a new SHA alone causes no fresh review, pass consumption, or repeated unchanged judgment.
+9. The driver derives confirmed count and maximum severity internally from the producer's complete approved finding
+   set, including the existing terminal aggregate after manual chunk review. It accepts no caller-computed summary
+   or union of independent partial producers. Every verified non-null severity contributes regardless of disposition;
+   incomplete aggregate evidence cannot converge.
 10. Local, frontline, and hosted lanes approve every complete disposition set before the driver, then perform
     approved responses. An unchanged material response starts the next pass or stops at the ceiling; a fix invalidates
     the old action, aborts any old chunk series, and reroutes the new exact target. No completion, continuation,
@@ -962,15 +1195,16 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
     navigation fields to disposition items or changing canonical report order. Altered producer metadata changes
     result identity and its approval binding; report-only formatting changes neither.
 16. Convergence attestation preserves the typed resume action and staged projection through publish-readiness; normal
-    closeout commits the lifecycle projection once. Interrupted writes repair idempotently. A premature head-changing
-    projection commit refuses before another review is requested, while ordinary post-readiness projection commits
-    retain existing publication authority.
+    closeout commits the lifecycle projection once. Interrupted writes repair idempotently. Plain and token re-entry
+    preserve the ordering guard; a premature head-changing projection commit refuses before another review is
+    requested. Explicit version-bound recovery preserves applicable evidence without granting clearance. Stale recovery
+    or later replay cannot regress readiness, and ordinary post-readiness projection commits retain existing authority.
 17. A restarted session can complete the public review/response/continuation path from returned actions and durable
     references without importing internal code or inventing identities and counters. Behavioral member boundaries
     prove their mandatory lifecycle through executable production-path scenarios.
-18. Default producer-backed reports are CLI-rendered from canonical data plus author judgment; command composition
-    selects response-before-continuation actions. Workflow and method declarations match actual invocation ownership
-    without imposing code-review persistence on advisory
+18. Default producer-backed reports are CLI-rendered from canonical data plus author judgment; the approved response
+    command composes policy and selects response-before-continuation actions without an extra policy round trip.
+    Workflow and method declarations match actual invocation ownership without code-review persistence on advisory
     planning/criteria reviews or author self-review. Bounded agent-behavior evaluations report observed adherence
     separately from static contract checks; no unshipped composition or evaluation engine is required.
 
@@ -978,5 +1212,6 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
 
 None at the design level. Logical-pass counting, validated incremental basis, existing-store sealing, native
 capture-order projection, publication continuation, and non-producer self-review boundaries are specified above.
-Structural task generation must prove complete caller coverage and sub-ceiling delivery-member boundaries before
-content fill. Concrete private helper names remain implementation details.
+Task generation must establish complete caller coverage and coherent, reviewable delivery-member boundaries before
+finalization. Surface estimated advisory exceedances for judgment rather than requiring an automatic split. Concrete
+private helper names remain implementation details.

@@ -2,178 +2,1040 @@
 
 - **Design:** `spec-review-signal-convergence.md`
 
-Retained structural baseline from 2026-07-27, not a finalized executable list. Resume assessment and the provisional
-native-stack partition are in `notes-review-signal-convergence.md` § Resume assessment — 2026-09-07. The existing
-parents remain traceability inputs until the spec amendment and refreshed structural pass are reviewed; no task here
-is authorized for implementation.
-
 ---
 
-## **Phase 1:** Establish the strict review-severity vocabulary
+<!-- arc:delivery-plan:start -->
+## Delivery Plan
 
-_Purpose:_ Replace the review magnitude baseline first so every later schema, record, and workflow change builds on
-one unambiguous `critical > major > minor` vocabulary.
+- **Plan Revision:** `1`
+- **Plan Digest:** `sha256:a8e7fe7fea41deb38482d04483fba11ec5b9f6bd73a27de2bb9fdcd211c6cd24`
+- **Projection:** `stack-to-main`
+- **Landability:** All members are `independently-landable`.
 
-### `[ ]` **1.1 Change the canonical review-severity model**
+### Members
 
-- _Spec anchors:_ Proposed Design § 2; Success Criterion 2
-- _Rough subtask count:_ 2-3
+| #   | Member                                                 | Chunk key                        |
+| --- | ------------------------------------------------------ | -------------------------------- |
+| 1   | Review vocabulary and advisory loops                   | `review-vocabulary`              |
+| 2   | Native review admission and accounting                 | `native-review-admission`        |
+| 3   | Immutable producer evidence and approval binding       | `sealed-review-evidence`         |
+| 4   | Verified judgment and recognizable reports             | `verified-finding-reports`       |
+| 5   | Evidence-derived convergence and response continuation | `evidence-driven-convergence`    |
+| 6   | Incremental coverage and member progression            | `incremental-review-convergence` |
+| 7   | Publication continuation and attestation ordering      | `publication-continuation`       |
 
-### `[ ]` **1.2 Propagate `critical` through review producers and consumers**
+#### Member coverage
 
-- _Spec anchors:_ Proposed Design § 2; Success Criteria 2 and 11
-- _Rough subtask count:_ many
+| #   | Tasks                                    | Design elements                                                |
+| --- | ---------------------------------------- | -------------------------------------------------------------- |
+| 1   | `1.1`, `1.2`, `1.3`, `1.4`               | `rfc:design-1`, `rfc:design-2`, `rfc:design-3`, `rfc:design-7` |
+| 2   | `2.1`, `2.2`, `2.3`, `2.4`, `2.5`, `2.6` | `rfc:design-3`, `rfc:design-5`, `rfc:design-7`                 |
+| 3   | `3.1`, `3.2`, `3.3`, `3.4`               | `rfc:design-4`, `rfc:design-5`                                 |
+| 4   | `4.1`, `4.2`, `4.3`, `4.4`, `4.5`        | `rfc:design-4`, `rfc:design-7`                                 |
+| 5   | `5.1`, `5.2`, `5.3`, `5.4`, `5.5`        | `rfc:design-3`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
+| 6   | `6.1`, `6.2`, `6.3`, `6.4`, `6.5`        | `rfc:design-3`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
+| 7   | `7.1`, `7.2`, `7.3`, `7.4`               | `rfc:design-7`, `rfc:design-8`                                 |
 
-### `[ ]` **1.3 Reconcile schemas, fixtures, generated artifacts, and occurrence-sensitive prose**
+### Named seams
 
-- _Spec anchors:_ Proposed Design § 2; Compatibility and Migration; Success Criteria 2 and 11
-- _Rough subtask count:_ many
+| #   | Seam                                    | Members | Owner | Design elements                                                |
+| --- | --------------------------------------- | ------- | ----- | -------------------------------------------------------------- |
+| 1   | Coverage to member progression          | 5, 6    | 6     | `rfc:design-3`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
+| 2   | Native admission to immutable evidence  | 2, 3    | 3     | `rfc:design-3`, `rfc:design-5`                                 |
+| 3   | Review through publication readiness    | 5, 6, 7 | 7     | `rfc:design-7`, `rfc:design-8`                                 |
+| 4   | Approved judgment to convergence signal | 3, 4, 5 | 5     | `rfc:design-4`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
 
-## **Phase 2:** Separate provider observation from ARC judgment
+#### Acceptance
 
-_Purpose:_ Make reported and verified severity distinct, source-bound facts before either disposition gating or pass
-convergence consumes them.
+- **1. Coverage to member progression:** Adequate complete or predecessor-backed incremental evidence uses one
+  convergence rule and advances the first outstanding member only after response performance. Partial evidence,
+  settlement, or applicability alone cannot erase material signal. Logical pass, complete coverage, and exact Owner
+  acceptance stay distinct.
 
-### `[ ]` **2.1 Split the canonical disposition item and enforce provenance invariants**
+- **2. Native admission to immutable evidence:** Every terminal producer retains its exact admitted lineage, pass,
+  source, and coverage through sealing and read-side resolution. Replay and interrupted writes repair the same
+  producer/count without competing terminal authority.
 
-- _Spec anchors:_ Proposed Design § 4; Success Criteria 5 and 8
-- _Rough subtask count:_ 2-3
+- **3. Review through publication readiness:** Returned public actions preserve approved responses, applicable evidence,
+  and count-neutral re-entry through convergence attestation and readiness. At-cap completion incurs no extra evaluator
+  call; premature commits stop, explicit recovery grants no clearance, and post-readiness replay preserves advanced
+  authority.
 
-### `[ ]` **2.2 Rebuild proposal preparation and exact-source validation around the split fields**
+- **4. Approved judgment to convergence signal:** The exact complete producer-bound approved finding set survives the
+  grade migration and supplies verified-only materiality to every policy/discharge path. Clean needs no empty
+  disposition; report styling is not authority and no approved response is discarded.
+<!-- arc:delivery-plan:end -->
 
-- _Spec anchors:_ Proposed Design § 4; Success Criteria 5 and 6
-- _Rough subtask count:_ many
+## **Phase 1:** Establish review vocabulary and advisory loop semantics
 
-### `[ ]` **2.3 Produce a faithful standalone disposition presentation**
+**Delivery member:** 1 — `review-vocabulary`
 
-- _Spec anchors:_ Proposed Design § 4; Success Criterion 6
-- _Rough subtask count:_ 2-3
+_Purpose:_ Close the severity graph and advisory attention, completeness, convergence, and cap semantics independently
+of code-review persistence.
 
-### `[ ]` **2.4 Align triage and response guidance with verified-only control**
+### `[ ]` **1.1 Migrate the complete review-severity acceptance graph**
 
-- _Spec anchors:_ Proposed Design §§ 4 and 7; Success Criteria 5, 6, and 10
-- _Rough subtask count:_ 2-3
+- _Goal:_ Review severity is uniformly `critical > major > minor`, while impediment and blocked-state vocabulary is
+  unchanged.
 
-## **Phase 3:** Bind review execution to logical pass and scope
+- _Note:_ Spec § 2; SC 2 and 11.
 
-_Purpose:_ Give local and frontline operations a runtime-owned execution identity that distinguishes passes without
-confusing logical pass accounting with retry generation.
+- _Approach:_ Inventory all acceptance roots and occurrences before the mechanical rename. Include provider normalizers,
+  generated schema validation, fixtures, and both Framework copies; preserve current versions/domains and distinguish
+  provider-native wire vocabulary from ARC-owned normalized severity.
 
-### `[ ]` **3.1 Define and register the review execution binding**
+    - `[ ]` **1.1.a Transform the classified severity graph**
 
-- _Spec anchors:_ Proposed Design § 5; Success Criterion 8
-- _Rough subtask count:_ 2-3
+        - Change severity-position occurrences and every owning schema/writer/reader together; leave the spec's
+          enumerated non-severity cases untouched. Add acceptance/rejection and preservation checks after the rename.
+          Preserve the CodeRabbit agent parser's accepted native grades and event-based finding identity; normalize
+          provider `blocker` to ARC `critical` without changing provider thresholds.
 
-### `[ ]` **3.2 Thread execution binding through operation identities and durable state**
+    - `[ ]` **1.1.b Verify strict-current closure**
 
-- _Spec anchors:_ Proposed Design § 5; Success Criteria 7 and 8
-- _Rough subtask count:_ many
+        - Run affected tests, both type checks, schema generation, and mirrored-prose checks. Reject old severity in
+          ARC-owned inputs, including nested hosted/disposition/receipt shapes, without aliases or migration readers.
+          Prove native top-grade normalization and unchanged lower-grade mappings; preserve the `blocked` state.
 
-### `[ ]` **3.3 Prove pass, retry, scope, and fallback identity behavior**
+### `[ ]` **1.2 Clarify advisory coverage and preserve claim-type verification**
 
-- _Spec anchors:_ Proposed Design § 5; Testing; Success Criterion 8
-- _Rough subtask count:_ 2-3
+- _Goal:_ A `withstood` entry communicates attention without licensing correctness or clearance.
 
-## **Phase 4:** Persist complete results across frontline and hosted lanes
+- _Note:_ Spec § 1; SC 1 and 18.
 
-_Purpose:_ Generalize the existing version-checked result substrate and make hosted terminal outcomes available through
-the same opaque, source-bound preparation path.
+- _Approach:_ Update the existing adversarial method and prompt in package source and synchronize the project copy. Keep
+  the field freeform, decision-relevant, and outside evidence or severity schemas.
 
-### `[ ]` **4.1 Generalize the result record, store port, and Git-common implementation**
+    - `[ ]` **1.2.a Clarify the claim and primary verification gradient**
 
-- _Spec anchors:_ Proposed Design § 5; Storage Evolution; Success Criterion 7
-- _Rough subtask count:_ many
+        - Keep externally verifiable source/behavior claims distinct from subjective reviewer judgments. Add contract
+          checks after the prose edit; do not require independent verification of every attention entry.
 
-### `[ ]` **4.2 Carry policy, rubric, pass, and scope binding through hosted execution**
+    - `[ ]` **1.2.b Exercise a contradicted source claim**
 
-- _Spec anchors:_ Proposed Design § 5; Success Criteria 7 and 8
-- _Rough subtask count:_ 2-3
+        - Run a bounded fresh-context exercise with the actual method/caller instructions. Retain input, expected
+          behavior, observed output, and deviations as evidence; static parity is not behavioral proof.
 
-### `[ ]` **4.3 Persist hosted terminal results with distinct operation and content identities**
+### `[ ]` **1.3 Close advisory convergence, cap reporting, and caller fire-points**
 
-- _Spec anchors:_ Proposed Design § 5; Success Criterion 7
-- _Rough subtask count:_ 2-3
+- _Goal:_ Advisory loops complete approved dispositions, distinguish fresh signal from settlement, and stop at the pass
+  cap.
 
-### `[ ]` **4.4 Extend source references and response preparation to hosted results**
+- _Note:_ Spec § 3; § 7 Invocation ownership; SC 3, 4, and 18.
 
-- _Spec anchors:_ Proposed Design §§ 4, 5, and 7; Success Criteria 5, 7, and 10
-- _Rough subtask count:_ many
+- _Approach:_ Keep planning/criteria review non-producer-backed. Change the invoked method, prompt, and actual direct
+  planning/criteria fire-points without changing audit activation policy.
 
-## **Phase 5:** Derive convergence from durable operation evidence
+    - `[ ]` **1.3.a Close advisory loop and authority instructions**
 
-_Purpose:_ Replace caller assertions with command-bound validation of complete producer and disposition records while
-keeping deterministic policy reduction free of storage I/O.
+        - Report `Pass N of M` and name the stop reason, keep the cap out of evaluator context, require a complete
+          approved disposition set, and distinguish recommendation from exactly one named additional-pass
+          authorization. Present the recommendation in the same turn as the disposition report.
 
-### `[ ]` **5.1 Add operation references to terminal review attempts**
+        - Retain an explicitly granted conditional next-pass decision in existing advisory evidence. Pending response
+          work preserves but cannot consume it; completion permits the named pass, withdrawal/supersession does not.
+          Disposition approval alone grants no extra pass, and advisory callers acquire no durable lane record.
 
-- _Spec anchors:_ Proposed Design § 6; Success Criterion 8
-- _Rough subtask count:_ 2-3
+        - A confirmed `minor` never buys a pass and never justifies raising `verifiedSeverity`; a signal-rich minor
+          appears as a converged-report follow-up observation, not a control state.
 
-### `[ ]` **5.2 Validate producer, binding, outcome, and disposition completeness**
+    - `[ ]` **1.3.b Verify invocation reachability and behavior**
 
-- _Spec anchors:_ Proposed Design § 6; Success Criteria 8 and 9
-- _Rough subtask count:_ many
+        - Check declarations, fire-points, installation, and overrides. Exercise unsupported material severity, a fixed
+          material finding, and a tempting over-cap pass in bounded fresh contexts; record deviations. Include pending
+          conditional permission, withdrawal, and one-use continuation after the approved response completes.
 
-### `[ ]` **5.3 Fail safely on incomplete chunk convergence evidence**
+### `[ ]` **1.4 Verify vocabulary and advisory loop behavior** — validate criteria at member scope
 
-- _Spec anchors:_ Proposed Design §§ 5 and 6; Non-Goals; Success Criteria 8 and 9
-- _Rough subtask count:_ 2-3
+- _Goal:_ Vocabulary and advisory-loop criteria have traceable static and observed behavioral evidence.
 
-### `[ ]` **5.4 Derive verified severity summaries and policy convergence**
+- _Note:_ Spec §§ 1–3; SC 1–4 and 18.
 
-- _Spec anchors:_ Proposed Design §§ 3 and 6; Success Criteria 3, 8, and 9
-- _Rough subtask count:_ many
+- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
+  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
+  markers unchanged; route any corrective work through normal task review, not this verifier.
 
-## **Phase 6:** Converge every review lane on one execution order
+## **Phase 2:** Admit native producer passes and preserve truthful coverage
 
-_Purpose:_ Ensure approved judgment reaches the driver before response performance, and ensure target movement
-invalidates every action bound to the earlier target.
+**Delivery member:** 2 — `native-review-admission`
 
-### `[ ]` **6.1 Preserve approved response plans through policy resolution**
+_Purpose:_ Close native admission through execution and progress consumers. Shared lane admission supplies pass
+identity; native bindings preserve exactness without a generic persisted execution object.
 
-- _Spec anchors:_ Proposed Design § 7; Success Criterion 10
-- _Rough subtask count:_ 2-3
+### `[ ]` **2.1 Compose shared logical-pass admission with native local request and operation identity**
 
-### `[ ]` **6.2 Implement unchanged-target continuation and changed-target rerouting**
+- _Goal:_ Local execution has runtime-issued lineage/pass identity: retries reuse admission and a fresh same-target pass
+  differs.
 
-- _Spec anchors:_ Proposed Design §§ 6 and 7; Success Criteria 9 and 10
-- _Rough subtask count:_ many
+- _Note:_ Spec § 3 Logical passes; § 5 Execution admission; SC 8 and 12.
 
-### `[ ]` **6.3 Reorder integration review lanes and remove deferred record-only approval**
+- _Approach:_ Extend existing lane progress and native `local-operation.ts`/request binding; keep the receipt's request
+  authority. Key admission ownership by runtime-resolved lineage, with head/PR facts on attempts and head-specific
+  reader projections. Whole-target scope uses existing target identity, without a generic execution envelope.
 
-- _Spec anchors:_ Proposed Design § 7; Success Criterion 10
-- _Rough subtask count:_ many
+    - `[ ]` **2.1.a Compose shared admission with the complete local binding graph**
 
-### `[ ]` **6.4 Reorder Errand review lanes under the same invariant**
+        - Build `test-first` (one behavior at a time):
 
-- _Spec anchors:_ Proposed Design § 7; Success Criterion 10
-- _Rough subtask count:_ many
+            - One version-checked lineage owner selects source attempts and claims a single terminal producer per pass.
+              Migrate the strict progress shape with every required writer, reader, and fixture; no schema-only
+              intermediate landing or second admission ledger is allowed.
 
-### `[ ]` **6.5 Prove lane ordering and outstanding-response handling**
+            - Native local request and operation preimages bind lineage, ordinal, and retry generation. Same-target,
+              same-ordinal sibling members have distinct requests and isolated receipt lookup, not merely distinct
+              operation IDs. Ready/prepare/attest/resume consume the admitted identity rather than caller counters.
 
-- _Spec anchors:_ Proposed Design § 7; Testing; Success Criterion 10
-- _Rough subtask count:_ 2-3
+    - `[ ]` **2.1.b Preserve pending admission across re-entry**
 
-## **Phase 7:** Close the agent-managed review contract
+        - Build `test-first` (one behavior at a time):
 
-_Purpose:_ Align advisory coverage, disposition completeness, pass convergence, and cap authority with the durable
-machine protocol after its control-bearing semantics are settled.
+            - Resolve pending admission before current policy/evaluator/source selection; drift cannot silently create
+              a replacement operation. Permit only the spec's validated pre-terminal liveness/runtime renewal, and
+              forbid renewal after a receipt. Expose exact executable continuation inputs.
 
-### `[ ]` **7.1 Define `withstood` as attention without clearance**
+            - Failed local result, explicit rerun, and successful terminal use a new native retry generation within
+              one logical pass; pending replay and completed replay remain idempotent. Preserve failed-attempt history,
+              existing retry bounds, and distinct partial/unavailable behavior.
 
-- _Spec anchors:_ Proposed Design § 1; Success Criterion 1
-- _Rough subtask count:_ 2-3
+            - Version conflicts and interrupted producer/progress writes repair the original admission/count. Two
+              fallback sources cannot claim competing authoritative terminals, even with different operation locks.
 
-### `[ ]` **7.2 Separate completeness, convergence, and cap-exhaustion authority**
+### `[ ]` **2.2 Bind frontline pass identity while retaining retry-generation semantics**
 
-- _Spec anchors:_ Proposed Design § 3; Success Criteria 3 and 4
-- _Rough subtask count:_ 2-3
+- _Goal:_ Frontline retries preserve their logical pass, while fresh same-target passes cannot reuse an earlier outcome.
 
-### `[ ]` **7.3 Lock the adversarial-review contract across both methodology copies**
+- _Note:_ Spec § 5 Execution admission; SC 8, 12, and 17.
 
-- _Spec anchors:_ Proposed Design §§ 1 and 3; Testing; Success Criteria 1, 3, 4, and 11
-- _Rough subtask count:_ 2-3
+- _Approach:_ Close `frontline-command.ts`, handler resolve/run composition, `frontline-operation.ts`, and
+  `frontline-run-command.ts` together. Resolve durable admission before execution; existing outcome pass information
+  must agree with it rather than being copied into another persisted object.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Native lineage/pass identity preserves source/target/policy checks and distinct retry generations. Public
+          resolve derives pass/allowance; run rejects forged-but-schema-valid or stale ready inputs.
+
+        - Exact replay returns the matching durable outcome; another pass or contradictory outcome binding refuses
+          reuse.
+
+        - Pending policy/source/evaluator drift cannot implicitly invalidate admission into another generation;
+          explicit new-attempt selection remains separate from safe transport renewal and pending replay.
+
+        - Whole-target frontline coverage remains complete; unsupported incremental execution is not advertised.
+
+### `[ ]` **2.3 Persist hosted admission before dispatch and preserve request/await context**
+
+- _Goal:_ Hosted execution is durably admitted before an external request and retains original context through pending
+  replay.
+
+- _Note:_ Spec § 5 Execution admission; SC 7, 8, and 12.
+
+- _Approach:_ Use existing lane progress, hosted request/handle schemas, and `handlers/review.ts` composition. The
+  handle continues to identify the producer; result content identity remains separate.
+
+    - `[ ]` **2.3.a Bind native request admission before external effects**
+
+        - Build `test-first` (one behavior at a time):
+
+            - Persist source/pass/scope admission before the provider effect for singleton, Errand, and member requests;
+              a failed admission write prevents dispatch. Retain existing member-specific reservation checks and
+              migrate all handle consumers with successful acknowledgment binding.
+
+            - Distinguish unacknowledged admission from acknowledged pending await. Acknowledged replay returns the
+              stored await action; an unacknowledged interrupted or ambiguous dispatch stops without automatic
+              redispatch, fallback, or fresh pass. Do not assume a provider exactly-once or reconciliation capability.
+
+    - `[ ]` **2.3.b Preserve admission through await and fallback**
+
+        - Build `test-first` (one behavior at a time):
+
+            - Pending restart uses original policy/rubric/actor context even after config or actor changes. Preserve
+              requested coverage, truthful effective upgrades, safe fallback, and count-neutral observations.
+              Acknowledged replay never resubmits; the later immutable-evidence boundary adds sealed replay without
+              provider observation.
+
+### `[ ]` **2.4 Derive logical counts and truthful coverage across history and progress consumers**
+
+- _Goal:_ Every progress consumer counts logical terminal passes once and reports complete coverage separately across
+  member heads.
+
+- _Note:_ Spec §§ 3, 5, and 7; SC 12 and 14.
+
+- _Approach:_ Update `lane-progress.ts`, reservation admission, earlier-attempt projection, status, and checkpoint.
+  Preserve source selection; do not activate severity-derived convergence in this accounting migration.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Complete and incremental clean/findings terminals each consume one pass; effective complete upgrades count
+          once.
+
+        - Retries, unavailable attempts, partial chunks, observations, and settlement replay do not add completed
+          passes.
+
+        - Stable member history includes same-head and moved-head passes; local requested/effective coverage is not
+          hardcoded.
+
+        - Mixed hosted/local fallback retains both histories without overwriting a container-level PR discriminator.
+          Same-head sibling members remain isolated; head-specific views and lineage counts use the same owner.
+
+        - All consumers agree on exhausted count and named next-pass override; Owner acceptance remains a separate fact.
+
+### `[ ]` **2.5 Exercise public admission, fallback, retry, moved-member history, and exact cap authority**
+
+- _Goal:_ Public execution paths demonstrate admitted identity and correct allowance without caller reconstruction.
+
+- _Note:_ Spec §§ 3 and 5; SC 8, 12, and 17.
+
+- _Approach:_ Extend the existing review fan-out lifecycle and relevant command tests using real production stores and
+  commands; mock only external boundaries. Use returned inputs, not invented progress records.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Local/frontline fresh-pass and replay paths preserve operation identity as intended.
+
+        - Same-target sibling requests cannot reuse receipts; failed local rerun completes once under a new generation.
+          Forged frontline ready inputs refuse, while a returned admitted action executes normally.
+
+        - Hosted pending restart, fallback, incremental completion, and complete upgrade preserve one logical admission.
+
+        - Admission/effect/acknowledgment interruption cases cover every hosted vehicle, retain original context under
+          drift, and stop uncertain dispatch rather than repeating it. Competing source terminals cannot double count.
+
+        - The moved-member sequence and one-pass sibling have separate histories; status/replay cannot consume another
+          pass.
+
+### `[ ]` **2.6 Verify native admission and shared accounting** — validate criteria at member scope
+
+- _Goal:_ Native admission, coverage, and accounting criteria are proven at this delivery boundary.
+
+- _Note:_ Spec §§ 3 and 5; SC 8 and 12.
+
+- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
+  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
+  markers unchanged; route any corrective work through normal task review, not this verifier.
+
+## **Phase 3:** Seal terminal evidence and bind approval to its producer
+
+**Delivery member:** 3 — `sealed-review-evidence`
+
+_Purpose:_ Close immutable hosted publication and replay with every direct reader, then use native evidence in real
+proposal and approval commands. Existing disposition shapes can acquire stronger source binding before their grade
+migration.
+
+### `[ ]` **3.1 Seal hosted evidence through publisher, writers, readers, and await replay**
+
+- _Goal:_ Hosted terminal content is immutable, and replay returns it before observation even after settlement.
+
+- _Note:_ Spec § 5 One read contract; SC 7, 8, 11, and 17.
+
+- _Approach:_ Keep schema, publisher, terminal writers, direct readers, and their fixtures in one coupled parent. Use
+  `operation-state-schema.ts`, the existing operation publisher, lane progress, and hosted await composition.
+
+    - `[ ]` **3.1.a Close the strict sealed-snapshot graph**
+
+        - Build `test-first` (one behavior at a time):
+
+            - pending-to-terminal sealing, canonical digest fields, original clean/findings content, and mutable
+              settlement exclusion. Move findings rather than dual-writing them. Migrate all terminal writers and direct
+              readers, including response and reservation/earlier-attempt projections.
+
+    - `[ ]` **3.1.b Enforce publisher transitions and replay before observation**
+
+        - Build `test-first` (one behavior at a time):
+
+            - immutable admission, equal concurrent writes, conflicting content, forbidden disappearance, and settled
+              replay. Await resolves stored admission and returns sealed source references without provider polling,
+              current-config derivation, count advancement, or operational-state regression.
+
+            - Equal sealed evidence remains idempotent when progress timestamps or settlement differ. On version
+              conflict, reread the winner and preserve its current settlement, other attempts, and counts; do not
+              require whole-record equality or replace newer progress with the losing snapshot.
+
+### `[ ]` **3.2 Compose immutable source reads and bind proposals to exact producer content**
+
+- _Goal:_ Every proposal and approved replay binds exactly the immutable local/frontline/hosted result it describes.
+
+- _Note:_ Spec §§ 4–5; SC 5, 7, and 8.
+
+- _Approach:_ Compose the read-side `ReviewResultReader` from existing source stores and use it in real response
+  preparation. Close producer binding through all disposition-context constructors, validators, and replay consumers,
+  including `reduce-command.ts`, local resume, response/follow-up, and their fixtures in this member. Preserve native
+  receipt/outcome/attempt identities; introduce no physical result store or dependency on the later grade migration.
+
+    - `[ ]` **3.2.a Resolve complete native producer evidence**
+
+        - Build `test-first` (one behavior at a time):
+
+            - exact producer lookup, target/admission context, content digest verification, and
+              missing/ambiguous/corrupt records. Local digests bind receipt plus native admission; frontline reuses
+              outcome digest; hosted reuses its sealed result identity.
+
+    - `[ ]` **3.2.b Bind canonical proposal and approval to producer content**
+
+        - Build `test-first` (one behavior at a time):
+
+            - source context in the existing disposition preimage, exact one-for-one findings, and re-resolution on
+              approved requests. Same-looking later-pass findings cannot reuse approval; a clean producer requires no
+              empty disposition record.
+
+            - Producer-bound approval survives public reduction/resume and response/follow-up with the current grade
+              shape. Every binding validator rejects a substituted producer or digest; shared constructors and fixtures
+              move with the strict contract, not in a later member.
+
+### `[ ]` **3.3 Exercise concurrent terminal writes, settled replay, and stale approval refusal**
+
+- _Goal:_ Immutable evidence and approval binding survive real-store interruption, concurrency, and settlement replay.
+
+- _Note:_ Spec §§ 4–5; SC 5, 7, 8, and 17.
+
+- _Approach:_ Extend existing operation-store, hosted-await, response, and public lifecycle tests rather than creating
+  another storage harness.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Concurrent equal terminals with different timestamps replay the same evidence. Interleave settlement or
+          another attempt update and retain the winner's progress without double counting. Different sealed content
+          conflicts, and direct schema-valid evidence rewrites refuse.
+
+        - Lose the acknowledgment after successful sealing, or fail a later progress write: re-entry reads the original
+          seal, repairs the same producer/count, and makes no provider call. Inject failure before sealing separately:
+          retain acknowledged pending admission, allow re-observation under it, and claim no recovery of unstored
+          content. Uncertain write outcomes reread storage first; neither case dispatches a new request or pass.
+
+        - Proposal approval fails against a later producer or altered result, while exact settled replay preserves
+          evidence.
+
+### `[ ]` **3.4 Verify immutable evidence and approval identity** — validate criteria at member scope
+
+- _Goal:_ Immutable evidence and exact producer-approval criteria are proven through the real storage/command path.
+
+- _Note:_ Spec §§ 4–5; SC 5, 7, and 8.
+
+- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
+  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
+  markers unchanged; route any corrective work through normal task review, not this verifier.
+
+## **Phase 4:** Unify verified dispositions and recognizable finding reports
+
+**Delivery member:** 4 — `verified-finding-reports`
+
+_Purpose:_ Migrate verified judgment through its complete acceptance graph and join native producer navigation to the
+canonical report. Required fields, capture sites, renderer, and designated callers land with their owning semantic
+changes.
+
+### `[ ]` **4.1 Migrate verified disposition schemas and their complete consumer graph**
+
+- _Goal:_ Canonical records and all response consumers preserve reported observation separately from approved verified
+  judgment.
+
+- _Note:_ Spec § 4; SC 5 and 11.
+
+- _Approach:_ Change `disposition-records.ts`, `dispositions.ts`, author proposal mapping, and their complete consumer
+  graph together. Strict schema and required constructor changes are not separate task boundaries.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Verified findings require explicit non-null verified severity; unsupported findings require null severity,
+          reject, no verified nit, and record-only gating regardless of the reported grade.
+
+        - Reported and verified nit markers independently require minor severity; source comparisons use only reported
+          facts.
+
+        - Mixed unsupported findings and verified ordinary minors round-trip under blocking-minor policy regardless
+          of canonical order. Retained-policy reconstruction uses verified non-nit minors only; unsupported findings
+          remain record-only. Test reported nit without verified nit and verified nit without reported nit through
+          proposal, approval, gating, and source matching.
+
+        - Proposal, approval, response-plan, reduce, local-resume, and frontline follow-up use the new shape without
+          aliases; callers cannot omit verified judgment or hand-compute source/gating fields.
+
+        - Update shared fixture constructors and targeted regrade/nit assertions; retain the preceding producer-bound
+          proposal identity and distinct proposer/approver validation.
+
+### `[ ]` **4.2 Preserve native finding labels and capture ordinals through all producers**
+
+- _Goal:_ Each finding remains recognizable in source order even when canonical disposition order differs.
+
+- _Note:_ Spec § 4 Native navigation; SC 8 and 15.
+
+- _Approach:_ Extend normalized/local/frontline/hosted producers and all required readers/fixtures together. Assign
+  source ordinals from actual capture order before canonical sorting; preserve labels only when genuinely available.
+  Separate evaluator-input findings from runtime-normalized findings in `local-review-result.ts`; add no local
+  evaluator title/body field, and leave local labels absent when the wire provides no source text.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Combined thread/body sources, duplicates, and titleless findings retain stable native references and capture
+          ordinals.
+
+        - Labels are inert escaped data, bounded to 512 Unicode code points with truthful truncation metadata.
+
+        - Local input remains free of runtime navigation fields; normalization assigns ordinals. Opaque evidence
+          references do not become labels. Provider adapters capture genuine source text before discarding it.
+
+        - Complete producer arrays validate one-based index correspondence, rejecting duplicate, gapped, or reordered
+          ordinals. Hosted numbering follows final thread/body combination; filtered/report projections retain those
+          ordinals without renumbering. Replay preserves capture order and existing native finding identity.
+
+        - Metadata participates in immutable producer hashing and approval binding, not separate disposition fields.
+
+### `[ ]` **4.3 Render canonical proposed and approved reports in the public response command**
+
+- _Goal:_ The public response command returns one deterministic, standalone report for proposal, approval, and replay.
+
+- _Note:_ Spec § 4; SC 6, 15, and 18.
+
+- _Approach:_ Add a pure renderer beside response composition; join canonical dispositions to exact producer findings.
+  Expose `payload.dispositionReportText` without a new narrative record or rendering command.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Reports include complete claim/locus/evidence/consequence, ARC assessment before reviewer severity, native
+          identity, one-based canonical `F` labels, combined recommendation/action, optional questions, and separators.
+
+        - Proposal and approved replay use the same renderer; presentation-only changes preserve canonical identity.
+
+        - Missing source correspondence fails rather than inventing an account; escaping and clipping preserve source
+          meaning.
+
+### `[ ]` **4.4 Close presentation callers and exercise producer-backed and self-review approval**
+
+- _Goal:_ Default callers present faithful approval reports without making author self-review impersonate an independent
+  producer.
+
+- _Note:_ Spec § 4; § 7 Invocation ownership; SC 6, 15, 17, and 18.
+
+- _Approach:_ Update existing triage/response methods and actual prepare/integrate/delivery/Errand callers in both
+  copies. Self-review uses its standalone non-producer report and existing complete-set approval.
+
+    - `[ ]` **4.4.a Close default report consumption and invocation ownership**
+
+        - Consume returned reports for durable sources; preserve configured overrides and truthful approver boundaries.
+          Self-review must not fabricate a source reference, receipt, or respond-command invocation. Check method
+          declarations, actual fire-points, and installation; do not add global loading guidance.
+
+        - Close triage → proposal command → returned report → complete approval → approved command → performance in
+          prepare/integrate, retained delivery attempts, and private/public Errand paths. Replace the old ordering
+          assertions in `review-gate-workflows.test.ts` and `delivery-workflow.test.ts` with checks distinguishing both
+          command calls; merely asserting report-text presence is insufficient. Convergence continuation remains
+          owned by the following member.
+
+        - Declare self-review's direct triage dependency using the existing method graph. Preserve verification's
+          direct non-producer triage/approval path; response returns unapproved work to its governing caller rather
+          than secretly invoking triage again.
+
+    - `[ ]` **4.4.b Exercise the human-facing report and self-review path**
+
+        - Run bounded fresh-context examples with terse/native-labeled and unsupported findings, plus author
+          self-review. Record source inputs, expected account, observed output, and deviations; do not substitute
+          text-presence tests for judgment behavior.
+
+### `[ ]` **4.5 Verify judgment provenance and finding presentation** — validate criteria at member scope
+
+- _Goal:_ Verified judgment and report ergonomics criteria are supported by canonical and observed behavior evidence.
+
+- _Note:_ Spec § 4; SC 5, 6, 15, and 18.
+
+- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
+  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
+  markers unchanged; route any corrective work through normal task review, not this verifier.
+
+## **Phase 5:** Activate evidence-derived convergence through every caller
+
+**Delivery member:** 5 — `evidence-driven-convergence`
+
+_Purpose:_ Switch terminal evidence, verified materiality, discharge, and response-first continuation as one boundary.
+No local-only activation leaves hosted/member settlement-as-clearance in place.
+
+### `[ ]` **5.1 Admit one terminal producer and derive verified signal for the shared policy**
+
+- _Goal:_ Policy accepts terminal signal only from an exact complete producer and, for findings, its complete approved
+  record.
+
+- _Note:_ Spec §§ 5–6; SC 8, 9, and 13.
+
+- _Approach:_ Use the common immutable reader at command composition; add singular `reviewOperationId` to terminal
+  attempts and close all required request constructors. The pure reducer consumes only derived validated state.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Clean and findings reject missing/ambiguous producer, wrong target/source/pass/policy/rubric/scope, or outcome
+          mismatch.
+
+        - Findings resolve the complete approved set; verified-only maximum includes fix/defer/reject and excludes
+          unsupported allegations. Neither an unbound set nor a caller severity/count summary supplies convergence.
+
+        - A complete manual chunk aggregate includes every finding; partial progress and independent producer unions
+          cannot close.
+
+        - All-refuted and minors-only adequately covered results converge; material results retain response/next-pass
+          intent; incremental evidence without validated basis selects coverage rather than synthesizing clearance.
+
+### `[ ]` **5.2 Close direct policy callers, independent discharge, status, and checkpoint**
+
+- _Goal:_ All policy, discharge, status, and checkpoint paths apply the same verified signal and preserve outstanding
+  work.
+
+- _Note:_ Spec §§ 6–7; SC 9, 10, and 14.
+
+- _Approach:_ Close every direct `resolveReviewPolicy` consumer plus independent reservation discharge. Reuse common
+  evidence composition; do not implement another hosted materiality algorithm.
+
+    - `[ ]` **5.2.a Switch the complete control graph**
+
+        - Build `test-first` (one behavior at a time):
+
+            - Close `handlers/review.ts`, prepublication procedure/request, hosted reservation admission/discharge,
+              status, and integration checkpoint. Remove settlement-as-clearance and timeline truncation that discards
+              material evidence; do not split activation by local versus hosted lane.
+
+            - Replace the no-applicability-reader historical-clean fallback and its permissive regression assertion.
+              Validate historical producers at their original targets and require current applicability, preserving
+              existing tree-equality/mechanical-reapply recognition and recorded covered decisions with mechanical carry.
+              Missing applicability routes its existing decision/refusal, not clearance or an automatic new review.
+              Full incremental predecessor-chain traversal remains in Member 6.
+
+    - `[ ]` **5.2.b Preserve member conjunction and existing authority**
+
+        - Build `test-first` (one behavior at a time):
+
+            - the first outstanding member, same-target complete clean progression, material settlement, exact Owner
+              terminus, and cap override. Status and checkpoint must select the same action, and no completed/Owner arm
+              may discard an outstanding approved response.
+
+            - Earlier clean or nonmaterial evidence remains usable across proven equivalent heads without another
+              evaluator call, pass increment, or repeated unchanged applicability decision. A merely older clean
+              result without applicability cannot discharge; retaining historical material findings cannot create a
+              no-material signal. Preserve exact-head merge and Owner authority separately.
+
+### `[ ]` **5.3 Compose policy inside approved respond and preserve response-first continuations**
+
+- _Goal:_ An approved response command selects policy internally and returns approved response work before continuation;
+  subsequent response completion resumes only current-target action.
+
+- _Note:_ Spec § 7; SC 10, 17, and 18.
+
+- _Approach:_ Keep approved-record append before policy and response performance after it in `respond-command.ts` and
+  existing resolve/status composition. Reuse existing response/fix continuations and preserve human execution gates.
+  Carry caller-owned judgments through the existing prepublication resume context and corresponding lifecycle inputs;
+  do not infer pending context from the source reference or add another session store.
+
+    - `[ ]` **5.3.a Compose approval, policy, and selected response action**
+
+        - Build `test-first` (one behavior at a time):
+
+            - canonical approval append, post-append policy resolution, and returned response action without an extra
+              agent policy call or repeated triage. Remove premature settlement and preserve fixes, record-only
+              responses, and hosted thread actions under their existing authority.
+
+            - Internal policy receives the governing caller's scope, invocation, and ceiling context without default
+              substitution. Validate it through existing composition and return exact continuation inputs; preserve
+              override and Owner-terminus invalidation rules rather than treating the resume token as authority.
+
+            - After approved-record append, persist explicit conditional next-pass consent in the existing lane-progress
+              owner, bound to authorizer, repository/lane/lineage, producer, approved set, count, and next ordinal.
+              Disposition-only approval cannot manufacture it. Capture-write failure dispatches nothing; exact replay
+              repairs without replacing withdrawn, superseded, or consumed state. No separate response-plan store.
+
+    - `[ ]` **5.3.b Resume or reroute after response performance**
+
+        - Build `test-first` (one behavior at a time):
+
+            - unchanged-target next-pass/cap handling and changed-target rerouting. Complete, cap, Owner, coverage, and
+              partial-chunk arms keep approved work pending until performed; response replay must not consume another
+              pass or authorize stale clearance.
+
+            - A ceiling override captured with the disposition set binds only after its approved response is
+              performed, against the head that response produces on either target-movement arm, and then admits the
+              named pass. Unfinished fixes or settlement keep it pending, not invalidated. Resolve the produced head
+              from durable response evidence; wrong head/member/count, supersession, and withdrawal cannot bind it.
+
+            - Consume capture with the named admission under the lane owner's version check before dispatch. Concurrent
+              re-entry, lost acknowledgment, and old approval replay cannot grant another pass; retry/fallback retains
+              the same admitted pass. An absent usable capture leaves the existing request path unchanged.
+
+            - Restart between approval, policy, and performance preserves non-default caller judgments, including a
+              pending ceiling-override capture in lane progress. Re-entry on an equivalent head retains applicable
+              decisions; a genuinely invalidated override/terminus is not silently reused. Cover prepublication and
+              public delivery/Errand continuations.
+
+### `[ ]` **5.4 Exercise all-lane convergence, manual aggregates, cap stops, and public response replay**
+
+- _Goal:_ Real public paths prove all-lane convergence, response precedence, and count-neutral interrupted re-entry.
+
+- _Note:_ Spec §§ 6–7; SC 8–10, 13, 14, 17, and 18.
+
+- _Approach:_ Extend shared fixtures and the existing fan-out lifecycle; local/hosted paths use actual producer stores.
+  Policy unit tests may receive validated internal facts, but cannot stand in for command-boundary evidence tests.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Each lane's clean, all-refuted, minors-only, and material outcomes produce the correct selected action.
+
+        - Minor/refuted convergence still performs approved work; fixed/deferred/rejected material findings do not
+          auto-clear.
+
+        - At-cap unchanged response stops without another evaluator call; changed-target response preserves work and
+          reroutes. A captured override binds after performance on both arms; unfinished work keeps it pending and
+          unusable, not invalidated. Its absence still reaches the existing request path.
+
+        - Public returned actions survive restart without schema imports or invented IDs/counters; status/checkpoint
+          agree, and complete manual aggregates retain all findings while incomplete evidence refuses.
+
+        - Run status and checkpoint over the same producer-backed multi-member state: completed all-refuted and
+          minors-only responses advance the member, material or unperformed responses keep it outstanding, and missing
+          producer/applicability evidence refuses discharge. Include prior clean evidence across equivalent heads with
+          no extra evaluator invocation or pass consumption, alongside a changed contribution requiring a decision.
+
+### `[ ]` **5.5 Verify convergence and response precedence** — validate criteria at member scope
+
+- _Goal:_ Every lane/member control path meets the convergence and response-precedence boundary criteria.
+
+- _Note:_ Spec §§ 6–7; SC 8–10, 14, 17, and 18.
+
+- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
+  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
+  markers unchanged; route any corrective work through normal task review, not this verifier.
+
+## **Phase 6:** Complete incremental scope evidence and member progression
+
+**Delivery member:** 6 — `incremental-review-convergence`
+
+_Purpose:_ Use fresh correction evidence with a validated predecessor basis, retaining narrow reviews where supported.
+Coverage labels and contribution applicability cannot substitute for evaluator scope.
+
+### `[ ]` **6.1 Resolve predecessor coverage, current applicability, and material re-examination scope**
+
+- _Goal:_ Incremental convergence has a validated complete predecessor basis and fresh evidence for every required
+  correction.
+
+- _Note:_ Spec § 5 Coverage and incremental continuation; SC 8, 12, and 13.
+
+- _Approach:_ Extend existing contribution applicability and native result reads; retain the optional predecessor in
+  source admission. Resolve explicit producers through `ReviewResultReader` against the complete snapshot, separately
+  from source-filtered or settlement-truncated selection history. Memoize traversal without a new history ledger.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Complete basis plus compatible successive corrections validates exact endpoints, lineage, policy/rubric, and
+          applicability.
+
+        - Missing links, cycles, gaps, stale targets, incompatible bindings, and unavailable applicability fail closed.
+
+        - Earlier findings have approved performed responses; supported material loci outside the delta cannot
+          disappear.
+
+        - Reviewed endpoints come from immutable producers, not performed-fix retention projections. Review at A,
+          performed fix at B, and correction review at C must include the unreviewed A→B change in required scope.
+          Preserve equivalent-head applicability and covered-decision carry without treating response completion as
+          coverage.
+
+        - Same-head and cross-source predecessors remain discoverable by explicit identity. Validate each source's
+          admission and shared lane/lineage/policy compatibility; no source-selection filter may hide a valid basis.
+
+        - Fresh verified signal controls convergence rather than a lifetime severity maximum; selecting a prior result
+          never rewrites its target or drops response obligations.
+
+### `[ ]` **6.2 Carry exact correction scope through local materialization and adapter admission**
+
+- _Goal:_ A correction review receives its admitted exact range and material re-examination instructions, or returns
+  truthful limits.
+
+- _Note:_ Spec § 5 Coverage and incremental continuation; SC 12, 13, and 17.
+
+- _Approach:_ Extend local review materialization separately from whole-target identity. Preserve existing adapter
+  selection and coverage upgrades; capability labels do not establish exact evaluator scope. Close endpoint pinning,
+  source verification, sweep enumeration, and cleanup together under existing operation lifetime rules.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Local source/payload preparation binds prior/current endpoints and complete required finding instructions.
+
+        - Public status/admission permits incremental local review only when the returned action carries the validated
+          correction scope into materialization; replace its current blanket local-incremental refusal coherently.
+
+        - The current operation pins all required correction endpoints, including a nonancestor prior head. Verify
+          them on prepare/replay/attest; predecessor cleanup cannot release current pins. Extend existing ref ownership
+          and sweep enumeration coherently, with terminal/expiry cleanup and no permanent history-retention mechanism.
+
+        - After predecessor cleanup and Git maintenance, an admitted nonancestor correction remains reproducible.
+          Already-missing objects produce typed scope unavailability, not a claimed complete basis or silent review.
+
+        - Frontline remains whole-target complete; hosted Codex's explicit complete upgrade remains truthful.
+
+        - CodeRabbit's fixed incremental command cannot establish arbitrary correction range/material instructions from
+          its label alone; insufficient scope returns capable-source/coverage selection without silent complete
+          dispatch.
+
+        - An incremental result can be triaged/responded to and counted even when its coverage cannot close the member.
+
+### `[ ]` **6.3 Compose adequate incremental signal with member selection and distinct Owner authority**
+
+- _Goal:_ Adequate fresh incremental signal advances the right member without confusing convergence, Owner acceptance,
+  or pass authority.
+
+- _Note:_ Spec §§ 6–7; SC 9, 13, 14, and 17.
+
+- _Approach:_ Use the common policy/discharge path from Member 5. Replace its conservative inadequate-basis result only
+  when the predecessor/scope validator supplies adequate evidence; retain refusal for every invalid basis.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Complete-plus-incremental no-material evidence may advance; material settlement cannot.
+
+        - Same/member-head movement preserves logical counts, coverage, and ordered sibling selection.
+
+        - Hosted complete evidence can support a compatible local incremental successor, including at the same head.
+          Use the common explicit producer resolver; preserve separate source histories and reject incompatible bases.
+
+        - Exact Owner acceptance stays accepted risk rather than clean evidence; a one-pass override permits only that
+          pass.
+
+### `[ ]` **6.4 Exercise multi-pass members, insufficient scope, sibling completion, and exact overrides**
+
+- _Goal:_ The motivating member sequence and coverage failures are reproducible through returned public actions.
+
+- _Note:_ Spec §§ 3, 5, and 7; SC 12–14 and 17.
+
+- _Approach:_ Extend the existing fan-out and delivery scenarios with predecessor evidence and real correction payloads;
+  keep provider simulation at the external boundary.
+
+    - Build `test-first` (one behavior at a time):
+
+        - The five-pass `6, 7, 5, 2, 3` material sequence remains outstanding, while a one-pass-clean sibling is not
+          re-reviewed.
+
+        - A fresh adequate no-material correction can advance; an incremental-only or unreviewed material locus cannot.
+
+        - Local incremental coverage remains incremental in stored result, history, status, and displayed counts.
+
+        - Interrupted/missing/gapped predecessor state, explicit complete upgrade, and exact cap/Owner paths remain
+          distinct.
+
+        - Returned actions drive hosted-complete → local-incremental review without losing the predecessor. Exercise
+          the A-review/B-fix/C-correction scope and nonancestor endpoint retention, including missing-object refusal.
+
+### `[ ]` **6.5 Verify incremental coverage and member progression** — validate criteria at member scope
+
+- _Goal:_ Incremental scope and member progression criteria hold without unsupported coverage or authority claims.
+
+- _Note:_ Spec §§ 5–7; SC 12–14.
+
+- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
+  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
+  markers unchanged; route any corrective work through normal task review, not this verifier.
+
+## **Phase 7:** Carry convergence attestation into publication readiness
+
+**Delivery member:** 7 — `publication-continuation`
+
+_Purpose:_ Close the public-command sequence from reviewed Candidate through staged attestation and publication,
+including interrupted writes and premature-commit refusal, without changing review or merge authority.
+
+### `[ ]` **7.1 Persist post-attest continuation with exact prepublication replay judgments**
+
+- _Goal:_ Prepublication re-entry retains reviewed-head ordering and exact continuation until readiness or explicit
+  recovery, without regressing advanced authority.
+
+- _Note:_ Spec § 8; SC 16 and 17.
+
+- _Approach:_ Extend the existing publication boundary action in `integration-boundary-locus.ts` and prepublication
+  composition. Use existing opaque resume transport and `keep-staged-until-publication`, not another receipt.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Convergence action preserves prior review judgments, scope/coverage, reservation/Owner context, and consumed
+          override.
+
+        - Continuation is replay input, not a clean assertion; current authority still resolves from durable records.
+
+        - The resumed Candidate boundary retains reviewed-head/projection context after replacing the convergence
+          action. Plain prepublication and token re-entry enforce the same pending ordering guard; readiness advances
+          past it, and later retries cannot reinstall it or regress the boundary.
+
+        - Initial root/re-root attestation remains unchanged and acquires no fictional reviewed-head evidence.
+
+### `[ ]` **7.2 Reconcile attestation repair, readiness admission, and prepare/verify dispatch**
+
+- _Goal:_ Attestation repair resumes readiness without consuming another review, while premature head changes refuse
+  before dispatch.
+
+- _Note:_ Spec § 8; SC 16–18.
+
+- _Approach:_ Update `handlers/lifecycle.ts`, prepublication readiness, and paired prepare/verify wording together.
+  Follow the returned continuation with projections staged until the existing publication transition.
+
+    - Build `test-first` (one behavior at a time):
+
+        - Candidate persistence followed by boundary interruption repairs idempotently and retains the exact
+          continuation.
+
+        - Same Candidate/subject/reviewed head resumes; changed reviewable content reroutes under existing authority.
+
+        - Same subject with a premature head-changing commit returns ordering conflict before policy or pass
+          consumption.
+
+        - Explicit current-head recovery uses normal applicability/cap gates; post-readiness subject-stable commits
+          remain valid; no reset, automatic evaluator launch, receipt rebinding, or new Git hook is introduced.
+
+        - The diagnostic returns an explicit `attestationOrderingRecovery` variant in existing resume transport,
+          binding Candidate/subject, reviewed/current heads, and boundary version. Only selected, revalidated recovery
+          replaces the pending guard through the version-checked boundary write. Stale input refuses; ordinary re-entry
+          cannot bypass the guard. Preserve equivalent-head review reuse and valid carried judgments.
+
+### `[ ]` **7.3 Exercise clean-at-cap publication, interrupted re-entry, and head movement**
+
+- _Goal:_ The public publication spine reaches readiness at the cap and publishes with one lifecycle projection commit.
+
+- _Note:_ Spec § 8; SC 16 and 17.
+
+- _Approach:_ Extend `publication-spine.e2e.test.ts` with real Git and CLI calls, using returned resume input verbatim.
+  Build the CLI first; reuse preceding members' admitted producer/receipt/count fixtures. Use existing handler/store
+  test seams for precise write failures alongside subprocess re-entry; add no production failpoint mechanism.
+
+    - Build `test-first` (one behavior at a time):
+
+        - A clean-at-cap result flows through convergence verification, staged attest, readiness, and publish without
+          another pass.
+
+        - Non-default replay judgments survive actual failure after Candidate persistence: separately fail the boundary
+          write and later metadata/staging work, then retry and inspect the repaired continuation, metadata, and index.
+          Restoring an old boundary after a successful command is not a substitute for these failure cases.
+
+        - Compare durable pass counts and evaluator invocations before/after continuation, failed-write retry, and
+          repeated ordering-conflict status. Preserve non-default scope/invocation/ceiling judgments from real admitted
+          evidence, not only a synthetic convergence envelope.
+
+        - Premature projection commit refuses before review spend; changed content reroutes; post-readiness projection
+          is allowed.
+
+        - Explicit recovery reuses applicable equivalent-head evidence; stale recovery cannot replace a newer boundary.
+          Replaying the originally returned token after readiness preserves advanced authority and never reinstalls
+          the pending guard. Reuse existing post-readiness operational-commit coverage as the positive control.
+
+### `[ ]` **7.4 Verify publication continuation** — validate criteria at member scope
+
+- _Goal:_ Publication continuation criteria hold through real CLI re-entry and exact-head ordering failures.
+
+- _Note:_ Spec § 8; SC 16 and 17.
+
+- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
+  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
+  markers unchanged; route any corrective work through normal task review, not this verifier.
 
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Goal:_ The full work unit satisfies its spec and integration readiness criteria with all member evidence reconciled.
+
+- _Note:_ Spec SC 1–18; Testing and Rollout order.
+
+- _Approach:_ Load and follow `verify-work-unit.md`; consume member reports, validate cross-member seams and union
+  coherence, and run the applicable whole-unit quality gates. This is the sole terminal WU verification task.
+
+---
+
+## Success Criteria
+
+Member verifiers consume their group's evidence; only terminal verification changes these markers.
+
+### Member 1 — `review-vocabulary`
+
+- `[ ]` Every review-severity acceptance root uses `critical`; occurrence-sensitive checks preserve impediment uses.
+
+- `[ ]` The advisory method and prompt define attention-only `withstood`, separate disposition completeness from signal,
+  expose `Pass N of M` and the stop reason, present the pass recommendation with the disposition report, keep a
+  confirmed minor from buying a pass or raising severity, and stop at the cap without named one-pass authority.
+  Bounded agent exercises record adherence.
+
+### Member 2 — `native-review-admission`
+
+- `[ ]` Local/frontline/hosted public actions validate durable native admission; same-attempt replay is idempotent,
+  failed local rerun advances native generation within one pass, and another same-target pass is distinct.
+  Same-head sibling members cannot share requests or receipts; pending drift cannot replace admitted authority.
+
+- `[ ]` Hosted admission precedes external effects on singleton, Errand, and member paths. Acknowledged replay returns
+  stored await inputs; uncertain unacknowledged dispatch stops without redispatch, fallback, or a fresh pass.
+
+- `[ ]` Complete and incremental terminal reviews each count once across member head movement; requested/effective
+  coverage and complete-review counts are truthful in history, status, admission, and checkpoint.
+
+- `[ ]` Fallback, unavailable attempts, partial chunk observations, replay, and status consume no extra pass; exact
+  one-pass ceiling authority is checked before invocation.
+
+### Member 3 — `sealed-review-evidence`
+
+- `[ ]` Hosted terminal replay returns the original durable result before observation, including after settlement and
+  concurrent publication; schema-valid direct rewrites cannot alter sealed content.
+
+- `[ ]` Local/frontline/hosted proposals bind immutable native producer content through existing stores; same-looking
+  findings from another pass cannot reuse approval.
+
+### Member 4 — `verified-finding-reports`
+
+- `[ ]` Public proposals and response consumers preserve reported versus verified severity/nit, reject unsupported
+  allegations with null verified severity, and derive gating only from verified judgment.
+
+- `[ ]` Command-produced proposed and approved reports stand alone and preserve native references and capture order
+  through canonical sorting, clipping, escaping, duplicates, titleless results, and replay.
+
+- `[ ]` Report styling changes no canonical identity; producer metadata changes do. Self-review retains complete-set
+  approval and its non-producer report without a synthetic receipt or renderer command.
+
+### Member 5 — `evidence-driven-convergence`
+
+- `[ ]` Every durable lane admits its exact terminal producer and, for findings, its complete approved disposition set;
+  missing, ambiguous, wrong-pass/source/scope, stale, incomplete, and unbound evidence fails closed.
+
+- `[ ]` All-refuted/minors-only adequately covered results converge; supported material findings cannot converge merely
+  through fix, defer, reject, or settlement. A complete manual chunk aggregate includes every finding; partial-only
+  results cannot converge and no independent producer union is accepted.
+
+- `[ ]` The approved response command internally composes policy and returns the selected action without another
+  agent-invoked policy round trip; every continuation/Owner/cap/coverage arm preserves outstanding approved work.
+
+- `[ ]` Explicit conditional next-pass consent survives pending work and restart, binds only the completed response's
+  exact target, and is consumed with one admitted pass. Withdrawal, supersession, stale bindings, concurrent replay,
+  and failed writes cannot create or revive permission; disposition approval alone is insufficient.
+
+- `[ ]` Changed-target fixes reroute without inherited clearance; status and checkpoint agree on the first outstanding
+  member and distinguish exact Owner acceptance. Validated equivalent-head evidence and carried judgments remain usable
+  without another review or pass; missing applicability cannot clear. Inadequate incremental evidence selects coverage.
+
+### Member 6 — `incremental-review-convergence`
+
+- `[ ]` A complete predecessor basis plus fresh narrow material-correction evidence can converge; missing, incompatible,
+  cyclic, gapped, stale, or insufficient history cannot. Historical severity is not a lifetime maximum.
+
+- `[ ]` Local correction payloads carry admitted endpoints and material finding instructions. Unsupported hosted scope
+  cannot claim coverage from a label; explicit complete upgrades remain truthful and no expensive pass starts silently.
+
+- `[ ]` The captured material multi-pass member remains outstanding until fresh adequate no-material evidence or exact
+  Owner acceptance; its one-pass-clean sibling is not re-reviewed. Ordered progression, convergence, Owner acceptance,
+  and one-pass override remain distinct through head movement and re-entry.
+
+### Member 7 — `publication-continuation`
+
+- `[ ]` Public commands carry clean-at-cap convergence through staged attestation, publish-readiness, and one projection
+  commit without another evaluator call or reconstructed private state.
+
+- `[ ]` Actual boundary and later metadata/staging failures after Candidate persistence repair idempotently. Plain and
+  token re-entry preserve the ordering guard; premature projection commits refuse before review spend. Explicit recovery
+  retains applicable evidence; stale recovery and later replay cannot regress readiness. Changed content reroutes, and
+  post-readiness subject-stable commits retain existing authority.
+
+### Cross-member seams
+
+- `[ ]` Public lifecycle re-entry uses returned actions and durable references, without caller-invented digests,
+  producer identities, counters, or severity summaries.
+
+- `[ ]` Every mandatory lifecycle has its production caller and executable scenario at the earliest visible member;
+  verifiers consume evidence rather than accumulating corrective implementation.
+
+- `[ ]` All strict-current callers, generated schema validation, installed declarations/fire-points, and both
+  methodology copies agree; no temporary convergence bypass or compatibility reader remains.
+
+- `[ ]` All quality gates pass.
+
+- `[ ]` Ready for integration.

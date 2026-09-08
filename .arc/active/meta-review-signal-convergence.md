@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-review-signal-convergence.md`
-- **Task List:** [none]
+- **Task List:** `tasks-review-signal-convergence.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,8 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Rebuild the delivery-aware structural task pass and ground member sizing; see
-  `notes-review-signal-convergence.md` § Consolidated planning baseline — 2026-09-07
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
