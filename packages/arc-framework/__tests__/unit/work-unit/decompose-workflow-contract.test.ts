@@ -27,6 +27,21 @@ describe("decompose workflow contract", () => {
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
   });
 
+  it("defines one all-mode refusal envelope and preserves its actionable fields", () => {
+    expect(workflow.match(/Every selected mode emits one typed refusal envelope\s+on stdout\./gu)).toHaveLength(1);
+    expect(workflow).toMatch(
+      /status, reason, optional locus and evidence, remedy, and any optional report\s+unchanged/u,
+    );
+    expect(workflow).toMatch(
+      new RegExp(
+        "Successful\\s+preflight writes the starter map alone; refusal follows the common envelope "
+          + "and never emits a\\s+partial starter map\\.",
+        "u",
+      ),
+    );
+    expect(workflow).not.toContain("Diagnostics use stderr; a refusal emits no partial map.");
+  });
+
   it("separates semantic distribution, advancement, and destructive finish interlocks", () => {
     const authoring = workflow.indexOf("## 4. Author every reported destination");
     const release = workflow.indexOf("## 6. Release through the reported protection arm");

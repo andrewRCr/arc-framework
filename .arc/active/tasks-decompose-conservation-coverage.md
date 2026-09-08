@@ -214,13 +214,12 @@ only after every mode has executable coverage.
         - Completed finish authoring-shape remedies and base-advancement loci so known refusals remain actionable
           instead of degrading through the exception boundary.
 
-    - `[ ]` **1.5.d Publish the all-mode refusal contract before member close**
-        - Update the package-source `decompose-work-unit.md` once with the all-mode stdout envelope and the rule to
-          surface status, remedy, evidence, and any optional report unchanged; replace the obsolete no-partial-map
-          preflight wording without adding CLI-computable dispatch to prose.
-        - Apply the same targeted edit to the project-instance workflow and extend
-          `decompose-workflow-contract.test.ts` to prove required instruction presence and package/project parity.
-        - Preserve bare `arc ...` commands in both shipped surfaces.
+    - `[x]` **1.5.d Publish the all-mode refusal contract before member close**
+        - Declared one all-mode stdout refusal envelope in both workflow copies, requiring status, reason, optional
+          locus, evidence, report, and remedy fields to be surfaced unchanged while successful preflight remains
+          starter-map-only.
+        - Extended workflow-contract coverage for the cumulative instructions and package/project parity while
+          preserving the shipped bare `arc ...` command surface.
 
     - `[ ]` **1.5.e Run the Phase 1 code-quality checkpoint**
         - Run targeted TypeScript lint and unit/integration/E2E filters throughout the task, then run both source and
