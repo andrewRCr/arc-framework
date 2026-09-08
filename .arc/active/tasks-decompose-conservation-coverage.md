@@ -104,13 +104,9 @@ only after every mode has executable coverage.
         - Added bounded source, ref-tip, dependency-set, stale-dependent, and machine-binding evidence through
           conservation and repository-plan prefixes while retaining locus-only one-sided and internal failures.
 
-    - `[ ]` **1.2.c Carry evidence through execution-preflight comparison**
-        - Add evidence for the admitted completed-map origin comparison in
-          `decompose-v3-execution-preflight.ts` and its focused unit suite.
-        - Build `test-first` (one behavior at a time):
-            - Report the authenticated operand and completed-map origin as expected and actual.
-            - Keep missing, malformed, and unreadable maps locus-only.
-            - Preserve evidence through the operation result without granting mutation or recovery authority.
+    - `[x]` **1.2.c Carry evidence through execution-preflight comparison**
+        - Added authenticated-versus-map origin evidence and preserved source-resolution and binding evidence through
+          execute/extract operation results while malformed or unreadable maps remain locus-only.
 
     - `[ ]` **1.2.d Carry evidence through materialization and plan prestates**
         - Add evidence for `final-blob-mismatch` in `decompose-v3-materializer.ts` and

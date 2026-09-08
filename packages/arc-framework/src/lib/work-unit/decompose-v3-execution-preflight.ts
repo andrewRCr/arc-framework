@@ -10,6 +10,7 @@ import {
   type V3DecomposePreflight,
   type V3DecomposePreflightMismatch,
 } from "./decompose-v3-preflight.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 
 export type V3DecomposeExecutionPreflightMismatch =
   | "completed-map"
@@ -25,6 +26,7 @@ export interface V3DecomposeExecutionPreflightDependencies {
       status: "rejected";
       reason: Exclude<V3DecomposeExecutionPreflightMismatch, "completed-map">;
       locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
     }
   >;
 }
@@ -39,6 +41,7 @@ export type V3DecomposeExecutionPreflightResult =
     status: "stale";
     reason: V3DecomposeExecutionPreflightMismatch;
     locus: string;
+    evidence?: V3DecomposeRefusalEvidence;
   };
 
 function decodeCanonicalMap(
@@ -79,7 +82,12 @@ export async function revalidateV3DecomposeExecutionPreflight(
   }
   const completedMap = decoded.map;
   if (completedMap.machine.source.origin !== origin) {
-    return { status: "stale", reason: "completed-map", locus: "machine.source.origin" };
+    return {
+      status: "stale",
+      reason: "completed-map",
+      locus: "machine.source.origin",
+      evidence: { expected: origin, actual: completedMap.machine.source.origin },
+    };
   }
 
   const refreshed = await deps.resolvePreflight(origin);
@@ -90,6 +98,7 @@ export async function revalidateV3DecomposeExecutionPreflight(
       locus: refreshed.locus !== undefined
         ? refreshed.locus
         : "machine.source",
+      ...(refreshed.evidence === undefined ? {} : { evidence: refreshed.evidence }),
     };
   }
   const binding = revalidateV3DecomposeCutMapBinding(completedMap, refreshed.preflight);

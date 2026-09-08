@@ -28,6 +28,7 @@ import {
   composeGitV3ExtractionRepositoryPlan,
   composeGitV3RepositoryPlan,
 } from "../../src/lib/work-unit/git-decompose-v3-repository-plan.js";
+import { v3PreflightId } from "../../src/lib/work-unit/decompose-v3-schema.js";
 import { runCli } from "../helpers/run-cli.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
@@ -1496,6 +1497,42 @@ describe("Git v3 repository plan", () => {
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
     expect(await git(repo, ["status", "--porcelain=v1"])).toBe(statusBefore);
     expect(await git(repo, ["diff", "--cached"])).toBe(indexBefore);
+  });
+
+  it("threads completed-map origin evidence through execute without repository mutation", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    completedMap.machine.source.origin = "other";
+    const { preflightId, ...facts } = completedMap.machine;
+    void preflightId;
+    completedMap.machine.preflightId = v3PreflightId(facts);
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const statusBefore = await git(repo, ["status", "--porcelain=v1"]);
+
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "completed-map",
+      locus: "machine.source.origin",
+      evidence: {
+        expected: "origin",
+        actual: "other",
+      },
+      recovery: { kind: "none" },
+    });
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
+    expect(await git(repo, ["status", "--porcelain=v1"])).toBe(statusBefore);
   });
 
   it("refuses an unpublished source before claiming or materializing a candidate", async () => {

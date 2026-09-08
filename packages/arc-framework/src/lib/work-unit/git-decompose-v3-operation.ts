@@ -45,6 +45,7 @@ import {
 import {
   isV3DecomposeMappedReason,
   v3DecomposeRemedy,
+  type V3DecomposeRefusalEvidence,
 } from "./decompose-v3-refusal.js";
 import type { SpineRemedy } from "../../scripts/integration/spine-refusal.js";
 
@@ -76,6 +77,7 @@ export type GitV3DecomposeOperationResult =
       stage: "repository-plan";
       reason: string;
       locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
       recovery: { kind: "none" };
     }
   | Extract<V3DecomposeOperationResult, { status: "refused" }>;
@@ -97,6 +99,7 @@ export type GitV3ExtractionOperationResult =
       stage: "repository-plan";
       reason: string;
       locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
       recovery: { kind: "none" };
     }
   | Extract<V3ExtractionOperationResult, { status: "refused" }>;
@@ -117,6 +120,7 @@ function repositoryRefusal(
     ...("locus" in result.refusal && result.refusal.locus !== undefined
       ? { locus: result.refusal.locus }
       : {}),
+    ...(result.refusal.evidence === undefined ? {} : { evidence: result.refusal.evidence }),
     recovery: { kind: "none" },
   };
 }
@@ -131,6 +135,7 @@ function extractionRepositoryRefusal(
     ...("locus" in result.refusal && result.refusal.locus !== undefined
       ? { locus: result.refusal.locus }
       : {}),
+    ...(result.refusal.evidence === undefined ? {} : { evidence: result.refusal.evidence }),
     recovery: { kind: "none" },
   };
 }
@@ -432,6 +437,9 @@ export async function executeGitV3DecomposeCommand(
             ...("locus" in result && result.locus !== undefined
               ? { locus: result.locus }
               : {}),
+            ...("evidence" in result && result.evidence !== undefined
+              ? { evidence: result.evidence }
+              : {}),
           };
     },
   }, input.origin, cutMapPath);
@@ -441,6 +449,7 @@ export async function executeGitV3DecomposeCommand(
       stage: "repository-plan",
       reason: revalidated.reason,
       locus: revalidated.locus,
+      ...(revalidated.evidence === undefined ? {} : { evidence: revalidated.evidence }),
       recovery: { kind: "none" },
       remedy: `Re-preflight: ${renderV3DecomposePreflightCommand(input.origin)}`,
     };
@@ -551,6 +560,9 @@ export async function executeGitV3ExtractionCommand(
             ...("locus" in result && result.locus !== undefined
               ? { locus: result.locus }
               : {}),
+            ...("evidence" in result && result.evidence !== undefined
+              ? { evidence: result.evidence }
+              : {}),
           };
     },
   }, input.origin, cutMapPath);
@@ -560,6 +572,7 @@ export async function executeGitV3ExtractionCommand(
       stage: "repository-plan",
       reason: revalidated.reason,
       locus: revalidated.locus,
+      ...(revalidated.evidence === undefined ? {} : { evidence: revalidated.evidence }),
       recovery: { kind: "none" },
       remedy: `Re-preflight: ${renderV3DecomposePreflightCommand(input.origin)}`,
     };
