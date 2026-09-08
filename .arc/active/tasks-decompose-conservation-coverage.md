@@ -411,12 +411,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 - _Outcome:_ Notes content now has a pinned provisional destination, closed contributor and locator roles, exact
   placement refusals, and immutable result visibility from scaffold construction through report projection.
 
-### `[ ]` **2.5 Exercise open-family companion conservation on a real origin**
+### `[x]` **2.5 Exercise open-family companion conservation on a real origin**
 
 - _Goal:_ Companion coverage survives representative source kinds, artifact families, and Git transitions, including
   the real notes-content failure that motivated this work unit.
-
-- **Additional Context:** `strategy-workflow-authoring.md` §§ Prose economy, Verbs over mechanics
 
     - `[x]` **2.5.a Complete the source-kind and companion-presence unit matrix**
         - An 18-case matrix now spans all three source kinds and six artifact-family shapes, binding inventory,
@@ -438,11 +436,13 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           pruning of whole-copy task/notes scaffolds, and manual transfer for other companions; contract coverage
           proves those instructions remain byte-equal alongside the typed refusal envelope.
 
-    - `[ ]` **2.5.e Run the Phase 2 code-quality checkpoint**
-        - Run targeted lint and unit/integration/E2E filters as each behavior lands, then both TypeScript type checks
-          and focused workflow-contract coverage over the composed member.
-        - Treat any missing production consumer, changed preflight pathspec/spawn count, byte-order drift, or
-          code/workflow mismatch as a phase failure even when isolated scanner tests pass.
+    - `[x]` **2.5.e Run the Phase 2 code-quality checkpoint**
+        - The composed checkpoint exercises scanner ordering, source-kind consumers, Git preflight behavior,
+          conservation, composition, execute/advance, thinning, reporting, and workflow parity without drift.
+
+- _Outcome:_ Open-family companion coverage now composes the complete source matrix with real relocation, copied
+  substantive notes, immutable Git execution and advancement, exact rider boundaries, and operator guidance for
+  retained, scaffolded, manually transferred, and reasoned-drop content.
 
 ### `[ ]` **2.6 Close companion-conservation delivery** — validate criteria at member scope
 
