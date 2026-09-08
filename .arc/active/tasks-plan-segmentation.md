@@ -390,11 +390,12 @@ types the segment verifier as a segment-scope verification task.
 - _Outcome:_ Member 2 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 2 — segmentation-doctrine`.
-    - _Span:_ diff `62a546b97..685364374`; reachability `685364374`; boundary-order deviation: none.
+    - _Span:_ diff `62a546b97..5205c4a2e`; reachability `5205c4a2e`; boundary-order deviation: none.
     - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 1`; _criterion-digest:_
       `sha256:769339717b93f0181f8ab1204cdcb908515507aaba13c42804333166db1429c7`; _State:_ `[x]`; _Evidence:_
       `generate-tasks.md` resolves the method-shaped three-mode discriminator at the entry read, orders from its
-      result, and checks preamble shape, segmentation diagnostics, lifecycle rows, and stub disposition at Finalize.
+      result, preserves that precedence in its internal ordering lens, and checks preamble shape, segmentation
+      diagnostics, lifecycle rows, and stub disposition at Finalize.
     - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 2`; _criterion-digest:_
       `sha256:caf36e72f673da1806ff1f45ceaaaf1fdca2c85cb73494482a900fa7f8dc2e15`; _State:_ `[x]`; _Evidence:_
       this task list records `layer` through Phase 3 and `slice` through Phase 6 in preamble position; Member 2's
@@ -413,8 +414,9 @@ types the segment verifier as a segment-scope verification task.
       strategy repeats that post-completion shape.
     - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 6`; _criterion-digest:_
       `sha256:0dbc051fdef26c933407a413f6a6032740d3c923fe24024940d2472a9a35b005`; _State:_ `[x]`; _Evidence:_
-      task generation and `test-first.md` group by segment mode; `testing-standards.md` separately owns behavioral
-      reconstruct-and-revert evidence and the indivisible coupled-batch exception.
+      task generation, the formatting strategy's multi-component and multi-layer guidance, and `test-first.md`
+      group by segment mode; `testing-standards.md` separately owns behavioral reconstruct-and-revert evidence and
+      the indivisible coupled-batch exception.
     - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 7`; _criterion-digest:_
       `sha256:e1724e56c9f5e3754911c5061e0258cabb731129f513e971a63954e13f3d4c0e`; _State:_ `[x]`; _Evidence:_
       the recipe, Configurable classifier, pristine manifest hash, method index, task-loop declaration and link,
@@ -423,8 +425,8 @@ types the segment verifier as a segment-scope verification task.
       `sha256:aa9d5b6558048878f126bde6bbea8ae4645e13accc07bcae61cf78f2236881ae`; _State:_ `[x]`; _Evidence:_
       the agent brief distinguishes Segment and its three modes from spike, chunk, deliverable, and member, while
       the formatting strategy owns the full recorded grammar and verification-family definition.
-    - _Summary:_ eight met, zero superseded, zero unresolved. The Heavy fresh-context companion is deferred under
-      the Phase 6 deferred-review scope.
+    - _Summary:_ eight met, zero superseded, zero unresolved. Heavy fresh-context pass 1 found one major and one
+      minor; both were corrected in `3f73f0f02` and `5205c4a2e`, and pass 2 returned no findings.
 
 ## **Phase 7:** Verification
 
