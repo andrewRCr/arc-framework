@@ -3,7 +3,7 @@
   "slug": "e2e-feedback-six-shard-rebalance",
   "claimId": "02fe9e2f6b38184712c2ea56dd5b86f8",
   "createdAt": "2026-09-08T03:40:04.398Z",
-  "updatedAt": "2026-09-08T03:40:04.398Z",
+  "updatedAt": "2026-09-08T15:02:38.670Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Rebalance E2E feedback across six anchored shards",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Rebalance E2E feedback across six anchored shards",
   "originEntrySourceDigest": "sha256:bdc9f9554fabeb6b556bff992639bfa3e75e622cb4ea4f3dd1699f0f90958a39",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/e2e-feedback-six-shard-rebalance",
+    "headSha": "f94497b5bfc8b8cfd6aab4cb7966e60cac849118"
+  }
 }
