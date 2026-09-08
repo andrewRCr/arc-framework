@@ -382,10 +382,49 @@ types the segment verifier as a segment-scope verification task.
   its broken bytes. Temporary artifacts were removed, the real index stayed at `HEAD`, delivery revision 2 retained
   Task 6.5 as `verification` / `segment`, and the exercise created no stubs.
 
-### `[ ]` **6.6 Doctrine contract close-out — D7** — validate criteria at member scope
+### `[x]` **6.6 Doctrine contract close-out — D7** — validate criteria at member scope
 
 - _Goal:_ Member 2's grouped criteria are walked at its boundary and the resulting evidence recorded, consuming
   the segment verifier's outcome as its source-grounded evidence.
+
+- _Outcome:_ Member 2 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 2 — segmentation-doctrine`.
+    - _Span:_ diff `62a546b97..685364374`; reachability `685364374`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 1`; _criterion-digest:_
+      `sha256:769339717b93f0181f8ab1204cdcb908515507aaba13c42804333166db1429c7`; _State:_ `[x]`; _Evidence:_
+      `generate-tasks.md` resolves the method-shaped three-mode discriminator at the entry read, orders from its
+      result, and checks preamble shape, segmentation diagnostics, lifecycle rows, and stub disposition at Finalize.
+    - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 2`; _criterion-digest:_
+      `sha256:caf36e72f673da1806ff1f45ceaaaf1fdca2c85cb73494482a900fa7f8dc2e15`; _State:_ `[x]`; _Evidence:_
+      this task list records `layer` through Phase 3 and `slice` through Phase 6 in preamble position; Member 2's
+      lifecycle criteria map to that slice, whose suffixed Task 6.5 closes with executable `_Outcome:_` evidence.
+    - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 3`; _criterion-digest:_
+      `sha256:82f4c88cbb714e5ae23f7906ad2e548056b70aff0b5c21110fae862969f72061`; _State:_ `[x]`; _Evidence:_
+      the segmented compatibility case in `emitter.test.ts` crosses both scans, cursor and tallies, delivery roles,
+      and compaction emission; Task 6.5 records its behavioral fail-first and production-path exercise.
+    - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 4`; _criterion-digest:_
+      `sha256:bb18facb6a4dd1499c4f405304fa245f0083f015efd916a1a5f2c4bcda7cd31d`; _State:_ `[x]`; _Evidence:_
+      the task-generation commit already contains all eight Member 2 criteria, while exit criteria occur in the two
+      closing phase preambles and their Task 3.3 and Task 6.5 outcome evidence.
+    - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 5`; _criterion-digest:_
+      `sha256:aaa50f95eb174512c319654bede52d9daaef33aeffe9c98a08690a6650fa1ef1`; _State:_ `[x]`; _Evidence:_
+      `process-task-loop.md` preserves retiring-phase bullets at both completion depths, and the formatting
+      strategy repeats that post-completion shape.
+    - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 6`; _criterion-digest:_
+      `sha256:0dbc051fdef26c933407a413f6a6032740d3c923fe24024940d2472a9a35b005`; _State:_ `[x]`; _Evidence:_
+      task generation and `test-first.md` group by segment mode; `testing-standards.md` separately owns behavioral
+      reconstruct-and-revert evidence and the indivisible coupled-batch exception.
+    - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 7`; _criterion-digest:_
+      `sha256:e1724e56c9f5e3754911c5061e0258cabb731129f513e971a63954e13f3d4c0e`; _State:_ `[x]`; _Evidence:_
+      the recipe, Configurable classifier, pristine manifest hash, method index, task-loop declaration and link,
+      and init/update inventories all include `testing-standards.md`.
+    - _Criterion:_ `Success Criteria > Member 2 — segmentation-doctrine > 8`; _criterion-digest:_
+      `sha256:aa9d5b6558048878f126bde6bbea8ae4645e13accc07bcae61cf78f2236881ae`; _State:_ `[x]`; _Evidence:_
+      the agent brief distinguishes Segment and its three modes from spike, chunk, deliverable, and member, while
+      the formatting strategy owns the full recorded grammar and verification-family definition.
+    - _Summary:_ eight met, zero superseded, zero unresolved. The Heavy fresh-context companion is deferred under
+      the Phase 6 deferred-review scope.
 
 ## **Phase 7:** Verification
 
