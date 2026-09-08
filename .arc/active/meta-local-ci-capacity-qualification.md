@@ -13,7 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Planned Light P1 stub created from the live CI-capacity investigation (2026-09-08).
+- **Last Completed:** Outline spec finalized for the Mac mini runner; draft retired to notes; stage advanced to
+  generate-tasks (2026-09-08).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
