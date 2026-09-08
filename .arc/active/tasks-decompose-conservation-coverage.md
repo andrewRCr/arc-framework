@@ -335,14 +335,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 - _Goal:_ A retiring task list contributes a small, complete set of phase-level units that can be authored and
   conserved through the same paths as design content.
 
-    - `[ ]` **2.2.a Add task-list phase boundaries to the shared content scanner**
-        - Select the existing H2-only `markdownBoundaries()` mode inside `scanV3DecomposeContent()` for `tasks-*`
-          basenames; leave ordinary Markdown on H2-H6 boundaries.
-        - Build `test-first` (one behavior at a time):
-            - Emit one header preamble and one unit per ATX or Setext H2 phase, with level `2` and empty ancestry.
-            - Keep H3 task headings inside their phase bytes and preserve BOM, CRLF, fences, and repeated headings.
-            - Prove byte-exact reconstruction and unchanged locator resolution for non-task Markdown in
-              `__tests__/unit/work-unit/decompose-content.test.ts`.
+    - `[x]` **2.2.a Add task-list phase boundaries to the shared content scanner**
+        - Task-list scans now emit a header preamble and protected H2 phase units while retaining nested task
+          headings inside their phase bytes. ATX/Setext identity, repeated phases, BOM/CRLF/fence preservation,
+          byte-exact reconstruction, and ordinary H2-H6 locator behavior remain covered.
 
     - `[ ]` **2.2.b Bind phase units into preflight and completed-map authoring**
         - Extend preflight and schema fixtures so a task-list inventory yields canonically ordered source units and
