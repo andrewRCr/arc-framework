@@ -2279,15 +2279,12 @@ describe("Git v3 repository plan", () => {
     expect(canonicalize(staged)).not.toContain("receiptId");
   });
 
-  it("threads uncovered retirement content through execute without repository mutation", async () => {
+  it("threads a discovered retirement companion through execute", async () => {
     const { repo, completedMap, dependencies } = await startedRepository({
       uncoveredCompanion: true,
     });
     const cutMapPath = join(repo, "cut-map.json");
     await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
-    const statusBefore = await git(repo, ["status", "--porcelain=v1"]);
-    const indexBefore = await git(repo, ["diff", "--cached"]);
-
     const result = await executeGitV3DecomposeCommand({
       ...dependencies,
       spawningIdentity: "andrew",
@@ -2298,20 +2295,18 @@ describe("Git v3 repository plan", () => {
       cutMapPath,
     });
 
-    expect(result).toMatchObject({
-      status: "refused",
-      stage: "repository-plan",
-      reason: "conservation:live-conservation:uncovered-retirement-content",
-      locus: ".arc/active/notes-origin.md",
-      recovery: { kind: "none" },
-      remedy: {
-        argv: ["arc", "decompose", "origin", "--preflight"],
-      },
+    expect(result.status, JSON.stringify(result)).toBe("staged");
+    if (result.status !== "staged") return;
+    expect(result.plan.mutations).toContainEqual({
+      kind: "exclusive",
+      path: ".arc/active/notes-origin.md",
+      role: "retiring-source",
+      before: { kind: "absent" },
+      after: { kind: "absent" },
     });
     expect(await claimFiles(repo)).toEqual([]);
-    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
-    expect(await git(repo, ["status", "--porcelain=v1"])).toBe(statusBefore);
-    expect(await git(repo, ["diff", "--cached"])).toBe(indexBefore);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"]))
+      .toContain("chore/decompose-origin");
   });
 
   it("threads completed-map origin evidence through execute without repository mutation", async () => {

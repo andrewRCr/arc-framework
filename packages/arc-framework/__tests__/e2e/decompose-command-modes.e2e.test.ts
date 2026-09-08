@@ -585,7 +585,7 @@ describe("arc decompose command modes", () => {
     }
   });
 
-  it("emits an actionable uncovered-content refusal while advancing a committed candidate", async () => {
+  it("accepts an allocated companion when the committed candidate transform is unchanged", async () => {
     repo = await startedRepository();
     let cutMapPath = await writeCompletedCutMap(repo);
     const executed = await runArcNoTty(
@@ -610,30 +610,27 @@ describe("arc decompose command modes", () => {
     await git(repo, ["push", "origin", "plan/origin"]);
     await git(repo, ["switch", "main"]);
     cutMapPath = await writeCompletedCutMap(repo);
-    const before = await repositorySnapshot(repo);
-
-    const refused = await runArcNoTty(
+    const advanced = await runArcNoTty(
       ["decompose", "origin", "--advance-base", cutMapPath],
       repo,
       { timeout: 60_000 },
     );
 
-    expect(refused.exitCode).not.toBe(0);
-    const envelope = JSON.parse(refused.stdout) as {
+    expect(advanced.exitCode, advanced.stderr).toBe(0);
+    expect(advanced.stderr).toBe("");
+    const envelope = JSON.parse(advanced.stdout) as {
       status: string;
-      reason: string;
-      locus: string;
-      remedy: { argv: string[]; text: string };
+      candidateHead: string;
     };
     expect(envelope).toMatchObject({
-      status: "refused",
-      locus: companionPath,
-      remedy: { argv: ["arc", "decompose", "origin", "--preflight"] },
+      status: "unchanged",
+      candidateHead,
     });
-    expect(envelope.reason).toMatch(/(?:^|:)uncovered-retirement-content$/u);
-    expect(refused.stderr).toBe(`${envelope.reason}\n${envelope.remedy.text}\n`);
-    expect(await repositorySnapshot(repo)).toEqual(before);
     expect(await git(candidatePath, ["rev-parse", "HEAD"])).toBe(candidateHead);
+    await expect(git(candidatePath, ["cat-file", "-e", `HEAD:${companionPath}`]))
+      .rejects.toThrow();
+    await expect(git(repo, ["cat-file", "-e", `plan/origin:${companionPath}`]))
+      .resolves.toBe("");
     expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
   });
 

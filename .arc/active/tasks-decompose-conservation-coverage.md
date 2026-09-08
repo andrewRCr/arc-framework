@@ -330,7 +330,7 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 - _Outcome:_ One canonical artifact-family boundary now governs pinned discovery, authenticated source units, and
   retirement planning without absorbing cohort documents or unrelated supporting material.
 
-### `[ ]` **2.2 Allocate task-list phases through preflight and retirement**
+### `[x]` **2.2 Allocate task-list phases through preflight and retirement**
 
 - _Goal:_ A retiring task list contributes a small, complete set of phase-level units that can be authored and
   conserved through the same paths as design content.
@@ -345,13 +345,13 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           slots under the unchanged machine envelope and identity formula. Draft profiles admit task lists as
           companions, while missing, duplicate, reordered, or tampered allocations fail existing identity checks.
 
-    - `[ ]` **2.2.c Resolve task-list destinations through repository composition**
-        - Exercise phase locators through `composeRepositoryPlan()`, `contentContributions()`, and the immutable plan
-          composer instead of adding a task-specific placement path.
-        - Build `test-first` (one behavior at a time):
-            - Allocate a phase to a new member task scaffold and to an admissible existing home.
-            - Reject a stale or non-resolving H2 locator with the existing typed source/target refusal.
-            - Preserve the provisional whole-file task scaffold and require the author to prune it before delivery.
+    - `[x]` **2.2.c Resolve task-list destinations through repository composition**
+        - Task phases now traverse the generic repository composition path into new-member task scaffolds and
+          admissible existing documents. Composition preserves the whole-file task copy as provisional, leaves the
+          member's Task List unset for author pruning, and rejects unresolved H2 targets at the exact artifact locus.
+
+- _Outcome:_ Task-list preambles and phases now retain scanner identity through preflight, authoring, destination
+  resolution, immutable composition, and retirement while provisional member copies remain non-authoritative.
 
 ### `[ ]` **2.3 Retain companion bytes through extraction preflight, decode, and finish**
 

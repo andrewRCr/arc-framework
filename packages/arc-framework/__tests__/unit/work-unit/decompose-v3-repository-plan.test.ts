@@ -47,7 +47,10 @@ function stored(path: string, content: string): V3DecomposeStoredArtifact {
   return { path, objectKind: "blob", mode: "100644", bytes: encoder.encode(content) };
 }
 
-function fixture(options: { sourceState?: "Planning" | "Active" } = {}) {
+function fixture(options: {
+  sourceState?: "Planning" | "Active";
+  taskList?: string;
+} = {}) {
   const origin = "origin";
   const member = "member";
   const sourceHead = "2".repeat(40);
@@ -99,6 +102,9 @@ Medium.
   const sourceArtifacts = [
     stored(".arc/active/draft-origin.md", sourceDraft),
     stored(".arc/active/meta-origin.md", activeMeta),
+    ...(options.taskList === undefined
+      ? []
+      : [stored(".arc/active/tasks-origin.md", options.taskList)]),
   ];
   const preflight = createV3DecomposePreflight({
     origin,
@@ -117,6 +123,9 @@ Medium.
       sourceArtifacts: [
         stored(".arc/backlog/planned/origin/draft-origin.md", sourceDraft),
         stored(".arc/backlog/planned/origin/meta-origin.md", plannedMeta),
+        ...(options.taskList === undefined
+          ? []
+          : [stored(".arc/backlog/planned/origin/tasks-origin.md", options.taskList)]),
       ],
       incomingEdges: [],
       outgoingEdges: [],
@@ -167,7 +176,12 @@ Medium.
         disposition: {
           kind: "target" as const,
           destinationId: "member",
-          targetLocator: { ...unit.sourceLocator, artifact: `draft-${member}.md` },
+          targetLocator: {
+            ...unit.sourceLocator,
+            artifact: unit.sourcePath.endsWith("/tasks-origin.md")
+              ? `tasks-${member}.md`
+              : `draft-${member}.md`,
+          },
         },
       })),
       incomingDispositions: [],
@@ -178,11 +192,17 @@ Medium.
     ".arc/backlog/ROADMAP.md": file("# Roadmap before\n"),
     ".arc/backlog/planned/origin/draft-origin.md": file(sourceDraft),
     ".arc/backlog/planned/origin/meta-origin.md": file(plannedMeta),
+    ...(options.taskList === undefined
+      ? {}
+      : { ".arc/backlog/planned/origin/tasks-origin.md": file(options.taskList) }),
     ".arc/reference/shared.txt": file("shared\n"),
   };
   const sourceTree: V3RepositoryPlanTree = {
     ".arc/active/draft-origin.md": file(sourceDraft),
     ".arc/active/meta-origin.md": file(activeMeta),
+    ...(options.taskList === undefined
+      ? {}
+      : { ".arc/active/tasks-origin.md": file(options.taskList) }),
     ".arc/backlog/ROADMAP.md": file("# Source roadmap\n"),
     ".arc/reference/shared.txt": file("shared\n"),
   };
@@ -687,6 +707,173 @@ describe("v3 repository plan projection", () => {
         stage: "content",
         reason: "target-locator-unresolved",
         locus: "member:.arc/backlog/planned/member/draft-member.md",
+      },
+    });
+  });
+
+  it("composes task phases into a provisional member scaffold and an existing home", async () => {
+    const taskList = `# Task List: origin
+
+Introductory context.
+
+## Phase One
+
+### Task 1
+
+First phase body.
+
+## Phase Two
+
+Second phase body.
+`;
+    const input = fixture({ taskList });
+    const sharedPath = ".arc/reference/shared.md";
+    const shared = file("# Shared\n\n## Existing Slot\n\nExisting body.\n");
+    for (const tree of [input.sourceTree, input.mergeBaseTree, input.resultBaseTree]) {
+      delete tree[".arc/reference/shared.txt"];
+      tree[sharedPath] = shared;
+    }
+    const existing = input.completedMap.authoring.destinations.find(
+      (destination) => destination.destinationId === "existing",
+    );
+    if (existing?.kind !== "existing-home" || existing.target.kind !== "document") {
+      throw new Error("fixture existing destination must be a document");
+    }
+    existing.target.path = sharedPath;
+    const phaseOneUnit = input.completedMap.machine.sourceUnits.find((unit) =>
+      unit.sourcePath.endsWith("/tasks-origin.md")
+      && unit.sourceLocator.kind === "section"
+      && unit.sourceLocator.headingSource === "Phase One");
+    if (phaseOneUnit === undefined) throw new Error("fixture must scan the first task phase");
+    const phaseOneAllocation = input.completedMap.authoring.sourceAllocations.find(
+      ({ sourceId }) => sourceId === phaseOneUnit.sourceId,
+    );
+    if (phaseOneAllocation === undefined) throw new Error("fixture must allocate the first task phase");
+    phaseOneAllocation.disposition = {
+      kind: "target",
+      destinationId: "existing",
+      targetLocator: {
+        artifact: "shared.md",
+        kind: "section",
+        level: 2,
+        headingSource: "Existing Slot",
+        ancestry: [],
+        occurrence: 0,
+      },
+    };
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    const memberTaskPath = ".arc/backlog/planned/member/tasks-member.md";
+    const memberTask = result.plan.mutations.find(({ path }) => path === memberTaskPath);
+    expect(memberTask).toMatchObject({
+      kind: "composed",
+      before: { kind: "absent" },
+      after: { kind: "file" },
+      contributors: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "content",
+          artifactRole: "tasks",
+          contributorKind: "provisional-task",
+          disposition: "whole-file",
+        }),
+        expect.objectContaining({
+          kind: "content",
+          artifactRole: "tasks",
+          contributorKind: "allocation",
+          sourceProjection: [expect.objectContaining({
+            targetLocator: expect.objectContaining({ artifact: "tasks-member.md" }),
+          })],
+        }),
+      ]),
+    });
+    const existingHome = result.plan.mutations.find(({ path }) => path === sharedPath);
+    expect(existingHome).toMatchObject({
+      kind: "composed",
+      contributors: expect.arrayContaining([
+        expect.objectContaining({ contributorKind: "existing-home-edit" }),
+        expect.objectContaining({
+          contributorKind: "allocation",
+          sourceProjection: [{
+            sourceId: phaseOneUnit.sourceId,
+            targetLocator: phaseOneAllocation.disposition.kind === "target"
+              ? phaseOneAllocation.disposition.targetLocator
+              : undefined,
+          }],
+        }),
+      ]),
+    });
+    if (memberTask?.kind !== "composed" || memberTask.after.kind !== "file") {
+      throw new Error("member task mutation must materialize a file");
+    }
+    const memberTaskDigest = memberTask.after.contentDigest;
+    const memberTaskBlob = result.blobs.find(
+      ({ contentDigest }) => contentDigest === memberTaskDigest,
+    );
+    expect(new TextDecoder().decode(memberTaskBlob?.bytes)).toBe(
+      taskList.replace("# Task List: origin", "# Task List: member"),
+    );
+    const memberMeta = result.plan.mutations.find(
+      ({ path }) => path === ".arc/backlog/planned/member/meta-member.md",
+    );
+    if (memberMeta?.kind !== "composed" || memberMeta.after.kind !== "file") {
+      throw new Error("member meta mutation must materialize a file");
+    }
+    const memberMetaDigest = memberMeta.after.contentDigest;
+    const memberMetaBlob = result.blobs.find(
+      ({ contentDigest }) => contentDigest === memberMetaDigest,
+    );
+    expect(new TextDecoder().decode(memberMetaBlob?.bytes)).toContain("- **Task List:** [none]");
+  });
+
+  it("rejects a task phase locator that does not resolve in the member scaffold", async () => {
+    const input = fixture({
+      taskList: "# Task List: origin\n\n## Phase One\n\nFirst phase body.\n",
+    });
+    const allocation = input.completedMap.authoring.sourceAllocations.find((candidate) =>
+      candidate.disposition.kind === "target"
+      && candidate.disposition.targetLocator.artifact === "tasks-member.md"
+      && candidate.disposition.targetLocator.kind === "section");
+    if (allocation?.disposition.kind !== "target") {
+      throw new Error("fixture must allocate one task phase");
+    }
+    allocation.disposition.targetLocator = {
+      artifact: "tasks-member.md",
+      kind: "section",
+      level: 2,
+      headingSource: "Missing Phase",
+      ancestry: [],
+      occurrence: 0,
+    };
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "content",
+        reason: "target-locator-unresolved",
+        locus: "member:.arc/backlog/planned/member/tasks-member.md",
       },
     });
   });

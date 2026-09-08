@@ -562,7 +562,10 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       "---",
       "",
     ].join("\n"));
-    await writeFile(join(sourceWorktree, ".arc", "active", "tasks-origin.md"), "");
+    await writeFile(
+      join(sourceWorktree, ".arc", "active", "tasks-origin.md"),
+      "# Tasks: origin\n",
+    );
     await git(sourceWorktree, ["add", "-A"]);
     const planningCommit = await commitAttempt(
       sourceWorktree,
