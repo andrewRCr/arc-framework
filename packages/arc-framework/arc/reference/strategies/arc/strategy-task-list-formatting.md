@@ -387,9 +387,9 @@ A `slice` or `replication` segment ends with a segment verifier. A `layer` needs
 last parent in its closing phase that does not carry the member suffix. When the two boundaries coincide, the
 segment verifier immediately precedes the member verifier so member close-out can consume its evidence.
 
-The terminal `Verification` phase carries neither `_Mode:_` nor `_Exit criterion:_` and contains exactly one task.
-On a single-segment plan, that terminal task subsumes the segment verifier. No segment verifier appears in the
-terminal phase.
+The terminal `Verification` phase carries neither `_Mode:_` nor `_Exit criterion:_` and contains the sole terminal
+work-unit verification task. On a single-segment plan, that terminal task subsumes the segment verifier. No segment
+verifier appears in the terminal phase.
 
 A segment verifier is an evidence sink. Its completion records the scenario executed and its result as the ordinary
 `_Outcome:_`; it is not a criteria report and never hosts corrective work. Segment exit criteria therefore remain
