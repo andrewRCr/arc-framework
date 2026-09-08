@@ -9,7 +9,7 @@
 
 - **Origin:** `e2e-feedback-six-shard-rebalance` Errand follow-up
 - **Design:** `spec-local-ci-capacity-qualification.md`
-- **Task List:** [none]
+- **Task List:** `tasks-local-ci-capacity-qualification.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -18,7 +18,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 ## Scope Contract
 

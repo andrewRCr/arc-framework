@@ -44,8 +44,11 @@ existing runner, VM, and routing patterns, and the open work is measurement.
   mini (it holds no secrets and is not a development machine; with FileVault on, the disk stays locked at boot until
   a password is typed and no launchd mechanism can start anything), macOS automatic login is set to the CI user, and
   a user launchd agent starts the Lima instance at that login. A macOS restart therefore brings the runners back with
-  no operator action. The console session on the mini belongs to the CI user, which is accepted. This is the
-  isolation boundary: the mini's primary user and filesystem are unreachable from the guest.
+  no operator action. The console session on the mini belongs to the CI user, which is accepted. macOS Remote
+  Login is enabled for the CI user alone, authenticated by a key held on the workstation, so the measurement phases
+  run from an agent session there and reach the guest through Lima's own shell; the guest still forwards no ports.
+  That inbound path mirrors the VPS contract's administrative SSH and adds no held credential to the CI user. This
+  is the isolation boundary: the mini's primary user and filesystem are unreachable from the guest.
 - **Distinct label, one routing variable, never pooled.** Services register repository-scoped from the arm64
   `actions/runner` release with the label `arc-ci-mini` plus the defaults (`self-hosted`, `Linux`, `ARM64`), never
   `arc-ci-linux`. Routing is `ARC_CI_LINUX_RUNNER` set to `arc-ci-mini`; fallback is the same flip to `arc-ci-linux`
@@ -68,7 +71,9 @@ existing runner, VM, and routing patterns, and the open work is measurement.
   launchd), start / status / rebuild helpers as shell scripts under `scripts/local-ci/` with the `lint:sh` glob
   extended to cover them, and a `TECHNICAL-OVERVIEW.md` § 3 Infrastructure update that records the runner fleet it
   currently omits, including the mini.
-- **Phase 1, the anchor gate, runs before any runner or repo change.** Check the repository out inside the guest,
+- **Phase 1, the anchor gate, runs before any runner registration or CI change.** The Lima recipe, launch agent,
+  and helpers that operate the guest are authored first, since the trial cannot run without them; on a no-go they
+  are removed before closeout. Check the repository out inside the guest,
   build `dist` there, and run the anchor from a shell with the workflow's invocation (`VITEST_MAX_WORKERS=1`,
   `ARC_E2E_SKIP_BUILD=1`): two or three warmups, then at least ten measured repetitions recording wall time, guest
   memory, and swap. Gate: median at or below 120 s with no OOM or swap growth. Above 120 s the work unit stops and
@@ -155,5 +160,6 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 - The mini's macOS version, free disk, FileVault state, and automatic-login setting are confirmed at
   provisioning; the Virtualization backend needs macOS 13 or later, the image budget is 60 GB against about 108 GB
   free, and FileVault off plus auto-login to the CI user are the settled restart path.
-- Where the measurement ledger lives (a `notes-*` companion versus a `.github/` evidence file) resolves at task
-  generation against the existing runbook's evidence conventions.
+- The measurement ledger lives in `notes-local-ci-capacity-qualification.md` § Measurement ledger, matching the
+  prior runner qualification, whose evidence stayed in its notes companion while the runbook received only the
+  operating delta.
