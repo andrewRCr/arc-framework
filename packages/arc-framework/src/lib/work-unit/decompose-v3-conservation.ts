@@ -24,11 +24,12 @@ export interface V3DecomposeConservationInput {
   currentPreflight: V3DecomposePreflight;
   originDependsOn: string[];
   workUnits: V3DecomposeLiveWorkUnit[];
+  resultBaseLiveSlugs: string[];
   retiringArtifacts?: Array<{ path: string; byteLength: number }>;
 }
 
 export interface V3ValidatedDependencyEdit {
-  kind: "incoming" | "outgoing" | "internal";
+  kind: "incoming" | "outgoing" | "internal" | "external";
   edgeId: string;
   destinationId: string | null;
   dependent: string;
@@ -301,7 +302,7 @@ export function validateV3DecomposeConservation(
       locus: string;
     }
     | {
-      kind: "outgoing" | "internal";
+      kind: "outgoing" | "internal" | "external";
       edgeId: string;
       dependent: string;
       prerequisite: string;
@@ -382,27 +383,46 @@ export function validateV3DecomposeConservation(
       });
     }
   }
-  const newMembers = new Set(
-    decoded.value.authoring.destinations.flatMap((destination) =>
-      destination.kind === "new-member" ? [destination.slug] : []),
-  );
   for (const [index, edge] of decoded.value.authoring.internalEdges.entries()) {
     const locus = `authoring.internalEdges.${index}`;
-    if (!newMembers.has(edge.from)) {
+    if (!permittedRecipients.has(edge.from)) {
       return refuse("dependency-projection", "unknown-internal-dependent", `${locus}.from`);
     }
-    if (!newMembers.has(edge.to)) {
+    if (!permittedRecipients.has(edge.to)) {
       return refuse("dependency-projection", "unknown-internal-prerequisite", `${locus}.to`);
     }
     if (edge.from === edge.to) {
       return refuse("dependency-projection", "self-dependency", locus);
     }
-    if (!permittedRecipients.has(edge.from)) {
-      return refuse("dependency-projection", "unknown-dependency-recipient", `${locus}.from`);
-    }
     contributions.push({
       kind: "internal",
       edgeId: canonicalDigest({ schemaVersion: 3, kind: "internal", from: edge.from, to: edge.to }),
+      dependent: edge.from,
+      prerequisite: edge.to,
+      locus,
+    });
+  }
+  const destinationSlugs = new Set(decoded.value.authoring.destinations.flatMap((destination) =>
+    destination.kind === "new-member"
+      ? [destination.slug]
+      : destination.kind === "existing-home" && destination.target.kind === "work-unit"
+        ? [destination.target.slug]
+        : []));
+  const resultBaseLiveSlugs = new Set(input.resultBaseLiveSlugs);
+  for (const [index, edge] of decoded.value.authoring.externalEdges.entries()) {
+    const locus = `authoring.externalEdges.${index}`;
+    if (destinationSlugs.has(edge.to)) {
+      return refuse("dependency-projection", "redundant-external-edge", `${locus}.to`);
+    }
+    if (!extraction && edge.to === origin) {
+      return refuse("dependency-projection", "retiring-origin-target", `${locus}.to`);
+    }
+    if (!resultBaseLiveSlugs.has(edge.to)) {
+      return refuse("dependency-projection", "unknown-external-target", `${locus}.to`);
+    }
+    contributions.push({
+      kind: "external",
+      edgeId: canonicalDigest({ schemaVersion: 3, kind: "external", from: edge.from, to: edge.to }),
       dependent: edge.from,
       prerequisite: edge.to,
       locus,
@@ -434,7 +454,7 @@ export function validateV3DecomposeConservation(
         return refuse(
           "dependency-projection",
           "unchanged-dependency-slot",
-          projected.writablePath ?? contribution.dependent,
+          contribution.locus,
         );
       }
       afterTargets = [...beforeTargets, contribution.prerequisite];
@@ -444,7 +464,7 @@ export function validateV3DecomposeConservation(
       return refuse(
         "dependency-projection",
         "unchanged-dependency-slot",
-        projected.writablePath ?? contribution.dependent,
+        contribution.locus,
       );
     }
     projected.targets = afterTargets;

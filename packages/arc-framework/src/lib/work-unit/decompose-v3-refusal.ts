@@ -679,6 +679,21 @@ const V3_REPOSITORY_PLAN_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemed
     correction: "Remove the self-dependency, then retry the selected mode",
     command: "invocation",
   },
+  "unknown-external-target": {
+    invariant: "Every authored external dependency must target a live or completed work unit.",
+    correction: "Choose an eligible external target, then retry the selected mode",
+    command: "invocation",
+  },
+  "redundant-external-edge": {
+    invariant: "Dependencies between declared destinations must use their destination-owned authoring slot.",
+    correction: "Move the edge to internalEdges or its incoming or outgoing disposition, then retry",
+    command: "invocation",
+  },
+  "retiring-origin-target": {
+    invariant: "A retirement external dependency cannot target the origin it removes.",
+    correction: "Choose a surviving external target or remove the edge, then retry",
+    command: "invocation",
+  },
   "unchanged-dependency-slot": {
     invariant: "An authored dependency disposition must change its authenticated slot.",
     correction: "Remove or correct the redundant disposition, then retry the selected mode",

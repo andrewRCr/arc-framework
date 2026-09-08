@@ -529,22 +529,10 @@ prose follows the executable contract.
           explicit, strict, canonically ordered unique edge list whose sources are declared dependency-capable
           destinations. External authoring changes the cut-map digest without widening machine or edge identities.
 
-    - `[ ]` **3.1.b Validate a live external target and derive its dependency edit**
-        - Add `resultBaseLiveSlugs` to `V3DecomposeConservationInput` and emit a canonical `external`
-          `V3ValidatedDependencyEdit` without folding it into internal or outgoing proof. Add specific registry
-          remedies for `unknown-external-target`, `redundant-external-edge`, and `retiring-origin-target`, then rerun
-          source totality in the same leaf.
-        - Build `test-first` (one behavior at a time):
-            - Admit one live target outside the declared destination set.
-            - Refuse an invalid `from`, declared-destination target, retiring-origin target, unknown target, and
-              unchanged dependency slot at their authoring loci.
-            - Classify an external self-edge as `redundant-external-edge` because its `to` is a declared destination;
-              add no second external self-dependency code.
-            - Align internal-edge conservation with the decoder by accepting new-member and live existing-home
-              work-unit destinations at either endpoint; cover existing-home-to-new-member and the inverse.
-            - Keep edit ordering and `edgeId` disjoint through the `{ schemaVersion, kind, from, to }` preimage.
-        - Exercise the validation matrix in
-          `packages/arc-framework/__tests__/unit/work-unit/decompose-v3-conservation.test.ts`.
+    - `[x]` **3.1.b Validate a live external target and derive its dependency edit**
+        - Conservation now resolves external targets against pinned result-base live slugs and emits disjoint,
+          canonical `external` edits. It refuses redundant, retiring, unknown, and already-satisfied edges at their
+          authored loci, and internal edges now span every live dependency-capable destination admitted by decode.
 
     - `[ ]` **3.1.c Project the edge through existing meta and ROADMAP composers**
         - Pass result-base live slugs from `composeRepositoryPlan()` and reuse `dependencies()`,

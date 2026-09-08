@@ -921,6 +921,7 @@ async function composeRepositoryPlan(
     currentPreflight: input.currentPreflight,
     originDependsOn: [...sourceMeta.record.dependsOn],
     workUnits: liveWorkUnits(sourceMetas, baseMetas),
+    resultBaseLiveSlugs: baseMetas.map(({ slug }) => slug),
     ...(mode === "retirement"
       ? {
           retiringArtifacts: input.currentPreflight.sourceArtifactInventory.map(({ path }) => {
