@@ -12,6 +12,7 @@ import {
 } from "../git/worktree-roster.js";
 import { createDecomposeTransitionRecord } from "./decompose-transition-record.js";
 import { decomposeCandidateBranch } from "./decompose-candidate.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 import type { V3PlanCanonicalPathState, ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 import {
   decodeV3DecomposeCutMap,
@@ -50,9 +51,34 @@ export type GitDecomposeTransitionBaseAdvancementResult =
       currentBaseHead: string;
     }
   | { status: "unchanged"; candidateBranch: string; candidateHead: string; currentBaseHead: string }
-  | { status: "refused"; reason: string };
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 type ComposedPlan = Extract<GitV3RepositoryPlanResult, { status: "composed" }>;
+type AdvancementRefusal = Extract<GitDecomposeTransitionBaseAdvancementResult, { status: "refused" }>;
+
+interface AdvancementMismatch {
+  reason: string;
+  locus?: string;
+  evidence?: V3DecomposeRefusalEvidence;
+}
+
+function refuse(
+  reason: string,
+  locus?: string,
+  evidence?: V3DecomposeRefusalEvidence,
+): AdvancementRefusal {
+  return {
+    status: "refused",
+    reason,
+    ...(locus === undefined ? {} : { locus }),
+    ...(evidence === undefined ? {} : { evidence }),
+  };
+}
 
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
@@ -204,6 +230,14 @@ function expectedPaths(plan: ValidatedDecomposePlan, recordPath: string): string
   ].sort(compareUtf8);
 }
 
+function firstMismatchingPath(expected: string[], actual: string[]): string {
+  const length = Math.max(expected.length, actual.length);
+  for (let index = 0; index < length; index += 1) {
+    if (expected[index] !== actual[index]) return actual[index] ?? expected[index] ?? "changed-paths";
+  }
+  return "changed-paths";
+}
+
 async function exactTransitionTree(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
   baseHead: string,
@@ -212,17 +246,26 @@ async function exactTransitionTree(
   recordPath: string,
   recordBytes: Uint8Array,
   tolerateGeneratedRoadmap: boolean,
-): Promise<string | null> {
+): Promise<AdvancementMismatch | null> {
   const changed = await changedPaths(dependencies, dependencies.cwd, baseHead, candidateHead);
   const expected = expectedPaths(composed.plan, recordPath);
-  if (changed === null) return "changed-paths-unavailable";
+  if (changed === null) return { reason: "changed-paths-unavailable" };
   if (changed.join("\0") !== expected.join("\0")) {
-    return `changed-paths:${changed.join(",")}:${expected.join(",")}`;
+    return {
+      reason: "changed-paths",
+      locus: firstMismatchingPath(expected, changed),
+      evidence: { expected, actual: changed },
+    };
   }
   for (const mutation of composed.plan.mutations) {
     if (tolerateGeneratedRoadmap && mutation.kind === "exclusive" && mutation.role === "roadmap") continue;
-    if (!statesEqual(await committedState(dependencies, candidateHead, mutation.path), mutation.after)) {
-      return `path-state:${mutation.path}`;
+    const actual = await committedState(dependencies, candidateHead, mutation.path);
+    if (!statesEqual(actual, mutation.after)) {
+      return {
+        reason: "path-state",
+        locus: mutation.path,
+        ...(actual === null ? {} : { evidence: { expected: mutation.after, actual } }),
+      };
     }
   }
   const record = await committedState(dependencies, candidateHead, recordPath);
@@ -230,7 +273,7 @@ async function exactTransitionTree(
     && record.mode === "100644"
     && record.contentDigest === digestBytes(recordBytes)
     ? null
-    : `transition-record:${recordPath}`;
+    : { reason: `transition-record:${recordPath}` };
 }
 
 async function applyPlan(
@@ -268,16 +311,25 @@ async function exactIndexTree(
   composed: ComposedPlan,
   recordPath: string,
   recordBytes: Uint8Array,
-): Promise<string | null> {
+): Promise<AdvancementMismatch | null> {
   const changed = await changedPaths(dependencies, cwd, baseHead, null);
   const expected = expectedPaths(composed.plan, recordPath);
-  if (changed === null) return "changed-paths-unavailable";
+  if (changed === null) return { reason: "changed-paths-unavailable" };
   if (changed.join("\0") !== expected.join("\0")) {
-    return `changed-paths:${changed.join(",")}:${expected.join(",")}`;
+    return {
+      reason: "changed-paths",
+      locus: firstMismatchingPath(expected, changed),
+      evidence: { expected, actual: changed },
+    };
   }
   for (const mutation of composed.plan.mutations) {
-    if (!statesEqual(await indexState(dependencies, cwd, mutation.path), mutation.after)) {
-      return `path-state:${mutation.path}`;
+    const actual = await indexState(dependencies, cwd, mutation.path);
+    if (!statesEqual(actual, mutation.after)) {
+      return {
+        reason: "path-state",
+        locus: mutation.path,
+        ...(actual === null ? {} : { evidence: { expected: mutation.after, actual } }),
+      };
     }
   }
   const record = await indexState(dependencies, cwd, recordPath);
@@ -285,7 +337,7 @@ async function exactIndexTree(
     && record.mode === "100644"
     && record.contentDigest === digestBytes(recordBytes)
     ? null
-    : `transition-record:${recordPath}`;
+    : { reason: `transition-record:${recordPath}` };
 }
 
 async function restoreCandidate(
@@ -419,10 +471,11 @@ export async function advanceGitDecomposeTransitionBase(
   const currentMap = restateMap(map, map.machine.resultBase.ref, currentBaseHead);
   const currentPlan = await compose(input.baseBranch, currentMap);
   if (currentPlan.status !== "composed") {
-    return {
-      status: "refused",
-      reason: `advancement-plan-refused:${currentPlan.refusal.stage}:${currentPlan.refusal.reason}`,
-    };
+    return refuse(
+      `advancement-plan-refused:${currentPlan.refusal.stage}:${currentPlan.refusal.reason}`,
+      currentPlan.refusal.locus,
+      currentPlan.refusal.evidence,
+    );
   }
   const chain = await firstParentChain(dependencies, authoredBaseHead, candidateHead);
   if (chain === null) return { status: "refused", reason: "candidate-history-unavailable" };
@@ -442,7 +495,11 @@ export async function advanceGitDecomposeTransitionBase(
     true,
   );
   if (initialMismatch !== null) {
-    return { status: "refused", reason: `candidate-transform-mismatch:${initialMismatch}` };
+    return refuse(
+      `candidate-transform-mismatch:${initialMismatch.reason}`,
+      initialMismatch.locus,
+      initialMismatch.evidence,
+    );
   }
 
   let previousCandidateHead = initialCommit;
@@ -466,7 +523,11 @@ export async function advanceGitDecomposeTransitionBase(
       true,
     );
     if (mismatch !== null) {
-      return { status: "refused", reason: `candidate-advancement-chain-invalid:${mismatch}` };
+      return refuse(
+        `candidate-advancement-chain-invalid:${mismatch.reason}`,
+        mismatch.locus,
+        mismatch.evidence,
+      );
     }
     previousCandidateHead = advancementCommit;
     previousBaseHead = absorbedBaseHead;
@@ -500,7 +561,7 @@ export async function advanceGitDecomposeTransitionBase(
     return { status: "refused", reason: restored ? "merge-refused" : "candidate-restore-failed" };
   }
   const applicationMismatch = await applyPlan(dependencies, registration.path, currentPlan);
-  const indexMismatch = applicationMismatch === null
+  const indexMismatch: AdvancementMismatch | null = applicationMismatch === null
     ? await exactIndexTree(
         dependencies,
         registration.path,
@@ -509,17 +570,18 @@ export async function advanceGitDecomposeTransitionBase(
         recordPath,
         recordBytes,
       )
-    : applicationMismatch;
+    : { reason: applicationMismatch };
   const candidateAfter = await resolveCommit(dependencies, candidateBranch);
   const baseAfter = await resolveCommit(dependencies, input.baseBranch);
   if (indexMismatch !== null || candidateAfter !== candidateHead || baseAfter !== currentBaseHead) {
     const restored = await restoreCandidate(dependencies, registration.path, candidateHead);
-    return {
-      status: "refused",
-      reason: restored
-        ? `post-merge-validation-refused:${indexMismatch ?? "binding-raced"}`
-        : "candidate-restore-failed",
-    };
+    if (!restored) return refuse("candidate-restore-failed");
+    const mismatch = indexMismatch ?? { reason: "binding-raced" };
+    return refuse(
+      `post-merge-validation-refused:${mismatch.reason}`,
+      mismatch.locus,
+      mismatch.evidence,
+    );
   }
   return {
     status: "advanced",

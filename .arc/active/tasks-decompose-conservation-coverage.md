@@ -168,14 +168,10 @@ only after every mode has executable coverage.
 - _Goal:_ Base advancement preserves the evidence and correction produced by its failing comparison or composing
   plan instead of flattening the refusal into an opaque reason string.
 
-    - `[ ]` **1.4.a Widen advancement refusals without changing success authority**
-        - Extend `GitDecomposeTransitionBaseAdvancementResult` with optional `locus` and `evidence` while leaving
-          `advanced` and `unchanged` arms intact. Keep the operation result remedy-free; invocation-only context is
-          attached at the public command boundary.
-        - Build `test-first` (one behavior at a time):
-            - Preserve a composing repository plan's exact stage, reason, locus, and evidence.
-            - Stabilize embedded `changed-paths` and `path-state` reasons by moving their variable sides to evidence.
-            - Keep candidate and base binding failures fail-closed before merge mutation.
+    - `[x]` **1.4.a Widen advancement refusals without changing success authority**
+        - Widened advancement refusals with optional locus and evidence, preserved composed-plan comparison facts,
+          stabilized changed-path and path-state mismatch codes with bounded expected/actual evidence, and proved
+          candidate and base binding failures remain ahead of merge mutation while success arms stay unchanged.
 
     - `[ ]` **1.4.b Attach evidence to candidate, marker, transition, and base comparisons**
         - Thread admitted comparisons through `decompose-result-occupation.ts` and

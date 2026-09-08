@@ -1562,6 +1562,127 @@ describe("Git v3 repository plan", () => {
     expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
   });
 
+  it("preserves a composing plan refusal through base advancement", async () => {
+    const { completedMap, dependencies } = await committedTransitionCandidate();
+    const evidence = { expected: ["member"], actual: ["other-member"] };
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...dependencies,
+      composePlan: async () => ({
+        status: "refused",
+        refusal: {
+          stage: "dependency",
+          reason: "dependency-target-mismatch",
+          locus: "member",
+          evidence,
+        },
+      }),
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "advancement-plan-refused:dependency:dependency-target-mismatch",
+      locus: "member",
+      evidence,
+    });
+  });
+
+  it("reports the planned and committed path sets for a candidate mismatch", async () => {
+    const { baseHead, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    const expected = (await git(candidatePath, [
+      "diff-tree",
+      "--no-commit-id",
+      "--name-only",
+      "--no-renames",
+      "-r",
+      baseHead,
+      candidateHead,
+    ])).trim().split("\n");
+    await write(candidatePath, "zz-extra.txt", "unplanned\n");
+    await git(candidatePath, ["add", "zz-extra.txt"]);
+    await git(candidatePath, ["commit", "--amend", "--no-edit"]);
+    const actual = [...expected, "zz-extra.txt"];
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-transform-mismatch:changed-paths",
+      locus: "zz-extra.txt",
+      evidence: { expected, actual },
+    });
+  });
+
+  it("reports the planned and committed path states for a candidate mismatch", async () => {
+    const { candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    const path = ".arc/backlog/planned/member/draft-member.md";
+    const expectedBytes = await readBlob(candidatePath, candidateHead, path);
+    if (expectedBytes === null) throw new Error(`missing expected candidate path: ${path}`);
+    const expected = {
+      kind: "file" as const,
+      mode: "100644" as const,
+      contentDigest: digestBytes(expectedBytes),
+    };
+    await write(candidatePath, path, "# Changed candidate draft\n");
+    await git(candidatePath, ["add", path]);
+    await git(candidatePath, ["commit", "--amend", "--no-edit"]);
+    const actualBytes = await readBlob(candidatePath, "HEAD", path);
+    if (actualBytes === null) throw new Error(`missing changed candidate path: ${path}`);
+    const actual = {
+      kind: "file" as const,
+      mode: "100644" as const,
+      contentDigest: digestBytes(actualBytes),
+    };
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-transform-mismatch:path-state",
+      locus: path,
+      evidence: { expected, actual },
+    });
+  });
+
+  it.each([
+    ["candidate", "chore/decompose-origin"],
+    ["base", "main"],
+  ] as const)("refuses a missing %s binding before merge mutation", async (_binding, missingRef) => {
+    const { repo, baseHead, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    let mergeAttempts = 0;
+    const guardedDependencies = {
+      ...dependencies,
+      exec: async (...args: Parameters<typeof dependencies.exec>) => {
+        if (args[1][0] === "merge") mergeAttempts += 1;
+        if (args[1][0] === "rev-parse" && args[1][2] === `${missingRef}^{commit}`) {
+          throw new Error(`missing ${missingRef}`);
+        }
+        return await dependencies.exec(...args);
+      },
+    };
+
+    expect(await advanceGitDecomposeTransitionBase(guardedDependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({ status: "refused", reason: "binding-unavailable" });
+    expect(mergeAttempts).toBe(0);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect((await git(repo, ["rev-parse", "main"])).trim()).toBe(baseHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+  });
+
   it("refuses a committed candidate whose lean transition result was altered", async () => {
     const { candidatePath, completedMap, dependencies } = await committedTransitionCandidate();
     const recordPath = resolveTransitionRecordRelativePath("origin");
