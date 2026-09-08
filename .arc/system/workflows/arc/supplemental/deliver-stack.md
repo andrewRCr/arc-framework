@@ -312,14 +312,36 @@ plan through the existing phase-ordered settlement path below, then re-enter thr
 After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
 `payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
 
-On `requested / await`, pass the returned self-contained handle to:
+On `requested / await`, pass the returned `action` unchanged to:
 
 ```bash
 arc review hosted await -
 ```
 
-`pending / await` reuses that handle for one more bounded call; `pending / inspect-or-extend` stops with the request
-intact. Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
+`pending / await` retains the newly returned `action` unchanged for one more bounded call;
+`pending / inspect-or-extend` retains the request for the diagnostic below, then stops. Submitting `action`
+unchanged checks once; on explicit direction, add
+`continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review or
+records a provider outcome. For either pending outcome, run one short exact-head diagnostic observation before
+continuing or stopping:
+
+```bash
+arc review checks await \
+  --repository <action.handle.target.repository> \
+  --pull-request <action.handle.target.pullRequest> \
+  --head-sha <action.handle.target.headSha> \
+  --timeout-ms 10000 \
+  --poll-interval-ms 10000 \
+  --json
+```
+
+Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+`pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
+that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
+action intact. This observation does not become review settlement, feed the review driver, move the exact head, or
+release the draft lock.
+
+Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
 finding settlement, execute the returned settlement plan in phase order through:
 
 ```bash

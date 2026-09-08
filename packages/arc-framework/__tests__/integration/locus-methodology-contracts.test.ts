@@ -172,6 +172,20 @@ describe("locus methodology contracts", () => {
     }
   });
 
+  it("routes housekeep execution ordering through one lock-safe batch command", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const drainInbox = await readFile(
+        resolve(base, "system/workflows/arc/supplemental/drain-inbox.md"),
+        "utf8",
+      );
+
+      expect(drainInbox).toContain("`arc user inbox-mark-execute-bound <file | ->`");
+      expect(drainInbox).toContain('"orderedTitles"');
+      expect(drainInbox).toContain("final file order");
+      expect(drainInbox).not.toContain("add `_Disposition:_ `execute-bound`` by hand");
+    }
+  });
+
   it("binds Errand promotion to exact receipt settlement", async () => {
     for (const base of [packageArc, projectArc]) {
       const runErrand = await readFile(

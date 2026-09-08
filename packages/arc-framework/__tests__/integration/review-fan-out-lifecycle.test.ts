@@ -1406,15 +1406,18 @@ describe("hosted review fan-out lifecycle", () => {
         },
       },
       terminusAction: {
-        target: { repository, pullRequest: 41, headSha: changedFirst },
-        vehicle: firstVehicle,
-        completedPasses: 1,
+        schemaVersion: 1,
+        offer: {
+          target: { repository, pullRequest: 41, headSha: changedFirst },
+          vehicle: firstVehicle,
+          completedPasses: 1,
+        },
       },
     });
     if (continuation.nextAction !== "resolve-review-applicability" || continuation.terminusAction === undefined) {
       throw new Error("expected exact Owner terminus offer beside moved-target applicability");
     }
-    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction);
+    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction.offer);
     const reviewOperationsBeforeAcceptance = await harness.store.readOperationSnapshot();
     const candidateBeforeAcceptance = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
     const output: string[] = [];
@@ -1433,7 +1436,7 @@ describe("hosted review fan-out lifecycle", () => {
           readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
           readCurrentOffer: async () => {
             const current = await workUnitStatusThroughHandler(harness, currentStatusTarget);
-            return "terminusAction" in current ? current.terminusAction ?? null : null;
+            return "terminusAction" in current ? current.terminusAction?.offer ?? null : null;
           },
           writeBoundary: async (boundary, expectedVersion) => ({
             status: "written",
@@ -1686,15 +1689,18 @@ describe("hosted review fan-out lifecycle", () => {
     const continuation = await workUnitStatusThroughHandler(harness, firstStatusTarget);
     expect(continuation).toMatchObject({
       terminusAction: {
-        target: { headSha: initialTerminalHead },
-        vehicle: member(harness.plan, 1, initialTerminalHead),
-        completedPasses: 1,
+        schemaVersion: 1,
+        offer: {
+          target: { headSha: initialTerminalHead },
+          vehicle: member(harness.plan, 1, initialTerminalHead),
+          completedPasses: 1,
+        },
       },
     });
     if (!("terminusAction" in continuation) || continuation.terminusAction === undefined) {
       throw new Error("expected final member terminus offer");
     }
-    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction);
+    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction.offer);
     const accepted = await resolveDeliveryReviewTerminusAcceptance({
       schemaVersion: 1,
       offer,
@@ -1704,7 +1710,7 @@ describe("hosted review fan-out lifecycle", () => {
       readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
       readCurrentOffer: async () => {
         const current = await workUnitStatusThroughHandler(harness, firstStatusTarget);
-        return "terminusAction" in current ? current.terminusAction ?? null : null;
+        return "terminusAction" in current ? current.terminusAction?.offer ?? null : null;
       },
       writeBoundary: async (boundary, expectedVersion) => ({
         status: "written",

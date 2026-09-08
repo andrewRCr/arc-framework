@@ -13,6 +13,7 @@ import {
   ROADMAP_MERGE_ATTRIBUTE,
   ROADMAP_MERGE_DRIVER_COMMAND,
 } from "../../../src/lib/setup.js";
+import { CLI_PATH } from "../../helpers/cli-spawn.js";
 
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 const packageRoot = join(testDir, "..", "..", "..");
@@ -20,6 +21,22 @@ const scriptPath = join(packageRoot, "src", "scripts", "remedy-roadmap-conflict.
 const scriptArguments = ["--import", import.meta.resolve("tsx"), scriptPath];
 
 describe("ROADMAP conflict remedy script", () => {
+  it("does not execute merely because the packaged CLI imports its module", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "arc-roadmap-bundle-import-"));
+    try {
+      const result = spawnSync(process.execPath, [CLI_PATH, "--help"], {
+        cwd,
+        encoding: "utf8",
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("Usage: arc");
+      expect(result.stderr).not.toContain("ROADMAP conflict auto-remedy failed");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("reports unexpected Git failures without an unhandled rejection", () => {
     const cwd = mkdtempSync(join(tmpdir(), "arc-roadmap-remedy-"));
     try {

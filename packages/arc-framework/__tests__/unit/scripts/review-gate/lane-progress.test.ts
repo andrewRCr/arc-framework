@@ -415,7 +415,15 @@ describe("hosted await lane recording", () => {
     const pending = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...hostedContext,
-      result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "pending", nextAction: "await", elapsedMs: 10 },
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        action: { schemaVersion: 1, handle },
+        state: "pending",
+        nextAction: "await",
+        elapsedMs: 10,
+      },
       now: "2026-08-15T12:01:00Z",
     });
     expect(requested.completedPasses).toBe(0);
@@ -471,6 +479,7 @@ describe("hosted await lane recording", () => {
         schemaVersion: 1,
         mode: "review-hosted-await",
         handle,
+        action: { schemaVersion: 1, handle },
         state: "pending",
         nextAction: "inspect-or-extend",
         ageMs: 900_000,

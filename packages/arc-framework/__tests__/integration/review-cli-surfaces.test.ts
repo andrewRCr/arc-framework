@@ -4,6 +4,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 
 import { runCli } from "../helpers/run-cli.js";
 
@@ -43,6 +44,7 @@ describe("packaged review CLI surfaces", () => {
     expect(reviewHelp.exitCode).toBe(0);
     expect(reviewHelp.stdout).toContain("readiness");
     expect(reviewHelp.stdout).toContain("planning-lane");
+    expect(reviewHelp.stdout).toContain("planning-grooming");
     expect(reviewHelp.stdout).toContain("change-request");
     expect(reviewHelp.stdout).toContain("merge-method");
     expect(reviewHelp.stdout).toContain("checks");
@@ -53,6 +55,65 @@ describe("packaged review CLI surfaces", () => {
     expect(hostedHelp.stdout).toContain("request");
     expect(hostedHelp.stdout).toContain("await");
     expect(hostedHelp.stdout).toContain("settle");
+  });
+
+  it.each([
+    [["review", "chunking", "resolve"], "review-chunking-resolve-request.schema.json"],
+    [["review", "planning-grooming", "resolve"], "review-planning-grooming-resolve-request.schema.json"],
+    [["review", "frontline", "run"], "review-frontline-run-request.schema.json"],
+  ] as const)("emits a dependency-complete public request schema at %s", async (command, rootId) => {
+    const outsideProject = await mkdtemp(join(tmpdir(), "arc-review-schema-"));
+    const [result, help] = await Promise.all([
+      runCli([...command, "--schema"], { cwd: outsideProject }),
+      runCli([...command, "--help"], { cwd: outsideProject }),
+    ]).finally(async () => rm(outsideProject, { recursive: true, force: true }));
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(help.stdout).toContain("--schema");
+    const output = JSON.parse(result.stdout) as {
+      rootId: string;
+      schemas: Record<string, AnySchema>;
+    };
+    expect(output.rootId).toBe(rootId);
+    // The production bundle contains a pre-existing empty-tuple projection Ajv rejects as a
+    // metaschema defect; compilation still proves every public-root ref resolves in the bundle.
+    const validator = new Ajv2020({ strict: false, validateSchema: false });
+    for (const schema of Object.values(output.schemas)) validator.addSchema(schema);
+    expect(validator.getSchema(rootId)).toBeDefined();
+  });
+
+  it("keeps schema discovery scoped to explicit interim request boundaries", async () => {
+    const help = await runCli(["review", "readiness", "--help"], { cwd: fixtureRoot });
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).not.toContain("--schema");
+  });
+
+  it("documents the directly invokable planning-grooming request at command help", async () => {
+    const help = await runCli(["review", "planning-grooming", "resolve", "--help"], {
+      cwd: fixtureRoot,
+    });
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("diffBaseSha");
+    expect(help.stdout).toContain("routingFacts");
+    expect(help.stdout).toContain("contentKind");
+    expect(help.stdout).toContain("reviewRisk");
+    expect(help.stdout).toContain("changeDeterminacy");
+    expect(help.stdout).toContain("ownership");
+    expect(help.stdout).toContain("surfaceAuthority");
+  });
+
+  it("rejects combining schema discovery with a request source", async () => {
+    const result = await runCli([
+      "review", "chunking", "resolve", invalidInputPath, "--schema",
+    ], { cwd: fixtureRoot });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      rootId: "review-chunking-resolve-request.schema.json",
+      schemas: {},
+    });
   });
 
   it("rejects a malformed exact head before change-request lookup", async () => {

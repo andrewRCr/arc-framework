@@ -108,6 +108,25 @@ function checkState(bucket: unknown, state: unknown, path: string): RequiredChec
   throw new Error(`${path}: unsupported check state`);
 }
 
+/** Refuse conflicting duplicate display-name states until GitHub's rollup converges. */
+function coalesceCheckRows(checks: readonly RequiredCheck[]): RequiredCheck[] {
+  const result: RequiredCheck[] = [];
+  const indexes = new Map<string, number>();
+  for (const check of checks) {
+    const index = indexes.get(check.name);
+    if (index === undefined) {
+      indexes.set(check.name, result.length);
+      result.push(check);
+      continue;
+    }
+    const existing = result[index];
+    if (existing !== undefined && existing.state !== check.state) {
+      result[index] = { name: check.name, state: "pending" };
+    }
+  }
+  return result;
+}
+
 /** Build a GitHub CLI-backed required-check port. */
 export function createGhRequiredChecksPort(runner: HostedProcessRunner): RequiredChecksPort {
   async function readPullRequest(
@@ -160,13 +179,14 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
     const path = requiredOnly ? "required-checks" : "observed-checks";
     const value = noReportedChecks ? [] : parse(result.stdout, path);
     if (!Array.isArray(value)) throw new Error(`${path}: expected an array`);
-    return value.map((item, index) => {
+    const checks = value.map((item, index) => {
       const check = record(item, `${path}[${index}]`);
       if (typeof check.name !== "string" || check.name === "") {
         throw new Error(`${path}[${index}].name: expected a non-empty string`);
       }
       return { name: check.name, state: checkState(check.bucket, check.state, `${path}[${index}]`) };
     });
+    return requiredOnly ? coalesceCheckRows(checks) : checks;
   }
 
   return {

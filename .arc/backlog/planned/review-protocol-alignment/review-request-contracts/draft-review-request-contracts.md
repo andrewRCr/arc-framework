@@ -58,6 +58,15 @@
   dimensions (cannot route exempt). Not `chunk-scope-binding` partial-scope algebra or multi-target assurance
   groups.
 
+### `[ ]` **Bound hosted-review result transport and retain concluded outcomes**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-09-07);
+  captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ large hosted results can exceed the command transport boundary, while a concluded provider outcome
+  can become unreachable after the transient response channel closes.
+- _Fold-in:_ expose a bounded durable result reference and retrieval contract tied to the exact request and target.
+  Continuation-input readiness is extracted as an immediate Errand; this item owns the durable transport design.
+
 ## Reachable Request Contracts
 
 Fourteen review verbs take `<file | ->` with help text reading only "Versioned JSON request file" — no schema, no

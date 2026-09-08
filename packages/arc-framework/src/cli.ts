@@ -109,7 +109,8 @@ import {
   type AttestOptions,
 } from "./handlers/lifecycle.js";
 import {
-  handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
+  handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxMarkExecuteBound,
+  handleUserInboxRemove, handleUserOpen,
   handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
   handleUserReconcileReferences,
   type UserInboxRemoveOptions,
@@ -155,6 +156,7 @@ import {
   handleReviewReadiness,
   handleReviewResolve,
   handleReviewChunkingResolve,
+  handleReviewRequestSchema,
   handleReviewFrontlineResolve,
   handleReviewFrontlineRun,
   handleReviewHostedAwait,
@@ -164,6 +166,7 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewPlanningGroomingResolve,
   handleReviewPrePublication,
   handleReviewChangeRequestResolve,
   handleReviewMergeMethodResolve,
@@ -1075,6 +1078,17 @@ userCmd
   .action(handleUserClose);
 
 userCmd
+  .command("inbox-mark-execute-bound")
+  .description("Atomically mark and order the complete execute-bound USER-INBOX queue as JSON")
+  .usage("<file | ->")
+  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", '\nRequest JSON:\n  {"schemaVersion":1,"orderedTitles":["First","Second"]}\n')
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    (context, input: string) => handleUserInboxMarkExecuteBound(input, context),
+  ));
+
+userCmd
   .command("inbox-remove [slug]")
   .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
   .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
@@ -1512,11 +1526,23 @@ const mergeLockCmd = mergeCmd
   .command("lock")
   .description("Resolve and transition the host merge lock");
 
+const mergeLockResolveHelp = JSON.stringify({
+  schemaVersion: 1,
+  treeRoot: "/absolute/checkout",
+});
+const mergeLockTransitionHelp = JSON.stringify({
+  schemaVersion: 1,
+  treeRoot: "/absolute/checkout",
+  target: { repository: "owner/repo", pullRequest: 123, headSha: "0".repeat(40) },
+  vehicle: { kind: "errand", slug: "example" },
+});
+
 mergeLockCmd
   .command("resolve")
   .description("Resolve how a pull request should open as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", `\nRequest JSON:\n  ${mergeLockResolveHelp}\n`)
   .action((input: string) => handleMergeLockResolve(input));
 
 mergeLockCmd
@@ -1524,6 +1550,7 @@ mergeLockCmd
   .description("Lock one exact-head pull request as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
   .action((input: string) => handleMergeLockHold(input));
 
 mergeLockCmd
@@ -1531,6 +1558,7 @@ mergeLockCmd
   .description("Unlock one exact-head pull request as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
   .action((input: string) => handleMergeLockRelease(input));
 
 // --- Review ---
@@ -1574,6 +1602,11 @@ reviewCmd
   .description("Accept one exact delivery-member Owner terminus as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    '\nContinuation:\n  Submit the returned terminusAction with one added field:\n  '
+      + '{"judgment":{"mode":"owner-accepted"}}\n',
+  )
   .action(withInteractionContext(
     { machineReadable: true },
     (context, input: string) => handleReviewTerminusAccept(input, context),
@@ -1619,6 +1652,42 @@ reviewCmd
   .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
     handleReviewPlanningLane(base, head, opts));
 
+const planningGroomingResolveHelp = JSON.stringify({
+  schemaVersion: 1,
+  target: {
+    baseRef: "main",
+    diffBaseSha: "0".repeat(40),
+    headSha: "1".repeat(40),
+  },
+  routingFacts: {
+    contentKind: "documentation",
+    reviewRisk: "routine",
+    changeDeterminacy: "atomic",
+    ownership: "self",
+    surfaceAuthority: "planning-grooming",
+  },
+});
+
+reviewCmd
+  .command("planning-grooming")
+  .description("Transient planning-grooming review applicability")
+  .command("resolve")
+  .description("Resolve exact planning-grooming review exemption as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addHelpText("after", `\nRequest JSON:\n  ${planningGroomingResolveHelp}\n`)
+  .action(withInteractionContext(
+    { machineReadable: true },
+    (context, input: string | undefined, opts: { schema?: boolean }) => {
+      if (opts.schema === true) {
+        handleReviewRequestSchema("review-planning-grooming-resolve-request", input);
+        return;
+      }
+      return handleReviewPlanningGroomingResolve(input ?? "", {}, context);
+    },
+  ));
+
 reviewCmd
   .command("resolve")
   .description("Resolve the next configured review-policy action as JSON")
@@ -1640,11 +1709,18 @@ frontlineCmd
 frontlineCmd
   .command("run")
   .description("Execute one exact-target frontline review as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
   .action(withInteractionContext(
     { machineReadable: true },
-    (context, input: string) => handleReviewFrontlineRun(input, {}, context),
+    (context, input: string | undefined, opts: { schema?: boolean }) => {
+      if (opts.schema === true) {
+        handleReviewRequestSchema("review-frontline-run-request", input);
+        return;
+      }
+      return handleReviewFrontlineRun(input ?? "", {}, context);
+    },
   ));
 
 const hostedCmd = reviewCmd
@@ -1656,6 +1732,10 @@ hostedCmd
   .description("Request one hosted pull-request review as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nContinuation:\n  Submit the emitted action unchanged to `arc review hosted await -`.\n",
+  )
   .action((input: string) => handleReviewHostedRequest(input));
 
 hostedCmd
@@ -1663,6 +1743,10 @@ hostedCmd
   .description("Await one requested hosted pull-request review as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .addHelpText(
+    "after",
+    "\nPending continuation:\n  Submit the emitted action unchanged to this command.\n",
+  )
   .action((input: string) => handleReviewHostedAwait(input));
 
 hostedCmd
@@ -1677,9 +1761,16 @@ reviewCmd
   .description("Exact-target review chunking operations")
   .command("resolve")
   .description("Resolve one immutable target's chunking recommendation as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewChunkingResolve(input));
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .action((input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      handleReviewRequestSchema("review-chunking-resolve-request", input);
+      return;
+    }
+    return handleReviewChunkingResolve(input ?? "");
+  });
 
 const localReviewCmd = reviewCmd
   .command("local")

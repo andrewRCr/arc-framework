@@ -5,6 +5,23 @@
 - **Purpose:** Define pull-request title and local-review marker conventions from their actual reviewer and history
   roles rather than from incidental workflow proxies.
 
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Generate the host-side pull-request template from the canonical template**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-07); captured during
+  `delivery-native-stack-composition` dogfooding.
+- _Concern:_ repository-host PR creation still permits an empty or divergent description when the contributor does
+  not enter through an ARC workflow. Establish a generated host template from the canonical ARC template so the
+  ordinary host surface carries the same reviewer contract without becoming a second hand-maintained authority.
+- _Fold-in:_ settle generation and drift enforcement with this WU's broader PR-surface policy, including the lean
+  Errand and grooming-PR exceptions.
+
 ## Problem / Motivation
 
 The canonical pull-request template universally requires Conventional Commits syntax for PR titles even though

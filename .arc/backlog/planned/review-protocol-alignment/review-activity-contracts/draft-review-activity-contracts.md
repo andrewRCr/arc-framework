@@ -116,6 +116,15 @@
   an undocumented provider-specific identity representation. Preserve exact actor and current-target
   validation.
 
+### `[ ]` **Recognize hosted acknowledgement and retrigger semantics before completion waiting**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ hosted review waiting enters the long completion window without first distinguishing accepted,
+  refused, duplicate, and retrigger-required provider responses.
+- _Fold-in:_ model provider acknowledgement as an authenticated intermediate activity outcome with typed
+  retrigger rules. Explicit correlated refusal recognition is extracted as an immediate Errand.
+
 ---
 
 ## Hosted Guidance Contract

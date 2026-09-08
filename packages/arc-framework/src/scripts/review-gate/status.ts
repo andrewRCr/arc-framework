@@ -45,7 +45,7 @@ import {
   DeliveryLocalReviewSelectionSchema,
 } from "./policy/delivery-local-review-admission.js";
 import {
-  DeliveryReviewTerminusOfferSchema,
+  DeliveryReviewTerminusAcceptanceActionSchema,
 } from "./policy/delivery-review-terminus.js";
 import type { DeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
 
@@ -749,7 +749,7 @@ const ReviewStatusHostedRequestSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("review-hosted-request"),
   action: HostedRequestEnvelopeSchema,
-  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
+  terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
 const ReviewStatusHostedAwaitSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -762,7 +762,7 @@ const ReviewStatusLocalPrepareSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("review-local-prepare"),
   action: DeliveryLocalReviewAdmissionSchema,
-  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
+  terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
 const ReviewStatusLocalResumeSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -775,7 +775,7 @@ const ReviewStatusApplicabilitySelectionSchema = z.strictObject({
   state: z.literal("review-required"),
   nextAction: z.literal("resolve-review-applicability"),
   selectionAction: ReviewApplicabilitySelectionActionSchema,
-  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
+  terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
 const ReviewStatusFindingsResponseSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -788,7 +788,7 @@ const ReviewStatusCeilingApprovalSchema = z.strictObject({
   state: z.literal("approval-required"),
   nextAction: z.literal("obtain-ceiling-override"),
   consequence: ReviewCeilingOverrideSchema,
-  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
+  terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
 const ReviewStatusApplicabilityRerunSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -829,7 +829,7 @@ const ReviewStatusBaseMovedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("base-moved"),
   nextAction: z.literal("rerun-checkpoint"),
-  terminusAction: DeliveryReviewTerminusOfferSchema.optional(),
+  terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
 const ReviewStatusBlockedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -931,17 +931,20 @@ export function bindDeliveryReviewTerminusOffer(
     ...result,
     terminusAction: {
       schemaVersion: 1,
-      kind: "delivery-member-owner-terminus",
-      workUnitId: binding.workUnitId,
-      remote: binding.remote ?? "origin",
-      expectedBoundaryVersion: binding.expectedBoundaryVersion,
-      candidateId: binding.candidateId,
-      candidateSubjectDigest: binding.candidateSubjectDigest,
-      target: member.target,
-      vehicle: member.vehicle,
-      completedPasses: member.progress.completedPasses,
-      interactionText: "Accept the standard-review terminus for this exact delivery member without claiming a "
-        + "clean or converged pass.",
+      offer: {
+        schemaVersion: 1,
+        kind: "delivery-member-owner-terminus",
+        workUnitId: binding.workUnitId,
+        remote: binding.remote ?? "origin",
+        expectedBoundaryVersion: binding.expectedBoundaryVersion,
+        candidateId: binding.candidateId,
+        candidateSubjectDigest: binding.candidateSubjectDigest,
+        target: member.target,
+        vehicle: member.vehicle,
+        completedPasses: member.progress.completedPasses,
+        interactionText: "Accept the standard-review terminus for this exact delivery member without claiming a "
+          + "clean or converged pass.",
+      },
     },
   });
 }

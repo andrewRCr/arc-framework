@@ -20,6 +20,7 @@ import {
   handleReviewLocalPrepare,
   handleReviewLocalResume,
   handleReviewPlanningLane,
+  handleReviewPlanningGroomingResolve,
   handleReviewPrePublication,
   handleReviewMergeMethodResolve,
   handleReviewChecksAwait,
@@ -31,6 +32,8 @@ import {
 } from "../../../src/handlers/review.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
+import { resolveProcessInteractionContext } from
+  "../../../src/lib/command-input/interaction-context.js";
 import { IntegrationBoundaryLocusSchema } from
   "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -45,6 +48,8 @@ import {
 } from "../../../src/scripts/review-gate/hosts/local/record-store-error.js";
 import { LocalTargetDerivationError } from "../../../src/scripts/review-gate/hosts/local/repository-target.js";
 import { reduceReviewRouting } from "../../../src/scripts/review-gate/policy/routing.js";
+import { resolvePlanningGroomingReviewCommand } from
+  "../../../src/scripts/review-gate/policy/planning-grooming-command.js";
 import {
   createLocalReviewReceipt,
 } from "../../../src/scripts/review-gate/runtime/local-attestation.js";
@@ -68,6 +73,12 @@ const target = {
   headTree: "d".repeat(40),
   targetId: `sha256:${"e".repeat(64)}`,
 };
+const targetCoordinates = {
+  kind: target.kind,
+  baseRef: target.baseRef,
+  diffBaseSha: target.diffBaseSha,
+  headSha: target.headSha,
+};
 const routingFacts = {
   schemaVersion: 1 as const,
   changeSetState: "known" as const,
@@ -81,7 +92,7 @@ const routingFacts = {
 };
 const frontlineRunRequest = {
   schemaVersion: 1,
-  target,
+  target: targetCoordinates,
   resolution: {
     schemaVersion: 1,
     mode: "review-frontline-resolve",
@@ -358,6 +369,94 @@ describe("handleReviewPlanningLane", () => {
     expect(output).toEqual([]);
     expect(errors).toEqual(["planning-lane classification failed\n"]);
     expect(exitCodes).toEqual([1]);
+  });
+});
+
+describe("handleReviewPlanningGroomingResolve", () => {
+  const request = {
+    schemaVersion: 1 as const,
+    target: {
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      headSha: "c".repeat(40),
+    },
+    routingFacts: {
+      contentKind: "documentation" as const,
+      reviewRisk: "routine" as const,
+      changeDeterminacy: "atomic" as const,
+      ownership: "self" as const,
+      surfaceAuthority: "planning-grooming" as const,
+    },
+  };
+
+  it("emits one validated exemption composed through the handler seam", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const interaction = resolveProcessInteractionContext({
+      noInput: true,
+      machineReadable: true,
+      yes: "absent",
+    });
+    const resolve = vi.fn(async (parsed: typeof request) =>
+      resolvePlanningGroomingReviewCommand({
+        request: parsed,
+        target,
+        changeSet: {
+          changeSet: "known",
+          changes: [{
+            status: "modified",
+            path: ".arc/backlog/planned/example/draft-example.md",
+            oldMode: "100644",
+            newMode: "100644",
+          }],
+        },
+        context: {
+          state: "resolved",
+          assurance: { workContext: "errand", workClass: "none" },
+          activity: { selfReview: true, frontlineReview: true },
+          diagnostics: [],
+        },
+      }));
+
+    await handleReviewPlanningGroomingResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify(request),
+      resolve,
+      write,
+      setExitCode,
+    }, interaction);
+
+    expect(resolve).toHaveBeenCalledWith(request, "/repo", interaction);
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-planning-grooming-resolve",
+      state: "exempt",
+      nextAction: "none",
+    });
+    expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("rejects caller-authored derived facts before repository composition", async () => {
+    const resolve = vi.fn();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleReviewPlanningGroomingResolve("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        ...request,
+        routingFacts: { ...request.routingFacts, changeSetState: "known" },
+      }),
+      resolve,
+      write,
+      setExitCode,
+    });
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-planning-grooming-resolve",
+      error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
   });
 });
 
@@ -1215,6 +1314,7 @@ describe("hosted review handlers", () => {
       schemaVersion: 1,
       mode: "review-hosted-await",
       handle: hostedHandle,
+      action: { schemaVersion: 1, handle: hostedHandle },
       state: "pending",
       nextAction: "await",
       elapsedMs: 120_000,
@@ -1293,7 +1393,17 @@ describe("handleReviewChunkingResolve", () => {
     const setExitCode = vi.fn();
     await handleReviewChunkingResolve("-", {
       resolveRoot: () => "/repo",
-      readText: async () => JSON.stringify({ schemaVersion: 1, target }),
+      readText: async () => JSON.stringify({ schemaVersion: 1, target: targetCoordinates }),
+      deriveRequest: async (request) => {
+        const { scopeSelection, ...fields } = request;
+        return {
+          ...fields,
+          target,
+          ...(scopeSelection === undefined
+          ? {}
+          : { scopeSelection: { ...scopeSelection, target } }),
+        };
+      },
       resolve: async () => ({
         schemaVersion: 1,
         mode: "review-chunking-resolve",
@@ -1320,6 +1430,7 @@ describe("handleReviewChunkingResolve", () => {
     await handleReviewChunkingResolve("-", {
       resolveRoot: () => "/repo",
       readText: async () => "{}",
+      deriveRequest: vi.fn(),
       resolve: vi.fn(),
       write,
       setExitCode,
@@ -1366,6 +1477,7 @@ describe("handleReviewFrontlineRun", () => {
     await handleReviewFrontlineRun("-", {
       resolveRoot: () => "/repo",
       readText: async () => JSON.stringify(frontlineRunRequest),
+      deriveRequest: async (request) => ({ ...request, target }),
       run,
       write,
       setExitCode: vi.fn(),
@@ -1427,6 +1539,7 @@ describe("handleReviewFrontlineRun", () => {
         ...frontlineRunRequest,
         resolution,
       }),
+      deriveRequest: async (request) => ({ ...request, target }),
       run: (request) => runFrontlineReviewCommand(request, {
         confirmSource,
         prepareExecutionTarget,

@@ -4,13 +4,16 @@
 > field — recorded here only as shared coordination, never as a roster or status table._
 
 **Purpose:** Refine ARC's approval flow around one question: **what is the unit of approval, and how does
-widening or routing it compose across the review, commit, and integration boundaries?** Today ARC conflates the
-unit (one leaf = one review checkpoint = one commit = one approval signal), and the rules that touch any one of
-those boundaries reach across all of them. The members separate the axes and refine each: `commit-increments`
-decouples the _commit_ boundary from the _review_ boundary; `interlock-release-refinement` settles _routing_
+widening, routing, or retaining it compose across the review, commit, and integration boundaries?** ARC currently
+conflates the unit (one leaf = one review checkpoint = one commit = one approval signal), and the rules that touch
+any one of those boundaries reach across all of them. The members separate the axes and refine each.
+`commit-increments` decouples the _commit_ boundary from the _review_ boundary; `interlock-release-refinement`
+settles _routing_
 ("approval is approval; routing follows opt-in + interlock mode"); `unit-scoped-review` widens the _review_
-increment to its maximum (the whole work unit) as a first-class, principle-aligned option. The shared concern is
-the unit of approval — not a pile of loosely-related interlock tweaks.
+increment to its maximum (the whole work unit) as a first-class, principle-aligned option.
+`lifecycle-advancement-provenance` owns how a deliberate grant survives safe lifecycle re-entry and which
+proof-bounded controller effects it can authorize without inventing a second decision. The shared concern is the
+unit of approval — not a pile of loosely-related interlock tweaks.
 
 ---
 
@@ -20,6 +23,8 @@ the unit of approval — not a pile of loosely-related interlock tweaks.
 commit-increments            (decouples review/commit increments; establishes the vocabulary)
   └─> unit-scoped-review     (widens the review increment to WU scope; rests on the decoupling)
 interlock-release-refinement (routing: "approval is approval"; parallel-able — coordinates, doesn't gate)
+lifecycle-advancement-provenance
+                             (retention/invalidation across re-entry; parallel-able — coordinates, doesn't gate)
 ```
 
 `commit-increments` is the substrate member: `unit-scoped-review` carries a hard `Depends On` edge to it (a
@@ -80,7 +85,7 @@ is parallel-able; it shares machinery with both but gates neither.
 
 ### Closeout criteria
 
-Complete when all three members ship **and** the unit-of-approval model is coherent across the review, commit,
+Complete when all four members ship **and** the unit-of-approval model is coherent across the review, commit,
 and integration boundaries — the shared vocabulary settled, no boundary's rule still reaching across the others
 by default, and the integration-interlock floor intact.
 
@@ -113,6 +118,14 @@ and the DEV-RULES.ARC § Sub-agent scope carve-out it implies.
 
 _Consumes:_ `commit-increments`' commit/review decoupling (hard `Depends On`); `interlock-release-refinement`'s
 non-blocking release path + provenance work (coordination); `compaction-recovery` as a cross-cohort backstop.
+
+### `lifecycle-advancement-provenance`
+
+_Exposes:_ scoped forward-direction grants, exact invalidation across re-entry, retained attended route selection,
+and the proof boundary for driver-internal record or uniquely derived composition effects.
+
+_Consumes:_ the cohort's first-class approval-provenance framing and existing commit/push-interlock axes;
+coordinates with `commit-increments` and `interlock-release-refinement` without depending on either.
 
 ## ADR anchors
 

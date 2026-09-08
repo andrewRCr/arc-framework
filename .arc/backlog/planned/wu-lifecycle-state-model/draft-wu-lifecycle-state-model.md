@@ -504,3 +504,21 @@
 
 - _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the scheduling
   verb now named `arc publish`, distinct from the `arc integrate` procedure namespace.
+
+### `[ ]` **Prevent withdrawn singleton Candidates from reviving without a new public boundary**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-09-07);
+  captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ a withdrawn one-member delivery Candidate can be rediscovered from surviving topology and treated as
+  publishable again even though its public boundary was explicitly retired.
+- _Fold-in:_ model withdrawal as a lifecycle fact that prevents implicit revival; require a new authorized public
+  boundary to create a successor Candidate while preserving the historical record.
+
+### `[ ]` **Own the code-written `Current Workflow` boundary**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-09-07);
+  captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ a pre-commit validator can immediately reject internal inconsistency, but the durable question is
+  which lifecycle transitions may write `Current Workflow` and how that projection composes with canonical state.
+- _Fold-in:_ define the authoritative write boundary and derivation rules here; keep handoff from becoming an
+  unrestricted repair writer and treat the validator Errand as an interim guard.

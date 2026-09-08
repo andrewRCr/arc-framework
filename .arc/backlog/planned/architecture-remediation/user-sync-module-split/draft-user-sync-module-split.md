@@ -40,18 +40,6 @@
   errand); no data-loss risk (the pre-load backup is written before reconcile); minor. Folds with this WU since
   it relocates exactly these `save-load.ts` / `sync-status.ts` surfaces.
 
-### `[ ]` **Batch note reads and make ancestry reduction argv-safe**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: user-sync-module-split`), housekeep drain
-  (2026-07-10); captured during the `user-notes-retention` audit.
-- _Concern:_ status and session-init perform one `git notes show` per reachable note in an unbounded
-  `Promise.all`, then resolve the same note set more than once. At several hundred notes this becomes thousands
-  of Git spawns; passing the whole SHA set to `merge-base --independent` also crosses Windows' process argv
-  limit.
-- _Fold-in:_ add a `git cat-file --batch` note reader, resolve each operation's note set once, and make maximal
-  ancestry reduction bounded/streamed. Preserve the audit's spawn-count regression so a future N+1 loop fails
-  loudly.
-
 ### `[ ]` **Consolidate compaction-boundary adoption**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: user-sync-module-split`), housekeep drain

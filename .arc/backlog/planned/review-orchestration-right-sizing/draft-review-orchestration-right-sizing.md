@@ -15,6 +15,22 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Give exact Errand targets an Owner-accepted review terminus**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep execution recon (2026-09-07); promoted when the attempted
+  pull-forward crossed the design floor.
+- _Concern:_ an ordinary Errand can retain exact-head review progress but has no typed way for the agent to
+  recommend that further frontline or standard review is disproportionate and for the Owner to accept that
+  residual risk. The existing terminus is inseparable from a delivery member's Candidate boundary. Correct Errand
+  support therefore has to settle strict identity and canonical-target binding, portable versus local authority,
+  replay and invalidation, and resumable completion; a workflow-only conversational bypass would preserve the
+  brittleness this mechanism is meant to remove.
+- _Fold-in:_ emit one submit-ready, lane-specific recommendation bound to exact Errand key, claim, branch, base,
+  head, review progress, and rationale; accept only explicit Owner judgment; invalidate every material movement;
+  resume the accepted operation by reference; and preserve accepted risk as distinct from provider clean or
+  convergence. Coordinate provider-neutral native-review dismissal and `ci-defer-heavy` convergence with
+  `review-source-authority`'s existing hosted-blocker concern rather than duplicating that authority design here.
+
 ### `[ ]` **Define terminal ownership and collection for review evidence**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-22); captured during `decompose-extraction`
@@ -70,6 +86,35 @@
   its name collides with ARC's technical use of “gate” and deepens with every new module.
 - _Approach:_ settle directory-only versus vocabulary-wide rename scope, then sequence the mechanical move after
   `review-protocol-alignment` so in-flight branches do not all conflict on imports and paths.
+
+### `[ ]` **Make the review-exempt route reachable from caller-held facts**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ the review-exempt fast path exists behind internal schemas and projections that ordinary workflow
+  callers cannot compose without source archaeology.
+- _Fold-in:_ preserve strict exemption authority while reducing the route to discoverable caller-held facts and a
+  typed refusal when the exemption does not apply.
+
+### `[ ]` **Treat stacked review correction as one resumable control loop**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ review correction across a delivery stack repeatedly re-enters member selection, reviewability,
+  response, verification, and progression as separate ceremonies, losing the active correction position and
+  multiplying manual reconstruction.
+- _Fold-in:_ compose one resumable correction loop with an explicit member-reviewability checkpoint and typed
+  continuation. The `tier1Reuse` vocabulary cleanup is extracted as an Errand; local-coverage truthfulness remains
+  with `review-signal-convergence`.
+
+### `[ ]` **Retire a retained attempt when a later clean pass proves complete residual coverage**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ retained attempts remain live even when a later clean pass can prove it covered their complete
+  residual, leaving redundant review state to settle manually.
+- _Fold-in:_ define the proof and terminal collection boundary for safe supersession without converting temporal
+  sequence into an ungrounded assumption of coverage.
 
 ---
 

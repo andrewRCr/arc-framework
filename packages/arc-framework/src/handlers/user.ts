@@ -4,7 +4,7 @@
  * @module
  */
 
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 import { z } from "zod";
@@ -13,6 +13,7 @@ import {
   findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir,
   reconcileRetiredSubdirsStandalone,
   runUserCompact,
+  markCurrentInboxEntriesExecuteBound,
   runUserClose, runUserInboxRemove, runUserOpen,
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
   runUserSessionInitStatus, runUserStatus,
@@ -28,6 +29,7 @@ import { isRefusalCondition } from "../lib/git/index.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import {
+  declareCliOperandSite,
   declareCliOptionSite,
   declareInteractionSite,
   type CommandInputDeclaration,
@@ -458,6 +460,158 @@ export async function handleUserInboxRemove(
   p.outro("Done.");
 }
 
+const UserInboxMarkExecuteBoundCommandInputSchema = z.strictObject({
+  input: z.string().min(1),
+});
+
+export const UserInboxMarkExecuteBoundRequestSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  orderedTitles: z.array(z.string().trim().min(1)).min(1).max(500),
+}).superRefine((value, refinement) => {
+  if (new Set(value.orderedTitles).size !== value.orderedTitles.length) {
+    refinement.addIssue({ code: "custom", path: ["orderedTitles"], message: "Titles must be unique." });
+  }
+});
+
+const InboxMutationOutcomeSchema = z.strictObject({
+  title: z.string().min(1),
+  state: z.enum(["applied", "already-applied"]),
+});
+
+export const UserInboxMarkExecuteBoundResultSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    mode: z.literal("user-inbox-mark-execute-bound"),
+    state: z.enum(["applied", "unchanged"]),
+    nextAction: z.literal("none"),
+    diagnostics: z.array(z.string()).length(0),
+    payload: z.strictObject({
+      changed: z.boolean(),
+      orderedTitles: z.array(z.string().min(1)).min(1),
+      outcomes: z.array(InboxMutationOutcomeSchema).min(1),
+      postImageDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+    }),
+  }),
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    mode: z.literal("user-inbox-mark-execute-bound"),
+    state: z.literal("invalid-input"),
+    nextAction: z.literal("correct-input"),
+    diagnostics: z.array(z.string()).min(1),
+    payload: z.null(),
+  }),
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    mode: z.literal("user-inbox-mark-execute-bound"),
+    state: z.literal("refused"),
+    nextAction: z.literal("stop"),
+    diagnostics: z.array(z.string()).min(1),
+    payload: z.null(),
+  }),
+]);
+
+type UserInboxMarkExecuteBoundResult = z.infer<typeof UserInboxMarkExecuteBoundResultSchema>;
+
+/** Mark and physically order one exact execute-bound queue through the user-notes lock. */
+export async function handleUserInboxMarkExecuteBound(
+  input: string,
+  context?: InteractionContext,
+): Promise<void> {
+  const operand = UserInboxMarkExecuteBoundCommandInputSchema.safeParse({ input });
+  if (!operand.success) {
+    emitUserInboxMarkExecuteBound({
+      schemaVersion: 1,
+      mode: "user-inbox-mark-execute-bound",
+      state: "invalid-input",
+      nextAction: "correct-input",
+      diagnostics: [z.prettifyError(operand.error)],
+      payload: null,
+    });
+    return;
+  }
+
+  let request: z.infer<typeof UserInboxMarkExecuteBoundRequestSchema>;
+  try {
+    const content = operand.data.input === "-"
+      ? await readUserInboxMarkExecuteBoundStdin()
+      : await readFile(operand.data.input, "utf8");
+    request = UserInboxMarkExecuteBoundRequestSchema.parse(JSON.parse(content));
+  } catch (error) {
+    emitUserInboxMarkExecuteBound({
+      schemaVersion: 1,
+      mode: "user-inbox-mark-execute-bound",
+      state: "invalid-input",
+      nextAction: "correct-input",
+      diagnostics: [error instanceof Error ? error.message : String(error)],
+      payload: null,
+    });
+    return;
+  }
+
+  const cwd = resolveArcRoot(process.cwd());
+  if (!cwd) {
+    emitUserInboxMarkExecuteBound({
+      schemaVersion: 1,
+      mode: "user-inbox-mark-execute-bound",
+      state: "refused",
+      nextAction: "stop",
+      diagnostics: ["ARC project root is unavailable."],
+      payload: null,
+    });
+    return;
+  }
+
+  try {
+    const identity = await resolveUserIdentity();
+    const result = await markCurrentInboxEntriesExecuteBound({
+      cwd,
+      io: createUserIOContext(context?.subprocess),
+      identity,
+      titles: request.orderedTitles,
+    });
+    if (result.postImage.state !== "present") throw new Error("USER-INBOX is missing.");
+    emitUserInboxMarkExecuteBound({
+      schemaVersion: 1,
+      mode: "user-inbox-mark-execute-bound",
+      state: result.changed ? "applied" : "unchanged",
+      nextAction: "none",
+      diagnostics: [],
+      payload: {
+        changed: result.changed,
+        orderedTitles: request.orderedTitles,
+        outcomes: result.outcomes,
+        postImageDigest: result.postImage.digest,
+      },
+    });
+  } catch (error) {
+    emitUserInboxMarkExecuteBound({
+      schemaVersion: 1,
+      mode: "user-inbox-mark-execute-bound",
+      state: "refused",
+      nextAction: "stop",
+      diagnostics: [error instanceof UserFacingError
+        ? formatError(error)
+        : error instanceof Error ? error.message : String(error)],
+      payload: null,
+    });
+  }
+}
+
+function emitUserInboxMarkExecuteBound(result: UserInboxMarkExecuteBoundResult): void {
+  const parsed = UserInboxMarkExecuteBoundResultSchema.parse(result);
+  process.stdout.write(`${JSON.stringify(parsed)}\n`);
+  if (parsed.state === "invalid-input") process.exitCode = 64;
+  if (parsed.state === "refused") process.exitCode = 1;
+}
+
+async function readUserInboxMarkExecuteBoundStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin as AsyncIterable<Buffer | string>) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 // --- Save ---
 
 export async function handleUserSave(): Promise<void> {
@@ -749,6 +903,11 @@ export const userCommandInputRegistrations = [
     schemaFields: { "operand.wu-name": "wuName" },
   },
   {
+    commandPath: "user inbox-mark-execute-bound",
+    schema: UserInboxMarkExecuteBoundCommandInputSchema,
+    schemaFields: { "operand.input": "input" },
+  },
+  {
     commandPath: "user inbox-remove",
     schema: UserInboxRemoveInputSchema,
     schemaFields: {
@@ -777,6 +936,31 @@ export const userCommandInputPolicyDeclarations = [{
     subprocess: "none",
     },
   )],
+}, {
+  commandPath: "user inbox-mark-execute-bound",
+  aliases: [],
+  sites: [
+    declareCliOperandSite("input", {
+      acquisition: "handler-required",
+      schemaOwnership: "owned",
+      schemaField: "input",
+      cancellation: "not-applicable",
+      automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["<json-path>", "-"] },
+      mutationBoundary: "execute-bound queue request validation",
+      subprocess: "explicit-stdin",
+    }),
+    declareInteractionSite(
+      { file: "handlers/user.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
+      {
+        acquisition: "explicit-stdin",
+        schemaOwnership: "none",
+        cancellation: "not-applicable",
+        automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["-"] },
+        mutationBoundary: "execute-bound queue request read",
+        subprocess: "explicit-stdin",
+      },
+    ),
+  ],
 }, {
   commandPath: "user pull",
   aliases: [],

@@ -29,7 +29,8 @@ import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
-import { canonicalize } from "../lib/kernel/index.js";
+import { canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
+import { projectKernelSchemas } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
 import { resolveArcRoot } from "../lib/paths.js";
@@ -41,6 +42,7 @@ import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
   ReviewChunkingResolveEnvelopeSchema,
+  PlanningGroomingReviewEnvelopeSchema,
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
@@ -53,7 +55,25 @@ import {
   type ReviewCommandMode,
   type ReviewPrePublicationRefusalCode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
-import { ReviewChunkingResolveRequestSchema } from "../scripts/review-gate/core/review-chunking-command-schema.js";
+import {
+  REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID,
+  ReviewChunkingResolveCommandRequestSchema,
+  ReviewChunkingResolveRequestSchema,
+  type ReviewChunkingResolveCommandRequest,
+  type ReviewChunkingResolveRequest,
+} from "../scripts/review-gate/core/review-chunking-command-schema.js";
+import {
+  REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID,
+  ReviewPlanningGroomingResolveRequestSchema,
+  type ReviewPlanningGroomingResolveRequest,
+} from "../scripts/review-gate/core/planning-grooming-command-schema.js";
+import {
+  REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
+  FrontlineRunRequestSchema,
+  type FrontlineRunCommandRequest,
+  type FrontlineRunRequest,
+} from "../scripts/review-gate/core/frontline-run-command-schema.js";
+import { registerReviewDomainSchemas } from "../scripts/review-gate/core/register-review-schemas.js";
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
 import {
   createLocalFrontlineSourcePreferenceReader,
@@ -146,6 +166,15 @@ import { resolveReviewHeadRef } from "../scripts/review-gate/core/review-subject
 import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
+import {
+  composePlanningGroomingMethodActivity,
+  resolvePlanningGroomingReviewCommand,
+} from
+  "../scripts/review-gate/policy/planning-grooming-command.js";
+import { readLocalReviewLiveContext } from
+  "../scripts/review-gate/hosts/local/live-context.js";
+import { createLocalReviewMethodFilePort } from
+  "../scripts/review-gate/hosts/local/method-files.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
   HostedRequestEnvelopeSchema,
@@ -205,7 +234,6 @@ import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
 import { resolveActiveHostedReviewErrand } from "../scripts/review-gate/hosted/errand-authority.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
-  FrontlineRunRequestSchema,
   runFrontlineReviewCommand,
 } from "../scripts/review-gate/runtime/frontline-run-command.js";
 import { createLocalPrepareDependencies } from "../scripts/review-gate/runtime/local-prepare-composition.js";
@@ -245,6 +273,7 @@ import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/host
 import {
   composeDeliveryMemberTarget,
   deriveLocalReviewTarget,
+  deriveLocalReviewTargetFromCoordinates,
 } from "../scripts/review-gate/hosts/local/repository-target.js";
 import {
   MergeMethodSchema,
@@ -300,6 +329,15 @@ function reviewCommandInputSchema(): z.ZodType<{ input: string }> {
   }).strict();
 }
 
+function reviewDiscoverableCommandInputSchema() {
+  return z.strictObject({
+    input: z.string().trim().min(1).optional(),
+    schema: z.literal(true).optional(),
+  }).refine((input) => (input.input === undefined) !== (input.schema === undefined), {
+    message: "Provide exactly one JSON request source or --schema.",
+  });
+}
+
 /** Request-source operand schema shared by the review handlers' own validation. */
 export const ReviewCommandInputSchema = reviewCommandInputSchema();
 
@@ -307,9 +345,7 @@ export const ReviewCommandInputSchema = reviewCommandInputSchema();
 const REVIEW_JSON_COMMAND_PATHS = [
   "review readiness",
   "review resolve",
-  "review chunking resolve",
   "review frontline resolve",
-  "review frontline run",
   "review hosted request",
   "review hosted await",
   "review hosted settle",
@@ -319,6 +355,13 @@ const REVIEW_JSON_COMMAND_PATHS = [
   "review respond",
   "review reduce",
   "review terminus accept",
+] as const;
+
+/** Interim schema-discoverable request boundaries; the full family remains owned by P1 design. */
+export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
+  "review chunking resolve",
+  "review planning-grooming resolve",
+  "review frontline run",
 ] as const;
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
@@ -453,6 +496,11 @@ export const reviewCommandInputRegistrations = [
     commandPath,
     schema: reviewCommandInputSchema(),
     schemaFields: { "operand.input": "input" },
+  })),
+  ...REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS.map((commandPath) => ({
+    commandPath,
+    schema: reviewDiscoverableCommandInputSchema(),
+    schemaFields: { "operand.input": "input", "option.schema": "schema" },
   })),
   reviewPlanningLaneInputRegistration,
   reviewChangeRequestInputRegistration,
@@ -941,7 +989,7 @@ async function acceptDeliveryReviewTerminus(
         workUnitId,
         remote: request.offer.remote,
       });
-      return "terminusAction" in status ? status.terminusAction ?? null : null;
+      return "terminusAction" in status ? status.terminusAction?.offer ?? null : null;
     },
     writeBoundary: async (boundary, expectedVersion) => {
       try {
@@ -1120,6 +1168,16 @@ export const reviewCommandInputPolicyDeclarations = [
     )],
   },
   {
+    commandPath: "review planning-grooming resolve", aliases: [], sites: [declareInteractionSite(
+      { file: "lib/change-facts.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "planning-grooming exact diff read", subprocess: "close-stdin",
+      },
+    )],
+  },
+  {
     commandPath: "review frontline run", aliases: [], sites: [
       "scripts/review-gate/providers/coderabbit/executable.ts",
       "scripts/review-gate/providers/coderabbit/process.ts",
@@ -1204,6 +1262,92 @@ export async function handleReviewPlanningLane(
     return;
   }
   dependencies.write(`${result}\n`);
+}
+
+export interface ReviewPlanningGroomingResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  resolve(
+    request: ReviewPlanningGroomingResolveRequest,
+    root: string,
+    interaction: InteractionContext,
+  ): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewPlanningGroomingResolveDependencies(
+): ReviewPlanningGroomingResolveHandlerDependencies {
+  return {
+    ...defaultReviewHandlerBoundary(),
+    resolve: async (request, root, interaction) => {
+      const exec = createGitExec(interaction.subprocess);
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const [repositoryId, config] = await Promise.all([
+        resolveRepositoryIdentity(publisher),
+        readConfigSettings(root),
+      ]);
+      const target = await deriveLocalReviewTarget({
+        exec,
+        cwd: root,
+        repositoryId,
+        baseRef: config.settings["branch.base"],
+      });
+      const [changeSet, live] = await Promise.all([
+        resolveChangeSet(createRawGitExec(root), target.diffBaseSha, target.headSha),
+        readLocalReviewLiveContext({ exec, cwd: root }),
+      ]);
+      const context = live.context.workUnit === null && live.context.errand !== null
+        ? (() => {
+            const activity = composePlanningGroomingMethodActivity(
+              createLocalReviewMethodFilePort({ cwd: root }),
+            );
+            return {
+              state: "resolved" as const,
+              assurance: { workContext: "errand" as const, workClass: "none" as const },
+              activity: activity.activity,
+              diagnostics: activity.diagnostics,
+            };
+          })()
+        : {
+            state: "not-applicable" as const,
+            reason: "transient-vehicle-required" as const,
+          };
+      return resolvePlanningGroomingReviewCommand({ request, target, changeSet, context });
+    },
+  };
+}
+
+/**
+ * Resolve one exact transient planning-grooming change to a closed exemption or
+ * a fail-closed continuation into the ordinary review protocol.
+ */
+export async function handleReviewPlanningGroomingResolve(
+  source: string,
+  overrides: Partial<ReviewPlanningGroomingResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = {
+    ...defaultReviewPlanningGroomingResolveDependencies(),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode: "review-planning-grooming-resolve",
+    source,
+    requestSchema: ReviewPlanningGroomingResolveRequestSchema,
+    resultSchema: PlanningGroomingReviewEnvelopeSchema,
+    dependencies,
+    execute: (request, root) => dependencies.resolve(
+      ReviewPlanningGroomingResolveRequestSchema.parse(request),
+      root,
+      context,
+    ),
+  });
 }
 
 interface ReviewHandlerBoundary {
@@ -1946,17 +2090,38 @@ export async function handleReviewFrontlineResolve(
 export interface ReviewChunkingResolveHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  resolve(request: unknown, root: string): Promise<unknown>;
+  deriveRequest(
+    request: ReviewChunkingResolveRequest,
+    root: string,
+  ): Promise<ReviewChunkingResolveCommandRequest>;
+  resolve(request: ReviewChunkingResolveCommandRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
 function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandlerDependencies {
+  const exec = createGitExec();
   return {
     ...defaultReviewHandlerBoundary(),
+    deriveRequest: async (request, root) => {
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const derive = (coordinates: ReviewChunkingResolveRequest["target"]) =>
+        deriveLocalReviewTargetFromCoordinates({ exec, cwd: root, repositoryId, coordinates });
+      return ReviewChunkingResolveCommandRequestSchema.parse({
+        ...request,
+        target: await derive(request.target),
+        ...(request.scopeSelection === undefined
+          ? {}
+          : {
+              scopeSelection: {
+                ...request.scopeSelection,
+                target: await derive(request.scopeSelection.target),
+              },
+            }),
+      });
+    },
     resolve: async (request, root) => {
-      const parsed = ReviewChunkingResolveRequestSchema.parse(request);
-      const exec = createGitExec();
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
       const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -1971,11 +2136,11 @@ function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandle
         readState: (planId) => stateStore.read(planId),
         resolveMember: (input) => stateStore.resolveMember(input),
       });
-      return resolveReviewChunkingCommand(parsed, {
+      return resolveReviewChunkingCommand(request, {
         readSettings: () => readConfigSettings(root),
         readDeliveryBinding: () => workUnitId === undefined
           ? Promise.resolve({ status: "unavailable", reason: "owning-work-unit-unresolved" })
-          : bindingLookup.resolve({ target: parsed.target, workUnitId }),
+          : bindingLookup.resolve({ target: request.target, workUnitId }),
         exec: createRawGitExec(root),
       });
     },
@@ -2000,14 +2165,18 @@ export async function handleReviewChunkingResolve(
     requestSchema: ReviewChunkingResolveRequestSchema,
     resultSchema: ReviewChunkingResolveEnvelopeSchema,
     dependencies,
-    execute: dependencies.resolve,
+    execute: async (request, root) => dependencies.resolve(
+      await dependencies.deriveRequest(ReviewChunkingResolveRequestSchema.parse(request), root),
+      root,
+    ),
   });
 }
 
 export interface ReviewFrontlineRunHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
-  run(request: unknown, root: string): Promise<unknown>;
+  deriveRequest(request: FrontlineRunRequest, root: string): Promise<FrontlineRunCommandRequest>;
+  run(request: FrontlineRunCommandRequest, root: string): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -2016,6 +2185,19 @@ function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFro
   const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
+    deriveRequest: async (request, root) => {
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      return {
+        ...request,
+        target: await deriveLocalReviewTargetFromCoordinates({
+          exec,
+          cwd: root,
+          repositoryId,
+          coordinates: request.target,
+        }),
+      };
+    },
     run: (request, root) => runFrontlineReviewCommand(
       request,
       createFrontlineRunDependencies({ exec, cwd: root, interaction: context.subprocess }),
@@ -2048,8 +2230,41 @@ export async function handleReviewFrontlineRun(
     requestSchema: FrontlineRunRequestSchema,
     resultSchema: FrontlineRunEnvelopeSchema,
     dependencies,
-    execute: dependencies.run,
+    execute: async (request, root) => dependencies.run(
+      await dependencies.deriveRequest(FrontlineRunRequestSchema.parse(request), root),
+      root,
+    ),
   });
+}
+
+export type ReviewPublicRequestSchemaId =
+  | typeof REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID;
+
+/** Emit one public request root together with the complete registry bundle its refs require. */
+export function handleReviewRequestSchema(
+  schemaId: ReviewPublicRequestSchemaId,
+  source?: string,
+  overrides: Pick<ReviewHandlerBoundary, "write" | "setExitCode"> = {
+    write: (text) => process.stdout.write(text),
+    setExitCode: (code) => { process.exitCode = code; },
+  },
+): void {
+  try {
+    reviewDiscoverableCommandInputSchema().parse({ input: source, schema: true });
+    const registry = registerReviewDomainSchemas(createKernelRegistry());
+    if (registry.get(schemaId) === undefined) throw new Error(`Review request schema unavailable: ${schemaId}`);
+    const bundle = projectKernelSchemas(registry);
+    overrides.write(`${JSON.stringify({ rootId: `${schemaId}.schema.json`, ...bundle })}\n`);
+  } catch (error) {
+    overrides.write(`${JSON.stringify({
+      rootId: `${schemaId}.schema.json`,
+      schemas: {},
+      error: error instanceof Error ? error.message : String(error),
+    })}\n`);
+    overrides.setExitCode(1);
+  }
 }
 
 export interface ReviewLocalPrepareHandlerDependencies {

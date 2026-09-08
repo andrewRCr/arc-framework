@@ -48,6 +48,41 @@ describe("GitHub required-check port", () => {
     expect(run).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ allowFailure: true }));
   });
 
+  it("keeps conflicting duplicate required check rows pending until GitHub converges", async () => {
+    const run = vi.fn(async () => ({
+      stdout: JSON.stringify([
+        { name: "merge-ok", state: "FAILURE", bucket: "fail" },
+        { name: "merge-ok", state: "IN_PROGRESS", bucket: "pending" },
+        { name: "lint", state: "SUCCESS", bucket: "pass" },
+      ]),
+      stderr: "",
+    }));
+    const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
+
+    await expect(port.readRequiredChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([
+      { name: "merge-ok", state: "pending" },
+      { name: "lint", state: "green" },
+    ]);
+  });
+
+  it("preserves conflicting duplicate observed rows as failure diagnostics", async () => {
+    const run = vi.fn(async () => ({
+      stdout: JSON.stringify([
+        { name: "merge-ok", state: "FAILURE", bucket: "fail" },
+        { name: "merge-ok", state: "IN_PROGRESS", bucket: "pending" },
+        { name: "lint", state: "SUCCESS", bucket: "pass" },
+      ]),
+      stderr: "",
+    }));
+    const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
+
+    await expect(port.readObservedChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([
+      { name: "merge-ok", state: "failed" },
+      { name: "merge-ok", state: "pending" },
+      { name: "lint", state: "green" },
+    ]);
+  });
+
   it("treats GitHub's no-required-checks exit as an empty successful observation", async () => {
     const run = vi.fn()
       .mockResolvedValueOnce({

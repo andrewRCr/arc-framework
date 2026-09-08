@@ -22,6 +22,16 @@
 - _Fold-in:_ make vocabulary accuracy its own deliverable beside cadence/register classification, with calm
   one-line or silent expected-state rendering and operator-facing language for actionable faults.
 
+### `[ ]` **Explain residual delivery position after append-only terminal movement**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-advisory-registers`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ making the routine session-init slot tolerate append-only terminal movement is an immediate Errand,
+  but unresolved `pendingReviewFixVerification`, active-operation, and bound terminal coordinates still need calm,
+  actionable diagnostics rather than raw delivery internals.
+- _Fold-in:_ place those residual conditions in the register model and give each surfaced state one operator-facing
+  remedy without changing delivery authority.
+
 ---
 
 ## Problem / Motivation
