@@ -1,0 +1,83 @@
+# Lima instance definition for the repository's local arm64 Linux CI capacity.
+#
+# The guest is disposable: it is created from this file alone and holds nothing
+# worth preserving. Rebuild rather than repair. It carries no host filesystem,
+# no forwarded agent, no published port, and no credential; job tokens and build
+# outputs are the only sensitive material inside it, and both are transient.
+
+minimumLimaVersion: 2.0.0
+
+os: Linux
+arch: aarch64
+vmType: vz
+
+images:
+  - location: https://cloud-images.ubuntu.com/releases/resolute/release-20260823/ubuntu-26.04-server-cloudimg-arm64.img
+    arch: aarch64
+    digest: sha256:00e2d9f09373125eb9040952ae3b8d5553fe3df8f5004c08838473a1f61b74bf
+
+cpus: 8
+memory: 8GiB
+disk: 60GiB
+
+# No host directory reaches the guest.
+mounts: []
+
+# Nothing inside the guest is published to the host. Lima's own SSH control
+# channel, bound to the host's loopback interface, is the one accepted listener.
+portForwards:
+  - guestPortRange: [1, 65535]
+    ignore: true
+
+ssh:
+  loadDotSSHPubKeys: false
+  forwardAgent: false
+  forwardX11: false
+  forwardX11Trusted: false
+
+# Jobs bring their own toolchains through the workflow's setup actions, so the
+# bundled container runtime is unused weight on every rebuild.
+containerd:
+  system: false
+  user: false
+
+video:
+  display: none
+audio:
+  device: ""
+
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      export DEBIAN_FRONTEND=noninteractive
+
+      apt-get update
+      apt-get -y install \
+        ca-certificates coreutils curl gh git jq shellcheck sysstat tar time
+
+      # Service identity and its application directories. Mode 0750 keeps the
+      # administrative account out; service install and start run as root.
+      id -u arc-runner >/dev/null 2>&1 || adduser --disabled-password --gecos '' arc-runner
+      gpasswd -d arc-runner users || true
+      install -d -m 0750 -o arc-runner -g arc-runner /opt/actions-runner-1 /opt/actions-runner-2
+
+      # Persistent, size-bounded logs, so a failed job or an unattended restart
+      # stays diagnosable after the fact.
+      install -d -m 0755 /etc/systemd/journald.conf.d
+      cat > /etc/systemd/journald.conf.d/arc-runner.conf <<'EOF'
+      [Journal]
+      Storage=persistent
+      SystemMaxUse=1G
+      MaxRetentionSec=60day
+      Compress=yes
+      EOF
+      systemctl restart systemd-journald
+
+      # Resource history covering the whole trial. Per-run memory figures come
+      # from each phase's own sampler; this is the background record that makes
+      # an anomalous run explainable.
+      sed -i 's/^ENABLED=.*/ENABLED="true"/' /etc/default/sysstat
+      sed -i 's/^HISTORY=.*/HISTORY=60/' /etc/sysstat/sysstat
+      systemctl enable --now sysstat-collect.timer sysstat-summary.timer

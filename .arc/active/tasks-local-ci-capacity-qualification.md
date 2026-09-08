@@ -67,36 +67,42 @@ entries record only sanitized values — never a host endpoint, username, token,
   external-volume permissions both read as restrictive while granting access through group membership and
   ignore-ownership respectively, so the mode bits alone would have certified an isolation the host did not have.
 
-### `[ ]` **1.3 Author the Lima recipe and the launch agent**
+### `[x]` **1.3 Author the Lima recipe and the launch agent**
 
 - _Goal:_ A fresh instance boots from the recipe alone, with no host mounts, no guest port forwards, and every
   runner prerequisite installed by the recipe's provisioning, and a macOS restart brings it back with no operator
   action.
 
-- _Approach:_ Agent-authored under `scripts/local-ci/`; the operator installs the launch agent once over SSH.
+    - `[x]` **1.3.a Write `scripts/local-ci/arc-ci.yaml`**
+        - `vmType: vz`, `arch: aarch64`, 8 vCPU, 8 GiB, 60 GiB disk, `mounts: []`, and a `portForwards` rule
+          ignoring the full guest port range. The image is the Ubuntu 26.04 LTS arm64 server cloud image pinned to
+          a dated release directory and its SHA-256, rather than the moving `release` pointer.
+        - System-mode provisioning installs the tool set, creates the `arc-runner` account and the mode `0750`
+          application directories, and writes the persistent size-bounded journald configuration. The bundled
+          container runtime is disabled: jobs bring their own toolchains, so it is only weight against the disk
+          budget and the rebuild time Task 1.4.c measures. `sysstat` is enabled with 60-day retention, since
+          Ubuntu ships it installed but collecting nothing.
 
-    - `[ ]` **1.3.a Write `scripts/local-ci/arc-ci.yaml`**
-        - `vmType: vz`, `arch: aarch64`, `cpus: 8`, `memory: 8GiB`, `disk: 60GiB`, `mounts: []`, and a
-          `portForwards` rule ignoring the full guest port range. Lima's own SSH control channel on the mini's
-          localhost is the one accepted listener.
-        - Image: the Ubuntu 26.04 LTS arm64 server cloud image, matching the fleet's approved baseline, pinned
-          by URL and digest.
-        - System-mode provisioning: `git`, `gh`, `jq`, `shellcheck`, `curl`, `tar`, `sysstat`, `time` (absent
-          from cloud images; Task 2.2 measures with it), the `arc-runner` account, and mode `0750` application
-          directories `/opt/actions-runner-1` and `/opt/actions-runner-2` (a third is created only by Task 3.3).
-          Persistent, size-bounded journald mirrors the VPS host settings.
+    - `[x]` **1.3.b Write the launch agent `scripts/local-ci/com.arc.local-ci.plist`**
+        - `RunAtLoad` invoking `limactl start arc-ci` by absolute path, with stdout and stderr under the CI user's
+          `~/Library/Logs/`, and an explicit `PATH` because launchd supplies one that excludes the Homebrew prefix.
+          The file is a template carrying a `__CI_HOME__` placeholder: launchd performs no variable expansion and
+          requires absolute log paths, so a literal agent would have to commit the account's home directory to a
+          tracked file. `start.sh` renders it at install time.
 
-    - `[ ]` **1.3.b Write the launch agent `scripts/local-ci/com.arc.local-ci.plist`**
-        - `RunAtLoad` with `ProgramArguments` invoking `/opt/homebrew/bin/limactl start arc-ci`, stdout and stderr
-          to files under the CI user's `~/Library/Logs/`. Installed with `launchctl bootstrap gui/$UID` from the
-          CI user's session; the `start.sh` helper carries the install step.
+    - `[x]` **1.3.c First boot and isolation check**
+        - The instance built from the recipe in about three minutes and reports 8 vCPU, 7 GiB usable, 55 G free,
+          no swap device, and no host mount. Outbound HTTPS and DNS work; nothing inbound reaches it.
+        - The listener check was run as a before/after difference across a guest stop and start rather than the
+          single snapshot the plan assumed. The host runs a full desktop session whose widgets and Continuity
+          services cycle wildcard UDP sockets continuously, so an unbaselined reading cannot attribute them. The
+          guest adds exactly three sockets, all loopback.
 
-    - `[ ]` **1.3.c First boot and isolation check**
-        - `limactl start scripts/local-ci/arc-ci.yaml` as the CI user, then inside the guest confirm `nproc`,
-          `free -g`, `df -h /`, `swapon --show` (Lima guests carry no swap by default; the ledger states the swap
-          posture once here), and the absence of any mount from the host. On the mini confirm no new listener
-          beyond Lima's localhost SSH port with `netstat -anv -p tcp | grep LISTEN` (the CI user has no sudo, so
-          `lsof` is unavailable). Record the readings in the ledger.
+- _Outcome:_ A guest now exists that is reproducible from two tracked files and reaches nothing on the host. The
+  isolation evidence is stronger than the planned check would have produced: the plan's TCP-only snapshot would
+  have shown wildcard listeners belonging to unrelated host services and had no baseline to clear them against,
+  while a UDP path Lima does open would not have appeared at all. Both the recipe and its provisioning script are
+  statically validated, the latter extracted back out of the YAML block where indentation errors hide.
 
 ### `[ ]` **1.4 Add the start, status, and rebuild helpers**
 

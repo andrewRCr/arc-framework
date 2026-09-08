@@ -48,20 +48,30 @@ Account isolation, established at the console before any remote access:
   off, so no wireless variance reaches the Phase 4 timings.
 - Toolchain: Homebrew and Lima installed by the admin account; `limactl 2.2.0` runs as the CI user by absolute
   path out of the Homebrew prefix.
+- A third-party network-filtering extension runs on the host and the guest's egress passes through it. Recorded as
+  a candidate explanation for any anomalous Phase 4 timing or transfer failure, so such a result is not misread as
+  guest capacity.
 
 Guest readings at first boot, taken inside the instance:
 
-| Signal                    | Reading |
-| ------------------------- | ------- |
-| `nproc`                   | —       |
-| `free -g` total           | —       |
-| `df -h /` size and free   | —       |
-| `swapon --show`           | —       |
-| Host mounts present       | —       |
-| New listeners on the mini | —       |
+| Signal                    | Reading                                                            |
+| ------------------------- | ------------------------------------------------------------------ |
+| `nproc`                   | 8                                                                  |
+| `free -g` total           | 7 GiB usable of the 8 GiB allocation                               |
+| `df -h /` size and free   | 58 G total, 55 G available                                         |
+| `swapon --show`           | empty — no swap device                                             |
+| Host mounts present       | none                                                               |
+| New listeners on the mini | 3, all loopback: TCP `50918`, TCP `50919`, UDP `57349` (`limactl`) |
 
-_Swap posture:_ — · stated once here from the `swapon --show` reading, because the anchor gate's memory condition
-depends on whether the guest swaps or OOMs under pressure.
+The listener figure is a before/after difference across a guest stop and start, not a single reading: the host runs
+a full desktop session whose widgets and Continuity services cycle wildcard UDP sockets continuously, so an
+unbaselined snapshot cannot separate them from the guest's own. Nothing the guest adds binds a routable interface.
+
+Outbound from the guest works (HTTPS to the GitHub API in 0.16 s, public DNS resolution), which is all the later
+phases need; nothing inbound reaches it.
+
+_Swap posture:_ the guest carries no swap device. Memory pressure therefore surfaces as an OOM kill rather than
+swap growth, so the anchor gate's memory condition is read from `journalctl -k`, not from a swap figure.
 
 Helper proof:
 
