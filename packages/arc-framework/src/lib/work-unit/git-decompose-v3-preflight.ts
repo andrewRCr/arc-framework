@@ -76,6 +76,33 @@ function locationOf(path: string): V3DecomposeSourceMeta["location"] | null {
   return null;
 }
 
+/** Policy for invalid artifact objects encountered while reading one source snapshot. */
+export interface GitV3DecomposeTreeSnapshotOptions {
+  unsupportedArtifacts?: "reject" | "omit";
+}
+
+/**
+ * Test whether one tree path belongs to an origin's artifact group in its resolved directory.
+ *
+ * @param path - Repository-relative tree path
+ * @param sourceDirectory - Resolved directory containing the origin meta
+ * @param origin - Work-unit slug whose artifact group is selected
+ * @returns Whether the path is a source artifact, excluding the same-name cohort document
+ */
+export function isGitV3DecomposeSourceArtifactPath(
+  path: string,
+  sourceDirectory: string,
+  origin: string,
+): boolean {
+  const name = posix.basename(path);
+  return posix.dirname(path) === sourceDirectory
+    && name !== `cohort-${origin}.md`
+    && (
+      artifactMatcher(origin).test(name)
+      || v3PlanningDesignNames(origin).pairedSpec.includes(name)
+    );
+}
+
 /**
  * Read one exact decomposition source snapshot from a pinned commit.
  *
@@ -83,6 +110,7 @@ function locationOf(path: string): V3DecomposeSourceMeta["location"] | null {
  * @param ref - Logical local ref bound to the snapshot
  * @param head - Exact commit object to read
  * @param origin - Retiring work-unit slug
+ * @param options - Unsupported artifact handling; omission requires a separate raw-object proof before use
  * @returns Complete metadata, artifact, and dependency facts from the pinned tree
  */
 export async function readGitV3DecomposeTreeSnapshot(
@@ -90,6 +118,7 @@ export async function readGitV3DecomposeTreeSnapshot(
   ref: string,
   head: string,
   origin: string,
+  options: GitV3DecomposeTreeSnapshotOptions = {},
 ): Promise<V3DecomposeTreeSnapshot> {
   const listing = await deps.exec("git", [
     "ls-tree",
@@ -155,19 +184,12 @@ export async function readGitV3DecomposeTreeSnapshot(
 
   const sourceMeta = origins.length === 1 ? origins[0] : undefined;
   const sourceDir = sourceMeta === undefined ? null : posix.dirname(sourceMeta.path);
-  const matcher = artifactMatcher(origin);
-  const layeredDesignNames = new Set(v3PlanningDesignNames(origin).pairedSpec);
-  const cohortName = `cohort-${origin}.md`;
   const sourceArtifacts: V3DecomposeStoredArtifact[] = [];
   if (sourceDir !== null) {
     for (const entry of entries) {
-      const name = posix.basename(entry.path);
-      if (
-        posix.dirname(entry.path) !== sourceDir
-        || name === cohortName
-        || (!matcher.test(name) && !layeredDesignNames.has(name))
-      ) continue;
+      if (!isGitV3DecomposeSourceArtifactPath(entry.path, sourceDir, origin)) continue;
       if (entry.kind !== "blob" || (entry.mode !== "100644" && entry.mode !== "100755")) {
+        if (options.unsupportedArtifacts === "omit") continue;
         throw new GitV3DecomposePreflightRejection(
           "git-preflight:unsupported-artifact",
           entry.path,

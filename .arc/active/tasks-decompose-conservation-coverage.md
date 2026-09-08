@@ -449,6 +449,12 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 - _Goal:_ Member 2 has independently reviewable evidence that every retiring companion is covered and every
   supported extraction leaves companion bytes intact.
 
+    - `[x]` **2.6.R.a Preserve companion object drift through finish classification**
+        - Finish now keeps ordinary preflight discovery strict while an explicitly raw-proof-backed snapshot omits
+          unsupported current artifacts. The pinned repository tree supplies their exact object facts to the shared
+          source-group classifier before refreshed or fallback authority; real-Git symlink coverage proves the
+          public refusal remains `source:source-units` with blob-versus-symlink evidence.
+
     - Run the `validate-criteria.md` member-scope walk for `companion-conservation` and record the boundary evidence
       without changing Success Criteria markers.
 

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { chmod, lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -1206,6 +1206,31 @@ describe("Git v3 repository plan", () => {
       status: "refused",
       reason: "source:source-units",
       locus: expectedLocus,
+    });
+  });
+
+  it("requires reauthoring when a companion becomes a symlink before authority selection", async () => {
+    const fixture = await landedStartedPlanningCompanionExtractionRepository();
+    const companionPath = ".arc/active/notes-origin.md";
+    await rm(join(fixture.repo, companionPath));
+    await symlink("draft-origin.md", join(fixture.repo, companionPath));
+    await git(fixture.repo, ["add", "-A"]);
+    await git(fixture.repo, ["commit", "-m", "change retained companion object kind"]);
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "source:source-units",
+      locus: companionPath,
+      evidence: {
+        expected: { kind: "object", objectKind: "blob", mode: "100644" },
+        actual: { kind: "object", objectKind: "symlink", mode: "120000" },
+      },
     });
   });
 

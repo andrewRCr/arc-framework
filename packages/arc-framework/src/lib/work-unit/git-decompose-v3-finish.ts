@@ -37,7 +37,6 @@ import {
   createV3DecomposePreflight,
   revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
-  type V3DecomposeStoredArtifact,
 } from "./decompose-v3-preflight.js";
 import { refreshV3ExtractionCutMap } from "./decompose-v3-refresh.js";
 import {
@@ -53,6 +52,7 @@ import {
   renderGitV3RepositoryTreeRoadmap,
 } from "./git-decompose-v3-repository-plan.js";
 import {
+  isGitV3DecomposeSourceArtifactPath,
   readGitV3DecomposeTreeSnapshot,
 } from "./git-decompose-v3-preflight.js";
 import {
@@ -561,9 +561,31 @@ type V3ExtractionSourceGroupClassification =
   | { status: "admitted" }
   | { status: "reauthor"; locus: string; evidence?: V3DecomposeRefusalEvidence };
 
-type V3ExtractionSourceGroupArtifact = Omit<V3DecomposeStoredArtifact, "objectKind"> & {
+interface V3ExtractionSourceGroupArtifact {
+  path: string;
   objectKind: string;
-};
+  mode: string;
+  bytes: Uint8Array;
+}
+
+function sourceGroupArtifacts(
+  tree: V3RepositoryPlanTree,
+  sourceOriginPath: string,
+  origin: string,
+): V3ExtractionSourceGroupArtifact[] {
+  const sourceDirectory = posix.dirname(sourceOriginPath);
+  return Object.entries(tree).flatMap(([path, state]) => (
+    state.kind === "object"
+      && isGitV3DecomposeSourceArtifactPath(path, sourceDirectory, origin)
+      ? [{
+          path,
+          objectKind: state.objectKind,
+          mode: state.mode,
+          bytes: state.bytes,
+        }]
+      : []
+  )).sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path)));
+}
 
 function sourceArtifactEvidence(
   artifact: V3ExtractionSourceGroupArtifact | undefined,
@@ -767,12 +789,19 @@ export async function proveGitV3ExtractionDestinations(
         : refused("base-ancestry-unavailable", failure.message);
     }
 
-    const [sourceSnapshot, originalSourceSnapshot, originalBaseSnapshot] = await Promise.all([
+    const [
+      sourceSnapshot,
+      originalSourceSnapshot,
+      originalBaseSnapshot,
+      currentSourceRepositoryTree,
+      originalSourceRepositoryTree,
+    ] = await Promise.all([
       readGitV3DecomposeTreeSnapshot(
         dependencies,
         map.machine.source.ref,
         head,
         input.origin,
+        { unsupportedArtifacts: "omit" },
       ),
       readGitV3DecomposeTreeSnapshot(
         dependencies,
@@ -786,7 +815,13 @@ export async function proveGitV3ExtractionDestinations(
         map.machine.resultBase.head,
         input.origin,
       ),
+      readGitV3RepositoryTree(dependencies, head),
+      readGitV3RepositoryTree(dependencies, map.machine.source.head),
     ]);
+    if (currentSourceRepositoryTree === null) return refused("source-tree-unreadable", head);
+    if (originalSourceRepositoryTree === null) {
+      return refused("source-tree-unreadable", map.machine.source.head);
+    }
     const refreshed = createV3DecomposePreflight({
       origin: input.origin,
       sourceBase: map.machine.source.ref === map.machine.resultBase.ref
@@ -846,7 +881,11 @@ export async function proveGitV3ExtractionDestinations(
       map,
       originalBinding.preflight.sourceOriginPath,
       originalSourceSnapshot.sourceArtifacts,
-      sourceSnapshot.sourceArtifacts,
+      sourceGroupArtifacts(
+        currentSourceRepositoryTree,
+        originalBinding.preflight.sourceOriginPath,
+        input.origin,
+      ),
       originalThinning.files,
     );
     if (sourceGroup.status === "reauthor") {
@@ -873,16 +912,13 @@ export async function proveGitV3ExtractionDestinations(
         sourceHead: map.machine.source.head,
       };
     }
-    const [sourceTree, originalSourceRepositoryTree, originalBaseTree, currentBaseTree] = await Promise.all([
-      readGitV3RepositoryTree(dependencies, selected.sourceHead),
-      readGitV3RepositoryTree(dependencies, map.machine.source.head),
+    const [originalBaseTree, currentBaseTree] = await Promise.all([
       readGitV3RepositoryTree(dependencies, map.machine.resultBase.head),
       readGitV3RepositoryTree(dependencies, baseHead),
     ]);
-    if (sourceTree === null) return refused("source-tree-unreadable", selected.sourceHead);
-    if (originalSourceRepositoryTree === null) {
-      return refused("source-tree-unreadable", map.machine.source.head);
-    }
+    const sourceTree = selected.sourceHead === head
+      ? currentSourceRepositoryTree
+      : originalSourceRepositoryTree;
     if (originalBaseTree === null) return refused("result-base-tree-unreadable", map.machine.resultBase.head);
     if (currentBaseTree === null) return refused("base-tree-unreadable", baseHead);
     const originalRoadmap = roadmapBytes(originalBaseTree);
