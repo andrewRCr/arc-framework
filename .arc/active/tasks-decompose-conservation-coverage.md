@@ -206,14 +206,13 @@ only after every mode has executable coverage.
         - Expanded scalar binding coverage across all source/result ref fields; the composed evidence suites exercise
           every admitted comparison family, representative exclusions, and both `topology-claim` variants.
 
-    - `[ ]` **1.5.c Exercise all six refusing invocations in a real repository**
-        - Extend `decompose-command-modes.e2e.test.ts` across preflight, execute, extract, finish preview, finish apply,
-          and base advancement.
-        - Assert one parseable stdout envelope, exact stderr reason/remedy text, exit `1`, and unchanged repository
-          state for each refusal; inject one arbitrary preflight read failure to prove normalization.
-        - Parametrize the public handler over all six selected modes with an injected in-mode exception and assert
-          core-only `unexpected-error`, detail only in `locus`, that mode's exact retry argv, and no invented
-          execute/extract stage, recovery, or report.
+    - `[x]` **1.5.c Exercise all six refusing invocations in a real repository**
+        - Unified post-selection handler exceptions across all six invocations on the strict core-only
+          `unexpected-error` envelope with detail in `locus` and exact mode retry argv.
+        - Added a built-CLI matrix proving one envelope, exact stderr, exit `1`, and unchanged repository state for
+          every mode, including arbitrary preflight Git-read normalization.
+        - Completed finish authoring-shape remedies and base-advancement loci so known refusals remain actionable
+          instead of degrading through the exception boundary.
 
     - `[ ]` **1.5.d Publish the all-mode refusal contract before member close**
         - Update the package-source `decompose-work-unit.md` once with the all-mode stdout envelope and the rule to

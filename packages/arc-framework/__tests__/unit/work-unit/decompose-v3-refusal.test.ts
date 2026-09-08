@@ -353,6 +353,22 @@ describe("v3 decomposition refusals", () => {
     expect(remedy.argv).toEqual(expectedArgv);
   });
 
+  it.each(["finish-preview", "finish-apply"] as const)(
+    "maps an authoring-shape refusal from %s to execute",
+    (mode) => {
+      const invocation = mode === "finish-preview"
+        ? { mode, origin: "origin", cutMapPath: "map.json" }
+        : { mode, origin: "origin", cutMapPath: "map.json", applyAuthority: `sha256:${"a".repeat(64)}` };
+      const remedy = v3DecomposeRemedy({
+        invocation,
+        reason: "map:authoring-shape",
+        locus: "authoring.shape",
+      });
+
+      expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--execute", "map.json"]);
+    },
+  );
+
   it.each([
     ["full-protection-required", "advance"],
     ["map:invalid", "advance"],

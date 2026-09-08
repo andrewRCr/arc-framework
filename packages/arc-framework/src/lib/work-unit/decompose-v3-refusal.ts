@@ -1239,7 +1239,9 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
           ),
         );
       }
-      if (input.invocation.mode === "extract") {
+      if (input.invocation.mode === "extract"
+        || input.invocation.mode === "finish-preview"
+        || input.invocation.mode === "finish-apply") {
         return spineRemedy(
           "A retirement-shaped map must run through execute mode.",
           "Run the completed map through retirement execute mode",

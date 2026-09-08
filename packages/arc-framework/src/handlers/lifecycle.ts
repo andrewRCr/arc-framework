@@ -104,6 +104,7 @@ import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-fi
 import {
   V3DecomposeCoreRefusalSchema,
   v3DecomposeRemedy,
+  type V3DecomposeInvocation,
 } from "../lib/work-unit/decompose-v3-refusal.js";
 import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
 import { advanceGitDecomposeTransitionBase } from
@@ -449,7 +450,7 @@ function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): vo
 
 function emitV3DecomposeRefusal(
   input: unknown,
-  mode: "execute" | "extract" | "finish" | "advance-base",
+  mode: "preflight" | "execute" | "extract" | "finish" | "advance-base",
 ): void {
   const refusal = mode === "execute"
     ? GitV3DecomposeCommandRefusalSchema.parse(input)
@@ -589,6 +590,41 @@ export const DecomposeCommandInputSchema = z.object({
     });
   }
 });
+
+function v3DecomposeInvocation(
+  input: z.infer<typeof DecomposeCommandInputSchema>,
+): V3DecomposeInvocation {
+  if (input.preflight === true) return { mode: "preflight", origin: input.origin };
+  if (input.execute !== undefined) {
+    return { mode: "execute", origin: input.origin, cutMapPath: input.execute };
+  }
+  if (input.extract !== undefined) {
+    return { mode: "extract", origin: input.origin, cutMapPath: input.extract };
+  }
+  if (input.finish !== undefined) {
+    return input.apply === undefined
+      ? { mode: "finish-preview", origin: input.origin, cutMapPath: input.finish }
+      : {
+          mode: "finish-apply",
+          origin: input.origin,
+          cutMapPath: input.finish,
+          applyAuthority: input.apply,
+        };
+  }
+  if (input.advanceBase !== undefined) {
+    return { mode: "advance-base", origin: input.origin, cutMapPath: input.advanceBase };
+  }
+  throw new Error("Validated decomposition input has no selected mode.");
+}
+
+function v3DecomposeEmissionMode(
+  invocation: V3DecomposeInvocation,
+): "preflight" | "execute" | "extract" | "finish" | "advance-base" {
+  return invocation.mode === "finish-preview" || invocation.mode === "finish-apply"
+    ? "finish"
+    : invocation.mode;
+}
+
 export const ParkCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   reason: z.string().trim().min(1).optional(),
@@ -1005,6 +1041,8 @@ export async function handleDecompose(
     process.exitCode = 1;
     return;
   }
+  const invocation = v3DecomposeInvocation(parsed.data);
+  const emissionMode = v3DecomposeEmissionMode(invocation);
   try {
     const { settings, warnings } = await readConfigSettings(cwd);
     for (const warning of warnings) process.stderr.write(`${warning}\n`);
@@ -1017,10 +1055,18 @@ export async function handleDecompose(
       }, settings["branch.base"], parsed.data.origin);
       if (result.status === "rejected") {
         const locus = "locus" in result ? result.locus : undefined;
-        process.stderr.write(
-          `${result.reason}${locus === undefined ? "" : `: ${locus}`}\n`,
-        );
-        process.exitCode = 1;
+        const evidence = "evidence" in result ? result.evidence : undefined;
+        emitV3DecomposeRefusal({
+          status: "refused",
+          reason: result.reason,
+          ...(locus === undefined ? {} : { locus }),
+          ...(evidence === undefined ? {} : { evidence }),
+          remedy: v3DecomposeRemedy({
+            invocation,
+            reason: result.reason,
+            ...(locus === undefined ? {} : { locus }),
+          }),
+        }, emissionMode);
         return;
       }
       process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
@@ -1044,40 +1090,18 @@ export async function handleDecompose(
     const protection = settings["branch.protection"] === "full" ? "full" : "partial";
     if (parsed.data.finish !== undefined) {
       const applyAuthority = (parsed.data.apply ?? null) as `sha256:${string}` | null;
-      const invocation = applyAuthority === null
-        ? {
-            mode: "finish-preview" as const,
-            origin: parsed.data.origin,
-            cutMapPath: parsed.data.finish,
-          }
-        : {
-            mode: "finish-apply" as const,
-            origin: parsed.data.origin,
-            cutMapPath: parsed.data.finish,
-            applyAuthority,
-          };
-      try {
-        const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
-          cwd,
-          baseBranch: settings["branch.base"],
-          origin: parsed.data.origin,
-          cutMapPath: parsed.data.finish,
-          applyAuthority,
-        }));
-        if (result.status === "refused") {
-          emitV3DecomposeRefusal(result, "finish");
-          return;
-        }
-        process.stdout.write(`${canonicalize(result)}\n`);
-      } catch (error) {
-        const locus = error instanceof Error ? error.message : String(error);
-        emitV3DecomposeRefusal({
-          status: "refused",
-          reason: "unexpected-error",
-          locus,
-          remedy: v3DecomposeRemedy({ invocation, reason: "unexpected-error", locus }),
-        }, "finish");
+      const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
+        cwd,
+        baseBranch: settings["branch.base"],
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.finish,
+        applyAuthority,
+      }));
+      if (result.status === "refused") {
+        emitV3DecomposeRefusal(result, emissionMode);
+        return;
       }
+      process.stdout.write(`${canonicalize(result)}\n`);
       return;
     }
     if (parsed.data.execute !== undefined) {
@@ -1115,11 +1139,6 @@ export async function handleDecompose(
       return;
     }
     if (parsed.data.advanceBase !== undefined) {
-      const invocation = {
-        mode: "advance-base" as const,
-        origin: parsed.data.origin,
-        cutMapPath: parsed.data.advanceBase,
-      };
       let completedMap: unknown;
       try {
         completedMap = JSON.parse(await readFile(resolve(cwd, parsed.data.advanceBase), "utf8"));
@@ -1150,8 +1169,13 @@ export async function handleDecompose(
       return;
     }
   } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 1;
+    const locus = error instanceof Error ? error.message : String(error);
+    emitV3DecomposeRefusal({
+      status: "refused",
+      reason: "unexpected-error",
+      locus,
+      remedy: v3DecomposeRemedy({ invocation, reason: "unexpected-error", locus }),
+    }, emissionMode);
   }
 }
 

@@ -781,35 +781,60 @@ describe("handleDecompose", () => {
   });
 
   it.each([
-    ["preview", null],
-    ["apply", `sha256:${"a".repeat(64)}`],
-  ] as const)("converts a thrown finish %s failure to the core refusal", async (_mode, authority) => {
+    [
+      "preflight",
+      { preflight: true as const },
+      mockCreateGitV3DecomposePreflight,
+      ["arc", "decompose", "mono", "--preflight"],
+    ],
+    [
+      "execute",
+      { execute: "cut-map.json" },
+      mockExecuteGitV3DecomposeCommand,
+      ["arc", "decompose", "mono", "--execute", "cut-map.json"],
+    ],
+    [
+      "extract",
+      { extract: "cut-map.json" },
+      mockExecuteGitV3ExtractionCommand,
+      ["arc", "decompose", "mono", "--extract", "cut-map.json"],
+    ],
+    [
+      "finish preview",
+      { finish: "cut-map.json" },
+      mockFinishGitV3Extraction,
+      ["arc", "decompose", "mono", "--finish", "cut-map.json"],
+    ],
+    [
+      "finish apply",
+      { finish: "cut-map.json", apply: `sha256:${"a".repeat(64)}` },
+      mockFinishGitV3Extraction,
+      ["arc", "decompose", "mono", "--finish", "cut-map.json", "--apply", `sha256:${"a".repeat(64)}`],
+    ],
+    [
+      "advance base",
+      { advanceBase: "cut-map.json" },
+      mockAdvanceGitDecomposeTransitionBase,
+      ["arc", "decompose", "mono", "--advance-base", "cut-map.json"],
+    ],
+  ] as const)("converts a thrown %s failure to the core refusal", async (mode, options, adapter, argv) => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    mockFinishGitV3Extraction.mockRejectedValue(new Error("finish exploded"));
+    const locus = `${mode} exploded`;
+    adapter.mockRejectedValue(new Error(locus));
     const remedy = spineRemedy(
       "The selected decomposition mode must complete without an unexpected runtime failure.",
       "Retry the selected mode",
-      [
-        "arc",
-        "decompose",
-        "mono",
-        "--finish",
-        "cut-map.json",
-        ...(authority === null ? [] : ["--apply", authority]),
-      ],
+      argv,
     );
     const refusal = {
       status: "refused",
       reason: "unexpected-error",
-      locus: "finish exploded",
+      locus,
       remedy,
     };
 
-    await handleDecompose("mono", {
-      finish: "cut-map.json",
-      ...(authority === null ? {} : { apply: authority }),
-    });
+    await handleDecompose("mono", options);
 
     expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
     expect(stderrWrite).toHaveBeenCalledWith(`unexpected-error\n${remedy.text}\n`);

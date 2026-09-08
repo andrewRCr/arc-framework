@@ -479,7 +479,7 @@ export async function advanceGitDecomposeTransitionBase(
   if (decoded.status === "rejected") return { status: "refused", reason: `map:${decoded.issue.code}` };
   const map = decoded.value;
   if (map.authoring.shape === "extraction") {
-    return { status: "refused", reason: "map:authoring-shape" };
+    return { status: "refused", reason: "map:authoring-shape", locus: "authoring.shape" };
   }
   const candidateBranch = decomposeCandidateBranch(map.machine.source.origin);
   const scan = await (dependencies.scanWorktrees ?? (() => scanRegisteredWorktrees(

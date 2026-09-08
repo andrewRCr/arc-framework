@@ -1,7 +1,7 @@
 /** Built-CLI coverage for decomposition execution and base mobility. */
 
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { chmod, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { delimiter, dirname, join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -16,6 +16,7 @@ import {
   createTempRepo,
   git,
   runArcNoTty,
+  type RunResult,
 } from "./helpers.js";
 
 async function write(repo: string, path: string, content: string): Promise<void> {
@@ -429,6 +430,55 @@ async function repositorySnapshot(repo: string): Promise<{
   };
 }
 
+async function gitReadFailureEnvironment(repo: string): Promise<Record<string, string>> {
+  const shimDir = join(repo, "git-read-failure-shim");
+  await mkdir(shimDir);
+  const driver = [
+    "#!/usr/bin/env node",
+    'const { spawnSync } = require("node:child_process");',
+    'const { delimiter, resolve } = require("node:path");',
+    "const args = process.argv.slice(2);",
+    'if (args[0] === "for-each-ref") {',
+    '  process.stderr.write("injected preflight ref read failure\\n");',
+    "  process.exit(97);",
+    "}",
+    "const shim = resolve(__dirname);",
+    'const path = (process.env.PATH ?? "").split(delimiter)',
+    "  .filter((entry) => resolve(entry) !== shim).join(delimiter);",
+    'const result = spawnSync("git", args, { env: { ...process.env, PATH: path }, stdio: "inherit" });',
+    "process.exit(result.status ?? 1);",
+    "",
+  ].join("\n");
+  const driverPath = join(shimDir, process.platform === "win32" ? "git-shim.cjs" : "git");
+  await writeFile(driverPath, driver, "utf8");
+  if (process.platform === "win32") {
+    await writeFile(join(shimDir, "git.cmd"), '@node "%~dp0git-shim.cjs" %*\r\n', "utf8");
+  } else {
+    await chmod(driverPath, 0o755);
+  }
+  return { PATH: `${shimDir}${delimiter}${process.env.PATH ?? ""}` };
+}
+
+function parseSingleDecomposeRefusal(result: RunResult): {
+  status: string;
+  reason: string;
+  locus?: string;
+  remedy: { argv: string[]; text: string };
+} {
+  expect(result.exitCode).toBe(1);
+  expect(result.stdout.endsWith("\n")).toBe(true);
+  const lines = result.stdout.trimEnd().split("\n");
+  expect(lines).toHaveLength(1);
+  const envelope = JSON.parse(lines[0] ?? "") as {
+    status: string;
+    reason: string;
+    locus?: string;
+    remedy: { argv: string[]; text: string };
+  };
+  expect(result.stderr).toBe(`${envelope.reason}\n${envelope.remedy.text}\n`);
+  return envelope;
+}
+
 describe("arc decompose command modes", () => {
   let repo: string | undefined;
 
@@ -460,6 +510,79 @@ describe("arc decompose command modes", () => {
     expect(executed.stdout).not.toContain("receiptId");
     expect(executed.stdout).not.toContain("continuation");
     expect(executed.stdout).not.toContain("discard");
+  });
+
+  it("emits one actionable refusal envelope from every selected mode without mutation", async () => {
+    repo = await startedRepository();
+    const retirementMap = await writeCompletedCutMap(repo);
+    const extractionMap = await writeExtractionCutMap(repo);
+    const gitFailureEnv = await gitReadFailureEnvironment(repo);
+    const cases = [
+      {
+        mode: "preflight",
+        args: ["decompose", "origin", "--preflight"],
+        options: {
+          timeout: 60_000,
+          env: gitFailureEnv,
+        },
+        reason: "unexpected-error",
+        argv: ["arc", "decompose", "origin", "--preflight"],
+      },
+      {
+        mode: "execute",
+        args: ["decompose", "origin", "--execute", extractionMap],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--extract", extractionMap],
+      },
+      {
+        mode: "extract",
+        args: ["decompose", "origin", "--extract", retirementMap],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--execute", retirementMap],
+      },
+      {
+        mode: "finish preview",
+        args: ["decompose", "origin", "--finish", retirementMap],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--execute", retirementMap],
+      },
+      {
+        mode: "finish apply",
+        args: [
+          "decompose",
+          "origin",
+          "--finish",
+          retirementMap,
+          "--apply",
+          `sha256:${"a".repeat(64)}`,
+        ],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--execute", retirementMap],
+      },
+      {
+        mode: "advance base",
+        args: ["decompose", "origin", "--advance-base", extractionMap],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--extract", extractionMap],
+      },
+    ] as const;
+
+    for (const scenario of cases) {
+      const before = await repositorySnapshot(repo);
+      const result = await runArcNoTty(
+        [...scenario.args],
+        repo,
+        "options" in scenario ? scenario.options : { timeout: 60_000 },
+      );
+      const envelope = parseSingleDecomposeRefusal(result);
+      expect(envelope, scenario.mode).toMatchObject({
+        status: "refused",
+        reason: scenario.reason,
+        locus: expect.any(String),
+        remedy: { argv: scenario.argv },
+      });
+      expect(await repositorySnapshot(repo), scenario.mode).toEqual(before);
+    }
   });
 
   it("emits an actionable uncovered-content refusal while advancing a committed candidate", async () => {
