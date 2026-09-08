@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
 
+import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 import {
   createV3DecomposePreflight,
   deriveV3DecomposeSourceFacts,
+  revalidateV3DecomposeCutMapBinding,
   revalidateV3DecomposePreflight,
+  type V3DecomposePreflight,
   type V3DecomposePreflightInput,
 } from "../../../src/lib/work-unit/decompose-v3-preflight.js";
-import { parseV3DecomposeStarterMap } from "../../../src/lib/work-unit/decompose-v3-schema.js";
+import {
+  createV3DecomposeStarterMap,
+  parseV3DecomposeStarterMap,
+  v3OutgoingEdgeId,
+  v3PreflightId,
+  v3SourceArtifactDigest,
+  type V3DecomposeMachine,
+} from "../../../src/lib/work-unit/decompose-v3-schema.js";
 
 function bytes(value: string): Uint8Array {
   return new TextEncoder().encode(value);
@@ -59,6 +69,24 @@ function input(): V3DecomposePreflightInput {
       outgoingEdges: [{ prerequisite: "foundation" }],
     }],
   };
+}
+
+function preflightForMachine(machine: V3DecomposeMachine): V3DecomposePreflight {
+  const starterMap = createV3DecomposeStarterMap(machine);
+  const sourceArtifactDigest = v3SourceArtifactDigest([]);
+  if (starterMap === null || sourceArtifactDigest === null) throw new Error("valid test preflight");
+  return {
+    sourceOriginPath: ".arc/active/meta-origin.md",
+    sourceArtifactInventory: [],
+    sourceArtifactDigest,
+    starterMap,
+  };
+}
+
+function withPreflightId(machine: V3DecomposeMachine): V3DecomposeMachine {
+  const { preflightId, ...facts } = machine;
+  void preflightId;
+  return { preflightId: v3PreflightId(facts), ...facts };
 }
 
 describe("v3 decomposition preflight", () => {
@@ -278,30 +306,179 @@ describe("v3 decomposition preflight", () => {
     expect(revalidateV3DecomposePreflight(initial.preflight, changed)).toEqual({
       status: "stale",
       reason: "source-head",
+      evidence: {
+        expected: "c".repeat(40),
+        actual: "d".repeat(40),
+      },
     });
 
     const artifactOnly = input();
     artifactOnly.localBranches[0]!.sourceArtifacts[0]!.mode = "100755";
+    const artifactChanged = createV3DecomposePreflight(artifactOnly);
+    expect(artifactChanged.status).toBe("ready");
+    if (artifactChanged.status !== "ready") return;
     expect(revalidateV3DecomposePreflight(initial.preflight, artifactOnly)).toEqual({
       status: "stale",
       reason: "source-artifact-inventory",
+      evidence: {
+        expected: initial.preflight.sourceArtifactInventory,
+        actual: artifactChanged.preflight.sourceArtifactInventory,
+      },
     });
 
     const storedBytesOnly = input();
     storedBytesOnly.localBranches[0]!.sourceArtifacts[0]!.bytes = bytes("# Draft\n\n## One\nChanged body.\n");
     const changedUnitIndex = initial.preflight.starterMap.machine.sourceUnits.findIndex(({ sourceLocator }) =>
       sourceLocator.kind === "section" && sourceLocator.headingSource === "One");
+    const changedResult = createV3DecomposePreflight(storedBytesOnly);
+    expect(changedResult.status).toBe("ready");
+    if (changedResult.status !== "ready") return;
     expect(revalidateV3DecomposePreflight(initial.preflight, storedBytesOnly)).toEqual({
       status: "stale",
       reason: "source-units",
       locus: `machine.sourceUnits.${changedUnitIndex}.contentDigest`,
+      evidence: {
+        expected: initial.preflight.starterMap.machine.sourceUnits[changedUnitIndex]!.contentDigest,
+        actual: changedResult.preflight.starterMap.machine.sourceUnits[changedUnitIndex]!.contentDigest,
+      },
     });
-    const changedResult = createV3DecomposePreflight(storedBytesOnly);
-    expect(changedResult.status).toBe("ready");
-    if (changedResult.status !== "ready") return;
     expect(changedResult.preflight.starterMap.machine.sourceUnits.map(({ sourceId }) => sourceId))
       .toEqual(initial.preflight.starterMap.machine.sourceUnits.map(({ sourceId }) => sourceId));
     expect(changedResult.preflight.starterMap.machine.sourceUnits.map(({ contentDigest }) => contentDigest))
       .not.toEqual(initial.preflight.starterMap.machine.sourceUnits.map(({ contentDigest }) => contentDigest));
+
+    const changedIncoming = input();
+    changedIncoming.localBranches[0]!.incomingEdges = [];
+    expect(revalidateV3DecomposePreflight(initial.preflight, changedIncoming)).toEqual({
+      status: "stale",
+      reason: "incoming-edges",
+      locus: "machine.incomingEdges.0",
+      evidence: {
+        expected: initial.preflight.starterMap.machine.incomingEdges[0],
+        actual: { kind: "absent" },
+      },
+    });
+
+    const removedUnit = input();
+    removedUnit.localBranches[0]!.sourceArtifacts[0]!.bytes = bytes("# Draft\n\n");
+    expect(revalidateV3DecomposePreflight(initial.preflight, removedUnit)).toEqual({
+      status: "stale",
+      reason: "source-units",
+      locus: "machine.sourceUnits.1.sourceLocator",
+      evidence: {
+        expected: initial.preflight.starterMap.machine.sourceUnits[1]!.sourceLocator,
+        actual: { kind: "absent" },
+      },
+    });
+  });
+
+  it("carries both source-binding operands when a completed map targets another logical branch", () => {
+    const completedMap = structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
+    const currentMachine = structuredClone(completedMap.machine);
+    currentMachine.source.logicalBranch = "plan/other";
+    const refreshedMachine = withPreflightId(currentMachine);
+
+    expect(revalidateV3DecomposeCutMapBinding(
+      completedMap,
+      preflightForMachine(refreshedMachine),
+    )).toEqual({
+      status: "stale",
+      reason: "source-logical-branch",
+      locus: "machine.source.logicalBranch",
+      evidence: {
+        expected: "plan/origin",
+        actual: "plan/other",
+      },
+    });
+  });
+
+  it("carries comparison evidence for every structured completed-map binding", () => {
+    const planningMap = structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
+    const planningMachine = structuredClone(planningMap.machine);
+    planningMachine.planningProfile = { kind: "single-spec", sourceDesign: ["spec-origin.md"] };
+    const refreshedPlanning = withPreflightId(planningMachine);
+    expect(revalidateV3DecomposeCutMapBinding(
+      planningMap,
+      preflightForMachine(refreshedPlanning),
+    )).toEqual({
+      status: "stale",
+      reason: "planning-profile",
+      locus: "machine.planningProfile",
+      evidence: {
+        expected: { kind: "draft", sourceDesign: ["draft-origin.md"] },
+        actual: { kind: "single-spec", sourceDesign: ["spec-origin.md"] },
+      },
+    });
+
+    const unitMap = structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
+    const unitMachine = structuredClone(unitMap.machine);
+    unitMachine.sourceUnits[0]!.contentDigest = `sha256:${"f".repeat(64)}`;
+    const refreshedUnits = withPreflightId(unitMachine);
+    expect(revalidateV3DecomposeCutMapBinding(
+      unitMap,
+      preflightForMachine(refreshedUnits),
+    )).toEqual({
+      status: "stale",
+      reason: "source-units",
+      locus: "machine.sourceUnits.0",
+      evidence: {
+        expected: unitMap.machine.sourceUnits[0],
+        actual: refreshedUnits.sourceUnits[0],
+      },
+    });
+
+    const incomingMap = structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
+    const incomingMachine = structuredClone(incomingMap.machine);
+    incomingMachine.incomingEdges = [];
+    const refreshedIncoming = withPreflightId(incomingMachine);
+    expect(revalidateV3DecomposeCutMapBinding(
+      incomingMap,
+      preflightForMachine(refreshedIncoming),
+    )).toEqual({
+      status: "stale",
+      reason: "incoming-edges",
+      locus: "machine.incomingEdges.0",
+      evidence: {
+        expected: incomingMap.machine.incomingEdges[0],
+        actual: { kind: "absent" },
+      },
+    });
+
+    const outgoingMap = structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
+    const outgoingMachine = structuredClone(outgoingMap.machine);
+    const prerequisite = "foundation";
+    outgoingMachine.outgoingEdges = [{
+      edgeId: v3OutgoingEdgeId({ prerequisite }),
+      prerequisite,
+    }];
+    const refreshedOutgoing = withPreflightId(outgoingMachine);
+    expect(revalidateV3DecomposeCutMapBinding(
+      outgoingMap,
+      preflightForMachine(refreshedOutgoing),
+    )).toEqual({
+      status: "stale",
+      reason: "outgoing-edges",
+      locus: "machine.outgoingEdges.0",
+      evidence: {
+        expected: { kind: "absent" },
+        actual: refreshedOutgoing.outgoingEdges[0],
+      },
+    });
+
+    const identityMap = structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
+    const currentIdentity = identityMap.machine.preflightId;
+    identityMap.machine.preflightId = `sha256:${"f".repeat(64)}`;
+    expect(revalidateV3DecomposeCutMapBinding(
+      identityMap,
+      preflightForMachine({ ...identityMap.machine, preflightId: currentIdentity }),
+    )).toEqual({
+      status: "stale",
+      reason: "preflight-id",
+      locus: "machine.preflightId",
+      evidence: {
+        expected: `sha256:${"f".repeat(64)}`,
+        actual: currentIdentity,
+      },
+    });
   });
 });

@@ -292,6 +292,114 @@ describe("createGitV3DecomposePreflight", () => {
     });
   });
 
+  it("keeps invalid metadata encoding on a stable refusal code", async () => {
+    const base = "refs/heads/main";
+    const baseHead = "a".repeat(40);
+    const metaPath = ".arc/backlog/planned/origin/meta-origin.md";
+
+    const result = await createGitV3DecomposePreflight({
+      cwd: "/repo",
+      exec: async (_command, args) => args[0] === "for-each-ref"
+        ? { stdout: `${base}\0${baseHead}\0`, stderr: "" }
+        : { stdout: `100644 blob ${metaPath}\0`, stderr: "" },
+      readBlob: async () => new Uint8Array([0xff]),
+    }, "main", "origin");
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "git-preflight:invalid-meta-encoding",
+      locus: metaPath,
+    });
+  });
+
+  it("reports invalid UTF-8 in a scanned Markdown artifact at the exact source path", async () => {
+    const base = "refs/heads/main";
+    const baseHead = "a".repeat(40);
+    const metaPath = ".arc/backlog/planned/origin/meta-origin.md";
+    const designPath = ".arc/backlog/planned/origin/draft-origin.md";
+    const blobs = new Map<string, Uint8Array>([
+      [metaPath, meta("origin", "Planning", null)],
+      [designPath, new Uint8Array([0xff])],
+    ]);
+
+    const result = await createGitV3DecomposePreflight({
+      cwd: "/repo",
+      exec: async (_command, args) => args[0] === "for-each-ref"
+        ? { stdout: `${base}\0${baseHead}\0`, stderr: "" }
+        : { stdout: [`100644 blob ${metaPath}`, `100644 blob ${designPath}`].join("\0") + "\0", stderr: "" },
+      readBlob: async (_ref, path) => blobs.get(path) ?? null,
+    }, "main", "origin");
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "source-scan",
+      locus: designPath,
+    });
+  });
+
+  it("keeps an unreadable enumerated source blob on a stable refusal code", async () => {
+    const base = "refs/heads/main";
+    const baseHead = "a".repeat(40);
+    const metaPath = ".arc/backlog/planned/origin/meta-origin.md";
+
+    const result = await createGitV3DecomposePreflight({
+      cwd: "/repo",
+      exec: async (_command, args) => args[0] === "for-each-ref"
+        ? { stdout: `${base}\0${baseHead}\0`, stderr: "" }
+        : { stdout: `100644 blob ${metaPath}\0`, stderr: "" },
+      readBlob: async () => null,
+    }, "main", "origin");
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "git-preflight:missing-blob",
+      locus: metaPath,
+    });
+  });
+
+  it("keeps an unsupported source artifact on a stable refusal code", async () => {
+    const base = "refs/heads/main";
+    const baseHead = "a".repeat(40);
+    const metaPath = ".arc/backlog/planned/origin/meta-origin.md";
+    const designPath = ".arc/backlog/planned/origin/draft-origin.md";
+
+    const result = await createGitV3DecomposePreflight({
+      cwd: "/repo",
+      exec: async (_command, args) => args[0] === "for-each-ref"
+        ? { stdout: `${base}\0${baseHead}\0`, stderr: "" }
+        : { stdout: [`100644 blob ${metaPath}`, `100644 tree ${designPath}`].join("\0") + "\0", stderr: "" },
+      readBlob: async (_ref, path) => path === metaPath
+        ? meta("origin", "Planning", null)
+        : null,
+    }, "main", "origin");
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "git-preflight:unsupported-artifact",
+      locus: designPath,
+    });
+  });
+
+  it("keeps a malformed committed-tree entry on a stable refusal code", async () => {
+    const base = "refs/heads/main";
+    const baseHead = "a".repeat(40);
+    const malformedEntry = "not-a-tree-entry";
+
+    const result = await createGitV3DecomposePreflight({
+      cwd: "/repo",
+      exec: async (_command, args) => args[0] === "for-each-ref"
+        ? { stdout: `${base}\0${baseHead}\0`, stderr: "" }
+        : { stdout: `${malformedEntry}\0`, stderr: "" },
+      readBlob: async () => null,
+    }, "main", "origin");
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "git-preflight:malformed-tree-entry",
+      locus: malformedEntry,
+    });
+  });
+
   it("reports malformed origin planning data through the pure profile refusal", async () => {
     const base = "refs/heads/main";
     const baseHead = "a".repeat(40);
@@ -323,6 +431,21 @@ describe("createGitV3DecomposePreflight", () => {
     }, "main", "origin");
 
     expect(result).toEqual({ status: "rejected", reason: "git-preflight:missing-base" });
+  });
+
+  it("keeps a malformed local-ref enumeration on a stable refusal code", async () => {
+    const malformedRef = "refs/heads/main";
+    const result = await createGitV3DecomposePreflight({
+      cwd: "/repo",
+      exec: async () => ({ stdout: `${malformedRef}\0`, stderr: "" }),
+      readBlob: async () => null,
+    }, "main", "origin");
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "git-preflight:malformed-ref-list",
+      locus: malformedRef,
+    });
   });
 
   it("returns the same pinned source from every attached or detached invocation checkout", async () => {
@@ -388,7 +511,8 @@ describe("createGitV3DecomposePreflight", () => {
 
     expect(result).toEqual({
       status: "rejected",
-      reason: "git-preflight:missing-enumerated-base-object",
+      reason: "unexpected-error",
+      locus: "missing-enumerated-base-object",
     });
   });
 });

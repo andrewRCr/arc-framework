@@ -2,6 +2,10 @@
 
 import { canonicalDigest } from "../canonical/canonical-json.js";
 import type { V3DecomposePreflight } from "./decompose-v3-preflight.js";
+import type {
+  V3DecomposeEvidenceValue,
+  V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 import {
   decodeV3DecomposeCutMap,
   parseV3DecomposeStarterMap,
@@ -26,9 +30,34 @@ export type V3ExtractionCutMapRefreshResult =
       completedMap: V3DecomposeCutMap;
       preflight: V3DecomposePreflight;
     }
-  | { status: "reauthor"; reason: V3ExtractionCutMapRefreshMismatch; locus: string };
+  | {
+      status: "reauthor";
+      reason: V3ExtractionCutMapRefreshMismatch;
+      locus: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 type SourceUnit = V3DecomposeCutMap["machine"]["sourceUnits"][number];
+
+function firstArrayMismatch<T extends V3DecomposeEvidenceValue>(
+  expected: readonly T[],
+  actual: readonly T[],
+): { index: number; evidence: V3DecomposeRefusalEvidence } {
+  const length = Math.max(expected.length, actual.length);
+  for (let index = 0; index < length; index += 1) {
+    if (index >= expected.length || index >= actual.length
+      || canonicalDigest(expected[index]) !== canonicalDigest(actual[index])) {
+      return {
+        index,
+        evidence: {
+          expected: expected[index] ?? { kind: "absent" },
+          actual: actual[index] ?? { kind: "absent" },
+        },
+      };
+    }
+  }
+  return { index: 0, evidence: { expected: [...expected], actual: [...actual] } };
+}
 
 function headingGroupKeys(unit: SourceUnit): string[] {
   const { sourceLocator: locator } = unit;
@@ -80,16 +109,48 @@ export function refreshV3ExtractionCutMap(
   if (prior.source.origin !== current.source.origin
     || prior.source.logicalBranch !== current.source.logicalBranch
     || prior.source.ref !== current.source.ref) {
-    return { status: "reauthor", reason: "source-identity", locus: "machine.source" };
+    return {
+      status: "reauthor",
+      reason: "source-identity",
+      locus: "machine.source",
+      evidence: {
+        expected: {
+          origin: prior.source.origin,
+          logicalBranch: prior.source.logicalBranch,
+          ref: prior.source.ref,
+        },
+        actual: {
+          origin: current.source.origin,
+          logicalBranch: current.source.logicalBranch,
+          ref: current.source.ref,
+        },
+      },
+    };
   }
   if (canonicalDigest(prior.resultBase) !== canonicalDigest(current.resultBase)) {
-    return { status: "reauthor", reason: "result-base", locus: "machine.resultBase" };
+    return {
+      status: "reauthor",
+      reason: "result-base",
+      locus: "machine.resultBase",
+      evidence: { expected: prior.resultBase, actual: current.resultBase },
+    };
   }
   if (canonicalDigest(prior.planningProfile) !== canonicalDigest(current.planningProfile)) {
-    return { status: "reauthor", reason: "planning-profile", locus: "machine.planningProfile" };
+    return {
+      status: "reauthor",
+      reason: "planning-profile",
+      locus: "machine.planningProfile",
+      evidence: { expected: prior.planningProfile, actual: current.planningProfile },
+    };
   }
   if (prior.sourceUnits.length !== current.sourceUnits.length) {
-    return { status: "reauthor", reason: "source-units", locus: "machine.sourceUnits" };
+    const mismatch = firstArrayMismatch(prior.sourceUnits, current.sourceUnits);
+    return {
+      status: "reauthor",
+      reason: "source-units",
+      locus: `machine.sourceUnits.${mismatch.index}`,
+      evidence: mismatch.evidence,
+    };
   }
   for (let index = 0; index < prior.sourceUnits.length; index += 1) {
     const previous = prior.sourceUnits[index];
@@ -102,6 +163,10 @@ export function refreshV3ExtractionCutMap(
         status: "reauthor",
         reason: "source-units",
         locus: `machine.sourceUnits.${index}`,
+        evidence: {
+          expected: previous ?? { kind: "absent" },
+          actual: refreshed ?? { kind: "absent" },
+        },
       };
     }
   }
@@ -129,17 +194,30 @@ export function refreshV3ExtractionCutMap(
         status: "reauthor",
         reason: "source-units",
         locus: `machine.sourceUnits.${index}.contentDigest`,
+        evidence: {
+          expected: previous.contentDigest,
+          actual: refreshed.contentDigest,
+        },
       };
     }
   }
-  const edgeBindings = [
-    ["incoming-edges", "machine.incomingEdges", prior.incomingEdges, current.incomingEdges],
-    ["outgoing-edges", "machine.outgoingEdges", prior.outgoingEdges, current.outgoingEdges],
-  ] as const;
-  for (const [reason, locus, previous, refreshed] of edgeBindings) {
-    if (canonicalDigest(previous) !== canonicalDigest(refreshed)) {
-      return { status: "reauthor", reason, locus };
-    }
+  if (canonicalDigest(prior.incomingEdges) !== canonicalDigest(current.incomingEdges)) {
+    const mismatch = firstArrayMismatch(prior.incomingEdges, current.incomingEdges);
+    return {
+      status: "reauthor",
+      reason: "incoming-edges",
+      locus: `machine.incomingEdges.${mismatch.index}`,
+      evidence: mismatch.evidence,
+    };
+  }
+  if (canonicalDigest(prior.outgoingEdges) !== canonicalDigest(current.outgoingEdges)) {
+    const mismatch = firstArrayMismatch(prior.outgoingEdges, current.outgoingEdges);
+    return {
+      status: "reauthor",
+      reason: "outgoing-edges",
+      locus: `machine.outgoingEdges.${mismatch.index}`,
+      evidence: mismatch.evidence,
+    };
   }
   if (canonicalDigest(prior) === canonicalDigest(current)) {
     return { status: "current", completedMap, preflight: currentPreflight };

@@ -13,6 +13,7 @@ import {
 
 export type V3DecomposeExecutionPreflightMismatch =
   | "completed-map"
+  | "unexpected-error"
   | V3DecomposePreflightMismatch
   | `git-preflight:${string}`;
 

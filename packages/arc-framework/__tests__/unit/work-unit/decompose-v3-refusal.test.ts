@@ -6,6 +6,7 @@ import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
   V3DecomposeCoreRefusalSchema,
   V3DecomposeRefusalEvidenceSchema,
+  isV3DecomposeMappedReason,
   v3DecomposeAbsentEvidence,
   v3DecomposeByteEvidence,
   v3DecomposeRemedy,
@@ -96,6 +97,35 @@ describe("v3 decomposition refusals", () => {
     expect(remedy.text).toContain(locus);
     expect(remedy.text).toMatch(/move.*scanned artifact.*delete.*file.*re-run preflight/iu);
     expect(remedy.argv).toEqual(["arc", "decompose", origin, "--preflight"]);
+  });
+
+  it("maps a source scan refusal to UTF-8 conversion and the exact preflight argv", () => {
+    const origin = "origin's work";
+    const locus = ".arc/active/spec-origin.md";
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "preflight", origin },
+      reason: "source-scan",
+      locus,
+    });
+
+    expect(remedy.invariant).toMatch(/scanned Markdown.*UTF-8/iu);
+    expect(remedy.text).toMatch(/convert.*spec-origin\.md.*UTF-8.*re-run preflight/iu);
+    expect(remedy.argv).toEqual(["arc", "decompose", origin, "--preflight"]);
+  });
+
+  it.each([
+    ["git-preflight:missing-base", /restore.*local base.*re-run preflight/iu],
+    ["source-head", /source commit.*changed.*re-run preflight/iu],
+  ] as const)("maps %s to its specific correction and preflight argv", (reason, correction) => {
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "preflight", origin: "origin" },
+      reason,
+      locus: "reported-locus",
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.text).toMatch(correction);
+    expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--preflight"]);
   });
 
   it.each([

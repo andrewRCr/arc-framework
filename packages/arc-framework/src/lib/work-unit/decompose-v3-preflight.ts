@@ -27,6 +27,10 @@ import {
   resolveV3DecomposeSourceUnit,
   scanV3DecomposeContent,
 } from "./decompose-content.js";
+import type {
+  V3DecomposeEvidenceValue,
+  V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 
 type PlanningProfile = V3DecomposeMachine["planningProfile"];
 
@@ -114,15 +118,30 @@ export interface V3DecomposePreflight {
 
 export type V3DecomposePreflightResult =
   | { status: "ready"; preflight: V3DecomposePreflight }
-  | { status: "rejected"; reason: V3DecomposePreflightMismatch; locus?: string };
+  | {
+      status: "rejected";
+      reason: V3DecomposePreflightMismatch;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 export type V3DecomposePreflightRevalidationResult =
   | { status: "current"; preflight: V3DecomposePreflight }
-  | { status: "stale"; reason: V3DecomposePreflightMismatch; locus?: string };
+  | {
+      status: "stale";
+      reason: V3DecomposePreflightMismatch;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 export type V3DecomposeCutMapBindingResult =
   | { status: "current"; preflight: V3DecomposePreflight }
-  | { status: "stale"; reason: V3DecomposePreflightMismatch; locus: string };
+  | {
+      status: "stale";
+      reason: V3DecomposePreflightMismatch;
+      locus: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 /** Tree-derived source facts consumed by exact-ref authority adapters. */
 export type V3DecomposeSourceFactsResult =
@@ -155,6 +174,32 @@ function firstArrayMismatchLocus(
     if (!sameCanonicalValue(left[index], right[index])) return `${locus}.${index}`;
   }
   return locus;
+}
+
+function firstArrayMismatchEvidence<T extends V3DecomposeEvidenceValue>(
+  expected: readonly T[],
+  actual: readonly T[],
+): V3DecomposeRefusalEvidence {
+  const length = Math.max(expected.length, actual.length);
+  for (let index = 0; index < length; index += 1) {
+    if (index >= expected.length || index >= actual.length
+      || !sameCanonicalValue(expected[index], actual[index])) {
+      return {
+        expected: expected[index] ?? { kind: "absent" },
+        actual: actual[index] ?? { kind: "absent" },
+      };
+    }
+  }
+  return { expected: [...expected], actual: [...actual] };
+}
+
+function artifactInventoryEvidence(entries: readonly V3SourceArtifactEntry[]): V3DecomposeEvidenceValue[] {
+  return entries.map(({ path, objectKind, mode, contentDigest }) => ({
+    path,
+    objectKind,
+    mode,
+    contentDigest,
+  }));
 }
 
 function isLocalBranchRef(ref: string): boolean {
@@ -263,13 +308,19 @@ function artifactInventory(
 function sourceUnits(
   artifacts: readonly V3DecomposeStoredArtifact[],
   profile: PlanningProfile,
-): { units: V3DecomposeMachine["sourceUnits"]; reason: V3DecomposePreflightMismatch | null } {
+): {
+  units: V3DecomposeMachine["sourceUnits"];
+  reason: V3DecomposePreflightMismatch | null;
+  locus?: string;
+} {
   const units: V3DecomposeMachine["sourceUnits"] = [];
   const designNames = new Set(profile.sourceDesign);
   for (const artifact of artifacts) {
     if (!designNames.has(posix.basename(artifact.path))) continue;
     const scan = scanV3DecomposeContent(posix.basename(artifact.path), artifact.bytes);
-    if (scan.status === "rejected") return { units: [], reason: "source-scan" };
+    if (scan.status === "rejected") {
+      return { units: [], reason: "source-scan", locus: artifact.path };
+    }
     for (const unit of scan.units) {
       units.push({
         sourceId: v3SourceId({ sourcePath: artifact.path, sourceLocator: unit.locator }),
@@ -393,7 +444,13 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
   const artifacts = artifactInventory(selected.snapshot.sourceArtifacts);
   if (artifacts.reason !== null) return { status: "rejected", reason: artifacts.reason };
   const scanned = sourceUnits(selected.snapshot.sourceArtifacts, inferred.profile);
-  if (scanned.reason !== null) return { status: "rejected", reason: scanned.reason };
+  if (scanned.reason !== null) {
+    return {
+      status: "rejected",
+      reason: scanned.reason,
+      ...(scanned.locus === undefined ? {} : { locus: scanned.locus }),
+    };
+  }
   const incoming = incomingEdges(selected.snapshot.incomingEdges);
   if (incoming.reason !== null) return { status: "rejected", reason: incoming.reason };
   const outgoing = outgoingEdges(selected.snapshot.outgoingEdges);
@@ -457,7 +514,13 @@ export function deriveV3DecomposeSourceFacts(
   const artifacts = artifactInventory(snapshot.sourceArtifacts);
   if (artifacts.reason !== null) return { status: "rejected", reason: artifacts.reason };
   const scanned = sourceUnits(snapshot.sourceArtifacts, inferred.profile);
-  if (scanned.reason !== null) return { status: "rejected", reason: scanned.reason };
+  if (scanned.reason !== null) {
+    return {
+      status: "rejected",
+      reason: scanned.reason,
+      ...(scanned.locus === undefined ? {} : { locus: scanned.locus }),
+    };
+  }
   const incoming = incomingEdges(snapshot.incomingEdges);
   if (incoming.reason !== null) return { status: "rejected", reason: incoming.reason };
   const outgoing = outgoingEdges(snapshot.outgoingEdges);
@@ -498,16 +561,29 @@ export function revalidateV3DecomposeCutMapBinding(
     ["result-head", "machine.resultBase.head", prior.resultBase.head, current.resultBase.head],
   ] as const;
   for (const [reason, locus, previous, refreshed] of scalarMismatches) {
-    if (previous !== refreshed) return { status: "stale", reason, locus };
+    if (previous !== refreshed) {
+      return {
+        status: "stale",
+        reason,
+        locus,
+        evidence: { expected: previous, actual: refreshed },
+      };
+    }
   }
   if (!sameCanonicalValue(prior.planningProfile, current.planningProfile)) {
-    return { status: "stale", reason: "planning-profile", locus: "machine.planningProfile" };
+    return {
+      status: "stale",
+      reason: "planning-profile",
+      locus: "machine.planningProfile",
+      evidence: { expected: prior.planningProfile, actual: current.planningProfile },
+    };
   }
   if (!sameCanonicalValue(prior.sourceUnits, current.sourceUnits)) {
     return {
       status: "stale",
       reason: "source-units",
       locus: firstArrayMismatchLocus(prior.sourceUnits, current.sourceUnits, "machine.sourceUnits"),
+      evidence: firstArrayMismatchEvidence(prior.sourceUnits, current.sourceUnits),
     };
   }
   if (!sameCanonicalValue(prior.incomingEdges, current.incomingEdges)) {
@@ -515,6 +591,7 @@ export function revalidateV3DecomposeCutMapBinding(
       status: "stale",
       reason: "incoming-edges",
       locus: firstArrayMismatchLocus(prior.incomingEdges, current.incomingEdges, "machine.incomingEdges"),
+      evidence: firstArrayMismatchEvidence(prior.incomingEdges, current.incomingEdges),
     };
   }
   if (!sameCanonicalValue(prior.outgoingEdges, current.outgoingEdges)) {
@@ -522,10 +599,16 @@ export function revalidateV3DecomposeCutMapBinding(
       status: "stale",
       reason: "outgoing-edges",
       locus: firstArrayMismatchLocus(prior.outgoingEdges, current.outgoingEdges, "machine.outgoingEdges"),
+      evidence: firstArrayMismatchEvidence(prior.outgoingEdges, current.outgoingEdges),
     };
   }
   if (prior.preflightId !== current.preflightId) {
-    return { status: "stale", reason: "preflight-id", locus: "machine.preflightId" };
+    return {
+      status: "stale",
+      reason: "preflight-id",
+      locus: "machine.preflightId",
+      evidence: { expected: prior.preflightId, actual: current.preflightId },
+    };
   }
   return { status: "current", preflight: currentPreflight };
 }
@@ -548,20 +631,52 @@ export function revalidateV3DecomposePreflight(
   if (refreshed.status === "rejected") {
     return { status: "stale", reason: refreshed.reason, ...(refreshed.locus === undefined ? {} : {
       locus: refreshed.locus,
-    }) };
+    }), ...(refreshed.evidence === undefined ? {} : { evidence: refreshed.evidence }) };
   }
   const currentMap = refreshed.preflight.starterMap;
   const prior = previousMap.machine;
   const current = currentMap.machine;
   if (prior.source.logicalBranch !== current.source.logicalBranch) {
-    return { status: "stale", reason: "source-logical-branch" };
+    return {
+      status: "stale",
+      reason: "source-logical-branch",
+      evidence: { expected: prior.source.logicalBranch, actual: current.source.logicalBranch },
+    };
   }
-  if (prior.source.ref !== current.source.ref) return { status: "stale", reason: "source-ref" };
-  if (prior.source.head !== current.source.head) return { status: "stale", reason: "source-head" };
-  if (prior.resultBase.ref !== current.resultBase.ref) return { status: "stale", reason: "result-ref" };
-  if (prior.resultBase.head !== current.resultBase.head) return { status: "stale", reason: "result-head" };
+  if (prior.source.ref !== current.source.ref) {
+    return {
+      status: "stale",
+      reason: "source-ref",
+      evidence: { expected: prior.source.ref, actual: current.source.ref },
+    };
+  }
+  if (prior.source.head !== current.source.head) {
+    return {
+      status: "stale",
+      reason: "source-head",
+      evidence: { expected: prior.source.head, actual: current.source.head },
+    };
+  }
+  if (prior.resultBase.ref !== current.resultBase.ref) {
+    return {
+      status: "stale",
+      reason: "result-ref",
+      evidence: { expected: prior.resultBase.ref, actual: current.resultBase.ref },
+    };
+  }
+  if (prior.resultBase.head !== current.resultBase.head) {
+    return {
+      status: "stale",
+      reason: "result-head",
+      evidence: { expected: prior.resultBase.head, actual: current.resultBase.head },
+    };
+  }
   if (!sameCanonicalValue(prior.planningProfile, current.planningProfile)) {
-    return { status: "stale", reason: "planning-profile" };
+    return {
+      status: "stale",
+      reason: "planning-profile",
+      evidence: { expected: prior.planningProfile, actual: current.planningProfile },
+    };
   }
   const currentSource = [input.sourceBase, ...input.localBranches].find((snapshot) =>
     snapshot.ref === current.source.ref && snapshot.head === current.source.head);
@@ -584,26 +699,59 @@ export function revalidateV3DecomposePreflight(
         : resolution.code === "source-id"
           ? "sourceId"
           : "sourceLocator";
+      const currentUnit = current.sourceUnits[index];
       return {
         status: "stale",
         reason: "source-units",
         locus: `machine.sourceUnits.${index}.${field}`,
+        evidence: {
+          expected: sourceUnit[field],
+          actual: currentUnit?.[field] ?? { kind: "absent" },
+        },
       };
     }
   }
   if (previous.sourceArtifactDigest !== refreshed.preflight.sourceArtifactDigest) {
-    return { status: "stale", reason: "source-artifact-inventory" };
+    return {
+      status: "stale",
+      reason: "source-artifact-inventory",
+      evidence: {
+        expected: artifactInventoryEvidence(previous.sourceArtifactInventory),
+        actual: artifactInventoryEvidence(refreshed.preflight.sourceArtifactInventory),
+      },
+    };
   }
   if (!sameCanonicalValue(prior.sourceUnits, current.sourceUnits)) {
-    return { status: "stale", reason: "source-units" };
+    return {
+      status: "stale",
+      reason: "source-units",
+      locus: firstArrayMismatchLocus(prior.sourceUnits, current.sourceUnits, "machine.sourceUnits"),
+      evidence: firstArrayMismatchEvidence(prior.sourceUnits, current.sourceUnits),
+    };
   }
   if (!sameCanonicalValue(prior.incomingEdges, current.incomingEdges)) {
-    return { status: "stale", reason: "incoming-edges" };
+    return {
+      status: "stale",
+      reason: "incoming-edges",
+      locus: firstArrayMismatchLocus(prior.incomingEdges, current.incomingEdges, "machine.incomingEdges"),
+      evidence: firstArrayMismatchEvidence(prior.incomingEdges, current.incomingEdges),
+    };
   }
   if (!sameCanonicalValue(prior.outgoingEdges, current.outgoingEdges)) {
-    return { status: "stale", reason: "outgoing-edges" };
+    return {
+      status: "stale",
+      reason: "outgoing-edges",
+      locus: firstArrayMismatchLocus(prior.outgoingEdges, current.outgoingEdges, "machine.outgoingEdges"),
+      evidence: firstArrayMismatchEvidence(prior.outgoingEdges, current.outgoingEdges),
+    };
   }
-  if (prior.preflightId !== current.preflightId) return { status: "stale", reason: "preflight-id" };
+  if (prior.preflightId !== current.preflightId) {
+    return {
+      status: "stale",
+      reason: "preflight-id",
+      evidence: { expected: prior.preflightId, actual: current.preflightId },
+    };
+  }
   if (!sameCanonicalValue(previousMap, currentMap)) return { status: "stale", reason: "starter-map" };
   return { status: "current", preflight: refreshed.preflight };
 }

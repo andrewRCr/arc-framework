@@ -96,18 +96,9 @@ only after every mode has executable coverage.
 - _Goal:_ Preflight, retirement execute, and extraction expose one specific corrective command for every known
   refusal without pushing remedy text into pure validation modules.
 
-    - `[ ]` **1.2.a Stabilize Git-preflight refusals and normalize runtime failures**
-        - Keep known failures in `git-decompose-v3-preflight.ts` as stable codes with variable detail in `locus`,
-          attach comparison evidence in `decompose-v3-preflight.ts` and `decompose-v3-refresh.ts`, and normalize
-          unclassified Git, parse, and read failures to `unexpected-error`.
-        - Build `test-first` (one behavior at a time):
-            - Preserve `git-preflight:<stable-code>` for each known rejected source condition.
-            - Keep arbitrary exception messages out of `reason` and carry them only as the locus.
-            - Return invalid UTF-8 Markdown as `source-scan` with the exact source path and conversion-plus-preflight
-              remedy.
-            - Carry expected and actual source binding, plan profile, unit, and dependency facts only at admitted
-              comparison sites.
-            - Emit the invoked preflight argv as the normalized retry remedy.
+    - `[x]` **1.2.a Stabilize Git-preflight refusals and normalize runtime failures**
+        - Stabilized known Git source-condition codes, normalized unclassified failures to `unexpected-error`, and
+          added exact scan loci plus bounded evidence and specific preflight remedies across binding and refresh.
 
     - `[ ]` **1.2.b Carry evidence through conservation and repository planning**
         - Add evidence to the admitted comparisons in `decompose-v3-conservation.ts`,
