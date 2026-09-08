@@ -209,29 +209,13 @@ identity; native bindings preserve exactness without a generic persisted executi
   independently of effective complete coverage. Local and hosted coverage survives fallback and head movement without
   changing source selection, while exact Owner acceptance remains a separate terminus fact.
 
-### `[ ]` **2.5 Exercise public admission, fallback, retry, moved-member history, and exact cap authority**
+### `[x]` **2.5 Exercise public admission, fallback, retry, moved-member history, and exact cap authority**
 
 - _Goal:_ Public execution paths demonstrate admitted identity and correct allowance without caller reconstruction.
 
-- _Note:_ Spec §§ 3 and 5; SC 8, 12, and 17.
-
-- _Approach:_ Extend the existing review fan-out lifecycle and relevant command tests using real production stores and
-  commands; mock only external boundaries. Use returned inputs, not invented progress records.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Local/frontline fresh-pass and replay paths preserve operation identity as intended.
-
-        - Same-target sibling requests cannot reuse receipts; failed local rerun completes once under a new generation.
-          Forged frontline ready inputs refuse, while a returned admitted action executes normally.
-
-        - Hosted pending restart, fallback, incremental completion, and complete upgrade preserve one logical admission.
-
-        - Admission/effect/acknowledgment interruption cases cover every hosted vehicle, retain original context under
-          drift, and stop uncertain dispatch rather than repeating it. Competing source terminals cannot double count.
-
-        - The moved-member sequence and one-pass sibling have separate histories; status/replay cannot consume another
-          pass.
+- _Outcome:_ Public status, local, hosted, and frontline paths now exercise durable admission through restart, fallback,
+  retry, and member movement. Exact ref/member lookup keeps shared-head siblings on distinct operation, request, and
+  admission identities; failed local reruns advance only native generation and complete logical pass 1 once.
 
 ### `[ ]` **2.6 Verify native admission and shared accounting** — validate criteria at member scope
 

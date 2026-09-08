@@ -182,7 +182,7 @@ async function executeCandidateApplicabilityResolution(
           exec: rawGit,
           observeEndpoints: async () => {
             if (selector.currentVehicle !== undefined) {
-              const member = await memberLookup.resolveMemberByHead(selector.currentVehicle.head);
+              const member = await memberLookup.resolveMemberByVehicle(selector.currentVehicle);
               if (member.status !== "resolved") {
                 throw new Error("Current delivery-member applicability coordinates are unavailable.");
               }

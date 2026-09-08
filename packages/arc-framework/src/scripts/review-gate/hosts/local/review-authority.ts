@@ -71,7 +71,9 @@ async function authenticateMember(
   if (lookup === undefined) {
     throw new LocalReviewAuthorityError("delivery-state-unavailable");
   }
-  const resolution = await lookup.resolveMemberByHead(headObjectId);
+  const resolution = admission !== undefined
+    ? await lookup.resolveMemberByVehicle(admission.vehicle)
+    : await lookup.resolveMemberByHead(headObjectId);
   if (resolution.status === "unavailable") {
     throw new LocalReviewAuthorityError("delivery-state-unavailable");
   }

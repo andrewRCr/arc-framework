@@ -158,6 +158,8 @@ function memberLookup(
       heads.push(headObjectId);
       return result;
     },
+    resolveMemberByRef: async () => result,
+    resolveMemberByVehicle: async () => result,
   };
 }
 

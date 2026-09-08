@@ -223,7 +223,7 @@ async function requestThroughHandler(
   const repositoryId = await resolveRepositoryIdentity(publisher);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ cwd: root, exec });
   const delivery = request.vehicle?.kind === "delivery-member"
-    ? await deliveryMemberLookup.resolveMemberByHead(request.vehicle.head)
+    ? await deliveryMemberLookup.resolveMemberByVehicle(request.vehicle)
     : null;
   if (delivery !== null && delivery.status !== "resolved") {
     throw new Error("expected direct hosted request fixture to resolve its delivery member");
@@ -730,6 +730,33 @@ async function moveDeliveryTargets(harness: FanOutHarness): Promise<void> {
   await writeBoundary(harness, candidate, "feat/delivery-plan-record", "bound");
 }
 
+async function bindDeliveryMembersToSharedHead(harness: FanOutHarness): Promise<void> {
+  await git(harness.root, ["branch", "delivery/delivery-plan-record/shared-second", harness.oldFirst]);
+  const state: DeliveryStateV1 = {
+    ...harness.state,
+    members: [
+      harness.state.members[0]!,
+      {
+        ...harness.state.members[1]!,
+        ref: "refs/heads/delivery/delivery-plan-record/shared-second",
+        coordinates: {
+          base: harness.oldFirst,
+          head: harness.oldFirst,
+          tree: harness.oldFirstTree,
+        },
+      },
+    ],
+  };
+  const published = await harness.states.publish(harness.plan.planId, state, harness.stateRevision);
+  if (published.status !== "ok") throw new Error("expected shared-head delivery state");
+  harness.state = state;
+  harness.stateRevision = published.value.revision;
+  const current = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
+  if (current.version === null) throw new Error("expected initial Candidate version");
+  const candidate = await installCandidate(harness, harness.oldFirst, current.version);
+  await writeBoundary(harness, candidate, "delivery/delivery-plan-record/shared-second", "bound");
+}
+
 async function statusThroughHandler(
   harness: Pick<FanOutHarness, "root" | "exec" | "baseHead" | "plan" | "states">,
   target: { repository: string; headRef: string; headSha: string },
@@ -988,6 +1015,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
 async function completeLocalReviewThroughHandlers(
   harness: FanOutHarness,
   deliveryAdmission: DeliveryLocalReviewAdmission,
+  result: "clean" | "failed" = "clean",
 ) {
   const basePrepare = createLocalPrepareDependencies({ exec: harness.exec, cwd: harness.root });
   const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
@@ -1096,8 +1124,8 @@ async function completeLocalReviewThroughHandlers(
       schemaVersion: 1,
       operationId: prepared.payload.operationId,
       result: {
-        status: "complete",
-        result: "clean",
+        status: result === "clean" ? "complete" : "failed",
+        result: result === "clean" ? "clean" : null,
         evaluatorIdentity: "fresh-reviewer",
         reviewRunId: `run-${prepared.payload.operationId}`,
         applicabilityId: null,
@@ -1110,7 +1138,9 @@ async function completeLocalReviewThroughHandlers(
   });
   expect(attestExitCodes).toEqual([]);
   const attested = LocalAttestEnvelopeSchema.parse(JSON.parse(attestOutput.join("")));
-  expect(attested).toMatchObject({ state: "attested-current", nextAction: "reduce" });
+  expect(attested).toMatchObject(result === "clean"
+    ? { state: "attested-current", nextAction: "reduce" }
+    : { state: "not-attestable", nextAction: "rerun-review" });
   return { prepared, attested };
 }
 
@@ -2178,6 +2208,207 @@ describe("hosted review fan-out lifecycle", () => {
       error: { message: expect.stringContaining("first outstanding delivery member") },
     });
     await expect(access(providerCalled)).rejects.toThrow();
+  });
+
+  it("keeps public local receipts and one-pass histories separate for sibling members at one head", async () => {
+    const harness = await createHarness(["delegated-agent"]);
+    await bindDeliveryMembersToSharedHead(harness);
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+
+    const firstStatus = await statusThroughHandler(harness, statusTarget);
+    expect(firstStatus).toMatchObject({
+      nextAction: "review-local-prepare",
+      action: {
+        pass: 1,
+        vehicle: member(harness.plan, 0, harness.oldFirst),
+      },
+    });
+    if (firstStatus.nextAction !== "review-local-prepare") {
+      throw new Error("expected first shared-head local admission");
+    }
+    const first = await completeLocalReviewThroughHandlers(harness, firstStatus.action);
+
+    const secondStatus = await statusThroughHandler(harness, statusTarget);
+    expect(secondStatus).toMatchObject({
+      nextAction: "review-local-prepare",
+      action: {
+        pass: 1,
+        vehicle: member(harness.plan, 1, harness.oldFirst),
+      },
+      routedObligation: {
+        conjunction: {
+          members: [
+            { state: "discharged", progress: { completedPasses: 1 } },
+            { state: "outstanding", progress: { completedPasses: 0 } },
+          ],
+        },
+      },
+    });
+    if (secondStatus.nextAction !== "review-local-prepare") {
+      throw new Error("expected second shared-head local admission");
+    }
+    const second = await completeLocalReviewThroughHandlers(harness, secondStatus.action);
+
+    expect(second.prepared.payload.operationId).not.toBe(first.prepared.payload.operationId);
+    const [firstOperation, secondOperation] = await Promise.all([
+      harness.store.readOperation(first.prepared.payload.operationId),
+      harness.store.readOperation(second.prepared.payload.operationId),
+    ]);
+    expect(firstOperation.state).toMatchObject({ logicalPass: 1, retryGeneration: 0 });
+    expect(secondOperation.state).toMatchObject({ logicalPass: 1, retryGeneration: 0 });
+    expect(firstOperation.state?.kind).toBe("local-review");
+    expect(secondOperation.state?.kind).toBe("local-review");
+    if (firstOperation.state?.kind !== "local-review"
+      || secondOperation.state?.kind !== "local-review") {
+      throw new Error("expected two persisted shared-head local operations");
+    }
+    expect(secondOperation.state.requestId).not.toBe(firstOperation.state.requestId);
+
+    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      routedObligation: {
+        conjunction: {
+          status: "discharged",
+          members: [
+            { state: "discharged", progress: { completedPasses: 1 } },
+            { state: "discharged", progress: { completedPasses: 1 } },
+          ],
+        },
+      },
+    });
+  });
+
+  it("keeps public hosted admissions separate for sibling members at one head", async () => {
+    const harness = await createHarness(["coderabbit-pr"]);
+    await bindDeliveryMembersToSharedHead(harness);
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+
+    const firstStatus = await statusThroughHandler(harness, statusTarget);
+    if (firstStatus.nextAction !== "review-hosted-request") {
+      throw new Error("expected first shared-head hosted admission");
+    }
+    const first = await requestThroughHandler(firstStatus.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-shared-head-first",
+        url: "https://example.test/review-shared-head-first",
+        createdAt: "2026-09-02T22:00:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec);
+    if (first.nextAction !== "await") throw new Error("expected first shared-head await action");
+    const firstAwait = await awaitThroughHandler(first.handle, {
+      kind: "clean",
+      reviewUrl: "https://example.test/review-shared-head-first",
+    });
+    await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: firstAwait,
+      now: "2026-09-02T22:01:00.000Z",
+    });
+
+    const secondStatus = await statusThroughHandler(harness, statusTarget);
+    expect(secondStatus).toMatchObject({
+      nextAction: "review-hosted-request",
+      action: {
+        vehicle: member(harness.plan, 1, harness.oldFirst),
+      },
+    });
+    if (secondStatus.nextAction !== "review-hosted-request") {
+      throw new Error("expected second shared-head hosted admission");
+    }
+    const second = await requestThroughHandler(secondStatus.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-shared-head-second",
+        url: "https://example.test/review-shared-head-second",
+        createdAt: "2026-09-02T22:02:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec);
+    if (second.nextAction !== "await") throw new Error("expected second shared-head await action");
+
+    expect(second.handle.admission.admissionId).not.toBe(first.handle.admission.admissionId);
+    expect(first.handle.admission).toMatchObject({
+      logicalPass: 1,
+      lineage: {
+        kind: "delivery-member",
+        deliverableId: harness.plan.members[0]!.deliverableId,
+      },
+    });
+    expect(second.handle.admission).toMatchObject({
+      logicalPass: 1,
+      lineage: {
+        kind: "delivery-member",
+        deliverableId: harness.plan.members[1]!.deliverableId,
+      },
+    });
+  });
+
+  it("completes a failed public local rerun once under a new native generation", async () => {
+    const harness = await createHarness(["delegated-agent"]);
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    const initialStatus = await statusThroughHandler(harness, statusTarget);
+    if (initialStatus.nextAction !== "review-local-prepare") {
+      throw new Error("expected initial local admission");
+    }
+
+    const failed = await completeLocalReviewThroughHandlers(harness, initialStatus.action, "failed");
+    const retryStatus = await statusThroughHandler(harness, statusTarget);
+    expect(retryStatus).toMatchObject({
+      nextAction: "review-local-prepare",
+      action: {
+        pass: 1,
+        vehicle: initialStatus.action.vehicle,
+      },
+      routedObligation: {
+        conjunction: {
+          members: [
+            { state: "outstanding", progress: { completedPasses: 0 } },
+            { state: "outstanding", progress: { completedPasses: 0 } },
+          ],
+        },
+      },
+    });
+    if (retryStatus.nextAction !== "review-local-prepare") {
+      throw new Error("expected retry local admission");
+    }
+
+    const completed = await completeLocalReviewThroughHandlers(harness, retryStatus.action);
+    expect(completed.prepared.payload.operationId).not.toBe(failed.prepared.payload.operationId);
+    const [failedOperation, completedOperation] = await Promise.all([
+      harness.store.readOperation(failed.prepared.payload.operationId),
+      harness.store.readOperation(completed.prepared.payload.operationId),
+    ]);
+    expect(failedOperation.state).toMatchObject({ logicalPass: 1, retryGeneration: 0 });
+    expect(completedOperation.state).toMatchObject({ logicalPass: 1, retryGeneration: 1 });
+
+    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+      nextAction: "review-local-prepare",
+      routedObligation: {
+        conjunction: {
+          members: [
+            { state: "discharged", progress: { completedPasses: 1 } },
+            { state: "outstanding", progress: { completedPasses: 0 } },
+          ],
+        },
+      },
+    });
   });
 
   it("preserves one production hosted request through restart, pending await, and terminal await", async () => {

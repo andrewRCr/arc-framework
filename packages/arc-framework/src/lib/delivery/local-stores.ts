@@ -32,11 +32,18 @@ const STATE_LOCATION = { root: "delivery", namespace: "state" } as const;
 const STATE_SEMANTICS = "delivery-state-store/v1";
 
 function stateMemberMatches(
+  state: DeliveryStateV1,
   member: DeliveryStateV1["members"][number],
   selector: DeliveryMemberSelector,
 ): boolean {
   if (member.coordinates === null) return false;
   if (selector.kind === "head") return member.coordinates.head === selector.objectId;
+  if (selector.kind === "member") {
+    return state.planId === selector.planId
+      && state.workUnitId === selector.workUnitId
+      && member.deliverableId === selector.deliverableId
+      && member.coordinates.head === selector.observedHeadObjectId;
+  }
   return member.ref === selector.ref
     && member.coordinates.head === selector.observedHeadObjectId;
 }
@@ -46,7 +53,7 @@ function matchingStateMembers(
   selector: DeliveryMemberSelector,
 ): readonly DeliveryStateMemberResolution<DeliveryStateV1>[] {
   return state.members
-    .filter((member) => stateMemberMatches(member, selector))
+    .filter((member) => stateMemberMatches(state, member, selector))
     .map((member) => ({
       planId: state.planId,
       deliverableId: member.deliverableId as CanonicalDigest,

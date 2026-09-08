@@ -1811,9 +1811,9 @@ async function resolveHostedProgressContext(input: {
   const baseRef = settings["branch.base"];
   const repositoryId = await resolveRepositoryIdentity(input.publisher);
   const memberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: input.root });
-  const memberResolution = await memberLookup.resolveMemberByHead(
-    input.vehicle?.kind === "delivery-member" ? input.vehicle.head : input.target.headSha,
-  );
+  const memberResolution = input.vehicle?.kind === "delivery-member"
+    ? await memberLookup.resolveMemberByVehicle(input.vehicle)
+    : await memberLookup.resolveMemberByHead(input.target.headSha);
   if (input.vehicle?.kind === "delivery-member") {
     if (memberResolution.status === "unavailable") {
       throw new Error("Hosted delivery-member binding is unavailable.");

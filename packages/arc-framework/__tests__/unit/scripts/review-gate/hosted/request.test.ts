@@ -44,6 +44,15 @@ const DELIVERY_MEMBER = {
   isFinalMember: false,
 };
 
+function deliveryMemberLookup() {
+  const resolved = async () => ({ status: "resolved" as const, member: DELIVERY_MEMBER });
+  return {
+    resolveMemberByHead: resolved,
+    resolveMemberByRef: resolved,
+    resolveMemberByVehicle: resolved,
+  };
+}
+
 function admittedRequest(
   request: HostedRequestEnvelope,
   vehicle: HostedProgressVehicle | undefined,
@@ -210,9 +219,7 @@ describe("hosted review request", () => {
       adapters: [adapter(async () => {
         throw new Error("provider effect ran");
       })],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
-      },
+      deliveryMemberLookup: deliveryMemberLookup(),
       admitDeliveryMemberRequest: async () => undefined,
       admitRequest: async () => {
         throw new Error("admission write failed");
@@ -334,9 +341,7 @@ describe("hosted review request", () => {
           createdAt: "2026-07-23T12:00:00.000Z",
         },
       }))],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
-      },
+      deliveryMemberLookup: deliveryMemberLookup(),
       admitDeliveryMemberRequest: async () => undefined,
       ...ADMIT_REQUEST,
     });
@@ -366,9 +371,7 @@ describe("hosted review request", () => {
         providerCalled = true;
         return { kind: "rate-limited" };
       })],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
-      },
+      deliveryMemberLookup: deliveryMemberLookup(),
       admitDeliveryMemberRequest: async () => {
         throw new Error("review pass ceiling requires approval");
       },
@@ -395,9 +398,7 @@ describe("hosted review request", () => {
         providerCalled = true;
         return { kind: "rate-limited" };
       })],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
-      },
+      deliveryMemberLookup: deliveryMemberLookup(),
     })).rejects.toThrow(/request-time driver admission/u);
     expect(providerCalled).toBe(false);
   });
@@ -417,9 +418,7 @@ describe("hosted review request", () => {
       },
     }, {
       adapters: [],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
-      },
+      deliveryMemberLookup: deliveryMemberLookup(),
     })).rejects.toThrow("does not match");
   });
 

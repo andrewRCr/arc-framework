@@ -27,6 +27,8 @@ const binding = (overrides: Partial<DeliveryMemberBinding> = {}): DeliveryMember
 
 const lookupOf = (result: DeliveryMemberLookupResult): DeliveryMemberLookup => ({
   resolveMemberByHead: vi.fn(async () => result),
+  resolveMemberByRef: vi.fn(async () => result),
+  resolveMemberByVehicle: vi.fn(async () => result),
 });
 
 const workUnitContext = () => ({

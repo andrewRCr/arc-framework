@@ -302,7 +302,7 @@ async function validateDeliveryMemberBinding(
     throw new Error("Hosted delivery-member binding does not match the requested exact head.");
   }
   if (lookup === undefined) throw new Error("Hosted delivery-member binding is unavailable.");
-  const resolution = await lookup.resolveMemberByHead(vehicle.head);
+  const resolution = await lookup.resolveMemberByVehicle(vehicle);
   if (resolution.status === "unavailable") throw new Error("Hosted delivery-member binding is unavailable.");
   if (resolution.status === "unbound") throw new Error("Hosted delivery-member binding is unbound.");
   if (resolution.member.planId !== vehicle.planId
