@@ -199,44 +199,57 @@ registration precondition is restated for distinct-label runners: the mini's ser
 route (hosted, or `arc-ci-linux` once hosted minutes run out) stays live, and the check is that the routing variable
 does not already read the label being registered.
 
-### `[ ]` **3.1 Register two runner services in the guest**
+### `[x]` **3.1 Register two runner services in the guest**
 
 - _Goal:_ Two services carry `arc-ci-mini`, `self-hosted`, `Linux`, and `ARM64`, neither carries `arc-ci-linux`, and
   both return online after a guest reboot with no operator action.
 
 - **Additional Context:** `.github/self-hosted-ci.md` § Runner registration
 
-    - Repeat the executable-principal audit; an untrusted principal stops registration.
-    - Confirm `ARC_CI_LINUX_RUNNER` does not read `arc-ci-mini`, and the two runner names are absent.
-    - Download the current arm64 Linux `actions/runner` release once as `arc-runner`, verify its SHA-256, extract
-      into both application directories, run `bin/installdependencies.sh`, and restore mode `0750`.
-    - Configure each with `--name <unique-name> --labels arc-ci-mini --unattended` using a short-lived registration
-      token requested at the moment of use; install and start each as a service; add the `Restart=always` drop-in.
-      Use a name scheme visibly distinct from the VPS pool's `arc-ci-linux-N` (for example `arc-ci-mini-N`) so a
-      job's `runner_name` in the ledger identifies the host at a glance.
-    - Reboot the guest once and record both runners online and idle with their labels, read from
-      `gh api repos/{owner}/{repo}/actions/runners`, as sanitized runner state.
+    - Executable-principal audit passed and is recorded in the ledger: private repository, no forks, no pending
+      invitations, no deploy keys, one admin collaborator, every recent pull request authored by that account, no
+      Dependabot config, and a `pull_request` trigger rather than `pull_request_target`. The one principal the
+      audit could not resolve from this token — the repository's own GitHub App — was confirmed by the maintainer
+      before registration rather than inferred from its name.
+    - Preconditions confirmed: the routing variable is absent entirely, and neither runner name existed.
+    - Runner v2.337.0 for arm64 downloaded once as the service account and verified against its published SHA-256
+      before extraction into either application directory; dependencies installed; mode `0750` restored.
+    - Both services registered with unique names and the `arc-ci-mini` label alone, each from a separate short-lived
+      token requested at the point of use. The registration script reads its token from standard input rather than
+      an argument, so no token reaches a command line, a shell history, or a transcript.
+    - `Restart=always` drop-ins installed. After a deliberate guest reboot both services returned enabled, active,
+      online, and idle within twenty seconds with no operator action, carrying `self-hosted`, `Linux`, `ARM64`, and
+      `arc-ci-mini`, and neither carrying `arc-ci-linux`.
 
-### `[ ]` **3.2 Concurrent-anchor check for two services**
+### `[x]` **3.2 Concurrent-anchor check for two services**
 
 - _Goal:_ Two anchors running at once each finish within 1.25x the Phase 2 median with the guest below 7 GB at peak
   and no OOM, and the peak free memory is recorded for the third-service decision.
 
-    - Launch two anchor runs simultaneously from two guest shells using the Task 2.2 invocation and sampler; the
-      runner services stay idle during this check.
-    - Record both wall times, the ratio to the Phase 2 median, peak guest memory, peak free memory, and the OOM
-      check.
+    - **The per-job threshold fails and is recorded as failed, not amended.** Two simultaneous anchors run 78.32 s
+      each — 1.389x the anchor-gate median against a 1.25x limit. Memory passes with wide margin: 2351 MB peak of
+      7912, no OOM, 3763 MB free at peak.
+    - The cause is structural. The base M4 carries four performance and six efficiency cores, and this anchor drives
+      about four logical CPUs, so a second concurrent run spills onto efficiency cores. No allocation change
+      recovers it.
+    - The failure is the phase's most useful result. It exposes that slots on one box are not independent: two slots
+      deliver 1.44x the work of one and three deliver 1.57x, against 2x and 3x for independent slots. The full
+      throughput curve, measured out to four slots, is in the ledger.
 
-### `[ ]` **3.3 Admit a third service on measured headroom**
+### `[~]` **3.3 Admit a third service on measured headroom**
 
 - _Goal:_ A third service exists only when the two-service check left at least 2.5 GB of guest memory free at peak,
   and it passes the same concurrent check with three runs.
 
-- _Note:_ When the headroom condition fails, mark this task `[~]` with a note recording the measured peak free
-  memory, so the task cursor passes over it and the verification walk sees a deliberate skip rather than open work.
-
-    - Create `/opt/actions-runner-3`, register the third service as in Task 3.1, then run three simultaneous anchors
-      against the Task 3.2 thresholds and record the results.
+- _Outcome:_ Skipped on evidence the plan did not anticipate, and on a different criterion than the one written
+  here. The stated memory condition **passes** — 3763 MB free at peak against a 2500 MB bar — but memory is not what
+  binds. Three concurrent anchors were measured without registering a service, and the constraint is CPU: at three
+  slots the anchor runs 1.90x slower, which pushes the E2E helper's fixed 10 000 ms subprocess budget past its
+  limit. Two of 36 three-slot jobs failed a wall-clock assertion, while 13 solo, 8 two-slot, and 16 four-slot jobs
+  passed. A third slot therefore buys 9.4 percent throughput at roughly a 5 percent per-job failure rate, and a
+  runner-caused failure disqualifies go regardless of ratio. The margin also protects the rest of the suite, which
+  a routed workflow runs under the same contention and which was not measured here. No third service was created,
+  so nothing needs removing.
 
 ### `[ ]` **3.4 Dispatch one full workflow routed to the mini**
 

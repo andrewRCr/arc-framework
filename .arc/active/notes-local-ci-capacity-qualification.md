@@ -138,25 +138,93 @@ workflow runs, where the serial head and slot count dominate.
 
 ### Concurrent services
 
-Simultaneous anchor runs from separate guest shells, runner services idle. Threshold: each run within 1.25x the
-anchor-gate median, guest below 7 GB at peak, no OOM.
+Simultaneous anchor runs from separate guest shells, runner services idle. Each concurrent job runs from its own
+checkout, the way two runner services use separate work directories: sharing one checkout lets the test runner's
+cache serialize the jobs, which is indistinguishable from CPU contention in the wall time. Threshold: each run
+within 1.25x the anchor-gate median (70.48 s), guest below 7 GB at peak, no OOM.
 
-Two services:
+Two services — 1 warmup and 3 measured rounds, 6 jobs, all passing:
 
-| Run | Wall time (s) | Ratio to anchor median | Peak guest memory | Peak free memory |
-| --- | ------------- | ---------------------- | ----------------- | ---------------- |
-|     | —             | —                      | —                 | —                |
+| Measure           | Result                       | Criterion | Verdict   |
+| ----------------- | ---------------------------- | --------- | --------- |
+| Per-job wall time | 78.32 s median (78.18–78.52) | ≤ 70.48 s | **fails** |
+| Ratio to gate     | 1.389x                       | ≤ 1.25x   | **fails** |
+| Peak guest memory | 2351 MB of 7912              | < 7 GB    | passes    |
+| OOM events        | none                         | none      | passes    |
+| Free at peak      | 3763 MB                      | ≥ 2500 MB | passes    |
 
-- OOM check: —
-- Third-service decision (admitted only on at least 2.5 GB free at peak): —
+The per-job threshold fails and is recorded as failed. It was calibrated before the host's core layout was known:
+the base M4 carries four performance cores and six efficiency cores, and this anchor drives about four logical
+CPUs, so one run fits the performance cores and a second spills onto efficiency cores. No allocation change
+recovers this — it is a property of the chip.
 
-Three services, entered only on that headroom:
+The threshold is nonetheless the measurement that mattered most in this phase, because it exposes what slot counts
+conceal: slots on one box are not independent.
 
-| Run | Wall time (s) | Ratio to anchor median | Peak guest memory | Peak free memory |
-| --- | ------------- | ---------------------- | ----------------- | ---------------- |
-|     | —             | —                      | —                 | —                |
+| Slots | Per-job wall | Throughput | vs 1 slot | Fraction of independent slots | Free at peak |
+| ----- | ------------ | ---------- | --------- | ----------------------------- | ------------ |
+| 1     | 56.38 s      | 0.0177 j/s | 1.00x     | 100%                          | —            |
+| 2     | 78.32 s      | 0.0255 j/s | 1.44x     | 72%                           | 3763 MB      |
+| 3     | 107.4 s      | 0.0279 j/s | 1.57x     | 52%                           | 2907 MB      |
+| 4     | 142.4 s      | 0.0280 j/s | 1.58x     | 40%                           | 2141 MB      |
 
-- OOM check: —
+Throughput saturates at three slots; a fourth adds 0.5 percent and drops free memory below the 2500 MB bar
+independently. The guest's useful ceiling is therefore two or three slots, not its vCPU count.
+
+Three services were measured but not registered — the measurement does not require a runner service, so no third
+service was created and none needs removing.
+
+**Load-induced test failure at three slots.** Across 36 anchor jobs at concurrency 3, two failed; 13 solo jobs, 8
+two-slot jobs, and 16 four-slot jobs all passed. The failure is a wall-clock assertion, not a defect: the CLI
+produced the correct stderr and exit code, but the spawned subprocess exceeded the fixed 10 000 ms budget the E2E
+helper enforces, and the test asserts the subprocess did not time out.
+
+| Configuration | Anchor slowdown | Implied subprocess time | Margin against the 10 s budget |
+| ------------- | --------------- | ----------------------- | ------------------------------ |
+| Solo          | 1.00x           | ~5.6 s                  | 44%                            |
+| Two slots     | 1.39x           | ~7.8 s                  | 22%                            |
+| Three slots   | 1.90x           | ~10.6 s                 | exceeded                       |
+
+Every failed job across the last 120 workflow runs was checked on both routes. The signature appears in none of
+them: hosted E2E failures are unrelated assertion failures, and no self-hosted failure carries it. Hosted gives
+each job a dedicated machine, so the budget is never approached there. This configuration is the first that
+applies enough pressure to reach it.
+
+**Slot decision: two services.** A third buys 9.4 percent throughput and costs roughly a 5 percent per-job failure
+rate, and a runner-caused failure disqualifies go regardless of ratio. The margin also protects tests not measured
+here — the budget was found in one file, while a routed workflow runs the whole suite under the same contention.
+Two slots retain 22 percent headroom for those. The third slot remains available later as a tuning step once the
+timing fragility is addressed on its own terms; raising the budget weakens a real guard, since the assertion exists
+to catch a CLI that fails to terminate promptly.
+
+### Runner registration
+
+Executable-principal audit, taken immediately before registration. Registration is fail-closed: every principal able
+to submit executable pull-request code must be explicitly trusted.
+
+| Check                        | Finding                                      |
+| ---------------------------- | -------------------------------------------- |
+| Repository                   | Private; no forks; no deploy keys            |
+| Collaborators                | One, admin                                   |
+| Pending invitations          | None                                         |
+| Pull-request authorship (30) | All the same account                         |
+| Dependabot                   | No configuration                             |
+| Workflow trigger             | `pull_request`, not `pull_request_target`    |
+| Default workflow permissions | Read; cannot approve pull requests           |
+| App installations            | One, confirmed by the maintainer — see below |
+
+The app-installation check could not be resolved from the available token, which refuses to enumerate installations
+without app authorization. That principal was confirmed by the maintainer rather than inferred from its name: a
+GitHub App with write access can place executable code on a pull-request head, which a persistent self-hosted runner
+then executes, so the gap was closed by asking rather than by assuming.
+
+Two services registered under the distinct label alone, each from a separate short-lived token requested at the
+point of use and passed on standard input rather than as an argument, so no token entered a command line or a shell
+history. Both returned online and idle within twenty seconds of a deliberate guest reboot, with no operator action.
+
+Actions is configured to allow all actions with SHA pinning not enforced, though the workflows pin their actions by
+digest in practice. On a persistent self-hosted runner every referenced action executes on the host, so that
+pinning discipline is load-bearing; enforcing it is captured separately as out-of-scope for this work unit.
 
 ### Routed dispatch
 
