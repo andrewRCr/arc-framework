@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "key-the-ci-node-modules-cache-on-runner-architecture",
+  "claimId": "8029334944839b8364850fdede920355",
+  "createdAt": "2026-09-08T22:29:45.095Z",
+  "updatedAt": "2026-09-08T22:29:45.095Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "key-the-ci-node-modules-cache-on-runner-architecture",
+  "branch": "chore/key-the-ci-node-modules-cache-on-runner-architecture",
+  "origin": "inbox",
+  "originEntry": "Key the CI node_modules cache on runner architecture",
+  "originEntrySourceDigest": "sha256:b9116bce8085833597b01478e70459d0f2c9806f6b07b80dd81b9be943b9d981",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
