@@ -383,7 +383,7 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 - _Outcome:_ Extraction now exposes complete started-Planning companion authoring while preserving every companion
   byte and mode from preflight through finish, including refresh, fallback, partial-progress, and repeat paths.
 
-### `[ ]` **2.4 Land a notes unit through scaffold, conservation, and result reporting**
+### `[x]` **2.4 Land a notes unit through scaffold, conservation, and result reporting**
 
 - _Goal:_ An author can place notes content in a real member artifact, and every impossible placement identifies the
   exact member, path, and correction before projection.
@@ -403,12 +403,13 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           member meta, arbitrary suffix matches, and another member's artifacts refuse at the exact locator, while
           existing-home and cohort-coordination destination rules remain unchanged.
 
-    - `[ ]` **2.4.d Report the notes scaffold as an authoring destination**
-        - Carry `provisional-notes` through `decompose-v3-result-report.ts` beside `provisional-task` without making
-          either artifact authoritative.
-        - Build `test-first` (one behavior at a time):
-            - Report the destination path, member identity, role, and contributor kind from the immutable plan.
-            - Keep result ordering stable and avoid disk discovery outside the plan.
+    - `[x]` **2.4.d Report the notes scaffold as an authoring destination**
+        - Result reporting now proves provisional task and notes destinations retain plan order, path, member,
+          artifact role, contributor kind, and materialization disposition directly from immutable provenance,
+          without mutating or supplementing the plan through live discovery.
+
+- _Outcome:_ Notes content now has a pinned provisional destination, closed contributor and locator roles, exact
+  placement refusals, and immutable result visibility from scaffold construction through report projection.
 
 ### `[ ]` **2.5 Exercise open-family companion conservation on a real origin**
 

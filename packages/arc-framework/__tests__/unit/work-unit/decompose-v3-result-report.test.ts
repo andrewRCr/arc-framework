@@ -176,6 +176,64 @@ describe("v3 decomposition result reporting", () => {
     ]);
   });
 
+  it("reports provisional task and notes destinations from immutable plan provenance", () => {
+    const task = contentMutation(".arc/backlog/planned/member/tasks-member.md");
+    const notes = contentMutation(".arc/backlog/planned/member/notes-member.md");
+    if (task.kind !== "composed" || notes.kind !== "composed") {
+      throw new Error("fixture destinations must be composed mutations");
+    }
+    const taskContributor = task.contributors[0];
+    const notesContributor = notes.contributors[0];
+    if (taskContributor?.kind !== "content" || notesContributor?.kind !== "content") {
+      throw new Error("fixture destinations must carry content provenance");
+    }
+    Object.assign(taskContributor, {
+      artifactRole: "tasks",
+      contributorKind: "provisional-task",
+      contributorIdentity: "tasks",
+    });
+    Object.assign(notesContributor, {
+      artifactRole: "notes",
+      contributorKind: "provisional-notes",
+      contributorIdentity: "notes",
+    });
+    const source = plan([task, notes], []);
+    const before = structuredClone(source);
+
+    const report = reportV3DecomposeResult(
+      source,
+      materialized(source, ["applied", "already-applied"]),
+    );
+
+    expect(report.destinations).toEqual([
+      {
+        kind: "destination",
+        path: task.path,
+        destinationId: "member",
+        destinationKind: "new-member",
+        authoring: {
+          artifactRole: "tasks",
+          contributorKind: "provisional-task",
+          disposition: "whole-file",
+        },
+        disposition: "applied",
+      },
+      {
+        kind: "destination",
+        path: notes.path,
+        destinationId: "member",
+        destinationKind: "new-member",
+        authoring: {
+          artifactRole: "notes",
+          contributorKind: "provisional-notes",
+          disposition: "whole-file",
+        },
+        disposition: "already-applied",
+      },
+    ]);
+    expect(source).toEqual(before);
+  });
+
   it("projects a materializer refusal only onto its exact conflicting path", () => {
     const first = contentMutation(".arc/active/meta-first.md");
     const second = contentMutation(".arc/active/meta-second.md");
