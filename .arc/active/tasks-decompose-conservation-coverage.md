@@ -139,13 +139,10 @@ only after every mode has executable coverage.
 - _Goal:_ Finish preview and apply identify the exact recorded-versus-live difference and return the correction
   through the same refusal envelope before any unauthorized thinning survives.
 
-    - `[ ]` **1.3.a Compose finish results from the shared refusal contract**
-        - Extend `V3ExtractionFinishResultSchema` from the core refused envelope while retaining the exact
-          `previewed`, `finished`, and `already-finished` success arms.
-        - Build `test-first` (one behavior at a time):
-            - Require `SpineRemedy` on every finish refusal and reject the former reason-only shape.
-            - Admit evidence only as `{ expected, actual }` and keep all result objects strict.
-            - Preserve canonical finish success bytes and apply-authority validation.
+    - `[x]` **1.3.a Compose finish results from the shared refusal contract**
+        - Extended finish results from the strict core refusal schema, wrapped pure proof and thinning failures with
+          the selected preview/apply remedy, rejected reason-only and malformed evidence shapes, and preserved all
+          three canonical success arms plus existing apply-authority validation.
 
     - `[ ]` **1.3.b Attach evidence at source preimage and apply comparisons**
         - Add typed evidence for initial preimage comparisons in `decompose-v3-finish-operation.ts` and for

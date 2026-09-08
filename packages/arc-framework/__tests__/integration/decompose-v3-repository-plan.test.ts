@@ -726,7 +726,22 @@ describe("Git v3 repository plan", () => {
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
       applyAuthority: `sha256:${"0".repeat(64)}`,
-    })).resolves.toEqual({ status: "refused", reason: "apply-authority", locus: "apply" });
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "apply-authority",
+      locus: "apply",
+      remedy: {
+        argv: [
+          "arc",
+          "decompose",
+          "origin",
+          "--finish",
+          fixture.cutMapPath,
+          "--apply",
+          `sha256:${"0".repeat(64)}`,
+        ],
+      },
+    });
     await expect(readFile(join(fixture.repo, sourcePath), "utf8")).resolves.toBe(before);
     expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", sourcePath])).toBe("");
   });

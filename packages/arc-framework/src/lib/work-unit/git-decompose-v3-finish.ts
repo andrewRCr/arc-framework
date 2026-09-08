@@ -15,8 +15,15 @@ import { resolveArcPath } from "../layout/index.js";
 import type {
   V3ExtractionFinishPreview,
   V3ExtractionFinishEvidence,
-  V3ExtractionFinishResult,
 } from "./decompose-v3-finish.js";
+import {
+  V3ExtractionFinishResultSchema,
+  type V3ExtractionFinishResult,
+} from "./decompose-v3-finish.js";
+import {
+  v3DecomposeRemedy,
+  type V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 import { executeV3ExtractionSourceFinish } from "./decompose-v3-finish-operation.js";
 import {
   resolveV3DecomposeContentLocator,
@@ -64,6 +71,17 @@ export interface GitV3ExtractionFinishInput {
   cutMapPath: string;
   applyAuthority: CanonicalDigest | null;
 }
+
+type V3ExtractionFinishOperationResult =
+  | { status: "previewed"; preview: V3ExtractionFinishPreview }
+  | { status: "finished" }
+  | { status: "already-finished" }
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 /** One exact destination state proven on the configured integration base. */
 export interface V3ExtractionDestinationState {
@@ -618,10 +636,10 @@ export async function proveGitV3ExtractionDestinations(
  * @param input - Exact finish invocation operands.
  * @returns A preview, finished application, or typed refusal with bounded recovery.
  */
-export async function finishGitV3Extraction(
+async function finishGitV3ExtractionOperation(
   dependencies: GitV3RepositoryPlanDependencies,
   input: GitV3ExtractionFinishInput,
-): Promise<V3ExtractionFinishResult> {
+): Promise<V3ExtractionFinishOperationResult> {
   const proof = await proveGitV3ExtractionDestinations(dependencies, input);
   if (proof.status === "refused") return proof;
   const thinning = planV3ExtractionSourceThinning({
@@ -707,4 +725,35 @@ export async function finishGitV3Extraction(
     };
   }
   return result;
+}
+
+/**
+ * Preview or apply source finish and compose every refusal with the selected command remedy.
+ *
+ * @param dependencies - Git, object, and bundled-template boundaries.
+ * @param input - Exact finish invocation operands.
+ * @returns A strict success result or core decompose refusal envelope.
+ */
+export async function finishGitV3Extraction(
+  dependencies: GitV3RepositoryPlanDependencies,
+  input: GitV3ExtractionFinishInput,
+): Promise<V3ExtractionFinishResult> {
+  const result = await finishGitV3ExtractionOperation(dependencies, input);
+  if (result.status !== "refused") return V3ExtractionFinishResultSchema.parse(result);
+  const invocation = input.applyAuthority === null
+    ? { mode: "finish-preview" as const, origin: input.origin, cutMapPath: input.cutMapPath }
+    : {
+        mode: "finish-apply" as const,
+        origin: input.origin,
+        cutMapPath: input.cutMapPath,
+        applyAuthority: input.applyAuthority,
+      };
+  return V3ExtractionFinishResultSchema.parse({
+    ...result,
+    remedy: v3DecomposeRemedy({
+      invocation,
+      reason: result.reason,
+      ...(result.locus === undefined ? {} : { locus: result.locus }),
+    }),
+  });
 }

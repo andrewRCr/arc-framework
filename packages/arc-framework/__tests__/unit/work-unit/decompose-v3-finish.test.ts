@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   V3ExtractionFinishResultSchema,
 } from "../../../src/lib/work-unit/decompose-v3-finish.js";
+import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 
 describe("V3ExtractionFinishResultSchema", () => {
   const preview = {
@@ -30,18 +31,32 @@ describe("V3ExtractionFinishResultSchema", () => {
       removedLocators: [{ artifact: "spec-origin.md", kind: "preamble" }],
     }],
   };
+  const refusal = {
+    status: "refused" as const,
+    reason: "destination-missing",
+    locus: "member",
+    evidence: { expected: "planned", actual: { kind: "absent" } },
+    remedy: spineRemedy(
+      "Every planned destination must exist on the live base.",
+      "Retry finish after restoring the destination",
+      ["arc", "decompose", "origin", "--finish", "map.json"],
+    ),
+  };
 
   it.each([
     { status: "previewed", preview },
     { status: "finished" },
     { status: "already-finished" },
-    { status: "refused", reason: "destination-missing", locus: "member" },
+    refusal,
   ])("accepts one canonical finish outcome: %o", (result) => {
     expect(V3ExtractionFinishResultSchema.safeParse(result).success).toBe(true);
   });
 
   it.each([
     { status: "refused" },
+    { status: "refused", reason: "destination-missing", locus: "member" },
+    { ...refusal, extra: true },
+    { ...refusal, evidence: { expected: "planned" } },
     { status: "unknown" },
     { status: "previewed" },
     { status: "previewed", reason: "unexpected" },
