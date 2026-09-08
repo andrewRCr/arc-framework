@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "normalize-machine-owned-candidate-records-out-of-delivery-members",
+  "claimId": "f4784db9bf9a649ac8a06b8c2b762907",
+  "createdAt": "2026-09-08T23:03:14.392Z",
+  "updatedAt": "2026-09-08T23:03:14.392Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "normalize-machine-owned-candidate-records-out-of-delivery-members",
+  "branch": "chore/normalize-machine-owned-candidate-records-out-of-delivery-members",
+  "origin": "inbox",
+  "originEntry": "Normalize machine-owned Candidate records out of delivery members",
+  "originEntrySourceDigest": "sha256:64277a6c9dfe92dd1a46d955ac23a0c4f0188ad913e9bd0f57aa0a8f3a519355",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
