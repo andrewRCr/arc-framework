@@ -336,36 +336,29 @@ types the segment verifier as a segment-scope verification task.
 - _Outcome:_ the task-loop's execution-time testing owner now installs as a core Configurable method, with recipe,
   self-hosting manifest, documented inventory, and install/update tests agreeing on the 148-file result.
 
-### `[ ]` **6.3 Mode-sensitive grouping and the widened fail-first rules — D2, D10**
+### `[x]` **6.3 Mode-sensitive grouping and the widened fail-first rules — D2, D10**
 
 - _Goal:_ no blanket copy of the test-grouping rule survives anywhere — every copy takes the segment's mode as
   input — and the execution-time fail-first discipline covers behaviors an implementation satisfies incidentally.
 
-- _Rationale:_ grouping by module or concern is right inside a `layer` and fights a `slice`, where the natural
-  grouping is by behavior path. A copy left blanket would keep advising the layered shape at exactly the boundary
-  the doctrine exists to change, so all six copies move in one edit.
+    - `[x]` **6.3.a The three task-generation copies take the mode input**
+        - phase design, content fill, and Finalize now group test-first work by behavior path for `slice`, module or
+          concern for `layer`, and repeatable transformation batch for `replication`
 
-- _Approach:_ split by fire-point and cross-reference rather than restate. The planning-time half is grouping and
-  cycle-boundary declaration; the execution-time half is the manufactured-red rule widened to incidentally
-  satisfied behaviors, plus reconstruct-and-revert evidence at completion. The existing project override carries a
-  narrower instance of that rule and is re-read to point at the widened default instead of repeating it.
+    - `[x]` **6.3.b The two formatting-strategy copies take the mode input**
+        - the subtask gloss and test-first definition now carry the same `slice`/`layer`/`replication` grouping
+          map as task generation
 
-    - `[ ]` **6.3.a The three task-generation copies take the mode input**
-        - the phase-design principle, the content-fill grouping paragraph, and the Finalize entry
+    - `[x]` **6.3.c The test-first method's copy takes the mode input**
+        - both configurable method surfaces now map grouping to `slice`, `layer`, or `replication`, while allowing
+          one pre-implementation test batch when coupled behaviors share an indivisible implementation
 
-    - `[ ]` **6.3.b The two formatting-strategy copies take the mode input**
-        - the test-first core rule and the group-by-concern gloss under subtasks
+    - `[x]` **6.3.d The execution-time half lands in the testing-standards default**
+        - the default now requires behavioral reconstruct-and-revert evidence for incidentally satisfied behavior;
+          the project override narrows reconstruction scope while referring to that shared procedure
 
-    - `[ ]` **6.3.c The test-first method's copy takes the mode input**
-        - both method surfaces are configurable, so each copy takes the same targeted edit and neither is ever
-          copied over the other — a blind copy wipes a project's overrides, and the pre-commit check that catches
-          it fires only after the working tree is already touched
-        - including the batching case: where several coupled behaviors share one indivisible implementation,
-          batching can be the sequence in which every test genuinely fails first
-
-    - `[ ]` **6.3.d The execution-time half lands in the testing-standards default**
-        - widen the manufactured-red rule to incidentally satisfied behaviors and add reconstruct-and-revert
-          evidence at completion; re-read the project override to point at it
+- _Outcome:_ planning and execution now share one mode-sensitive grouping contract, while fail-first evidence
+  reaches behaviors that already pass and preserves the one-behavior default around the coupled-batch exception.
 
 ### `[ ]` **6.4 Re-author the unbound delivery plan under segment typing — D5, D6, D13**
 

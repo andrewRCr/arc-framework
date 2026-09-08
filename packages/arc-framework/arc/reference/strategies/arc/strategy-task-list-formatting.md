@@ -141,8 +141,9 @@ in preview/rendered views. Without backticks, parent tasks (in headings — wher
 render task lists) and subtasks (in bullets — where GFM does) would render inconsistently.
 Backticks on both keeps the marker as literal monospace text in all renderers.
 
-**Use when:** Parent task requires 2+ distinct, independently completable steps. For test-first
-work, group by concern — one subtask covers both test and implementation.
+**Use when:** Parent task requires 2+ distinct, independently completable steps. For test-first work, group by the
+segment's mode — behavior path for `slice`, module or concern for `layer`, repeatable transformation batch for
+`replication` — with one subtask covering both test and implementation.
 
 ### Numbering Hierarchy
 
@@ -404,13 +405,12 @@ Success Criteria and consume that evidence at their assigned member or work-unit
 work. If your team has overridden test-first to test-after, this section's patterns don't apply
 — structure tasks however suits your workflow.
 
-**Core rule:** Group test and implementation together — by module or concern, not by activity.
-Name tasks for the module (`` `User` model ``), not the activity ("Write tests for User
-model"). A `` Build `test-first` (one behavior at a time): `` marker introduces the behavior
-list. The marker records the sequencing decision made at task generation: its presence means
-tests-first for that increment, its absence means the baseline (test-after or no tests).
-`test-first` is a stable approach keyword, not a reference to the method's name — it holds even
-if the method is renamed.
+**Core rule:** Group test and implementation together by the segment's mode: behavior path for `slice`, module or
+concern for `layer`, repeatable transformation batch for `replication` — never by testing-versus-implementation
+activity. Name tasks for that grouping locus. A `` Build `test-first` (one behavior at a time): `` marker introduces
+the behavior list. The marker records the sequencing decision made at task generation: its presence means tests-first
+for that increment, its absence means the baseline (test-after or no tests). `test-first` is a stable approach
+keyword, not a reference to the method's name — it holds even if the method is renamed.
 
 Marker absence is not "no testing discipline": a task that writes or modifies tests still gets
 the assertion / mocking discipline at execution, applied by the test-touch gate regardless of

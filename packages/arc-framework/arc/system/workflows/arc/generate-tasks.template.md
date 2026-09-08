@@ -184,7 +184,8 @@ Design elements (RFC), settled Decisions (`outline`), or the single falsifiable 
 - Each phase should produce testable, verifiable progress
 - Order phases from the resolved segments: preserve the sequence that retires the dominant residual risk earliest,
   then minimize dependencies within each segment
-- When test-first applies, group test and implementation together by module or concern
+- When test-first applies, group test and implementation by the segment's mode: by behavior path for `slice`, by
+  module or concern for `layer`, and by repeatable transformation batch for `replication`
 - **Always end with a verification phase** — single task pointing to `verify-work-unit.md`. See
   [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
 
@@ -302,9 +303,10 @@ For each parent task, fill in the body:
   through the planning/execution methods.
 
 **Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API endpoints,
-business logic, complex algorithms), group test and implementation together in each task — named by module or
-concern, not by activity. Use the ``Build `test-first` (one behavior at a time):`` marker line to introduce the
-behavior list; the executing agent treats this as the signal to apply the red-green-refactor loop. See
+business logic, complex algorithms), group test and implementation together using the segment's mode: name tasks by
+behavior path for `slice`, module or concern for `layer`, and repeatable transformation batch for `replication`,
+never by testing-versus-implementation activity. Use the ``Build `test-first` (one behavior at a time):`` marker line
+to introduce the behavior list; the executing agent treats this as the signal to apply the red-green-refactor loop. See
 [DEV-RULES.ARC][dev-rules-arc] § Test-first assessment for the decision tree, and
 [strategy-task-list-formatting][task-list-formatting] § Test-First Task Structure for the full pattern.
 
@@ -455,7 +457,8 @@ pre-save checklist and bundles the commit.
       exists.
 - [ ] Italic for non-actionable descriptors (`_Purpose:_`, `_Goal:_`, `_Outcome:_`, `_Note:_`,
       `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`); bold for actionable titles (`**X.Y Title**`)
-- [ ] Test-first tasks group test + implementation together (by concern, not activity)
+- [ ] Test-first tasks group test + implementation together by segment mode — behavior path for `slice`, module or
+      concern for `layer`, repeatable transformation batch for `replication` — never by activity
 - [ ] Test-first tasks use ``Build `test-first` (one behavior at a time):`` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
