@@ -7,6 +7,7 @@ import {
   hasMemberVerifierSuffix,
   hasSegmentVerifierSuffix,
 } from "../task-list/segmentation.js";
+import type { DeliveryTaskVerificationScope } from "./schema.js";
 
 /** One parent task and the normalized intent its semantic digest covers. */
 export interface TaskGoalInventoryEntry {
@@ -18,7 +19,7 @@ export interface TaskGoalInventoryEntry {
 /** One task's role in the ordered delivery inventory. */
 export type DeliveryTaskRole =
   | { readonly kind: "implementation" }
-  | { readonly kind: "verification"; readonly scope: string };
+  | { readonly kind: "verification"; readonly scope: DeliveryTaskVerificationScope };
 
 /** One normalized parent task bound into a delivery plan. */
 export interface DeliveryTaskInventoryEntry {

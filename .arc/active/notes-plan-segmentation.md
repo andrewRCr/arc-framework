@@ -50,7 +50,7 @@ stored profile → typed success" wired to its production callsite and proven by
 - _Goal:_ the CLI path exists — no orphaned module.
 
     - `[ ]` **2.1.a Stub conflict resolution as pass-through**
-        - _Retired in:_ Phase 3.
+        - _Retired in:_ Phase 3
 
 ### `[ ]` **2.2 Surface import results in command output**
 

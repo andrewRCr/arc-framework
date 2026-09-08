@@ -142,7 +142,8 @@ export function scanTaskListSegmentation(
   const phaseIds = new Set<string>();
   const outsidePhaseSegmentVerifiers: ParentRecord[] = [];
   let currentPhase: PhaseRecord | null = null;
-  let currentTaskId: string | null = null;
+  let currentParentTaskId: string | null = null;
+  let currentSubtask: { readonly id: string; readonly indent: number } | null = null;
   let segmentationPresent = false;
 
   for (const event of scan.events) {
@@ -170,7 +171,8 @@ export function scanTaskListSegmentation(
         preambleOpen: true,
       };
       phases.push(currentPhase);
-      currentTaskId = null;
+      currentParentTaskId = null;
+      currentSubtask = null;
       continue;
     }
     if (event.type === "parent") {
@@ -189,23 +191,32 @@ export function scanTaskListSegmentation(
       } else if (segmentVerifier) {
         outsidePhaseSegmentVerifiers.push(parent);
       }
-      currentTaskId = event.item.id;
+      currentParentTaskId = event.item.id;
+      currentSubtask = null;
       continue;
     }
     if (event.type === "subtask") {
-      currentTaskId = event.item.id;
+      currentSubtask = {
+        id: event.item.id,
+        indent: leadingWhitespaceLength(lines[event.line - 1] ?? ""),
+      };
       continue;
     }
     if (event.type === "section") {
       currentPhase = null;
-      currentTaskId = null;
+      currentParentTaskId = null;
+      currentSubtask = null;
       continue;
     }
     if (event.type !== "content") continue;
-    if (currentTaskId !== null) {
+    if (currentParentTaskId !== null) {
       const phaseId = RETIRING_PHASE_RE.exec(event.text)?.groups?.phaseId;
       if (phaseId !== undefined) {
-        retiringPhaseReferences.push({ taskId: currentTaskId, line: event.line, phaseId });
+        const taskId = currentSubtask !== null
+          && leadingWhitespaceLength(event.text) > currentSubtask.indent
+          ? currentSubtask.id
+          : currentParentTaskId;
+        retiringPhaseReferences.push({ taskId, line: event.line, phaseId });
       }
     }
     if (currentPhase?.preambleOpen === true) {
@@ -464,6 +475,10 @@ function consumePreambleLine(
 
 function isTaskListSegmentMode(value: string): value is TaskListSegmentMode {
   return value === "slice" || value === "layer" || value === "replication";
+}
+
+function leadingWhitespaceLength(line: string): number {
+  return /^\s*/u.exec(line)?.[0].length ?? 0;
 }
 
 function diagnostic(
