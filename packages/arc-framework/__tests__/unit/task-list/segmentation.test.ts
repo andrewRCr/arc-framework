@@ -633,6 +633,30 @@ describe("scanTaskListSegmentation", () => {
     });
   });
 
+  it("treats an exit criterion without a mode as segmentation presence", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-orphan-exit.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "_Exit criterion:_ The work is complete.",
+        "",
+        "### `[ ]` **1.1 Build the feature**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.diagnostics).toContainEqual({
+      code: "exit-criterion-orphan",
+      path: "tasks-orphan-exit.md",
+      line: 3,
+      message: "tasks-orphan-exit.md:3: Phase 1 carries _Exit criterion:_ but closes no segment",
+    });
+  });
+
   it("reports a retiring-phase reference whose target is missing", () => {
     const result = scanTaskListSegmentation({
       path: "tasks-retiring.md",

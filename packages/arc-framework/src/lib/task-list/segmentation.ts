@@ -447,6 +447,7 @@ function consumePreambleLine(
     return;
   }
   if (text.startsWith("_Exit criterion:_")) {
+    notePresence();
     phase.exitCriterionDeclarationCount += 1;
     phase.exitCriterionDeclarationLines.push(event.line);
     phase.firstExitCriterionLine ??= event.line;
