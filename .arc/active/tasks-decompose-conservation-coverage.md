@@ -418,11 +418,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
 
 - **Additional Context:** `strategy-workflow-authoring.md` §§ Prose economy, Verbs over mechanics
 
-    - `[ ]` **2.5.a Complete the source-kind and companion-presence unit matrix**
-        - Cover `started-planning`, `backlog-stub`, and `active-origin` against absent, tasks, notes, draft, paired
-          specs, and nonstandard matching companions.
-        - Prove scanner choice, allocation exactness, extraction retention, title failures, role closure, and the
-          floor over inventory minus scanned content.
+    - `[x]` **2.5.a Complete the source-kind and companion-presence unit matrix**
+        - An 18-case matrix now spans all three source kinds and six artifact-family shapes, binding inventory,
+          profile, scanned paths, unit resolution, and exact author slots; the composed companion unit set also
+          closes extraction retention, title classification, role closure, and the retirement floor.
 
     - `[ ]` **2.5.b Exercise companion relocation and repository composition with real Git objects**
         - Extend `decompose-v3-repository-plan.test.ts` for a nonstandard companion moved from backlog to active, a

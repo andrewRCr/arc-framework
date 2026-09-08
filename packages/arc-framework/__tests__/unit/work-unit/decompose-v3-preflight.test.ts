@@ -91,6 +91,85 @@ function withPreflightId(machine: V3DecomposeMachine): V3DecomposeMachine {
 }
 
 describe("v3 decomposition preflight", () => {
+  it.each(
+    (["started-planning", "backlog-stub", "active-origin"] as const).flatMap((kind) =>
+      (["absent", "tasks", "notes", "draft", "paired-spec", "nonstandard"] as const)
+        .map((family) => [kind, family] as const)),
+  )("selects %s scanning for the %s artifact family", (kind, family) => {
+    const value = input();
+    if (kind === "backlog-stub") value.localBranches = [];
+    const snapshot = kind === "backlog-stub" ? value.sourceBase : value.localBranches[0]!;
+    const meta = snapshot.origins[0]!;
+    if (kind === "active-origin") {
+      snapshot.ref = "refs/heads/feat/origin";
+      meta.state = "Active";
+      meta.branch = "feat/origin";
+    }
+    const directory = meta.path.slice(0, meta.path.lastIndexOf("/"));
+    const artifact = (name: string, content: string) => ({
+      path: `${directory}/${name}`,
+      objectKind: "blob" as const,
+      mode: "100644" as const,
+      bytes: bytes(content),
+    });
+    const profile = family === "draft"
+      ? { kind: "draft" as const, names: ["draft-origin.md"] }
+      : family === "paired-spec"
+        ? {
+            kind: "paired-spec" as const,
+            names: ["spec-origin-prd.md", "spec-origin-rfc.md"],
+          }
+        : { kind: "single-spec" as const, names: ["spec-origin.md"] };
+    meta.design = profile.names;
+    meta.taskList = family === "tasks" ? "tasks-origin.md" : null;
+    snapshot.sourceArtifacts = profile.names.map((name) => artifact(
+      name,
+      `# ${name}\n\n## Design\n\nDesign body.\n`,
+    ));
+    if (family === "tasks") {
+      snapshot.sourceArtifacts = [
+        ...snapshot.sourceArtifacts,
+        artifact("tasks-origin.md", "# Tasks\n\n## Phase One\n\nTask body.\n"),
+      ];
+    } else if (family === "notes") {
+      snapshot.sourceArtifacts = [
+        ...snapshot.sourceArtifacts,
+        artifact("notes-origin.md", "# Notes\n\n## Evidence\n\nNotes body.\n"),
+      ];
+    } else if (family === "nonstandard") {
+      snapshot.sourceArtifacts = [
+        ...snapshot.sourceArtifacts,
+        artifact("assurance-origin.md", "# Assurance\n\n## Guard\n\nAssurance body.\n"),
+      ];
+    }
+
+    const result = createV3DecomposePreflight(value);
+
+    expect(result.status, JSON.stringify(result)).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.preflight.starterMap.machine.source.kind).toBe(kind);
+    expect(result.preflight.starterMap.machine.planningProfile.kind).toBe(profile.kind);
+    expect(result.preflight.sourceArtifactInventory.map(({ path }) => path)).toEqual(
+      snapshot.sourceArtifacts.map(({ path }) => path)
+        .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))),
+    );
+    const design = new Set(profile.names);
+    const scannedArtifacts = snapshot.sourceArtifacts.filter(({ path }) =>
+      kind !== "active-origin" || design.has(path.split("/").at(-1)!));
+    const scannedPaths = [...new Set(
+      result.preflight.starterMap.machine.sourceUnits.map(({ sourcePath }) => sourcePath),
+    )].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+    expect(scannedPaths).toEqual(scannedArtifacts.map(({ path }) => path)
+      .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))));
+    expect(result.preflight.starterMap.authoring.sourceAllocations.map(({ sourceId }) => sourceId))
+      .toEqual(result.preflight.starterMap.machine.sourceUnits.map(({ sourceId }) => sourceId));
+    const bytesByPath = new Map(snapshot.sourceArtifacts.map(({ path, bytes: content }) => [path, content]));
+    expect(result.preflight.starterMap.machine.sourceUnits.every((unit) => {
+      const content = bytesByPath.get(unit.sourcePath);
+      return content !== undefined && resolveV3DecomposeSourceUnit(unit, content).status === "resolved";
+    })).toBe(true);
+  });
+
   it.each([
     ["started Planning", "started-planning"],
     ["backlog", "backlog-stub"],
