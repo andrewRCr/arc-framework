@@ -224,6 +224,8 @@ import {
   settleHostedFinding,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
+import { explainHostedSettlementBindingMismatch } from
+  "../scripts/review-gate/hosted/settlement-binding.js";
 import {
   GhHostedReviewPort,
   hostedGhRunner,
@@ -2764,18 +2766,18 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
         ? persisted.state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
         : undefined;
       const hosted = attempt?.hosted;
-      const finding = hosted?.findings.find(({ findingId }) => findingId === request.response.findingId);
-      if (persisted.state?.kind !== "lane-progress"
-        || persisted.state.lane !== "standard"
-        || attempt === undefined
-        || hosted === undefined
-        || hosted.dispositionSetId !== request.response.dispositionSetId
-        || finding?.origin !== "review-thread"
-        || finding.commentId !== request.finding.commentId
-        || finding.threadId !== request.finding.threadId
-        || hosted.actorIdentity !== request.actorIdentity
-        || canonicalize(hosted.target) !== canonicalize(request.target)) {
-        throw new Error("Hosted settlement does not match its approved findings attempt.");
+      if (persisted.state?.kind !== "lane-progress" || persisted.state.lane !== "standard") {
+        throw new Error("Hosted settlement requires a persisted standard-lane operation.");
+      }
+      if (attempt === undefined) {
+        throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
+      }
+      if (hosted === undefined) {
+        throw new Error(`Hosted settlement attempt has no hosted binding: ${reference.durableRef}`);
+      }
+      const bindingMismatch = explainHostedSettlementBindingMismatch(hosted, request);
+      if (bindingMismatch !== null) {
+        throw new Error(`Hosted settlement does not match its approved findings attempt: ${bindingMismatch}.`);
       }
       const dispositionRecord = await new LocalApprovedDispositionRecordStore(publisher)
         .readDispositionRecord(attempt.attemptId);
