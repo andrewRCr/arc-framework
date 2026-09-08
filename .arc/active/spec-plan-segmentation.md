@@ -280,6 +280,12 @@ with no preamble line beginning `_Mode:_` and no segment-suffixed parent is unse
 either presence opts the list into the contract, so an undeclared segment verifier is refused rather than silently
 typed. Diagnostics are precomposed and closed:
 
+- **D6.1 Forward amendment — 2026-09-08 pre-publication review.** The presence-trigger rule above is expanded: an
+  exact `_Exit criterion:_` declaration inside the phase-preamble window also opts the list into segmentation. This
+  keeps orphan, empty, and duplicate exit-criterion diagnostics reachable when a mode or verifier is absent. Labels
+  outside the preamble remain inert. The protected base carried no such label when this amendment was accepted, so
+  the expansion adds no observed legacy task-list diagnostics.
+
 - `task-list-malformed` — the shared structural scanner refuses the task-list grammar;
 - `phase-outside-segment` — a phase belongs to no declared segment;
 - `phase-id-duplicate` — a second phase heading repeats an existing phase ID;

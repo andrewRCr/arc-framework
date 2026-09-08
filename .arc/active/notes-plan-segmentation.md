@@ -143,6 +143,10 @@ declaration. Inside the window, any line beginning the exact `_Mode:_` label opt
 backticked token, optional `through Phase N`, em dash, and non-empty gloss. An exact `_Exit criterion:_` label must
 carry non-whitespace prose. `_Retired in:_` deliberately uses the task-body window instead.
 
+**Forward amendment — 2026-09-08 pre-publication review.** Inside the preamble window, either exact `_Mode:_` or
+`_Exit criterion:_` label opts the list into segmentation. The exit-criterion branch therefore reaches orphan,
+empty, and duplicate diagnostics even when no mode or verifier supplies another presence signal.
+
 ## Mode-classification cases
 
 The three cases the discriminator was derived and checked against. Only the first is a real task plan.

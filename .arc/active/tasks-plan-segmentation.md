@@ -451,6 +451,9 @@ _Purpose:_ terminal work-unit verification.
   `_Mode:_` or a segment-suffixed task, a missing segment, criterion, verifier, or retiring-phase target, an
   overlapping, duplicated, or malformed declaration, an orphaned verifier, or a segmented terminal phase fails; a
   valid unsegmented list emits nothing.
+    - _Deviation:_ D6.1's approved forward amendment adds an exact preamble `_Exit criterion:_` as a third presence
+      trigger. Labels outside the preamble remain inert, and valid lists carrying none of the three signals still
+      emit nothing.
 - `[x]` The delivery task inventory produces `segment` scope from the segment suffix, the scope set is closed to
   the three values, exactly one `work-unit`-scope verifier remains terminal and unassigned, and `segment`-scope
   verifiers partition as `member`-scope ones do.
