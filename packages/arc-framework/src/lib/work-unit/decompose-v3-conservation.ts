@@ -23,6 +23,7 @@ export interface V3DecomposeConservationInput {
   currentPreflight: V3DecomposePreflight;
   originDependsOn: string[];
   workUnits: V3DecomposeLiveWorkUnit[];
+  retiringArtifacts?: Array<{ path: string; byteLength: number }>;
 }
 
 export interface V3ValidatedDependencyEdit {
@@ -132,6 +133,20 @@ export function validateV3DecomposeConservation(
     return refuse("machine-binding", binding.reason, binding.locus);
   }
   const extraction = decoded.value.authoring.shape === "extraction";
+
+  if (!extraction && input.retiringArtifacts !== undefined) {
+    const coveredPaths = new Set(decoded.value.machine.sourceUnits.map(({ sourcePath }) => sourcePath));
+    const uncovered = [...input.retiringArtifacts]
+      .sort((left, right) => compareUtf8(left.path, right.path))
+      .find(({ path, byteLength }) =>
+        path !== input.currentPreflight.sourceOriginPath
+        && path.endsWith(".md")
+        && byteLength > 0
+        && !coveredPaths.has(path));
+    if (uncovered !== undefined) {
+      return refuse("live-conservation", "uncovered-retirement-content", uncovered.path);
+    }
+  }
 
   const workUnits = new Map<string, V3DecomposeLiveWorkUnit>();
   for (const [index, record] of input.workUnits.entries()) {

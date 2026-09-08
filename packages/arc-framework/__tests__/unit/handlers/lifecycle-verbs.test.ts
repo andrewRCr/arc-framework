@@ -13,6 +13,8 @@ import {
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
@@ -776,6 +778,30 @@ describe("handleDecompose", () => {
       + `"remedy":"${remedy}","stage":"occupation","status":"refused"}\n`,
     );
     expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy}\n`);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits uncovered retirement content through the strict decompose refusal boundary", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused" as const,
+      stage: "repository-plan" as const,
+      reason: "conservation:live-conservation:uncovered-retirement-content",
+      locus: ".arc/active/notes-mono.md",
+      recovery: { kind: "none" as const },
+      remedy: spineRemedy(
+        "Retirement cannot delete nonempty companion content outside the conservation proof.",
+        "Move the content into a scanned artifact or delete the file, then re-run preflight",
+        ["arc", "decompose", "mono", "--preflight"],
+      ),
+    };
+    mockExecuteGitV3DecomposeCommand.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { execute: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${refusal.remedy.text}\n`);
     expect(process.exitCode).toBe(1);
   });
 

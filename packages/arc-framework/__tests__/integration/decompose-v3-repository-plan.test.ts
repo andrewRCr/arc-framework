@@ -118,7 +118,7 @@ async function genericPlanningLaneRepository() {
   return { repo, baseHead, planningHead };
 }
 
-async function startedRepository() {
+async function startedRepository(options: { uncoveredCompanion?: boolean } = {}) {
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-repository-plan-"));
   roots.push(repo);
   await git(repo, ["init", "-b", "main"]);
@@ -187,6 +187,9 @@ Medium.
     currentWorkflow: "draft-design",
     nextAction: "Begin draft-design",
   }));
+  if (options.uncoveredCompanion === true) {
+    await write(repo, ".arc/active/notes-origin.md", "# Notes: origin\n\nUnallocated companion content.\n");
+  }
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "start"]);
   const sourceHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
@@ -1458,6 +1461,41 @@ describe("Git v3 repository plan", () => {
     expect(canonicalize(staged)).not.toContain("discard");
     expect(canonicalize(staged)).not.toContain("continuation");
     expect(canonicalize(staged)).not.toContain("receiptId");
+  });
+
+  it("threads uncovered retirement content through execute without repository mutation", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository({
+      uncoveredCompanion: true,
+    });
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const statusBefore = await git(repo, ["status", "--porcelain=v1"]);
+    const indexBefore = await git(repo, ["diff", "--cached"]);
+
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "conservation:live-conservation:uncovered-retirement-content",
+      locus: ".arc/active/notes-origin.md",
+      recovery: { kind: "none" },
+      remedy: {
+        argv: ["arc", "decompose", "origin", "--preflight"],
+      },
+    });
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
+    expect(await git(repo, ["status", "--porcelain=v1"])).toBe(statusBefore);
+    expect(await git(repo, ["diff", "--cached"])).toBe(indexBefore);
   });
 
   it("refuses an unpublished source before claiming or materializing a candidate", async () => {

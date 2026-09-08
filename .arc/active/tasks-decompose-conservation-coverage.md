@@ -66,7 +66,7 @@ _Design decisions:_ Begin with one complete `uncovered-retirement-content` refus
 public command boundary. Extend that proven path by command family; source-wide exhaustiveness closes the member
 only after every mode has executable coverage.
 
-### `[ ]` **1.1 Refuse uncovered retirement content end to end through the typed envelope**
+### `[x]` **1.1 Refuse uncovered retirement content end to end through the typed envelope**
 
 - _Goal:_ A retirement that would delete unproved companion content fails before mutation and returns the same
   strict, actionable refusal shape the complete command family will use.
@@ -77,24 +77,19 @@ only after every mode has executable coverage.
           `unexpected-error` retry; focused coverage rejects malformed fields, runtime containers, and unnamed
           fallback codes.
 
-    - `[ ]` **1.1.b Enforce the uncovered-content floor from the pinned source inventory**
-        - Extend `validateV3DecomposeConservation()` and `composeRepositoryPlan()` without changing the existing
-          allocation, dependency, or retirement-delta authority.
-        - Build `test-first` (one behavior at a time):
-            - Refuse the first UTF-8-ordered nonempty Markdown artifact outside `machine.sourceUnits`.
-            - Exclude the origin meta as a record, accept byte-empty companions, and retain the assertion after
-              widened inventory makes the production refusal unreachable.
-            - Preserve the companion path as the refusal locus before `planV3RetirementDelta()` runs.
+    - `[x]` **1.1.b Enforce the uncovered-content floor from the pinned source inventory**
+        - Added a retirement-only conservation assertion over pinned artifact bytes that excludes the origin meta,
+          accepts byte-empty or source-unit-covered companions, and refuses the first UTF-8-ordered uncovered path
+          before retirement-delta planning without changing allocation, dependency, or delta authority.
 
-    - `[ ]` **1.1.c Carry the floor through execute and the public handler**
-        - Thread the typed refusal through `executeGitV3DecomposeCommand()` and `handleDecompose()` while preserving
-          staged-success results and the two pre-mode textual failures. Add a decompose-specific strict emitter;
-          share I/O mechanics without composing `LifecycleCommandRefusalSchema`, whose status literal is `rejected`.
-        - Build `test-first` (one behavior at a time):
-            - Emit one canonical refusal envelope on stdout, `reason` plus `remedy.text` on stderr, and exit `1`.
-            - Prove no candidate claim, materialization, index change, or worktree change occurs.
-            - Keep successful execute output byte-compatible outside the widened remedy type, with public-boundary
-              assertions in `__tests__/unit/handlers/lifecycle-verbs.test.ts`.
+    - `[x]` **1.1.c Carry the floor through execute and the public handler**
+        - Threaded the typed uncovered-content refusal through retirement execution and a strict decompose-specific
+          emitter, preserving operation facts while emitting canonical JSON plus verbatim remedy guidance and leaving
+          candidate claims, branches, the index, and the worktree unchanged; staged success output remains unchanged.
+
+- _Outcome:_ Retirement now refuses the first unproved nonempty companion before delta planning or mutation, carries
+  its exact locus and fold-or-drop preflight remedy through the operation boundary, and exposes the shared strict
+  envelope at the public handler seam.
 
 ### `[ ]` **1.2 Extend specific remedies across preflight, execute, and extraction**
 

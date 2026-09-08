@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
+import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
 import {
   composeV3ExtractionRepositoryPlan,
   composeV3RepositoryPlan,
@@ -235,6 +236,73 @@ describe("v3 repository plan projection", () => {
       ".arc/backlog/planned/member/meta-member.md": { kind: "object" },
       ".arc/backlog/planned/origin/meta-origin.md": { kind: "absent" },
     });
+  });
+
+  it("refuses the first uncovered nonempty retiring artifact before planning its delta", async () => {
+    const input = fixture();
+    for (const [path, content] of [
+      [".arc/active/tasks-origin.md", "# Tasks\n"],
+      [".arc/active/notes-origin.md", "# Notes\n"],
+    ] as const) {
+      const state = file(content);
+      input.sourceTree[path] = state;
+      input.preflight.sourceArtifactInventory.push({
+        path,
+        objectKind: "blob",
+        mode: "100644",
+        contentDigest: digestBytes(state.bytes),
+      });
+    }
+    input.preflight.sourceArtifactInventory.sort((left, right) =>
+      Buffer.compare(Buffer.from(left.path, "utf8"), Buffer.from(right.path, "utf8")));
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "conservation",
+        reason: "live-conservation:uncovered-retirement-content",
+        locus: ".arc/active/notes-origin.md",
+      },
+    });
+  });
+
+  it("excludes the source meta record and accepts an empty uncovered companion", async () => {
+    const input = fixture();
+    const path = ".arc/active/notes-origin.md";
+    const state = file("");
+    input.sourceTree[path] = state;
+    input.preflight.sourceArtifactInventory.push({
+      path,
+      objectKind: "blob",
+      mode: "100644",
+      contentDigest: digestBytes(state.bytes),
+    });
+    input.preflight.sourceArtifactInventory.sort((left, right) =>
+      Buffer.compare(Buffer.from(left.path, "utf8"), Buffer.from(right.path, "utf8")));
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result.status).toBe("composed");
   });
 
   it("refuses an unsupported existing destination object before rendering the result", async () => {

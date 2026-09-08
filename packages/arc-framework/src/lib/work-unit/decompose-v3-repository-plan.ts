@@ -708,6 +708,14 @@ async function composeRepositoryPlan(
     currentPreflight: input.currentPreflight,
     originDependsOn: [...sourceMeta.record.dependsOn],
     workUnits: liveWorkUnits(sourceMetas, baseMetas),
+    ...(mode === "retirement"
+      ? {
+          retiringArtifacts: input.currentPreflight.sourceArtifactInventory.map(({ path }) => {
+            const state = stateAt(input.sourceTree, path);
+            return { path, byteLength: regularFile(state) ? state.bytes.byteLength : 0 };
+          }),
+        }
+      : {}),
   });
   if (conservation.status === "refused") {
     return refuse(

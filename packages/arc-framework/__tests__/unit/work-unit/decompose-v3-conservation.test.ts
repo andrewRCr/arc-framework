@@ -88,6 +88,16 @@ describe("v3 decomposition allocation and dependency conservation", () => {
     });
   });
 
+  it("retains the retirement-floor assertion after source-unit coverage widens", () => {
+    const input = validInput();
+    input.retiringArtifacts = [
+      { path: input.currentPreflight.sourceOriginPath, byteLength: 256 },
+      { path: input.completedMap.machine.sourceUnits[0]!.sourcePath, byteLength: 512 },
+    ];
+
+    expect(validateV3DecomposeConservation(input)).toMatchObject({ status: "validated" });
+  });
+
   it("treats live dependency targets as an order-insensitive set", () => {
     const input = validInput();
     const currentTargets = ["foundation", "origin"];

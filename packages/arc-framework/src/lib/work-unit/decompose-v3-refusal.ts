@@ -61,6 +61,20 @@ export const V3DecomposeCoreRefusalSchema = z.strictObject({
 });
 export type V3DecomposeCoreRefusal = z.infer<typeof V3DecomposeCoreRefusalSchema>;
 
+/** The first strict operation refusal carried end to end through retirement execution. */
+export const V3UncoveredRetirementContentRefusalSchema = z.strictObject({
+  status: z.literal("refused"),
+  stage: z.literal("repository-plan"),
+  reason: z.string().regex(/(?:^|:)uncovered-retirement-content$/u),
+  locus: z.string().min(1),
+  evidence: V3DecomposeRefusalEvidenceSchema.optional(),
+  recovery: z.strictObject({ kind: z.literal("none") }),
+  remedy: SpineRemedySchema,
+});
+export type V3UncoveredRetirementContentRefusal = z.infer<
+  typeof V3UncoveredRetirementContentRefusalSchema
+>;
+
 /** The exact selected command mode whose boundary composes a refusal remedy. */
 export type V3DecomposeInvocation =
   | { mode: "preflight"; origin: string }
@@ -101,6 +115,12 @@ function invocationArgv(invocation: V3DecomposeInvocation): readonly string[] {
 
 function innermostReason(reason: string): string {
   return reason.split(":").at(-1) ?? reason;
+}
+
+/** Whether the current incremental registry owns a stable refusal code. */
+export function isV3DecomposeMappedReason(reason: string): boolean {
+  const code = innermostReason(reason);
+  return code === "uncovered-retirement-content" || code === "unexpected-error";
 }
 
 /** Map one stable decomposition refusal to its command-boundary remedy. */

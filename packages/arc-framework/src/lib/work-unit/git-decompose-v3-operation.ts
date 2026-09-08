@@ -42,6 +42,11 @@ import {
   renderV3DecomposeExecuteCommand,
   renderV3DecomposePreflightCommand,
 } from "./decompose-command-renderer.js";
+import {
+  isV3DecomposeMappedReason,
+  v3DecomposeRemedy,
+} from "./decompose-v3-refusal.js";
+import type { SpineRemedy } from "../../scripts/integration/spine-refusal.js";
 
 export interface GitV3DecomposeOperationDependencies extends GitV3RepositoryPlanDependencies {
   spawningIdentity: string;
@@ -78,7 +83,7 @@ export type GitV3DecomposeOperationResult =
 export type GitV3DecomposeCommandResult =
   | Extract<GitV3DecomposeOperationResult, { status: "staged" }>
   | (Extract<GitV3DecomposeOperationResult, { status: "refused" }> & {
-      remedy: string;
+      remedy: string | SpineRemedy;
     });
 
 export type GitV3ExtractionOperationResult =
@@ -481,6 +486,20 @@ export async function executeGitV3DecomposeCommand(
     completedMap: revalidated.completedMap,
   });
   if (result.status === "refused") {
+    if (isV3DecomposeMappedReason(result.reason)) {
+      const locus = "locus" in result && typeof result.locus === "string"
+        ? result.locus
+        : undefined;
+      return {
+        ...result,
+        remedy: v3DecomposeRemedy({
+          invocation: { mode: "execute", origin: input.origin, cutMapPath },
+          reason: result.reason,
+          ...(locus === undefined ? {} : { locus }),
+          recovery: result.recovery,
+        }),
+      };
+    }
     let remedy: string;
     switch (result.recovery.kind) {
       case "full-candidate":

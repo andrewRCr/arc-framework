@@ -100,6 +100,8 @@ import {
 } from "../lib/work-unit/git-decompose-v3-operation.js";
 import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-finish.js";
 import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
+import { V3UncoveredRetirementContentRefusalSchema } from
+  "../lib/work-unit/decompose-v3-refusal.js";
 import { advanceGitDecomposeTransitionBase } from
   "../lib/work-unit/git-decompose-transition-base-advancement.js";
 import { decodeV3DecomposeCutMap } from "../lib/work-unit/decompose-v3-schema.js";
@@ -439,6 +441,13 @@ function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): vo
     return;
   }
   refuse(`${reason}\n${remedy.text}`);
+}
+
+function emitV3DecomposeRefusal(input: unknown): void {
+  const refusal = V3UncoveredRetirementContentRefusalSchema.parse(input);
+  process.stdout.write(`${canonicalize(refusal)}\n`);
+  process.stderr.write(`${refusal.reason}\n${refusal.remedy.text}\n`);
+  process.exitCode = 1;
 }
 
 /** Name a bounded sample of paths so a wide refusal stays readable without hiding its scale. */
@@ -1049,11 +1058,17 @@ export async function handleDecompose(
         origin: parsed.data.origin,
         cutMapPath: parsed.data.execute,
       });
-      process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status !== "staged") {
+        if (typeof result.remedy !== "string") {
+          emitV3DecomposeRefusal(result);
+          return;
+        }
+        process.stdout.write(`${canonicalize(result)}\n`);
         process.stderr.write(`${result.reason}\n${result.remedy}\n`);
         process.exitCode = 1;
+        return;
       }
+      process.stdout.write(`${canonicalize(result)}\n`);
       return;
     }
     if (parsed.data.extract !== undefined) {
