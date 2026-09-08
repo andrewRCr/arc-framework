@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `1`
-- **Plan Digest:** `sha256:b4e97e96337889eba2e0203d003a84d2a4ae60cf98acef7958e181012ac1b61e`
+- **Plan Revision:** `2`
+- **Plan Digest:** `sha256:d439bf71888b1905c8e50d1402cc34848fcb82fe2898797dbc2191e5b4212212`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -360,29 +360,13 @@ types the segment verifier as a segment-scope verification task.
 - _Outcome:_ planning and execution now share one mode-sensitive grouping contract, while fail-first evidence
   reaches behaviors that already pass and preserves the one-behavior default around the coupled-batch exception.
 
-### `[ ]` **6.4 Re-author the unbound delivery plan under segment typing — D5, D6, D13**
+### `[x]` **6.4 Re-author the unbound delivery plan under segment typing — D5, D6, D13**
 
 - _Goal:_ the exercising instance carries segment typing in an accepted successor canonical record, rather than
   the implementation role its planning-time record necessarily carried.
 
-- _Context:_ this plan composes at task generation under the inventory as it stands, which types its segment
-  verifier as implementation. By this task, Member 1's tasks are closed and the rebuilt bundle contains the new
-  typing, but candidate eligibility has not materialized or bound delivery state. The window closes when this
-  member's verifier closes.
-
-- _Approach:_ before creating authoring state, invoke the read-only `delivery entry inspect` surface with
-  `{"entryMode":"execution"}` and require `not-applicable` / `continue-work-unit` plus the guidance that says the
-  canonical delivery is not yet bound. Any other route stops before composition. Then recreate the authoring map
-  from current spec and task inputs and compose the accepted unbound successor revision. Never patch the
-  machine-owned snapshot, create delivery state, or publish stale authoring state.
-
-- _Note:_ the abandon verb removes an outstanding authoring map and is inert once composition has consumed one —
-  it succeeds, changes nothing, and leaves the stale role in place. The stage's own instruction to abandon and
-  recreate addresses drift while authoring, before composition, which is a different moment.
-
-- _Note:_ the delivery verbs run from the built bundle, not from source, so this needs a rebuild first. A stale
-  bundle refuses rather than mistyping — the entry point compares a content hash of its bundled inputs against
-  the stamp written at build time — so an unexplained refusal here means the build, not the record.
+- _Outcome:_ accepted unbound delivery-plan revision 2 from the rebuilt CLI and current authoring inputs; Task 6.5
+  now carries `verification` / `segment` while member coverage, landability, and seam ownership remain stable.
 
 ### `[ ]` **6.5 Exercise the segmented contract end to end — D7, D9, D12** — validate exit criterion at segment scope
 
