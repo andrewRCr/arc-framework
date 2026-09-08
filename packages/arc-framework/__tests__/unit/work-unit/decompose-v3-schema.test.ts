@@ -1269,4 +1269,18 @@ describe("v3 decomposition map schema", () => {
         "sha256:a5b468bb508f330dec97c0e4e0217283cc408276e0dcb2f94985eaecc0fe16ff",
     });
   });
+
+  it("keeps external-target discovery outside the preflight identity field set", () => {
+    const machine = comprehensiveMachine();
+
+    expect(Object.keys(machinePreimage(machine))).toEqual([
+      "source",
+      "resultBase",
+      "planningProfile",
+      "sourceUnits",
+      "incomingEdges",
+      "outgoingEdges",
+    ]);
+    expect(Object.keys(machine)).not.toContain("externalEdges");
+  });
 });

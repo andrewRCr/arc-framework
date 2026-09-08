@@ -742,6 +742,63 @@ describe("v3 repository plan projection", () => {
     expect(new TextDecoder().decode(roadmapBlob?.bytes)).toContain("true");
   });
 
+  it("projects an external edge to a completed meta without parsing its blob", async () => {
+    const input = fixture();
+    input.resultBaseTree[
+      ".arc/completed/2026-q3/49_foundation/meta-foundation.md"
+    ] = { ...file(""), bytes: new Uint8Array([0xff]) };
+    input.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    const memberMutation = result.plan.mutations.find(
+      ({ path }) => path === ".arc/backlog/planned/member/meta-member.md",
+    );
+    expect(memberMutation).toMatchObject({
+      kind: "composed",
+      contributors: expect.arrayContaining([expect.objectContaining({ kind: "dependency" })]),
+    });
+  });
+
+  it("ignores a non-regular completed metadata tree entry", async () => {
+    const input = fixture();
+    input.resultBaseTree[
+      ".arc/completed/2026-q3/49_foundation/meta-foundation.md"
+    ] = { kind: "object", objectKind: "tree", mode: "040000", bytes: new Uint8Array() };
+    input.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+
+    const result = await composeV3RepositoryPlan({
+      completedMap: input.completedMap,
+      currentPreflight: input.preflight,
+      sourceTree: input.sourceTree,
+      mergeBaseTree: input.mergeBaseTree,
+      resultBaseTree: input.resultBaseTree,
+      mergeBases: [input.resultBaseHead],
+      cohortTemplate,
+      renderRoadmap: vi.fn(async () => encoder.encode("# Roadmap after\n")),
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "conservation",
+        reason: "dependency-projection:unknown-external-target",
+        locus: "authoring.externalEdges.0.to",
+      },
+    });
+  });
+
   it("rebases an existing-home external edge onto the pinned dependency sequence", async () => {
     const input = fixture();
     const consumerPath = configureExistingHomeExternal(input, ["source-only"], ["base-only"]);

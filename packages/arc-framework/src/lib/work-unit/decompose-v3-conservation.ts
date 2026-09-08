@@ -25,6 +25,7 @@ export interface V3DecomposeConservationInput {
   originDependsOn: string[];
   workUnits: V3DecomposeLiveWorkUnit[];
   resultBaseLiveSlugs: string[];
+  resultBaseCompletedSlugs: string[];
   retiringArtifacts?: Array<{ path: string; byteLength: number }>;
 }
 
@@ -410,6 +411,7 @@ export function validateV3DecomposeConservation(
         ? [destination.target.slug]
         : []));
   const resultBaseLiveSlugs = new Set(input.resultBaseLiveSlugs);
+  const resultBaseCompletedSlugs = new Set(input.resultBaseCompletedSlugs);
   for (const [index, edge] of decoded.value.authoring.externalEdges.entries()) {
     const locus = `authoring.externalEdges.${index}`;
     if (destinationSlugs.has(edge.to)) {
@@ -418,7 +420,10 @@ export function validateV3DecomposeConservation(
     if (!extraction && edge.to === origin) {
       return refuse("dependency-projection", "retiring-origin-target", `${locus}.to`);
     }
-    if (!resultBaseLiveSlugs.has(edge.to)) {
+    const eligible = resultBaseLiveSlugs.has(edge.to)
+      || resultBaseCompletedSlugs.has(edge.to)
+      || (extraction && edge.to === origin);
+    if (!eligible) {
       return refuse("dependency-projection", "unknown-external-target", `${locus}.to`);
     }
     contributions.push({

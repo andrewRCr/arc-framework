@@ -56,6 +56,7 @@ import {
 } from "./decompose-v3-topology.js";
 import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
+import { completedWorkUnitMetaSlug } from "./completed-index.js";
 
 /** Exact regular-file or absence states read from pinned repository trees. */
 export type V3RepositoryPlanState = V3PlannedByteState;
@@ -746,6 +747,14 @@ function liveWorkUnits(
   }));
 }
 
+function completedWorkUnitSlugs(tree: V3RepositoryPlanTree): string[] {
+  return Object.entries(tree).flatMap(([path, state]) => {
+    if (!regularFile(state)) return [];
+    const slug = completedWorkUnitMetaSlug(path);
+    return slug === null ? [] : [slug];
+  });
+}
+
 type V3DependencyProjectionResult =
   | { status: "projected"; contributions: V3PlannedDependencyContribution[] }
   | {
@@ -943,6 +952,7 @@ async function composeRepositoryPlan(
     originDependsOn: [...sourceMeta.record.dependsOn],
     workUnits: liveWorkUnits(sourceMetas, baseMetas),
     resultBaseLiveSlugs: baseMetas.map(({ slug }) => slug),
+    resultBaseCompletedSlugs: completedWorkUnitSlugs(input.resultBaseTree),
     ...(mode === "retirement"
       ? {
           retiringArtifacts: input.currentPreflight.sourceArtifactInventory.map(({ path }) => {

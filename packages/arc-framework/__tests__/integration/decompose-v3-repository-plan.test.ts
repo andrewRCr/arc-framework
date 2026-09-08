@@ -129,6 +129,7 @@ async function genericPlanningLaneRepository() {
 
 async function startedRepository(options: {
   companionCoverage?: boolean;
+  completedTarget?: boolean;
   sourceRider?: boolean;
   uncoveredCompanion?: boolean;
 } = {}) {
@@ -210,6 +211,20 @@ Preserve the nonstandard guarantee.
   );
   await write(repo, ".arc/backlog/planned/origin/draft-origin.md", draft);
   await write(repo, ".arc/backlog/planned/origin/meta-origin.md", plannedMeta);
+  if (options.completedTarget === true) {
+    await write(
+      repo,
+      ".arc/completed/2026-q3/49_foundation/meta-foundation.md",
+      renderMetaFile("foundation", {
+        state: "Shipped",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        origin: "internal",
+        completed: "2026-09-01",
+      }),
+    );
+  }
   if (options.companionCoverage === true) {
     await write(repo, ".arc/backlog/planned/origin/assurance-origin.md", assurance);
     await write(repo, ".arc/backlog/planned/origin/notes-origin.md", notes);
@@ -307,7 +322,7 @@ Preserve the nonstandard guarantee.
         },
       ],
       internalEdges: [],
-      externalEdges: [],
+      externalEdges: [] as Array<{ from: string; to: string }>,
       sourceAllocations: machine.sourceUnits.map((unit) => {
         const artifact = unit.sourceLocator.artifact;
         if (options.companionCoverage !== true || artifact === "draft-origin.md") {
@@ -926,6 +941,33 @@ afterEach(async () => {
 });
 
 describe("Git v3 repository plan", () => {
+  it("retains a completed external edge in meta but omits it from ROADMAP blockers", async () => {
+    const fixture = await startedRepository({ completedTarget: true });
+    fixture.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+
+    const result = await composeGitV3RepositoryPlan(
+      fixture.dependencies,
+      "main",
+      fixture.completedMap,
+    );
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    const member = result.plan.mutations.find(
+      ({ path }) => path === ".arc/backlog/planned/member/meta-member.md",
+    );
+    const roadmap = result.plan.mutations.find(({ path }) => path === ".arc/backlog/ROADMAP.md");
+    if (member?.after.kind !== "file" || roadmap?.after.kind !== "file") {
+      throw new Error("member and ROADMAP mutations must contain staged files");
+    }
+    const memberDigest = member.after.contentDigest;
+    const roadmapDigest = roadmap.after.contentDigest;
+    const memberBlob = result.blobs.find(({ contentDigest }) => contentDigest === memberDigest);
+    const roadmapBlob = result.blobs.find(({ contentDigest }) => contentDigest === roadmapDigest);
+    expect(new TextDecoder().decode(memberBlob?.bytes)).toContain("**Depends On:** `foundation`");
+    expect(new TextDecoder().decode(roadmapBlob?.bytes)).not.toContain("foundation");
+  });
+
   it.each([
     ["draft", false],
     ["draft", true],
@@ -2061,6 +2103,43 @@ describe("Git v3 repository plan", () => {
     expect(await git(repo, ["status", "--porcelain=v1"])).toBe(statusBefore);
   });
 
+  it("reads each repository-plan tree once and hydrates only its enumerated objects", async () => {
+    const { baseHead, sourceHead, completedMap, dependencies } = await startedRepository();
+    const fullTreeReads: string[] = [];
+    const enumeratedObjects = new Set<string>();
+    const hydratedObjects: string[] = [];
+    const measured = {
+      ...dependencies,
+      exec: async (...args: Parameters<typeof dependencies.exec>) => {
+        const result = await dependencies.exec(...args);
+        const gitArgs = args[1];
+        if (gitArgs[0] === "ls-tree"
+          && gitArgs.some((arg) => arg.includes("%(objectname)%x09"))) {
+          const oid = gitArgs.at(-1);
+          if (oid !== undefined) fullTreeReads.push(oid);
+          for (const entry of result.stdout.split("\0").filter(Boolean)) {
+            const match = /^\d{6} [^ ]+ ([0-9a-f]{40,64})\t/u.exec(entry);
+            if (match?.[1] !== undefined) enumeratedObjects.add(match[1]);
+          }
+        }
+        return result;
+      },
+      readObject: async (oid: string) => {
+        hydratedObjects.push(oid);
+        return await dependencies.readObject(oid);
+      },
+    };
+
+    const result = await composeGitV3RepositoryPlan(measured, "main", completedMap);
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    expect(fullTreeReads).toHaveLength(3);
+    expect(fullTreeReads.filter((oid) => oid === sourceHead)).toHaveLength(1);
+    expect(fullTreeReads.filter((oid) => oid === baseHead)).toHaveLength(2);
+    expect(hydratedObjects.length).toBeGreaterThan(0);
+    expect(hydratedObjects.every((oid) => enumeratedObjects.has(oid))).toBe(true);
+  });
+
   it("keeps a source-private rider outside relocated companion authority", async () => {
     const { completedMap, dependencies } = await startedRepository({
       companionCoverage: true,
@@ -2405,6 +2484,51 @@ describe("Git v3 repository plan", () => {
     });
     expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
     expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
+  });
+
+  it("recomposes once during advancement without completed-target path reads", async () => {
+    const started = await startedRepository({ completedTarget: true });
+    started.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: started.completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    await git(staged.operation.occupation.path, ["commit", "-m", "commit external transition"]);
+    await write(started.repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(started.repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(started.repo, ["commit", "-m", "advance base"]);
+    const observedArgs: string[][] = [];
+    const measuredBase = {
+      ...started.dependencies,
+      exec: async (...args: Parameters<typeof started.dependencies.exec>) => {
+        observedArgs.push([...args[1]]);
+        return await started.dependencies.exec(...args);
+      },
+    };
+    let recompositions = 0;
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...measuredBase,
+      composePlan: async (baseRef, map) => {
+        recompositions += 1;
+        return await composeGitV3RepositoryPlan(measuredBase, baseRef, map);
+      },
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: started.completedMap,
+    });
+
+    expect(result.status).toBe("advanced");
+    expect(recompositions).toBe(1);
+    expect(observedArgs.some((args) => args.some((arg) =>
+      arg.includes(".arc/completed") || arg.includes("foundation")))).toBe(false);
   });
 
   it("re-advances through a validated first-parent base-merge chain", async () => {

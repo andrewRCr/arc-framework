@@ -542,51 +542,28 @@ prose follows the executable contract.
 - _Outcome:_ Live external authoring now spans the closed map, source-bound conservation, result-base delta
   projection, and staged ROADMAP rendering without widening plan identity or exact transform-delta authority.
 
-### `[ ]` **3.2 Admit completed and late-created targets without widening source authority**
+### `[x]` **3.2 Admit completed and late-created targets without widening source authority**
 
 - _Goal:_ External-target eligibility follows the pinned result base, including work that landed or appeared after
   the source fork, without changing source-bound conservation facts or preflight cost.
 
-    - `[ ]` **3.2.a Derive completed target slugs from the already-read result-base tree**
-        - Add a pure completed-target eligibility wrapper in `src/lib/work-unit/completed-index.ts` that delegates
-          semantic path recognition to `identifyWorkUnitArtifactPath()` and accepts only a completed placement whose
-          artifact kind is `meta`. Apply it to regular-blob entries in the already-read `V3RepositoryPlanTree` without
-          parsing completed blobs or adding them to `readTreeMetas()` lifecycle records.
-        - Leave the module's older loose filesystem/ref archive readers intentionally unchanged as resilient
-          compatibility evidence readers; do not copy their regex grammar into the exact eligibility wrapper.
-        - Build `test-first` (one behavior at a time):
-            - Admit an exact `meta-<slug>.md` whose canonical slug matches its valid completed quarter and work-unit
-              archive entry.
-            - Ignore cohort entries, non-meta files, malformed or mismatched slugs, non-regular tree states, and
-              live-tier records for this set.
-            - Perform no additional Git read, pathspec expansion, or per-branch spawn.
-        - Cover the classifier and its repository-plan use in
-          `packages/arc-framework/__tests__/unit/work-unit/completed-index.test.ts` and
-          `packages/arc-framework/__tests__/unit/work-unit/decompose-v3-repository-plan.test.ts`.
+    - `[x]` **3.2.a Derive completed target slugs from the already-read result-base tree**
+        - Added an exact completed-meta classifier backed by `identifyWorkUnitArtifactPath()` and applied it only to
+          regular blobs in the already-read result-base tree. Completed blobs remain unparsed, and the older resilient
+          filesystem and ref archive readers remain unchanged.
 
-    - `[ ]` **3.2.b Resolve the complete external-target eligibility matrix**
-        - Validate `to` against separate result-base live and completed sets, plus the authenticated surviving origin
-          under extraction.
-        - Build `test-first` (one behavior at a time):
-            - Admit live, completed, late-created live, newly completed, and authenticated extraction-origin targets.
-            - Refuse a retirement edge to its origin as `retiring-origin-target`, even though the predecessor appears
-              in the result-base live set.
-            - Refuse other targets only when they are absent from every eligible set or duplicate a
-              destination-owned edge.
-            - Keep incoming-edge conservation and recipient validation bound to their existing source/live inputs.
-            - Retain a completed-target dependency in its recipient meta while omitting it from the staged ROADMAP's
-              unsatisfied-dependency projection.
+    - `[x]` **3.2.b Resolve the complete external-target eligibility matrix**
+        - Conservation now admits separate pinned live and completed target sets plus the authenticated surviving
+          extraction origin, while preserving retirement and redundancy refusal precedence. Completed prerequisites
+          remain in recipient metadata and disappear from the ROADMAP's unsatisfied blockers.
 
-    - `[ ]` **3.2.c Prove the preflight authority and cost boundaries stay closed**
-        - Pin the existing three-tier preflight pathspec, local-branch scan count, and `preflightId` field set in
-          `packages/arc-framework/__tests__/unit/work-unit/git-decompose-v3-preflight.test.ts` and
-          `packages/arc-framework/__tests__/unit/work-unit/decompose-v3-schema.test.ts`.
-        - Show that a target present only on the pinned result base becomes eligible during repository-plan composition
-          while source units and incoming/outgoing edges stay source-bound. Add no `preflightId` field or preimage
-          component; normal changes to the pinned result-base head retain their existing identity effect.
-        - Instrument `composeGitV3RepositoryPlan()` in the real-Git suite and assert exactly one full-tree read for
-          each existing source, merge-base, and result-base role, with object reads only for those enumerated trees.
-          Assert advancement performs the same single recomposition and no completed pathspec or per-target read.
+    - `[x]` **3.2.c Prove the preflight authority and cost boundaries stay closed**
+        - Boundary tests pin the three live preflight tiers, single local-ref scan, unchanged machine preimage,
+          one full-tree read per repository role, enumerated-object-only hydration, and one advancement recomposition
+          without completed pathspec or per-target reads.
+
+- _Outcome:_ External-target eligibility now follows the pinned result-base tree without expanding preflight identity,
+  source-bound conservation inputs, lifecycle metadata parsing, or repository-read cost.
 
 ### `[ ]` **3.3 Preserve external edges through base-advancement recomposition**
 

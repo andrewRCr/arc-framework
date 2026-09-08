@@ -59,6 +59,33 @@ async function preflightFromBasePlanning(options: {
 }
 
 describe("createGitV3DecomposePreflight", () => {
+  it("scans local refs once and keeps tree discovery to the three live tiers", async () => {
+    const refs = [
+      ["refs/heads/main", "a".repeat(40)],
+      ["refs/heads/plan/origin", "b".repeat(40)],
+      ["refs/heads/feat/other", "c".repeat(40)],
+    ];
+    const exec = vi.fn(async (_command: string, args: string[]) => args[0] === "for-each-ref"
+      ? { stdout: `${refs.flat().join("\0")}\0`, stderr: "" }
+      : { stdout: "", stderr: "" });
+
+    await createGitV3DecomposePreflight({
+      cwd: "/repo",
+      exec,
+      readBlob: async () => null,
+    }, "main", "origin");
+
+    const refScans = exec.mock.calls.filter(([, args]) => args[0] === "for-each-ref");
+    const treeScans = exec.mock.calls.filter(([, args]) => args[0] === "ls-tree");
+    expect(refScans).toHaveLength(1);
+    expect(treeScans).toHaveLength(refs.length);
+    expect(treeScans.every(([, args]) => {
+      const separator = args.indexOf("--");
+      return separator >= 0 && args.slice(separator + 1).join("\0")
+        === ".arc/active\0.arc/backlog/planned\0.arc/backlog/provisional";
+    })).toBe(true);
+  });
+
   it("selects the open origin artifact family in canonical path order", async () => {
     const ref = "refs/heads/main";
     const head = "a".repeat(40);

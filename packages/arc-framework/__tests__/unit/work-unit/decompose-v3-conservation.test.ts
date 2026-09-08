@@ -30,6 +30,7 @@ function validInput(): V3DecomposeConservationInput {
     currentPreflight: preflight,
     originDependsOn: [],
     resultBaseLiveSlugs: [],
+    resultBaseCompletedSlugs: [],
     workUnits: [{
       slug: "consumer",
       writablePath: ".arc/active/meta-consumer.md",
@@ -521,6 +522,38 @@ describe("v3 decomposition allocation and dependency conservation", () => {
       writablePath: null,
       beforeTargets: [],
       afterTargets: ["foundation"],
+    });
+  });
+
+  it("projects a completed external prerequisite", () => {
+    const input = { ...validInput(), resultBaseCompletedSlugs: ["foundation"] };
+    input.completedMap.authoring.externalEdges = [{ from: "member-a", to: "foundation" }];
+
+    const result = validateV3DecomposeConservation(input);
+
+    expect(result).toMatchObject({
+      status: "validated",
+      dependencyEdits: expect.arrayContaining([expect.objectContaining({
+        kind: "external",
+        dependent: "member-a",
+        afterTargets: ["foundation"],
+      })]),
+    });
+  });
+
+  it("admits the authenticated surviving origin as an extraction prerequisite", () => {
+    const input = extractionInput(["origin"]);
+    input.completedMap.authoring.externalEdges = [{ from: "member-a", to: "origin" }];
+
+    const result = validateV3DecomposeConservation(input);
+
+    expect(result).toMatchObject({
+      status: "validated",
+      dependencyEdits: expect.arrayContaining([expect.objectContaining({
+        kind: "external",
+        dependent: "member-a",
+        afterTargets: ["origin"],
+      })]),
     });
   });
 
