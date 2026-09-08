@@ -752,7 +752,7 @@ describe("v3 repository plan projection", () => {
     expect(renderRoadmap).not.toHaveBeenCalled();
   });
 
-  it("identifies an absent projected target artifact", async () => {
+  it("rejects an incompatible member artifact before projection", async () => {
     const input = fixture();
     const allocation = input.completedMap.authoring.sourceAllocations[0]!;
     if (allocation.disposition.kind !== "target") throw new Error("fixture allocation must target");
@@ -775,9 +775,9 @@ describe("v3 repository plan projection", () => {
     expect(result).toEqual({
       status: "refused",
       refusal: {
-        stage: "content",
-        reason: "target-artifact-absent",
-        locus: "member:.arc/backlog/planned/member/other-member.md",
+        stage: "conservation",
+        reason: "ownership:incompatible-allocation-locator",
+        locus: "authoring.sourceAllocations.0.disposition.targetLocator",
       },
     });
   });
