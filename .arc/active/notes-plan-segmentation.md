@@ -198,7 +198,12 @@ tracked buffers:
   authority.
 - `composable-workflows` — the inlined `resolve-plan-segmentation` procedure is method-shaped and lifts into its
   private-method cell at the generate-tasks procedure-library cut.
-- `workflow-eval-harness` — eval coverage for the task-generation judgment prose this work unit edits.
+- `workflow-eval-harness` — own a counterfactual task-generation scenario: otherwise-equivalent specs whose
+  dominant residual risk differs must select the corresponding `slice`, `layer`, or `replication` mode; a
+  composition-risk plan must also assign every mandatory lifecycle row to a `slice` that wires its production
+  callsite and executable proof. An inverted discriminator, a layer-only composition plan, or an omitted lifecycle
+  assignment must fail. Forcing event: before ARC's first public release admits task-generation workflows as
+  behaviorally evaluated.
 
 Two concerns surfaced while grounding the task plan and were routed to `USER-INBOX` rather than folded in:
 

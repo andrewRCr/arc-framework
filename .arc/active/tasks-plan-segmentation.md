@@ -432,7 +432,13 @@ types the segment verifier as a segment-scope verification task.
 
 _Purpose:_ terminal work-unit verification.
 
-### `[ ]` **7.1 Complete verification — D1–D13** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification — D1–D13** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, ARC trigger/domain/section-reference checks, TypeScript and shell lint,
+  source/test typechecks, 11,524 tests across 866 passing files with one skipped file/test, and the production
+  build — all passed.
+- _Success criteria:_ 14 met, zero superseded or unresolved; both member reports replayed, cross-member seams and
+  union coherence verified, and two Heavy adversarial passes converged after two confirmed fixes.
 
 ---
 
@@ -440,44 +446,44 @@ _Purpose:_ terminal work-unit verification.
 
 ### Member 1 — `segmentation-substrate`
 
-- `[ ]` Both the staged Markdown gate and the worktree descriptor lint emit the segmentation diagnostic family —
+- `[x]` Both the staged Markdown gate and the worktree descriptor lint emit the segmentation diagnostic family —
   malformed task-list structure fails universally; for structurally valid input carrying a preamble line beginning
   `_Mode:_` or a segment-suffixed task, a missing segment, criterion, verifier, or retiring-phase target, an
   overlapping, duplicated, or malformed declaration, an orphaned verifier, or a segmented terminal phase fails; a
   valid unsegmented list emits nothing.
-- `[ ]` The delivery task inventory produces `segment` scope from the segment suffix, the scope set is closed to
+- `[x]` The delivery task inventory produces `segment` scope from the segment suffix, the scope set is closed to
   the three values, exactly one `work-unit`-scope verifier remains terminal and unassigned, and `segment`-scope
   verifiers partition as `member`-scope ones do.
-- `[ ]` A `layer` segment carrying an exit criterion and no verifier passes; a terminal verification phase carrying
+- `[x]` A `layer` segment carrying an exit criterion and no verifier passes; a terminal verification phase carrying
   a mode or criterion fails.
 
 ### Member 2 — `segmentation-doctrine`
 
-- `[ ]` The task-generation workflow carries `resolve-plan-segmentation` inline at its existing entry read,
+- `[x]` The task-generation workflow carries `resolve-plan-segmentation` inline at its existing entry read,
   authored method-shaped, with the three modes, the residual-risk discriminator, and the ordering doctrine; its
   ordering line takes the mode read as input; its Finalize checklist carries the three new entries.
-- `[ ]` This work unit's own task list is the first composition-risk plan authored under the contract: it carries
+- `[x]` This work unit's own task list is the first composition-risk plan authored under the contract: it carries
   `_Mode:_` and `_Exit criterion:_` in their preamble position, has every mandatory lifecycle row assigned to a
   `slice`, and closes each `slice` segment with a segment-suffixed verifier whose completion is an `_Outcome:_`.
-- `[ ]` A task list carrying the full segmented shape parses without refusal through the structural and segmentation
+- `[x]` A task list carrying the full segmented shape parses without refusal through the structural and segmentation
   scans, task cursor and tallies, and delivery task inventory, with the segment verifier typed `verification` /
   `segment`, every other parent typed as before, and the derived cursor preserved through compaction-seed emission.
-- `[ ]` Each mandatory lifecycle row appears as a Success Criteria entry authored before any boundary report, while
+- `[x]` Each mandatory lifecycle row appears as a Success Criteria entry authored before any boundary report, while
   segment exit criteria appear only as phase preamble and closing-task evidence.
-- `[ ]` A stub's `_Retired in:_` bullet is named as a protected post-completion surface at the completion-notes
+- `[x]` A stub's `_Retired in:_` bullet is named as a protected post-completion surface at the completion-notes
   fire-point and mirrored in the formatting strategy's post-completion shape.
-- `[ ]` The test-grouping rule takes the mode as input in both the task-generation workflow and the test-first
+- `[x]` The test-grouping rule takes the mode as input in both the task-generation workflow and the test-first
   method; the widened manufactured-red rule and reconstruct-and-revert evidence land in testing-standards; neither
   restates the other.
-- `[ ]` The testing-standards method installs as a configurable file, so the workflow frontmatter, link
+- `[x]` The testing-standards method installs as a configurable file, so the workflow frontmatter, link
   definitions, and method index that already declare it resolve in an installed project rather than dangling.
-- `[ ]` The brief carries one `Segment` entry nesting the three modes and stating the boundaries against `spike`,
+- `[x]` The brief carries one `Segment` entry nesting the three modes and stating the boundaries against `spike`,
   `chunk`, `deliverable`, and delivery member; the task-list formatting strategy carries the definition of record.
 
 ### Cross-member seams
 
-- `[ ]` Every edited framework surface's shipped content is identical in the package source and the project copy —
+- `[x]` Every edited framework surface's shipped content is identical in the package source and the project copy —
   `.default` sections for methods carrying a project override, and the template pairing for the task-generation and
   task-loop workflows.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

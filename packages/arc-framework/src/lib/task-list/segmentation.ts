@@ -139,6 +139,7 @@ export function scanTaskListSegmentation(
   const phases: PhaseRecord[] = [];
   const retiringPhaseReferences: TaskListRetiringPhaseReference[] = [];
   const diagnostics: TaskListSegmentationDiagnostic[] = [];
+  const duplicatePhaseDiagnostics: TaskListSegmentationDiagnostic[] = [];
   const phaseIds = new Set<string>();
   const outsidePhaseSegmentVerifiers: ParentRecord[] = [];
   let currentPhase: PhaseRecord | null = null;
@@ -149,7 +150,7 @@ export function scanTaskListSegmentation(
   for (const event of scan.events) {
     if (event.type === "phase") {
       if (phaseIds.has(event.id)) {
-        diagnostics.push(diagnostic(
+        duplicatePhaseDiagnostics.push(diagnostic(
           document.path,
           event.line,
           "phase-id-duplicate",
@@ -258,6 +259,7 @@ export function scanTaskListSegmentation(
     diagnostics.sort((left, right) => left.line - right.line);
     return { segments: [], retiringPhaseReferences: [], diagnostics };
   }
+  diagnostics.push(...duplicatePhaseDiagnostics);
 
   const segments: TaskListSegment[] = [];
   const coveredPhaseLines = new Set<number>();

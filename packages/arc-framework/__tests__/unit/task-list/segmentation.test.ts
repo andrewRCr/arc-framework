@@ -239,6 +239,31 @@ describe("scanTaskListSegmentation", () => {
     });
   });
 
+  it("leaves duplicate phase ids inert in an unsegmented legacy task list", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-legacy.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "### `[ ]` **1.1 Build the feature**",
+        "",
+        "## **Phase 1:** Extend",
+        "",
+        "### `[ ]` **1.2 Extend the feature**",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result).toEqual({
+      segments: [],
+      retiringPhaseReferences: [],
+      diagnostics: [],
+    });
+  });
+
   it("ignores preamble labels outside the phase preamble window", () => {
     const result = scanTaskListSegmentation({
       path: "tasks-example.md",
