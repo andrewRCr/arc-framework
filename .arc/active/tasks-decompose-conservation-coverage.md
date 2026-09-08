@@ -229,7 +229,7 @@ only after every mode has executable coverage.
 - _Outcome:_ Static source totality, composed prefix/evidence coverage, real-repository six-mode execution, and the
   shipped workflow contract now close the refusal regression surface from producer through operator guidance.
 
-### `[ ]` **1.6 Close refusal-contract delivery** — validate criteria at member scope
+### `[x]` **1.6 Close refusal-contract delivery** — validate criteria at member scope
 
 - _Goal:_ Member 1 has independently reviewable evidence that its public refusal path is complete and that retirement
   cannot cross the uncovered-content floor.
@@ -257,8 +257,45 @@ only after every mode has executable coverage.
         - Reserved non-descendant refusals for Git's negative ancestry result and routed operational probe failures
           from finish and every base-advancement check to a diagnostic, retryable refusal without comparison evidence.
 
-    - Run the `validate-criteria.md` member-scope walk for `refusal-contract-and-floor` and record the boundary
-      evidence without changing Success Criteria markers.
+- _Outcome:_ Member 1 criteria report.
+    - _Criteria slice:_ `Success Criteria > Member 1 — refusal-contract-and-floor`.
+    - _Span:_ bounded diff `fd5e77145..34b1e4079`; cumulative reachability `34b1e4079` at tree `ce1132fab`;
+      `boundary-order-deviation: null`.
+    - _Criterion:_ `Success Criteria > Member 1 — refusal-contract-and-floor > 1`;
+      _criterion-digest:_ `sha256:87c3d6793bbabc161b13189cd7f554d328924cfd88c5ee80e39ffe48642b8a14`;
+      _State:_ `[x]`; _Evidence:_ conservation checks the pinned non-meta inventory before retirement-delta planning;
+      unit, command-integration, and built-CLI coverage prove execute and base advancement preserve the repository and
+      return the exact path and preflight argv.
+    - _Criterion:_ `Success Criteria > Member 1 — refusal-contract-and-floor > 2`;
+      _criterion-digest:_ `sha256:5e0a247fe9645921b0a5b8a24f8d5dd0ba20fe6a9b902420589763abfed5eab4`;
+      _State:_ `[x]`; _Evidence:_ the strict core contract requires `SpineRemedy`; the AST source-totality suite maps
+      every production literal specifically except named `unexpected-error`, rejects unstable outward producers, and
+      the mode schemas and TypeScript results contain no string-remedy arm.
+    - _Criterion:_ `Success Criteria > Member 1 — refusal-contract-and-floor > 3`;
+      _criterion-digest:_ `sha256:a025c897323d23d7c833d9fcee3d7ba04b14a33760a2d88d17836076ffb942ca`;
+      _State:_ `[x]`; _Evidence:_ the shared emitter schema-selects strict core or report-bearing operation refusals,
+      writes one canonical envelope plus exact stderr, and sets exit `1`; the built-CLI matrix exercises all six modes,
+      while schema tests reject invented operation fields on handler-caught failures.
+    - _Criterion:_ `Success Criteria > Member 1 — refusal-contract-and-floor > 4`;
+      _criterion-digest:_ `sha256:3732eb85ff533c846e6c8fdaae87d1cf60b052cf0a03f9acb40e230a832b89cd`;
+      _State:_ `[x]`; _Evidence:_ the strict evidence schema admits only JSON `expected` and `actual`; producer and
+      boundary suites cover each recorded/live comparison family and keep one-sided topology, recovery, ancestry-
+      observation, and transient `source-preimage-raced` failures evidence-free.
+    - _Criterion:_ `Success Criteria > Member 1 — refusal-contract-and-floor > 5`;
+      _criterion-digest:_ `sha256:8ea17dc248fa39d43a2fcf751f97fda4a7c6d8f0cbadccf14e36c10682435494`;
+      _State:_ `[x]`; _Evidence:_ scanned invalid bytes stop preflight at `source-scan`, while target-driven Active
+      task/notes sources use the repository-plan encoding classifier; focused cause matrices preserve distinct
+      metadata, missing-source, encoding, title, existing-home, target-artifact, and target-locator loci and remedies.
+    - _Criterion:_ `Success Criteria > Member 1 — refusal-contract-and-floor > 6`;
+      _criterion-digest:_ `sha256:044a5e79eeda5c51a6c96fff7940ca690ac762041f0f130117bd40e772a416b6`;
+      _State:_ `[x]`; _Evidence:_ both workflow copies are byte-identical at
+      `sha256:9a66b946696e8b283218201d63bf0dacc5e8073b24655140ef8e191e3406ac3a`; their contract test requires the sole
+      all-mode stdout envelope and unchanged surfacing of status, reason, locus, evidence, remedy, and optional report.
+    - _Adversarial companion:_ Heavy pass 1 found four actionable gaps, corrected by `8336744cc`, `74724bf3f`,
+      `65ef303b0`, and `cc6e02ea2`; pass 2 found ancestry probe errors collapsing into topology failures, corrected by
+      `34b1e4079`. The two-pass cap is exhausted; no third pass is claimed. Primary source verification followed the
+      final correction.
+    - _Summary:_ six `[x]`, zero `[~]`, zero `[ ]`; terminal Success Criteria markers remain unchanged.
 
 ## **Phase 2:** Complete companion conservation
 
