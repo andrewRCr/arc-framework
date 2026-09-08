@@ -58,10 +58,33 @@ describe("packaged review CLI surfaces", () => {
   });
 
   it.each([
-    [["review", "chunking", "resolve"], "review-chunking-resolve-request.schema.json"],
-    [["review", "planning-grooming", "resolve"], "review-planning-grooming-resolve-request.schema.json"],
-    [["review", "frontline", "run"], "review-frontline-run-request.schema.json"],
-  ] as const)("emits a dependency-complete public request schema at %s", async (command, rootId) => {
+    [
+      ["review", "chunking", "resolve"],
+      "review-chunking-resolve-request.schema.json",
+      ["review-chunking-resolve-request"],
+    ],
+    [
+      ["review", "planning-grooming", "resolve"],
+      "review-planning-grooming-resolve-request.schema.json",
+      ["review-planning-grooming-resolve-request"],
+    ],
+    [
+      ["review", "frontline", "run"],
+      "review-frontline-run-request.schema.json",
+      [
+        "review-assurance-input",
+        "review-frontline-resolve-envelope",
+        "review-frontline-run-request",
+        "review-method-activity",
+        "review-routing-decision",
+        "review-routing-facts",
+      ],
+    ],
+  ] as const)("emits a dependency-complete public request schema at %s", async (
+    command,
+    rootId,
+    expectedSchemaIds,
+  ) => {
     const outsideProject = await mkdtemp(join(tmpdir(), "arc-review-schema-"));
     const [result, help] = await Promise.all([
       runCli([...command, "--schema"], { cwd: outsideProject }),
@@ -80,6 +103,7 @@ describe("packaged review CLI surfaces", () => {
     const validator = new Ajv2020({ strict: false, validateSchema: false });
     for (const schema of Object.values(output.schemas)) validator.addSchema(schema);
     expect(validator.getSchema(rootId)).toBeDefined();
+    expect(Object.keys(output.schemas)).toEqual(expectedSchemaIds);
   });
 
   it("keeps schema discovery scoped to explicit interim request boundaries", async () => {

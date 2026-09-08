@@ -30,7 +30,7 @@ import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
-import { projectKernelSchemas } from "../lib/kernel/schema/generate.js";
+import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
 import { resolveArcRoot } from "../lib/paths.js";
@@ -2242,7 +2242,7 @@ export type ReviewPublicRequestSchemaId =
   | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
   | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID;
 
-/** Emit one public request root together with the complete registry bundle its refs require. */
+/** Emit one public request root together with only the registry documents its refs require. */
 export function handleReviewRequestSchema(
   schemaId: ReviewPublicRequestSchemaId,
   source?: string,
@@ -2255,7 +2255,7 @@ export function handleReviewRequestSchema(
     reviewDiscoverableCommandInputSchema().parse({ input: source, schema: true });
     const registry = registerReviewDomainSchemas(createKernelRegistry());
     if (registry.get(schemaId) === undefined) throw new Error(`Review request schema unavailable: ${schemaId}`);
-    const bundle = projectKernelSchemas(registry);
+    const bundle = projectKernelSchemaClosure(registry, schemaId);
     overrides.write(`${JSON.stringify({ rootId: `${schemaId}.schema.json`, ...bundle })}\n`);
   } catch (error) {
     overrides.write(`${JSON.stringify({
