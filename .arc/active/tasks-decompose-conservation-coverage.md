@@ -393,13 +393,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           bytes; untargeted notes remain absent, modes stay stable, and member meta rendering gains no notes pointer.
           Missing, invalid-UTF-8, and title-less sources retain their member/path refusals and re-preflight remedies.
 
-    - `[ ]` **2.4.b Admit notes as a closed content role and provisional contributor**
-        - Add `notes` to `V3ContentArtifactRole`, `provisional-notes` to `V3ContentContributorKind`, and their exact
-          whole-file compatibility and ordering in the plan composers.
-        - Build `test-first` (one behavior at a time):
-            - Accept one provisional notes scaffold plus allocated patches into its projected bytes.
-            - Refuse role, disposition, contributor identity, or duplicate-owner mismatches.
-            - Keep canonical contributor order and plan identity stable for every pre-existing role.
+    - `[x]` **2.4.b Admit notes as a closed content role and provisional contributor**
+        - Plan composition now admits only whole-file `provisional-notes` ownership of a notes artifact before its
+          allocated patches, binds contributor identity to the notes role, rejects role, disposition, identity, and
+          duplicate-owner mismatches, and preserves deterministic ordering for every pre-existing contributor kind.
 
     - `[ ]` **2.4.c Close compatible member destinations over content-bearing roles**
         - Replace the suffix-only `artifactBelongsToWorkUnit()` test with the member's design, tasks, and notes
