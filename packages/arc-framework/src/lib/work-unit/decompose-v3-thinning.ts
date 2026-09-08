@@ -28,7 +28,11 @@ export interface V3ExtractionSourceThinningInput {
 /** One source path's authenticated preimage and byte-preserving result. */
 export interface V3ExtractionSourceThinningFilePlan {
   path: string;
-  before: { mode: "100644" | "100755"; contentDigest: CanonicalDigest };
+  before: {
+    mode: "100644" | "100755";
+    contentDigest: CanonicalDigest;
+    byteLength: number;
+  };
   after:
     | { kind: "absent" }
     | { kind: "file"; mode: "100644" | "100755"; bytes: Uint8Array };
@@ -133,7 +137,11 @@ export function planV3ExtractionSourceThinning(
     if (previousEnd !== observed.bytes.length) return refuse("source-range", path);
     files.push({
       path,
-      before: { mode: observed.mode, contentDigest: expected.contentDigest },
+      before: {
+        mode: observed.mode,
+        contentDigest: expected.contentDigest,
+        byteLength: observed.bytes.byteLength,
+      },
       after: retainedUnits === 0
         ? { kind: "absent" }
         : { kind: "file", mode: observed.mode, bytes: concatenate(retained) },

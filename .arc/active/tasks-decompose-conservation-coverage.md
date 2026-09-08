@@ -144,21 +144,10 @@ only after every mode has executable coverage.
           the selected preview/apply remedy, rejected reason-only and malformed evidence shapes, and preserved all
           three canonical success arms plus existing apply-authority validation.
 
-    - `[ ]` **1.3.b Attach evidence at source preimage and apply comparisons**
-        - Add typed evidence for initial preimage comparisons in `decompose-v3-finish-operation.ts` and for
-          apply-authority comparison in `git-decompose-v3-finish.ts`; retain locus-only results for capture failures,
-          malformed sets, transient `source-preimage-raced`, and other one-sided observations.
-        - Add byte length to `V3ExtractionSourceThinningFilePlan.before` so the finish operation can project its
-          allowed before/after states without carrying raw bytes. Let the local `authorizeApply` refusal carry its
-          expected/actual authority values; do not widen `V3PartialRecoveryIO.verify`, whose mismatch result remains a
-          path-only transient verifier outcome.
-        - Build `test-first` (one behavior at a time):
-            - Report the planned before/after pair and observed index or worktree preimage for
-              `source-index-preimage` and `source-worktree-preimage` as closed path states with digest-and-length byte
-              facts.
-            - Report expected and supplied authority for `apply-authority`; assert `source-preimage-raced` carries its
-              exact path and no evidence.
-            - Preserve bounded restoration and the exact residue locus after a failed apply.
+    - `[x]` **1.3.b Attach evidence at source preimage and apply comparisons**
+        - Added source-preimage byte lengths, normalized planned before/after and observed index/worktree states into
+          digest-and-length evidence, and carried expected-versus-supplied apply authority through the strict result.
+          Transient races and one-sided failures remain evidence-free, with exact race and restoration-residue loci.
 
     - `[ ]` **1.3.c Attach evidence across thinning and committed-destination comparisons**
         - Thread admitted comparison evidence through `decompose-v3-thinning.ts` and

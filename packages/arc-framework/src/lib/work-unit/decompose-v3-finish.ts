@@ -35,6 +35,7 @@ export const V3ExtractionFinishEvidenceSchema = z.strictObject({
     before: z.strictObject({
       mode: ModeSchema,
       contentDigest: DigestSchema,
+      byteLength: z.number().int().nonnegative(),
     }),
     after: z.discriminatedUnion("kind", [
       z.strictObject({ kind: z.literal("absent") }),

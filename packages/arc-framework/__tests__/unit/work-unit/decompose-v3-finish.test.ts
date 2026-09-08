@@ -22,6 +22,7 @@ describe("V3ExtractionFinishResultSchema", () => {
       before: {
         mode: "100644",
         contentDigest: `sha256:${"d".repeat(64)}`,
+        byteLength: 128,
       },
       after: {
         kind: "file",
@@ -61,6 +62,19 @@ describe("V3ExtractionFinishResultSchema", () => {
     { status: "previewed" },
     { status: "previewed", reason: "unexpected" },
     { status: "previewed", preview: { ...preview, applyAuthority: "invalid" } },
+    {
+      status: "previewed",
+      preview: {
+        ...preview,
+        sources: [{
+          ...preview.sources[0],
+          before: {
+            mode: preview.sources[0]?.before.mode,
+            contentDigest: preview.sources[0]?.before.contentDigest,
+          },
+        }],
+      },
+    },
   ])("refuses an incomplete or open-ended outcome: %o", (result) => {
     expect(V3ExtractionFinishResultSchema.safeParse(result).success).toBe(false);
   });

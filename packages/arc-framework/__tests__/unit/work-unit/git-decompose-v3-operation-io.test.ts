@@ -203,12 +203,20 @@ describe("Git v3 extraction source finish", () => {
     await git(root, ["commit", "-qm", "source"]);
     const plans: V3ExtractionSourceThinningFilePlan[] = [{
       path: rfcPath,
-      before: { mode: "100644", contentDigest: digestBytes(new TextEncoder().encode("remove\n")) },
+      before: {
+        mode: "100644",
+        contentDigest: digestBytes(new TextEncoder().encode("remove\n")),
+        byteLength: new TextEncoder().encode("remove\n").byteLength,
+      },
       after: { kind: "absent" },
       removedLocators: [{ artifact: rfcPath, kind: "preamble" }],
     }, {
       path: specPath,
-      before: { mode: "100755", contentDigest: digestBytes(new TextEncoder().encode("before\n")) },
+      before: {
+        mode: "100755",
+        contentDigest: digestBytes(new TextEncoder().encode("before\n")),
+        byteLength: new TextEncoder().encode("before\n").byteLength,
+      },
       after: { kind: "file", mode: "100755", bytes: new TextEncoder().encode("after\n") },
       removedLocators: [{ artifact: specPath, kind: "preamble" }],
     }];

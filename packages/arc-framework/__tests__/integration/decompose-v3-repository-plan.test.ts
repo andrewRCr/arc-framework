@@ -719,17 +719,24 @@ describe("Git v3 repository plan", () => {
     const fixture = await landedExtractionRepository();
     const sourcePath = ".arc/active/spec-origin.md";
     const before = await readFile(join(fixture.repo, sourcePath), "utf8");
+    const preview = await previewFinish(fixture);
+    if (preview.status !== "previewed") throw new Error(JSON.stringify(preview));
+    const suppliedAuthority = `sha256:${"0".repeat(64)}` as const;
 
     await expect(finishGitV3Extraction(fixture.dependencies, {
       cwd: fixture.repo,
       baseBranch: "main",
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
-      applyAuthority: `sha256:${"0".repeat(64)}`,
+      applyAuthority: suppliedAuthority,
     })).resolves.toMatchObject({
       status: "refused",
       reason: "apply-authority",
       locus: "apply",
+      evidence: {
+        expected: preview.preview.applyAuthority,
+        actual: suppliedAuthority,
+      },
       remedy: {
         argv: [
           "arc",
@@ -738,7 +745,7 @@ describe("Git v3 repository plan", () => {
           "--finish",
           fixture.cutMapPath,
           "--apply",
-          `sha256:${"0".repeat(64)}`,
+          suppliedAuthority,
         ],
       },
     });
@@ -774,6 +781,10 @@ describe("Git v3 repository plan", () => {
     await git(fixture.repo, ["add", droppedUnit.sourcePath]);
     await git(fixture.repo, ["commit", "-m", "refresh reasoned-drop source bytes"]);
     const committedSource = await readFile(sourcePath, "utf8");
+    const refreshedPreview = await previewFinish(fixture);
+    expect(refreshedPreview).toMatchObject({ status: "previewed" });
+    if (refreshedPreview.status !== "previewed") return;
+    expect(refreshedPreview.preview.applyAuthority).not.toBe(preview.preview.applyAuthority);
 
     await expect(finishGitV3Extraction(fixture.dependencies, {
       cwd: fixture.repo,
@@ -781,15 +792,30 @@ describe("Git v3 repository plan", () => {
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
       applyAuthority: preview.preview.applyAuthority,
-    })).resolves.toEqual({ status: "refused", reason: "apply-authority", locus: "apply" });
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "apply-authority",
+      locus: "apply",
+      evidence: {
+        expected: refreshedPreview.preview.applyAuthority,
+        actual: preview.preview.applyAuthority,
+      },
+      remedy: {
+        argv: [
+          "arc",
+          "decompose",
+          "origin",
+          "--finish",
+          fixture.cutMapPath,
+          "--apply",
+          preview.preview.applyAuthority,
+        ],
+      },
+    });
     await expect(readFile(sourcePath, "utf8")).resolves.toBe(committedSource);
     expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", droppedUnit.sourcePath]))
       .toBe("");
 
-    const refreshedPreview = await previewFinish(fixture);
-    expect(refreshedPreview).toMatchObject({ status: "previewed" });
-    if (refreshedPreview.status !== "previewed") return;
-    expect(refreshedPreview.preview.applyAuthority).not.toBe(preview.preview.applyAuthority);
   });
 
   it("authenticates an authored preserved incoming dependency against the live base", async () => {

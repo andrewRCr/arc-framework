@@ -138,13 +138,18 @@ describe("planV3ExtractionSourceThinning", () => {
     expect(result.files.map(({ path }) => path)).toEqual([rfcPath, specPath]);
     expect(result.files[0]).toMatchObject({
       path: rfcPath,
-      before: { mode: "100644", contentDigest: digestBytes(encoder.encode("whole\n")) },
+      before: {
+        mode: "100644",
+        contentDigest: digestBytes(encoder.encode("whole\n")),
+        byteLength: encoder.encode("whole\n").byteLength,
+      },
       after: { kind: "absent" },
     });
     const spec = result.files[1]!;
     expect(spec.before).toEqual({
       mode: "100755",
       contentDigest: digestBytes(encoder.encode(input.specText)),
+      byteLength: encoder.encode(input.specText).byteLength,
     });
     expect(spec.after).toEqual({
       kind: "file",

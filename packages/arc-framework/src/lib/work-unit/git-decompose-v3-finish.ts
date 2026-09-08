@@ -677,11 +677,17 @@ async function finishGitV3ExtractionOperation(
     input.applyAuthority !== null,
     {
       ...createGitV3ExtractionSourceFinishIO(dependencies),
-      authorizeApply: (files) => Promise.resolve(
-        composeFinishPreview(proof.preparation, files).applyAuthority === input.applyAuthority
+      authorizeApply: (files) => {
+        const expected = composeFinishPreview(proof.preparation, files).applyAuthority;
+        return Promise.resolve(expected === input.applyAuthority
           ? { status: "ready" as const }
-          : { status: "refused" as const, reason: "apply-authority", locus: "apply" },
-      ),
+          : {
+              status: "refused" as const,
+              reason: "apply-authority",
+              locus: "apply",
+              evidence: { expected, actual: input.applyAuthority },
+            });
+      },
       beforeApply: async () => {
         const [liveBase, liveSource, liveBranch, liveHead] = await Promise.all([
           exactRef(dependencies, proof.preparation.proof.baseRef),
