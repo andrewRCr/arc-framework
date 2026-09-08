@@ -1169,12 +1169,17 @@ export async function handleDecompose(
       return;
     }
   } catch (error) {
-    const locus = error instanceof Error ? error.message : String(error);
+    const detail = error instanceof Error ? error.message : String(error);
+    const locus = detail.trim() === "" ? undefined : detail;
     emitV3DecomposeRefusal({
       status: "refused",
       reason: "unexpected-error",
-      locus,
-      remedy: v3DecomposeRemedy({ invocation, reason: "unexpected-error", locus }),
+      ...(locus === undefined ? {} : { locus }),
+      remedy: v3DecomposeRemedy({
+        invocation,
+        reason: "unexpected-error",
+        ...(locus === undefined ? {} : { locus }),
+      }),
     }, emissionMode);
   }
 }

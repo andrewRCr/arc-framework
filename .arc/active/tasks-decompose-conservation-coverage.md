@@ -249,6 +249,10 @@ only after every mode has executable coverage.
           restoration failures now expose their own locus and recovery facts without inheriting operands from the
           superseded staged-authority mismatch.
 
+    - `[x]` **1.6.R.d Keep empty runtime diagnostics inside the refusal envelope**
+        - Omitted empty or whitespace-only caught details instead of emitting an invalid locus, preserving the strict
+          core-only `unexpected-error` envelope across all six selected modes without inventing diagnostic text.
+
     - Run the `validate-criteria.md` member-scope walk for `refusal-contract-and-floor` and record the boundary
       evidence without changing Success Criteria markers.
 

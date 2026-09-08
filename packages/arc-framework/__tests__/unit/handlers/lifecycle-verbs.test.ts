@@ -839,6 +839,21 @@ describe("handleDecompose", () => {
     expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
     expect(stderrWrite).toHaveBeenCalledWith(`unexpected-error\n${remedy.text}\n`);
     expect(process.exitCode).toBe(1);
+
+    stdoutWrite.mockClear();
+    stderrWrite.mockClear();
+    process.exitCode = undefined;
+    adapter.mockRejectedValue(new Error(""));
+
+    await handleDecompose("mono", options);
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({
+      status: "refused",
+      reason: "unexpected-error",
+      remedy,
+    })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`unexpected-error\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
   });
 
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
