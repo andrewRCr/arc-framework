@@ -165,6 +165,34 @@ V3DecomposeCutMap {
   return value;
 }
 
+function extractionCompletedWithTaskPhases(): V3DecomposeCutMap {
+  const value = completedWithTaskPhases();
+  value.authoring.shape = "extraction";
+  value.authoring.placement = { kind: "direct-member" };
+  value.authoring.destinations = [value.authoring.destinations[0]!];
+  value.authoring.internalEdges = [];
+  value.authoring.sourceAllocations = value.machine.sourceUnits.map((unit) => ({
+    sourceId: unit.sourceId,
+    ownership: "destination-owned",
+    disposition: unit.sourcePath.endsWith("/tasks-origin.md")
+      ? { kind: "retained-origin" }
+      : {
+          kind: "target",
+          destinationId: "member-a",
+          targetLocator: { artifact: "draft-member-a.md", kind: "preamble" },
+        },
+  }));
+  value.authoring.incomingDispositions[0]!.disposition = {
+    kind: "replace",
+    replacementTargets: ["origin"],
+  };
+  value.authoring.outgoingDispositions[0]!.disposition = {
+    kind: "targets",
+    targets: ["member-a"],
+  };
+  return value;
+}
+
 function addRetainedOriginAllocation(value: V3DecomposeCutMap): void {
   const retainedSource = {
     sourcePath: ".arc/active/draft-origin.md",
@@ -491,6 +519,59 @@ describe("v3 decomposition map schema", () => {
       status: "rejected",
       issue: { code: "source-shape", path: "authoring.sourceAllocations.0.disposition" },
     });
+  });
+
+  it.each([
+    {
+      kind: "target" as const,
+      destinationId: "member-a",
+      targetLocator: { artifact: "tasks-member-a.md", kind: "whole-file" as const },
+    },
+    { kind: "drop" as const, reason: "companion is not needed" },
+  ])("refuses extraction companion disposition $kind at the exact allocation", (disposition) => {
+    const value = extractionCompletedWithTaskPhases();
+    const companionIndex = value.machine.sourceUnits.findIndex(({ sourcePath }) =>
+      sourcePath.endsWith("/tasks-origin.md"));
+    value.authoring.sourceAllocations[companionIndex]!.disposition = disposition;
+
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+      status: "rejected",
+      issue: {
+        code: "companion-disposition",
+        path: `authoring.sourceAllocations.${companionIndex}.disposition`,
+      },
+    });
+  });
+
+  it("accepts destination-owned retained-origin for every extraction companion", () => {
+    const value = extractionCompletedWithTaskPhases();
+    const companionIndexes = value.machine.sourceUnits.flatMap((unit, index) =>
+      unit.sourcePath.endsWith("/tasks-origin.md") ? [index] : []);
+
+    expect(companionIndexes).toHaveLength(3);
+    expect(companionIndexes.map((index) => value.authoring.sourceAllocations[index])).toEqual(
+      companionIndexes.map((index) => ({
+        sourceId: value.machine.sourceUnits[index]!.sourceId,
+        ownership: "destination-owned",
+        disposition: { kind: "retained-origin" },
+      })),
+    );
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({ status: "accepted" });
+  });
+
+  it("leaves retirement dispositions and design-unit extraction choices unchanged", () => {
+    expect(decodeV3DecomposeCutMap(completedWithTaskPhases())).toMatchObject({ status: "accepted" });
+
+    const extraction = extractionCompleted("started-planning");
+    addRetainedOriginAllocation(extraction);
+    const secondDesignIndex = extraction.authoring.sourceAllocations.findIndex(({ disposition }) =>
+      disposition.kind === "retained-origin");
+    extraction.authoring.sourceAllocations[secondDesignIndex]!.disposition = {
+      kind: "drop",
+      reason: "design section superseded",
+    };
+
+    expect(decodeV3DecomposeCutMap(extraction)).toMatchObject({ status: "accepted" });
   });
 
   it("requires substantive allocation for every extracted new member", () => {

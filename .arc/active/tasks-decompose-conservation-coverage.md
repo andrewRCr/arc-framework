@@ -364,14 +364,10 @@ scanner or schema primitive closes a lifecycle obligation by itself.
           non-meta companion unit. Finish preview exercises the same rebuild policy and leaves inventory-only Active
           companions byte-identical without an extraction-specific filter.
 
-    - `[ ]` **2.3.b Refuse non-retained companion dispositions in extraction maps**
-        - Add the `companion-disposition` decode issue beside `source-shape` in `decodeV3DecomposeCutMap()`, deriving
-          companion identity from `sourcePath` against `planningProfile.sourceDesign`; add its specific remedy to the
-          shared registry and rerun the source-totality contract in the same leaf.
-        - Build `test-first` (one behavior at a time):
-            - Accept `retained-origin` with destination-owned ownership for every companion allocation.
-            - Refuse target and drop dispositions at the exact allocation path under extraction.
-            - Leave retirement shapes and design-unit extraction allocations unchanged.
+    - `[x]` **2.3.b Refuse non-retained companion dispositions in extraction maps**
+        - Extraction decode now identifies non-design companions from each source path and requires a
+          destination-owned retained-origin allocation, reports `companion-disposition` at the exact allocation,
+          and routes the code through a specific shared remedy without changing retirement or design-unit choices.
 
     - `[ ]` **2.3.c Preserve retained companions through thinning and finish**
         - Carry the decode rule through `planV3ExtractionSourceThinning()` and

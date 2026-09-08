@@ -543,6 +543,12 @@ const V3_REPOSITORY_PLAN_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemed
     correction: "Correct the reported source disposition, then retry the selected mode",
     command: "invocation",
   },
+  "companion-disposition": {
+    invariant: "Extraction must preserve every non-design companion at the surviving origin.",
+    correction: "Change the reported companion allocation to destination-owned retained-origin, "
+      + "then retry the selected mode",
+    command: "invocation",
+  },
   "destination-coverage": {
     invariant: "Every declared destination must own at least one admitted contribution.",
     correction: "Add or remove the reported destination, then retry the selected mode",

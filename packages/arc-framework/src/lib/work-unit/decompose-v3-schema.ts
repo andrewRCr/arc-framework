@@ -233,6 +233,7 @@ export interface V3DecomposeMapIssue {
     | "authoring-identity"
     | "authoring-order"
     | "source-shape"
+    | "companion-disposition"
     | "destination-coverage"
     | "placement-cardinality"
     | "shape-cardinality";
@@ -489,6 +490,24 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
     },
   };
   const { authoring } = parsed.data;
+  if (extraction) {
+    const companionIndex = parsed.data.machine.sourceUnits.findIndex((unit, index) => {
+      const artifact = unit.sourcePath.split("/").at(-1);
+      return artifact !== undefined
+        && !parsed.data.machine.planningProfile.sourceDesign.includes(artifact)
+        && authoring.sourceAllocations[index]?.disposition.kind !== "retained-origin";
+    });
+    if (companionIndex >= 0) {
+      return {
+        status: "rejected",
+        issue: {
+          code: "companion-disposition",
+          path: `authoring.sourceAllocations.${companionIndex}.disposition`,
+          message: "Extraction companion allocations must remain at the surviving origin.",
+        },
+      };
+    }
+  }
   for (const [index, allocation] of authoring.sourceAllocations.entries()) {
     if (allocation.disposition.kind !== "retained-origin") continue;
     if (!extraction) {

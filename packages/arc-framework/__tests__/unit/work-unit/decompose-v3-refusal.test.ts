@@ -328,6 +328,20 @@ describe("v3 decomposition refusals", () => {
     expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--extract", "map.json"]);
   });
 
+  it("maps a companion disposition refusal to retained-origin correction and the invoked retry", () => {
+    const reason = "map:companion-disposition";
+    const locus = "authoring.sourceAllocations.2.disposition";
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "extract", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus,
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.text).toMatch(/preserve every non-design companion.*destination-owned retained-origin/iu);
+    expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--extract", "map.json"]);
+  });
+
   it("maps source publication to an exact Git push", () => {
     const remedy = v3DecomposeRemedy({
       invocation: { mode: "execute", origin: "origin", cutMapPath: "map.json" },
