@@ -104,25 +104,37 @@ entries record only sanitized values — never a host endpoint, username, token,
   while a UDP path Lima does open would not have appeared at all. Both the recipe and its provisioning script are
   statically validated, the latter extracted back out of the YAML block where indentation errors hide.
 
-### `[ ]` **1.4 Add the start, status, and rebuild helpers**
+### `[x]` **1.4 Add the start, status, and rebuild helpers**
 
 - _Goal:_ The operator runs the VM with three commands, each covered by `lint:sh`, and a rebuild is proven to be a
   fresh instance from the recipe.
 
-    - `[ ]` **1.4.a Write `start.sh`, `status.sh`, and `rebuild.sh` under `scripts/local-ci/`**
-        - `start.sh` starts the instance and installs the launch agent when absent. `status.sh` prints
-          `limactl list`, guest uptime and memory, and the runner service states from
-          `systemctl list-units 'actions.runner.*'` inside the guest. `rebuild.sh` stops and deletes the
-          instance and creates it again from the recipe; it requires an explicit confirmation flag and refuses even
-          then while `pgrep -f Runner.Worker` finds a job in progress inside the guest.
+    - `[x]` **1.4.a Write `start.sh`, `status.sh`, and `rebuild.sh` under `scripts/local-ci/`**
+        - `start.sh` is idempotent across all three states — already running, existing but stopped, absent — and
+          installs the login agent only when it is missing, rendering the plist's home-directory placeholder from
+          the environment so the account name stays a local input. `status.sh` reports the instance, the guest's
+          load and memory, and each runner service, and exits cleanly with a note when the guest is down, since
+          that is the state it is most often asked about. `rebuild.sh` requires `--yes`, rejects unrecognized
+          arguments rather than ignoring them, and refuses while a job is in progress.
+        - The in-progress check matches `[R]unner\.Worker` rather than the plain pattern. Written literally, the
+          pattern appears in the command line of the shell that runs the check, so `pgrep -f` matches its own
+          invocation and the guard fires on every run — as useless as one that never fires.
 
-    - `[ ]` **1.4.b Extend the `lint:sh` glob**
-        - Add `../../scripts/local-ci/*.sh` to the `lint:sh` script in `packages/arc-framework/package.json` and
-          run `npm run lint:sh` green.
+    - `[x]` **1.4.b Extend the `lint:sh` glob**
+        - Added `../../scripts/local-ci/*.sh` to the `lint:sh` script and ran it green. The existing
+          `../../scripts/*.sh` entry does not reach a subdirectory.
 
-    - `[ ]` **1.4.c Prove the helpers**
-        - Run `status.sh` and `rebuild.sh` once from the workstation over SSH; record one `status` output and the
-          rebuild completion timestamp in the ledger.
+    - `[x]` **1.4.c Prove the helpers**
+        - `status.sh` and both of `rebuild.sh`'s refusal paths were exercised from the workstation over SSH, and a
+          full `rebuild.sh --yes` ran to completion; the `status` output and the completion timestamp are in the
+          ledger. The replacement instance came up fully provisioned with a two-minute uptime, which is what
+          distinguishes a rebuild from a restart.
+        - The job-in-progress refusal is not yet provable — no runner exists to hold a job until Phase 3. Only the
+          argument handling is verified so far; the guard itself is worth exercising once Task 3.1 lands.
+
+- _Outcome:_ The trial is now operable from three commands, and the guest is reproducible from the recipe on
+  demand rather than only at first build. The login agent is installed, so the unattended-restart path Task 4.2
+  measures is in place rather than merely designed.
 
 ## **Phase 2:** Anchor gate
 

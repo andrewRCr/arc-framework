@@ -75,8 +75,26 @@ swap growth, so the anchor gate's memory condition is read from `journalctl -k`,
 
 Helper proof:
 
-- `status.sh` output: —
-- `rebuild.sh` completion timestamp: —
+```text
+== instance ==
+NAME      STATUS     SSH                VMTYPE    ARCH       CPUS    MEMORY    DISK     DIR
+arc-ci    Running    127.0.0.1:50918    vz        aarch64    8       8GiB      60GiB    ~/.lima/arc-ci
+
+== guest ==
+ 16:29:12 up 15 min,  1 user,  load average: 0.00, 0.00, 0.00
+               total        used        free      shared  buff/cache   available
+Mem:            7912         481        7004           0         589        7431
+Swap:              0           0           0
+
+== runner services ==
+```
+
+The empty runner section is correct at this point: no service is registered until Phase 3.
+
+`rebuild.sh` completed at `2026-09-08T21:31:44Z`. The replacement instance came up fully provisioned — service account
+present, application directories at mode `0750`, resource sampling live, guest uptime two minutes — so the rebuild
+produces a fresh instance from the recipe rather than restarting the old one. Elapsed time was not instrumented on
+this run; the image was already cached, so it excludes the download the first build paid.
 
 ### Anchor gate
 
