@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
+import { createHostedHandleFixture } from "../../fixtures/hosted-review.js";
 
 import {
   handleMergeLockHold,
@@ -300,11 +301,7 @@ const hostedTarget = {
   pullRequest: 42,
   headSha: "a".repeat(40),
 };
-const hostedHandle = {
-  schemaVersion: 1,
-  provider: "coderabbit-pr",
-  requestedCoverage: "complete",
-  effectiveCoverage: "complete",
+const hostedHandle = createHostedHandleFixture({
   target: hostedTarget,
   artifact: {
     kind: "issue-comment",
@@ -312,7 +309,7 @@ const hostedHandle = {
     url: "https://github.com/arc-framework/example/pull/42#issuecomment-1",
     createdAt: "2026-07-24T12:00:00Z",
   },
-};
+});
 const hostedStandardReview = {
   obligation: "required" as const,
   reasons: ["sensitive-change-set" as const],

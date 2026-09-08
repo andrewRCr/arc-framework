@@ -1,6 +1,7 @@
 /** Exact-target review status reduction. */
 
 import { describe, expect, it } from "vitest";
+import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
 
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../src/lib/delivery/review-vehicle.js";
@@ -42,8 +43,7 @@ const hostedAction = {
 };
 const hostedAwaitAction = {
   schemaVersion: 1 as const,
-  handle: {
-    schemaVersion: 1 as const,
+  handle: createHostedHandleFixture({
     provider: hostedAction.provider,
     requestedCoverage: hostedAction.coverage,
     effectiveCoverage: hostedAction.coverage,
@@ -55,7 +55,7 @@ const hostedAwaitAction = {
       createdAt: "2026-09-01T12:00:00.000Z",
     },
     vehicle: memberVehicle,
-  },
+  }),
 };
 type DeliveryTargetInput = Parameters<typeof composeDeliveryReviewObligation>[0]["targets"][number];
 type DeliveryDischargeInput = Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number];

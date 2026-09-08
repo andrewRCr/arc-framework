@@ -9,16 +9,28 @@ import {
 } from "./core/operation-state-schema.js";
 import type { FrontlineAdmission } from "./core/frontline-admission.js";
 import type { LaneSubjectLineage } from "./core/lane-admission.js";
-import type { ReviewOperationStateStore } from "./core/ports.js";
+import type {
+  ReviewOperationStateSnapshotIndex,
+  ReviewOperationStateStore,
+} from "./core/ports.js";
 import {
   isReviewVersionConflict,
   REVIEW_VERSION_RETRY_ATTEMPTS,
 } from "./core/version-conflict.js";
 import type { HostedAwaitResult } from "./hosted/await.js";
 import type {
+  HostedAdmission,
+  HostedProgressVehicle,
   HostedRequestEnvelope,
   HostedRequestHandle,
+  HostedRequestAdmissionResolution,
   HostedRequestResult,
+} from "./hosted/request.js";
+import {
+  createHostedAdmission,
+  hostedAdmissionMatchesRequest,
+  hostedAwaitAction,
+  HostedRequestEnvelopeSchema,
 } from "./hosted/request.js";
 import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 
@@ -55,7 +67,7 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
         local: next.local,
       });
   }
-  if (pendingHosted?.handle === undefined || nextHosted?.handle === undefined
+  if (pendingHosted === undefined || nextHosted === undefined
     || pendingHosted.findings.length !== 0 || pendingHosted.dispositionSetId !== null
     || pendingHosted.settledFindingIds.length !== 0) return false;
   return canonicalize({
@@ -66,7 +78,8 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
     headSha: pending.headSha,
     sourceId: pending.sourceId,
     ...(pending.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: pending.chunkSeriesComplete }),
-    handle: pendingHosted.handle,
+    admission: pendingHosted.admission,
+    handle: pendingHosted.handle ?? null,
     target: pendingHosted.target,
     requestedCoverage: pendingHosted.requestedCoverage,
     effectiveCoverage: pendingHosted.effectiveCoverage,
@@ -82,7 +95,8 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
     headSha: next.headSha,
     sourceId: next.sourceId,
     ...(next.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: next.chunkSeriesComplete }),
-    handle: nextHosted.handle,
+    admission: nextHosted.admission,
+    handle: nextHosted.handle ?? null,
     target: nextHosted.target,
     requestedCoverage: nextHosted.requestedCoverage,
     effectiveCoverage: nextHosted.effectiveCoverage,
@@ -96,19 +110,6 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
 /** Resolve the stable identity of one hosted request attempt. */
 export function hostedLaneAttemptId(handle: HostedRequestHandle): string {
   return `hosted/${canonicalDigest(handle).slice("sha256:".length)}`;
-}
-
-/** Resolve the stable identity of one safe request-time unavailability attempt. */
-function hostedRequestUnavailableAttemptId(input: {
-  request: HostedRequestEnvelope;
-  state: "rate-limited" | "transient-unavailable";
-}): string {
-  const digest = canonicalDigest({
-    domain: "arc.review.hosted-request-unavailable/v1",
-    request: input.request,
-    state: input.state,
-  });
-  return `hosted-request/${digest.slice("sha256:".length)}`;
 }
 
 /** Hosted await states that conclude an attempt, keyed to the driver's outcome vocabulary. */
@@ -272,43 +273,294 @@ export async function recordLaneAttempt(
   throw new Error("lane progress exceeded version-conflict retry attempts");
 }
 
-/** Persist one successful hosted request before any await call can be lost to restart. */
-export async function recordHostedPendingRequest(
+export type HostedRequestAdmissionDecision = HostedRequestAdmissionResolution;
+
+function replayHostedRequestResult(
+  request: HostedRequestEnvelope,
+  attempt: LaneAttempt,
+): HostedRequestAdmissionDecision | null {
+  const hosted = attempt.hosted;
+  if (hosted === undefined) return null;
+  if (attempt.outcome === "pending") {
+    return hosted.handle === undefined
+      ? { state: "ambiguous-delivery" }
+      : { state: "acknowledged", handle: hosted.handle, action: hostedAwaitAction(hosted.handle) };
+  }
+  const base = {
+    schemaVersion: 1 as const,
+    mode: "review-hosted-request" as const,
+    provider: request.provider,
+    requestedCoverage: request.coverage,
+    attemptedProviders: [request.provider],
+  };
+  if (attempt.outcome === "rate-limited" || attempt.outcome === "transient-unavailable") {
+    return {
+      state: "concluded",
+      result: { ...base, state: attempt.outcome, nextAction: "try-next-source" },
+    };
+  }
+  if (attempt.outcome === "terminal-failure" && hosted.requestFailureReason !== null) {
+    return {
+      state: "concluded",
+      result: {
+        ...base,
+        state: "terminal-failure",
+        nextAction: "stop",
+        reason: hosted.requestFailureReason,
+      },
+    };
+  }
+  if (attempt.outcome === "ambiguous-delivery") return { state: "ambiguous-delivery" };
+  return null;
+}
+
+/**
+ * Resolve an admitted hosted request before current policy, actor, or member selection.
+ *
+ * @param store - Complete operation-snapshot reader for the current repository.
+ * @param input - Repository identity and caller-visible hosted request.
+ * @returns The one replayable admission decision, `null` when none exists, or a conservative ambiguous stop.
+ */
+export async function readHostedRequestAdmissionReplay(
+  store: ReviewOperationStateSnapshotIndex,
+  input: { repositoryId: string; request: HostedRequestEnvelope },
+): Promise<HostedRequestAdmissionDecision | null> {
+  const request = HostedRequestEnvelopeSchema.parse(input.request);
+  const snapshot = await store.readOperationSnapshot();
+  if (snapshot.status !== "complete") return { state: "ambiguous-delivery" };
+  const matchingAttempts: LaneAttempt[] = [];
+  for (const record of snapshot.records) {
+    if (record.state.kind !== "lane-progress"
+      || record.state.lane !== "standard"
+      || record.state.repositoryId !== input.repositoryId) continue;
+    const progress = LaneProgressStateSchema.parse(record.state);
+    const activeLogicalPass = progress.completedPasses + 1;
+    matchingAttempts.push(...progress.attempts.filter((attempt) => (
+      attempt.logicalPass === activeLogicalPass
+      && attempt.hosted !== undefined
+      && hostedAdmissionMatchesRequest(attempt.hosted.admission, request)
+    )));
+  }
+  if (matchingAttempts.length === 0) return null;
+  if (matchingAttempts.length !== 1) return { state: "ambiguous-delivery" };
+  const matchingAttempt = matchingAttempts[0];
+  if (matchingAttempt === undefined) return { state: "ambiguous-delivery" };
+  return replayHostedRequestResult(request, matchingAttempt)
+    ?? { state: "ambiguous-delivery" };
+}
+
+/** Admit one hosted source attempt before its external request effect. */
+export async function recordHostedRequestAdmission(
   store: ReviewOperationStateStore,
   input: {
     repositoryId: string;
-    handle: HostedRequestHandle;
+    lineage: LaneSubjectLineage;
+    request: HostedRequestEnvelope;
+    progressVehicle?: HostedProgressVehicle;
     reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
     requirement: NonNullable<LaneAttempt["hosted"]>["requirement"];
     actorIdentity: string;
     now: string;
   },
-): Promise<LaneProgressState> {
-  const { handle } = input;
-  return recordLaneAttempt(store, {
+): Promise<HostedRequestAdmissionDecision> {
+  const operationId = laneProgressOperationId({
     lane: "standard",
     repositoryId: input.repositoryId,
-    changeRequestId: `pull/${handle.target.pullRequest}`,
-    headSha: handle.target.headSha,
-    attemptId: hostedLaneAttemptId(handle),
-    sourceId: handle.provider,
-    outcome: "pending",
-    consumedPass: false,
-    hosted: {
-      handle,
-      target: handle.target,
-      requestedCoverage: handle.requestedCoverage,
-      effectiveCoverage: handle.effectiveCoverage,
-      ...(handle.vehicle?.kind === "delivery-member" ? { vehicle: handle.vehicle } : {}),
+    headSha: input.request.target.headSha,
+    lineage: input.lineage,
+  });
+  for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
+    const { version, state } = await store.readOperation(operationId);
+    const existing = state !== null && state.kind === "lane-progress"
+      ? LaneProgressStateSchema.parse(state)
+      : null;
+    const logicalPass = (existing?.completedPasses ?? 0) + 1;
+    const admittedReplay = existing?.attempts.find((attempt) => (
+      attempt.logicalPass === logicalPass
+      && attempt.hosted !== undefined
+      && attempt.hosted.admission.sourceId === input.request.provider
+      && attempt.hosted.admission.requestedCoverage === input.request.coverage
+      && canonicalize(attempt.hosted.admission.target) === canonicalize(input.request.target)
+      && canonicalize(attempt.hosted.admission.vehicle ?? null)
+        === canonicalize(input.progressVehicle ?? null)
+    ));
+    if (admittedReplay !== undefined) {
+      const result = replayHostedRequestResult(input.request, admittedReplay);
+      if (result !== null) return result;
+      throw new Error("hosted admission already concluded with an incompatible result");
+    }
+    const admission = createHostedAdmission({
+      schemaVersion: 1,
+      repositoryId: input.repositoryId,
+      lineage: input.lineage,
+      logicalPass,
+      sourceId: input.request.provider,
+      target: input.request.target,
+      requestedCoverage: input.request.coverage,
+      ...(input.progressVehicle === undefined ? {} : { vehicle: input.progressVehicle }),
       reviewTarget: input.reviewTarget,
       requirement: input.requirement,
       actorIdentity: input.actorIdentity,
-      findings: [],
-      dispositionSetId: null,
-      settledFindingIds: [],
-    },
-    now: input.now,
+    });
+    const replay = existing?.attempts.find((attempt) => (
+      attempt.hosted?.admission.admissionId === admission.admissionId
+    ));
+    if (replay !== undefined) {
+      const result = replayHostedRequestResult(input.request, replay);
+      if (result !== null) return result;
+      throw new Error("hosted admission already concluded with an incompatible result");
+    }
+    const unresolved = existing?.attempts.find((attempt) => (
+      attempt.logicalPass === logicalPass
+      && attempt.hosted !== undefined
+      && (attempt.outcome === "pending"
+        || attempt.outcome === "ambiguous-delivery"
+        || attempt.outcome === "terminal-failure")
+    ));
+    if (unresolved !== undefined) return { state: "ambiguous-delivery" };
+    const attempt: LaneAttempt = {
+      attemptId: admission.admissionId,
+      logicalPass,
+      retryGeneration: 0,
+      changeRequestId: `pull/${input.request.target.pullRequest}`,
+      headSha: input.request.target.headSha,
+      terminalProducer: false,
+      sourceId: input.request.provider,
+      outcome: "pending",
+      hosted: {
+        admission,
+        target: admission.target,
+        requestedCoverage: admission.requestedCoverage,
+        effectiveCoverage: null,
+        ...(admission.vehicle?.kind === "delivery-member" ? { vehicle: admission.vehicle } : {}),
+        reviewTarget: admission.reviewTarget,
+        requirement: admission.requirement,
+        actorIdentity: admission.actorIdentity,
+        requestFailureReason: null,
+        findings: [],
+        dispositionSetId: null,
+        settledFindingIds: [],
+      },
+    };
+    const next = LaneProgressStateSchema.parse(existing === null
+      ? {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId,
+          updatedAt: input.now,
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: input.repositoryId,
+          lineage: input.lineage,
+          completedPasses: 0,
+          attempts: [attempt],
+        }
+      : { ...existing, updatedAt: input.now, attempts: [...existing.attempts, attempt] });
+    try {
+      await store.publishOperation(next, version);
+      return { state: "admitted", admission };
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
+  }
+  throw new Error("hosted admission exceeded version-conflict retry attempts");
+}
+
+/** Bind a provider acknowledgment back to the exact pre-effect admission. */
+export async function acknowledgeHostedRequest(
+  store: ReviewOperationStateStore,
+  input: { admission: HostedAdmission; handle: HostedRequestHandle; now: string },
+): Promise<LaneProgressState> {
+  if (canonicalize(input.handle.admission) !== canonicalize(input.admission)) {
+    throw new Error("hosted request acknowledgment does not match its admission");
+  }
+  const operationId = laneProgressOperationId({
+    lane: "standard",
+    repositoryId: input.admission.repositoryId,
+    headSha: input.admission.target.headSha,
+    lineage: input.admission.lineage,
   });
+  for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
+    const { version, state } = await store.readOperation(operationId);
+    if (state === null || state.kind !== "lane-progress") {
+      throw new Error("hosted request admission is unavailable");
+    }
+    const existing = LaneProgressStateSchema.parse(state);
+    const index = existing.attempts.findIndex((attempt) => (
+      attempt.hosted?.admission.admissionId === input.admission.admissionId
+    ));
+    const admitted = index < 0 ? undefined : existing.attempts[index];
+    if (admitted?.hosted === undefined) throw new Error("hosted request admission is unavailable");
+    const attemptId = hostedLaneAttemptId(input.handle);
+    if (admitted.hosted.handle !== undefined) {
+      if (admitted.attemptId === attemptId
+        && canonicalize(admitted.hosted.handle) === canonicalize(input.handle)) return existing;
+      throw new Error("hosted request admission already binds a different acknowledgment");
+    }
+    if (admitted.outcome !== "pending") {
+      throw new Error("hosted request admission has already concluded");
+    }
+    if (existing.attempts.some((attempt, candidateIndex) => (
+      candidateIndex !== index && attempt.attemptId === attemptId
+    ))) throw new Error("hosted request acknowledgment identity already exists");
+    const acknowledged: LaneAttempt = {
+      ...admitted,
+      attemptId,
+      hosted: {
+        ...admitted.hosted,
+        handle: input.handle,
+        effectiveCoverage: input.handle.effectiveCoverage,
+      },
+    };
+    const attempts = existing.attempts.map((attempt, candidateIndex) => (
+      candidateIndex === index ? acknowledged : attempt
+    ));
+    const next = LaneProgressStateSchema.parse({ ...existing, updatedAt: input.now, attempts });
+    try {
+      await store.publishOperation(next, version);
+      return next;
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
+  }
+  throw new Error("hosted acknowledgment exceeded version-conflict retry attempts");
+}
+
+/** Revalidate one acknowledged pending handle against its durable admission owner. */
+export async function readHostedAcknowledgedRequest(
+  store: ReviewOperationStateStore,
+  handle: HostedRequestHandle,
+): Promise<LaneProgressState> {
+  const recorded = await readHostedRequestProgress(store, handle);
+  if (recorded.attempt.outcome !== "pending") {
+    throw new Error("hosted acknowledged request does not match durable progress");
+  }
+  return recorded.progress;
+}
+
+async function readHostedRequestProgress(
+  store: ReviewOperationStateStore,
+  handle: HostedRequestHandle,
+): Promise<{ progress: LaneProgressState; attempt: LaneAttempt }> {
+  const admission = handle.admission;
+  const { state } = await store.readOperation(laneProgressOperationId({
+    lane: "standard",
+    repositoryId: admission.repositoryId,
+    headSha: admission.target.headSha,
+    lineage: admission.lineage,
+  }));
+  if (state === null || state.kind !== "lane-progress") {
+    throw new Error("hosted acknowledged request is unavailable");
+  }
+  const progress = LaneProgressStateSchema.parse(state);
+  const attempt = progress.attempts.find((candidate) => (
+    candidate.attemptId === hostedLaneAttemptId(handle)
+  ));
+  if (attempt?.hosted?.handle === undefined
+    || canonicalize(attempt.hosted.handle) !== canonicalize(handle)) {
+    throw new Error("hosted acknowledged request does not match durable progress");
+  }
+  return { progress, attempt };
 }
 
 /**
@@ -331,29 +583,28 @@ export async function recordHostedAwaitAttempt(
   input: {
     repositoryId: string;
     result: HostedAwaitResult;
-    reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
-    requirement: NonNullable<LaneAttempt["hosted"]>["requirement"];
-    actorIdentity: string;
     now: string;
   },
 ): Promise<LaneProgressState> {
   const outcome = hostedAwaitLaneOutcome(input.result.state);
   const { handle } = input.result;
+  if (handle.admission.repositoryId !== input.repositoryId) {
+    throw new Error("hosted await does not match its admitted repository");
+  }
+  const recorded = await readHostedRequestProgress(store, handle);
   if (outcome === null) {
-    return recordHostedPendingRequest(store, {
-      repositoryId: input.repositoryId,
-      handle,
-      reviewTarget: input.reviewTarget,
-      requirement: input.requirement,
-      actorIdentity: input.actorIdentity,
-      now: input.now,
-    });
+    if (recorded.attempt.outcome !== "pending") {
+      throw new Error("hosted pending await requires its acknowledged request");
+    }
+    return recorded.progress;
   }
   return await recordLaneAttempt(store, {
     lane: "standard",
     repositoryId: input.repositoryId,
     changeRequestId: `pull/${handle.target.pullRequest}`,
     headSha: handle.target.headSha,
+    lineage: handle.admission.lineage,
+    logicalPass: handle.admission.logicalPass,
     attemptId: hostedLaneAttemptId(handle),
     sourceId: handle.provider,
     outcome,
@@ -361,14 +612,17 @@ export async function recordHostedAwaitAttempt(
       && (outcome === "clean" || outcome === "findings"),
     advancePendingAttempt: true,
     hosted: {
+      admission: handle.admission,
       handle,
       target: handle.target,
       requestedCoverage: handle.requestedCoverage,
       effectiveCoverage: handle.effectiveCoverage,
       ...(handle.vehicle?.kind === "delivery-member" ? { vehicle: handle.vehicle } : {}),
-      reviewTarget: input.reviewTarget,
-      requirement: input.requirement,
-      actorIdentity: input.actorIdentity,
+      reviewTarget: handle.admission.reviewTarget,
+      requirement: handle.admission.requirement,
+      actorIdentity: handle.admission.actorIdentity,
+      requestFailureReason: outcome === "terminal-failure"
+        && "reason" in input.result ? input.result.reason : null,
       findings: input.result.state === "findings" ? input.result.findings : [],
       dispositionSetId: null,
       settledFindingIds: [],
@@ -406,39 +660,63 @@ export async function recordLocalPendingAttempt(
   });
 }
 
-/** Record safe unavailability returned before a hosted request produced a handle. */
-export async function recordHostedRequestUnavailableAttempt(
+/** Conclude one admitted hosted dispatch that did not produce an acknowledgment handle. */
+export async function recordHostedRequestConclusion(
   store: ReviewOperationStateStore,
   input: {
-    repositoryId: string;
-    request: HostedRequestEnvelope;
-    result: Extract<HostedRequestResult, { nextAction: "try-next-source" }>;
-    reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
-    requirement: NonNullable<LaneAttempt["hosted"]>["requirement"];
-    actorIdentity: string;
+    admission: HostedAdmission;
+    result: Extract<HostedRequestResult, { state:
+      | "rate-limited"
+      | "transient-unavailable"
+      | "ambiguous-delivery"
+      | "terminal-failure" }>;
     now: string;
   },
 ): Promise<LaneProgressState> {
+  const { admission, result } = input;
+  if (result.provider !== admission.sourceId
+    || result.requestedCoverage !== admission.requestedCoverage
+    || result.attemptedProviders.length !== 1
+    || result.attemptedProviders[0] !== admission.sourceId) {
+    throw new Error("hosted request conclusion does not match its admission");
+  }
+  const operationId = laneProgressOperationId({
+    lane: "standard",
+    repositoryId: admission.repositoryId,
+    headSha: admission.target.headSha,
+    lineage: admission.lineage,
+  });
+  const admittedState = await store.readOperation(operationId);
+  const admitted = admittedState.state?.kind === "lane-progress"
+    ? admittedState.state.attempts.find((attempt) => attempt.attemptId === admission.admissionId)
+    : undefined;
+  if (admitted?.outcome !== "pending"
+    || admitted.hosted?.handle !== undefined
+    || canonicalize(admitted.hosted?.admission ?? null) !== canonicalize(admission)) {
+    throw new Error("hosted request conclusion requires its unacknowledged pending admission");
+  }
   return recordLaneAttempt(store, {
     lane: "standard",
-    repositoryId: input.repositoryId,
-    changeRequestId: `pull/${input.request.target.pullRequest}`,
-    headSha: input.request.target.headSha,
-    attemptId: hostedRequestUnavailableAttemptId({
-      request: input.request,
-      state: input.result.state,
-    }),
-    sourceId: input.request.provider,
-    outcome: input.result.state,
+    repositoryId: admission.repositoryId,
+    changeRequestId: `pull/${admission.target.pullRequest}`,
+    headSha: admission.target.headSha,
+    lineage: admission.lineage,
+    logicalPass: admission.logicalPass,
+    attemptId: admission.admissionId,
+    sourceId: admission.sourceId,
+    outcome: result.state,
     consumedPass: false,
+    advancePendingAttempt: true,
     hosted: {
-      target: input.request.target,
-      requestedCoverage: input.request.coverage,
+      admission,
+      target: admission.target,
+      requestedCoverage: admission.requestedCoverage,
       effectiveCoverage: null,
-      ...(input.request.vehicle?.kind === "delivery-member" ? { vehicle: input.request.vehicle } : {}),
-      reviewTarget: input.reviewTarget,
-      requirement: input.requirement,
-      actorIdentity: input.actorIdentity,
+      ...(admission.vehicle?.kind === "delivery-member" ? { vehicle: admission.vehicle } : {}),
+      reviewTarget: admission.reviewTarget,
+      requirement: admission.requirement,
+      actorIdentity: admission.actorIdentity,
+      requestFailureReason: result.state === "terminal-failure" ? result.reason : null,
       findings: [],
       dispositionSetId: null,
       settledFindingIds: [],

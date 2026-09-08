@@ -12,6 +12,8 @@ import {
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type { ReviewOperationStateSnapshot } from
   "../../../../../src/scripts/review-gate/core/ports.js";
+import { createHostedAdmission } from
+  "../../../../../src/scripts/review-gate/hosted/request.js";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -125,6 +127,26 @@ function hostedProgressAttempt(input: {
     locus: "src/index.ts:1",
     url: "https://example.test/finding-1",
   };
+  const requestedCoverage = input.requestedCoverage ?? "complete";
+  const target = { repository: "owner/repo", pullRequest: 42, headSha: input.vehicle.head };
+  const admission = createHostedAdmission({
+    schemaVersion: 1,
+    repositoryId: "repo-1",
+    lineage: {
+      kind: "delivery-member",
+      planId: input.vehicle.planId,
+      workUnitId: input.vehicle.workUnitId,
+      deliverableId: input.vehicle.deliverableId,
+    },
+    logicalPass: input.logicalPass ?? 1,
+    sourceId: input.sourceId,
+    target,
+    requestedCoverage,
+    vehicle: input.vehicle,
+    reviewTarget,
+    requirement,
+    actorIdentity: "reviewer-1",
+  });
   return {
     attemptId: input.attemptId,
     logicalPass: input.logicalPass ?? 1,
@@ -135,14 +157,16 @@ function hostedProgressAttempt(input: {
     sourceId: input.sourceId,
     outcome: input.outcome,
     hosted: {
-      target: { repository: "owner/repo", pullRequest: 42, headSha: input.vehicle.head },
-      requestedCoverage: input.requestedCoverage ?? "complete",
+      admission,
+      target,
+      requestedCoverage,
       effectiveCoverage: input.effectiveCoverage
         ?? (input.outcome === "rate-limited" ? null : "complete"),
       vehicle: input.vehicle,
       reviewTarget,
       requirement,
       actorIdentity: "reviewer-1",
+      requestFailureReason: null,
       findings: input.outcome === "settled-findings" ? [finding] : [],
       dispositionSetId: input.outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
       settledFindingIds: input.outcome === "settled-findings" ? [finding.findingId] : [],

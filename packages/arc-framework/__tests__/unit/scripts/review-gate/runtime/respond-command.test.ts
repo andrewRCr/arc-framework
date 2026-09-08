@@ -36,6 +36,7 @@ import type {
   LocalReviewState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import { createHostedAdmission } from "../../../../../src/scripts/review-gate/hosted/request.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
@@ -512,6 +513,43 @@ function hostedResponseFixture(
         workUnitId: "example" as const,
       }
     : { kind: "candidate" as const, candidateId: canonicalDigest({ candidate: records.target.targetId }) });
+  const deliveryVehicle = vehicle.kind !== "delivery-member"
+    ? undefined
+    : DeliveryReviewMemberVehicleSchema.parse({
+        kind: "delivery-member" as const,
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: vehicle.identity,
+        workUnitId: "example",
+        head: records.target.headSha,
+      });
+  const target = { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha };
+  const requirement = createReviewRequirement({
+    target: records.target,
+    projection: {
+      obligation: records.operation.requirement.obligation,
+      reasons: records.operation.requirement.reasons,
+      rubricVersion: records.operation.requirement.rubricVersion,
+      rubricDigest: records.operation.requirement.rubricDigest,
+      retrigger: records.operation.requirement.retrigger,
+      count: records.operation.requirement.count,
+    },
+    acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+    initialAdmission: records.operation.requirement.initialAdmission,
+  });
+  if (requirement === null) throw new Error("expected hosted response requirement");
+  const admission = createHostedAdmission({
+    schemaVersion: 1,
+    repositoryId: records.target.repositoryId,
+    lineage,
+    logicalPass: 1,
+    sourceId: "codex-pr",
+    target,
+    requestedCoverage: "complete",
+    ...(deliveryVehicle === undefined ? {} : { vehicle: deliveryVehicle }),
+    reviewTarget: records.target,
+    requirement,
+    actorIdentity: "host-actor-1",
+  });
   const operation = {
     schemaVersion: 1 as const,
     semanticsVersion: "review-operation/v1" as const,
@@ -532,26 +570,15 @@ function hostedResponseFixture(
       sourceId: "codex-pr",
       outcome: "findings" as const,
       hosted: {
-        target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
+        admission,
+        target,
         requestedCoverage: "complete" as const,
         effectiveCoverage: "complete" as const,
         reviewTarget: records.target,
-        ...(vehicle.kind !== "delivery-member"
-          ? {}
-          : {
-              vehicle: DeliveryReviewMemberVehicleSchema.parse({
-                kind: "delivery-member" as const,
-                planId: "123e4567-e89b-42d3-a456-426614174000",
-                deliverableId: vehicle.identity,
-                workUnitId: "example",
-                head: records.target.headSha,
-              }),
-            }),
-        requirement: {
-          ...records.operation.requirement,
-          acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
-        },
+        ...(deliveryVehicle === undefined ? {} : { vehicle: deliveryVehicle }),
+        requirement,
         actorIdentity: "host-actor-1",
+        requestFailureReason: null,
         findings: [hostedFinding],
         dispositionSetId: null,
         settledFindingIds: [],

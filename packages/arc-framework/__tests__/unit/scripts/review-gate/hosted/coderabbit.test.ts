@@ -13,10 +13,10 @@ import {
   type HostedGitHubThread,
 } from "../../../../../src/scripts/review-gate/hosted/github.js";
 import type {
-  HostedRequestHandle,
   HostedReviewCoverage,
   HostedTarget,
 } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 const HEAD = "a".repeat(40);
 const REQUESTED_AT = "2026-07-23T12:00:00.000Z";
@@ -129,10 +129,8 @@ Review finished.`,
   };
 }
 
-function requestHandle(coverage: HostedReviewCoverage = "incremental"): HostedRequestHandle {
-  return {
-    schemaVersion: 1,
-    provider: "coderabbit-pr",
+function requestHandle(coverage: HostedReviewCoverage = "incremental") {
+  return createHostedHandleFixture({
     requestedCoverage: coverage,
     effectiveCoverage: coverage,
     target,
@@ -142,7 +140,7 @@ function requestHandle(coverage: HostedReviewCoverage = "incremental"): HostedRe
       url: "https://github.com/owner/repo/pull/42#issuecomment-request",
       createdAt: REQUESTED_AT,
     },
-  };
+  });
 }
 
 describe("CodeRabbit hosted adapter", () => {
@@ -622,11 +620,7 @@ line 12: _🩺 Stability & Availability_ | _🟡 Minor_
       },
     }));
 
-    await adapter.readHead({
-      schemaVersion: 1,
-      provider: "coderabbit-pr",
-      requestedCoverage: "complete",
-      effectiveCoverage: "complete",
+    await adapter.readHead(createHostedHandleFixture({
       target,
       artifact: {
         kind: "issue-comment",
@@ -634,12 +628,8 @@ line 12: _🩺 Stability & Availability_ | _🟡 Minor_
         url: "https://github.com/owner/repo/pull/42#issuecomment-1",
         createdAt: "2026-07-23T12:00:00.000Z",
       },
-    }, { signal });
-    await adapter.observe({
-      schemaVersion: 1,
-      provider: "coderabbit-pr",
-      requestedCoverage: "complete",
-      effectiveCoverage: "complete",
+    }), { signal });
+    await adapter.observe(createHostedHandleFixture({
       target,
       artifact: {
         kind: "issue-comment",
@@ -647,7 +637,7 @@ line 12: _🩺 Stability & Availability_ | _🟡 Minor_
         url: "https://github.com/owner/repo/pull/42#issuecomment-1",
         createdAt: "2026-07-23T12:00:00.000Z",
       },
-    }, { signal });
+    }), { signal });
 
     expect(observed).toEqual([signal, signal, signal, signal, signal, signal]);
   });

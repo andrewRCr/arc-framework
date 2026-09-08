@@ -22,6 +22,8 @@ import {
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { createHostedAdmission } from
+  "../../../../../src/scripts/review-gate/hosted/request.js";
 
 const oid = (character: string): string => character.repeat(40);
 const PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
@@ -146,11 +148,33 @@ function attempt(
     locus: "src/index.ts:1",
     url: "https://example.test/finding-1",
   };
+  const hostedTarget = target(headSha);
+  const admission = createHostedAdmission({
+    schemaVersion: 1,
+    repositoryId: "repo-1",
+    lineage: vehicle === undefined
+      ? { kind: "candidate", candidateId: `sha256:${"f".repeat(64)}` }
+      : {
+          kind: "delivery-member",
+          planId: vehicle.planId,
+          workUnitId: vehicle.workUnitId,
+          deliverableId: vehicle.deliverableId,
+        },
+    logicalPass: 1,
+    sourceId,
+    target: hostedTarget,
+    requestedCoverage: coverage.requested,
+    ...(vehicle === undefined ? {} : { vehicle }),
+    reviewTarget,
+    requirement,
+    actorIdentity: "actor-1",
+  });
   return {
     attemptId: `${sourceId}-${headSha}`,
     sourceId,
     outcome,
     hosted: {
+      admission,
       ...(outcome === "pending"
         ? {
             handle: {
@@ -166,6 +190,7 @@ function attempt(
                 createdAt: "2026-08-31T12:00:00.000Z",
               },
               ...(vehicle === undefined ? {} : { vehicle }),
+              admission,
             },
           }
         : {}),
@@ -176,6 +201,7 @@ function attempt(
       reviewTarget,
       requirement,
       actorIdentity: "actor-1",
+      requestFailureReason: null,
       findings: outcome === "findings" || outcome === "settled-findings" ? [finding] : [],
       dispositionSetId: outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
       settledFindingIds: outcome === "settled-findings" ? [finding.findingId] : [],

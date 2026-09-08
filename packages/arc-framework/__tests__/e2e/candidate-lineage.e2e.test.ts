@@ -48,6 +48,7 @@ import {
   createReviewTarget,
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { bindReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
+import { createHostedAdmission } from "../../src/scripts/review-gate/hosted/request.js";
 import {
   LocalReviewOperationStateStore,
 } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
@@ -1186,6 +1187,24 @@ describe("review-fix Candidate lineage", () => {
       locus: "reviewed.txt:1",
       url: "https://example.test/thread-1",
     };
+    const hostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: originTarget.headSha };
+    const admission = createHostedAdmission({
+      schemaVersion: 1,
+      repositoryId,
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "review-target",
+        vehicleIdentity: `${repositoryId}/${originTarget.headSha}`,
+        headSha: originTarget.headSha,
+      },
+      logicalPass: 1,
+      sourceId: "codex-pr",
+      target: hostedTarget,
+      requestedCoverage: "complete",
+      reviewTarget: originTarget,
+      requirement,
+      actorIdentity: "test-user",
+    });
     const operation = await recordLaneAttempt(operationStore, {
       lane: "standard",
       repositoryId,
@@ -1196,12 +1215,14 @@ describe("review-fix Candidate lineage", () => {
       outcome: "findings",
       consumedPass: true,
       hosted: {
-        target: { repository: "owner/repo", pullRequest: 42, headSha: originTarget.headSha },
+        admission,
+        target: hostedTarget,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
         reviewTarget: originTarget,
         requirement,
         actorIdentity: "test-user",
+        requestFailureReason: null,
         findings: [finding],
         dispositionSetId: null,
         settledFindingIds: [],
@@ -1758,6 +1779,24 @@ describe("routed review obligation", () => {
       url: "https://example.test/review-1",
       body: "Review finding.",
     };
+    const hostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: approvedHead };
+    const admission = createHostedAdmission({
+      schemaVersion: 1,
+      repositoryId,
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "review-target",
+        vehicleIdentity: `${repositoryId}/${approvedHead}`,
+        headSha: approvedHead,
+      },
+      logicalPass: 1,
+      sourceId: "codex-pr",
+      target: hostedTarget,
+      requestedCoverage: "complete",
+      reviewTarget,
+      requirement,
+      actorIdentity: "test-user",
+    });
     await recordLaneAttempt(new LocalReviewOperationStateStore(publisher), {
       lane: "standard",
       repositoryId,
@@ -1768,12 +1807,14 @@ describe("routed review obligation", () => {
       outcome: "settled-findings",
       consumedPass: true,
       hosted: {
-        target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
+        admission,
+        target: hostedTarget,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
         reviewTarget,
         requirement,
         actorIdentity: "test-user",
+        requestFailureReason: null,
         findings: [finding],
         dispositionSetId: canonicalDigest({ disposition: 1 }),
         settledFindingIds: [finding.findingId],
@@ -1823,6 +1864,24 @@ describe("routed review obligation", () => {
       initialAdmission: "automatic",
     });
     if (requirement === null) throw new Error("missing hosted requirement fixture");
+    const hostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: approvedHead };
+    const admission = createHostedAdmission({
+      schemaVersion: 1,
+      repositoryId,
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "review-target",
+        vehicleIdentity: `${repositoryId}/${approvedHead}`,
+        headSha: approvedHead,
+      },
+      logicalPass: 1,
+      sourceId: "codex-pr",
+      target: hostedTarget,
+      requestedCoverage: "complete",
+      reviewTarget,
+      requirement,
+      actorIdentity: "test-user",
+    });
     await recordLaneAttempt(operationStore, {
       lane: "standard",
       repositoryId,
@@ -1833,12 +1892,14 @@ describe("routed review obligation", () => {
       outcome: "clean",
       consumedPass: true,
       hosted: {
-        target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
+        admission,
+        target: hostedTarget,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
         reviewTarget,
         requirement,
         actorIdentity: "test-user",
+        requestFailureReason: null,
         findings: [],
         dispositionSetId: null,
         settledFindingIds: [],

@@ -14,6 +14,7 @@ import {
   type HostedAwaitClock,
 } from "../../../../../src/scripts/review-gate/hosted/await.js";
 import type { HostedTarget } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 const HEAD = "a".repeat(40);
 const target: HostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: HEAD };
@@ -92,19 +93,18 @@ describe("hosted GitHub process boundary", () => {
 
     await expect(awaitHostedReview({
       schemaVersion: 1,
-      handle: {
-        schemaVersion: 1,
+      handle: createHostedHandleFixture({
         provider: "coderabbit-pr",
+        target,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
-        target,
         artifact: {
           kind: "issue-comment",
           id: "IC_1",
           url: "https://github.com/owner/repo/pull/42#issuecomment-1",
           createdAt: "2026-07-24T12:00:00Z",
         },
-      },
+      }),
       timeoutMs: 10,
       pollIntervalMs: 5,
     }, {

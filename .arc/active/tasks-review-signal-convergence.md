@@ -182,36 +182,23 @@ identity; native bindings preserve exactness without a generic persisted executi
   terminal replay is idempotent, while failed deliberate reruns advance only retry generation and contradictory
   target, source, policy, lineage, pass, or outcome bindings fail closed.
 
-### `[ ]` **2.3 Persist hosted admission before dispatch and preserve request/await context**
+### `[x]` **2.3 Persist hosted admission before dispatch and preserve request/await context**
 
 - _Goal:_ Hosted execution is durably admitted before an external request and retains original context through pending
   replay.
 
-- _Note:_ Spec § 5 Execution admission; SC 7, 8, and 12.
+    - `[x]` **2.3.a Bind native request admission before external effects**
 
-- _Approach:_ Use existing lane progress, hosted request/handle schemas, and `handlers/review.ts` composition. The
-  handle continues to identify the producer; result content identity remains separate.
+        - Singleton, Errand, and delivery-member requests now persist lineage-owned source/pass/scope admission before
+          provider effects, and bind successful handles back to that exact attempt with version-checked acknowledgment.
 
-    - `[ ]` **2.3.a Bind native request admission before external effects**
+    - `[x]` **2.3.b Preserve admission through await and fallback**
 
-        - Build `test-first` (one behavior at a time):
+        - Restart resolves durable admission before current policy, actor, or member selection; acknowledged requests
+          replay their stored await action, while unacknowledged requests stop as ambiguous without redispatch.
 
-            - Persist source/pass/scope admission before the provider effect for singleton, Errand, and member requests;
-              a failed admission write prevents dispatch. Retain existing member-specific reservation checks and
-              migrate all handle consumers with successful acknowledgment binding.
-
-            - Distinguish unacknowledged admission from acknowledged pending await. Acknowledged replay returns the
-              stored await action; an unacknowledged interrupted or ambiguous dispatch stops without automatic
-              redispatch, fallback, or fresh pass. Do not assume a provider exactly-once or reconciliation capability.
-
-    - `[ ]` **2.3.b Preserve admission through await and fallback**
-
-        - Build `test-first` (one behavior at a time):
-
-            - Pending restart uses original policy/rubric/actor context even after config or actor changes. Preserve
-              requested coverage, truthful effective upgrades, safe fallback, and count-neutral observations.
-              Acknowledged replay never resubmits; the later immutable-evidence boundary adds sealed replay without
-              provider observation.
+- _Outcome:_ Hosted request and await now retain immutable requirement, actor, pass, and requested/effective coverage
+  through restart and safe fallback without manufacturing provider exactly-once or reconciliation capability.
 
 ### `[ ]` **2.4 Derive logical counts and truthful coverage across history and progress consumers**
 

@@ -17,6 +17,8 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createHostedAdmission } from
+  "../../../../../src/scripts/review-gate/hosted/request.js";
 import { queryEarlierReviewAttempts } from
   "../../../../../src/scripts/review-gate/policy/earlier-review-attempts.js";
 import { reduceReviewRouting } from
@@ -62,16 +64,41 @@ const localAdmission = (head: string) => DeliveryLocalReviewAdmissionSchema.pars
   pass: 1,
 });
 
-function laneState(options: { delivery?: boolean } = {}) {
+function laneState(options: {
+  delivery?: boolean;
+  repositoryId?: string;
+  headSha?: string;
+  sourceId?: "codex-pr" | "coderabbit-pr";
+  targetRepository?: string;
+  pullRequest?: number;
+  vehicle?: ReturnType<typeof deliveryVehicle>;
+} = {}) {
+  const repositoryId = options.repositoryId ?? "repository-1";
+  const headSha = options.headSha ?? oid("a");
+  const sourceId = options.sourceId ?? "codex-pr";
+  const vehicle = options.vehicle ?? (options.delivery === true ? deliveryVehicle(headSha) : undefined);
+  const lineage = vehicle === undefined
+    ? { kind: "candidate" as const, candidateId: `sha256:${"8".repeat(64)}` }
+    : {
+        kind: "delivery-member" as const,
+        planId: vehicle.planId,
+        workUnitId: vehicle.workUnitId,
+        deliverableId: vehicle.deliverableId,
+      };
+  const target = {
+    repository: options.targetRepository ?? "Owner/Repository",
+    pullRequest: options.pullRequest ?? 42,
+    headSha,
+  };
   const reviewTarget = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
-    kind: options.delivery === true ? "delivery-member" : "change-set",
-    repositoryId: "repository-1",
+    kind: vehicle === undefined ? "change-set" : "delivery-member",
+    repositoryId,
     baseRef: "main",
     diffBaseSha: oid("1"),
     diffBaseTree: oid("2"),
-    headSha: oid("a"),
+    headSha,
     headTree: oid("3"),
   });
   const requirement = createReviewRequirement({
@@ -84,10 +111,23 @@ function laneState(options: { delivery?: boolean } = {}) {
       retrigger: "full-final",
       count: 1,
     },
-    acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+    acceptableSources: [{ sourceKind: "hosted", qualifier: sourceId }],
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("expected hosted requirement");
+  const admission = createHostedAdmission({
+    schemaVersion: 1,
+    repositoryId,
+    lineage,
+    logicalPass: 1,
+    sourceId,
+    target,
+    requestedCoverage: "complete",
+    ...(vehicle === undefined ? {} : { vehicle }),
+    reviewTarget,
+    requirement,
+    actorIdentity: "github-user-1",
+  });
   return LaneProgressStateSchema.parse({
     schemaVersion: 1 as const,
     semanticsVersion: "review-operation/v1" as const,
@@ -95,33 +135,28 @@ function laneState(options: { delivery?: boolean } = {}) {
     updatedAt: "2026-08-23T12:00:00Z",
     kind: "lane-progress" as const,
     lane: "standard" as const,
-    repositoryId: "repository-1",
-    lineage: options.delivery === true
-      ? {
-          kind: "delivery-member",
-          planId: deliveryVehicle(oid("a")).planId,
-          workUnitId: deliveryVehicle(oid("a")).workUnitId,
-          deliverableId: deliveryVehicle(oid("a")).deliverableId,
-        }
-      : { kind: "candidate", candidateId: `sha256:${"8".repeat(64)}` },
+    repositoryId,
+    lineage,
     completedPasses: 1,
     attempts: [{
       attemptId: "attempt-prior",
       logicalPass: 1,
       retryGeneration: 0,
       changeRequestId: "pull/42",
-      headSha: oid("a"),
+      headSha,
       terminalProducer: true,
-      sourceId: "codex-pr",
+      sourceId,
       outcome: "clean" as const,
       hosted: {
-        target: { repository: "Owner/Repository", pullRequest: 42, headSha: oid("a") },
+        admission,
+        target,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
-        ...(options.delivery === true ? { vehicle: deliveryVehicle(oid("a")) } : {}),
+        ...(vehicle === undefined ? {} : { vehicle }),
         reviewTarget,
         requirement,
         actorIdentity: "github-user-1",
+        requestFailureReason: null,
         findings: [],
         dispositionSetId: null,
         settledFindingIds: [],
@@ -286,37 +321,16 @@ describe("earlier review attempt query", () => {
   it("excludes every mismatched repository, request, lane, source, and current-head dimension", () => {
     const base = laneState();
     const variants = [
-      { ...base, repositoryId: "repository-2" },
+      laneState({ repositoryId: "repository-2" }),
       {
         ...base,
         attempts: base.attempts.map((attempt) => ({ ...attempt, changeRequestId: "pull/43" })),
       },
       frontlineLaneState(),
-      {
-        ...base,
-        attempts: base.attempts.map((attempt) => ({ ...attempt, headSha: oid("c") })),
-      },
-      {
-        ...base,
-        attempts: base.attempts.map((attempt) => ({ ...attempt, sourceId: "coderabbit-pr" })),
-      },
-      {
-        ...base,
-        attempts: base.attempts.map((attempt) => ({
-          ...attempt,
-          hosted: {
-            ...attempt.hosted!,
-            target: { ...attempt.hosted!.target, repository: "other/repository" },
-          },
-        })),
-      },
-      {
-        ...base,
-        attempts: base.attempts.map((attempt) => ({
-          ...attempt,
-          hosted: { ...attempt.hosted!, target: { ...attempt.hosted!.target, pullRequest: 43 } },
-        })),
-      },
+      laneState({ headSha: oid("c") }),
+      laneState({ sourceId: "coderabbit-pr" }),
+      laneState({ targetRepository: "other/repository" }),
+      laneState({ pullRequest: 43 }),
     ].map((state) => LaneProgressStateSchema.parse(state));
 
     for (const state of variants) {
@@ -757,22 +771,7 @@ describe("earlier review attempt query", () => {
       selectedAt: "2026-08-23T12:00:00.000Z",
       choice: "covered",
     };
-    const prior = laneState({ delivery: laneVehicle !== null });
-    const state = laneVehicle === null
-      ? prior
-      : LaneProgressStateSchema.parse({
-          ...prior,
-          lineage: {
-            kind: "delivery-member",
-            planId: laneVehicle.planId,
-            workUnitId: laneVehicle.workUnitId,
-            deliverableId: laneVehicle.deliverableId,
-          },
-          attempts: prior.attempts.map((attempt) => ({
-            ...attempt,
-            hosted: { ...attempt.hosted!, vehicle: laneVehicle },
-          })),
-        });
+    const state = laneVehicle === null ? laneState() : laneState({ vehicle: laneVehicle });
     const result = await projectEarlierReviewApplicability({
       query: {
         ...selector(),

@@ -10,14 +10,10 @@ import {
   type HostedAwaitClock,
   type HostedReviewObserver,
 } from "../../../../../src/scripts/review-gate/hosted/await.js";
-import type { HostedRequestHandle } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 const HEAD = "a".repeat(40);
-const handle: HostedRequestHandle = {
-  schemaVersion: 1,
-  provider: "coderabbit-pr",
-  requestedCoverage: "complete",
-  effectiveCoverage: "complete",
+const handle = createHostedHandleFixture({
   target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
   artifact: {
     kind: "issue-comment",
@@ -25,17 +21,19 @@ const handle: HostedRequestHandle = {
     url: "https://github.com/owner/repo/pull/42#issuecomment-1",
     createdAt: "2026-07-23T12:00:00.000Z",
   },
-};
-const deliveryHandle: HostedRequestHandle = {
-  ...handle,
-  vehicle: DeliveryReviewMemberVehicleSchema.parse({
+});
+const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
     kind: "delivery-member",
     planId: "123e4567-e89b-12d3-a456-426614174000",
     deliverableId: `sha256:${"d".repeat(64)}`,
     workUnitId: "example",
     head: HEAD,
-  }),
-};
+});
+const deliveryHandle = createHostedHandleFixture({
+  target: handle.target,
+  artifact: handle.artifact,
+  vehicle: deliveryVehicle,
+});
 
 const CREATED_AT_MS = Date.parse(handle.artifact.createdAt);
 const ATTENTION_AFTER_MS = 15 * 60 * 1_000;

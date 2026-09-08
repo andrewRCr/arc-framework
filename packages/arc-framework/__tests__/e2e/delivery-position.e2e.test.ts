@@ -20,6 +20,7 @@ import { projectDeliveryPublicReviewContinuation } from
 import { deriveDeliveryResidueLocators } from "../../src/lib/delivery/residue-reaping.js";
 import { advanceDeliveryReviewFixResponse } from "../../src/lib/delivery/review-fix.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
+import { DeliveryReviewMemberVehicleSchema } from "../../src/lib/delivery/review-vehicle.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
@@ -77,11 +78,16 @@ import { resolveRepositoryIdentity } from
   "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
-import { HostedRequestHandleSchema } from
+import {
+  createHostedAdmission,
+  HostedRequestEnvelopeSchema,
+  HostedRequestHandleSchema,
+} from
   "../../src/scripts/review-gate/hosted/request.js";
 import {
+  acknowledgeHostedRequest,
   laneProgressOperationId,
-  recordHostedPendingRequest,
+  recordHostedRequestAdmission,
   recordLaneAttempt,
   settleHostedAttemptFinding,
 } from "../../src/scripts/review-gate/lane-progress.js";
@@ -94,6 +100,41 @@ const roots: string[] = [];
 
 function quoteShellArgument(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function hostedMemberAdmission(input: {
+  repositoryId: string;
+  target: { repository: string; pullRequest: number; headSha: string };
+  vehicle: {
+    kind: "delivery-member";
+    planId: string;
+    deliverableId: string;
+    workUnitId: string;
+    head: string;
+  };
+  reviewTarget: ReturnType<typeof createReviewTarget>;
+  requirement: NonNullable<ReturnType<typeof createReviewRequirement>>;
+  actorIdentity: string;
+}) {
+  const vehicle = DeliveryReviewMemberVehicleSchema.parse(input.vehicle);
+  return createHostedAdmission({
+    schemaVersion: 1,
+    repositoryId: input.repositoryId,
+    lineage: {
+      kind: "delivery-member",
+      planId: vehicle.planId,
+      deliverableId: vehicle.deliverableId,
+      workUnitId: vehicle.workUnitId,
+    },
+    logicalPass: 1,
+    sourceId: "codex-pr",
+    target: input.target,
+    requestedCoverage: "complete",
+    vehicle,
+    reviewTarget: input.reviewTarget,
+    requirement: input.requirement,
+    actorIdentity: input.actorIdentity,
+  });
 }
 
 afterEach(async () => {
@@ -1051,6 +1092,20 @@ describe("arc delivery position", () => {
         sourceId: "codex-pr",
         outcome: "findings",
         hosted: {
+          admission: hostedMemberAdmission({
+            repositoryId: "repo-1",
+            target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+            vehicle: {
+              kind: "delivery-member",
+              planId: fixture.plan.planId,
+              deliverableId: selectedDeliverableId,
+              workUnitId: fixture.plan.workUnitId,
+              head: reviewedHead,
+            },
+            reviewTarget: oldTarget,
+            requirement: responseRequirement,
+            actorIdentity: "host-actor-1",
+          }),
           target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
@@ -1064,6 +1119,7 @@ describe("arc delivery position", () => {
           reviewTarget: oldTarget,
           requirement: responseRequirement,
           actorIdentity: "host-actor-1",
+          requestFailureReason: null,
           findings: [{
             findingId: "finding-response-loss",
             origin: "review-thread",
@@ -2093,6 +2149,20 @@ describe("arc delivery position", () => {
           sourceId: "codex-pr",
           outcome: "clean",
           hosted: {
+            admission: hostedMemberAdmission({
+              repositoryId,
+              target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
+              vehicle: {
+                kind: "delivery-member",
+                planId: fixture.plan.planId,
+                deliverableId: member.deliverableId,
+                workUnitId: fixture.plan.workUnitId,
+                head: member.coordinates.head,
+              },
+              reviewTarget,
+              requirement,
+              actorIdentity: "host-actor-1",
+            }),
             target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
             requestedCoverage: "complete",
             effectiveCoverage: "complete",
@@ -2106,6 +2176,7 @@ describe("arc delivery position", () => {
             reviewTarget,
             requirement,
             actorIdentity: "host-actor-1",
+            requestFailureReason: null,
             findings: [],
             dispositionSetId: null,
             settledFindingIds: [],
@@ -2765,6 +2836,20 @@ describe("arc delivery position", () => {
         sourceId: "codex-pr",
         outcome: "findings",
         hosted: {
+          admission: hostedMemberAdmission({
+            repositoryId: "repo-1",
+            target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+            vehicle: {
+              kind: "delivery-member",
+              planId: fixture.plan.planId,
+              deliverableId: selectedDeliverableId,
+              workUnitId: fixture.plan.workUnitId,
+              head: reviewedHead,
+            },
+            reviewTarget: oldTarget,
+            requirement,
+            actorIdentity: "host-actor-1",
+          }),
           target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
@@ -2778,6 +2863,7 @@ describe("arc delivery position", () => {
           reviewTarget: oldTarget,
           requirement,
           actorIdentity: "host-actor-1",
+          requestFailureReason: null,
           findings: [finding],
           dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
           settledFindingIds: [],
@@ -3383,6 +3469,20 @@ describe("arc delivery position", () => {
         sourceId: "codex-pr",
         outcome: "findings",
         hosted: {
+          admission: hostedMemberAdmission({
+            repositoryId,
+            target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+            vehicle: {
+              kind: "delivery-member",
+              planId: fixture.plan.planId,
+              deliverableId: selectedDeliverableId,
+              workUnitId: fixture.plan.workUnitId,
+              head: reviewedHead,
+            },
+            reviewTarget: replayOldTarget,
+            requirement: replayRequirement,
+            actorIdentity: "host-actor-1",
+          }),
           target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
@@ -3396,6 +3496,7 @@ describe("arc delivery position", () => {
           reviewTarget: replayOldTarget,
           requirement: replayRequirement,
           actorIdentity: "host-actor-1",
+          requestFailureReason: null,
           findings: [finding],
           dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
           settledFindingIds: [],
@@ -3545,6 +3646,20 @@ describe("arc delivery position", () => {
           sourceId: "codex-pr",
           outcome: "clean",
           hosted: {
+            admission: hostedMemberAdmission({
+              repositoryId,
+              target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+              vehicle: {
+                kind: "delivery-member",
+                planId: fixture.plan.planId,
+                deliverableId: selectedDeliverableId,
+                workUnitId: fixture.plan.workUnitId,
+                head: reviewedHead,
+              },
+              reviewTarget: retainedTarget,
+              requirement: retainedRequirement,
+              actorIdentity: "host-actor-1",
+            }),
             target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
             requestedCoverage: "complete",
             effectiveCoverage: "complete",
@@ -3558,6 +3673,7 @@ describe("arc delivery position", () => {
             reviewTarget: retainedTarget,
             requirement: retainedRequirement,
             actorIdentity: "host-actor-1",
+            requestFailureReason: null,
             findings: [],
             dispositionSetId: null,
             settledFindingIds: [],
@@ -3827,26 +3943,45 @@ describe("arc delivery position", () => {
       initialAdmission: "checkpoint",
     });
     if (requestedRequirement === null) throw new Error("pending hosted requirement must derive");
+    const pendingRequest = HostedRequestEnvelopeSchema.parse(requestedAction);
+    if (pendingRequest.vehicle?.kind !== "delivery-member") {
+      throw new Error("pending hosted request must retain its member vehicle");
+    }
+    const operationStore = new LocalReviewOperationStateStore(publisher);
+    const admission = await recordHostedRequestAdmission(operationStore, {
+      repositoryId,
+      lineage: {
+        kind: "delivery-member",
+        planId: pendingRequest.vehicle.planId,
+        workUnitId: pendingRequest.vehicle.workUnitId,
+        deliverableId: pendingRequest.vehicle.deliverableId,
+      },
+      request: pendingRequest,
+      progressVehicle: pendingRequest.vehicle,
+      reviewTarget: requestedReviewTarget,
+      requirement: requestedRequirement,
+      actorIdentity: "host-actor-1",
+      now: "2026-08-31T12:44:59.000Z",
+    });
+    if (admission.state !== "admitted") throw new Error("pending hosted request must be admitted");
     const pendingHandle = HostedRequestHandleSchema.parse({
       schemaVersion: 1 as const,
-      provider: requestedAction.provider,
-      requestedCoverage: requestedAction.coverage,
-      effectiveCoverage: requestedAction.coverage,
-      target: requestedAction.target,
+      provider: pendingRequest.provider,
+      requestedCoverage: pendingRequest.coverage,
+      effectiveCoverage: pendingRequest.coverage,
+      target: pendingRequest.target,
       artifact: {
         kind: "issue-comment" as const,
         id: "pending-correction-request",
         url: "https://example.test/pending-correction-request",
         createdAt: "2026-08-31T12:45:00.000Z",
       },
-      vehicle: requestedAction.vehicle,
+      vehicle: pendingRequest.vehicle,
+      admission: admission.admission,
     });
-    await recordHostedPendingRequest(new LocalReviewOperationStateStore(publisher), {
-      repositoryId,
+    await acknowledgeHostedRequest(operationStore, {
+      admission: admission.admission,
       handle: pendingHandle,
-      reviewTarget: requestedReviewTarget,
-      requirement: requestedRequirement,
-      actorIdentity: "host-actor-1",
       now: "2026-08-31T12:45:00.000Z",
     });
 

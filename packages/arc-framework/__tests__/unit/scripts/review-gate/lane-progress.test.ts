@@ -18,16 +18,23 @@ import {
   hostedAwaitLaneOutcome,
   hostedLaneAttemptId,
   laneProgressOperationId,
+  acknowledgeHostedRequest,
   recordFrontlineAttempt,
   recordHostedAwaitAttempt,
-  recordHostedPendingRequest,
-  recordHostedRequestUnavailableAttempt,
+  recordHostedRequestAdmission,
+  recordHostedRequestConclusion,
   readLaneProgress,
   readLaneProgressAcrossLineage,
   recordLaneAttempt,
   settleLaneAttempt,
   settleHostedAttemptFinding,
 } from "../../../../src/scripts/review-gate/lane-progress.js";
+import {
+  createHostedAdmission,
+  type HostedRequestEnvelope,
+  type HostedRequestHandle,
+} from
+  "../../../../src/scripts/review-gate/hosted/request.js";
 import { reduceReviewRouting } from
   "../../../../src/scripts/review-gate/policy/routing.js";
 
@@ -360,7 +367,7 @@ describe("lane progress", () => {
   });
 });
 
-const handle = {
+const handleBase = {
   schemaVersion: 1 as const,
   provider: "coderabbit-pr" as const,
   requestedCoverage: "complete" as const,
@@ -380,7 +387,6 @@ const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
   workUnitId: "example",
   head: objectId("c"),
 });
-const deliveryHandle = { ...handle, vehicle: deliveryVehicle };
 const hostedReviewTarget = createReviewTarget({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
@@ -402,7 +408,7 @@ const hostedRequirement = createReviewRequirement({
     retrigger: "full-final",
     count: 1,
   },
-  acceptableSources: [{ sourceKind: "hosted", qualifier: handle.provider }],
+  acceptableSources: [{ sourceKind: "hosted", qualifier: handleBase.provider }],
   initialAdmission: "automatic",
 });
 if (hostedRequirement === null) throw new Error("expected hosted review requirement");
@@ -411,6 +417,19 @@ const hostedContext = {
   requirement: hostedRequirement,
   actorIdentity: "github-user-1",
 };
+const hostedAdmission = createHostedAdmission({
+  schemaVersion: 1,
+  repositoryId: "repo-1",
+  lineage: { kind: "candidate", candidateId: `sha256:${"8".repeat(64)}` },
+  logicalPass: 1,
+  sourceId: handleBase.provider,
+  target: handleBase.target,
+  requestedCoverage: handleBase.requestedCoverage,
+  reviewTarget: hostedReviewTarget,
+  requirement: hostedRequirement,
+  actorIdentity: hostedContext.actorIdentity,
+});
+const handle = { ...handleBase, admission: hostedAdmission };
 const deliveryHostedReviewTarget = createReviewTarget({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
@@ -432,7 +451,7 @@ const deliveryHostedRequirement = createReviewRequirement({
     retrigger: "full-final",
     count: 1,
   },
-  acceptableSources: [{ sourceKind: "hosted", qualifier: handle.provider }],
+  acceptableSources: [{ sourceKind: "hosted", qualifier: handleBase.provider }],
   initialAdmission: "automatic",
 });
 if (deliveryHostedRequirement === null) throw new Error("expected delivery hosted review requirement");
@@ -441,20 +460,210 @@ const deliveryHostedContext = {
   requirement: deliveryHostedRequirement,
   actorIdentity: "github-user-1",
 };
+const deliveryAdmission = createHostedAdmission({
+  schemaVersion: 1,
+  repositoryId: "repo-1",
+  lineage: {
+    kind: "delivery-member",
+    planId: deliveryVehicle.planId,
+    workUnitId: deliveryVehicle.workUnitId,
+    deliverableId: deliveryVehicle.deliverableId,
+  },
+  logicalPass: 1,
+  sourceId: handleBase.provider,
+  target: handleBase.target,
+  requestedCoverage: handleBase.requestedCoverage,
+  vehicle: deliveryVehicle,
+  reviewTarget: deliveryHostedReviewTarget,
+  requirement: deliveryHostedRequirement,
+  actorIdentity: deliveryHostedContext.actorIdentity,
+});
+const deliveryHandle = { ...handleBase, vehicle: deliveryVehicle, admission: deliveryAdmission };
+
+async function seedAcknowledgedRequest(
+  store: ReturnType<typeof createStore>,
+  requestHandle: HostedRequestHandle,
+) {
+  const admission = requestHandle.admission;
+  const vehicle: HostedRequestEnvelope["vehicle"] = admission.vehicle?.kind === "errand"
+    ? { kind: "errand", standardReview: admission.vehicle.standardReview }
+    : admission.vehicle;
+  const request: HostedRequestEnvelope = {
+    schemaVersion: 1,
+    target: admission.target,
+    provider: admission.sourceId,
+    coverage: admission.requestedCoverage,
+    ...(vehicle === undefined ? {} : { vehicle }),
+  };
+  const decision = await recordHostedRequestAdmission(store, {
+    repositoryId: admission.repositoryId,
+    lineage: admission.lineage,
+    request,
+    ...(admission.vehicle === undefined ? {} : { progressVehicle: admission.vehicle }),
+    reviewTarget: admission.reviewTarget,
+    requirement: admission.requirement,
+    actorIdentity: admission.actorIdentity,
+    now: "2026-08-15T11:59:00Z",
+  });
+  if (decision.state !== "admitted") throw new Error("expected hosted admission");
+  return acknowledgeHostedRequest(store, {
+    admission: decision.admission,
+    handle: requestHandle,
+    now: "2026-08-15T11:59:30Z",
+  });
+}
 
 describe("hosted await lane recording", () => {
-  it("durably records safe request-time unavailability for fallback after restart", async () => {
+  it("persists an unacknowledged hosted admission in the lineage owner", async () => {
     const store = createStore();
-    const state = await recordHostedRequestUnavailableAttempt(store, {
+    const decision = await recordHostedRequestAdmission(store, {
       repositoryId: "repo-1",
-      ...deliveryHostedContext,
+      lineage: hostedAdmission.lineage,
       request: {
         schemaVersion: 1,
         target: handle.target,
-        provider: "coderabbit-pr",
-        coverage: "complete",
-        vehicle: deliveryVehicle,
+        provider: handle.provider,
+        coverage: handle.requestedCoverage,
       },
+      ...hostedContext,
+      now: "2026-08-15T12:00:00Z",
+    });
+
+    expect(decision).toEqual({ state: "admitted", admission: hostedAdmission });
+    expect(store.state).toMatchObject({
+      kind: "lane-progress",
+      lineage: hostedAdmission.lineage,
+      attempts: [{
+        attemptId: hostedAdmission.admissionId,
+        logicalPass: 1,
+        outcome: "pending",
+        hosted: { admission: hostedAdmission },
+      }],
+    });
+  });
+
+  it("stops an unacknowledged admission replay as ambiguous delivery", async () => {
+    const store = createStore();
+    const input = {
+      repositoryId: "repo-1",
+      lineage: hostedAdmission.lineage,
+      request: {
+        schemaVersion: 1 as const,
+        target: handle.target,
+        provider: handle.provider,
+        coverage: handle.requestedCoverage,
+      },
+      ...hostedContext,
+      now: "2026-08-15T12:00:00Z",
+    };
+    await recordHostedRequestAdmission(store, input);
+
+    expect(await recordHostedRequestAdmission(store, {
+      ...input,
+      now: "2026-08-15T12:01:00Z",
+    })).toEqual({ state: "ambiguous-delivery" });
+  });
+
+  it("replays the stored await action after acknowledgment without a new admission", async () => {
+    const store = createStore();
+    const input = {
+      repositoryId: "repo-1",
+      lineage: hostedAdmission.lineage,
+      request: {
+        schemaVersion: 1 as const,
+        target: handle.target,
+        provider: handle.provider,
+        coverage: handle.requestedCoverage,
+      },
+      ...hostedContext,
+      now: "2026-08-15T12:00:00Z",
+    };
+    const decision = await recordHostedRequestAdmission(store, input);
+    if (decision.state !== "admitted") throw new Error("expected fresh hosted admission");
+    await acknowledgeHostedRequest(store, {
+      admission: decision.admission,
+      handle,
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    expect(await recordHostedRequestAdmission(store, {
+      ...input,
+      now: "2026-08-15T12:02:00Z",
+    })).toEqual({
+      state: "acknowledged",
+      handle,
+      action: { schemaVersion: 1, handle },
+    });
+  });
+
+  it("keeps the acknowledged admission when current policy and actor context change", async () => {
+    const store = createStore();
+    const input = {
+      repositoryId: "repo-1",
+      lineage: hostedAdmission.lineage,
+      request: {
+        schemaVersion: 1 as const,
+        target: handle.target,
+        provider: handle.provider,
+        coverage: handle.requestedCoverage,
+      },
+      ...hostedContext,
+      now: "2026-08-15T12:00:00Z",
+    };
+    const decision = await recordHostedRequestAdmission(store, input);
+    if (decision.state !== "admitted") throw new Error("expected fresh hosted admission");
+    await acknowledgeHostedRequest(store, {
+      admission: decision.admission,
+      handle,
+      now: "2026-08-15T12:01:00Z",
+    });
+    const changedRequirement = createReviewRequirement({
+      target: hostedReviewTarget,
+      projection: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v2",
+        rubricDigest: `sha256:${"7".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: handle.provider }],
+      initialAdmission: "automatic",
+    });
+    if (changedRequirement === null) throw new Error("expected changed hosted requirement");
+
+    expect(await recordHostedRequestAdmission(store, {
+      ...input,
+      requirement: changedRequirement,
+      actorIdentity: "github-user-2",
+      now: "2026-08-15T12:02:00Z",
+    })).toEqual({
+      state: "acknowledged",
+      handle,
+      action: { schemaVersion: 1, handle },
+    });
+  });
+
+  it("durably records safe request-time unavailability for fallback after restart", async () => {
+    const store = createStore();
+    const request = {
+      schemaVersion: 1 as const,
+      target: handle.target,
+      provider: "coderabbit-pr" as const,
+      coverage: "complete" as const,
+      vehicle: deliveryVehicle,
+    };
+    const decision = await recordHostedRequestAdmission(store, {
+      repositoryId: "repo-1",
+      lineage: deliveryAdmission.lineage,
+      request,
+      progressVehicle: deliveryVehicle,
+      ...deliveryHostedContext,
+      now: "2026-08-15T11:59:00Z",
+    });
+    if (decision.state !== "admitted") throw new Error("expected hosted admission");
+    const state = await recordHostedRequestConclusion(store, {
+      admission: decision.admission,
       result: {
         schemaVersion: 1,
         mode: "review-hosted-request",
@@ -475,8 +684,44 @@ describe("hosted await lane recording", () => {
     expect(state.completedPasses).toBe(0);
   });
 
+  it("refuses a request conclusion that has no durable pending admission", async () => {
+    const store = createStore();
+
+    await expect(recordHostedRequestConclusion(store, {
+      admission: deliveryAdmission,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-request",
+        state: "rate-limited",
+        nextAction: "try-next-source",
+        provider: "coderabbit-pr",
+        requestedCoverage: "complete",
+        attemptedProviders: ["coderabbit-pr"],
+      },
+      now: "2026-08-15T12:00:00Z",
+    })).rejects.toThrow(/unacknowledged pending admission/u);
+  });
+
+  it("refuses an await result that has no durable acknowledged request", async () => {
+    const store = createStore();
+
+    await expect(recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.invalid/review",
+      },
+      now: "2026-08-15T12:00:00Z",
+    })).rejects.toThrow(/acknowledged request/u);
+  });
+
   it("records a concluded hosted attempt against the standard lane", async () => {
     const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...hostedContext,
@@ -495,11 +740,26 @@ describe("hosted await lane recording", () => {
 
   it("retains incremental coverage without consuming a complete-review pass", async () => {
     const store = createStore();
+    const incrementalAdmission = createHostedAdmission({
+      schemaVersion: 1,
+      repositoryId: deliveryAdmission.repositoryId,
+      lineage: deliveryAdmission.lineage,
+      logicalPass: deliveryAdmission.logicalPass,
+      sourceId: deliveryAdmission.sourceId,
+      target: deliveryAdmission.target,
+      requestedCoverage: "incremental",
+      vehicle: deliveryVehicle,
+      reviewTarget: deliveryAdmission.reviewTarget,
+      requirement: deliveryAdmission.requirement,
+      actorIdentity: deliveryAdmission.actorIdentity,
+    });
     const incrementalHandle = {
       ...deliveryHandle,
       requestedCoverage: "incremental" as const,
       effectiveCoverage: "incremental" as const,
+      admission: incrementalAdmission,
     };
+    await seedAcknowledgedRequest(store, incrementalHandle);
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...deliveryHostedContext,
@@ -523,6 +783,7 @@ describe("hosted await lane recording", () => {
 
   it("retains a delivery selector on the concluded hosted attempt", async () => {
     const store = createStore();
+    await seedAcknowledgedRequest(store, deliveryHandle);
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...deliveryHostedContext,
@@ -542,6 +803,7 @@ describe("hosted await lane recording", () => {
 
   it("consumes a pass only for a verdict-bearing outcome", async () => {
     const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...hostedContext,
@@ -558,14 +820,9 @@ describe("hosted await lane recording", () => {
     expect(state?.completedPasses).toBe(1);
   });
 
-  it("persists the request handle and advances that same attempt monotonically through await", async () => {
+  it("retains the acknowledged request handle and advances that same attempt monotonically through await", async () => {
     const store = createStore();
-    const requested = await recordHostedPendingRequest(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      handle,
-      now: "2026-08-15T12:00:00Z",
-    });
+    const requested = await seedAcknowledgedRequest(store, handle);
     const pending = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...hostedContext,
@@ -626,6 +883,7 @@ describe("hosted await lane recording", () => {
 
   it("retains the exact pending handle when unattended waiting requests inspection or extension", async () => {
     const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
     const state = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...hostedContext,
@@ -652,6 +910,7 @@ describe("hosted await lane recording", () => {
 
   it("settles only the approved hosted finding set and is idempotent per finding", async () => {
     const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
     const findings = [{
       findingId: "thread-1",
       origin: "review-thread" as const,

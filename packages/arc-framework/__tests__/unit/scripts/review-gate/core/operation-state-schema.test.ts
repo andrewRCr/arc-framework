@@ -17,6 +17,8 @@ import {
   type ReviewOperationState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "../../../../../src/scripts/review-gate/core/ports.js";
+import { createHostedAdmission } from
+  "../../../../../src/scripts/review-gate/hosted/request.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 
@@ -193,6 +195,7 @@ const memberLineage = LaneSubjectLineageSchema.parse({
   workUnitId: "review-surface-binding",
   deliverableId: digest("deliverable"),
 });
+if (memberLineage.kind !== "delivery-member") throw new Error("expected delivery-member lineage");
 const memberCarrier = createLocalChangeSetCarrier({
   target: memberTarget,
   lineage: memberLineage,
@@ -399,23 +402,54 @@ describe("review operation state schemas", () => {
       }],
     })).toThrow(/local attempt operation/iu);
 
+    const hostedRequirement = createReviewRequirement({
+      target: memberTarget,
+      projection: {
+        obligation: "recommended",
+        reasons: ["routine-code"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: digest("rubric"),
+        retrigger: "full-final",
+        count: 1,
+      },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "coderabbit-pr" }],
+      initialAdmission: "checkpoint",
+    });
+    if (hostedRequirement === null) throw new Error("expected hosted member requirement");
+    const vehicle = {
+      kind: "delivery-member" as const,
+      planId: memberLineage.planId,
+      deliverableId: memberLineage.deliverableId,
+      workUnitId: memberLineage.workUnitId,
+      head: memberTarget.headSha,
+    };
+    const target = { repository: "owner/repo", pullRequest: 42, headSha: memberTarget.headSha };
+    const admission = createHostedAdmission({
+      schemaVersion: 1,
+      repositoryId: "repo-1",
+      lineage: memberLineage,
+      logicalPass: 1,
+      sourceId: "coderabbit-pr",
+      target,
+      requestedCoverage: "complete",
+      vehicle,
+      reviewTarget: memberTarget,
+      requirement: hostedRequirement,
+      actorIdentity: "reviewer-1",
+    });
     const hostedAttempt = {
       ...laneProgress.attempts[0]!,
       sourceId: "delegated-agent",
       hosted: {
-        target: { repository: "owner/repo", pullRequest: 42, headSha: memberTarget.headSha },
+        admission,
+        target,
         requestedCoverage: "complete" as const,
         effectiveCoverage: "complete" as const,
-        vehicle: {
-          kind: "delivery-member" as const,
-          planId: "123e4567-e89b-12d3-a456-426614174000",
-          deliverableId: digest("deliverable"),
-          workUnitId: "review-surface-binding",
-          head: memberTarget.headSha,
-        },
+        vehicle,
         reviewTarget: memberTarget,
-        requirement: memberRequirement,
+        requirement: hostedRequirement,
         actorIdentity: "reviewer-1",
+        requestFailureReason: null,
         findings: [],
         dispositionSetId: null,
         settledFindingIds: [],
@@ -423,9 +457,8 @@ describe("review operation state schemas", () => {
     };
     expect(() => LaneProgressStateSchema.parse({
       ...laneProgress,
-      changeRequestId: "pull/42",
       attempts: [hostedAttempt],
-    })).toThrow(/hosted attempt source/iu);
+    })).toThrow(/hosted lane attempt/iu);
   });
 
   it("rejects a source id the policy driver would refuse", () => {

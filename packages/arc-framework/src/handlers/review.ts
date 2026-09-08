@@ -177,14 +177,13 @@ import {
   resolvePlanningGroomingReviewCommand,
 } from
   "../scripts/review-gate/policy/planning-grooming-command.js";
-import { readLocalReviewLiveContext } from
-  "../scripts/review-gate/hosts/local/live-context.js";
 import { createLocalReviewMethodFilePort } from
   "../scripts/review-gate/hosts/local/method-files.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
   HostedRequestEnvelopeSchema,
   HostedRequestResultSchema,
+  projectHostedRequestAdmissionResolution,
   requestHostedReview,
   HostedErrandProgressBindingSchema,
   type HostedReviewAdapter,
@@ -202,11 +201,14 @@ import {
 } from "../scripts/review-gate/hosted/await.js";
 import { resolveHostedAwaitTiming } from "../scripts/review-gate/hosted/await-config.js";
 import {
+  acknowledgeHostedRequest,
   hostedLaneAttemptId,
+  readHostedAcknowledgedRequest,
+  readHostedRequestAdmissionReplay,
   readLaneProgress,
   recordHostedAwaitAttempt,
-  recordHostedPendingRequest,
-  recordHostedRequestUnavailableAttempt,
+  recordHostedRequestAdmission,
+  recordHostedRequestConclusion,
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
 import {
@@ -1863,18 +1865,6 @@ async function resolveHostedProgressContext(input: {
     throw new Error("Hosted review target does not identify the current open change request.");
   }
   const store = new LocalReviewOperationStateStore(input.publisher);
-  const progress = await readLaneProgress(store, {
-    lane: "standard",
-    repositoryId,
-    headSha: reviewTarget.headSha,
-  });
-  const attempts = progress.status === "recorded"
-    ? hostedReservationAttemptsForTarget({
-        attempts: progress.attempts,
-        target: input.target,
-        ...(input.vehicle?.kind === "delivery-member" ? { vehicle: input.vehicle } : {}),
-      })
-    : [];
   if (input.vehicle?.kind === "errand") {
     const identity = await resolveUserIdentity(gitExec);
     const frame = await runDerivedLocusStateProbe({
@@ -1884,6 +1874,24 @@ async function resolveHostedProgressContext(input: {
       exec: gitExec,
     });
     const current = resolveActiveHostedReviewErrand(frame, branch);
+    const lineage = LaneSubjectLineageSchema.parse({
+      kind: "head-bound",
+      vehicleKind: "errand",
+      vehicleIdentity: current.claimId,
+      headSha: reviewTarget.headSha,
+    });
+    const progress = await readLaneProgress(store, {
+      lane: "standard",
+      repositoryId,
+      headSha: reviewTarget.headSha,
+      lineage,
+    });
+    const attempts = progress.status === "recorded"
+      ? hostedReservationAttemptsForTarget({
+          attempts: progress.attempts,
+          target: input.target,
+        })
+      : [];
     const configuredSources = (await resolveConfiguredLanePolicy({
       lane: "standard",
       settings,
@@ -1924,6 +1932,7 @@ async function resolveHostedProgressContext(input: {
     return {
       store,
       repositoryId,
+      lineage,
       reviewTarget,
       requirement,
       errandBinding,
@@ -1956,6 +1965,27 @@ async function resolveHostedProgressContext(input: {
   if (candidateRecord === null) {
     throw new Error("Hosted review reservation requires the canonical Candidate record.");
   }
+  const lineage = LaneSubjectLineageSchema.parse(input.vehicle?.kind === "delivery-member"
+    ? {
+        kind: "delivery-member",
+        planId: input.vehicle.planId,
+        workUnitId: input.vehicle.workUnitId,
+        deliverableId: input.vehicle.deliverableId,
+      }
+    : { kind: "candidate", candidateId: candidate.candidateId });
+  const progress = await readLaneProgress(store, {
+    lane: "standard",
+    repositoryId,
+    headSha: reviewTarget.headSha,
+    lineage,
+  });
+  const attempts = progress.status === "recorded"
+    ? hostedReservationAttemptsForTarget({
+        attempts: progress.attempts,
+        target: input.target,
+        ...(input.vehicle?.kind === "delivery-member" ? { vehicle: input.vehicle } : {}),
+      })
+    : [];
   const applicabilityQuery = {
     schemaVersion: 1 as const,
     repositoryId,
@@ -2048,6 +2078,7 @@ async function resolveHostedProgressContext(input: {
   return {
     store,
     repositoryId,
+    lineage,
     reviewTarget,
     requirement,
     errandBinding: null,
@@ -2607,6 +2638,16 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
     request: async (input) => {
       if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedRequestEnvelopeSchema.parse(input);
+      const replayStore = new LocalReviewOperationStateStore(publisher);
+      const replay = await readHostedRequestAdmissionReplay(replayStore, {
+        repositoryId: await resolveRepositoryIdentity(publisher),
+        request,
+      });
+      if (replay !== null) {
+        const result = projectHostedRequestAdmissionResolution(request, replay);
+        if (result === null) throw new Error("Hosted request replay unexpectedly admitted fresh dispatch.");
+        return result;
+      }
       const deliveryVehicle = request.vehicle?.kind === "delivery-member" ? request.vehicle : null;
       const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
       const settings = (await readConfigSettings(root)).settings;
@@ -2619,6 +2660,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
         settings,
         admitCapacity: true,
       });
+      const actorIdentity = await port.currentActorIdentity();
       const policy = deliveryVehicle === null
         ? null
         : await resolveConfiguredLanePolicy({
@@ -2634,6 +2676,33 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
         adapters,
         deliveryMemberLookup,
         ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
+        admitRequest: async (admittedRequest, progressVehicle) => recordHostedRequestAdmission(
+          context.store,
+          {
+            repositoryId: context.repositoryId,
+            lineage: context.lineage,
+            request: admittedRequest,
+            ...(progressVehicle === undefined ? {} : { progressVehicle }),
+            reviewTarget: context.reviewTarget,
+            requirement: context.requirement,
+            actorIdentity,
+            now: new Date().toISOString(),
+          },
+        ),
+        acknowledgeRequest: async (admission, handle) => {
+          await acknowledgeHostedRequest(context.store, {
+            admission,
+            handle,
+            now: new Date().toISOString(),
+          });
+        },
+        concludeRequest: async (admission, concluded) => {
+          await recordHostedRequestConclusion(context.store, {
+            admission,
+            result: concluded,
+            now: new Date().toISOString(),
+          });
+        },
         ...(deliveryVehicle === null || policy === null
           ? {}
           : {
@@ -2704,26 +2773,6 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
               },
             }),
       });
-      if (result.nextAction === "await") {
-        await recordHostedPendingRequest(context.store, {
-          repositoryId: context.repositoryId,
-          handle: result.handle,
-          reviewTarget: context.reviewTarget,
-          requirement: context.requirement,
-          actorIdentity: await port.currentActorIdentity(),
-          now: new Date().toISOString(),
-        });
-      } else if (result.nextAction === "try-next-source") {
-        await recordHostedRequestUnavailableAttempt(context.store, {
-          repositoryId: context.repositoryId,
-          request,
-          result,
-          reviewTarget: context.reviewTarget,
-          requirement: context.requirement,
-          actorIdentity: await port.currentActorIdentity(),
-          now: new Date().toISOString(),
-        });
-      }
       return result;
     },
   };
@@ -2756,7 +2805,7 @@ export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandle
 }
 
 function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies {
-  const { observers, port } = createHostedAdapters();
+  const { observers } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
   const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
   return {
@@ -2766,15 +2815,12 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
       const request = HostedAwaitEnvelopeSchema.parse(input);
       const settings = (await readConfigSettings(root)).settings;
       const timing = resolveHostedAwaitTiming(request, settings);
-      const context = await resolveHostedProgressContext({
-        root,
-        publisher,
-        target: request.handle.target,
-        provider: request.handle.provider,
-        ...(request.handle.vehicle === undefined ? {} : { vehicle: request.handle.vehicle }),
-        settings,
-        admitCapacity: false,
-      });
+      const store = new LocalReviewOperationStateStore(publisher);
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      if (request.handle.admission.repositoryId !== repositoryId) {
+        throw new Error("Hosted await does not match the current repository.");
+      }
+      await readHostedAcknowledgedRequest(store, request.handle);
       const result = await awaitHostedReview(timing.request, {
         observers,
         attentionAfterMs: timing.attentionAfterMs,
@@ -2783,12 +2829,9 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
           sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
         },
       });
-      const progress = await recordHostedAwaitAttempt(context.store, {
-        repositoryId: context.repositoryId,
+      const progress = await recordHostedAwaitAttempt(store, {
+        repositoryId,
         result,
-        reviewTarget: context.reviewTarget,
-        requirement: context.requirement,
-        actorIdentity: await port.currentActorIdentity(),
         now: new Date().toISOString(),
       });
       return result.state === "findings"

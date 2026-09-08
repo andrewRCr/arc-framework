@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { canonicalize, type KernelRegistry } from "../../../lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   validateReviewRequest,
@@ -19,6 +19,7 @@ import { LocalAttestationBindingSchema } from "./local-carrier.js";
 import { FrontlineAdmissionSchema } from "./frontline-admission.js";
 import { HostedFindingSchema } from "../hosted/await.js";
 import {
+  HostedAdmissionSchema,
   HostedProviderIdSchema,
   HostedRequestHandleSchema,
   HostedReviewCoverageSchema,
@@ -194,6 +195,7 @@ const LaneAttemptOutcomeSchema = z.enum([
   "terminal-failure",
 ]);
 const HostedLaneAttemptBindingSchema = z.strictObject({
+  admission: HostedAdmissionSchema,
   handle: HostedRequestHandleSchema.optional(),
   target: HostedTargetSchema,
   requestedCoverage: HostedReviewCoverageSchema,
@@ -202,6 +204,7 @@ const HostedLaneAttemptBindingSchema = z.strictObject({
   reviewTarget: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema,
   actorIdentity: IdentifierSchema,
+  requestFailureReason: z.string().trim().min(1).nullable(),
   findings: z.array(HostedFindingSchema),
   dispositionSetId: CanonicalDigestSchema.nullable(),
   settledFindingIds: z.array(z.string().trim().min(1)),
@@ -321,15 +324,6 @@ const LaneAttemptSchema = z.strictObject({
       });
     }
   }
-  if (attempt.outcome === "pending"
-    && attempt.hosted !== undefined
-    && attempt.hosted.handle === undefined) {
-    context.addIssue({
-      code: "custom",
-      path: ["hosted", "handle"],
-      message: "a pending hosted attempt requires its complete request handle",
-    });
-  }
   if (attempt.hosted === undefined) return;
   try {
     const target = validateReviewTarget(attempt.hosted.reviewTarget);
@@ -355,13 +349,23 @@ const LaneAttemptSchema = z.strictObject({
         message: "hosted delivery vehicle must identify the review target head",
       });
     }
+    const admission = attempt.hosted.admission;
+    if (attempt.logicalPass !== admission.logicalPass
+      || attempt.sourceId !== admission.sourceId
+      || attempt.headSha !== admission.target.headSha
+      || canonicalize(attempt.hosted.target) !== canonicalize(admission.target)
+      || attempt.hosted.requestedCoverage !== admission.requestedCoverage
+      || canonicalize(attempt.hosted.vehicle ?? null)
+        !== canonicalize(admission.vehicle?.kind === "delivery-member" ? admission.vehicle : null)
+      || canonicalize(attempt.hosted.reviewTarget) !== canonicalize(admission.reviewTarget)
+      || canonicalize(attempt.hosted.requirement) !== canonicalize(admission.requirement)
+      || attempt.hosted.actorIdentity !== admission.actorIdentity) {
+      throw new Error("hosted lane attempt does not match its durable admission");
+    }
     const handle = attempt.hosted.handle;
     if (handle !== undefined && !hostedRequestHandleMatchesProgress(handle, {
-      sourceId: attempt.sourceId,
-      target: attempt.hosted.target,
-      requestedCoverage: attempt.hosted.requestedCoverage,
+      admission,
       effectiveCoverage: attempt.hosted.effectiveCoverage,
-      ...(attempt.hosted.vehicle === undefined ? {} : { vehicle: attempt.hosted.vehicle }),
     })) {
       context.addIssue({
         code: "custom",
@@ -393,6 +397,13 @@ const LaneAttemptSchema = z.strictObject({
       code: "custom",
       path: ["hosted", "dispositionSetId"],
       message: "hosted findings cannot settle before an approved disposition set is bound",
+    });
+  }
+  if ((attempt.outcome === "terminal-failure") !== (attempt.hosted.requestFailureReason !== null)) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "requestFailureReason"],
+      message: "hosted terminal request failure must retain exactly one reason",
     });
   }
   const complete = findingIds.length > 0 && attempt.hosted.settledFindingIds.length === findingIds.length;
@@ -456,6 +467,15 @@ export const LaneProgressStateSchema = z.strictObject({
         code: "custom",
         path: ["attempts", index, "frontline"],
         message: "frontline attempt must remain inside its lane owner",
+      });
+    }
+    if (attempt.hosted !== undefined
+      && (laneSubjectLineageId(attempt.hosted.admission.lineage) !== laneSubjectLineageId(state.lineage)
+        || attempt.hosted.admission.repositoryId !== state.repositoryId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["attempts", index, "hosted", "admission"],
+        message: "hosted attempt must remain inside its lane owner",
       });
     }
   });
