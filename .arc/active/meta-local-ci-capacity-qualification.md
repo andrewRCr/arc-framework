@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** `e2e-feedback-six-shard-rebalance` Errand follow-up
-- **Design:** `draft-local-ci-capacity-qualification.md`
+- **Design:** `spec-local-ci-capacity-qualification.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Planned Light P1 stub created from the live CI-capacity investigation (2026-09-08).
 - **Next Task:** [none]
 - **Blockers:** [none]
