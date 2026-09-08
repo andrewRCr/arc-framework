@@ -217,7 +217,8 @@ below. It stays on disk through the remaining procedures and Finalize.
 - **Coverage** — every enumerable unit covered by some task (the task list is validated against the form's
   enumerable substrate; implementation is validated separately against Success Criteria)
 - **Asymmetry** — single parents overcommitting (subtask-count signal flags candidates)
-- **Ordering** — phase sequence minimizes dependencies
+- **Ordering** — phase sequence preserves the resolved risk-retirement segment order, then minimizes dependencies
+  within each segment
 
 ### Assess design proportionality before content fill
 
