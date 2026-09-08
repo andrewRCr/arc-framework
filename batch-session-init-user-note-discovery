@@ -3,7 +3,7 @@
   "slug": "batch-session-init-user-note-discovery",
   "claimId": "291bfe93a187e4a3928a0d914a28ac93",
   "createdAt": "2026-09-08T15:04:44.027Z",
-  "updatedAt": "2026-09-08T16:04:42.973Z",
+  "updatedAt": "2026-09-08T16:53:49.101Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "batch-session-init-user-note-discovery",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Batch session-init user-note discovery",
   "originEntrySourceDigest": "sha256:4931e05d7ea5825de11a370c4e9efbdc0011e79deca07678895ffd57cfeb3db3",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/batch-session-init-user-note-discovery",
+    "headSha": "409fe4c2fd51285bfcd9b9efdb4cb7dd478d8758"
+  }
 }
