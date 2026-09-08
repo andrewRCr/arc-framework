@@ -342,6 +342,7 @@ describe("v3 decomposition refusals", () => {
   it.each([
     ["execute", ["arc", "decompose", "origin", "--extract", "map.json"]],
     ["extract", ["arc", "decompose", "origin", "--execute", "map.json"]],
+    ["advance-base", ["arc", "decompose", "origin", "--extract", "map.json"]],
   ] as const)("maps an authoring-shape refusal from %s to the other mode", (mode, expectedArgv) => {
     const remedy = v3DecomposeRemedy({
       invocation: { mode, origin: "origin", cutMapPath: "map.json" },
@@ -350,6 +351,44 @@ describe("v3 decomposition refusals", () => {
     });
 
     expect(remedy.argv).toEqual(expectedArgv);
+  });
+
+  it.each([
+    ["full-protection-required", "advance"],
+    ["map:invalid", "advance"],
+    ["candidate-topology-unavailable", "advance"],
+    ["candidate-registration-mismatch", "cleanup"],
+    ["candidate-marker-mismatch", "cleanup"],
+    ["binding-unavailable", "advance"],
+    ["candidate-dirty", "advance"],
+    ["base-not-descendant", "advance"],
+    ["base-dependency-snapshot-unavailable", "advance"],
+    ["base-acquired-incoming-dependency", "preflight"],
+    ["candidate-history-unavailable", "cleanup"],
+    ["candidate-initial-transition-invalid", "cleanup"],
+    ["candidate-transform-mismatch:path-state", "cleanup"],
+    ["candidate-advancement-chain-invalid:path-state", "cleanup"],
+    ["candidate-advancement-base-invalid", "cleanup"],
+    ["binding-raced", "advance"],
+    ["merge-refused", "advance"],
+    ["candidate-restore-failed", "cleanup"],
+    ["post-merge-validation-refused:changed-paths", "advance"],
+    ["post-merge-validation-refused:transition-record", "advance"],
+    ["post-merge-validation-refused:blob-unavailable", "advance"],
+    ["post-merge-validation-refused:write-failed", "advance"],
+  ] as const)("maps advancement refusal %s to its corrective command", (reason, command) => {
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "advance-base", origin: "origin", cutMapPath: "map.json" },
+      reason,
+      locus: "/repo/decompose-origin",
+    });
+
+    expect(isV3DecomposeMappedReason(reason)).toBe(true);
+    expect(remedy.argv).toEqual(command === "cleanup"
+      ? ["arc", "teardown", "--branch", "chore/decompose-origin"]
+      : command === "preflight"
+        ? ["arc", "decompose", "origin", "--preflight"]
+        : ["arc", "decompose", "origin", "--advance-base", "map.json"]);
   });
 
   it("uses exact candidate teardown when full-protection recovery exists", () => {

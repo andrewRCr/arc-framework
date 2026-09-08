@@ -462,6 +462,58 @@ describe("arc decompose command modes", () => {
     expect(executed.stdout).not.toContain("discard");
   });
 
+  it("emits an actionable uncovered-content refusal while advancing a committed candidate", async () => {
+    repo = await startedRepository();
+    let cutMapPath = await writeCompletedCutMap(repo);
+    const executed = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(executed.exitCode, executed.stderr).toBe(0);
+    const staged = JSON.parse(executed.stdout) as {
+      operation: { occupation: { protection: string; path: string } };
+    };
+    expect(staged.operation.occupation.protection).toBe("full");
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit decomposition transition"]);
+    const candidateHead = await git(candidatePath, ["rev-parse", "HEAD"]);
+
+    await git(repo, ["switch", "plan/origin"]);
+    const companionPath = ".arc/active/notes-origin.md";
+    await write(repo, companionPath, "# Notes: origin\n\nUnallocated companion content.\n");
+    await git(repo, ["add", companionPath]);
+    await git(repo, ["commit", "-m", "add uncovered source companion"]);
+    await git(repo, ["push", "origin", "plan/origin"]);
+    await git(repo, ["switch", "main"]);
+    cutMapPath = await writeCompletedCutMap(repo);
+    const before = await repositorySnapshot(repo);
+
+    const refused = await runArcNoTty(
+      ["decompose", "origin", "--advance-base", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+
+    expect(refused.exitCode).not.toBe(0);
+    const envelope = JSON.parse(refused.stdout) as {
+      status: string;
+      reason: string;
+      locus: string;
+      remedy: { argv: string[]; text: string };
+    };
+    expect(envelope).toMatchObject({
+      status: "refused",
+      locus: companionPath,
+      remedy: { argv: ["arc", "decompose", "origin", "--preflight"] },
+    });
+    expect(envelope.reason).toMatch(/(?:^|:)uncovered-retirement-content$/u);
+    expect(refused.stderr).toBe(`${envelope.reason}\n${envelope.remedy.text}\n`);
+    expect(await repositorySnapshot(repo)).toEqual(before);
+    expect(await git(candidatePath, ["rev-parse", "HEAD"])).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+  });
+
   it("lands a direct-member extraction with a reasoned drop then durably finishes the source", async () => {
     repo = await startedRepository();
     const cutMapPath = await writeExtractionCutMap(repo);

@@ -447,7 +447,10 @@ function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): vo
   refuse(`${reason}\n${remedy.text}`);
 }
 
-function emitV3DecomposeRefusal(input: unknown, mode: "execute" | "extract" | "finish"): void {
+function emitV3DecomposeRefusal(
+  input: unknown,
+  mode: "execute" | "extract" | "finish" | "advance-base",
+): void {
   const refusal = mode === "execute"
     ? GitV3DecomposeCommandRefusalSchema.parse(input)
     : mode === "extract"
@@ -1112,6 +1115,11 @@ export async function handleDecompose(
       return;
     }
     if (parsed.data.advanceBase !== undefined) {
+      const invocation = {
+        mode: "advance-base" as const,
+        origin: parsed.data.origin,
+        cutMapPath: parsed.data.advanceBase,
+      };
       let completedMap: unknown;
       try {
         completedMap = JSON.parse(await readFile(resolve(cwd, parsed.data.advanceBase), "utf8"));
@@ -1127,11 +1135,18 @@ export async function handleDecompose(
             completedMap: decoded.value,
           })
         : { status: "refused" as const, reason: "map:invalid" };
-      process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status === "refused") {
-        process.stderr.write(`${result.reason}\n`);
-        process.exitCode = 1;
+        emitV3DecomposeRefusal({
+          ...result,
+          remedy: v3DecomposeRemedy({
+            invocation,
+            reason: result.reason,
+            ...(result.locus === undefined ? {} : { locus: result.locus }),
+          }),
+        }, "advance-base");
+        return;
       }
+      process.stdout.write(`${canonicalize(result)}\n`);
       return;
     }
   } catch (error) {

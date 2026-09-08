@@ -21,6 +21,7 @@ import {
   v3DecomposePreflightArgv,
 } from "./decompose-command-renderer.js";
 import type { V3DecomposeOperationRecovery } from "./decompose-v3-operation.js";
+import { decomposeCandidateBranch } from "./decompose-candidate.js";
 
 const V3DecomposeEvidenceValueSchema = z.json();
 export type V3DecomposeEvidenceValue = z.infer<typeof V3DecomposeEvidenceValueSchema>;
@@ -292,6 +293,19 @@ function preflightRemedyDefinition(reason: string): V3PreflightRemedyDefinition 
     : V3_GIT_PREFLIGHT_REMEDIES[gitCode];
 }
 
+function advancementNeedsCandidateCleanup(reason: string): boolean {
+  const code = innermostReason(reason);
+  return reason.startsWith("candidate-transform-mismatch:")
+    || reason === "candidate-advancement-chain-invalid"
+    || reason.startsWith("candidate-advancement-chain-invalid:")
+    || code === "candidate-registration-mismatch"
+    || code === "candidate-marker-mismatch"
+    || code === "candidate-history-unavailable"
+    || code === "candidate-initial-transition-invalid"
+    || code === "candidate-advancement-base-invalid"
+    || code === "candidate-restore-failed";
+}
+
 /** Whether the current incremental registry owns a stable refusal code. */
 export function isV3DecomposeMappedReason(reason: string): boolean {
   const code = innermostReason(reason);
@@ -307,6 +321,8 @@ export function isV3DecomposeMappedReason(reason: string): boolean {
     || code === "uncovered-retirement-content"
     || code === "source-unpublished"
     || code === "authoring-shape"
+    || advancementNeedsCandidateCleanup(reason)
+    || V3_ADVANCEMENT_REMEDIES[code] !== undefined
     || V3_OPERATION_RETRY_REMEDIES[code] !== undefined
     || V3_REPOSITORY_PLAN_REMEDIES[code] !== undefined
     || V3_FINISH_REMEDIES[code] !== undefined
@@ -839,6 +855,84 @@ const V3_REPOSITORY_PLAN_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemed
   },
 };
 
+const V3_ADVANCEMENT_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemedyDefinition>> = {
+  "full-protection-required": {
+    invariant: "Base advancement requires full branch protection and its deterministic candidate worktree.",
+    correction: "Enable full branch protection, then retry base advancement",
+    command: "invocation",
+  },
+  "invalid": {
+    invariant: "Base advancement requires one valid completed map for the invoked origin.",
+    correction: "Correct the completed map, then retry base advancement",
+    command: "invocation",
+  },
+  "candidate-topology-unavailable": {
+    invariant: "Base advancement must read the registered candidate-worktree topology.",
+    correction: "Restore the worktree registry, then retry base advancement",
+    command: "invocation",
+  },
+  "binding-unavailable": {
+    invariant: "Base advancement must resolve the candidate and configured base to exact commits.",
+    correction: "Restore the reported ref binding, then retry base advancement",
+    command: "invocation",
+  },
+  "candidate-dirty": {
+    invariant: "The decomposition candidate must be clean before base advancement.",
+    correction: "Clean the candidate worktree, then retry base advancement",
+    command: "invocation",
+  },
+  "base-dependency-snapshot-unavailable": {
+    invariant: "Base advancement must read the live base dependency snapshot.",
+    correction: "Restore the live dependency records, then retry base advancement",
+    command: "invocation",
+  },
+  "base-acquired-incoming-dependency": {
+    invariant: "The origin's incoming dependency set must remain identical to the completed map.",
+    correction: "Re-run preflight and reauthor the completed map",
+    command: "preflight",
+  },
+  "binding-raced": {
+    invariant: "The candidate and configured base refs must remain at their authenticated commits.",
+    correction: "Stabilize the reported ref, then retry base advancement",
+    command: "invocation",
+  },
+  "merge-refused": {
+    invariant: "The configured base must merge cleanly into the decomposition candidate.",
+    correction: "Resolve the reported base conflict, then retry base advancement",
+    command: "invocation",
+  },
+  "changed-paths-unavailable": {
+    invariant: "Base advancement must read the candidate's exact changed-path set.",
+    correction: "Restore the candidate comparison, then retry base advancement",
+    command: "invocation",
+  },
+  "changed-paths": {
+    invariant: "The advanced candidate must change exactly the composed plan paths.",
+    correction: "Restore the reported path set, then retry base advancement",
+    command: "invocation",
+  },
+  "path-state": {
+    invariant: "Every advanced candidate path must match its composed final state.",
+    correction: "Restore the reported path state, then retry base advancement",
+    command: "invocation",
+  },
+  "transition-record": {
+    invariant: "The advanced candidate must retain the exact decomposition transition record.",
+    correction: "Restore the reported transition record, then retry base advancement",
+    command: "invocation",
+  },
+  "blob-unavailable": {
+    invariant: "Every advancement-plan file must retain its content-addressed blob.",
+    correction: "Restore the reported plan blob, then retry base advancement",
+    command: "invocation",
+  },
+  "write-failed": {
+    invariant: "Every advancement-plan mutation must write and stage successfully.",
+    correction: "Correct the reported write failure, then retry base advancement",
+    command: "invocation",
+  },
+};
+
 const V3_FINISH_REMEDIES: Readonly<Record<string, V3PreflightRemedyDefinition>> = {
   "destination-plan-state": {
     invariant: "Every extraction destination plan must end in a regular file.",
@@ -1068,6 +1162,18 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
       invocationArgv(input.invocation),
     );
   }
+  if (input.invocation.mode === "advance-base" && advancementNeedsCandidateCleanup(input.reason)) {
+    const locus = input.locus ?? "the deterministic candidate worktree";
+    return spineRemedy(
+      code === "candidate-restore-failed"
+        ? "A refused base advancement must restore its candidate to the authenticated head."
+        : "A decomposition candidate that cannot advance must be cleaned through its deterministic branch.",
+      `Clean the stranded candidate at ${locus}, then retry with ${
+        renderV3DecomposeArgv(invocationArgv(input.invocation))
+      }`,
+      ["arc", "teardown", "--branch", decomposeCandidateBranch(input.invocation.origin)],
+    );
+  }
   const preflightDefinition = preflightRemedyDefinition(input.reason);
   if (preflightDefinition !== undefined) {
     return spineRemedy(
@@ -1086,7 +1192,7 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
       );
     }
     case "authoring-shape": {
-      if (input.invocation.mode === "execute") {
+      if (input.invocation.mode === "execute" || input.invocation.mode === "advance-base") {
         return spineRemedy(
           "An extraction-shaped map must run through extraction mode.",
           "Run the completed map through extraction mode",
@@ -1170,6 +1276,15 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
         "Retry the selected mode",
         invocationArgv(input.invocation),
       );
+    case "base-not-descendant":
+      if (input.invocation.mode === "advance-base") {
+        return spineRemedy(
+          "The live result base must descend from the decomposition plan's authenticated base.",
+          "Land or select a descendant base, then retry base advancement",
+          invocationArgv(input.invocation),
+        );
+      }
+      break;
     case "source-scan": {
       const sourcePath = input.locus ?? "the reported source artifact";
       return spineRemedy(
@@ -1187,6 +1302,18 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
       );
     }
     default: {
+      const advancementDefinition = input.invocation.mode === "advance-base"
+        ? V3_ADVANCEMENT_REMEDIES[code]
+        : undefined;
+      if (advancementDefinition !== undefined) {
+        return spineRemedy(
+          advancementDefinition.invariant,
+          advancementDefinition.correction,
+          advancementDefinition.command === "preflight"
+            ? v3DecomposePreflightArgv(input.invocation.origin)
+            : invocationArgv(input.invocation),
+        );
+      }
       const operationDefinition = V3_OPERATION_RETRY_REMEDIES[code];
       if (operationDefinition !== undefined) {
         const argv = code === "source-ref-moved"

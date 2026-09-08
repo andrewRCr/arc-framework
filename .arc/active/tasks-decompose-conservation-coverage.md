@@ -163,7 +163,7 @@ only after every mode has executable coverage.
 - _Outcome:_ Finish now preserves strict remedy and evidence identity from proof and source comparison through
   preview, apply, recovery, and public emission without exposing raw bytes or inventing one-sided evidence.
 
-### `[ ]` **1.4 Carry plan refusals and differing evidence through base advancement**
+### `[x]` **1.4 Carry plan refusals and differing evidence through base advancement**
 
 - _Goal:_ Base advancement preserves the evidence and correction produced by its failing comparison or composing
   plan instead of flattening the refusal into an opaque reason string.
@@ -178,18 +178,14 @@ only after every mode has executable coverage.
           descendant-base, binding-race, and canonically ordered dependency comparisons; threaded them through
           composed mismatch prefixes, stabilized apply-plan diagnostics, and preserved exact candidate restoration.
 
-    - `[ ]` **1.4.c Emit the actionable advancement refusal at the public boundary**
-        - Map the remedy in `handleDecompose()` from the structured advance-base argv, parsed origin, and exact
-          cut-map path, then use the decompose-specific handler emitter with public-boundary coverage in
-          `__tests__/unit/handlers/lifecycle-verbs.test.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Print one envelope plus verbatim remedy text for a direct comparison refusal and a nested plan refusal.
-            - Preserve an exact corrective cleanup argv for a stranded candidate and a retry argv after corrected
-              map or repository state.
-            - Recompose a committed candidate with one uncovered companion and assert the nested
-              `uncovered-retirement-content` reason, companion locus, re-preflight argv, and unchanged candidate/base
-              refs and worktree.
-            - Keep successful advancement and no-op advancement output unchanged.
+    - `[x]` **1.4.c Emit the actionable advancement refusal at the public boundary**
+        - Routed advance-base refusals through the strict emitter with invocation-owned retry, preflight, or candidate
+          cleanup remedies; exercised a committed candidate against newly uncovered source content without mutation,
+          and preserved the exact `advanced` and `unchanged` success output.
+
+- _Outcome:_ Base advancement now carries the failing plan or live comparison's stable code, exact locus, and bounded
+  evidence through candidate restoration and public emission, while the command boundary alone selects the actionable
+  correction.
 
 ### `[ ]` **1.5 Prove source-wide remedy totality and all six command boundaries**
 

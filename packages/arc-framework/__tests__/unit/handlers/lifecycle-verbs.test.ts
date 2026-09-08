@@ -882,20 +882,87 @@ describe("handleDecompose", () => {
     );
   });
 
-  it("surfaces advance-base refusals without prescribing a successor", async () => {
+  it("keeps unchanged advance-base output free of refusal fields", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue({
-      status: "refused",
-      reason: "full-protection-required",
-    });
+    const unchanged = {
+      status: "unchanged",
+      candidateBranch: "chore/decompose-mono",
+      candidateHead: "d".repeat(40),
+      currentBaseHead: "c".repeat(40),
+    } as const;
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(unchanged);
 
     await handleDecompose("mono", { advanceBase: "cut-map.json" });
 
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      '{"reason":"full-protection-required","status":"refused"}\n',
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(unchanged)}\n`);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("emits an actionable advance-base comparison refusal", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused",
+      reason: "base-not-descendant",
+      locus: "main",
+      evidence: { expected: "base-before", actual: "base-now" },
+    } as const;
+    const remedy = spineRemedy(
+      "The live result base must descend from the decomposition plan's authenticated base.",
+      "Land or select a descendant base, then retry base advancement",
+      ["arc", "decompose", "mono", "--advance-base", "cut-map.json"],
     );
-    expect(stderrWrite).toHaveBeenCalledWith("full-protection-required\n");
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({ ...refusal, remedy })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits an actionable nested advancement-plan refusal", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused",
+      reason: "advancement-plan-refused:conservation:uncovered-retirement-content",
+      locus: ".arc/active/notes-mono.md",
+      evidence: { expected: "covered", actual: "uncovered" },
+    } as const;
+    const remedy = spineRemedy(
+      "Retirement cannot delete nonempty companion content outside the conservation proof.",
+      "Move the content at .arc/active/notes-mono.md into a scanned artifact or delete the file, then re-run preflight",
+      ["arc", "decompose", "mono", "--preflight"],
+    );
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({ ...refusal, remedy })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits candidate cleanup for a stranded base-advancement result", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused",
+      reason: "candidate-restore-failed",
+      locus: "/repo/decompose-mono",
+    } as const;
+    const remedy = spineRemedy(
+      "A refused base advancement must restore its candidate to the authenticated head.",
+      "Clean the stranded candidate at /repo/decompose-mono, then retry with arc decompose mono --advance-base cut-map.json",
+      ["arc", "teardown", "--branch", "chore/decompose-mono"],
+    );
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({ ...refusal, remedy })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${remedy.text}\n`);
     expect(process.exitCode).toBe(1);
   });
 
