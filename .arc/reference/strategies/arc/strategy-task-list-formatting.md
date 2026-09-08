@@ -209,18 +209,18 @@ references. Omit tenuous, general, or already-loaded references: ARC-supplied st
 task-local context and belong only when the task directly works in that strategy's domain. Do not use
 the field for generic test sequencing or project testing standards; those load through methods.
 
-**Goal preserved across completion; peer descriptors and body replaced.** At `[x]`, Goal stays
-verbatim. Peer descriptors (when present) and all Goal-children (description bullets, Build
-test-first lists) are pruned — replaced by a rolled-up `_Outcome:_` bullet at parent-Goal indent
-**placed after all subtasks** when the rollup carries signal (synthesis, verification, or
-cross-cutting), or simply removed when title + Goal already capture the work. Goal opens the
-post-completion shape; Outcome (when added) closes it from below; the two protected surfaces
-frame what was the pre-completion middle. See [process-task-loop § Completion notes content
-discipline][process-task-loop] for the threshold and granularity rules.
+**Goal and retiring-phase bullets are preserved across completion; other body content is replaced.** At `[x]`,
+Goal and every `_Retired in:_ Phase N` detail bullet stay verbatim. Peer descriptors (when present) and all other
+Goal-children (description bullets, Build test-first lists) are pruned — replaced by a rolled-up `_Outcome:_` bullet
+at parent-Goal indent **placed after all subtasks** when the rollup carries signal (synthesis, verification, or
+cross-cutting), or simply removed when title + Goal already capture the work. Goal opens the post-completion shape;
+Outcome (when added) closes it from below, with any retained retiring-phase bullet staying at its original depth.
+See [process-task-loop § Completion notes content discipline][process-task-loop] for the threshold and granularity
+rules.
 
-**Per-subtask description shifts in place** (unchanged behavior). At `[x]`, each subtask's
-description bullets at indent +2 shift from plan-content to outcome-content — same shape,
-no label change. The parent's rolled-up Outcome at root summarizes the unit-level result.
+**Per-subtask description shifts in place** (unchanged behavior). At `[x]`, each subtask's description bullets at
+indent +2 shift from plan-content to outcome-content — same shape, no label change — except a `_Retired in:_ Phase N`
+detail bullet, which stays verbatim. The parent's rolled-up Outcome at root summarizes the unit-level result.
 
 **Verification-task exception preserved.** The verification phase's single task (per
 [verify-work-unit.md][verify-work-unit]) carries two required completion-note categories

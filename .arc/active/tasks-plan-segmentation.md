@@ -300,22 +300,22 @@ shipped segmentation procedure is followed on it, the descriptor lint and the st
 deliberately broken copy is refused with the precomposed diagnostic, and its re-authored delivery plan record
 types the segment verifier as a segment-scope verification task.
 
-### `[ ]` **6.1 The retiring-phase bullet as a protected post-completion surface — D8**
+### `[x]` **6.1 The retiring-phase bullet as a protected post-completion surface — D8**
 
 - _Goal:_ a stub's retiring-phase bullet survives task completion at either depth it can sit — neither replaced
   when a parent's children collapse into an outcome, nor rewritten when a subtask's bullets shift in place —
   because the interval in which it matters begins exactly when the creating task completes.
 
-- _Rationale:_ the rule that prunes a completed task's body fires in the task-loop workflow, which today names the
-  goal line as its only protected surface. Stating the protection only in the formatting strategy would leave the
-  fire-point contradicting it, so it lands at the fire-point and the strategy's post-completion shape mirrors it.
+    - `[x]` **6.1.a Name it beside the goal line in the completion-notes discipline**
+        - task completion now preserves `_Retired in:_ Phase N` bullets beside `_Goal:_` at parent and subtask
+          depth while replacing or shifting the surrounding plan content
 
-- _Note:_ the bullet is a detail bullet beneath the stub's task, never a root descriptor — the root label set is
-  closed in code and closes the cluster at the first unknown label.
+    - `[x]` **6.1.b Mirror it in the post-completion shape**
+        - the formatting strategy now carries the same parent- and subtask-depth preservation rule in its
+          post-completion definition
 
-    - `[ ]` **6.1.a Name it beside the goal line in the completion-notes discipline**
-
-    - `[ ]` **6.1.b Mirror it in the post-completion shape**
+- _Outcome:_ both the execution fire-point and formatting definition preserve retiring-phase ownership through
+  completion, keeping live scaffolding tied to its removal boundary.
 
 ### `[ ]` **6.2 Install the testing-standards method — D10, D13**
 
