@@ -1,4 +1,4 @@
-# Notes: local-ci-capacity-qualification
+# Draft: local-ci-capacity-qualification
 
 Working evidence for the bounded local-runner feasibility trial.
 
