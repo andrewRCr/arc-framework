@@ -364,9 +364,9 @@ every entry with a blank line.
 _Mode:_ `slice` through Phase 3 — closes on exercisable end-to-end capability.
 ```
 
-`_Exit criterion:_` takes the segment's specific, non-empty criterion as prose. A task list with neither a
-`_Mode:_` line nor a segment-scope verifier is unsegmented. A newly authored single-segment plan records both
-structural lines like any other segmented plan.
+`_Exit criterion:_` takes the segment's specific, non-empty criterion as prose. A task list with no `_Mode:_` line,
+no `_Exit criterion:_` declaration, and no segment-scope verifier is unsegmented. A newly authored single-segment
+plan records both structural lines like any other segmented plan.
 
 ### Verification family
 
