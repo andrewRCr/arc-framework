@@ -15,8 +15,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State      | Work unit                       | Priority | Owner  | Depends on                      | Cohort                    |
 | ---------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------------------- |
-| `Planning` | decompose-conservation-coverage | P1       | andrew | —                               | decompose-core-hardening  |
-| `Planning` | review-signal-convergence       | P1       | andrew | —                               | review-protocol-alignment |
+| `Active`   | decompose-conservation-coverage | P1       | andrew | —                               | decompose-core-hardening  |
+| `Active`   | review-signal-convergence       | P1       | andrew | —                               | review-protocol-alignment |
 | `Planning` | decomposition-doctrine          | P1       | andrew | decompose-conservation-coverage | —                         |
 | `Planning` | plan-amendment                  | P1       | andrew | —                               | —                         |
 | `Active`   | plan-segmentation               | P1       | andrew | —                               | —                         |

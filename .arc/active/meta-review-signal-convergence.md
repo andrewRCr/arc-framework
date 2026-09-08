@@ -1,8 +1,8 @@
 # Metadata: review-signal-convergence
 
-| **State**  | **Owner** | **Branch**                       | **Class** | **Priority** |
-| ---------- | --------- | -------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/review-signal-convergence` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                       | **Class** | **Priority** |
+| --------- | --------- | -------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/review-signal-convergence` | `Heavy`   | `P1`         |
 
 - **Cohort:** `review-protocol-alignment`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-review-signal-convergence.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** Consolidated spec accepted after two adversarial passes; second pass returned no findings
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1.a — Transform the classified severity graph
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1.a through process-task-loop; implementation has not started
 
 - **PR URL:** [none]
 - **Completed:** [none]
