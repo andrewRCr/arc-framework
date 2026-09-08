@@ -439,11 +439,22 @@ describe("trusted review-gate workflows", () => {
     const fullProtection = sectionBetween(packaged, "- **Fully protected**", "- **Partially protected**");
     const exemption = fullProtection.indexOf("arc review planning-grooming resolve -");
     const prCreation = fullProtection.indexOf("arc merge lock resolve -");
+    const openedTargetResolution = fullProtection.indexOf(
+      "arc review planning-grooming resolve -",
+      prCreation,
+    );
+    const integrationInterlock = fullProtection.indexOf("`integration-interlock`", openedTargetResolution);
     expect(exemption).toBeGreaterThanOrEqual(0);
     expect(prCreation).toBeGreaterThan(exemption);
+    expect(openedTargetResolution).toBeGreaterThan(prCreation);
+    expect(integrationInterlock).toBeGreaterThan(openedTargetResolution);
     expect(fullProtection).toMatch(/`exempt \/ none`[\s\S]*skip[^.]*review/iu);
     expect(fullProtection).toMatch(/continue-review[\s\S]*reviewed-lane/iu);
     expect(fullProtection).toMatch(/never infer[^.]*planning-lane/iu);
+    expect(fullProtection).toMatch(/head movement[^.]*invalidates[^.]*exemption[^.]*return/iu);
+    expect(fullProtection).toMatch(
+      /after approval[\s\S]*head differs[^.]*return[^.]*adapter[^.]*integration\s+interlock/iu,
+    );
   });
 
   it("surfaces exact-head CI failures while a hosted review remains pending", async () => {

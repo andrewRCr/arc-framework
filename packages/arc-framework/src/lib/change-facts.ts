@@ -425,14 +425,6 @@ export function classifyPlanningLane(changeSet: ChangeSet): "planning" | "review
   return classifyPlanningPaths(changeSet, isPlanningArtifactPath);
 }
 
-/** Admit the disciplined shared-inbox flush in addition to ordinary planning artifacts. */
-export function classifyPlanningGroomingLane(changeSet: ChangeSet): "planning" | "reviewed" {
-  return classifyPlanningPaths(
-    changeSet,
-    (path) => isPlanningArtifactPath(path) || path === ".arc/backlog/ATOMIC-INBOX.md",
-  );
-}
-
 /** Reduce canonical changes to the CI-weight classification. */
 export function classifyChangeSet(changeSet: ChangeSet): "light" | "heavy" | "unknown" {
   if (changeSet.changeSet === "unknown") return "unknown";

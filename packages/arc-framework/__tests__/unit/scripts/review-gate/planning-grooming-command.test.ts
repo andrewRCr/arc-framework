@@ -97,7 +97,7 @@ describe("resolvePlanningGroomingReviewCommand", () => {
     },
   );
 
-  it("closes both lanes for a disciplined shared-inbox flush", () => {
+  it("fails closed for a shared-inbox change without operation provenance", () => {
     const result = resolvePlanningGroomingReviewCommand({
       request,
       target,
@@ -114,8 +114,9 @@ describe("resolvePlanningGroomingReviewCommand", () => {
     });
 
     expect(result).toMatchObject({
-      state: "exempt",
-      nextAction: "none",
+      state: "not-eligible",
+      nextAction: "continue-review",
+      payload: { target, reason: "non-planning-change" },
     });
   });
 

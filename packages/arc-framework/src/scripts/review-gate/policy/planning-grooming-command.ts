@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { classifyPlanningGroomingLane } from "../../../lib/change-facts.js";
+import { classifyPlanningLane } from "../../../lib/change-facts.js";
 import { ChangeSetSchema } from "../../../lib/change-facts.schema.js";
 import {
   PlanningGroomingReviewEnvelopeSchema,
@@ -107,7 +107,7 @@ export function resolvePlanningGroomingReviewCommand(input: unknown) {
   if (parsed.changeSet.changeSet === "unknown") {
     return ineligible(parsed.target, "unknown-change-set");
   }
-  if (classifyPlanningGroomingLane(parsed.changeSet) !== "planning") {
+  if (classifyPlanningLane(parsed.changeSet) !== "planning") {
     return ineligible(parsed.target, "non-planning-change");
   }
   if (parsed.context.state === "not-applicable") {
