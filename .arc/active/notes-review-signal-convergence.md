@@ -180,6 +180,55 @@ and cap refusal. The correction passed the complete Tier 2 gate: 869 test files 
 tests passed with one skipped. Criterion 4 remains unresolved until the correction commit, the single authorized Pass
 3, and the repaired member criteria walk complete.
 
+**Pass 3 — one confirmed major finding; non-converged.** The single authorized over-cap pass reviewed the complete
+Member 2 boundary through `d1bd1e3cf9066cf98bbc9feedec0ebfc0cfc0df3`.
+
+```yaml
+findings:
+  - title: "Unavailable incremental fallback can silently change scope within the same logical pass"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/scripts/review-gate/lane-progress.ts`,
+      `packages/arc-framework/src/scripts/review-gate/policy/hosted-reservation-discharge.ts`, and
+      `packages/arc-framework/src/scripts/review-gate/status.ts`
+    evidence: >-
+      Hosted admission accepted each public request's coverage without comparing earlier attempts in the same logical
+      pass. Discharge retained safe unavailability only for complete requests, and status defaulted an omitted
+      follow-up coverage to complete. A rate-limited incremental request could therefore fall back to a complete
+      request, potentially through the same source, without consuming another pass.
+    rationale: >-
+      Fallback retains the admitted logical pass and requested scope. Only source-owned effective coverage may upgrade
+      an incremental request to complete; a caller-selected replacement request may not change the pass's scope.
+withstood:
+  - Local delivery and non-delivery cap checks remain live at their producer boundaries.
+  - Repeated failed local generation and settled-findings continuation preserve their repaired pass identities.
+  - Hosted pre-effect persistence, replay, version-bound capacity, terminal accounting, and shared-head sibling
+    isolation remain intact.
+verdict: >-
+  Member 2 remained unresolved because hosted fallback could change requested coverage inside one logical pass.
+```
+
+Primary source verification confirmed the finding. The spec requires fallback to retain requested scope while
+permitting only adapter-reported effective upgrades. The admission writer had no same-pass coverage comparison; the
+discharge projection ignored incremental safe-unavailability attempts when selecting the next source; and the public
+status composer defaulted missing coverage to complete instead of carrying the active pass's request.
+
+**Disposition P3-F1 — `fix` (approved and applied):** hosted discharge now selects safe fallback within the logical
+pass that owns either the outstanding request or its complete terminal fallback, carries that pass's requested
+coverage into the next public action, and preserves terminal fallback discharge across current or applicable earlier
+heads. Status rejects an explicitly conflicting coverage and uses the retained value when the caller omits it. The
+version-checked admission transition independently refuses any conflicting same-pass request, so a direct producer
+caller cannot bypass composition.
+
+Fail-first regressions proved the discharge previously reselected `coderabbit-pr` with complete coverage, the public
+fan-out path previously emitted that changed-scope action after incremental rate limiting, and the durable admission
+writer previously admitted a complete `codex-pr` fallback into the incremental pass. Related unit coverage passed
+233 tests; the production fan-out integration passed 20 tests. The complete Tier 2 gate passed 869 test files with one
+skipped and 11,582 tests with one skipped.
+
+One fresh full-rubric Pass 4 is conditionally authorized after this correction is committed. That authority names
+Pass 4 only, is consumed when it launches, and does not authorize Pass 5.
+
 ## Member 1 criteria report — 2026-09-07
 
 ```yaml

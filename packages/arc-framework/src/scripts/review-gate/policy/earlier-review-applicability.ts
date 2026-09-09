@@ -34,6 +34,7 @@ export type EarlierHostedAttemptApplicabilityRead =
     readonly attempts: readonly {
       readonly operationId: string;
       readonly attemptId: string;
+      readonly logicalPass: number;
       readonly updatedAt: string;
       readonly sourceId: string;
       readonly outcome: string;
@@ -256,6 +257,7 @@ export async function projectEarlierReviewApplicability(
     return {
       operationId: candidate.operationId,
       attemptId: candidate.attemptId,
+      logicalPass: candidate.logicalPass,
       updatedAt: candidate.updatedAt,
       sourceId: candidate.sourceId,
       outcome: candidate.outcome,

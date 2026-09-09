@@ -2525,6 +2525,33 @@ describe("hosted review fan-out lifecycle", () => {
     await expect(access(providerCalled)).resolves.toBeUndefined();
   });
 
+  it("retains incremental coverage through production hosted fallback", async () => {
+    const harness = await createHarness(["coderabbit-pr", "codex-pr"]);
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    const initial = await statusThroughHandler(harness, statusTarget, undefined, "incremental");
+    if (initial.nextAction !== "review-hosted-request") {
+      throw new Error("expected incremental hosted request");
+    }
+    expect(initial.action).toMatchObject({ provider: "coderabbit-pr", coverage: "incremental" });
+    const unavailable = await requestThroughHandler(
+      initial.action,
+      { kind: "rate-limited" },
+      harness.root,
+      harness.exec,
+    );
+    if (unavailable.nextAction !== "try-next-source") throw new Error("expected hosted fallback");
+
+    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: { provider: "codex-pr", coverage: "incremental" },
+    });
+  });
+
   it("re-enters the complete member lane after an incremental clean result", async () => {
     const harness = await createHarness();
     const statusTarget = {

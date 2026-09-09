@@ -171,6 +171,7 @@ function attempt(
   });
   return {
     attemptId: `${sourceId}-${headSha}`,
+    logicalPass: admission.logicalPass,
     sourceId,
     outcome,
     hosted: {
@@ -260,6 +261,7 @@ function earlierAttempt<T extends { readonly sourceId: string }>(input: T) {
   return {
     operationId: `lane-progress/${input.sourceId}`,
     attemptId: `attempt-${input.sourceId}`,
+    logicalPass: 1,
     updatedAt: "2026-08-27T12:00:00.000Z",
     ...input,
   };
@@ -1017,6 +1019,7 @@ describe("hosted reservation discharge", () => {
           completedPasses: 1,
           attempts: [{
             attemptId: "local-review-1",
+            logicalPass: 1,
             sourceId: "delegated-agent",
             outcome: "clean",
             local: {
@@ -1073,6 +1076,7 @@ describe("hosted reservation discharge", () => {
           completePasses: 1,
           attempts: [{
             attemptId: "local-review-1",
+            logicalPass: 1,
             sourceId: "delegated-agent",
             outcome: "findings",
             local: {
@@ -1179,6 +1183,33 @@ describe("hosted reservation discharge", () => {
     });
 
     expect(result).toMatchObject({ discharged: false, nextSource: "codex-pr" });
+  });
+
+  it("retains incremental coverage while selecting fallback within the active pass", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
+      span: [oid("a")],
+      target: target(oid("a")),
+      readLaneProgress: progress({
+        [oid("a")]: {
+          status: "recorded",
+          completedPasses: 0,
+          attempts: [attempt(
+            oid("a"),
+            "coderabbit-pr",
+            "rate-limited",
+            undefined,
+            { requested: "incremental", effective: "incremental" },
+          )],
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: "codex-pr",
+      requestCoverage: "incremental",
+    });
   });
 
   it("does not accept a lower source without safe-unavailability evidence for the ordered prefix", async () => {

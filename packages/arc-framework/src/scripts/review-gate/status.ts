@@ -539,6 +539,7 @@ export function composeDeliveryReviewObligation(input: {
     requestAdmission?: ReviewResolveEnvelope;
     requestCeilingOverride?: ReviewCeilingOverride;
     requestScopeSelection?: z.infer<typeof DeliveryLocalReviewScopeSelectionSchema>;
+    requestCoverage?: HostedReviewCoverage;
     completedPasses: number;
     completePasses: number;
     passCeiling: number;
@@ -665,6 +666,15 @@ export function composeDeliveryReviewObligation(input: {
       detail: "The standard-review driver and member review action disagree about chunked-scope admission.",
     };
   }
+  if (discharge.requestCoverage !== undefined
+    && input.requestCoverage !== undefined
+    && discharge.requestCoverage !== input.requestCoverage) {
+    return {
+      state: "blocked",
+      detail: "The requested review coverage does not match the active logical pass.",
+    };
+  }
+  const requestCoverage = discharge.requestCoverage ?? input.requestCoverage ?? "complete";
   if (discharge.requestAdmission.nextAction === "local-prepare") {
     if (discharge.nextSource !== "delegated-agent") {
       return {
@@ -672,7 +682,7 @@ export function composeDeliveryReviewObligation(input: {
         detail: "The standard-review driver selected an unsupported local review source.",
       };
     }
-    if (input.requestCoverage === "incremental") {
+    if (requestCoverage === "incremental") {
       return RoutedReviewObligationSchema.parse({
         state: "blocked",
         reason: "coverage-unsupported",
@@ -722,7 +732,7 @@ export function composeDeliveryReviewObligation(input: {
         headSha: target.headSha,
       }),
       provider: provider.data,
-      coverage: input.requestCoverage ?? "complete",
+      coverage: requestCoverage,
       vehicle: target.vehicle,
       ...(input.requestInvocation === undefined ? {} : { invocation: input.requestInvocation }),
       ...(discharge.requestCeilingOverride === undefined

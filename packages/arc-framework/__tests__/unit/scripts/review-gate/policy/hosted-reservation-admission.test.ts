@@ -876,6 +876,7 @@ describe("hosted reservation admission", () => {
             attempts: [{
               operationId: "lane-progress/prior-safe-unavailability",
               attemptId: "attempt-prior-unavailable",
+              logicalPass: 1,
               updatedAt: "2026-08-27T12:00:00.000Z",
               sourceId,
               outcome: "rate-limited",

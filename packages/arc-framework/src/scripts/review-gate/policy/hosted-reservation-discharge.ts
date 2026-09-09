@@ -30,6 +30,7 @@ import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
 import type { HostedAwaitEnvelope } from "../hosted/await.js";
+import type { HostedReviewCoverage } from "../hosted/request.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   candidateExpectsEarlierReviewAttempt,
@@ -48,10 +49,6 @@ function lastMatchingIndex<T>(values: readonly T[], predicate: (value: T) => boo
 
 function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
   return attempt.local?.effectiveCoverage === "complete" || attempt.hosted?.effectiveCoverage === "complete";
-}
-
-function isCompleteStandardRequest(attempt: ProjectedLaneAttempt): boolean {
-  return attempt.local?.requestedCoverage === "complete" || attempt.hosted?.requestedCoverage === "complete";
 }
 
 function attemptMatchesTarget(
@@ -146,6 +143,25 @@ export interface HostedReservationDischarge {
   awaitAction?: HostedAwaitEnvelope;
   localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
+  requestCoverage?: HostedReviewCoverage;
+}
+
+function oneRequestedCoverage(
+  values: readonly (HostedReviewCoverage | undefined)[],
+): HostedReviewCoverage | null | "conflict" {
+  const coverages = new Set(values.filter(
+    (value): value is HostedReviewCoverage => value !== undefined,
+  ));
+  if (coverages.size > 1) return "conflict";
+  return coverages.values().next().value ?? null;
+}
+
+function requestedCoverageOf(
+  attempts: readonly ProjectedLaneAttempt[],
+): HostedReviewCoverage | null | "conflict" {
+  return oneRequestedCoverage(attempts.map((attempt) => (
+    attempt.local?.requestedCoverage ?? attempt.hosted?.requestedCoverage
+  )));
 }
 
 function applicabilityEquivalenceKey(
@@ -377,9 +393,11 @@ export async function projectHostedReservationDischarge(input: {
   }
   const target = input.target;
   const attemptsByHead = new Map<string, ProjectedLaneAttempt[]>();
+  const completedPassesByHead = new Map<string, number>();
   for (const headSha of input.span) {
     const progress = await input.readLaneProgress(headSha);
     if (progress.status !== "recorded") continue;
+    completedPassesByHead.set(headSha, progress.completedPasses);
     attemptsByHead.set(headSha, progress.attempts.filter((attempt) => (
       attemptMatchesTarget(attempt, headSha, target)
     )));
@@ -392,7 +410,24 @@ export async function projectHostedReservationDischarge(input: {
   const currentAttempts = latestSettledIndex < 0
     ? currentAttemptHistory
     : currentAttemptHistory.slice(latestSettledIndex + 1);
+  const activeLogicalPass = (completedPassesByHead.get(target.headSha) ?? 0) + 1;
+  const activeCurrentAttempts = currentAttemptHistory.filter((attempt) => (
+    attempt.logicalPass === activeLogicalPass
+  ));
+  const currentRequestCoverage = requestedCoverageOf(activeCurrentAttempts);
+  if (currentRequestCoverage === "conflict") {
+    return {
+      discharged: false,
+      detail: "The active review pass contains conflicting requested coverage.",
+      nextSource: null,
+    };
+  }
+  let requestCoverage: HostedReviewCoverage | null = currentRequestCoverage;
   const requestAttempts: HostedReservationRequestAttempt[] = [];
+  const requestContext = () => ({
+    requestAttempts,
+    ...(requestCoverage === null ? {} : { requestCoverage }),
+  });
   const currentFindingRoutes = reservation.sources.flatMap((sourceId) => (
     currentAttempts
       .filter((attempt) => attempt.sourceId === sourceId && attempt.outcome === "findings")
@@ -545,8 +580,30 @@ export async function projectHostedReservationDischarge(input: {
     }
     return projectPendingFindings(routes, "retained");
   };
+  const currentTerminalLogicalPass = reservation.sources.flatMap((sourceId) => (
+    currentAttempts.filter((attempt) => attempt.sourceId === sourceId
+      && attempt.outcome === "clean"
+      && isCompleteStandardVerdict(attempt))
+  ))[0]?.logicalPass;
+  let retainedTerminalLogicalPass: number | undefined;
+  if (currentTerminalLogicalPass === undefined && input.readEarlierAttemptApplicability !== undefined) {
+    await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
+    retainedTerminalLogicalPass = reservation.sources.flatMap((sourceId) => {
+      const earlier = activeEarlierBySource?.get(sourceId);
+      return earlier?.status === "complete"
+        ? earlier.attempts.filter((attempt) => attempt.outcome === "clean"
+          && attempt.effectiveCoverage === "complete"
+          && attempt.applicability === "retain-prior-attempt")
+        : [];
+    })[0]?.logicalPass;
+  }
+  const orderedLogicalPass = currentTerminalLogicalPass
+    ?? retainedTerminalLogicalPass
+    ?? activeLogicalPass;
   for (const sourceId of reservation.sources) {
-    const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
+    const orderedSourceAttempts = currentAttemptHistory.filter((attempt) => (
+      attempt.sourceId === sourceId && attempt.logicalPass === orderedLogicalPass
+    ));
     const settledCurrentHead = currentAttempts.some((attempt) => attempt.sourceId === sourceId
       && isCompleteStandardVerdict(attempt)
       && attempt.outcome === "clean");
@@ -563,10 +620,10 @@ export async function projectHostedReservationDischarge(input: {
     }
     const safelyUnavailable = retainedSafeUnavailableAttempt(
       sourceId,
-      sourceAttempts.filter(isCompleteStandardRequest),
+      orderedSourceAttempts,
     );
     if (safelyUnavailable !== null) {
-      requestAttempts.push(safelyUnavailable);
+      if (orderedLogicalPass === activeLogicalPass) requestAttempts.push(safelyUnavailable);
       continue;
     }
     if (input.readEarlierAttemptApplicability !== undefined) {
@@ -584,7 +641,7 @@ export async function projectHostedReservationDischarge(input: {
           detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
             + "a settled review across the Candidate span.",
           nextSource: sourceId,
-          requestAttempts,
+          ...requestContext(),
         };
       }
       if (earlier.status !== "complete" || earlier.attempts.length === 0) {
@@ -633,7 +690,7 @@ export async function projectHostedReservationDischarge(input: {
           discharged: false,
           detail: `Hosted source \`${sourceId}\` requires a new review by Owner selection.`,
           nextSource: sourceId,
-          requestAttempts,
+          ...requestContext(),
         };
       }
       const applicable = standardAttempts.filter(({ applicability }) => applicability === "retain-prior-attempt");
@@ -647,12 +704,32 @@ export async function projectHostedReservationDischarge(input: {
           nextSource: null,
         };
       }
+      const orderedApplicable = selected.filter(({ applicability, logicalPass }) => (
+        applicability === "retain-prior-attempt" && logicalPass === orderedLogicalPass
+      ));
       const earlierSafelyUnavailable = retainedSafeUnavailableAttempt(
         sourceId,
-        applicable.filter(({ requestedCoverage }) => requestedCoverage === "complete"),
+        orderedApplicable,
       );
       if (earlierSafelyUnavailable !== null) {
-        requestAttempts.push(earlierSafelyUnavailable);
+        const earlierCoverage = oneRequestedCoverage(orderedApplicable.map(({ requestedCoverage }) => (
+          requestedCoverage
+        )));
+        if (earlierCoverage === "conflict"
+          || (orderedLogicalPass === activeLogicalPass
+            && requestCoverage !== null
+            && earlierCoverage !== null
+            && requestCoverage !== earlierCoverage)) {
+          return {
+            discharged: false,
+            detail: "The active review pass contains conflicting requested coverage.",
+            nextSource: null,
+          };
+        }
+        if (orderedLogicalPass === activeLogicalPass) {
+          requestCoverage ??= earlierCoverage;
+          requestAttempts.push(earlierSafelyUnavailable);
+        }
         continue;
       }
     }
@@ -663,7 +740,7 @@ export async function projectHostedReservationDischarge(input: {
       detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
         + "a settled review across the Candidate span.",
       nextSource: sourceId,
-      requestAttempts,
+      ...requestContext(),
     };
   }
   return {

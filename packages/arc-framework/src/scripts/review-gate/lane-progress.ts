@@ -413,6 +413,17 @@ export async function recordHostedRequestAdmission(
       if (result !== null) return result;
       throw new Error("hosted admission already concluded with an incompatible result");
     }
+    const retainedRequestedCoverage = new Set(existing?.attempts
+      .filter((attempt) => attempt.logicalPass === logicalPass)
+      .flatMap((attempt) => {
+        const coverage = attempt.local?.requestedCoverage ?? attempt.hosted?.requestedCoverage;
+        return coverage === undefined ? [] : [coverage];
+      }) ?? []);
+    if (retainedRequestedCoverage.size > 1
+      || (retainedRequestedCoverage.size === 1
+        && !retainedRequestedCoverage.has(input.request.coverage))) {
+      throw new Error("hosted admission requested coverage does not match its logical pass");
+    }
     const admission = createHostedAdmission({
       schemaVersion: 1,
       repositoryId: input.repositoryId,
@@ -972,7 +983,7 @@ type LanePolicyLocalBinding = Omit<
 
 export type LanePolicyAttempt = Pick<
   LaneAttempt,
-  "attemptId" | "sourceId" | "outcome" | "chunkSeriesComplete"
+  "attemptId" | "logicalPass" | "sourceId" | "outcome" | "chunkSeriesComplete"
 > & {
   hosted?: LaneAttempt["hosted"];
   local?: LanePolicyLocalBinding;

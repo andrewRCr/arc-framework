@@ -731,6 +731,76 @@ describe("hosted await lane recording", () => {
     expect(state.completedPasses).toBe(0);
   });
 
+  it("refuses changed requested coverage within one hosted logical pass", async () => {
+    const store = createStore();
+    const requirement = createReviewRequirement({
+      target: deliveryHostedReviewTarget,
+      projection: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+      acceptableSources: [
+        { sourceKind: "hosted", qualifier: "coderabbit-pr" },
+        { sourceKind: "hosted", qualifier: "codex-pr" },
+      ],
+      initialAdmission: "automatic",
+    });
+    if (requirement === null) throw new Error("expected fallback review requirement");
+    const first = await recordHostedRequestAdmission(store, {
+      repositoryId: "repo-1",
+      lineage: deliveryAdmission.lineage,
+      request: {
+        schemaVersion: 1,
+        target: handle.target,
+        provider: "coderabbit-pr",
+        coverage: "incremental",
+        vehicle: deliveryVehicle,
+      },
+      progressVehicle: deliveryVehicle,
+      reviewTarget: deliveryHostedReviewTarget,
+      requirement,
+      actorIdentity: "github-user-1",
+      authorizeCapacity: async () => undefined,
+      now: "2026-08-15T11:59:00Z",
+    });
+    if (first.state !== "admitted") throw new Error("expected first hosted admission");
+    await recordHostedRequestConclusion(store, {
+      admission: first.admission,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-request",
+        state: "rate-limited",
+        nextAction: "try-next-source",
+        provider: "coderabbit-pr",
+        requestedCoverage: "incremental",
+        attemptedProviders: ["coderabbit-pr"],
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+
+    await expect(recordHostedRequestAdmission(store, {
+      repositoryId: "repo-1",
+      lineage: deliveryAdmission.lineage,
+      request: {
+        schemaVersion: 1,
+        target: handle.target,
+        provider: "codex-pr",
+        coverage: "complete",
+        vehicle: deliveryVehicle,
+      },
+      progressVehicle: deliveryVehicle,
+      reviewTarget: deliveryHostedReviewTarget,
+      requirement,
+      actorIdentity: "github-user-1",
+      authorizeCapacity: async () => undefined,
+      now: "2026-08-15T12:01:00Z",
+    })).rejects.toThrow(/requested coverage/u);
+  });
+
   it("refuses a request conclusion that has no durable pending admission", async () => {
     const store = createStore();
 

@@ -297,7 +297,7 @@ describe("composePrePublicationReviewRequest", () => {
           status: "recorded",
           completedPasses: 1,
           completePasses: 1,
-          attempts: [{ attemptId: "first-clean", sourceId: "coderabbit-cli", outcome: "clean" }],
+          attempts: [{ attemptId: "first-clean", logicalPass: 1, sourceId: "coderabbit-cli", outcome: "clean" }],
         }
       : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] });
     const deps = Object.assign(dependencies({
@@ -369,6 +369,7 @@ describe("composePrePublicationReviewRequest", () => {
             completePasses: 1,
             attempts: [{
               attemptId: `clean-${headSha}`,
+              logicalPass: 1,
               sourceId: "coderabbit-cli",
               outcome: "clean" as const,
             }],
@@ -428,7 +429,12 @@ describe("composePrePublicationReviewRequest", () => {
             status: "recorded" as const,
             completedPasses: 1,
             completePasses: 1,
-            attempts: [{ attemptId: "first-clean", sourceId: "coderabbit-cli", outcome: "clean" as const }],
+            attempts: [{
+              attemptId: "first-clean",
+              logicalPass: 1,
+              sourceId: "coderabbit-cli",
+              outcome: "clean" as const,
+            }],
           }
         : lane === "frontline"
           ? {
@@ -437,6 +443,7 @@ describe("composePrePublicationReviewRequest", () => {
               completePasses: 2,
               attempts: [{
                 attemptId: "second-rate-limited",
+                logicalPass: 2,
                 sourceId: "coderabbit-cli",
                 outcome: "rate-limited" as const,
               }],
@@ -825,7 +832,7 @@ describe("composePrePublicationReviewRequest", () => {
             status: "recorded",
             completedPasses: 1,
             completePasses: 1,
-            attempts: [{ attemptId: "attempt-1", sourceId: "codex-pr", outcome: "findings" }],
+            attempts: [{ attemptId: "attempt-1", logicalPass: 1, sourceId: "codex-pr", outcome: "findings" }],
           }
         : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] });
 
@@ -885,7 +892,7 @@ describe("composePrePublicationReviewRequest", () => {
             status: "recorded",
             completedPasses: 1,
             completePasses: 1,
-            attempts: [{ attemptId: "attempt-1", sourceId: "codex-pr", outcome: "findings" }],
+            attempts: [{ attemptId: "attempt-1", logicalPass: 1, sourceId: "codex-pr", outcome: "findings" }],
           }
         : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
     }));
