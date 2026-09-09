@@ -3,7 +3,7 @@
   "slug": "normalize-machine-owned-candidate-records-out-of-delivery-members",
   "claimId": "f4784db9bf9a649ac8a06b8c2b762907",
   "createdAt": "2026-09-08T23:03:14.392Z",
-  "updatedAt": "2026-09-08T23:03:14.392Z",
+  "updatedAt": "2026-09-09T00:02:26.580Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "normalize-machine-owned-candidate-records-out-of-delivery-members",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Normalize machine-owned Candidate records out of delivery members",
   "originEntrySourceDigest": "sha256:64277a6c9dfe92dd1a46d955ac23a0c4f0188ad913e9bd0f57aa0a8f3a519355",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/normalize-machine-owned-candidate-records-out-of-delivery-members",
+    "headSha": "3fdfdf2417d7d6f968e690b7ea940aa50a8c7c49"
+  }
 }
