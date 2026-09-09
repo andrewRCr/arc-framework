@@ -358,16 +358,42 @@ Two details worth carrying forward:
 
 ### Recommendation
 
-| Criterion              | Threshold                                  | Measured | Verdict |
-| ---------------------- | ------------------------------------------ | -------- | ------- |
-| Anchor median          | at or below 120 s, no OOM, no swap growth  | —        | —       |
-| Concurrent services    | each within 1.25x median, guest below 7 GB | —        | —       |
-| Routed dispatch        | every Linux job on a guest runner, green   | —        | —       |
-| Soak ratio             | at or below 0.70                           | —        | —       |
-| Runner-caused failures | none                                       | —        | —       |
-| Restart recovery       | all runners back with no operator action   | —        | —       |
+| Criterion              | Threshold                                  | Measured                        | Verdict    |
+| ---------------------- | ------------------------------------------ | ------------------------------- | ---------- |
+| Anchor median          | at or below 120 s, no OOM, no swap growth  | 56.38 s, no OOM, no swap device | pass       |
+| Concurrent services    | each within 1.25x median, guest below 7 GB | 1.389x; 2351 MB of 7912         | **failed** |
+| Routed dispatch        | every Linux job on a guest runner, green   | all ten jobs, green, 641 s      | pass       |
+| Soak ratio             | at or below 0.70                           | 0.444 (560 s against 1261 s)    | pass       |
+| Runner-caused failures | none                                       | none in four full-suite runs    | pass       |
+| Restart recovery       | all runners back with no operator action   | 195 s, unattended               | pass       |
 
-**Verdict:** —
+**Verdict: go**, confirmed by the maintainer on the evidence above.
+
+Five of six criteria pass, several by wide margins. The sixth failed and is recorded as failed rather than
+rewritten, so the verdict rests on a stated reading of that failure rather than on its absence.
+
+**Why the failed criterion does not block the verdict.** The 1.25x per-job limit was calibrated before the host's
+core layout was known. The base M4 pairs four performance cores with six efficiency ones, and the anchor drives
+about four logical CPUs, so a second concurrent run necessarily spills onto the slower cores. The limit therefore
+measures a property of the chip rather than a defect in the configuration, and no allocation change recovers it.
+What the limit was written to protect — useful aggregate throughput without per-job collapse — holds: two services
+deliver 1.44x the work of one, and the whole-workflow measurement that matters clears its own threshold by 37
+percent. The failure is also what produced this work unit's most useful finding, that slots on one box are not
+independent, which is what set the shipped configuration at two services rather than three.
+
+**What is being shipped is the configuration that was measured.** Two runner services, not three. Three was
+measured and rejected: it buys 9.4 percent throughput while pushing a fixed subprocess budget in the end-to-end
+helper past its limit, failing two of 36 jobs. Every clean full-suite run recorded here — four of them, roughly
+forty jobs, zero runner-caused failures — was taken at two services.
+
+**Scope of the claim.** This qualifies the guest as the routed Linux CI target with the remote pool retained as
+fallback. It does not settle the permanent repository-wide CI architecture, and it decides nothing about the paid
+remote allocation, which remains a separate approval-gated matter.
+
+**Standing caveats.** Timeout-class fragility is a live property of the current default route, not something this
+host introduces — the remote leg of the soak failed on exactly that. Being roughly four times faster per job, the
+guest is less exposed to it. The relevant capture is filed for separate handling, and addressing it is what would
+make a third service viable later.
 
 ## Pre-build measurements
 

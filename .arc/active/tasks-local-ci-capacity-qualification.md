@@ -336,13 +336,20 @@ naming the verdict so the cursor and the verification walk treat it as a deliber
   guest goes `active` well before GitHub will schedule work, so local service state is the wrong readiness signal
   after a restart — the runner list is the one that matters.
 
-### `[ ]` **4.3 Write the go/no-go recommendation**
+### `[x]` **4.3 Write the go/no-go recommendation**
 
 - _Goal:_ The ledger closes with a criteria table and a written verdict the operator confirms before any routing
   change.
 
-    - Criteria: anchor median, concurrent checks, routed dispatch, soak ratio, runner-caused failures, restart
-      recovery. State the verdict and the evidence each criterion rests on.
+    - Criteria table covering all six signals, each naming the evidence it rests on, with the **verdict: go**,
+      confirmed by the maintainer.
+    - Five criteria pass, several by wide margins. The sixth — the concurrent per-job limit — is carried into the
+      table as **failed**, not rewritten to fit, so the verdict rests on a stated reading of that failure rather
+      than on its absence: the limit measures the host's core layout rather than a defect, and what it was written
+      to protect holds.
+    - The recommendation records that the configuration being shipped is the one that was measured — two services,
+      not three — and bounds the claim to the routed Linux target with the remote pool retained as fallback,
+      settling nothing about the permanent architecture or the paid remote allocation.
 
 ### `[ ]` **4.4 Ship the go outcome**
 
