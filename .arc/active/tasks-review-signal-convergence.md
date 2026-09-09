@@ -276,13 +276,11 @@ migration.
   including `reduce-command.ts`, local resume, response/follow-up, and their fixtures in this member. Preserve native
   receipt/outcome/attempt identities; introduce no physical result store or dependency on the later grade migration.
 
-    - `[ ]` **3.2.a Resolve complete native producer evidence**
+    - `[x]` **3.2.a Resolve complete native producer evidence**
 
-        - Build `test-first` (one behavior at a time):
-
-            - exact producer lookup, target/admission context, content digest verification, and
-              missing/ambiguous/corrupt records. Local digests bind receipt plus native admission; frontline reuses
-              outcome digest; hosted reuses its sealed result identity.
+        - A storage-neutral reader now composes exact local receipt/source/admission, frontline outcome/admission, and
+          hosted sealed-attempt records. It retains native references and coverage, derives the local content identity,
+          reuses native frontline/hosted digests, and fails distinctly on missing, ambiguous, or corrupt evidence.
 
     - `[ ]` **3.2.b Bind canonical proposal and approval to producer content**
 
