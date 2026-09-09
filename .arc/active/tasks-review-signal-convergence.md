@@ -338,40 +338,26 @@ changes.
   rejects narrower verification and forwards the approved scope as `approvedVerification` without changing Candidate
   consumption.
 
-### `[ ]` **4.4 Close presentation callers and exercise producer-backed and self-review approval**
+### `[x]` **4.4 Close presentation callers and exercise producer-backed and self-review approval**
 
 - _Goal:_ Default callers present faithful approval reports without making author self-review impersonate an independent
   producer.
 
-- _Note:_ Spec § 4; § 7 Invocation ownership; SC 6, 15, 17, and 18.
+    - `[x]` **4.4.a Close default report consumption and invocation ownership**
 
-- _Approach:_ Update existing triage/response methods and actual prepare/integrate/delivery/Errand callers in both
-  copies. Self-review uses its standalone non-producer report and existing complete-set approval.
+        - Default prepare, integrate, delivery, and private/public Errand callers now consume the two-command report
+          sequence, while direct self-review remains non-producer. Ready-to-fix authorization and changed-target
+          continuation preserve `approvedVerification`.
 
-- _Forward amendment:_ Carry approved verification scope through ready-to-fix authorization and preserve it with the
-  response plan on changed-target continuation. No caller uses the field to skip or narrow verification in this phase.
+    - `[x]` **4.4.b Exercise the human-facing report and self-review path**
 
-    - `[ ]` **4.4.a Close default report consumption and invocation ownership**
+        - Real command output with native label `N-7` and an unsupported finding, plus standalone author self-review,
+          was exercised in fresh contexts. The exercise exposed a missing stable locus; the renderer was corrected,
+          the regenerated output reviewed cleanly, and the evidence was recorded in `notes-review-signal-convergence.md`.
 
-        - Consume returned reports for durable sources; preserve configured overrides and truthful approver boundaries.
-          Self-review must not fabricate a source reference, receipt, or respond-command invocation. Check method
-          declarations, actual fire-points, and installation; do not add global loading guidance.
-
-        - Close triage → proposal command → returned report → complete approval → approved command → performance in
-          prepare/integrate, retained delivery attempts, and private/public Errand paths. Replace the old ordering
-          assertions in `review-gate-workflows.test.ts` and `delivery-workflow.test.ts` with checks distinguishing both
-          command calls; merely asserting report-text presence is insufficient. Convergence continuation remains
-          owned by the following member.
-
-        - Declare self-review's direct triage dependency using the existing method graph. Preserve verification's
-          direct non-producer triage/approval path; response returns unapproved work to its governing caller rather
-          than secretly invoking triage again.
-
-    - `[ ]` **4.4.b Exercise the human-facing report and self-review path**
-
-        - Run bounded fresh-context examples with terse/native-labeled and unsupported findings, plus author
-          self-review. Record source inputs, expected account, observed output, and deviations; do not substitute
-          text-presence tests for judgment behavior.
+- _Outcome:_ Production callers preserve approval and response ownership together with approver-selected verification
+  scope. Fresh-context exercises establish faithful standalone reports without synthetic producer identity and close
+  the discovered renderer omission at its source.
 
 ### `[ ]` **4.5 Verify judgment provenance and finding presentation** — validate criteria at member scope
 

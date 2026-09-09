@@ -12,6 +12,8 @@ import {
   createDispositionSet,
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import { createFixAuthorization } from
+  "../../../../../src/scripts/review-gate/core/fix-authorization.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 
 const target = {
@@ -163,6 +165,49 @@ describe("advisory review records", () => {
         claimId: "claim-1",
         branch: "chore/repair-review-state",
       },
+    }).success).toBe(false);
+  });
+
+  it("binds the fix authorization to the disposition set's approved verification scope", () => {
+    const { dispositionSetId: originalDispositionSetId, ...dispositionFields } = approvedDisposition.dispositionSet;
+    const approvedFix = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...dispositionFields,
+        findings: dispositionFields.findings.map((finding) => {
+          if (finding.sourceVerification !== "verified") {
+            throw new Error("fix-authorization fixture requires a verified finding");
+          }
+          return {
+            ...finding,
+            disposition: "fix" as const,
+            recommendation: "Apply the bounded fix.",
+          };
+        }),
+      })),
+      approvedBy: approvedDisposition.approval.approvedBy,
+      approvedAt: approvedDisposition.approval.approvedAt,
+    });
+    expect(approvedFix.dispositionSet.dispositionSetId).not.toBe(originalDispositionSetId);
+    const fixAuthorization = createFixAuthorization({ dispositionState: approvedFix, oldTarget: target });
+    const record = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-advisory/v1" as const,
+      repositoryId: "repo-1",
+      operationId: "operation-1",
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
+      deliveryMember: null,
+      source: { kind: "attested-local" as const, receiptRef: "receipt:1", localSourceRef: "source:1" },
+      approvedDisposition: approvedFix,
+      fixAuthorization,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+    };
+
+    expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      fixAuthorization: { ...fixAuthorization, approvedVerification: "targeted" },
     }).success).toBe(false);
   });
 

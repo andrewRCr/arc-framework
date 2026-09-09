@@ -122,14 +122,25 @@ run identity to `arc review local attest -`; runtime-owned bindings come from th
 `arc review local resume -`, reduce with `arc review reduce -`, and submit approved dispositions with
 `arc review respond -`. A command error envelope carries no dispatchable state.
 
-For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present one
-unqualified severity when the reviewer and ARC grades agree, label both only when they differ, and include the source
-locus plus a discrete `Recommended disposition:` line. Approval of the complete unchanged surfaced set is required
-before any mutation or commitment; the approver need not repeat its canonical digest. Approved fixes run Tier 1
-gates ([`quality-gate-commands`][arc-methods-qg]), commit
-atomically, and produce a new target. Disclose review applicability from the exact delta: `targeted` for confidently
-narrow non-interacting record or lifecycle changes, `focused` for a bounded interaction, and `full` for behavioral,
-authority, contract, materially interacting, or uncertain changes. Clearance never carries.
+For every durable producer finding, run [`review-triage`][review-triage] to verify the source, propose the complete
+disposition set, and recommend `proposal.proposedVerification`. Submit that proposal through the first call:
+
+```bash
+arc review respond -
+```
+
+Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
+then obtain complete-set approval over that exact report and canonical set. Submit the exact approved set through a
+second call:
+
+```bash
+arc review respond -
+```
+
+Follow only its returned action and use [`review-response`][review-response] to perform the approved response. A
+`ready-to-fix` authorization carries `approvedVerification`; preserve it through re-entry and the changed-target
+continuation. The scope does not select fewer checks here. Approved fixes run Tier 1 gates
+([`quality-gate-commands`][arc-methods-qg]), commit atomically, and produce a new target. Clearance never carries.
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
 § Prepare private delivery candidates when directed before re-invoking pre-publication review.
 

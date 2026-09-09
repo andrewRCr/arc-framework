@@ -106,11 +106,13 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
     });
   }
   if (record.fixAuthorization !== null
-    && record.fixAuthorization.dispositionSetId
-      !== record.approvedDisposition.dispositionSet.dispositionSetId) {
+    && (record.fixAuthorization.dispositionSetId
+      !== record.approvedDisposition.dispositionSet.dispositionSetId
+      || record.fixAuthorization.approvedVerification
+        !== record.approvedDisposition.dispositionSet.proposedVerification)) {
     context.addIssue({
       code: "custom",
-      message: "fix authorization must bind the approved disposition set",
+      message: "fix authorization must bind the approved disposition set and verification scope",
       path: ["fixAuthorization"],
     });
   }

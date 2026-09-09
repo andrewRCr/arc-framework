@@ -389,6 +389,7 @@ describe("delivery review-fix continuation projection", () => {
       dispositionSetId: pending.approvedDisposition.dispositionSet.dispositionSetId,
       authorizedFindingIds: ["finding-1"],
       authorizedFindingLoci: ["src/review.ts:42"],
+      approvedVerification: "full",
       operationId: pending.operationId,
       repositoryId: pending.repositoryId,
       source: pending.source,
@@ -759,6 +760,7 @@ describe("delivery review-fix continuation projection", () => {
         fixAuthorizationId: `sha256:${"e".repeat(64)}`,
         workUnitId: plan.workUnitId,
         reviewedHead: "c".repeat(40),
+        approvedVerification: "focused",
       },
     })).toMatchObject({
       status: "authoring-required",
@@ -780,6 +782,7 @@ describe("delivery review-fix continuation projection", () => {
         workUnitId: plan.workUnitId,
         selectedDeliverableId,
         reviewedHead: "c".repeat(40),
+        approvedVerification: "focused",
         ref: "refs/arc/delivery-candidates/plan/member",
         checkoutPath: "/repo/.git/gate/member",
       },

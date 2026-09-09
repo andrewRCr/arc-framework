@@ -3,7 +3,7 @@
 import type { DispositionReportItem, DispositionSet } from "./disposition-records.js";
 import { validateDispositionSet } from "./dispositions.js";
 import {
-  escapeReviewFindingSourceLabel,
+  escapeReviewFindingSourceLabel as escapeReviewFindingDisplayText,
   NormalizedReviewFindingsSchema,
   type NormalizedReviewFinding,
 } from "./finding-records.js";
@@ -15,7 +15,7 @@ function displaySeverity(severity: "critical" | "major" | "minor", nit: true | u
 function renderSource(finding: NormalizedReviewFinding): string {
   const escapedLabel = finding.sourceLabel === undefined
     ? undefined
-    : escapeReviewFindingSourceLabel(finding.sourceLabel);
+    : escapeReviewFindingDisplayText(finding.sourceLabel);
   const label = escapedLabel === undefined
     ? ""
     : `${escapedLabel}${finding.sourceLabelTruncated === true ? "…" : ""} · `;
@@ -45,7 +45,7 @@ function renderFinding(
   reportOrdinal: number,
 ): string {
   const lines = [
-    `Finding F${reportOrdinal}: ${item.rationale}`,
+    `Finding F${reportOrdinal}: ${item.rationale} · Locus: ${escapeReviewFindingDisplayText(finding.locus)}`,
     renderSource(finding),
     renderAssessment(item),
     `Recommendation: ${item.disposition.toUpperCase()} [${item.gating}] — ${item.recommendation}`,

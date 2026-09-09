@@ -33,8 +33,9 @@ Before the Candidate exists, clean the WU content:
   ad-hoc inline status, or accumulated scratchpad content.
 
 If the [`self-review` method][self-review] is effectively active, execute it against the local aggregate diff vs
-the base branch. Classify findings per [`review-triage`][review-triage], obtain approval for the complete disposition
-set, and commit approved fixes per [`commit-footer`][commit-footer] before continuing.
+the base branch. Classify findings per [`review-triage`][review-triage], present the standalone non-producer report,
+obtain approval for the complete disposition set, and commit approved fixes per [`commit-footer`][commit-footer]
+before continuing. Do not invoke the producer-backed response command or fabricate producer evidence.
 
 Run the full quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been

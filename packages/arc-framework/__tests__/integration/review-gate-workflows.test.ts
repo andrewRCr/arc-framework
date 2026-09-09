@@ -38,6 +38,23 @@ function sectionBetween(content: string, start: string, end?: string): string {
   return content.slice(startIndex, endIndex);
 }
 
+function expectProducerBackedResponseOrder(content: string, start: string, end: string): void {
+  const response = sectionBetween(content, start, end);
+  const triage = response.indexOf("[`review-triage`]");
+  const proposalCall = response.indexOf("arc review respond -", triage);
+  const report = response.indexOf("payload.dispositionReportText", proposalCall);
+  const approval = response.indexOf("complete-set approval", report);
+  const approvedCall = response.indexOf("arc review respond -", proposalCall + 1);
+  const performance = response.indexOf("[`review-response`]", approvedCall);
+
+  expect(triage).toBeGreaterThanOrEqual(0);
+  expect(proposalCall).toBeGreaterThan(triage);
+  expect(report).toBeGreaterThan(proposalCall);
+  expect(approval).toBeGreaterThan(report);
+  expect(approvedCall).toBeGreaterThan(approval);
+  expect(performance).toBeGreaterThan(approvedCall);
+}
+
 describe("trusted review-gate workflows", () => {
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
@@ -341,9 +358,7 @@ describe("trusted review-gate workflows", () => {
     );
     expect(finalGate).toContain("payload.interlockSurface.machineEvidence.text");
     expect(finalGate).toContain("**Extension report** · `#pre-merge`");
-    expect(finalGate).toMatch(
-      /approved final dispositions[\s\S]*checkpointed settlement plan[\s\S]*review-response channel[\s\S]*ends review/u,
-    );
+    expect(finalGate).toMatch(/approved responses[\s\S]*already performed[\s\S]*not re-approved/iu);
     expect(finalGate).not.toContain("exact candidate-tail diff");
   });
 
@@ -365,8 +380,9 @@ describe("trusted review-gate workflows", () => {
     expect(interlock).toMatch(/candidate-tail diff[\s\S]*Release Notes entry and Completion Notes/u);
     expect(interlock).toContain("named rather than diffed");
     expect(interlock).toContain("review applicability calls and targeted verification");
-    expect(interlock).toContain("approved final dispositions");
+    expect(interlock).toContain("approved responses already performed");
     expect(interlock).not.toContain("proposed final dispositions");
+    expect(interlock).not.toContain("applies final dispositions");
 
     const reviewCoordination = sectionBetween(
       packaged,
@@ -401,8 +417,8 @@ describe("trusted review-gate workflows", () => {
       }
       expect(packaged).toMatch(/runtime-owned bindings/iu);
       expect(packaged).toContain("`findings / respond`");
-      expect(packaged).toContain("review applicability");
-      expect(packaged).toMatch(/targeted[\s\S]*focused[\s\S]*full/iu);
+      expect(packaged).toContain("approvedVerification");
+      expect(packaged).toMatch(/does not select fewer checks/iu);
       expect(packaged).toMatch(/command error\s+envelope/iu);
       expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
       expect(packaged).not.toMatch(/review-suspension|promoted watcher|scheduled wakeup/iu);
@@ -523,11 +539,41 @@ describe("trusted review-gate workflows", () => {
     ];
     for (const path of paths) {
       const workflow = await readRepositoryFile(path);
-      expect(workflow).toMatch(
-        /respond-to-findings[\s\S]*responsePlan[\s\S]*review-triage[\s\S]*review-response[\s\S]*arc review respond -/iu,
+      expectProducerBackedResponseOrder(
+        workflow,
+        "`respond-to-findings` uses",
+        path.includes("deliver-stack") ? "On `requested / await`" : "`delivery-correction-required",
       );
       expect(workflow).toMatch(/never requests another hosted review/iu);
     }
+  });
+
+  it("keeps producer-backed response choreography in every default caller", async () => {
+    const [prepare, errand] = await Promise.all([
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
+      ),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+    ]);
+
+    expectProducerBackedResponseOrder(prepare, "For every durable producer finding", "Proceed only from");
+    expectProducerBackedResponseOrder(errand, "   - `findings / respond`", "   - `approval-required");
+    expectProducerBackedResponseOrder(errand, "   - `findings / triage`", "   - `rate-limited");
+  });
+
+  it("keeps author self-review on the direct non-producer triage path", async () => {
+    const [selfReview, verification] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/methods/self-review.md"),
+      readRepositoryFile(
+        "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
+      ),
+    ]);
+
+    expect(selfReview).toMatch(/arc:[\s\S]*methods:[\s\S]*- review-triage/u);
+    expect(selfReview).toMatch(/author self-review[\s\S]*standalone[\s\S]*complete-set approval/iu);
+    expect(selfReview).not.toContain("arc review respond -");
+    expect(verification).toMatch(/self-review[\s\S]*review-triage[\s\S]*non-producer/iu);
+    expect(verification).not.toContain("arc review respond -");
   });
 
   it("routes approved delivery-member fixes through the exact driver-owned authoring locus", async () => {
@@ -594,7 +640,8 @@ describe("trusted review-gate workflows", () => {
     const interlockText = full.slice(interlock, autoMerge);
     const pinnedInterlockText = interlockText.replace(/^>\s?/gmu, "").replace(/\s+/gu, " ");
     expect(pinnedInterlockText).toContain("Surface the exact head");
-    expect(pinnedInterlockText).toContain("proposed final dispositions");
+    expect(pinnedInterlockText).toContain("approved responses already performed");
+    expect(pinnedInterlockText).toContain("not re-approved at this gate");
     expect(pinnedInterlockText).toContain("authorizes exact-head merge");
     expect(pinnedInterlockText).toMatch(/redirect[\s\S]*release-only/iu);
     expect(full).not.toContain("## Review");

@@ -9,6 +9,8 @@ import {
   hasExactPendingSelectedRefresh,
 } from "./suffix-reconciliation.js";
 import { canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
+import type { CandidateVerificationApplicability } from
+  "../work-unit/candidate-attestation.js";
 import type { ApprovedDispositionRecord } from
   "../../scripts/review-gate/core/advisory-records.js";
 import type { HostedFindingsResponsePlan, ReviewResponseSettlementRequest } from
@@ -28,6 +30,8 @@ type PendingDeliveryReviewFixAuthority =
       readonly dispositionSetId: string;
       readonly authorizedFindingIds: readonly string[];
       readonly authorizedFindingLoci: readonly string[];
+      readonly approvedVerification:
+        NonNullable<ApprovedDispositionRecord["fixAuthorization"]>["approvedVerification"];
       readonly operationId: string;
       readonly repositoryId: string;
       readonly source: ApprovedDispositionRecord["source"];
@@ -229,6 +233,8 @@ function recordHasExactPendingDeliveryFixAuthority(record: ApprovedDispositionRe
     && JSON.stringify(authorization.authorizedFindingIds) === JSON.stringify(authorizedFindingIds)
     && authorization.dispositionSetId
       === record.approvedDisposition.dispositionSet.dispositionSetId
+    && authorization.approvedVerification
+      === record.approvedDisposition.dispositionSet.proposedVerification
     && authorization.oldTargetId === record.approvedDisposition.dispositionSet.targetId
     && authorization.oldHeadSha === member.head;
 }
@@ -267,6 +273,7 @@ export function selectPendingDeliveryReviewFixAuthority(input: {
     authorizedFindingLoci: selected.approvedDisposition.dispositionSet.findings
       .filter(({ disposition }) => disposition === "fix")
       .map(({ locus }) => locus),
+    approvedVerification: selected.fixAuthorization.approvedVerification,
     operationId: selected.operationId,
     repositoryId: selected.repositoryId,
     source: selected.source,
@@ -424,6 +431,7 @@ export interface DeliveryReviewFixContinuationProjectionInput {
     readonly fixAuthorizationId: string;
     readonly workUnitId: string;
     readonly reviewedHead: string;
+    readonly approvedVerification: CandidateVerificationApplicability;
   };
 }
 
@@ -596,6 +604,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
             workUnitId: input.approvedFix.workUnitId,
             selectedDeliverableId: entry.selectedDeliverableId,
             reviewedHead: input.approvedFix.reviewedHead,
+            approvedVerification: input.approvedFix.approvedVerification,
             ref: input.authoring.ref,
             checkoutPath: input.authoring.checkoutPath,
           };

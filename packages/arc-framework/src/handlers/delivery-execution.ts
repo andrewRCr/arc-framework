@@ -239,9 +239,11 @@ import {
   resolveGitCandidateBaseRevision,
 } from "../lib/work-unit/git-candidate-subject.js";
 import {
+  CandidateVerificationApplicabilitySchema,
   parseCandidateManagedRecord,
   projectCandidateCurrentness,
   reduceCandidateDurableBaseline,
+  type CandidateVerificationApplicability,
 } from "../lib/work-unit/candidate-attestation.js";
 import {
   readSubmissionBoundary,
@@ -1018,6 +1020,7 @@ const ReviewFixContinuationResultSchema = z.union([
       workUnitId: SlugSchema,
       selectedDeliverableId: DeliveryCanonicalDigestSchema,
       reviewedHead: GitObjectIdSchema,
+      approvedVerification: CandidateVerificationApplicabilitySchema,
       ref: z.string().min(1),
       checkoutPath: z.string().min(1),
     }).optional(),
@@ -2391,6 +2394,7 @@ async function executeDeliveryCommand(
         readonly fixAuthorizationId: string;
         readonly workUnitId: string;
         readonly reviewedHead: string;
+        readonly approvedVerification: CandidateVerificationApplicability;
       } | undefined;
       let authorityPreservation: {
         readonly reviewedHead: string;
@@ -2796,6 +2800,7 @@ async function executeDeliveryCommand(
           fixAuthorizationId: selection.fixAuthorizationId,
           workUnitId: selection.workUnitId,
           reviewedHead: selection.reviewedHead,
+          approvedVerification: selection.approvedVerification,
         };
         approvedDispositionSet = {
           dispositionSetId: selection.dispositionSetId,

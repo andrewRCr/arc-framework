@@ -60,6 +60,7 @@ export function createFixAuthorization(input: {
     oldHeadSha: oldTarget.headSha,
     dispositionSetId: state.dispositionSet.dispositionSetId,
     authorizedFindingIds,
+    approvedVerification: state.dispositionSet.proposedVerification,
     authorizedBy: state.approval.approvedBy,
     authorizedAt: state.approval.approvedAt,
   });

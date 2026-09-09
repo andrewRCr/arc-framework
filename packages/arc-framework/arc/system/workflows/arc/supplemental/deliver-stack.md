@@ -301,14 +301,26 @@ arc review local resume -
 Follow the same typed local sequence, then re-enter through `arc review status`.
 
 `respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
-[`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:
+[`review-triage`][review-triage] to verify the source, compose the complete proposal, and recommend
+`proposal.proposedVerification`. Submit the proposal through the first call:
 
 ```bash
 arc review respond -
 ```
 
-This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
-plan through the existing phase-ordered settlement path below, then re-enter through `arc review status`.
+Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
+then obtain complete-set approval over that exact report and canonical set. Submit the exact approved set through a
+second call:
+
+```bash
+arc review respond -
+```
+
+Follow only its returned action and use [`review-response`][review-response] to perform the approved response. This
+resumes the retained attempt and never requests another hosted review. Preserve the `ready-to-fix` authorization's
+`approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
+any returned hosted settlement plan through the existing phase-ordered settlement path below, then re-enter through
+`arc review status`.
 After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
 `payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
 
@@ -363,7 +375,7 @@ either landing preparation. A returned typed discharge conjunction must be `disc
 without a conjunction is also authoritative because no delivery-member conjunction remains to discharge.
 
 Apply `frontline-review`, then `standard-review` or `implementation-audit` as applicable, and settle findings through
-`review-triage` and `review-response` before returning to the calling landing arm.
+the producer-backed response choreography above before returning to the calling landing arm.
 
 Only the settled native arm advances to set-wide preparation:
 

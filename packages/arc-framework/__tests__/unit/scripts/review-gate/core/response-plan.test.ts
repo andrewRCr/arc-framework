@@ -128,6 +128,7 @@ describe("review response planning", () => {
         oldTargetId: currentTarget.targetId,
         dispositionSetId: approval.dispositionState.dispositionSet.dispositionSetId,
         authorizedFindingIds: ["finding-1"],
+        approvedVerification: "full",
       },
     });
     expect(readyToFix.fixAuthorization).not.toHaveProperty("newTargetId");

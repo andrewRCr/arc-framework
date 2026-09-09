@@ -1656,4 +1656,80 @@ invented no authority-bearing record, and recommended bounded correction plus re
 **Limitation:** This attended fresh-context observation demonstrates the exercised behavior once; it is not universal
 reliability evidence. Static fixture and parity tests establish only retained inputs and instructions.
 
+## Finding-report and author-self-review behavioral exercises — 2026-09-09
+
+Two attended read-only evaluations ran in separate fresh contexts with no conversation fork or delegation. Each
+evaluator received only the shipped methods and its `scenario.md` / `exercise.md`; neither received `expected.md` or
+authority to edit or approve. The producer scenario's report bytes came from a real `respondToReviewCommand` proposal,
+approved call, and approved replay over one durable local finding.
+
+### Producer-backed approval report
+
+- **Run:** `2026-09-09T17:17:38-05:00`
+- **Target baseline:** `a582beb923acfb7814a18cb660b43f198d198bef` plus the Task 4.4 worktree.
+- **Source inputs:** `producer-report/scenario.md`, including native label `N-7`, capture ordinal `1`, stable locus,
+  source evidence, reported `major`, unsupported ARC judgment, record-only rejection, `full` proposed verification,
+  and one open question.
+- **Expected account:** `producer-report/expected.md`, withheld from the evaluator.
+
+**Observed output (verbatim):**
+
+```text
+Faithful complete-set proposal: one finding, full verification, source-verified as not supported with no ARC severity, reviewer-reported major, and `reject`/record-only with no code change. Approval would bind that exact immutable canonical set and identity—not merely `F1`, `N-7`, or the reviewer grade—including target, producer result, policy context, actors, and approval time.
+
+Only after approval may the unchanged-target rejection proceed to caller-owned closure; no mutation, fix, synthetic local reply, or invented host resolution is authorized. The open question remains informational.
+
+No fabricated or materially missing facts are evident. `F1` and `source #1` are order-local labels; `N-7` and `review:finding-1` preserve producer provenance. The backslashes in `src/index\.ts:7` and `N\-7` are presentation escaping, not changed facts. Identical proposal/replay bytes show no approval drift.
+```
+
+**Expected-behavior comparison:** The observation treated ARC and reviewer judgments separately, retained the
+unsupported finding and native navigation, recognized the immutable set and verification-scope approval boundary,
+and authorized no mutation or synthetic channel response.
+
+**Deviations:** None after correction. The first attended run correctly refused the report because the renderer
+omitted the source-owned locus and the sample rationale did not state a concrete allegation or consequence. Source
+inspection confirmed that omission against the spec. The approved correction made the renderer include the escaped
+exact locus and replaced the sample rationale with a standalone allegation, evidence basis, and consequence; the
+second fresh reader then matched the retained oracle.
+
+### Author self-review
+
+- **Run:** `2026-09-09T17:17:38-05:00`
+- **Target baseline:** `a582beb923acfb7814a18cb660b43f198d198bef` plus the Task 4.4 worktree.
+- **Source inputs:** `author-self-review/scenario.md`, containing one confirmed blocking omission in a bounded
+  aggregate diff and explicitly no producer, reviewer grade, native label, ordinal, receipt, or producer identity.
+- **Expected account:** `author-self-review/expected.md`, withheld from the evaluator.
+
+**Observed output (verbatim):**
+
+```text
+Author self-review
+
+Finding F1: Changed-target continuation drops the approver-selected verification floor.
+
+Locus: `src/lib/delivery/review-fix-continuation.ts:authoringAuthorization`
+
+Source verification: The approved disposition set contains `proposedVerification`, but `authoringAuthorization` does not carry it into the authoring authorization.
+
+Assessment: CONFIRMED · major (ARC)
+
+Recommendation: FIX [blocking] — Carry `approvedVerification` from the exact approved set through the authorization and add a focused propagation assertion.
+
+Open questions: None.
+
+Approval boundary: Complete-set approval is required before any fix or other mutation. This report contains the complete bounded finding set: F1 only.
+
+Next action: Approve or reject this complete disposition set. If approved, apply the proposed fix and run Tier 3 quality gates on the modified files.
+```
+
+**Expected-behavior comparison:** The observation identified author self-review, used only a report-local finding
+label, included the complete verified account and action, required complete-set approval, and fabricated no producer
+authority or response-command invocation.
+
+**Deviations:** None observed in this bounded run.
+
+**Limitation:** These attended fresh-context observations demonstrate the exercised behaviors once; they are not
+universal reliability evidence. Static fixtures and command tests establish retained inputs and output correspondence,
+not judgment behavior.
+
 ---

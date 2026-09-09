@@ -66,7 +66,7 @@ function activeErrandBinding(claimId = "claim-1") {
   });
 }
 
-function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
+function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle, sourceLabel?: string) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -158,6 +158,7 @@ function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
     locus: "src/index.ts:7",
     evidenceUrlOrId: "review:finding-1",
     sourceOrdinal: 1,
+    ...(sourceLabel === undefined ? {} : { sourceLabel }),
   };
   const receipt = createLocalReviewReceipt({
     target,
@@ -862,14 +863,14 @@ describe("review response command", () => {
         dispositionReportText: [
           "Verification: focused",
           "",
-          "Finding F1: The selected source supports this disposition.",
+          "Finding F1: The selected source supports this disposition. · Locus: src/earlier\\.ts:3",
           "Source: source #2 · review:finding-0",
           "Assessment: CONFIRMED · minor (ARC) · major (reviewer)",
           "Recommendation: FIX [record-only] — Apply the fix.",
           "",
           "---",
           "",
-          "Finding F2: The selected source supports this disposition.",
+          "Finding F2: The selected source supports this disposition. · Locus: src/index\\.ts:7",
           "Source: source #1 · review:finding-1",
           "Assessment: CONFIRMED · major (ARC) · major (reviewer)",
           "Recommendation: FIX [blocking] — Apply the fix.",
@@ -879,7 +880,7 @@ describe("review response command", () => {
   });
 
   it("returns the same canonical report for proposal, approval, and approved replay", async () => {
-    const records = fixture();
+    const records = fixture(workUnitVehicle, "N-7");
     const deps = dependencies(records);
     const source = { kind: "attested-local", receiptRef: records.receiptRef } as const;
     const proposed = await respondToReviewCommand({
@@ -893,7 +894,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: null,
           disposition: "reject",
-          rationale: "The alleged failure is not supported by the cited branch.",
+          rationale: "The reviewer alleges this branch enters a failing path, but source verification shows it "
+            + "is unreachable, so no execution failure occurs.",
           recommendation: "Reject the finding without changing code.",
           openQuestions: ["Should the reviewer clarify the cited execution path?"],
         }],

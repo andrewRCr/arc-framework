@@ -898,6 +898,7 @@ describe("arc delivery position", () => {
         workUnitId,
         selectedDeliverableId: selectedMember.deliverableId,
         reviewedHead: selectedMember.coordinates.head,
+        approvedVerification: "full",
         ref: `refs/heads/${branch}`,
         checkoutPath: fixture.repository,
       },

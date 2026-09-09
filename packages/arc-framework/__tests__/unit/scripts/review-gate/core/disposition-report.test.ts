@@ -22,7 +22,7 @@ function fixture() {
     findingId: "finding-a",
     severity: "minor",
     nit: true,
-    locus: "src/a.ts:4",
+    locus: "<src/*a*.ts:4>",
     evidenceUrlOrId: "review:finding-a",
     sourceOrdinal: 2,
     sourceLabel: clippedLabel,
@@ -75,10 +75,11 @@ describe("disposition report", () => {
 
     expect(report).toContain("Verification: targeted");
     expect(report).toContain(
-      `Finding F1: Standalone account for finding-a.\nSource: ${clippedLabel}… · source #2 · review:finding-a`,
+      `Finding F1: Standalone account for finding-a. · Locus: &lt;src/\\*a\\*\\.ts:4&gt;\n`
+        + `Source: ${clippedLabel}… · source #2 · review:finding-a`,
     );
     expect(report).toContain(
-      "Finding F2: Standalone account for finding-z.\n"
+      "Finding F2: Standalone account for finding-z. · Locus: src/z\\.ts:9\n"
         + "Source: &lt;unsafe \\*title\\*&gt; · source #1 · review:finding-z",
     );
     expect(report).toContain("Assessment: CONFIRMED · minor nit (ARC) · minor nit (reviewer)");

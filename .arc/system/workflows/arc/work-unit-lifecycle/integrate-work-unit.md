@@ -260,14 +260,26 @@ arc review local resume -
 Follow the same typed local sequence, then re-enter through `arc review status`.
 
 `respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
-[`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:
+[`review-triage`][review-triage] to verify the source, compose the complete proposal, and recommend
+`proposal.proposedVerification`. Submit the proposal through the first call:
 
 ```bash
 arc review respond -
 ```
 
-This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
-plan through the phase-ordered settlement path below, then re-enter through `arc review status`.
+Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
+then obtain complete-set approval over that exact report and canonical set. Submit the exact approved set through a
+second call:
+
+```bash
+arc review respond -
+```
+
+Follow only its returned action and use [`review-response`][review-response] to perform the approved response. This
+resumes the retained attempt and never requests another hosted review. Preserve the `ready-to-fix` authorization's
+`approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
+any returned hosted settlement plan through the phase-ordered settlement path below, then re-enter through
+`arc review status`.
 
 `delivery-correction-required / continue-delivery-correction` is the delivery-member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
@@ -327,9 +339,12 @@ prior count.
 
 - `clean / complete` — a delivery member re-enters status; an ordinary singleton feeds a `clean` attempt to
   `arc review resolve -`.
-- `findings / triage` — run [`review-triage`][review-triage] and [`review-response`][review-response]. When
-  `arc review respond -` returns `payload.hostedSettlementPlan` for approved `settlement: reply-and-resolve`
-  findings, execute its phases in order: invoke `arc review hosted settle -` for every ID in the active phase.
+- `findings / triage` — run [`review-triage`][review-triage], submit its complete proposal through the first
+  `arc review respond -` call, emit `payload.dispositionReportText`, obtain complete-set approval, submit the exact
+  approved set through the second `arc review respond -` call, and perform only its returned action through
+  [`review-response`][review-response]. When the approved call returns `payload.hostedSettlementPlan` for
+  `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for every
+  ID in the active phase.
   Settle each
   `beforeFixFindingIds` entry against the unchanged originating `target` with `fixTarget: null`, and require every
   result to complete before any approved fix changes the head; then apply, verify, commit, and push the approved
@@ -641,9 +656,8 @@ No commit or push may occur after `ready`.
 > `integration-interlock`: Stop after the ready evidence and extension report. Surface both, the composed
 > candidate-tail diff — the Release Notes entry and Completion Notes — with any swept or regenerated artifacts
 > named rather than diffed, the review applicability calls and targeted verification retained from Step 2, and the
-> approved final dispositions carried by the checkpointed settlement plan; state that approval executes that exact
-> plan, settles the review-response channel — hosted settlement already ran at Step 2 — ends review, and authorizes
-> merge of the checkpointed head. Close with `Approve (or redirect)?`.
+> approved responses already performed there. State that those responses are not re-approved at this gate; approval
+> ends review and authorizes merge of the checkpointed head. Close with `Approve (or redirect)?`.
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
 the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
