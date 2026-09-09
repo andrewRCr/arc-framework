@@ -62,6 +62,8 @@ function approved() {
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     targetId: currentTarget.targetId,
+    producerId: "frontline-operation",
+    resultDigest: canonicalDigest({ result: "frontline-operation" }),
     policyVersion: canonicalDigest({ policy: "review" }),
     rubricVersion: "implementation-audit/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),

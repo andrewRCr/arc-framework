@@ -38,6 +38,7 @@ import type {
   LocalReviewState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 import { createHostedAdmission } from "../../../../../src/scripts/review-gate/hosted/request.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { projectLocalReviewGuidance } from
@@ -219,6 +220,8 @@ function deliveryLocalFixture() {
 
 function approved(input: {
   targetId: string;
+  producerId: string;
+  resultDigest: string;
   policyVersion: string;
   rubricVersion: string;
   rubricDigest: string;
@@ -234,6 +237,8 @@ function approved(input: {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: input.targetId,
+      producerId: input.producerId,
+      resultDigest: input.resultDigest,
       policyVersion: input.policyVersion,
       rubricVersion: input.rubricVersion,
       rubricDigest: input.rubricDigest,
@@ -257,21 +262,42 @@ function approved(input: {
   });
 }
 
+function localResult(records: ReturnType<typeof fixture>): ReviewResult {
+  return {
+    kind: "attested-local",
+    producerId: records.operation.operationId,
+    repositoryId: records.operation.repositoryId,
+    target: records.target,
+    sourceIdentity: records.authority.evaluatorIdentity,
+    originalOutcome: "findings",
+    findings: records.receipt.findings,
+    resultDigest: canonicalDigest({
+      domain: "test.review-result/local",
+      producerId: records.operation.operationId,
+      receipt: records.receipt,
+    }),
+    admission: {
+      lineage: records.operation.lineage,
+      logicalPass: records.operation.logicalPass,
+      retryGeneration: records.operation.retryGeneration,
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
+      policyVersion: records.operation.policyVersion,
+    },
+    receiptRef: "git-common:review-gate/evidence/receipts-v2.json#1",
+    localSourceRef: records.operation.sourceRef,
+    requirement: records.operation.requirement,
+    request: records.operation.request,
+    ...(records.operation.deliveryAdmission === undefined
+      ? {}
+      : { deliveryAdmission: records.operation.deliveryAdmission }),
+  };
+}
+
 function dependencies(records: ReturnType<typeof fixture>) {
   let disposition: ApprovedDispositionRecord | null = null;
   const deps: RespondCommandDependencies = {
-    operationStore: {
-      readOperation: async () => ({ version: 1, state: records.operation }),
-      publishOperation: vi.fn(),
-    },
-    sourceStore: {
-      readSource: async () => records.source,
-      appendSource: vi.fn(),
-    },
-    outcomeStore: {
-      readOutcome: vi.fn(),
-      appendOutcome: vi.fn(),
-    },
+    resultReader: { readResult: async () => localResult(records) },
     dispositionStore: {
       readDispositionRecord: async () => disposition,
       appendDispositionRecord: async (record) => {
@@ -295,7 +321,6 @@ function dependencies(records: ReturnType<typeof fixture>) {
         return { dispositionRecordRef: "git-common:review-gate/evidence/disposition.json" };
       },
     },
-    readReceipt: async () => records.receipt,
     confirmTarget: async (target) => ({ state: "current", target }),
     resolveLocalActors: async () => ({
       approverIdentity: records.authority.authorIdentity,
@@ -463,11 +488,14 @@ function localRequest(
   records: ReturnType<typeof fixture>,
   disposition: "fix" | "defer" | "reject" = "fix",
 ) {
+  const result = localResult(records);
   return {
     schemaVersion: 1,
     source: { kind: "attested-local", receiptRef: records.receiptRef },
     dispositions: approved({
       targetId: records.target.targetId,
+      producerId: result.producerId,
+      resultDigest: result.resultDigest,
       policyVersion: records.operation.policyVersion,
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
@@ -583,10 +611,56 @@ function hostedResponseFixture(
   return { records, operation, attemptRef };
 }
 
+function hostedResult(input: ReturnType<typeof hostedResponseFixture>): ReviewResult {
+  const attempt = input.operation.attempts[0];
+  const hosted = attempt?.hosted;
+  const sealed = hosted?.sealedResult;
+  if (attempt === undefined || hosted === undefined || sealed === undefined) {
+    throw new Error("missing hosted result fixture");
+  }
+  return {
+    kind: "hosted",
+    producerId: attempt.attemptId,
+    repositoryId: input.operation.repositoryId,
+    target: hosted.reviewTarget,
+    sourceIdentity: attempt.sourceId,
+    originalOutcome: sealed.outcome,
+    findings: sealed.findings.map((finding) => ({
+      findingId: finding.findingId,
+      severity: finding.severity,
+      locus: finding.locus,
+      evidenceUrlOrId: finding.url,
+    })),
+    resultDigest: sealed.hostedResultId,
+    admission: {
+      lineage: hosted.admission.lineage,
+      logicalPass: hosted.admission.logicalPass,
+      retryGeneration: attempt.retryGeneration,
+      requestedCoverage: hosted.requestedCoverage,
+      effectiveCoverage: hosted.effectiveCoverage ?? hosted.requestedCoverage,
+      policyVersion: hosted.requirement.policyVersion,
+    },
+    laneOperationId: input.operation.operationId,
+    hostedTarget: hosted.target,
+    requirement: hosted.requirement,
+    ...(hosted.vehicle === undefined ? {} : { vehicle: hosted.vehicle }),
+    hostSettlementFindingIds: sealed.findings
+      .filter(({ settlement }) => settlement === "reply-and-resolve")
+      .map(({ findingId }) => findingId),
+    noHostSettlementFindingIds: sealed.findings
+      .filter(({ settlement }) => settlement === "not-applicable")
+      .map(({ findingId }) => findingId),
+    settled: false,
+  };
+}
+
 /** The same approved set, approved by an identity that is not the active local one. */
 function foreignApproval(records: ReturnType<typeof fixture>) {
+  const result = localResult(records);
   return approved({
     targetId: records.target.targetId,
+    producerId: result.producerId,
+    resultDigest: result.resultDigest,
     policyVersion: records.operation.policyVersion,
     rubricVersion: records.operation.requirement.rubricVersion,
     rubricDigest: records.operation.requirement.rubricDigest,
@@ -594,6 +668,39 @@ function foreignApproval(records: ReturnType<typeof fixture>) {
     finding: records.finding,
     approvedBy: "a-different-author",
   });
+}
+
+function frontlineResult(input: {
+  operation: FrontlineRunState;
+  record: ReturnType<typeof createFrontlineOutcomeRecord>;
+  outcomeRef: string;
+}): ReviewResult {
+  const { operation, record, outcomeRef } = input;
+  if (record.outcome.outcome !== "clean" && record.outcome.outcome !== "findings") {
+    throw new Error("frontline result fixture must be terminal");
+  }
+  return {
+    kind: "frontline",
+    producerId: operation.operationId,
+    repositoryId: record.repositoryId,
+    target: record.outcome.target,
+    sourceIdentity: record.sourceIdentity,
+    originalOutcome: record.outcome.outcome,
+    findings: record.outcome.findings,
+    resultDigest: record.outcomeDigest,
+    admission: {
+      lineage: operation.lineage,
+      logicalPass: operation.logicalPass,
+      retryGeneration: operation.retryGeneration,
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
+      policyVersion: operation.policyVersion,
+    },
+    outcomeRef,
+    sourceBindingId: operation.sourceBindingId,
+    executableIdentity: record.executableIdentity,
+    outcome: record.outcome,
+  };
 }
 
 describe("review response command", () => {
@@ -708,12 +815,14 @@ describe("review response command", () => {
     const attempt = hosted.operation.attempts[0];
     if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
     const deps = dependencies(hosted.records);
-    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    deps.resultReader.readResult = async () => hostedResult(hosted);
     deps.readCandidateLineage = async () => null;
     const bind = vi.fn(async () => undefined);
     deps.bindHostedDisposition = bind;
     const disposition = approved({
       targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
       policyVersion: attempt.hosted.requirement.policyVersion,
       rubricVersion: attempt.hosted.requirement.rubricVersion,
       rubricDigest: attempt.hosted.requirement.rubricDigest,
@@ -739,9 +848,11 @@ describe("review response command", () => {
     const attempt = hosted.operation.attempts[0];
     if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
     const deps = dependencies(hosted.records);
-    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    deps.resultReader.readResult = async () => hostedResult(hosted);
     const disposition = approved({
       targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
       policyVersion: attempt.hosted.requirement.policyVersion,
       rubricVersion: attempt.hosted.requirement.rubricVersion,
       rubricDigest: attempt.hosted.requirement.rubricDigest,
@@ -770,7 +881,7 @@ describe("review response command", () => {
     const attempt = hosted.operation.attempts[0];
     if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
     const deps = dependencies(hosted.records);
-    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    deps.resultReader.readResult = async () => hostedResult(hosted);
     deps.readCandidateLineage = async () => null;
     const currentTarget = createReviewTarget({
       schemaVersion: 2,
@@ -789,6 +900,8 @@ describe("review response command", () => {
     };
     const dispositions = approved({
       targetId: hosted.records.target.targetId,
+      producerId: attempt.attemptId,
+      resultDigest: attempt.hosted.sealedResult!.hostedResultId,
       policyVersion: attempt.hosted.requirement.policyVersion,
       rubricVersion: attempt.hosted.requirement.rubricVersion,
       rubricDigest: attempt.hosted.requirement.rubricDigest,
@@ -880,12 +993,14 @@ describe("review response command", () => {
       findings: [reviewedFinding, deferredFinding],
     }).hosted;
     const deps = dependencies(hosted.records);
-    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    deps.resultReader.readResult = async () => hostedResult(hosted);
     const disposition = approveDispositionState({
       proposed: proposeDispositionSet(createDispositionSet({
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: hosted.records.target.targetId,
+        producerId: attempt.attemptId,
+        resultDigest: attempt.hosted.sealedResult!.hostedResultId,
         policyVersion: attempt.hosted.requirement.policyVersion,
         rubricVersion: attempt.hosted.requirement.rubricVersion,
         rubricDigest: attempt.hosted.requirement.rubricDigest,
@@ -919,7 +1034,6 @@ describe("review response command", () => {
       approvedBy: "author-1",
       approvedAt: "2026-07-23T20:00:00Z",
     });
-
     await expect(respondToReviewCommand({
       schemaVersion: 1,
       source: { kind: "hosted", attemptRef: hosted.attemptRef },
@@ -1133,9 +1247,12 @@ describe("review response command", () => {
 
   it("refuses actor identities that do not come from the trusted boundary", async () => {
     const records = fixture();
+    const result = localResult(records);
     const request = localRequest(records);
     request.dispositions = approved({
       targetId: records.target.targetId,
+      producerId: result.producerId,
+      resultDigest: result.resultDigest,
       policyVersion: records.operation.policyVersion,
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
@@ -1153,6 +1270,37 @@ describe("review response command", () => {
     await respondToReviewCommand(localRequest(records, "defer"), deps);
     await expect(respondToReviewCommand(localRequest(records, "reject"), deps))
       .rejects.toThrow("conflicting approved disposition record");
+  });
+
+  it.each(["producer", "result digest"] as const)(
+    "re-resolves an approved request and refuses a substituted %s",
+    async (substitution) => {
+      const records = fixture();
+      const request = localRequest(records);
+      const deps = dependencies(records);
+      const result = localResult(records);
+      deps.resultReader.readResult = async () => substitution === "producer"
+        ? { ...result, producerId: "later-review-operation" }
+        : { ...result, resultDigest: digest("later-review-result") };
+
+      await expect(respondToReviewCommand(request, deps))
+        .rejects.toThrow("approved dispositions do not match the selected review source");
+    },
+  );
+
+  it("does not manufacture an empty disposition for a clean producer", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const result = localResult(records);
+    deps.resultReader.readResult = async () => ({
+      ...result,
+      originalOutcome: "clean",
+      findings: [],
+      resultDigest: digest("clean-review-result"),
+    });
+
+    await expect(respondToReviewCommand(localRequest(records), deps))
+      .rejects.toThrow("local response requires a findings receipt");
   });
 
   it("materializes and settles frontline dispositions from exact durable operation context", async () => {
@@ -1189,7 +1337,6 @@ describe("review response command", () => {
       durableRef,
     });
     const deps = dependencies(records);
-    deps.outcomeStore.readOutcome = async () => ({ version: 1, record, outcomeRef: durableRef });
     const operation: FrontlineRunState = {
       schemaVersion: 1,
       semanticsVersion: "review-operation/v1",
@@ -1209,7 +1356,7 @@ describe("review response command", () => {
       policyVersion: digest("frontline-policy"),
       sourceBindingId: digest("frontline-source-binding"),
     };
-    deps.operationStore.readOperation = async () => ({ version: 1, state: operation });
+    deps.resultReader.readResult = async () => frontlineResult({ operation, record, outcomeRef: durableRef });
     deps.readCandidateLineage = async () => null;
     const proposal = await respondToReviewCommand({
       schemaVersion: 1,
@@ -1261,9 +1408,14 @@ describe("review response command", () => {
       payload: { operationId: record.operationId },
     });
 
-    deps.operationStore.readOperation = async () => ({
-      version: 2,
-      state: { ...operation, sourceBindingId: digest("changed-frontline-source-binding") },
+    const changedOperation = {
+      ...operation,
+      sourceBindingId: digest("changed-frontline-source-binding"),
+    };
+    deps.resultReader.readResult = async () => frontlineResult({
+      operation: changedOperation,
+      record,
+      outcomeRef: durableRef,
     });
     await expect(respondToReviewCommand({
       schemaVersion: 1,
@@ -1286,10 +1438,10 @@ describe("review response command", () => {
         maxPasses: 2,
       }),
     });
-    deps.outcomeStore.readOutcome = async () => ({ version: 1, record: clean, outcomeRef: durableRef });
-    deps.operationStore.readOperation = async () => ({
-      version: 3,
-      state: { ...operation, outcome: "clean" },
+    deps.resultReader.readResult = async () => frontlineResult({
+      operation: { ...operation, outcome: "clean" },
+      record: clean,
+      outcomeRef: durableRef,
     });
     await expect(respondToReviewCommand({
       schemaVersion: 1,
@@ -1297,8 +1449,9 @@ describe("review response command", () => {
       dispositions,
     }, deps)).rejects.toThrow("requires a findings outcome");
 
-    deps.outcomeStore.readOutcome = async () => ({ version: 1, record, outcomeRef: durableRef });
-    deps.operationStore.readOperation = async () => ({ version: 0, state: null });
+    deps.resultReader.readResult = async () => {
+      throw new Error("frontline response operation is unavailable");
+    };
     await expect(respondToReviewCommand({
       schemaVersion: 1,
       source: { kind: "frontline", outcomeRef },
@@ -1593,7 +1746,7 @@ describe("verified-fix Candidate settlement", () => {
     const attempt = hosted.operation.attempts[0];
     if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
     const { deps, moveTo } = movingCheckout(hosted.records);
-    deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
+    deps.resultReader.readResult = async () => hostedResult(hosted);
     deps.readCandidateLineage = async () => null;
     deps.resolveActiveErrand = async () => activeErrandBinding();
     const appended: ApprovedDispositionRecord[] = [];
@@ -1607,6 +1760,8 @@ describe("verified-fix Candidate settlement", () => {
       source: { kind: "hosted" as const, attemptRef: hosted.attemptRef },
       dispositions: approved({
         targetId: hosted.records.target.targetId,
+        producerId: attempt.attemptId,
+        resultDigest: attempt.hosted.sealedResult!.hostedResultId,
         policyVersion: attempt.hosted.requirement.policyVersion,
         rubricVersion: attempt.hosted.requirement.rubricVersion,
         rubricDigest: attempt.hosted.requirement.rubricDigest,

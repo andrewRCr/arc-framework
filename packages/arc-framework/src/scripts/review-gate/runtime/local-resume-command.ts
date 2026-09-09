@@ -2,9 +2,6 @@
 
 import { z } from "zod";
 
-import { canonicalize } from "../../../lib/kernel/index.js";
-import { reviewerDispositionNit, reviewerDispositionSeverity } from "../core/disposition-records.js";
-import { ApprovedDispositionRecordSchema } from "../core/advisory-records.js";
 import {
   validateReviewReceipt,
 } from "../core/gate-contract-v2.js";
@@ -18,7 +15,10 @@ import type {
   ForwardReviewReceiptStore,
   LocalReviewSourceStore,
   ReviewOperationStateStore,
+  ReviewResultReader,
 } from "../core/ports.js";
+import { validateApprovedDispositionRecordForResult } from
+  "../core/review-result-disposition.js";
 import { LocalResumeEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
   readAdmittedLocalLaneAttempt,
@@ -37,6 +37,7 @@ export interface LocalResumeDependencies {
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
+  resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
   materialize(
@@ -158,7 +159,19 @@ async function resumeLocalReviewWithinLocalReviewLock(
     receipt,
     now: dependencies.now(),
   });
+  const disposition = await dependencies.dispositionStore.readDispositionRecord(state.operationId);
   if (receipt.result !== "findings") {
+    if (disposition !== null) {
+      throw new LocalResumeCommandError("non-findings receipt has an approved disposition");
+    }
+    if (receipt.result === "clean") {
+      const result = await dependencies.resultReader.readResult(state.operationId);
+      if (result.kind !== "attested-local"
+        || result.originalOutcome !== "clean"
+        || result.receiptRef !== replay.durableEvidenceRef) {
+        throw new LocalResumeCommandError("local review result snapshot mismatch");
+      }
+    }
     return LocalResumeEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-local-resume",
@@ -173,7 +186,12 @@ async function resumeLocalReviewWithinLocalReviewLock(
       },
     });
   }
-  const disposition = await dependencies.dispositionStore.readDispositionRecord(state.operationId);
+  const result = await dependencies.resultReader.readResult(state.operationId);
+  if (result.kind !== "attested-local"
+    || result.originalOutcome !== "findings"
+    || result.receiptRef !== replay.durableEvidenceRef) {
+    throw new LocalResumeCommandError("local review result snapshot mismatch");
+  }
   if (disposition === null) {
     return LocalResumeEnvelopeSchema.parse({
       schemaVersion: 1,
@@ -198,30 +216,9 @@ async function resumeLocalReviewWithinLocalReviewLock(
       },
     });
   }
-  const approved = ApprovedDispositionRecordSchema.parse(disposition);
-  const approvedSet = approved.approvedDisposition.dispositionSet;
-  const receiptFindings = receipt.findings.map((finding) => ({
-    findingId: finding.findingId,
-    locus: finding.locus,
-    severity: finding.severity,
-    nit: finding.nit === true,
-  }));
-  const dispositionFindings = approvedSet.findings.map((finding) => ({
-    findingId: finding.findingId,
-    locus: finding.locus,
-    severity: reviewerDispositionSeverity(finding),
-    nit: reviewerDispositionNit(finding) === true,
-  }));
-  if (approved.repositoryId !== state.repositoryId
-    || approved.operationId !== state.operationId
-    || approved.source.kind !== "attested-local"
-    || approved.source.receiptRef !== receiptReference(replay.durableEvidenceRef)
-    || approved.source.localSourceRef !== state.sourceRef
-    || approvedSet.targetId !== state.targetId
-    || approvedSet.policyVersion !== state.policyVersion
-    || approvedSet.rubricVersion !== state.requirement.rubricVersion
-    || approvedSet.rubricDigest !== state.requirement.rubricDigest
-    || canonicalize(dispositionFindings) !== canonicalize(receiptFindings)) {
+  try {
+    validateApprovedDispositionRecordForResult(disposition, result);
+  } catch {
     throw new LocalResumeCommandError("local review disposition snapshot mismatch");
   }
   return LocalResumeEnvelopeSchema.parse({

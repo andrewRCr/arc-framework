@@ -49,6 +49,7 @@ export const ApprovedDispositionSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("hosted"),
     attemptRef: OpaqueReferenceSchema,
+    hostedResultId: ReviewCanonicalDigestSchema,
   }),
 ]);
 

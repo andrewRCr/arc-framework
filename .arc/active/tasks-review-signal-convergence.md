@@ -265,16 +265,9 @@ migration.
 - _Outcome:_ Hosted terminal authority is now one immutable producer snapshot across persistence, settlement, and public
   replay, with mutable progress preserved independently around it.
 
-### `[ ]` **3.2 Compose immutable source reads and bind proposals to exact producer content**
+### `[x]` **3.2 Compose immutable source reads and bind proposals to exact producer content**
 
 - _Goal:_ Every proposal and approved replay binds exactly the immutable local/frontline/hosted result it describes.
-
-- _Note:_ Spec §§ 4–5; SC 5, 7, and 8.
-
-- _Approach:_ Compose the read-side `ReviewResultReader` from existing source stores and use it in real response
-  preparation. Close producer binding through all disposition-context constructors, validators, and replay consumers,
-  including `reduce-command.ts`, local resume, response/follow-up, and their fixtures in this member. Preserve native
-  receipt/outcome/attempt identities; introduce no physical result store or dependency on the later grade migration.
 
     - `[x]` **3.2.a Resolve complete native producer evidence**
 
@@ -282,17 +275,15 @@ migration.
           hosted sealed-attempt records. It retains native references and coverage, derives the local content identity,
           reuses native frontline/hosted digests, and fails distinctly on missing, ambiguous, or corrupt evidence.
 
-    - `[ ]` **3.2.b Bind canonical proposal and approval to producer content**
+    - `[x]` **3.2.b Bind canonical proposal and approval to producer content**
 
-        - Build `test-first` (one behavior at a time):
+        - Canonical proposals and approved records now bind the exact producer ID and immutable result digest, validate
+          findings one-for-one, reject substituted producer content, and require no disposition for clean results.
+          Response, reduction, local resume, and delivery replay retain that binding through settlement.
 
-            - source context in the existing disposition preimage, exact one-for-one findings, and re-resolution on
-              approved requests. Same-looking later-pass findings cannot reuse approval; a clean producer requires no
-              empty disposition record.
-
-            - Producer-bound approval survives public reduction/resume and response/follow-up with the current grade
-              shape. Every binding validator rejects a substituted producer or digest; shared constructors and fixtures
-              move with the strict contract, not in a later member.
+- _Outcome:_ Response, reduction, and resume now share one immutable-result composition and producer-bound validator
+  across local, frontline, and hosted evidence. Native result identity survives findings settlement, while durable-only
+  source fields are projected deliberately at narrower public request boundaries.
 
 ### `[ ]` **3.3 Exercise concurrent terminal writes, settled replay, and stale approval refusal**
 

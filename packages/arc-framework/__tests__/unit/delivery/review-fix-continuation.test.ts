@@ -71,6 +71,8 @@ function deliveryDispositionRecord(input: {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: oldTarget.targetId,
+      producerId: input.operationId,
+      resultDigest: canonicalDigest({ result: input.operationId }),
       policyVersion: canonicalDigest({ policy: "review" }),
       rubricVersion: "standard-review/v1",
       rubricDigest: canonicalDigest({ rubric: "standard" }),
@@ -117,6 +119,7 @@ function deliveryDispositionRecord(input: {
       : {
           kind: "hosted",
           attemptRef: `arc-review-source:v1:hosted:lane-progress%2F${input.operationId}:hosted%2F1`,
+          hostedResultId: canonicalDigest({ result: input.operationId }),
         },
     approvedDisposition,
     fixAuthorization,
@@ -437,7 +440,10 @@ describe("delivery review-fix continuation projection", () => {
     const responsePlan = {
       schemaVersion: 1 as const,
       target: response.oldTarget,
-      source: settled.source,
+      source: {
+        kind: "hosted" as const,
+        attemptRef: settled.source.kind === "hosted" ? settled.source.attemptRef : "",
+      },
       findings: [{
         findingId: "finding-1",
         severity: "major" as const,
@@ -463,7 +469,7 @@ describe("delivery review-fix continuation projection", () => {
       hostedFixTarget: response.hostedFixTarget,
       request: {
         schemaVersion: 1,
-        source: settled.source,
+        source: responsePlan.source,
         dispositions: settled.approvedDisposition,
         verifiedFix: {
           applicability: response.applicability,

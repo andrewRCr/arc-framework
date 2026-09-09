@@ -2827,6 +2827,9 @@ describe("hosted review fan-out lifecycle", () => {
     if (progress === null) throw new Error("expected findings progress");
     const attemptId = hostedLaneAttemptId(requested.handle);
     const operationId = progress.operationId;
+    const hostedResultId = progress.attempts.find(({ attemptId: candidate }) => candidate === attemptId)
+      ?.hosted?.sealedResult?.hostedResultId;
+    if (hostedResultId === undefined) throw new Error("expected sealed hosted result");
     const findingsStatus = await statusThroughHandler(harness, statusTarget);
     expect(findingsStatus).toMatchObject({
       nextAction: "respond-to-findings",
@@ -2847,6 +2850,8 @@ describe("hosted review fan-out lifecycle", () => {
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: review.reviewTarget.targetId,
+        producerId: attemptId,
+        resultDigest: hostedResultId,
         policyVersion: review.requirement.policyVersion,
         rubricVersion: review.requirement.rubricVersion,
         rubricDigest: review.requirement.rubricDigest,

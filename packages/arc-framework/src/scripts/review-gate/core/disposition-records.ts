@@ -106,7 +106,11 @@ export const FrontlineDispositionBindingSchema = z.strictObject({
   outcomeDigest: CanonicalDigestSchema,
 });
 export type FrontlineDispositionBinding = z.infer<typeof FrontlineDispositionBindingSchema>;
-export type DispositionSourceContext =
+interface DispositionProducerBinding {
+  producerId: string;
+  resultDigest: string;
+}
+export type DispositionSourceContext = DispositionProducerBinding & (
   | {
       kind: "rubric";
       policyVersion: string;
@@ -117,12 +121,15 @@ export type DispositionSourceContext =
       kind: "frontline";
       policyVersion: string;
       frontlineBinding: FrontlineDispositionBinding;
-    };
+    }
+);
 
 const DispositionSetFieldsShape = {
   schemaVersion: z.literal(2),
   semanticsVersion: z.literal("review-gate/v2"),
   targetId: CanonicalDigestSchema,
+  producerId: IdentifierSchema,
+  resultDigest: CanonicalDigestSchema,
   policyVersion: CanonicalDigestSchema,
   rubricVersion: IdentifierSchema.optional(),
   rubricDigest: CanonicalDigestSchema.optional(),
@@ -181,7 +188,9 @@ export function dispositionSetMatchesSourceContext(
   set: DispositionSet,
   context: DispositionSourceContext,
 ): boolean {
-  return context.kind === "rubric"
+  return set.producerId === context.producerId
+    && set.resultDigest === context.resultDigest
+    && (context.kind === "rubric"
     ? set.policyVersion === context.policyVersion
       && set.rubricVersion === context.rubricVersion
       && set.rubricDigest === context.rubricDigest
@@ -191,7 +200,7 @@ export function dispositionSetMatchesSourceContext(
       && set.rubricDigest === undefined
       && set.frontlineBinding?.operationId === context.frontlineBinding.operationId
       && set.frontlineBinding.sourceBindingId === context.frontlineBinding.sourceBindingId
-      && set.frontlineBinding.outcomeDigest === context.frontlineBinding.outcomeDigest;
+      && set.frontlineBinding.outcomeDigest === context.frontlineBinding.outcomeDigest);
 }
 
 export const DispositionApprovalSchema = z.strictObject({

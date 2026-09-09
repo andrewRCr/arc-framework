@@ -11,7 +11,7 @@ import {
 import { canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
 import type { ApprovedDispositionRecord } from
   "../../scripts/review-gate/core/advisory-records.js";
-import type { HostedFindingsResponsePlan } from
+import type { HostedFindingsResponsePlan, ReviewResponseSettlementRequest } from
   "../../scripts/review-gate/core/response-plan-schema.js";
 import { validateFixAuthorization } from
   "../../scripts/review-gate/core/fix-authorization.js";
@@ -51,7 +51,7 @@ export type DurableDeliveryReviewFixResponseReplay =
         NonNullable<NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["hostedFixTarget"]>;
       readonly request: {
         readonly schemaVersion: 1;
-        readonly source: Extract<ApprovedDispositionRecord["source"], { readonly kind: "hosted" }>;
+        readonly source: Extract<ReviewResponseSettlementRequest["source"], { readonly kind: "hosted" }>;
         readonly dispositions: ApprovedDispositionRecord["approvedDisposition"];
         readonly verifiedFix: {
           readonly applicability:
@@ -144,7 +144,7 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
     hostedFixTarget: selected.deliveryMemberFixResponse.hostedFixTarget,
     request: {
       schemaVersion: 1,
-      source: selected.source,
+      source: { kind: "hosted", attemptRef: selected.source.attemptRef },
       dispositions: selected.approvedDisposition,
       verifiedFix: {
         applicability: selected.deliveryMemberFixResponse.applicability,

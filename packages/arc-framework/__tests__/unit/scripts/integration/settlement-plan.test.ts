@@ -39,6 +39,8 @@ function approvedSet(targetId: string, disposition: "fix" | "defer") {
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     targetId,
+    producerId: "settlement-operation",
+    resultDigest: digest("3"),
     policyVersion: digest("1"),
     rubricVersion: "standard-review/v1",
     rubricDigest: digest("2"),

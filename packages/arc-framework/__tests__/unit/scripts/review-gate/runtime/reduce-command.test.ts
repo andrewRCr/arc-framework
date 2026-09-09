@@ -28,6 +28,7 @@ import type {
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { ReduceEnvelopeSchema } from "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
@@ -168,12 +169,47 @@ function localFixture(result: "clean" | "findings" | "failed" | "unavailable" = 
   return { target, operation, source, receipt, finding, authority };
 }
 
+function localResult(records: ReturnType<typeof localFixture>): ReviewResult {
+  if (records.receipt.result !== "clean" && records.receipt.result !== "findings") {
+    throw new Error("local result fixture must be terminal");
+  }
+  return {
+    kind: "attested-local",
+    producerId: records.operation.operationId,
+    repositoryId: records.operation.repositoryId,
+    target: records.target,
+    sourceIdentity: records.operation.request.evaluatorIdentity,
+    originalOutcome: records.receipt.result,
+    findings: records.receipt.findings,
+    resultDigest: canonicalDigest({
+      domain: "test.review-result/local",
+      producerId: records.operation.operationId,
+      receipt: records.receipt,
+    }),
+    admission: {
+      lineage: records.operation.lineage,
+      logicalPass: records.operation.logicalPass,
+      retryGeneration: records.operation.retryGeneration,
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
+      policyVersion: records.operation.policyVersion,
+    },
+    receiptRef: durableReceiptRef,
+    localSourceRef: records.operation.sourceRef,
+    requirement: records.operation.requirement,
+    request: records.operation.request,
+  };
+}
+
 function approvedLocal(records: ReturnType<typeof localFixture>): ApprovedDispositionRecord {
+  const result = localResult(records);
   const disposition = approveDispositionState({
     proposed: proposeDispositionSet(createDispositionSet({
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: records.operation.targetId,
+      producerId: result.producerId,
+      resultDigest: result.resultDigest,
       policyVersion: records.operation.policyVersion,
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
@@ -239,6 +275,7 @@ function localDependencies(
       readOutcome: vi.fn(),
       appendOutcome,
     },
+    resultReader: { readResult: async () => localResult(records) },
     dispositionStore: {
       readDispositionRecord: async () => disposition,
       appendDispositionRecord,
@@ -431,6 +468,23 @@ describe("review reduction command: attested local", () => {
     }, dispositionMismatch.dependencies)).rejects.toThrow("disposition snapshot mismatch");
   });
 
+  it.each(["producer", "result digest"] as const)(
+    "refuses an approved local disposition bound to a substituted %s",
+    async (substitution) => {
+      const records = localFixture("findings");
+      const setup = localDependencies(records, approvedLocal(records));
+      const result = localResult(records);
+      setup.adapterDependencies.resultReader.readResult = async () => substitution === "producer"
+        ? { ...result, producerId: "later-review-operation" }
+        : { ...result, resultDigest: digest("later-review-result") };
+
+      await expect(reduceReviewCommand({
+        schemaVersion: 1,
+        operationId: records.operation.operationId,
+      }, setup.dependencies)).rejects.toThrow("disposition snapshot mismatch");
+    },
+  );
+
   it("reduces an approved regraded reviewer nit without treating it as stale", async () => {
     const records = localFixture("findings");
     const sourceFinding = records.receipt.findings[0];
@@ -442,6 +496,8 @@ describe("review reduction command: attested local", () => {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: records.operation.targetId,
+      producerId: localResult(records).producerId,
+      resultDigest: localResult(records).resultDigest,
       policyVersion: records.operation.policyVersion,
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
@@ -544,6 +600,8 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: records.target.targetId,
+      producerId: records.state.operationId,
+      resultDigest: records.record.outcomeDigest,
       policyVersion: records.state.policyVersion,
       frontlineBinding: {
         operationId: records.state.operationId,
@@ -591,6 +649,37 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
   });
 }
 
+function frontlineResult(
+  records: ReturnType<typeof frontlineFixture>,
+  record: FrontlineOutcomeRecord,
+): ReviewResult {
+  if (record.outcome.outcome !== "clean" && record.outcome.outcome !== "findings") {
+    throw new Error("frontline result fixture must be terminal");
+  }
+  return {
+    kind: "frontline",
+    producerId: records.state.operationId,
+    repositoryId: record.repositoryId,
+    target: record.outcome.target,
+    sourceIdentity: record.sourceIdentity,
+    originalOutcome: record.outcome.outcome,
+    findings: record.outcome.findings,
+    resultDigest: record.outcomeDigest,
+    admission: {
+      lineage: records.state.lineage,
+      logicalPass: records.state.logicalPass,
+      retryGeneration: records.state.retryGeneration,
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
+      policyVersion: records.state.policyVersion,
+    },
+    outcomeRef: durableOutcomeRef,
+    sourceBindingId: records.state.sourceBindingId,
+    executableIdentity: record.executableIdentity,
+    outcome: record.outcome,
+  };
+}
+
 function frontlineDependencies(
   records: ReturnType<typeof frontlineFixture>,
   disposition: ApprovedDispositionRecord | null = null,
@@ -612,6 +701,7 @@ function frontlineDependencies(
       readOutcome: async () => ({ version: 1, record, outcomeRef: durableOutcomeRef }),
       appendOutcome,
     },
+    resultReader: { readResult: async () => frontlineResult(records, record) },
     dispositionStore: {
       readDispositionRecord: async () => disposition,
       appendDispositionRecord,

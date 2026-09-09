@@ -18,6 +18,7 @@ import {
   LaneProgressStateSchema,
   type LocalReviewState,
 } from "../../src/scripts/review-gate/core/operation-state-schema.js";
+import type { ReviewResult } from "../../src/scripts/review-gate/core/review-result.js";
 import {
   composeDeliveryMemberTarget,
   confirmLocalReviewTarget,
@@ -248,10 +249,35 @@ function reentry(root: string, records: ReturnType<typeof operationOver>) {
     readDispositionRecord: async () => null,
     appendDispositionRecord: vi.fn(),
   };
+  const resultReader = {
+    readResult: async (): Promise<ReviewResult> => ({
+      kind: "attested-local",
+      producerId: records.state.operationId,
+      repositoryId: records.state.repositoryId,
+      target: records.state.target,
+      sourceIdentity: records.state.request.evaluatorIdentity,
+      originalOutcome: "clean",
+      findings: [],
+      resultDigest: canonicalDigest({ result: records.receipt }),
+      admission: {
+        lineage: records.state.lineage,
+        logicalPass: records.state.logicalPass,
+        retryGeneration: records.state.retryGeneration,
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
+        policyVersion: records.state.policyVersion,
+      },
+      receiptRef: "git-common:review-gate/evidence/receipts-v2.json#1",
+      localSourceRef: records.state.sourceRef,
+      requirement: records.state.requirement,
+      request: records.state.request,
+    }),
+  };
   return {
     resume: {
       sweep: vi.fn(),
       withLocalReviewLock,
+      resultReader,
       operationStore,
       sourceStore,
       receiptStore: {
@@ -272,6 +298,7 @@ function reentry(root: string, records: ReturnType<typeof operationOver>) {
         sourceStore,
         dispositionStore,
         outcomeStore: { readOutcome: vi.fn(), appendOutcome: vi.fn() },
+        resultReader,
         readReceiptEntries: async () => [{
           receipt: records.receipt,
           durableEvidenceRef: "git-common:review-gate/evidence/receipts-v2.json#1",

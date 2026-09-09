@@ -55,11 +55,13 @@ describe("review-gate canonical serializer inventory", () => {
       "core/identity.ts",
       "core/local-operation.ts",
       "core/operation-state-schema.ts",
+      "core/review-result-disposition.ts",
       "hosted/request.ts",
       "hosts/local/disposition-record-store.ts",
       "hosts/local/frontline-outcome-store.ts",
       "hosts/local/operation-state-store.ts",
       "hosts/local/receipt-store.ts",
+      "hosts/local/review-result-reader.ts",
       "hosts/local/source-store.ts",
       "lane-progress.ts",
       "policy/frontline-operation.ts",
@@ -72,8 +74,6 @@ describe("review-gate canonical serializer inventory", () => {
       "runtime/local-attest-command.ts",
       "runtime/local-prepare-composition.ts",
       "runtime/local-prepare.ts",
-      "runtime/local-resume-command.ts",
-      "runtime/reduce-command.ts",
       "runtime/respond-command.ts",
     ]);
 

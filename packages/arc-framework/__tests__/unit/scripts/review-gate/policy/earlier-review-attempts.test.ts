@@ -532,6 +532,8 @@ describe("earlier review attempt query", () => {
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: oldTarget.targetId,
+        producerId: "local-review-prior",
+        resultDigest: canonicalDigest({ result: "local-review-prior" }),
         policyVersion: canonicalDigest({ policy: "review" }),
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),

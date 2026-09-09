@@ -22,6 +22,10 @@ type ProducerCandidate =
   | { kind: "frontline-run"; record: ReviewOperationStateSnapshotRecord }
   | { kind: "hosted"; record: ReviewOperationStateSnapshotRecord; attempt: LaneAttempt };
 
+function immutableProducerOutcome(attempt: LaneAttempt): LaneAttempt["outcome"] {
+  return attempt.outcome === "settled-findings" ? "findings" : attempt.outcome;
+}
+
 /** Stable read failure for unavailable, ambiguous, or corrupt producer evidence. */
 export class LocalReviewResultReaderError extends Error {
   constructor(
@@ -116,9 +120,10 @@ export class LocalReviewResultReader implements ReviewResultReader {
     }
     const attempt = attempts[0];
     const local = attempt?.local;
+    const originalOutcome = attempt === undefined ? undefined : immutableProducerOutcome(attempt);
     if (attempt === undefined || local === undefined || local.effectiveCoverage === null
       || !attempt.terminalProducer
-      || (attempt.outcome !== "clean" && attempt.outcome !== "findings")) {
+      || (originalOutcome !== "clean" && originalOutcome !== "findings")) {
       throw new LocalReviewResultReaderError("corrupt-result", "local producer admission is not terminal");
     }
     const [entries, source] = await Promise.all([
@@ -146,7 +151,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
     }
     const receipt = validateReviewReceipt(state.target, state.requirement, state.request, entry.receipt);
     if ((receipt.result !== "clean" && receipt.result !== "findings")
-      || receipt.result !== attempt.outcome
+      || receipt.result !== originalOutcome
       || attempt.attemptId !== state.operationId
       || attempt.logicalPass !== state.logicalPass
       || attempt.retryGeneration !== state.retryGeneration
@@ -226,9 +231,10 @@ export class LocalReviewResultReader implements ReviewResultReader {
     }
     const attempt = attempts[0];
     const frontline = attempt?.frontline;
+    const originalOutcome = attempt === undefined ? undefined : immutableProducerOutcome(attempt);
     if (attempt === undefined || frontline === undefined || frontline.effectiveCoverage === null
       || !attempt.terminalProducer
-      || (attempt.outcome !== "clean" && attempt.outcome !== "findings")) {
+      || (originalOutcome !== "clean" && originalOutcome !== "findings")) {
       throw new LocalReviewResultReaderError("corrupt-result", "frontline producer admission is not terminal");
     }
     const reading = await this.dependencies.outcomeStore.readOutcome(state.operationId);
@@ -246,7 +252,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
       || record.operationId !== state.operationId
       || record.repositoryId !== state.repositoryId
       || record.sourceIdentity !== state.sourceIdentity
-      || record.outcome.outcome !== attempt.outcome
+      || record.outcome.outcome !== originalOutcome
       || record.outcome.target.targetId !== state.targetId
       || record.outcome.pass !== state.logicalPass
       || record.outcome.pass !== admission.logicalPass
@@ -294,7 +300,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
     const state = producer.state;
     const hosted = attempt.hosted;
     const sealed = hosted?.sealedResult;
-    const originalOutcome = attempt.outcome === "settled-findings" ? "findings" : attempt.outcome;
+    const originalOutcome = immutableProducerOutcome(attempt);
     if (state.kind !== "lane-progress" || state.lane !== "standard" || hosted === undefined
       || hosted.handle === undefined || hosted.effectiveCoverage === null || sealed === undefined
       || !attempt.terminalProducer || (originalOutcome !== "clean" && originalOutcome !== "findings")

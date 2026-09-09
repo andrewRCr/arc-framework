@@ -19,15 +19,11 @@ import {
   ApprovedDispositionRecordSchema,
   DeliveryMemberReviewFixResponseSchema,
   ErrandReviewFixResponseSchema,
-  FrontlineOutcomeRecordSchema,
   isExactDeliveryMemberBindingAdvance,
   type ApprovedDispositionRecord,
   type ErrandReviewBinding,
 } from "../core/advisory-records.js";
 import {
-  dispositionSetMatchesSourceContext,
-  reviewerDispositionSeverity,
-  reviewerDispositionNit,
   type DispositionSourceContext,
   type ProposedDispositionSet,
   type ApprovedDispositionSet,
@@ -39,18 +35,20 @@ import {
 } from "../core/dispositions.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
-import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
   ReviewTargetSchema,
-  type ReviewReceiptV2,
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import type {
   ApprovedDispositionRecordStore,
-  FrontlineOutcomeStore,
-  LocalReviewSourceStore,
-  ReviewOperationStateStore,
+  ReviewResultReader,
 } from "../core/ports.js";
+import type { ReviewResult } from "../core/review-result.js";
+import {
+  dispositionSourceContextForResult,
+  validateApprovedDispositionRecordForResult,
+  validateApprovedDispositionSetForResult,
+} from "../core/review-result-disposition.js";
 import { RespondEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
@@ -160,11 +158,8 @@ export interface CandidateLineageBinding {
 }
 
 export interface RespondCommandDependencies {
-  operationStore: ReviewOperationStateStore;
-  sourceStore: LocalReviewSourceStore;
-  outcomeStore: FrontlineOutcomeStore;
+  resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
-  readReceipt(reference: string): Promise<ReviewReceiptV2 | null>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
   resolveLocalActors(
     evaluatorIdentity: string,
@@ -216,6 +211,7 @@ export class RespondCommandError extends Error {
 }
 
 interface ResolvedResponseSource {
+  result: ReviewResult;
   operationId: string;
   repositoryId: string;
   target: ReviewTarget;
@@ -281,18 +277,9 @@ function validateFindings(
   dispositions: ApprovedDispositionSet,
   source: ResolvedResponseSource,
 ): void {
-  const set = dispositions.dispositionSet;
-  if (set.targetId !== source.target.targetId
-    || !dispositionSetMatchesSourceContext(set, source.dispositionContext)
-    || set.findings.length !== source.findings.length
-    || !set.findings.every((item) => {
-      const finding = source.findings.find((candidate) => candidate.findingId === item.findingId);
-      return finding !== undefined
-        && item.sourceIdentity === source.sourceIdentity
-        && item.locus === finding.locus
-        && reviewerDispositionSeverity(item) === finding.severity
-        && reviewerDispositionNit(item) === finding.nit;
-    })) {
+  try {
+    validateApprovedDispositionSetForResult(dispositions, source.result);
+  } catch {
     throw new RespondCommandError("invalid-input", "approved dispositions do not match the selected review source");
   }
 }
@@ -356,11 +343,15 @@ function prepareDispositionProposal(
   });
   const dispositionContext = source.dispositionContext.kind === "rubric"
     ? {
+        producerId: source.dispositionContext.producerId,
+        resultDigest: source.dispositionContext.resultDigest,
         policyVersion: source.dispositionContext.policyVersion,
         rubricVersion: source.dispositionContext.rubricVersion,
         rubricDigest: source.dispositionContext.rubricDigest,
       }
     : {
+        producerId: source.dispositionContext.producerId,
+        resultDigest: source.dispositionContext.resultDigest,
         policyVersion: source.dispositionContext.policyVersion,
         frontlineBinding: source.dispositionContext.frontlineBinding,
       };
@@ -386,49 +377,29 @@ async function resolveLocalSource(
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
   const reference = parseSourceReference(request.receiptRef, "attested-local");
-  const persisted = await dependencies.operationStore.readOperation(reference.operationId);
-  if (persisted.state === null
-    || persisted.state.kind !== "local-review"
-    || persisted.state.operationId !== reference.operationId) {
-    throw new RespondCommandError("corrupt-state", "local response operation is unavailable");
-  }
-  const state = persisted.state;
-  const [receipt, localSource, actors] = await Promise.all([
-    dependencies.readReceipt(reference.durableRef),
-    dependencies.sourceStore.readSource(state.sourceRef),
-    dependencies.resolveLocalActors(state.request.evaluatorIdentity, state.request.authorIdentity),
-  ]);
-  if (receipt === null) throw new RespondCommandError("corrupt-state", "local response receipt is unavailable");
-  if (localSource === null
-    || localSource.sourceDigest !== state.sourceDigest
-    || localSource.repositoryId !== state.repositoryId
-    || localSource.targetId !== state.targetId) {
+  const result = await dependencies.resultReader.readResult(reference.operationId);
+  if (result.kind !== "attested-local" || result.receiptRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "local response source snapshot mismatch");
   }
-  validateReviewReceipt(state.target, state.requirement, state.request, receipt);
-  if (receipt.result !== "findings") {
+  if (result.originalOutcome !== "findings") {
     throw new RespondCommandError("invalid-input", "local response requires a findings receipt");
   }
   return {
-    operationId: state.operationId,
-    repositoryId: state.repositoryId,
-    target: state.target,
-    findings: receipt.findings,
-    sourceIdentity: state.request.evaluatorIdentity,
+    result,
+    operationId: result.producerId,
+    repositoryId: result.repositoryId,
+    target: result.target,
+    findings: [...result.findings],
+    sourceIdentity: result.sourceIdentity,
     source: {
       kind: "attested-local",
       receiptRef: request.receiptRef,
-      localSourceRef: state.sourceRef,
+      localSourceRef: result.localSourceRef,
     },
-    dispositionContext: {
-      kind: "rubric",
-      policyVersion: state.policyVersion,
-      rubricVersion: state.requirement.rubricVersion,
-      rubricDigest: state.requirement.rubricDigest,
-    },
-    actors,
-    laneLineage: state.lineage,
-    ...(state.deliveryAdmission === undefined ? {} : { deliveryAdmission: state.deliveryAdmission }),
+    dispositionContext: dispositionSourceContextForResult(result),
+    actors: await dependencies.resolveLocalActors(result.request.evaluatorIdentity, result.request.authorIdentity),
+    laneLineage: result.admission.lineage,
+    ...(result.deliveryAdmission === undefined ? {} : { deliveryAdmission: result.deliveryAdmission }),
   };
 }
 
@@ -437,49 +408,24 @@ async function resolveFrontlineSource(
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
   const reference = parseSourceReference(request.outcomeRef, "frontline");
-  const [persistedOutcome, persistedOperation] = await Promise.all([
-    dependencies.outcomeStore.readOutcome(reference.operationId),
-    dependencies.operationStore.readOperation(reference.operationId),
-  ]);
-  if (persistedOutcome.record === null
-    || persistedOutcome.outcomeRef !== reference.durableRef
-    || persistedOutcome.record.operationId !== reference.operationId) {
-    throw new RespondCommandError("corrupt-state", "frontline response outcome is unavailable");
-  }
-  if (persistedOperation.state === null
-    || persistedOperation.state.kind !== "frontline-run"
-    || persistedOperation.state.operationId !== reference.operationId) {
-    throw new RespondCommandError("corrupt-state", "frontline response operation is unavailable");
-  }
-  const record = FrontlineOutcomeRecordSchema.parse(persistedOutcome.record);
-  const state = persistedOperation.state;
-  if (state.targetId !== record.outcome.target.targetId
-    || state.sourceIdentity !== record.sourceIdentity
-    || state.outcome !== record.outcome.outcome
-    || state.logicalPass !== record.outcome.pass) {
+  const result = await dependencies.resultReader.readResult(reference.operationId);
+  if (result.kind !== "frontline" || result.outcomeRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "frontline response source snapshot mismatch");
   }
-  if (record.outcome.outcome !== "findings") {
+  if (result.originalOutcome !== "findings") {
     throw new RespondCommandError("invalid-input", "frontline response requires a findings outcome");
   }
   return {
-    operationId: record.operationId,
-    repositoryId: record.repositoryId,
-    target: record.outcome.target,
-    findings: record.outcome.findings,
-    sourceIdentity: record.sourceIdentity,
+    result,
+    operationId: result.producerId,
+    repositoryId: result.repositoryId,
+    target: result.target,
+    findings: [...result.findings],
+    sourceIdentity: result.sourceIdentity,
     source: { kind: "frontline", outcomeRef: request.outcomeRef },
-    dispositionContext: {
-      kind: "frontline",
-      policyVersion: state.policyVersion,
-      frontlineBinding: {
-        operationId: state.operationId,
-        sourceBindingId: state.sourceBindingId,
-        outcomeDigest: record.outcomeDigest,
-      },
-    },
+    dispositionContext: dispositionSourceContextForResult(result),
     actors: await dependencies.resolveFrontlineActors(),
-    frontlineOutcome: record.outcome,
+    frontlineOutcome: result.outcome,
   };
 }
 
@@ -488,62 +434,31 @@ async function resolveHostedSource(
   dependencies: RespondCommandDependencies,
 ): Promise<ResolvedResponseSource> {
   const reference = parseSourceReference(request.attemptRef, "hosted");
-  const persisted = await dependencies.operationStore.readOperation(reference.operationId);
-  if (persisted.state === null
-    || persisted.state.kind !== "lane-progress"
-    || persisted.state.operationId !== reference.operationId
-    || persisted.state.lane !== "standard") {
-    throw new RespondCommandError("corrupt-state", "hosted response operation is unavailable");
-  }
-  const attempt = persisted.state.attempts.find(({ attemptId }) => attemptId === reference.durableRef);
-  if ((attempt?.outcome !== "findings" && attempt?.outcome !== "settled-findings")
-    || attempt.hosted === undefined) {
-    throw new RespondCommandError("invalid-input", "hosted response requires a findings attempt");
-  }
-  if (attempt.sourceId !== attempt.hosted.requirement.acceptableSources.find(
-    ({ sourceKind, qualifier }) => sourceKind === "hosted" && qualifier === attempt.sourceId,
-  )?.qualifier
-    || persisted.state.repositoryId !== attempt.hosted.reviewTarget.repositoryId
-    || attempt.headSha !== attempt.hosted.target.headSha
-    || attempt.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
-    || attempt.hosted.reviewTarget.headSha !== attempt.hosted.target.headSha
-    || (attempt.hosted.reviewTarget.kind === "delivery-member"
-      ? attempt.hosted.vehicle === undefined
-        || attempt.hosted.vehicle.head !== attempt.hosted.reviewTarget.headSha
-      : attempt.hosted.vehicle !== undefined)) {
+  const result = await dependencies.resultReader.readResult(reference.durableRef);
+  if (result.kind !== "hosted" || result.laneOperationId !== reference.operationId) {
     throw new RespondCommandError("corrupt-state", "hosted response source snapshot mismatch");
   }
+  if (result.originalOutcome !== "findings") {
+    throw new RespondCommandError("invalid-input", "hosted response requires a findings attempt");
+  }
   return {
-    operationId: attempt.attemptId,
-    repositoryId: persisted.state.repositoryId,
-    target: attempt.hosted.reviewTarget,
-    findings: attempt.hosted.sealedResult?.findings.map((finding) => ({
-      findingId: finding.findingId,
-      severity: finding.severity,
-      locus: finding.locus,
-      evidenceUrlOrId: finding.url,
-    })) ?? [],
-    sourceIdentity: attempt.sourceId,
-    source: { kind: "hosted", attemptRef: request.attemptRef },
-    dispositionContext: {
-      kind: "rubric",
-      policyVersion: attempt.hosted.requirement.policyVersion,
-      rubricVersion: attempt.hosted.requirement.rubricVersion,
-      rubricDigest: attempt.hosted.requirement.rubricDigest,
-    },
+    result,
+    operationId: result.producerId,
+    repositoryId: result.repositoryId,
+    target: result.target,
+    findings: [...result.findings],
+    sourceIdentity: result.sourceIdentity,
+    source: { kind: "hosted", attemptRef: request.attemptRef, hostedResultId: result.resultDigest },
+    dispositionContext: dispositionSourceContextForResult(result),
     actors: await dependencies.resolveFrontlineActors(),
     hostedAttempt: {
-      operationId: persisted.state.operationId,
-      attemptId: attempt.attemptId,
-      ...(attempt.hosted.vehicle === undefined ? {} : { vehicle: attempt.hosted.vehicle }),
-      target: attempt.hosted.target,
-      noHostSettlementFindingIds: (attempt.hosted.sealedResult?.findings ?? [])
-        .filter(({ settlement }) => settlement === "not-applicable")
-        .map(({ findingId }) => findingId),
-      hostSettlementFindingIds: (attempt.hosted.sealedResult?.findings ?? [])
-        .filter(({ settlement }) => settlement === "reply-and-resolve")
-        .map(({ findingId }) => findingId),
-      settled: attempt.outcome === "settled-findings",
+      operationId: result.laneOperationId,
+      attemptId: result.producerId,
+      ...(result.vehicle === undefined ? {} : { vehicle: result.vehicle }),
+      target: result.hostedTarget,
+      noHostSettlementFindingIds: result.noHostSettlementFindingIds,
+      hostSettlementFindingIds: result.hostSettlementFindingIds,
+      settled: result.settled,
     },
   };
 }
@@ -794,7 +709,7 @@ async function persistErrandResponse(
     verificationRefs: verifiedFix.verificationEvidenceRefs,
     priorConsumptions: [],
   });
-  const record = ApprovedDispositionRecordSchema.parse({
+  const record = validateApprovedDispositionRecordForResult(ApprovedDispositionRecordSchema.parse({
     ...existing,
     errandFixResponse: {
       oldTarget: source.target,
@@ -803,7 +718,7 @@ async function persistErrandResponse(
       fixConsumption,
       hostedTarget: source.hostedAttempt?.target ?? null,
     },
-  });
+  }), source.result);
   const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(record);
   return RespondEnvelopeSchema.parse({
     ...header,

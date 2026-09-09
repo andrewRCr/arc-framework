@@ -33,15 +33,12 @@ import {
   bindHostedAttemptDisposition,
   settleLaneAttempt,
 } from "../lane-progress.js";
-import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
-import {
-  LocalFrontlineOutcomeStore,
-} from "../hosts/local/frontline-outcome-store.js";
+import { createRepositoryReviewResultReader } from
+  "../hosts/local/review-result-reader-composition.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
 import { composeDeliveryMemberTarget } from "../hosts/local/repository-target.js";
-import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import {
@@ -58,12 +55,6 @@ export function createRespondDependencies(input: {
   const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
   const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
-  let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
-  const receipts = () => {
-    receiptStore ??= resolveRepositoryIdentity(publisher)
-      .then((repositoryId) => new LocalForwardReviewReceiptStore(publisher, repositoryId));
-    return receiptStore;
-  };
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = async () => {
     settingsPromise ??= readConfigSettings(input.cwd);
@@ -89,11 +80,8 @@ export function createRespondDependencies(input: {
     throw new Error("Candidate mutation is not owned by the entering checkout.");
   };
   return {
-    operationStore: prepare.operationStore,
-    sourceStore: prepare.sourceStore,
-    outcomeStore: new LocalFrontlineOutcomeStore(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
-    readReceipt: async (reference) => (await receipts()).readReceiptReference(reference),
     confirmTarget: (target) => prepare.confirmTarget(target),
     resolveLocalActors: async (evaluatorIdentity, admittedAuthorIdentity) => {
       try {

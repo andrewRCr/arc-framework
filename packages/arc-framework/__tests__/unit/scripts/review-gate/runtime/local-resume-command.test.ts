@@ -19,6 +19,7 @@ import {
   type ReviewOperationState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 import { laneProgressOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
@@ -33,6 +34,11 @@ const receiptRef = (operationId: string, durableRef: string) => bindReviewSource
   durableRef,
 });
 const withLocalReviewLock = async <T>(action: () => Promise<T>): Promise<T> => action();
+const unexpectedResultReader = {
+  readResult: async (): Promise<ReviewResult> => {
+    throw new Error("unexpected result read");
+  },
+};
 
 function fixture() {
   const target = createReviewTarget({
@@ -195,6 +201,42 @@ function readAdmittedOperation(
   };
 }
 
+function localResult(
+  records: ReturnType<typeof fixture>,
+  receipt: ReturnType<typeof fixture>["receipt"],
+  durableRef: string,
+): ReviewResult {
+  if (receipt.result !== "clean" && receipt.result !== "findings") {
+    throw new Error("local result fixture must be terminal");
+  }
+  return {
+    kind: "attested-local",
+    producerId: records.operation.operationId,
+    repositoryId: records.operation.repositoryId,
+    target: records.operation.target,
+    sourceIdentity: records.operation.request.evaluatorIdentity,
+    originalOutcome: receipt.result,
+    findings: receipt.findings,
+    resultDigest: canonicalDigest({
+      domain: "test.review-result/local",
+      producerId: records.operation.operationId,
+      receipt,
+    }),
+    admission: {
+      lineage: records.operation.lineage,
+      logicalPass: records.operation.logicalPass,
+      retryGeneration: records.operation.retryGeneration,
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
+      policyVersion: records.operation.policyVersion,
+    },
+    receiptRef: durableRef,
+    localSourceRef: records.operation.sourceRef,
+    requirement: records.operation.requirement,
+    request: records.operation.request,
+  };
+}
+
 describe("local resume command", () => {
   it("refuses an operation without lane-owner admission before restoring its source", async () => {
     const records = fixture();
@@ -206,6 +248,7 @@ describe("local resume command", () => {
     }, {
       sweep: vi.fn(),
       withLocalReviewLock,
+      resultReader: unexpectedResultReader,
       operationStore: {
         readOperation: async () => ({ version: 1, state: records.operation }),
         publishOperation: vi.fn(),
@@ -219,10 +262,10 @@ describe("local resume command", () => {
         appendReceipt: vi.fn(),
       },
       dispositionStore: {
-        readDispositionRecord: vi.fn(),
+        readDispositionRecord: async () => null,
         appendDispositionRecord: vi.fn(),
       },
-      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      confirmTarget: async () => ({ state: "current" as const, target: records.operation.target }),
       materialize,
       now: () => "2026-07-23T17:00:30Z",
     })).rejects.toThrow(/not durably admitted/u);
@@ -239,6 +282,7 @@ describe("local resume command", () => {
     }, {
       sweep: vi.fn(),
       withLocalReviewLock,
+      resultReader: unexpectedResultReader,
       operationStore: {
         readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
@@ -255,7 +299,7 @@ describe("local resume command", () => {
         readDispositionRecord: vi.fn(),
         appendDispositionRecord: vi.fn(),
       },
-      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      confirmTarget: async () => ({ state: "current" as const, target: records.operation.target }),
       materialize,
       now: () => "2026-07-23T17:00:30Z",
     })).resolves.toMatchObject({
@@ -280,6 +324,7 @@ describe("local resume command", () => {
     }, {
       sweep: vi.fn(),
       withLocalReviewLock,
+      resultReader: unexpectedResultReader,
       operationStore: {
         readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
@@ -333,6 +378,7 @@ describe("local resume command", () => {
     }, {
       sweep: vi.fn(),
       withLocalReviewLock,
+      resultReader: unexpectedResultReader,
       operationStore: {
         readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
@@ -378,6 +424,9 @@ describe("local resume command", () => {
     }, {
       sweep: vi.fn(),
       withLocalReviewLock,
+      resultReader: {
+        readResult: async () => localResult(records, records.receipt, "receipts-v2.json#1"),
+      },
       operationStore: {
         readOperation: readAdmittedOperation(records),
         publishOperation: async (state) => {
@@ -394,7 +443,7 @@ describe("local resume command", () => {
         appendReceipt,
       },
       dispositionStore: {
-        readDispositionRecord: vi.fn(),
+        readDispositionRecord: async () => null,
         appendDispositionRecord: vi.fn(),
       },
       confirmTarget: async () => ({ state: "current", target: records.operation.target }),
@@ -436,6 +485,7 @@ describe("local resume command", () => {
     }, {
       sweep: vi.fn(),
       withLocalReviewLock,
+      resultReader: unexpectedResultReader,
       operationStore: {
         readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
@@ -503,12 +553,13 @@ describe("local resume command", () => {
       guidanceDigest: records.operation.guidanceDigest,
     });
 
-    await expect(resumeLocalReviewCommand({
-      schemaVersion: 1,
-      operationId: records.operation.operationId,
-    }, {
+    const resultReader = {
+      readResult: async (): Promise<ReviewResult> => localResult(records, receipt, "receipts-v2.json#1"),
+    };
+    const dependencies = {
       sweep: vi.fn(),
       withLocalReviewLock,
+      resultReader,
       operationStore: {
         readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
@@ -528,10 +579,16 @@ describe("local resume command", () => {
         readDispositionRecord: async () => null,
         appendDispositionRecord: vi.fn(),
       },
-      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      confirmTarget: async () => ({ state: "current" as const, target: records.operation.target }),
       materialize: vi.fn(),
       now: () => "2026-07-23T18:00:00Z",
-    })).resolves.toMatchObject({
+    };
+    const request = {
+      schemaVersion: 1 as const,
+      operationId: records.operation.operationId,
+    };
+
+    await expect(resumeLocalReviewCommand(request, dependencies)).resolves.toMatchObject({
       state: "respond-to-findings",
       nextAction: "respond",
       payload: {
@@ -594,6 +651,8 @@ describe("local resume command", () => {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: records.operation.targetId,
+      producerId: records.operation.operationId,
+      resultDigest: localResult(records, receipt, "receipts-v2.json#1").resultDigest,
       policyVersion: records.operation.policyVersion,
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
@@ -637,12 +696,13 @@ describe("local resume command", () => {
       deliveryMemberFixResponse: null,
     });
 
-    await expect(resumeLocalReviewCommand({
-      schemaVersion: 1,
-      operationId: records.operation.operationId,
-    }, {
+    const exactResultReader = {
+      readResult: async (): Promise<ReviewResult> => localResult(records, receipt, "receipts-v2.json#1"),
+    };
+    const exactDependencies = {
       sweep: vi.fn(),
       withLocalReviewLock,
+      resultReader: exactResultReader,
       operationStore: {
         readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
@@ -662,10 +722,16 @@ describe("local resume command", () => {
         readDispositionRecord: async () => disposition,
         appendDispositionRecord: vi.fn(),
       },
-      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      confirmTarget: async () => ({ state: "current" as const, target: records.operation.target }),
       materialize: vi.fn(),
       now: () => "2026-07-23T18:00:00Z",
-    })).resolves.toMatchObject({
+    };
+    const exactRequest = {
+      schemaVersion: 1 as const,
+      operationId: records.operation.operationId,
+    };
+
+    await expect(resumeLocalReviewCommand(exactRequest, exactDependencies)).resolves.toMatchObject({
       state: "review-complete",
       nextAction: "reduce",
       payload: {
@@ -675,5 +741,11 @@ describe("local resume command", () => {
         receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),
       },
     });
+    exactResultReader.readResult = async () => ({
+      ...localResult(records, receipt, "receipts-v2.json#1"),
+      resultDigest: digest("later-review-result"),
+    });
+    await expect(resumeLocalReviewCommand(exactRequest, exactDependencies))
+      .rejects.toThrow("local review disposition snapshot mismatch");
   });
 });

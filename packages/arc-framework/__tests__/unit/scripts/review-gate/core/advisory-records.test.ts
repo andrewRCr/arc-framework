@@ -32,6 +32,8 @@ const approvedDisposition = approveDispositionState({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     targetId: target.targetId,
+    producerId: "local-producer-1",
+    resultDigest: canonicalDigest({ result: "first" }),
     policyVersion: canonicalDigest({ policy: "review" }),
     rubricVersion: "standard-review/v1",
     rubricDigest: canonicalDigest({ rubric: "standard" }),
@@ -68,12 +70,35 @@ const outcome = normalizeFrontlineOutcome({
 });
 
 describe("advisory review records", () => {
+  it("binds canonical disposition identity to the exact producer content", () => {
+    const { dispositionSetId, ...fields } = approvedDisposition.dispositionSet;
+    const first = createDispositionSet({
+      ...fields,
+      producerId: "local-producer-1",
+      resultDigest: canonicalDigest({ result: "first" }),
+    });
+    const second = createDispositionSet({
+      ...fields,
+      producerId: "local-producer-2",
+      resultDigest: canonicalDigest({ result: "second" }),
+    });
+
+    expect(first).toMatchObject({
+      producerId: "local-producer-1",
+      resultDigest: canonicalDigest({ result: "first" }),
+    });
+    expect(second.dispositionSetId).not.toBe(dispositionSetId);
+    expect(second.dispositionSetId).not.toBe(first.dispositionSetId);
+  });
+
   it("requires exactly one rubric or frontline disposition binding", () => {
     const dispositionSet = approvedDisposition.dispositionSet;
     const fields = {
       schemaVersion: dispositionSet.schemaVersion,
       semanticsVersion: dispositionSet.semanticsVersion,
       targetId: dispositionSet.targetId,
+      producerId: dispositionSet.producerId,
+      resultDigest: dispositionSet.resultDigest,
       policyVersion: dispositionSet.policyVersion,
       proposedBy: dispositionSet.proposedBy,
       findings: dispositionSet.findings,

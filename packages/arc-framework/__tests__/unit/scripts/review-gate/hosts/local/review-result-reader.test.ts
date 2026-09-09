@@ -5,8 +5,16 @@ import {
   createHostedTerminalAttemptFixture,
 } from "../../../../../fixtures/hosted-review.js";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
-import { createFrontlineOutcomeRecord } from
+import {
+  ApprovedDispositionRecordSchema,
+  createFrontlineOutcomeRecord,
+} from
   "../../../../../../src/scripts/review-gate/core/advisory-records.js";
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createFrontlineAdmission } from
   "../../../../../../src/scripts/review-gate/core/frontline-admission.js";
 import {
@@ -29,6 +37,13 @@ import type {
   LocalReviewSourceStore,
   ReviewOperationStateSnapshotIndex,
 } from "../../../../../../src/scripts/review-gate/core/ports.js";
+import { bindReviewSourceReference } from
+  "../../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import {
+  dispositionSourceContextForResult,
+  validateApprovedDispositionRecordForResult,
+  validateApprovedDispositionSetForResult,
+} from "../../../../../../src/scripts/review-gate/core/review-result-disposition.js";
 import {
   LocalReviewResultReader,
 } from "../../../../../../src/scripts/review-gate/hosts/local/review-result-reader.js";
@@ -179,14 +194,20 @@ function localFixture() {
   return { target, requirement, source, state, receipt, lane };
 }
 
-function readerForLocalFixture(options: { exactReceiptMissing?: boolean } = {}) {
+function readerForLocalFixture(options: { exactReceiptMissing?: boolean; settled?: boolean } = {}) {
   const fixture = localFixture();
+  const lane = options.settled === true
+    ? LaneProgressStateSchema.parse({
+        ...fixture.lane,
+        attempts: fixture.lane.attempts.map((attempt) => ({ ...attempt, outcome: "settled-findings" })),
+      })
+    : fixture.lane;
   const operationIndex: ReviewOperationStateSnapshotIndex = {
     readOperationSnapshot: async () => ({
       status: "complete",
       records: [
         { version: 1, state: fixture.state },
-        { version: 2, state: fixture.lane },
+        { version: 2, state: lane },
       ],
     }),
   };
@@ -211,7 +232,7 @@ function readerForLocalFixture(options: { exactReceiptMissing?: boolean } = {}) 
   };
 }
 
-function readerForFrontlineFixture() {
+function readerForFrontlineFixture(options: { settled?: boolean } = {}) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -321,10 +342,16 @@ function readerForFrontlineFixture() {
       frontline: { admission, effectiveCoverage: "complete" },
     }],
   });
+  const readableLane = options.settled === true
+    ? LaneProgressStateSchema.parse({
+        ...lane,
+        attempts: lane.attempts.map((attempt) => ({ ...attempt, outcome: "settled-findings" })),
+      })
+    : lane;
   const operationIndex: ReviewOperationStateSnapshotIndex = {
     readOperationSnapshot: async () => ({
       status: "complete",
-      records: [{ version: 1, state: run }, { version: 2, state: lane }],
+      records: [{ version: 1, state: run }, { version: 2, state: readableLane }],
     }),
   };
   const outcomeStore: FrontlineOutcomeStore = {
@@ -463,6 +490,16 @@ describe("local review result reader", () => {
     });
   });
 
+  it("retains the immutable local findings result after lane settlement", async () => {
+    const { fixture, reader } = readerForLocalFixture({ settled: true });
+
+    await expect(reader.readResult(fixture.state.operationId)).resolves.toMatchObject({
+      kind: "attested-local",
+      originalOutcome: "findings",
+      findings: fixture.receipt.findings,
+    });
+  });
+
   it("resolves one exact frontline outcome with its admitted executable context", async () => {
     const fixture = readerForFrontlineFixture();
 
@@ -484,6 +521,16 @@ describe("local review result reader", () => {
         effectiveCoverage: "complete",
         policyVersion: fixture.admission.policyVersion,
       },
+    });
+  });
+
+  it("retains the immutable frontline findings result after lane settlement", async () => {
+    const fixture = readerForFrontlineFixture({ settled: true });
+
+    await expect(fixture.reader.readResult(fixture.admission.operationId)).resolves.toMatchObject({
+      kind: "frontline",
+      originalOutcome: "findings",
+      findings: fixture.outcome.findings,
     });
   });
 
@@ -568,5 +615,79 @@ describe("local review result reader", () => {
     await expect(reader.readResult(fixture.terminal.attemptId)).rejects.toMatchObject({
       code: "ambiguous-result",
     });
+  });
+
+  it("validates an approved record against the exact producer-bound disposition", async () => {
+    const { fixture, reader } = readerForLocalFixture();
+    const result = await reader.readResult(fixture.state.operationId);
+    const context = dispositionSourceContextForResult(result);
+    const approvedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: result.target.targetId,
+        producerId: result.producerId,
+        resultDigest: result.resultDigest,
+        policyVersion: context.policyVersion,
+        ...(context.kind === "rubric"
+          ? { rubricVersion: context.rubricVersion, rubricDigest: context.rubricDigest }
+          : { frontlineBinding: context.frontlineBinding }),
+        proposedBy: "arc-cli/0.1.0",
+        findings: result.findings.map((finding) => ({
+          findingId: finding.findingId,
+          sourceIdentity: result.sourceIdentity,
+          locus: finding.locus,
+          sourceVerification: "verified" as const,
+          verificationRefs: [finding.evidenceUrlOrId],
+          severity: finding.severity,
+          disposition: "defer" as const,
+          rationale: "The source confirms the issue.",
+          recommendation: "Track the correction separately.",
+          openQuestions: [],
+        })),
+      })),
+      approvedBy: "author-1",
+      approvedAt: "2026-09-09T12:05:00Z",
+    });
+    const record = ApprovedDispositionRecordSchema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: result.repositoryId,
+      operationId: result.producerId,
+      candidate: null,
+      errand: null,
+      deliveryMember: null,
+      source: {
+        kind: "attested-local",
+        receiptRef: bindReviewSourceReference({
+          kind: "attested-local",
+          operationId: result.producerId,
+          durableRef: result.kind === "attested-local" ? result.receiptRef : "unreachable",
+        }),
+        localSourceRef: result.kind === "attested-local" ? result.localSourceRef : "unreachable",
+      },
+      approvedDisposition,
+      fixAuthorization: null,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+    });
+
+    expect(validateApprovedDispositionRecordForResult(record, result)).toEqual(record);
+
+    const { dispositionSetId, ...substitutedFields } =
+      approvedDisposition.dispositionSet;
+    const substituted = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...substitutedFields,
+        producerId: "local-producer-later-pass",
+        resultDigest: digest("later-pass-result"),
+      })),
+      approvedBy: "author-1",
+      approvedAt: "2026-09-09T12:06:00Z",
+    });
+    expect(substituted.dispositionSet.dispositionSetId).not.toBe(dispositionSetId);
+    expect(() => validateApprovedDispositionSetForResult(substituted, result)).toThrow(
+      /immutable producer result/u,
+    );
   });
 });

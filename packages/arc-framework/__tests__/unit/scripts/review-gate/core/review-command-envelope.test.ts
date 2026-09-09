@@ -157,6 +157,8 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
   targetId: target.targetId,
+  producerId: "review-operation",
+  resultDigest: digest,
   policyVersion: digest,
   rubricVersion: "standard-review/v1",
   rubricDigest: digest,
