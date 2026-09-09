@@ -633,13 +633,56 @@ prose follows the executable contract.
 - _Outcome:_ External-edge authoring now has one aligned proof from closed schema through pinned repository
   composition, lifecycle advancement and extraction finish, typed command refusal, and byte-equal shipped guidance.
 
-### `[ ]` **3.6 Close external-edge delivery** — validate criteria at member scope
+### `[x]` **3.6 Close external-edge delivery** — validate criteria at member scope
 
 - _Goal:_ Member 3 has independently reviewable evidence that authored external edges survive target lifecycle
   changes and remain operable from the shipped workflow.
 
-    - Run the `validate-criteria.md` member-scope walk for `external-dependency-authoring` and record the boundary
-      evidence without changing Success Criteria markers.
+- _Outcome:_ Member 3 criteria report.
+    - _Criteria slice:_ `Success Criteria > Member 3 — external-dependency-authoring`.
+    - _Span:_ bounded diff `3dd845308..93357a45c`; cumulative reachability `93357a45c` at tree `9b596b5c7`;
+      `boundary-order-deviation: null`.
+    - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 1`;
+      _criterion-digest:_ `sha256:4c43c443f7dae7cafeb75d2f5dc6d2108e2f4d129ef07638fdfc11604e95727b`;
+      _State:_ `[x]`; _Evidence:_ the strict completed-map schema requires unique canonical external pairs from
+      dependency-capable destinations, while conservation's source-kind matrix proves new-member and existing-home
+      acceptance, all target refusals, self-edge redundancy precedence, canonical first refusal, and every admitted
+      internal endpoint pairing.
+    - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 2`;
+      _criterion-digest:_ `sha256:09a267ddd19093ddde25fc1229603cbdd62b834dd5c72e33c982d36bce062002`;
+      _State:_ `[x]`; _Evidence:_ repository composition passes separate live and exact completed slug sets from the
+      pinned result-base tree, and conservation adds only the authenticated extraction origin; real-Git coverage
+      admits late-created targets and live-to-completed movement through one advancement recomposition.
+    - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 3`;
+      _criterion-digest:_ `sha256:3b0cb73951222ac18684e86e23aeeea88cd047153d9d8b367f89532909f964f1`;
+      _State:_ `[x]`; _Evidence:_ production extraction coverage lands an origin prerequisite through execute,
+      preview, apply, and repeat with byte-identical companions and no transition record; the overlapping-recipient
+      case proves finish validates the complete composed dependency mutation, while adapter assertions exclude
+      completed-specific path and object reads.
+    - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 4`;
+      _criterion-digest:_ `sha256:289ecef5efa71eed9e51550a7eb75ec57de68ae9f7451e7e09836f013132eab2`;
+      _State:_ `[x]`; _Evidence:_ dependency projection applies each validated add/remove delta through
+      `setMetaBulletFields()` onto the pinned recipient sequence before rendering the projected ROADMAP; member and
+      existing-home tests prove unrelated divergence is preserved and pinned no-ops refuse before mutation.
+    - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 5`;
+      _criterion-digest:_ `sha256:97273bd2853c745cdc22ef6b4df4e2528501983aa71d2faddc8b39b672fddfee`;
+      _State:_ `[x]`; _Evidence:_ `completedWorkUnitMetaSlug()` delegates exact placement and artifact recognition to
+      `identifyWorkUnitArtifactPath()`; focused path-shape tests cover eligible metadata and reject cohort, companion,
+      malformed, live, and backlog paths while the pre-existing loose filesystem and ref readers remain separate.
+    - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 6`;
+      _criterion-digest:_ `sha256:5d4bbcefbe4f6cbc5474b63fb6d54abf29f8cd90e57fb52ceb863b7f4531b2e0`;
+      _State:_ `[x]`; _Evidence:_ advancement performs one current recomposition, compares every dependency recipient
+      between previous and current bases, and refuses drift with expected/actual targets before exact-history reads;
+      real-Git coverage proves zero history authentication and an unchanged clean candidate on refusal.
+    - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 7`;
+      _criterion-digest:_ `sha256:e9111e606c6d5e4f086f5c9ac8d1132477c75bb007ed93de37dd92c6fabb928f`;
+      _State:_ `[x]`; _Evidence:_ both workflow copies are byte-identical at
+      `sha256:05c9f161c429dca68673de8a58e5812ddee732193f75a643726eac0fa60cef87`; contract coverage requires external,
+      internal, and outgoing routing plus cumulative companion, scaffold, manual-transfer, and typed-refusal guidance,
+      and the built CLI proves the reported external-edge locus and corrective invocation without mutation.
+    - _Adversarial companion:_ not run during the approved deferred-review batch; one fresh Heavy pass remains
+      available at delivery review.
+    - _Summary:_ seven `[x]`, zero `[~]`, zero `[ ]`; terminal Success Criteria markers remain unchanged.
 
 ## **Phase 4:** Verification
 
