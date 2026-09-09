@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-delivery-followups",
+  "claimId": "7ef40e64026470985a95731081bed7c9",
+  "createdAt": "2026-09-09T23:35:47.036Z",
+  "updatedAt": "2026-09-09T23:35:47.036Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route post-integration delivery follow-ups and refresh the execute-bound order",
+  "branch": "chore/route-delivery-followups",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
