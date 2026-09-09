@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design — draft formalization-ready after a third adversarial pass over the widened
-  evidence-applicability design; captured with the stage advance to create-spec (`e666cd7ff`)
+- **Last Completed:** create-spec — detailed RFC finalized after two adversarial passes, draft retired to
+  `notes-evidence-applicability.md`, Class `Heavy` persisted, stage advanced to generate-tasks (`ba4706d93`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
