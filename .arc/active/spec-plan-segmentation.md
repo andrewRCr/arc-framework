@@ -616,9 +616,9 @@ archived delivery task list's evidence on revision anchoring and report replay (
   an `_Outcome:_`.
 - Both the staged Markdown gate and the worktree descriptor lint emit the D6 diagnostic family — malformed
   task-list structure fails universally; for structurally valid input carrying a preamble line beginning `_Mode:_`
-  or a segment-suffixed task, a missing segment, criterion, verifier, or retiring-phase target, an overlapping,
-  duplicated, or malformed declaration, an orphaned verifier, or a segmented terminal phase fails; a valid
-  unsegmented list emits nothing.
+  or `_Exit criterion:_`, or a segment-suffixed task, a missing segment, criterion, verifier, or retiring-phase
+  target, an overlapping, duplicated, or malformed declaration, an orphaned verifier, or a segmented terminal
+  phase fails; a valid unsegmented list emits nothing.
 - The delivery task inventory produces `segment` scope from the segment suffix, the scope set is closed to the three
   values, exactly one `work-unit`-scope verifier remains terminal and unassigned, and `segment`-scope verifiers
   partition as `member`-scope ones do.

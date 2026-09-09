@@ -64,7 +64,8 @@ across the diagnostic family for no gain.
 
 - _Outcome:_ `segmentation.ts` now resolves single- and multi-phase segment records, closing criteria, retiring-phase
   references, and exact verifier suffixes from structural events and raw parent headings. Compatibility lists remain
-  outside the contract, misplaced or fenced declarations stay inert, and malformed structure returns no partial data.
+  outside the contract, while an exact preamble `_Exit criterion:_` opts a list in without a mode or verifier;
+  misplaced or fenced declarations stay inert, and malformed structure returns no partial data.
 
 ### `[x]` **1.2 Declaration diagnostics — D6**
 
