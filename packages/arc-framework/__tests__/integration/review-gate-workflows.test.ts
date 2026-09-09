@@ -227,7 +227,7 @@ describe("trusted review-gate workflows", () => {
       scripts: Record<string, string>;
     };
     expect(packageManifest.scripts["test:arc-contracts"]).toBe(
-      "vitest run --project integration framework-sync pr-open-extensions review-gate-workflows",
+      "node --import tsx src/scripts/run-local-test-tier.ts arc-contracts",
     );
     expect(rootManifest.scripts["test:arc-contracts"]).toBe(
       "npm run test:arc-contracts -w packages/arc-framework",

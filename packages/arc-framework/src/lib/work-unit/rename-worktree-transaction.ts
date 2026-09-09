@@ -18,7 +18,7 @@ import {
   type RegisteredWorktree,
 } from "../git/worktree-roster.js";
 import { digestBytes } from "../kernel/index.js";
-import type { AdvisoryLockOptions } from "../user-sync/notes-lock.js";
+import type { AdvisoryLockOptions } from "../advisory-lock.js";
 import { withWorktreeOperationLock } from "./worktree-operation-lock.js";
 
 const DIAGNOSTIC = "cannot rename work-unit checkout";

@@ -37,7 +37,7 @@ import { createCommitMessageRetryStore } from "../../lib/release/commit-message-
 import {
   acquireAdvisoryLock,
   releaseAdvisoryLock,
-} from "../../lib/user-sync/notes-lock.js";
+} from "../../lib/advisory-lock.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
 import {
   resolveProcessInteractionContext,

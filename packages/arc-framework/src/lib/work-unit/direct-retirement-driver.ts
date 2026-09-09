@@ -20,7 +20,7 @@ import {
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { getCurrentBranch, type GitExec } from "../git/exec.js";
 import { resolveArcPath } from "../layout/index.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "../user-sync/notes-lock.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";
 import type { RetirementAuthorityScope } from "./retirement-authority.js";
 import { readRetirementAuthoritySnapshot } from "./retirement-authority-snapshot.js";
 import {
