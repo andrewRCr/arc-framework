@@ -19,6 +19,7 @@ import {
 import { identifyWorkUnitArtifactPath } from "../layout/index.js";
 import { createDecomposeTransitionRecord } from "./decompose-transition-record.js";
 import { decomposeCandidateBranch } from "./decompose-candidate.js";
+import type { V3RepositoryPlanDependencyRecipient } from "./decompose-v3-repository-plan.js";
 import type {
   V3DecomposeEvidenceValue,
   V3DecomposeRefusalEvidence,
@@ -593,7 +594,7 @@ async function dependencyRecipientAtPath(
 async function dependencyRecipientAt(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
   ref: string,
-  recipient: DependencyRecipient,
+  recipient: { dependent: string; path?: string },
 ): Promise<DependencyRecipientObservation> {
   const args = [
     "ls-tree",
@@ -617,11 +618,11 @@ async function dependencyRecipientAt(
           || identified.placement.kind === "backlog");
     });
   } catch {
-    return { status: "unavailable", locus: recipient.path };
+    return { status: "unavailable", locus: recipient.path ?? recipient.dependent };
   }
   if (paths.length === 0) return { status: "absent" };
   if (paths.length !== 1 || paths[0] === undefined) {
-    return { status: "unavailable", locus: recipient.path };
+    return { status: "unavailable", locus: recipient.path ?? recipient.dependent };
   }
   return await dependencyRecipientAtPath(dependencies, ref, paths[0]);
 }
@@ -681,15 +682,14 @@ async function compareDependencyRecipientPrestates(
 
 async function compareRefusedDependencyRecipient(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
-  recipient: { dependent: string; path: string; targets: string[] },
+  recipient: V3RepositoryPlanDependencyRecipient,
   previousBaseHead: string,
+  currentBaseHead: string,
 ): Promise<DependencyRecipientComparison> {
   const previous = await dependencyRecipientAt(dependencies, previousBaseHead, recipient);
-  const current: DependencyRecipientObservation = {
-    status: "present",
-    path: recipient.path,
-    targets: recipient.targets,
-  };
+  const current: DependencyRecipientObservation = "path" in recipient
+    ? { status: "present", path: recipient.path, targets: recipient.targets }
+    : await dependencyRecipientAt(dependencies, currentBaseHead, recipient);
   return compareDependencyRecipientObservations(recipient.dependent, previous, current);
 }
 
@@ -831,8 +831,7 @@ export async function advanceGitDecomposeTransitionBase(
         currentPlan.refusal.evidence,
       );
     }
-    const recipient = currentPlan.refusal.stage === "dependency"
-      && currentPlan.refusal.reason === "unchanged-dependency-slot"
+    const recipient = "dependencyRecipient" in currentPlan.refusal
       ? currentPlan.refusal.dependencyRecipient
       : undefined;
     if (recipient !== undefined) {
@@ -842,6 +841,7 @@ export async function advanceGitDecomposeTransitionBase(
         dependencies,
         recipient,
         discoveredChain.previousBaseHead,
+        currentBaseHead,
       );
       if (recipientComparison.status === "unavailable") {
         return refuse("base-dependency-snapshot-unavailable", recipientComparison.locus);

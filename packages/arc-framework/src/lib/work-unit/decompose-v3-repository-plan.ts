@@ -90,13 +90,17 @@ export type V3RepositoryPlanRefusalStage =
   | "roadmap"
   | "composition";
 
+export type V3RepositoryPlanDependencyRecipient =
+  | { dependent: string }
+  | { dependent: string; path: string; targets: string[] };
+
 export interface V3RepositoryPlanRefusal {
   stage: V3RepositoryPlanRefusalStage;
   reason: string;
   locus?: string;
   evidence?: V3DecomposeRefusalEvidence;
-  /** Pinned recipient fact reserved for base-advancement conflict classification. */
-  dependencyRecipient?: { dependent: string; path: string; targets: string[] };
+  /** Logical recipient fact reserved for base-advancement conflict classification. */
+  dependencyRecipient?: V3RepositoryPlanDependencyRecipient;
 }
 
 export type V3RepositoryPlanResult =
@@ -136,7 +140,7 @@ function refuse(
   reason: string,
   locus?: string,
   evidence?: V3DecomposeRefusalEvidence,
-  dependencyRecipient?: { dependent: string; path: string; targets: string[] },
+  dependencyRecipient?: V3RepositoryPlanDependencyRecipient,
 ): V3RepositoryPlanResult {
   return {
     status: "refused",
@@ -765,7 +769,7 @@ type V3DependencyProjectionResult =
       status: "refused";
       reason: "dependency-projection-failed" | "unchanged-dependency-slot";
       locus?: string;
-      dependencyRecipient?: { dependent: string; path: string; targets: string[] };
+      dependencyRecipient?: V3RepositoryPlanDependencyRecipient;
     };
 
 function dependencies(
@@ -988,6 +992,7 @@ async function composeRepositoryPlan(
       `${conservation.refusal.stage}:${conservation.refusal.reason}`,
       conservation.refusal.locus,
       conservation.refusal.evidence,
+      conservation.refusal.dependencyRecipient,
     );
   }
 

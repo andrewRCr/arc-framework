@@ -650,6 +650,10 @@ prose follows the executable contract.
         - Advancement now resolves each logical recipient in both pinned live trees and reports old/new path plus
           targets when placement changes, including equal empty target sets, before history authentication.
 
+    - `[x]` **3.6.R.d Classify dependency-recipient removal before plan refusal**
+        - Advancement now carries logical recipient identity through an unwritable current-plan refusal and compares
+          the pinned live absence; real-Git removal and archival cases prove drift evidence without history replay.
+
 - _Outcome:_ Member 3 criteria report.
     - _Criteria slice:_ `Success Criteria > Member 3 — external-dependency-authoring`.
     - _Span:_ bounded diff `3dd845308..93357a45c`; cumulative reachability `93357a45c` at tree `9b596b5c7`;

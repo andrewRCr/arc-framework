@@ -52,6 +52,8 @@ export interface V3DecomposeConservationRefusal {
   reason: string;
   locus: string;
   evidence?: V3DecomposeRefusalEvidence;
+  /** Logical recipient identity reserved for repository advancement conflict classification. */
+  dependencyRecipient?: { dependent: string };
 }
 
 export type V3DecomposeConservationResult =
@@ -72,10 +74,17 @@ function refuse(
   reason: string,
   locus: string,
   evidence?: V3DecomposeRefusalEvidence,
+  dependencyRecipient?: { dependent: string },
 ): V3DecomposeConservationResult {
   return {
     status: "refused",
-    refusal: { stage, reason, locus, ...(evidence === undefined ? {} : { evidence }) },
+    refusal: {
+      stage,
+      reason,
+      locus,
+      ...(evidence === undefined ? {} : { evidence }),
+      ...(dependencyRecipient === undefined ? {} : { dependencyRecipient }),
+    },
   };
 }
 
@@ -445,7 +454,13 @@ export function validateV3DecomposeConservation(
     }
     if (projected.requiresWritablePath
       && (projected.writablePath === null || !isManagedPath(projected.writablePath))) {
-      return refuse("dependency-projection", "unwritable-dependent", contribution.dependent);
+      return refuse(
+        "dependency-projection",
+        "unwritable-dependent",
+        contribution.dependent,
+        undefined,
+        { dependent: contribution.dependent },
+      );
     }
     const beforeTargets = [...projected.targets];
     let afterTargets: string[];
