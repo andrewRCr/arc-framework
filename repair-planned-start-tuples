@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "repair-planned-start-tuples",
+  "claimId": "f147b4d7e8759c057c8c01ab68360d65",
+  "createdAt": "2026-09-09T13:02:50.789Z",
+  "updatedAt": "2026-09-09T13:02:50.789Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Repair every planned work-unit design tuple that current start graduation would refuse.",
+  "branch": "chore/repair-planned-start-tuples",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
