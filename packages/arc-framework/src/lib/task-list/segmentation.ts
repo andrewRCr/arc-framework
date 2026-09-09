@@ -139,16 +139,18 @@ export function scanTaskListSegmentation(
   const phases: PhaseRecord[] = [];
   const retiringPhaseReferences: TaskListRetiringPhaseReference[] = [];
   const diagnostics: TaskListSegmentationDiagnostic[] = [];
+  const duplicatePhaseDiagnostics: TaskListSegmentationDiagnostic[] = [];
   const phaseIds = new Set<string>();
   const outsidePhaseSegmentVerifiers: ParentRecord[] = [];
   let currentPhase: PhaseRecord | null = null;
-  let currentTaskId: string | null = null;
+  let currentParentTaskId: string | null = null;
+  const activeSubtasks: Array<{ readonly id: string; readonly indent: number }> = [];
   let segmentationPresent = false;
 
   for (const event of scan.events) {
     if (event.type === "phase") {
       if (phaseIds.has(event.id)) {
-        diagnostics.push(diagnostic(
+        duplicatePhaseDiagnostics.push(diagnostic(
           document.path,
           event.line,
           "phase-id-duplicate",
@@ -170,7 +172,8 @@ export function scanTaskListSegmentation(
         preambleOpen: true,
       };
       phases.push(currentPhase);
-      currentTaskId = null;
+      currentParentTaskId = null;
+      activeSubtasks.length = 0;
       continue;
     }
     if (event.type === "parent") {
@@ -189,23 +192,43 @@ export function scanTaskListSegmentation(
       } else if (segmentVerifier) {
         outsidePhaseSegmentVerifiers.push(parent);
       }
-      currentTaskId = event.item.id;
+      currentParentTaskId = event.item.id;
+      activeSubtasks.length = 0;
       continue;
     }
     if (event.type === "subtask") {
-      currentTaskId = event.item.id;
+      const indent = leadingWhitespaceLength(lines[event.line - 1] ?? "");
+      let activeSubtask = activeSubtasks.at(-1);
+      while (activeSubtask !== undefined && activeSubtask.indent >= indent) {
+        activeSubtasks.pop();
+        activeSubtask = activeSubtasks.at(-1);
+      }
+      activeSubtasks.push({
+        id: event.item.id,
+        indent,
+      });
       continue;
     }
     if (event.type === "section") {
       currentPhase = null;
-      currentTaskId = null;
+      currentParentTaskId = null;
+      activeSubtasks.length = 0;
       continue;
     }
     if (event.type !== "content") continue;
-    if (currentTaskId !== null) {
+    const contentIndent = leadingWhitespaceLength(event.text);
+    if (event.text.trim() !== "") {
+      let activeSubtask = activeSubtasks.at(-1);
+      while (activeSubtask !== undefined && activeSubtask.indent >= contentIndent) {
+        activeSubtasks.pop();
+        activeSubtask = activeSubtasks.at(-1);
+      }
+    }
+    if (currentParentTaskId !== null) {
       const phaseId = RETIRING_PHASE_RE.exec(event.text)?.groups?.phaseId;
       if (phaseId !== undefined) {
-        retiringPhaseReferences.push({ taskId: currentTaskId, line: event.line, phaseId });
+        const taskId = activeSubtasks.at(-1)?.id ?? currentParentTaskId;
+        retiringPhaseReferences.push({ taskId, line: event.line, phaseId });
       }
     }
     if (currentPhase?.preambleOpen === true) {
@@ -247,6 +270,7 @@ export function scanTaskListSegmentation(
     diagnostics.sort((left, right) => left.line - right.line);
     return { segments: [], retiringPhaseReferences: [], diagnostics };
   }
+  diagnostics.push(...duplicatePhaseDiagnostics);
 
   const segments: TaskListSegment[] = [];
   const coveredPhaseLines = new Set<number>();
@@ -467,6 +491,10 @@ function consumePreambleLine(
 
 function isTaskListSegmentMode(value: string): value is TaskListSegmentMode {
   return value === "slice" || value === "layer" || value === "replication";
+}
+
+function leadingWhitespaceLength(line: string): number {
+  return /^\s*/u.exec(line)?.[0].length ?? 0;
 }
 
 function diagnostic(

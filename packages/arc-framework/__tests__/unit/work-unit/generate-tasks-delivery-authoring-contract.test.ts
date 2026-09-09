@@ -49,6 +49,42 @@ describe("generate-tasks delivery authoring contract", () => {
     expect(installed).toBe(packaged);
   });
 
+  it("binds plan segmentation to residual risk and executable lifecycle proof", () => {
+    const packaged = readFileSync(
+      join(PACKAGE_ROOT, "arc/system/workflows/arc/generate-tasks.template.md"),
+      "utf8",
+    );
+    const installed = readFileSync(
+      join(PROJECT_ROOT, ".arc/system/workflows/arc/generate-tasks.md"),
+      "utf8",
+    );
+
+    for (const workflow of [packaged, installed]) {
+      const segmentationStart = workflow.indexOf("## Resolve plan segmentation");
+      const segmentationEnd = workflow.indexOf("## Generate in the resolved level", segmentationStart);
+      expect(segmentationStart).toBeGreaterThan(-1);
+      expect(segmentationEnd).toBeGreaterThan(segmentationStart);
+      const segmentation = workflow.slice(segmentationStart, segmentationEnd);
+
+      expect(segmentation).toContain(
+        "resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes",
+      );
+      expect(segmentation).toMatch(/\*\*Composition\*\*[^\n]*\*\*`slice`\*\*/u);
+      expect(segmentation).toMatch(/\*\*Substrate contract\*\*[^\n]*\*\*`layer`\*\*/u);
+      expect(segmentation).toMatch(/\*\*Mechanics at scale\*\*[^\n]*\*\*`replication`\*\*/u);
+      expect(segmentation).toContain("Order segments to retire the dominant residual risk earliest");
+      expect(segmentation).toContain("place the first `slice` as early as its required substrate allows");
+
+      expect(workflow).toContain(
+        "On a composition-risk plan, every mandatory lifecycle row stated by the spec is present in Success Criteria",
+      );
+      expect(workflow).toContain(
+        "assigned to a `slice` segment or parent task that wires its production callsite and proves it with an",
+      );
+      expect(workflow).toContain("executable scenario");
+    }
+  });
+
   it("authors member close-outs as scoped verification tasks with the canonical suffix", () => {
     const packaged = readFileSync(
       join(PACKAGE_ROOT, "arc/system/workflows/arc/generate-tasks.template.md"),

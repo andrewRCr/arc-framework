@@ -37,9 +37,8 @@ Applied on top of `.default` (`override-mode: extend`) — the universal princip
   proof** · `[invariant]`.
 - **Fixtures and naming** — reusable multi-file fixtures live in `__tests__/fixtures/`; prefer inline data for
   simple cases; test files mirror the source path (`src/lib/x.ts` → `__tests__/unit/lib/x.test.ts`).
-- **Prove fail-first after a fix** · `[invariant]` — when the test is written after the implementation, reconstruct pre-fix
-  source (only the behavior under test; keep exports/signatures the test needs) and re-run. A compile or import
-  error is not a behavioral fail-first proof.
+- **Project fail-first reconstruction** — apply `.default`'s reconstruct-and-revert procedure by changing only the
+  narrow behavior under test and preserving every export and signature the test needs.
 
 ## testing-standards.default
 
@@ -48,8 +47,14 @@ Applied on top of `.default` (`override-mode: extend`) — the universal princip
 - **Keep mocked boundaries and fixtures faithful** · `[invariant]` — a stub inventing dependency outcomes, or a
   hand-built fixture in a shape its producer never emits, passes against a fiction; prefer deriving fixture
   invariants from the producer; cover response-dependent behavior at a tier that runs the real thing.
-- **See it fail first** · `[invariant]` — a test that has never failed may assert nothing.
-- **One behavior at a time; don't batch all tests upfront** — bulk tests test imagined behavior.
+- **See every behavior fail first** · `[invariant]` — this includes behavior the current implementation satisfies
+  incidentally. If a new test passes before red, reconstruct only the narrow pre-behavior implementation, run the
+  test to a behavioral failure, then restore the current implementation. At completion, retain reconstruct-and-revert
+  evidence: the test fails against the reconstruction and passes after restoration. Compile or import errors do not
+  prove fail-first behavior.
+- **One behavior at a time** — don't batch tests for imagined behavior. Several coupled behaviors may share one
+  pre-implementation test batch only when they have one indivisible implementation and every test can genuinely fail
+  first.
 - **Mock at boundaries; never mock internals** — if that is hard, the interface is wrong, not the test; don't
   test your dependencies.
 - **Design for testability** — inject dependencies; separate computation from I/O.
