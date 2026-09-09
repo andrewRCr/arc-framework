@@ -310,34 +310,14 @@ _Purpose:_ Migrate verified judgment through its complete acceptance graph and j
 canonical report. Required fields, capture sites, renderer, and designated callers land with their owning semantic
 changes.
 
-### `[ ]` **4.1 Migrate verified disposition schemas and their complete consumer graph**
+### `[x]` **4.1 Migrate verified disposition schemas and their complete consumer graph**
 
 - _Goal:_ Canonical records and all response consumers preserve reported observation separately from approved verified
   judgment.
 
-- _Note:_ Spec § 4; SC 5 and 11.
-
-- _Approach:_ Change `disposition-records.ts`, `dispositions.ts`, author proposal mapping, and their complete consumer
-  graph together. Strict schema and required constructor changes are not separate task boundaries.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Verified findings require explicit non-null verified severity; unsupported findings require null severity,
-          reject, no verified nit, and record-only gating regardless of the reported grade.
-
-        - Reported and verified nit markers independently require minor severity; source comparisons use only reported
-          facts.
-
-        - Mixed unsupported findings and verified ordinary minors round-trip under blocking-minor policy regardless
-          of canonical order. Retained-policy reconstruction uses verified non-nit minors only; unsupported findings
-          remain record-only. Test reported nit without verified nit and verified nit without reported nit through
-          proposal, approval, gating, and source matching.
-
-        - Proposal, approval, response-plan, reduce, local-resume, and frontline follow-up use the new shape without
-          aliases; callers cannot omit verified judgment or hand-compute source/gating fields.
-
-        - Update shared fixture constructors and targeted regrade/nit assertions; retain the preceding producer-bound
-          proposal identity and distinct proposer/approver validation.
+- _Outcome:_ Canonical dispositions now retain producer-reported and approved verified judgments independently, derive
+  gating only from the verified judgment, and reject omitted or invalid unsupported judgments. Proposal, approval,
+  response, reduction, resume, frontline, and shared fixture consumers migrated together without compatibility aliases.
 
 ### `[ ]` **4.2 Preserve native finding labels and capture ordinals through all producers**
 

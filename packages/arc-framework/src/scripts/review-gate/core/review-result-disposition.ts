@@ -7,8 +7,6 @@ import {
 } from "./advisory-records.js";
 import {
   dispositionSetMatchesSourceContext,
-  reviewerDispositionNit,
-  reviewerDispositionSeverity,
   type ApprovedDispositionSet,
   type DispositionSourceContext,
 } from "./disposition-records.js";
@@ -72,8 +70,8 @@ export function validateApprovedDispositionSetForResult(
   const actualFindings = set.findings.map((finding) => ({
     findingId: finding.findingId,
     locus: finding.locus,
-    severity: reviewerDispositionSeverity(finding),
-    nit: reviewerDispositionNit(finding) === true,
+    severity: finding.reportedSeverity,
+    nit: finding.reportedNit === true,
   })).sort((left, right) => left.findingId.localeCompare(right.findingId));
   if (set.targetId !== result.target.targetId
     || !dispositionSetMatchesSourceContext(set, context)

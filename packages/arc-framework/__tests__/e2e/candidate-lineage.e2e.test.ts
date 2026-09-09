@@ -369,6 +369,7 @@ async function approvedSet(
         findingId: "finding-1",
         sourceVerification: "verified",
         verificationRefs: ["source:reviewed.txt:1"],
+        verifiedSeverity: "major",
         disposition,
         rationale: disposition === "fix"
           ? "The reviewed source supports applying this fix."

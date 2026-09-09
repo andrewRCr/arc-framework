@@ -659,9 +659,9 @@ describe("local resume command", () => {
       proposedBy: records.operation.attestation.runtimeIdentity,
       findings: [{
         findingId: finding.findingId,
-        reviewerSeverity: finding.severity,
-        reviewerNit: true,
-        arcSeverity: "major",
+        reportedSeverity: finding.severity,
+        reportedNit: true,
+        verifiedSeverity: "major",
         locus: finding.locus,
         sourceIdentity: records.operation.request.evaluatorIdentity,
         sourceVerification: "verified",

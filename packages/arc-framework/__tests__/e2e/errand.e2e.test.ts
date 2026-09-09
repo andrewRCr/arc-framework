@@ -329,6 +329,7 @@ describe("arc review respond for an Errand", () => {
             findingId: "finding-1",
             sourceVerification: "verified",
             verificationRefs: ["source:reviewed.txt:1"],
+            verifiedSeverity: "major",
             disposition: "fix",
             rationale: "The reviewed source supports applying this fix.",
             recommendation: "Apply the fix.",

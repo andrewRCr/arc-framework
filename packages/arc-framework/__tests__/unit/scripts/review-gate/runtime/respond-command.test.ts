@@ -249,7 +249,8 @@ function approved(input: {
         locus: input.finding.locus,
         sourceVerification: "verified",
         verificationRefs: ["source:src/index.ts:7"],
-        severity: input.finding.severity,
+        reportedSeverity: input.finding.severity,
+        verifiedSeverity: input.finding.severity,
         disposition,
         gating: "blocking",
         rationale: "The selected source supports this disposition.",
@@ -745,6 +746,26 @@ describe("review response command", () => {
     });
   });
 
+  it("rejects an author proposal that omits the explicit verified judgment", async () => {
+    const records = fixture();
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          disposition: "fix",
+          rationale: "The selected source supports this disposition.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }, dependencies(records))).rejects.toThrow();
+  });
+
   it("constructs a source-bound proposal from author-owned finding decisions", async () => {
     const records = fixture();
     const earlierFinding = {
@@ -763,6 +784,7 @@ describe("review response command", () => {
           findingId: records.finding.findingId,
           sourceVerification: "verified",
           verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "major",
           disposition: "fix",
           rationale: "The selected source supports this disposition.",
           recommendation: "Apply the fix.",
@@ -771,6 +793,7 @@ describe("review response command", () => {
           findingId: earlierFinding.findingId,
           sourceVerification: "verified",
           verificationRefs: ["source:src/earlier.ts:3"],
+          verifiedSeverity: "minor",
           disposition: "fix",
           rationale: "The selected source supports this disposition.",
           recommendation: "Apply the fix.",
@@ -794,13 +817,15 @@ describe("review response command", () => {
               findingId: earlierFinding.findingId,
               sourceIdentity: records.authority.evaluatorIdentity,
               locus: earlierFinding.locus,
-              severity: earlierFinding.severity,
-              gating: "blocking",
+              reportedSeverity: earlierFinding.severity,
+              verifiedSeverity: "minor",
+              gating: "record-only",
             }, {
               findingId: records.finding.findingId,
               sourceIdentity: records.authority.evaluatorIdentity,
               locus: records.finding.locus,
-              severity: records.finding.severity,
+              reportedSeverity: records.finding.severity,
+              verifiedSeverity: "major",
               gating: "blocking",
             }],
             dispositionSetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
@@ -1011,7 +1036,8 @@ describe("review response command", () => {
           locus: hosted.records.finding.locus,
           sourceVerification: "verified",
           verificationRefs: ["source:src/index.ts:7"],
-          severity: hosted.records.finding.severity,
+          reportedSeverity: hosted.records.finding.severity,
+          verifiedSeverity: hosted.records.finding.severity,
           disposition: "fix",
           gating: "blocking",
           rationale: "The finding requires a code change.",
@@ -1023,7 +1049,8 @@ describe("review response command", () => {
           locus: deferredFinding.locus,
           sourceVerification: "verified",
           verificationRefs: ["source:src/deferred.ts:9"],
-          severity: deferredFinding.severity,
+          reportedSeverity: deferredFinding.severity,
+          verifiedSeverity: deferredFinding.severity,
           disposition: "defer",
           gating: "blocking",
           rationale: "The finding belongs to follow-up work.",
@@ -1049,9 +1076,12 @@ describe("review response command", () => {
     });
   });
 
-  it("collapses matching grades and labels both grades only when ARC re-grades", async () => {
+  it("preserves reported and verified grades without collapsing either judgment", async () => {
     const records = fixture();
-    const proposal = async (sourceVerification: "verified" | "not-supported", severity: "critical") =>
+    const proposal = async (
+      sourceVerification: "verified" | "not-supported",
+      verifiedSeverity: "critical" | null,
+    ) =>
       respondToReviewCommand({
         schemaVersion: 1,
         source: { kind: "attested-local", receiptRef: records.receiptRef },
@@ -1060,7 +1090,7 @@ describe("review response command", () => {
             findingId: records.finding.findingId,
             sourceVerification,
             verificationRefs: ["source:src/index.ts:7"],
-            severity,
+            verifiedSeverity,
             disposition: sourceVerification === "verified" ? "fix" : "reject",
             rationale: "The selected source determines this disposition.",
             recommendation: sourceVerification === "verified" ? "Apply the fix." : "Reject the finding.",
@@ -1072,19 +1102,18 @@ describe("review response command", () => {
     const regraded = await proposal("verified", "critical");
     if (regraded.state !== "awaiting-approval") throw new Error("regraded proposal was not materialized");
     const regradedFinding = regraded.payload.proposal.dispositionSet.findings[0];
-    expect(regradedFinding).toMatchObject({ reviewerSeverity: "major", arcSeverity: "critical" });
-    expect(regradedFinding).not.toHaveProperty("severity");
+    expect(regradedFinding).toMatchObject({ reportedSeverity: "major", verifiedSeverity: "critical" });
 
-    const unsupported = await proposal("not-supported", "critical");
+    const unsupported = await proposal("not-supported", null);
     if (unsupported.state !== "awaiting-approval") throw new Error("unsupported proposal was not materialized");
     const unsupportedFinding = unsupported.payload.proposal.dispositionSet.findings[0];
     expect(unsupportedFinding).toMatchObject({
       sourceVerification: "not-supported",
-      reviewerSeverity: "major",
+      reportedSeverity: "major",
+      verifiedSeverity: null,
       disposition: "reject",
+      gating: "record-only",
     });
-    expect(unsupportedFinding).not.toHaveProperty("severity");
-    expect(unsupportedFinding).not.toHaveProperty("arcSeverity");
   });
 
   it("rejects retired blocker severity in an author proposal", async () => {
@@ -1098,7 +1127,7 @@ describe("review response command", () => {
           findingId: records.finding.findingId,
           sourceVerification: "verified",
           verificationRefs: ["source:src/index.ts:7"],
-          severity: "blocker",
+          verifiedSeverity: "blocker",
           disposition: "fix",
           rationale: "The finding requires a code change.",
           recommendation: "Apply the fix.",
@@ -1108,7 +1137,7 @@ describe("review response command", () => {
     }, dependencies(records))).rejects.toThrow();
   });
 
-  it("preserves a reviewer's nit qualifier when ARC re-grades the finding as non-minor", async () => {
+  it("preserves a reported nit independently from a non-minor verified grade", async () => {
     const records = fixture();
     const sourceFinding = records.receipt.findings[0];
     if (sourceFinding === undefined) throw new Error("expected a source finding");
@@ -1122,7 +1151,7 @@ describe("review response command", () => {
           findingId: records.finding.findingId,
           sourceVerification: "verified",
           verificationRefs: ["source:src/index.ts:7"],
-          severity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           rationale: "The source supports a non-minor primary grade.",
           recommendation: "Apply the fix.",
@@ -1136,7 +1165,45 @@ describe("review response command", () => {
       payload: {
         proposal: {
           dispositionSet: {
-            findings: [{ reviewerSeverity: "minor", reviewerNit: true, arcSeverity: "major" }],
+            findings: [{ reportedSeverity: "minor", reportedNit: true, verifiedSeverity: "major" }],
+          },
+        },
+      },
+    });
+  });
+
+  it("preserves a verified nit independently from a non-nit reported grade", async () => {
+    const records = fixture();
+
+    const proposal = await respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          verifiedNit: true,
+          disposition: "defer",
+          rationale: "The source supports a verified polish-only issue.",
+          recommendation: "Record the non-blocking disposition.",
+          openQuestions: [],
+        }],
+      },
+    }, dependencies(records));
+
+    expect(proposal).toMatchObject({
+      state: "awaiting-approval",
+      payload: {
+        proposal: {
+          dispositionSet: {
+            findings: [{
+              reportedSeverity: "major",
+              verifiedSeverity: "minor",
+              verifiedNit: true,
+              gating: "record-only",
+            }],
           },
         },
       },
@@ -1366,6 +1433,7 @@ describe("review response command", () => {
           findingId: records.finding.findingId,
           sourceVerification: "not-supported",
           verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: null,
           disposition: "reject",
           rationale: "The source does not support the reported issue.",
           recommendation: "Reject the finding.",

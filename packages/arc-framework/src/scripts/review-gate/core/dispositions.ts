@@ -15,9 +15,7 @@ import {
   type DispositionSet,
   type DispositionSetState,
   type ProposedDispositionSet,
-  effectiveDispositionSeverity,
-  reviewerDispositionNit,
-  reviewerDispositionSeverity,
+  verifiedDispositionSeverity,
 } from "./disposition-records.js";
 import {
   PACKAGE_DEFAULT_SEVERITY_GATING_POLICY,
@@ -30,26 +28,18 @@ type WithOptionalGating<T> = T extends unknown
   : never;
 type DispositionReportProposalItem = WithOptionalGating<DispositionReportItem>;
 
-function effectiveGatingNit(finding: DispositionReportProposalItem): true | undefined {
-  return finding.sourceVerification === "not-supported"
-    ? reviewerDispositionNit(finding)
-    : finding.nit;
-}
-
 function normalizedFindings(
   findings: readonly DispositionReportProposalItem[],
   policy: SeverityGatingPolicy,
 ): DispositionReportItem[] {
   const normalized = findings.map((finding) => DispositionReportItemSchema.parse({
       ...finding,
-      gating: resolveFindingGating({
-        severity: "severity" in finding
-          ? finding.severity
-          : "arcSeverity" in finding
-            ? finding.arcSeverity
-            : finding.reviewerSeverity,
-        ...(effectiveGatingNit(finding) === true ? { nit: true as const } : {}),
-      }, policy),
+      gating: finding.sourceVerification === "not-supported"
+        ? "record-only"
+        : resolveFindingGating({
+            severity: finding.verifiedSeverity,
+            ...(finding.verifiedNit === true ? { nit: true as const } : {}),
+          }, policy),
     }));
   const unique = new Map(normalized.map((finding) => [finding.findingId, finding]));
   if (unique.size !== findings.length) throw new Error("duplicate disposition finding identity");
@@ -83,8 +73,9 @@ export function validateDispositionSet(input: unknown): DispositionSet {
   const { dispositionSetId, ...fields } = set;
   const retainedPolicy = {
     minorGating: fields.findings.find((finding) =>
-      (effectiveDispositionSeverity(finding) ?? reviewerDispositionSeverity(finding)) === "minor"
-        && effectiveGatingNit(finding) !== true)?.gating
+      verifiedDispositionSeverity(finding) === "minor"
+        && finding.sourceVerification === "verified"
+        && finding.verifiedNit !== true)?.gating
       ?? PACKAGE_DEFAULT_SEVERITY_GATING_POLICY.minorGating,
   };
   if (canonicalize(fields.findings) !== canonicalize(normalizedFindings(fields.findings, retainedPolicy))) {

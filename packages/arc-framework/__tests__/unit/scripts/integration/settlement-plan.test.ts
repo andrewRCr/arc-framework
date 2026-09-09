@@ -51,7 +51,8 @@ function approvedSet(targetId: string, disposition: "fix" | "defer") {
       locus: "src/example.ts:1",
       sourceVerification: "verified",
       verificationRefs: ["receipt:1"],
-      severity: "major",
+      reportedSeverity: "major",
+      verifiedSeverity: "major",
       disposition,
       rationale: "The finding is supported.",
       recommendation: disposition === "fix"

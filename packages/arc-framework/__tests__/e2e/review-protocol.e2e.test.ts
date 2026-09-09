@@ -223,6 +223,7 @@ async function approvedRejection(
         findingId: "finding-1",
         sourceVerification: "verified",
         verificationRefs: ["source:reviewed.txt:1"],
+        verifiedSeverity: "major",
         disposition: "reject",
         rationale: "The reviewed source supports recording this disposition.",
         recommendation: "Record the rejected finding.",

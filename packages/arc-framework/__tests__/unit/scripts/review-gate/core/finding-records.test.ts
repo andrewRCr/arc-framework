@@ -67,28 +67,71 @@ describe("provider finding classification", () => {
     expect(FindingSettlementV2Schema.safeParse({ ...settlement, severity: "blocker" }).success).toBe(false);
   });
 
-  it.each([
-    { grade: { severity: "critical" }, field: "severity" },
-    { grade: { reviewerSeverity: "major", arcSeverity: "critical" }, field: "arcSeverity" },
-    {
-      grade: { sourceVerification: "not-supported", disposition: "reject", reviewerSeverity: "critical" },
-      field: "reviewerSeverity",
-    },
-  ] as const)("rejects retired blocker in disposition grade field $field", ({ grade, field }) => {
-    const item = {
+  function dispositionItem(overrides: Record<string, unknown> = {}) {
+    return {
       findingId: "finding-1",
       sourceIdentity: "delegated-agent",
       locus: "src/review.ts:42",
       sourceVerification: "verified",
       verificationRefs: ["review:finding-1"],
+      reportedSeverity: "major",
+      verifiedSeverity: "major",
       disposition: "defer",
       gating: "blocking",
       rationale: "The source confirms the boundary issue.",
       recommendation: "Track the correction as follow-up work.",
       openQuestions: [],
-      ...grade,
+      ...overrides,
     };
-    expect(DispositionReportItemSchema.safeParse(item).success).toBe(true);
-    expect(DispositionReportItemSchema.safeParse({ ...item, [field]: "blocker" }).success).toBe(false);
+  }
+
+  it.each(["reportedSeverity", "verifiedSeverity"] as const)(
+    "rejects retired blocker in disposition grade field %s",
+    (field) => {
+      const item = dispositionItem();
+      expect(DispositionReportItemSchema.safeParse(item).success).toBe(true);
+      expect(DispositionReportItemSchema.safeParse({ ...item, [field]: "blocker" }).success).toBe(false);
+    },
+  );
+
+  it("requires an explicit verified grade for supported findings", () => {
+    const { verifiedSeverity, ...withoutVerifiedSeverity } = dispositionItem();
+    void verifiedSeverity;
+    expect(DispositionReportItemSchema.safeParse(withoutVerifiedSeverity).success).toBe(false);
+    expect(DispositionReportItemSchema.safeParse({
+      ...withoutVerifiedSeverity,
+      verifiedSeverity: null,
+    }).success).toBe(false);
+  });
+
+  it("keeps unsupported observations ungraded, rejected, and record-only", () => {
+    const unsupported = dispositionItem({
+      sourceVerification: "not-supported",
+      reportedSeverity: "critical",
+      verifiedSeverity: null,
+      disposition: "reject",
+      gating: "record-only",
+    });
+    expect(DispositionReportItemSchema.safeParse(unsupported).success).toBe(true);
+    expect(DispositionReportItemSchema.safeParse({ ...unsupported, verifiedSeverity: "critical" }).success).toBe(false);
+    expect(DispositionReportItemSchema.safeParse({ ...unsupported, verifiedNit: true }).success).toBe(false);
+    expect(DispositionReportItemSchema.safeParse({ ...unsupported, disposition: "defer" }).success).toBe(false);
+    expect(DispositionReportItemSchema.safeParse({ ...unsupported, gating: "blocking" }).success).toBe(false);
+  });
+
+  it("validates reported and verified nit markers independently", () => {
+    expect(DispositionReportItemSchema.safeParse(dispositionItem({
+      reportedSeverity: "minor",
+      reportedNit: true,
+      verifiedSeverity: "major",
+    })).success).toBe(true);
+    expect(DispositionReportItemSchema.safeParse(dispositionItem({
+      reportedSeverity: "major",
+      verifiedSeverity: "minor",
+      verifiedNit: true,
+      gating: "record-only",
+    })).success).toBe(true);
+    expect(DispositionReportItemSchema.safeParse(dispositionItem({ reportedNit: true })).success).toBe(false);
+    expect(DispositionReportItemSchema.safeParse(dispositionItem({ verifiedNit: true })).success).toBe(false);
   });
 });

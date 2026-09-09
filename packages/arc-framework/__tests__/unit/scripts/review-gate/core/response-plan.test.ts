@@ -5,6 +5,7 @@ import {
   approveDispositionState,
   createDispositionSet,
   proposeDispositionSet,
+  validateDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
@@ -64,7 +65,8 @@ function approved(disposition: "fix" | "defer" | "reject" = "fix") {
       locus: normalizedFinding.locus,
       sourceVerification: "verified",
       verificationRefs: ["source:src/index.ts:7"],
-      severity: normalizedFinding.severity,
+      reportedSeverity: normalizedFinding.severity,
+      verifiedSeverity: normalizedFinding.severity,
       disposition,
       gating: disposition === "fix" ? "blocking" : "record-only",
       rationale: "The source supports this proposed disposition.",
@@ -159,7 +161,7 @@ describe("review response planning", () => {
     });
   });
 
-  it("matches approved regraded reviewer nits by their source identity", () => {
+  it("matches reported nits while gating from an independently verified grade", () => {
     const dispositionSet = createDispositionSet({
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
@@ -176,9 +178,9 @@ describe("review response planning", () => {
         locus: normalizedFinding.locus,
         sourceVerification: "verified",
         verificationRefs: ["source:src/index.ts:7"],
-        reviewerSeverity: "minor",
-        reviewerNit: true,
-        arcSeverity: "major",
+        reportedSeverity: "minor",
+        reportedNit: true,
+        verifiedSeverity: "major",
         disposition: "fix",
         rationale: "The source supports the regraded finding.",
         recommendation: "Apply the bounded fix.",
@@ -198,7 +200,7 @@ describe("review response planning", () => {
     })).toMatchObject({ state: "ready-to-fix", allowedCapabilities: ["fix"] });
   });
 
-  it("keeps an unsupported reviewer nit record-only under blocking minor policy", () => {
+  it("keeps unsupported observations record-only and reconstructs policy from verified ordinary minors", () => {
     const dispositionSet = createDispositionSet({
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
@@ -209,24 +211,40 @@ describe("review response planning", () => {
       rubricVersion: "standard-review/v1",
       rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
       proposedBy: "author-1",
-      findings: [{
-        findingId: normalizedFinding.findingId,
-        sourceIdentity: "codex-pr",
-        locus: normalizedFinding.locus,
-        sourceVerification: "not-supported",
-        verificationRefs: ["source:src/index.ts:7"],
-        reviewerSeverity: "minor",
-        reviewerNit: true,
-        disposition: "reject",
-        rationale: "The source does not support the finding.",
-        recommendation: "Reject the finding.",
-        openQuestions: [],
-      }],
+      findings: [
+        {
+          findingId: normalizedFinding.findingId,
+          sourceIdentity: "codex-pr",
+          locus: normalizedFinding.locus,
+          sourceVerification: "not-supported",
+          verificationRefs: ["source:src/index.ts:7"],
+          reportedSeverity: "critical",
+          verifiedSeverity: null,
+          disposition: "reject",
+          rationale: "The source does not support the finding.",
+          recommendation: "Reject the finding.",
+          openQuestions: [],
+        },
+        {
+          findingId: "finding-2",
+          sourceIdentity: "codex-pr",
+          locus: "src/index.ts:12",
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:12"],
+          reportedSeverity: "major",
+          verifiedSeverity: "minor",
+          disposition: "fix",
+          rationale: "The source supports a bounded minor finding.",
+          recommendation: "Apply the bounded fix.",
+          openQuestions: [],
+        },
+      ],
     }, { minorGating: "blocking" });
 
-    expect(dispositionSet.findings).toEqual([
-      expect.objectContaining({ reviewerNit: true, gating: "record-only" }),
-    ]);
+    expect(validateDispositionSet(dispositionSet).findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ findingId: "finding-1", gating: "record-only" }),
+      expect.objectContaining({ findingId: "finding-2", gating: "blocking" }),
+    ]));
   });
 
   it("blocks stale findings, failed verification, and unavailable required capabilities", () => {

@@ -289,6 +289,7 @@ const respondProposalRequest = {
       findingId: "finding-1",
       sourceVerification: "verified",
       verificationRefs: ["source:src/index.ts:1"],
+      verifiedSeverity: "major",
       disposition: "reject",
       rationale: "The source does not support the finding.",
       recommendation: "Record the rejection.",

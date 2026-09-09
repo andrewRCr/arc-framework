@@ -76,17 +76,26 @@ import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
 import type { DeliveryLocalReviewAdmission } from
   "../policy/delivery-local-review-admission.js";
 
-const AuthorDispositionSchema = z.strictObject({
+const AuthorDispositionFieldsSchema = z.strictObject({
   findingId: z.string().trim().min(1).max(512),
-  sourceVerification: z.enum(["verified", "not-supported"]),
   verificationRefs: z.array(z.string().trim().min(1)).min(1),
-  /** Primary re-grade; omission accepts the reviewer's reported grade. */
-  severity: ReviewSeveritySchema.optional(),
-  disposition: z.enum(["fix", "defer", "reject"]),
   rationale: z.string().trim().min(1).max(4096),
   recommendation: z.string().trim().min(1).max(4096),
   openQuestions: z.array(z.string().trim().min(1).max(4096)),
 });
+const AuthorDispositionSchema = z.union([
+  AuthorDispositionFieldsSchema.extend({
+    sourceVerification: z.literal("verified"),
+    verifiedSeverity: ReviewSeveritySchema,
+    verifiedNit: z.literal(true).optional(),
+    disposition: z.enum(["fix", "defer", "reject"]),
+  }),
+  AuthorDispositionFieldsSchema.extend({
+    sourceVerification: z.literal("not-supported"),
+    verifiedSeverity: z.null(),
+    disposition: z.literal("reject"),
+  }),
+]);
 
 const RespondProposalRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -300,46 +309,13 @@ function prepareDispositionProposal(
     if (decision === undefined) {
       throw new RespondCommandError("invalid-input", "proposal must disposition every selected-source finding");
     }
-    const {
-      severity: proposedSeverity,
-      sourceVerification,
-      disposition,
-      ...decisionFields
-    } = decision;
-    const severity = proposedSeverity ?? finding.severity;
-    const base = {
-      ...decisionFields,
+    return {
+      ...decision,
       sourceIdentity: source.sourceIdentity,
       locus: finding.locus,
+      reportedSeverity: finding.severity,
+      ...(finding.nit === true ? { reportedNit: true as const } : {}),
     };
-    if (sourceVerification === "not-supported") {
-      if (disposition !== "reject") {
-        throw new RespondCommandError("invalid-input", "a finding not supported by source must be rejected");
-      }
-      return {
-        ...base,
-        sourceVerification,
-        disposition,
-        reviewerSeverity: finding.severity,
-        ...(finding.nit === true ? { reviewerNit: true as const } : {}),
-      };
-    }
-    return severity === finding.severity
-      ? {
-          ...base,
-          sourceVerification,
-          disposition,
-          severity,
-          ...(finding.nit === true ? { nit: true as const } : {}),
-        }
-      : {
-          ...base,
-          sourceVerification,
-          disposition,
-          reviewerSeverity: finding.severity,
-          ...(finding.nit === true ? { reviewerNit: true as const } : {}),
-          arcSeverity: severity,
-        };
   });
   const dispositionContext = source.dispositionContext.kind === "rubric"
     ? {
