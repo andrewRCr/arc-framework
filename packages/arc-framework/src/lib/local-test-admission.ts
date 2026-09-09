@@ -176,12 +176,13 @@ export async function withLocalHeavyTestAdmission<T>(
   const lockPath = join(lockRoot, LOCK_FILENAME);
   await dependencies.mkdir(lockRoot);
 
+  const admissionStartedAt = dependencies.now();
   const metadata: LocalTestHolderMetadata = {
     schemaVersion: 1,
     branch,
     tier: input.tier,
     worktree,
-    startedAt: new Date(dependencies.now()).toISOString(),
+    startedAt: new Date(admissionStartedAt).toISOString(),
   };
   const waitState = { observed: false };
   let lastReportMs: number | null = null;
@@ -215,18 +216,51 @@ export async function withLocalHeavyTestAdmission<T>(
   const unregisterExitCleanup = dependencies.registerExitCleanup(handle);
   let heartbeatActive = true;
   let terminationRequested = false;
+  let leaseConfirmedUntil = handle.leaseUntil ?? admissionStartedAt + LEASE_DURATION_MS;
+  const terminateController = (message: string): void => {
+    if (!heartbeatActive || terminationRequested) return;
+    terminationRequested = true;
+    dependencies.writeLine(message);
+    dependencies.terminateProcess();
+  };
+  const cannotSafelyRetry = (): boolean => (
+    dependencies.now() + LEASE_RENEW_INTERVAL_MS >= leaseConfirmedUntil
+  );
   const cancelHeartbeat = dependencies.scheduleEvery(() => {
+    const renewalStartedAt = dependencies.now();
     void dependencies.renewLock(handle, LEASE_DURATION_MS)
       .then((result) => {
-        if (!heartbeatActive || result !== "ownership-lost" || terminationRequested) return;
-        terminationRequested = true;
-        dependencies.writeLine(
-          "Local heavy-test lock ownership was lost; stopping the admitted test controller.",
-        );
-        dependencies.terminateProcess();
+        if (!heartbeatActive) return;
+        if (result === "renewed") {
+          leaseConfirmedUntil = Math.max(
+            leaseConfirmedUntil,
+            renewalStartedAt + LEASE_DURATION_MS,
+          );
+          return;
+        }
+        if (result === "ownership-lost") {
+          terminateController(
+            "Local heavy-test lock ownership was lost; stopping the admitted test controller.",
+          );
+          return;
+        }
+        if (cannotSafelyRetry()) {
+          terminateController(
+            "Local heavy-test lock could not be renewed before its last confirmed lease deadline; "
+            + "stopping the admitted test controller.",
+          );
+        }
       })
       .catch((error: unknown) => {
+        if (!heartbeatActive) return;
         const detail = error instanceof Error ? error.message : String(error);
+        if (cannotSafelyRetry()) {
+          terminateController(
+            `Unable to renew the local heavy-test lock before its last confirmed lease deadline: ${detail}; `
+            + "stopping the admitted test controller.",
+          );
+          return;
+        }
         dependencies.writeLine(`Unable to renew the local heavy-test lock heartbeat: ${detail}`);
       });
   }, LEASE_RENEW_INTERVAL_MS);

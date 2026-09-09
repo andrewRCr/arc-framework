@@ -208,6 +208,138 @@ describe("withLocalHeavyTestAdmission", () => {
     );
   });
 
+  it("stops before the last confirmed lease expires when renewal errors persist", async () => {
+    let clock = 0;
+    let heartbeat: (() => void) | undefined;
+    let terminationRequests = 0;
+    const lines: string[] = [];
+    const renewLock = vi.fn(async () => await Promise.reject(new Error("write denied")));
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
+      async () => {
+        clock = 10_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(lines).toContain(
+          "Unable to renew the local heavy-test lock heartbeat: write denied",
+        ));
+        expect(terminationRequests).toBe(0);
+
+        clock = 110_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(terminationRequests).toBe(1));
+        expect(lines).toContain(
+          "Unable to renew the local heavy-test lock before its last confirmed lease deadline: write denied; "
+          + "stopping the admitted test controller.",
+        );
+      },
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: vi.fn(async (_command, args) => gitResult(args)),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock,
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          heartbeat = callback;
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: (line) => lines.push(line),
+      },
+    );
+  });
+
+  it("stops before the last confirmed lease expires when retry results persist", async () => {
+    let clock = 0;
+    let heartbeat: (() => void) | undefined;
+    let terminationRequests = 0;
+    const lines: string[] = [];
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
+      async () => {
+        clock = 110_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(terminationRequests).toBe(1));
+      },
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: vi.fn(async (_command, args) => gitResult(args)),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock: vi.fn(async () => "retry" as const),
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          heartbeat = callback;
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: (line) => lines.push(line),
+      },
+    );
+
+    expect(lines).toContain(
+      "Local heavy-test lock could not be renewed before its last confirmed lease deadline; "
+      + "stopping the admitted test controller.",
+    );
+  });
+
+  it("uses the acquired lease deadline after waiting for the shared slot", async () => {
+    let clock = 0;
+    let heartbeat: (() => void) | undefined;
+    let terminationRequests = 0;
+    const renewLock = vi.fn(async () => "retry" as const);
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
+      async () => {
+        clock = 190_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(renewLock).toHaveBeenCalledTimes(1));
+        expect(terminationRequests).toBe(0);
+
+        clock = 290_000;
+        heartbeat?.();
+        await vi.waitFor(() => expect(terminationRequests).toBe(1));
+      },
+      {
+        acquireLock: vi.fn(async () => {
+          clock = 180_000;
+          return {
+            path: "/repo/.git/lock",
+            pid: 42,
+            token: "ours",
+            leaseUntil: 300_000,
+          };
+        }),
+        git: vi.fn(async (_command, args) => gitResult(args)),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock,
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          heartbeat = callback;
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: () => {},
+      },
+    );
+  });
+
   it.each([
     ["CI", { CI: "true" }],
     ["the deliberate-contention override", { [LOCAL_TEST_CONCURRENCY_OVERRIDE]: "1" }],

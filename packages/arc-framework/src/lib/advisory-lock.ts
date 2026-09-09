@@ -90,6 +90,8 @@ export interface AdvisoryLockHandle {
   readonly pid: number;
   /** The acquirer's per-acquisition token — release requires it to match the holder. */
   readonly token: string;
+  /** Initial renewable-lease deadline, when acquisition uses a lease. */
+  readonly leaseUntil?: number;
 }
 
 /** Liveness probe: whether a process with this pid is currently running. */
@@ -226,7 +228,12 @@ export async function acquireAdvisoryLock(
         ...(processScope === undefined ? {} : { processScope }),
         ...(processInstance === undefined ? {} : { processInstance }),
       }));
-      return { path: lockPath, pid, token };
+      return {
+        path: lockPath,
+        pid,
+        token,
+        ...(leaseDurationMs === undefined ? {} : { leaseUntil: acquiredAt + leaseDurationMs }),
+      };
     } catch (err) {
       if (!isEexistError(err)) throw err;
     }
