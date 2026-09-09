@@ -179,6 +179,43 @@ describe("scanTaskListSegmentation", () => {
     }]);
   });
 
+  it("attributes a parent retiring-phase reference after a subtask to the parent", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-example.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build temporary scaffolding**",
+        "",
+        "- _Goal:_ Build and later retire the parent-owned scaffolding.",
+        "",
+        "    - `[ ]` **1.1.a Build one supporting part**",
+        "",
+        "        - The supporting part is complete.",
+        "",
+        "    - _Retired in:_ Phase cleanup",
+        "",
+        "## **Phase cleanup:** Remove scaffolding",
+        "",
+        "### `[ ]` **2.1 Remove temporary scaffolding**",
+        "",
+        "## **Phase final:** Verification",
+        "",
+        "### `[ ]` **3.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.retiringPhaseReferences).toEqual([{
+      taskId: "1.1",
+      line: 15,
+      phaseId: "cleanup",
+    }]);
+  });
+
   it("leaves task lists authored before the segmentation contract unsegmented", () => {
     const result = scanTaskListSegmentation({
       path: "tasks-legacy.md",
@@ -188,6 +225,31 @@ describe("scanTaskListSegmentation", () => {
         "### `[ ]` **1.1 Build the feature**",
         "",
         "    - _Retired in:_ Phase 2",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result).toEqual({
+      segments: [],
+      retiringPhaseReferences: [],
+      diagnostics: [],
+    });
+  });
+
+  it("leaves duplicate phase ids inert in an unsegmented legacy task list", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-legacy.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "### `[ ]` **1.1 Build the feature**",
+        "",
+        "## **Phase 1:** Extend",
+        "",
+        "### `[ ]` **1.2 Extend the feature**",
         "",
         "## **Phase 2:** Verification",
         "",
