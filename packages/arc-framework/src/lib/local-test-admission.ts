@@ -226,7 +226,18 @@ export async function withLocalHeavyTestAdmission<T>(
   const cannotSafelyRetry = (): boolean => (
     dependencies.now() + LEASE_RENEW_INTERVAL_MS >= leaseConfirmedUntil
   );
+  const terminateBeforeLeaseExpiry = (): void => {
+    terminateController(
+      "Local heavy-test lock could not be renewed before its last confirmed lease deadline; "
+      + "stopping the admitted test controller.",
+    );
+  };
   const cancelHeartbeat = dependencies.scheduleEvery(() => {
+    if (!heartbeatActive) return;
+    if (cannotSafelyRetry()) {
+      terminateBeforeLeaseExpiry();
+      return;
+    }
     const renewalStartedAt = dependencies.now();
     void dependencies.renewLock(handle, LEASE_DURATION_MS)
       .then((result) => {
@@ -245,10 +256,7 @@ export async function withLocalHeavyTestAdmission<T>(
           return;
         }
         if (cannotSafelyRetry()) {
-          terminateController(
-            "Local heavy-test lock could not be renewed before its last confirmed lease deadline; "
-            + "stopping the admitted test controller.",
-          );
+          terminateBeforeLeaseExpiry();
         }
       })
       .catch((error: unknown) => {

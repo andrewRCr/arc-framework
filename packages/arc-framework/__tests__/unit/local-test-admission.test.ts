@@ -213,7 +213,13 @@ describe("withLocalHeavyTestAdmission", () => {
     let heartbeat: (() => void) | undefined;
     let terminationRequests = 0;
     const lines: string[] = [];
-    const renewLock = vi.fn(async () => await Promise.reject(new Error("write denied")));
+    let rejectPendingRenewal: ((reason: unknown) => void) | undefined;
+    const pendingRenewal = new Promise<"renewed">((_resolve, reject) => {
+      rejectPendingRenewal = reject;
+    });
+    const renewLock = vi.fn()
+      .mockRejectedValueOnce(new Error("write denied"))
+      .mockReturnValueOnce(pendingRenewal);
 
     await withLocalHeavyTestAdmission(
       { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
@@ -225,8 +231,11 @@ describe("withLocalHeavyTestAdmission", () => {
         ));
         expect(terminationRequests).toBe(0);
 
-        clock = 110_000;
+        clock = 90_000;
         heartbeat?.();
+        await vi.waitFor(() => expect(renewLock).toHaveBeenCalledTimes(2));
+        clock = 110_000;
+        rejectPendingRenewal?.(new Error("write denied"));
         await vi.waitFor(() => expect(terminationRequests).toBe(1));
         expect(lines).toContain(
           "Unable to renew the local heavy-test lock before its last confirmed lease deadline: write denied; "
@@ -337,6 +346,54 @@ describe("withLocalHeavyTestAdmission", () => {
         },
         writeLine: () => {},
       },
+    );
+  });
+
+  it("stops before lease expiry while a renewal remains pending", async () => {
+    let clock = 0;
+    let terminationRequests = 0;
+    const scheduled: Array<() => void> = [];
+    const lines: string[] = [];
+    const renewLock = vi.fn(() => new Promise<"renewed">(() => {}));
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" },
+      async () => {
+        scheduled[0]?.();
+        await vi.waitFor(() => expect(renewLock).toHaveBeenCalledOnce());
+
+        clock = 110_000;
+        scheduled[0]?.();
+        expect(terminationRequests).toBe(1);
+      },
+      {
+        acquireLock: vi.fn(async () => ({
+          path: "/repo/.git/lock",
+          pid: 42,
+          token: "ours",
+          leaseUntil: 120_000,
+        })),
+        git: vi.fn(async (_command, args) => gitResult(args)),
+        mkdir: vi.fn(async () => undefined),
+        now: () => clock,
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock,
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          scheduled.push(callback);
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: (line) => lines.push(line),
+      },
+    );
+
+    expect(lines).toContain(
+      "Local heavy-test lock could not be renewed before its last confirmed lease deadline; "
+      + "stopping the admitted test controller.",
     );
   });
 
