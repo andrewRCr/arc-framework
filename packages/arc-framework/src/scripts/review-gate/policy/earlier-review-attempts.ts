@@ -144,7 +144,7 @@ export function queryEarlierReviewAttempts(
           ...(hosted.vehicle === undefined ? {} : { priorVehicle: hosted.vehicle }),
           reviewTarget: hosted.reviewTarget,
           requirement: hosted.requirement,
-          findings: hosted.findings,
+          findings: hosted.sealedResult?.findings ?? [],
         }));
         continue;
       }

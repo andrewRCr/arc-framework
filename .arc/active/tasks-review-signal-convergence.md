@@ -245,34 +245,25 @@ _Purpose:_ Close immutable hosted publication and replay with every direct reade
 proposal and approval commands. Existing disposition shapes can acquire stronger source binding before their grade
 migration.
 
-### `[ ]` **3.1 Seal hosted evidence through publisher, writers, readers, and await replay**
+### `[x]` **3.1 Seal hosted evidence through publisher, writers, readers, and await replay**
 
 - _Goal:_ Hosted terminal content is immutable, and replay returns it before observation even after settlement.
 
-- _Note:_ Spec § 5 One read contract; SC 7, 8, 11, and 17.
+    - `[x]` **3.1.a Close the strict sealed-snapshot graph**
 
-- _Approach:_ Keep schema, publisher, terminal writers, direct readers, and their fixtures in one coupled parent. Use
-  `operation-state-schema.ts`, the existing operation publisher, lane progress, and hosted await composition.
+        - Hosted clean and findings results now seal one canonical identity over their admission, acknowledged handle,
+          target, coverage, review URL, and ordered findings. Settlement remains mutable outside that snapshot, and all
+          terminal writers, direct readers, and fixtures consume the sealed result.
 
-    - `[ ]` **3.1.a Close the strict sealed-snapshot graph**
+    - `[x]` **3.1.b Enforce publisher transitions and replay before observation**
 
-        - Build `test-first` (one behavior at a time):
+        - The operation publisher now refuses hosted admission or seal mutation and disappearance, while canonical
+          attempt identities and unique admissions close direct schema-valid rewrites. Equal concurrent publication and
+          settled replay return the current winner without replacing newer settlement, counts, or sibling attempts;
+          hosted await returns the stored result and source reference before configuration or provider observation.
 
-            - pending-to-terminal sealing, canonical digest fields, original clean/findings content, and mutable
-              settlement exclusion. Move findings rather than dual-writing them. Migrate all terminal writers and direct
-              readers, including response and reservation/earlier-attempt projections.
-
-    - `[ ]` **3.1.b Enforce publisher transitions and replay before observation**
-
-        - Build `test-first` (one behavior at a time):
-
-            - immutable admission, equal concurrent writes, conflicting content, forbidden disappearance, and settled
-              replay. Await resolves stored admission and returns sealed source references without provider polling,
-              current-config derivation, count advancement, or operational-state regression.
-
-            - Equal sealed evidence remains idempotent when progress timestamps or settlement differ. On version
-              conflict, reread the winner and preserve its current settlement, other attempts, and counts; do not
-              require whole-record equality or replace newer progress with the losing snapshot.
+- _Outcome:_ Hosted terminal authority is now one immutable producer snapshot across persistence, settlement, and public
+  replay, with mutable progress preserved independently around it.
 
 ### `[ ]` **3.2 Compose immutable source reads and bind proposals to exact producer content**
 

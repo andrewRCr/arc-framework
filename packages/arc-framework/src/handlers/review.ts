@@ -204,12 +204,11 @@ import { resolveHostedAwaitTiming } from "../scripts/review-gate/hosted/await-co
 import {
   acknowledgeHostedRequest,
   hostedLaneAttemptId,
-  readHostedAcknowledgedRequest,
   readHostedRequestAdmissionReplay,
   readLaneProgress,
-  recordHostedAwaitAttempt,
   recordHostedRequestAdmission,
   recordHostedRequestConclusion,
+  resolveHostedAwaitResult,
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
 import {
@@ -2897,35 +2896,42 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
     awaitResult: async (input) => {
       if (publisher === null || root === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedAwaitEnvelopeSchema.parse(input);
-      const settings = (await readConfigSettings(root)).settings;
-      const timing = resolveHostedAwaitTiming(request, settings);
       const store = new LocalReviewOperationStateStore(publisher);
       const repositoryId = await resolveRepositoryIdentity(publisher);
       if (request.handle.admission.repositoryId !== repositoryId) {
         throw new Error("Hosted await does not match the current repository.");
       }
-      await readHostedAcknowledgedRequest(store, request.handle);
-      const result = await awaitHostedReview(timing.request, {
-        observers,
-        attentionAfterMs: timing.attentionAfterMs,
-        clock: {
-          now: () => Date.now(),
-          sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-        },
-      });
-      const progress = await recordHostedAwaitAttempt(store, {
+      const resolved = await resolveHostedAwaitResult(store, {
         repositoryId,
-        result,
-        now: new Date().toISOString(),
+        handle: request.handle,
+        observe: async () => {
+          const settings = (await readConfigSettings(root)).settings;
+          const timing = resolveHostedAwaitTiming(request, settings);
+          return await awaitHostedReview(timing.request, {
+            observers,
+            attentionAfterMs: timing.attentionAfterMs,
+            clock: {
+              now: () => Date.now(),
+              sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+            },
+          });
+        },
+        now: () => new Date().toISOString(),
       });
-      return result.state === "findings"
+      const result = resolved.result;
+      if ((result.state === "clean" || result.state === "findings")
+        && resolved.hostedResultId === null) {
+        throw new Error("Hosted terminal result was not durably sealed.");
+      }
+      return result.state === "clean" || result.state === "findings"
         ? {
             ...result,
             responseSourceRef: bindReviewSourceReference({
               kind: "hosted",
-              operationId: progress.operationId,
+              operationId: resolved.progress.operationId,
               durableRef: hostedLaneAttemptId(result.handle),
             }),
+            hostedResultId: resolved.hostedResultId,
           }
         : result;
     },

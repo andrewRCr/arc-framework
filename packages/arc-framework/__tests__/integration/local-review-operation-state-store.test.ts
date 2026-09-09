@@ -17,6 +17,19 @@ import {
 import {
   LocalReviewOperationStateStore,
 } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import {
+  acknowledgeHostedRequest,
+  bindHostedAttemptDisposition,
+  hostedLaneAttemptId,
+  recordHostedAwaitAttempt,
+  recordHostedRequestAdmission,
+  readHostedAwaitReplay,
+  resolveHostedAwaitResult,
+} from "../../src/scripts/review-gate/lane-progress.js";
+import {
+  createHostedHandleFixture,
+  createHostedTerminalAttemptFixture,
+} from "../fixtures/hosted-review.js";
 
 const roots: string[] = [];
 const digest = (value: string): string => canonicalDigest({ value });
@@ -49,6 +62,50 @@ async function fixture() {
     sourceBindingId: digest("source-binding"),
   };
   return { root, commonDir, exec, store, state };
+}
+
+async function acknowledgedHostedFixture() {
+  const records = await fixture();
+  const handle = createHostedHandleFixture();
+  const decision = await recordHostedRequestAdmission(records.store, {
+    repositoryId: handle.admission.repositoryId,
+    lineage: handle.admission.lineage,
+    request: {
+      schemaVersion: 1,
+      target: handle.target,
+      provider: handle.provider,
+      coverage: handle.requestedCoverage,
+    },
+    reviewTarget: handle.admission.reviewTarget,
+    requirement: handle.admission.requirement,
+    actorIdentity: handle.admission.actorIdentity,
+    authorizeCapacity: async () => undefined,
+    now: "2026-08-15T11:59:00Z",
+  });
+  if (decision.state !== "admitted") throw new Error("expected hosted admission");
+  await acknowledgeHostedRequest(records.store, {
+    admission: decision.admission,
+    handle,
+    now: "2026-08-15T11:59:30Z",
+  });
+  return { ...records, handle };
+}
+
+async function sealedHostedFixture() {
+  const records = await acknowledgedHostedFixture();
+  const state = await recordHostedAwaitAttempt(records.store, {
+    repositoryId: records.handle.admission.repositoryId,
+    result: {
+      schemaVersion: 1,
+      mode: "review-hosted-await",
+      handle: records.handle,
+      state: "clean",
+      nextAction: "complete",
+      reviewUrl: "https://example.invalid/review",
+    },
+    now: "2026-08-15T12:00:00Z",
+  });
+  return { ...records, state };
 }
 
 describe("local review operation state authority", () => {
@@ -143,6 +200,140 @@ describe("local review operation state authority", () => {
       outcome: "clean",
     }, 0)).rejects.toThrow(/version-conflict/u);
     await expect(records.store.readOperation(records.state.operationId)).resolves.toEqual(before);
+  });
+
+  it("rejects a schema-valid rewrite that removes sealed hosted evidence", async () => {
+    const records = await sealedHostedFixture();
+    const current = await records.store.readOperation(records.state.operationId);
+
+    await expect(records.store.publishOperation({
+      ...records.state,
+      updatedAt: "2026-08-15T12:01:00Z",
+      completedPasses: 0,
+      attempts: [],
+    }, current.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.state.operationId)).resolves.toEqual(current);
+  });
+
+  it("rejects a schema-valid rewrite that replaces sealed hosted content", async () => {
+    const records = await sealedHostedFixture();
+    const current = await records.store.readOperation(records.state.operationId);
+    const attempt = records.state.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("expected hosted terminal attempt");
+
+    await expect(records.store.publishOperation({
+      ...records.state,
+      updatedAt: "2026-08-15T12:01:00Z",
+      attempts: [{
+        ...attempt,
+        hosted: createHostedTerminalAttemptFixture({
+          admission: attempt.hosted.admission,
+          outcome: "clean",
+          reviewUrl: "https://example.invalid/replaced-review",
+        }).hosted,
+      }],
+    }, current.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.state.operationId)).resolves.toEqual(current);
+  });
+
+  it("replays concurrent equal hosted evidence despite different progress timestamps", async () => {
+    const records = await acknowledgedHostedFixture();
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "clean" as const,
+      nextAction: "complete" as const,
+      reviewUrl: "https://example.invalid/review",
+    };
+
+    const [first, second] = await Promise.all([
+      recordHostedAwaitAttempt(records.store, {
+        repositoryId: records.handle.admission.repositoryId,
+        result,
+        now: "2026-08-15T12:00:00Z",
+      }),
+      recordHostedAwaitAttempt(records.store, {
+        repositoryId: records.handle.admission.repositoryId,
+        result,
+        now: "2026-08-15T12:00:01Z",
+      }),
+    ]);
+
+    expect(second).toEqual(first);
+    expect(first.attempts[0]?.hosted?.sealedResult?.hostedResultId)
+      .toMatch(/^sha256:[0-9a-f]{64}$/u);
+    await expect(records.store.readOperation(first.operationId)).resolves.toEqual({
+      version: 3,
+      state: first,
+    });
+  });
+
+  it("replays equal sealed evidence without replacing later settlement progress", async () => {
+    const records = await acknowledgedHostedFixture();
+    const finding = {
+      findingId: "body-1",
+      origin: "review-body" as const,
+      reviewId: "review-1",
+      fingerprint: "body-fingerprint",
+      settlement: "not-applicable" as const,
+      severity: "minor" as const,
+      locus: "pull-request review body",
+      url: "https://example.invalid/review-1",
+      body: "Body finding",
+    };
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "findings" as const,
+      nextAction: "triage" as const,
+      reviewUrl: "https://example.invalid/review",
+      findings: [finding],
+    };
+    const sealed = await recordHostedAwaitAttempt(records.store, {
+      repositoryId: records.handle.admission.repositoryId,
+      result,
+      now: "2026-08-15T12:00:00Z",
+    });
+    const settled = await bindHostedAttemptDisposition(records.store, {
+      operationId: sealed.operationId,
+      attemptId: hostedLaneAttemptId(records.handle),
+      dispositionSetId: digest("disposition"),
+      findingIds: [finding.findingId],
+      noHostSettlementFindingIds: [finding.findingId],
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    await expect(recordHostedAwaitAttempt(records.store, {
+      repositoryId: records.handle.admission.repositoryId,
+      result,
+      now: "2026-08-15T12:02:00Z",
+    })).resolves.toEqual(settled);
+    await expect(records.store.readOperation(settled.operationId)).resolves.toEqual({
+      version: 4,
+      state: settled,
+    });
+    await expect(readHostedAwaitReplay(records.store, records.handle)).resolves.toEqual({
+      progress: settled,
+      hostedResultId: settled.attempts[0]?.hosted?.sealedResult?.hostedResultId,
+      result,
+    });
+    let observations = 0;
+    await expect(resolveHostedAwaitResult(records.store, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe: async () => {
+        observations += 1;
+        throw new Error("provider observation must not run for sealed replay");
+      },
+      now: () => "2026-08-15T12:03:00Z",
+    })).resolves.toEqual({
+      progress: settled,
+      hostedResultId: settled.attempts[0]?.hosted?.sealedResult?.hostedResultId,
+      result,
+    });
+    expect(observations).toBe(0);
   });
 
   it("rejects a same-record operation identity mismatch without overwriting it", async () => {

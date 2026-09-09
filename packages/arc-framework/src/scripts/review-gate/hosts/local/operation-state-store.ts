@@ -62,6 +62,69 @@ function parseRecord(raw: string, operationId: string): ReviewOperationStoreReco
   return parsed;
 }
 
+type LaneAttempt = Extract<ReviewOperationState, { kind: "lane-progress" }>["attempts"][number];
+
+function immutableHostedAttemptProjection(attempt: LaneAttempt): unknown {
+  const hosted = attempt.hosted;
+  if (hosted === undefined) return null;
+  return {
+    logicalPass: attempt.logicalPass,
+    retryGeneration: attempt.retryGeneration,
+    changeRequestId: attempt.changeRequestId,
+    headSha: attempt.headSha,
+    sourceId: attempt.sourceId,
+    admission: hosted.admission,
+    target: hosted.target,
+    requestedCoverage: hosted.requestedCoverage,
+    ...(hosted.vehicle === undefined ? {} : { vehicle: hosted.vehicle }),
+    reviewTarget: hosted.reviewTarget,
+    requirement: hosted.requirement,
+    actorIdentity: hosted.actorIdentity,
+  };
+}
+
+function assertHostedTransitions(
+  current: ReviewOperationState,
+  next: ReviewOperationState,
+): void {
+  if (current.kind !== "lane-progress") return;
+  const currentHosted = current.attempts.filter((attempt) => attempt.hosted !== undefined);
+  if (currentHosted.length === 0) return;
+  if (next.kind !== "lane-progress") {
+    throw new LocalOperationStateStoreError("immutable-hosted-transition");
+  }
+  for (const previous of currentHosted) {
+    const previousHosted = previous.hosted;
+    if (previousHosted === undefined) continue;
+    const candidates = next.attempts.filter((attempt) => (
+      attempt.hosted?.admission.admissionId === previousHosted.admission.admissionId
+    ));
+    const candidate = candidates[0];
+    if (candidates.length !== 1 || candidate?.hosted === undefined
+      || canonicalize(immutableHostedAttemptProjection(previous))
+        !== canonicalize(immutableHostedAttemptProjection(candidate))) {
+      throw new LocalOperationStateStoreError("immutable-hosted-transition");
+    }
+    const hosted = candidate.hosted;
+    if (previousHosted.handle !== undefined
+      && canonicalize(previousHosted.handle) !== canonicalize(hosted.handle ?? null)) {
+      throw new LocalOperationStateStoreError("immutable-hosted-transition");
+    }
+    if (previousHosted.effectiveCoverage !== null
+      && previousHosted.effectiveCoverage !== hosted.effectiveCoverage) {
+      throw new LocalOperationStateStoreError("immutable-hosted-transition");
+    }
+    if (previousHosted.requestFailureReason !== null
+      && previousHosted.requestFailureReason !== hosted.requestFailureReason) {
+      throw new LocalOperationStateStoreError("immutable-hosted-transition");
+    }
+    if (previousHosted.sealedResult !== undefined
+      && canonicalize(previousHosted.sealedResult) !== canonicalize(hosted.sealedResult ?? null)) {
+      throw new LocalOperationStateStoreError("immutable-hosted-transition");
+    }
+  }
+}
+
 /** Version-checked operation store backed by the repository's non-evidentiary Git-common namespace. */
 export class LocalReviewOperationStateStore implements
   ReviewOperationStateStore,
@@ -128,6 +191,7 @@ export class LocalReviewOperationStateStore implements
         if (current.version !== expectedVersion) {
           throw new LocalOperationStateStoreError("version-conflict");
         }
+        assertHostedTransitions(current.state, canonicalState);
         const next = ReviewOperationStoreRecordSchema.parse({
           ...current,
           version: current.version + 1,

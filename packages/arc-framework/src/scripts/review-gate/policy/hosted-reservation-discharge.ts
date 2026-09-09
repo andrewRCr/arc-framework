@@ -439,7 +439,7 @@ export async function projectHostedReservationDischarge(input: {
           };
         }
         if (attempt.hosted === undefined
-          || attempt.hosted.findings.length === 0
+          || attempt.hosted.sealedResult?.outcome !== "findings"
           || input.bindCurrentAttemptRef === undefined) return { sourceId };
         return {
           sourceId,
@@ -450,7 +450,7 @@ export async function projectHostedReservationDischarge(input: {
               kind: "hosted",
               attemptRef: input.bindCurrentAttemptRef(attempt.attemptId),
             },
-            findings: attempt.hosted.findings.map((finding) => ({
+            findings: attempt.hosted.sealedResult.findings.map((finding) => ({
               findingId: finding.findingId,
               severity: finding.severity,
               locus: finding.locus,

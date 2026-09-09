@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
+
 import {
   createReviewRequirement,
   createReviewTarget,
@@ -420,6 +422,10 @@ describe("local review preparation request", () => {
           requirement,
           actorIdentity: "github-user-1",
         });
+        const terminal = createHostedTerminalAttemptFixture({
+          admission,
+          outcome: "clean",
+        });
         await recordLaneAttempt(store, {
           lane: "standard",
           repositoryId: state.repositoryId,
@@ -428,23 +434,11 @@ describe("local review preparation request", () => {
           lineage: state.lineage,
           logicalPass: 1,
           retryGeneration: 0,
-          attemptId: admission.admissionId,
+          attemptId: terminal.attemptId,
           sourceId: admission.sourceId,
           outcome: "clean",
           consumedPass: true,
-          hosted: {
-            admission,
-            target: hostedTarget,
-            requestedCoverage: admission.requestedCoverage,
-            effectiveCoverage: "complete",
-            reviewTarget: state.target,
-            requirement,
-            actorIdentity: admission.actorIdentity,
-            requestFailureReason: null,
-            findings: [],
-            dispositionSetId: null,
-            settledFindingIds: [],
-          },
+          hosted: terminal.hosted,
           now: "2026-08-06T17:00:30Z",
         });
         return result;

@@ -125,7 +125,7 @@ export function projectHostedReservationPolicyProgress(input: {
           outcome: attempt.outcome,
           requestedCoverage: coverageBinding.requestedCoverage,
           effectiveCoverage: coverageBinding.effectiveCoverage,
-          findingCount: hosted?.findings.length ?? 0,
+          findingCount: hosted?.sealedResult?.findings.length ?? 0,
           settledFindingCount: hosted?.settledFindingIds.length ?? 0,
         },
       });

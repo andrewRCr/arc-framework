@@ -4,10 +4,16 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  createHostedSealedResult,
+  type LaneProgressState,
+} from "../../src/scripts/review-gate/core/operation-state-schema.js";
+import type { HostedFinding } from "../../src/scripts/review-gate/hosted/await.js";
 import type { LaneSubjectLineage } from
   "../../src/scripts/review-gate/core/lane-admission.js";
 import {
   createHostedAdmission,
+  hostedLaneAttemptId,
   type HostedArtifact,
   type HostedProgressVehicle,
   type HostedProviderId,
@@ -112,4 +118,66 @@ export function createHostedHandleFixture(
     ...(input.vehicle === undefined ? {} : { vehicle: input.vehicle }),
     admission,
   };
+}
+
+type HostedAttemptBinding = NonNullable<LaneProgressState["attempts"][number]["hosted"]>;
+
+/** Create one production-shaped hosted terminal attempt from an already-admitted producer. */
+export function createHostedTerminalAttemptFixture(input: {
+  readonly admission: HostedRequestHandle["admission"];
+  readonly effectiveCoverage?: HostedReviewCoverage;
+  readonly artifact?: HostedArtifact;
+  readonly outcome: "clean" | "findings";
+  readonly reviewUrl?: string;
+  readonly findings?: readonly HostedFinding[];
+  readonly dispositionSetId?: string | null;
+  readonly settledFindingIds?: readonly string[];
+}): { attemptId: string; hosted: HostedAttemptBinding } {
+  const effectiveCoverage = input.effectiveCoverage ?? input.admission.requestedCoverage;
+  const handle: HostedRequestHandle = {
+    schemaVersion: 1,
+    provider: input.admission.sourceId,
+    requestedCoverage: input.admission.requestedCoverage,
+    effectiveCoverage,
+    target: input.admission.target,
+    artifact: input.artifact ?? {
+      kind: "issue-comment",
+      id: "comment-1",
+      url: "https://example.invalid/comment-1",
+      createdAt: "2026-08-15T11:00:00Z",
+    },
+    ...(input.admission.vehicle === undefined ? {} : { vehicle: input.admission.vehicle }),
+    admission: input.admission,
+  };
+  const attemptId = hostedLaneAttemptId(handle);
+  const findings = [...input.findings ?? []];
+  const hosted = {
+    admission: input.admission,
+    handle,
+    target: input.admission.target,
+    requestedCoverage: input.admission.requestedCoverage,
+    effectiveCoverage,
+    ...(input.admission.vehicle?.kind === "delivery-member" ? { vehicle: input.admission.vehicle } : {}),
+    reviewTarget: input.admission.reviewTarget,
+    requirement: input.admission.requirement,
+    actorIdentity: input.admission.actorIdentity,
+    requestFailureReason: null,
+    sealedResult: createHostedSealedResult({
+      attemptId,
+      admission: input.admission,
+      handle,
+      target: input.admission.target,
+      requestedCoverage: input.admission.requestedCoverage,
+      effectiveCoverage,
+      ...(input.admission.vehicle?.kind === "delivery-member" ? { vehicle: input.admission.vehicle } : {}),
+      reviewTarget: input.admission.reviewTarget,
+      requirement: input.admission.requirement,
+      outcome: input.outcome,
+      reviewUrl: input.reviewUrl ?? "https://example.invalid/review",
+      findings,
+    }),
+    dispositionSetId: input.dispositionSetId ?? null,
+    settledFindingIds: [...input.settledFindingIds ?? []],
+  };
+  return { attemptId, hosted };
 }

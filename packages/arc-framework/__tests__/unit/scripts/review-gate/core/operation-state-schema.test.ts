@@ -21,6 +21,10 @@ import { createHostedAdmission } from
   "../../../../../src/scripts/review-gate/hosted/request.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
+import {
+  createHostedHandleFixture,
+  createHostedTerminalAttemptFixture,
+} from "../../../../fixtures/hosted-review.js";
 
 const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
@@ -495,7 +499,6 @@ describe("review operation state schemas", () => {
         requirement: hostedRequirement,
         actorIdentity: "reviewer-1",
         requestFailureReason: null,
-        findings: [],
         dispositionSetId: null,
         settledFindingIds: [],
       },
@@ -504,6 +507,64 @@ describe("review operation state schemas", () => {
       ...laneProgress,
       attempts: [hostedAttempt],
     })).toThrow(/hosted lane attempt/iu);
+  });
+
+  it("rejects an acknowledged hosted attempt whose identity is not derived from its handle", () => {
+    const handle = createHostedHandleFixture();
+    const terminal = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      artifact: handle.artifact,
+      outcome: "clean",
+    });
+    const { sealedResult: _sealedResult, ...hosted } = terminal.hosted;
+    void _sealedResult;
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      repositoryId: handle.admission.repositoryId,
+      lineage: handle.admission.lineage,
+      attempts: [{
+        ...laneProgress.attempts[0],
+        attemptId: "hosted/wrong-attempt",
+        logicalPass: handle.admission.logicalPass,
+        headSha: handle.target.headSha,
+        sourceId: handle.provider,
+        hosted,
+      }],
+    })).toThrow(/acknowledged hosted attempt identity/iu);
+  });
+
+  it("rejects duplicate hosted admissions even when both attempts are nonterminal", () => {
+    const handle = createHostedHandleFixture();
+    const hosted = {
+      admission: handle.admission,
+      target: handle.target,
+      requestedCoverage: handle.requestedCoverage,
+      effectiveCoverage: null,
+      reviewTarget: handle.admission.reviewTarget,
+      requirement: handle.admission.requirement,
+      actorIdentity: handle.admission.actorIdentity,
+      requestFailureReason: null,
+      dispositionSetId: null,
+      settledFindingIds: [],
+    };
+    const attempt = {
+      ...laneProgress.attempts[0],
+      attemptId: handle.admission.admissionId,
+      logicalPass: handle.admission.logicalPass,
+      headSha: handle.target.headSha,
+      sourceId: handle.provider,
+      outcome: "rate-limited" as const,
+      hosted,
+    };
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      repositoryId: handle.admission.repositoryId,
+      lineage: handle.admission.lineage,
+      attempts: [
+        attempt,
+        { ...attempt, outcome: "transient-unavailable" as const },
+      ],
+    })).toThrow(/hosted admission identities must be unique/iu);
   });
 
   it("rejects a source id the policy driver would refuse", () => {

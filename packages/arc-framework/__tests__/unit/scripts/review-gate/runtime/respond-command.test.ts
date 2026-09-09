@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
+
 import { canonicalDigest, canonicalize } from "../../../../../src/lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
@@ -481,7 +483,6 @@ function hostedResponseFixture(
   vehicle: LocalReviewState["vehicle"] = workUnitVehicle,
 ) {
   const records = fixture(vehicle);
-  const attemptId = "hosted/attempt-1";
   const operationId = "lane-progress/hosted-1";
   const hostedFinding = origin === "review-thread"
     ? {
@@ -550,6 +551,12 @@ function hostedResponseFixture(
     requirement,
     actorIdentity: "host-actor-1",
   });
+  const terminal = createHostedTerminalAttemptFixture({
+    admission,
+    outcome: "findings",
+    findings: [hostedFinding],
+  });
+  const { attemptId } = terminal;
   const operation = {
     schemaVersion: 1 as const,
     semanticsVersion: "review-operation/v1" as const,
@@ -569,20 +576,7 @@ function hostedResponseFixture(
       terminalProducer: true,
       sourceId: "codex-pr",
       outcome: "findings" as const,
-      hosted: {
-        admission,
-        target,
-        requestedCoverage: "complete" as const,
-        effectiveCoverage: "complete" as const,
-        reviewTarget: records.target,
-        ...(deliveryVehicle === undefined ? {} : { vehicle: deliveryVehicle }),
-        requirement,
-        actorIdentity: "host-actor-1",
-        requestFailureReason: null,
-        findings: [hostedFinding],
-        dispositionSetId: null,
-        settledFindingIds: [],
-      },
+      hosted: terminal.hosted,
     }],
   };
   const attemptRef = bindReviewSourceReference({ kind: "hosted", operationId, durableRef: attemptId });
@@ -869,7 +863,7 @@ describe("review response command", () => {
     const hosted = hostedResponseFixture("review-thread");
     const attempt = hosted.operation.attempts[0];
     if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
-    const reviewedFinding = attempt.hosted.findings[0];
+    const reviewedFinding = attempt.hosted.sealedResult?.findings[0];
     if (reviewedFinding?.origin !== "review-thread") throw new Error("missing hosted thread finding fixture");
     const deferredFinding = {
       ...reviewedFinding,
@@ -879,7 +873,12 @@ describe("review response command", () => {
       locus: "src/deferred.ts:9",
       url: "https://example.test/thread-2",
     };
-    attempt.hosted.findings.push(deferredFinding);
+    attempt.hosted = createHostedTerminalAttemptFixture({
+      admission: attempt.hosted.admission,
+      artifact: attempt.hosted.handle!.artifact,
+      outcome: "findings",
+      findings: [reviewedFinding, deferredFinding],
+    }).hosted;
     const deps = dependencies(hosted.records);
     deps.operationStore.readOperation = async () => ({ version: 1, state: hosted.operation });
     const disposition = approveDispositionState({

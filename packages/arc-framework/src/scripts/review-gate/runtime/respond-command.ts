@@ -517,12 +517,12 @@ async function resolveHostedSource(
     operationId: attempt.attemptId,
     repositoryId: persisted.state.repositoryId,
     target: attempt.hosted.reviewTarget,
-    findings: attempt.hosted.findings.map((finding) => ({
+    findings: attempt.hosted.sealedResult?.findings.map((finding) => ({
       findingId: finding.findingId,
       severity: finding.severity,
       locus: finding.locus,
       evidenceUrlOrId: finding.url,
-    })),
+    })) ?? [],
     sourceIdentity: attempt.sourceId,
     source: { kind: "hosted", attemptRef: request.attemptRef },
     dispositionContext: {
@@ -537,10 +537,10 @@ async function resolveHostedSource(
       attemptId: attempt.attemptId,
       ...(attempt.hosted.vehicle === undefined ? {} : { vehicle: attempt.hosted.vehicle }),
       target: attempt.hosted.target,
-      noHostSettlementFindingIds: attempt.hosted.findings
+      noHostSettlementFindingIds: (attempt.hosted.sealedResult?.findings ?? [])
         .filter(({ settlement }) => settlement === "not-applicable")
         .map(({ findingId }) => findingId),
-      hostSettlementFindingIds: attempt.hosted.findings
+      hostSettlementFindingIds: (attempt.hosted.sealedResult?.findings ?? [])
         .filter(({ settlement }) => settlement === "reply-and-resolve")
         .map(({ findingId }) => findingId),
       settled: attempt.outcome === "settled-findings",

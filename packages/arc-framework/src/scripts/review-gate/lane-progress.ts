@@ -2,10 +2,11 @@
 
 import { createHash } from "node:crypto";
 
-import { canonicalDigest, canonicalize } from "../../lib/kernel/index.js";
+import { canonicalize } from "../../lib/kernel/index.js";
 import { validateReviewReceipt } from "./core/gate-contract-v2.js";
 import type { ReviewReceiptV2 } from "./core/gate-contract-v2-schema.js";
 import {
+  createHostedSealedResult,
   LaneProgressStateSchema,
   type LocalReviewState,
   type LaneProgressState,
@@ -33,12 +34,58 @@ import {
   createHostedAdmission,
   hostedAdmissionMatchesRequest,
   hostedAwaitAction,
+  hostedLaneAttemptId,
   HostedRequestEnvelopeSchema,
 } from "./hosted/request.js";
+export { hostedLaneAttemptId } from "./hosted/request.js";
 import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
+
+function sealedHostedReplayMatches(current: LaneAttempt, proposed: LaneAttempt): boolean {
+  const currentHosted = current.hosted;
+  const proposedHosted = proposed.hosted;
+  if (currentHosted?.sealedResult === undefined || proposedHosted?.sealedResult === undefined
+    || currentHosted.sealedResult.hostedResultId !== proposedHosted.sealedResult.hostedResultId) {
+    return false;
+  }
+  return canonicalize({
+    attemptId: current.attemptId,
+    logicalPass: current.logicalPass,
+    retryGeneration: current.retryGeneration,
+    changeRequestId: current.changeRequestId,
+    headSha: current.headSha,
+    sourceId: current.sourceId,
+    chunkSeriesComplete: current.chunkSeriesComplete ?? null,
+    admission: currentHosted.admission,
+    handle: currentHosted.handle ?? null,
+    target: currentHosted.target,
+    requestedCoverage: currentHosted.requestedCoverage,
+    effectiveCoverage: currentHosted.effectiveCoverage,
+    vehicle: currentHosted.vehicle ?? null,
+    reviewTarget: currentHosted.reviewTarget,
+    requirement: currentHosted.requirement,
+    actorIdentity: currentHosted.actorIdentity,
+  }) === canonicalize({
+    attemptId: proposed.attemptId,
+    logicalPass: proposed.logicalPass,
+    retryGeneration: proposed.retryGeneration,
+    changeRequestId: proposed.changeRequestId,
+    headSha: proposed.headSha,
+    sourceId: proposed.sourceId,
+    chunkSeriesComplete: proposed.chunkSeriesComplete ?? null,
+    admission: proposedHosted.admission,
+    handle: proposedHosted.handle ?? null,
+    target: proposedHosted.target,
+    requestedCoverage: proposedHosted.requestedCoverage,
+    effectiveCoverage: proposedHosted.effectiveCoverage,
+    vehicle: proposedHosted.vehicle ?? null,
+    reviewTarget: proposedHosted.reviewTarget,
+    requirement: proposedHosted.requirement,
+    actorIdentity: proposedHosted.actorIdentity,
+  });
+}
 
 function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): boolean {
   const pendingHosted = pending.hosted;
@@ -71,7 +118,7 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
       });
   }
   if (pendingHosted === undefined || nextHosted === undefined
-    || pendingHosted.findings.length !== 0 || pendingHosted.dispositionSetId !== null
+    || pendingHosted.sealedResult !== undefined || pendingHosted.dispositionSetId !== null
     || pendingHosted.settledFindingIds.length !== 0) return false;
   return canonicalize({
     attemptId: pending.attemptId,
@@ -219,11 +266,6 @@ function countCompleteLogicalPasses(attempts: readonly LaneAttempt[]): number {
   )).map(({ logicalPass }) => logicalPass)).size;
 }
 
-/** Resolve the stable identity of one hosted request attempt. */
-export function hostedLaneAttemptId(handle: HostedRequestHandle): string {
-  return `hosted/${canonicalDigest(handle).slice("sha256:".length)}`;
-}
-
 /** Hosted await states that conclude an attempt, keyed to the driver's outcome vocabulary. */
 const HOSTED_AWAIT_OUTCOMES = {
   clean: "clean",
@@ -340,6 +382,10 @@ export async function recordLaneAttempt(
       ...(input.frontline === undefined ? {} : { frontline: input.frontline }),
     };
     if (replay !== undefined && canonicalize(replay) === canonicalize(attempt)) {
+      if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
+      return LaneProgressStateSchema.parse(existing);
+    }
+    if (replay !== undefined && sealedHostedReplayMatches(replay, attempt)) {
       if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
       return LaneProgressStateSchema.parse(existing);
     }
@@ -575,7 +621,6 @@ export async function recordHostedRequestAdmission(
         requirement: admission.requirement,
         actorIdentity: admission.actorIdentity,
         requestFailureReason: null,
-        findings: [],
         dispositionSetId: null,
         settledFindingIds: [],
       },
@@ -701,6 +746,79 @@ async function readHostedRequestProgress(
   return { progress, attempt };
 }
 
+/** Resolve an already-sealed hosted result before any provider observation. */
+export async function readHostedAwaitReplay(
+  store: ReviewOperationStateStore,
+  handle: HostedRequestHandle,
+): Promise<{
+  progress: LaneProgressState;
+  result: Extract<HostedAwaitResult, { state: "clean" | "findings" }>;
+  hostedResultId: string;
+} | null> {
+  const recorded = await readHostedRequestProgress(store, handle);
+  const sealedResult = recorded.attempt.hosted?.sealedResult;
+  if (sealedResult === undefined) return null;
+  const result = sealedResult.outcome === "clean"
+    ? {
+        schemaVersion: 1 as const,
+        mode: "review-hosted-await" as const,
+        handle,
+        state: "clean" as const,
+        nextAction: "complete" as const,
+        reviewUrl: sealedResult.reviewUrl,
+      }
+    : {
+        schemaVersion: 1 as const,
+        mode: "review-hosted-await" as const,
+        handle,
+        state: "findings" as const,
+        nextAction: "triage" as const,
+        reviewUrl: sealedResult.reviewUrl,
+        findings: sealedResult.findings,
+      };
+  return {
+    progress: recorded.progress,
+    result,
+    hostedResultId: sealedResult.hostedResultId,
+  };
+}
+
+/** Resolve sealed replay before invoking the callback that performs provider observation. */
+export async function resolveHostedAwaitResult(
+  store: ReviewOperationStateStore,
+  input: {
+    repositoryId: string;
+    handle: HostedRequestHandle;
+    observe(): Promise<HostedAwaitResult>;
+    now(): string;
+  },
+): Promise<{
+  progress: LaneProgressState;
+  result: HostedAwaitResult;
+  hostedResultId: string | null;
+}> {
+  if (input.handle.admission.repositoryId !== input.repositoryId) {
+    throw new Error("hosted await does not match its admitted repository");
+  }
+  const replay = await readHostedAwaitReplay(store, input.handle);
+  if (replay !== null) return replay;
+  await readHostedAcknowledgedRequest(store, input.handle);
+  const result = await input.observe();
+  const progress = await recordHostedAwaitAttempt(store, {
+    repositoryId: input.repositoryId,
+    result,
+    now: input.now(),
+  });
+  const sealedResult = progress.attempts.find(({ attemptId }) => (
+    attemptId === hostedLaneAttemptId(input.handle)
+  ))?.hosted?.sealedResult;
+  return {
+    progress,
+    result,
+    hostedResultId: sealedResult?.hostedResultId ?? null,
+  };
+}
+
 /**
  * Record one hosted await against its standard-lane progress.
  *
@@ -760,7 +878,24 @@ export async function recordHostedAwaitAttempt(
       actorIdentity: handle.admission.actorIdentity,
       requestFailureReason: outcome === "terminal-failure"
         && "reason" in input.result ? input.result.reason : null,
-      findings: input.result.state === "findings" ? input.result.findings : [],
+      ...((input.result.state === "clean" || input.result.state === "findings")
+        ? {
+            sealedResult: createHostedSealedResult({
+              attemptId: hostedLaneAttemptId(handle),
+              admission: handle.admission,
+              handle,
+              target: handle.target,
+              requestedCoverage: handle.requestedCoverage,
+              effectiveCoverage: handle.effectiveCoverage,
+              ...(handle.vehicle?.kind === "delivery-member" ? { vehicle: handle.vehicle } : {}),
+              reviewTarget: handle.admission.reviewTarget,
+              requirement: handle.admission.requirement,
+              outcome: input.result.state,
+              reviewUrl: input.result.reviewUrl,
+              findings: input.result.state === "findings" ? input.result.findings : [],
+            }),
+          }
+        : {}),
       dispositionSetId: null,
       settledFindingIds: [],
     },
@@ -862,7 +997,6 @@ export async function recordHostedRequestConclusion(
       requirement: admission.requirement,
       actorIdentity: admission.actorIdentity,
       requestFailureReason: result.state === "terminal-failure" ? result.reason : null,
-      findings: [],
       dispositionSetId: null,
       settledFindingIds: [],
     },
@@ -891,7 +1025,7 @@ export async function bindHostedAttemptDisposition(
   if (attempt?.outcome !== "findings" || attempt.hosted === undefined) {
     throw new Error("hosted lane findings attempt is unavailable");
   }
-  const recordedFindingIds = attempt.hosted.findings.map(({ findingId }) => findingId).sort();
+  const recordedFindingIds = attempt.hosted.sealedResult?.findings.map(({ findingId }) => findingId).sort() ?? [];
   if (canonicalize([...input.findingIds].sort()) !== canonicalize(recordedFindingIds)) {
     throw new Error("approved dispositions do not cover the hosted finding set");
   }
@@ -943,7 +1077,7 @@ export async function settleHostedAttemptFinding(
     || attempt.hosted === undefined
     || (attempt.outcome !== "findings" && attempt.outcome !== "settled-findings")
     || attempt.hosted.dispositionSetId !== input.dispositionSetId
-    || !attempt.hosted.findings.some(({ findingId }) => findingId === input.findingId)) {
+    || !attempt.hosted.sealedResult?.findings.some(({ findingId }) => findingId === input.findingId)) {
     throw new Error("hosted finding settlement does not match the approved lane attempt");
   }
   if (attempt.hosted.settledFindingIds.includes(input.findingId)) return state;
@@ -951,7 +1085,9 @@ export async function settleHostedAttemptFinding(
   const attempts = [...state.attempts];
   attempts[index] = {
     ...attempt,
-    outcome: settledFindingIds.length === attempt.hosted.findings.length ? "settled-findings" : "findings",
+    outcome: settledFindingIds.length === attempt.hosted.sealedResult.findings.length
+      ? "settled-findings"
+      : "findings",
     hosted: { ...attempt.hosted, settledFindingIds },
   };
   const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });

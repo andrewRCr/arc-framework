@@ -94,6 +94,7 @@ import {
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
 import type { MergeMethodResolveResult } from "../../src/scripts/review-gate/merge-method.js";
 import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
+import { createHostedTerminalAttemptFixture } from "../fixtures/hosted-review.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -1176,7 +1177,6 @@ describe("review-fix Candidate lineage", () => {
       initialAdmission: "automatic",
     });
     if (requirement === null) throw new Error("missing hosted requirement fixture");
-    const attemptId = "hosted/attempt-fix";
     const finding = {
       findingId: "finding-1",
       origin: "review-thread" as const,
@@ -1205,6 +1205,12 @@ describe("review-fix Candidate lineage", () => {
       requirement,
       actorIdentity: "test-user",
     });
+    const terminal = createHostedTerminalAttemptFixture({
+      admission,
+      outcome: "findings",
+      findings: [finding],
+    });
+    const { attemptId } = terminal;
     const operation = await recordLaneAttempt(operationStore, {
       lane: "standard",
       repositoryId,
@@ -1214,19 +1220,7 @@ describe("review-fix Candidate lineage", () => {
       sourceId: "codex-pr",
       outcome: "findings",
       consumedPass: true,
-      hosted: {
-        admission,
-        target: hostedTarget,
-        requestedCoverage: "complete",
-        effectiveCoverage: "complete",
-        reviewTarget: originTarget,
-        requirement,
-        actorIdentity: "test-user",
-        requestFailureReason: null,
-        findings: [finding],
-        dispositionSetId: null,
-        settledFindingIds: [],
-      },
+      hosted: terminal.hosted,
       now: "2026-08-19T12:00:00Z",
     });
     const source = {
@@ -1797,28 +1791,23 @@ describe("routed review obligation", () => {
       requirement,
       actorIdentity: "test-user",
     });
+    const terminal = createHostedTerminalAttemptFixture({
+      admission,
+      outcome: "findings",
+      findings: [finding],
+      dispositionSetId: canonicalDigest({ disposition: 1 }),
+      settledFindingIds: [finding.findingId],
+    });
     await recordLaneAttempt(new LocalReviewOperationStateStore(publisher), {
       lane: "standard",
       repositoryId,
       changeRequestId: "pull/42",
       headSha: approvedHead,
-      attemptId: "hosted-attempt-1",
+      attemptId: terminal.attemptId,
       sourceId: "codex-pr",
       outcome: "settled-findings",
       consumedPass: true,
-      hosted: {
-        admission,
-        target: hostedTarget,
-        requestedCoverage: "complete",
-        effectiveCoverage: "complete",
-        reviewTarget,
-        requirement,
-        actorIdentity: "test-user",
-        requestFailureReason: null,
-        findings: [finding],
-        dispositionSetId: canonicalDigest({ disposition: 1 }),
-        settledFindingIds: [finding.findingId],
-      },
+      hosted: terminal.hosted,
       now: "2026-08-16T12:00:00Z",
     });
 
@@ -1883,6 +1872,10 @@ describe("routed review obligation", () => {
       requirement,
       actorIdentity: "test-user",
     });
+    const terminal = createHostedTerminalAttemptFixture({
+      admission,
+      outcome: "clean",
+    });
     await recordLaneAttempt(operationStore, {
       lane: "standard",
       repositoryId,
@@ -1890,23 +1883,11 @@ describe("routed review obligation", () => {
       headSha: approvedHead,
       lineage: { kind: "candidate", candidateId: priorCandidateId },
       logicalPass: 2,
-      attemptId: "hosted-attempt-before-base-move",
+      attemptId: terminal.attemptId,
       sourceId: "codex-pr",
       outcome: "clean",
       consumedPass: true,
-      hosted: {
-        admission,
-        target: hostedTarget,
-        requestedCoverage: "complete",
-        effectiveCoverage: "complete",
-        reviewTarget,
-        requirement,
-        actorIdentity: "test-user",
-        requestFailureReason: null,
-        findings: [],
-        dispositionSetId: null,
-        settledFindingIds: [],
-      },
+      hosted: terminal.hosted,
       now: "2026-08-28T12:00:00Z",
     });
 

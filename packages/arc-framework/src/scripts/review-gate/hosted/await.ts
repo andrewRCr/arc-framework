@@ -127,6 +127,8 @@ export const HostedAwaitResultSchema = z.union([
     state: z.literal("clean"),
     nextAction: z.literal("complete"),
     reviewUrl: z.url(),
+    responseSourceRef: z.string().trim().min(1).optional(),
+    hostedResultId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
@@ -135,6 +137,7 @@ export const HostedAwaitResultSchema = z.union([
     reviewUrl: z.url(),
     findings: z.array(HostedFindingSchema).min(1),
     responseSourceRef: z.string().trim().min(1).optional(),
+    hostedResultId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,

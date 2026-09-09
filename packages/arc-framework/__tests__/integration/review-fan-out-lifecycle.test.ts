@@ -2460,7 +2460,17 @@ describe("hosted review fan-out lifecycle", () => {
     expect(terminal.output).toMatchObject({
       state: "clean",
       handle: requested.handle,
+      responseSourceRef: expect.stringMatching(/^arc-review-source:v1:hosted:/u),
+      hostedResultId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
     });
+    await writeFile(
+      join(harness.root, ".arc", "system", "arc-config.yml"),
+      "branch:\n  base: main\nreview.hosted_await_timeout_seconds: not-a-number\n",
+      "utf8",
+    );
+    const replay = await awaitThroughProductionHandler(harness, fakeBin, resumed.action);
+    expect(replay.exitCodes).toEqual([]);
+    expect(replay.output).toEqual(terminal.output);
     await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
       state: "review-required",
       nextAction: "review-hosted-request",

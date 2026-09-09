@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalize, type KernelRegistry } from "../../../lib/kernel/index.js";
+import { canonicalDigest, canonicalize, type KernelRegistry } from "../../../lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   validateReviewRequest,
@@ -24,6 +24,7 @@ import {
   HostedRequestHandleSchema,
   HostedReviewCoverageSchema,
   HostedTargetSchema,
+  hostedLaneAttemptId,
   hostedRequestHandleMatchesProgress,
 } from "../hosted/request.js";
 import { DeliveryLocalReviewAdmissionSchema } from "../policy/delivery-local-review-admission.js";
@@ -194,6 +195,70 @@ const LaneAttemptOutcomeSchema = z.enum([
   "source-unbound",
   "terminal-failure",
 ]);
+
+export const HostedSealedResultSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  outcome: z.enum(["clean", "findings"]),
+  reviewUrl: z.url(),
+  findings: z.array(HostedFindingSchema),
+  hostedResultId: CanonicalDigestSchema,
+}).superRefine((result, context) => {
+  if ((result.outcome === "clean") !== (result.findings.length === 0)) {
+    context.addIssue({
+      code: "custom",
+      path: ["findings"],
+      message: "hosted sealed result findings must exactly match its original outcome",
+    });
+  }
+  const findingIds = result.findings.map(({ findingId }) => findingId);
+  if (new Set(findingIds).size !== findingIds.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["findings"],
+      message: "hosted sealed result finding IDs must be unique",
+    });
+  }
+});
+export type HostedSealedResult = z.infer<typeof HostedSealedResultSchema>;
+
+const HostedResultDigestPreimageSchema = z.strictObject({
+  attemptId: IdentifierSchema,
+  admission: HostedAdmissionSchema,
+  handle: HostedRequestHandleSchema,
+  target: HostedTargetSchema,
+  requestedCoverage: HostedReviewCoverageSchema,
+  effectiveCoverage: HostedReviewCoverageSchema,
+  vehicle: DeliveryReviewMemberVehicleSchema.optional(),
+  reviewTarget: ReviewTargetSchema,
+  requirement: ReviewRequirementV2Schema,
+  outcome: HostedSealedResultSchema.shape.outcome,
+  reviewUrl: HostedSealedResultSchema.shape.reviewUrl,
+  findings: HostedSealedResultSchema.shape.findings,
+});
+export type HostedResultDigestPreimage = z.infer<typeof HostedResultDigestPreimageSchema>;
+
+/** Compute the immutable identity of one complete hosted producer result. */
+export function computeHostedResultId(input: HostedResultDigestPreimage): string {
+  return canonicalDigest({
+    domain: "arc.review.hosted-result/v1",
+    result: HostedResultDigestPreimageSchema.parse(input),
+  });
+}
+
+/** Seal one complete hosted producer result against its admitted attempt context. */
+export function createHostedSealedResult(
+  input: HostedResultDigestPreimage,
+): HostedSealedResult {
+  const preimage = HostedResultDigestPreimageSchema.parse(input);
+  return HostedSealedResultSchema.parse({
+    schemaVersion: 1,
+    outcome: preimage.outcome,
+    reviewUrl: preimage.reviewUrl,
+    findings: preimage.findings,
+    hostedResultId: computeHostedResultId(preimage),
+  });
+}
+
 const HostedLaneAttemptBindingSchema = z.strictObject({
   admission: HostedAdmissionSchema,
   handle: HostedRequestHandleSchema.optional(),
@@ -205,7 +270,7 @@ const HostedLaneAttemptBindingSchema = z.strictObject({
   requirement: ReviewRequirementV2Schema,
   actorIdentity: IdentifierSchema,
   requestFailureReason: z.string().trim().min(1).nullable(),
-  findings: z.array(HostedFindingSchema),
+  sealedResult: HostedSealedResultSchema.optional(),
   dispositionSetId: CanonicalDigestSchema.nullable(),
   settledFindingIds: z.array(z.string().trim().min(1)),
 }).superRefine((hosted, context) => {
@@ -374,6 +439,18 @@ const LaneAttemptSchema = z.strictObject({
       throw new Error("hosted lane attempt does not match its durable admission");
     }
     const handle = attempt.hosted.handle;
+    const expectedAttemptId = handle === undefined
+      ? admission.admissionId
+      : hostedLaneAttemptId(handle);
+    if (attempt.attemptId !== expectedAttemptId) {
+      context.addIssue({
+        code: "custom",
+        path: ["attemptId"],
+        message: handle === undefined
+          ? "unacknowledged hosted attempt identity must match its admission"
+          : "acknowledged hosted attempt identity must derive from its handle",
+      });
+    }
     if (handle !== undefined && !hostedRequestHandleMatchesProgress(handle, {
       admission,
       effectiveCoverage: attempt.hosted.effectiveCoverage,
@@ -391,9 +468,50 @@ const LaneAttemptSchema = z.strictObject({
       message: error instanceof Error ? error.message : "invalid hosted review binding",
     });
   }
-  const findingIds = attempt.hosted.findings.map(({ findingId }) => findingId);
-  if (new Set(findingIds).size !== findingIds.length) {
-    context.addIssue({ code: "custom", path: ["hosted", "findings"], message: "hosted finding IDs must be unique" });
+  const sealedResult = attempt.hosted.sealedResult;
+  const findingIds = sealedResult?.findings.map(({ findingId }) => findingId) ?? [];
+  const originalOutcome = attempt.outcome === "settled-findings" ? "findings" : attempt.outcome;
+  const verdictBearing = originalOutcome === "clean" || originalOutcome === "findings";
+  if (verdictBearing !== (sealedResult !== undefined)
+    || verdictBearing !== attempt.terminalProducer
+    || (sealedResult !== undefined && sealedResult.outcome !== originalOutcome)) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "sealedResult"],
+      message: "hosted terminal authority must exactly match one sealed producer result",
+    });
+  }
+  if (sealedResult !== undefined) {
+    const hosted = attempt.hosted;
+    if (hosted.handle === undefined || hosted.effectiveCoverage === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["hosted", "sealedResult"],
+        message: "hosted sealed result requires its acknowledged execution binding",
+      });
+    } else {
+      const expectedResultId = computeHostedResultId({
+        attemptId: attempt.attemptId,
+        admission: hosted.admission,
+        handle: hosted.handle,
+        target: hosted.target,
+        requestedCoverage: hosted.requestedCoverage,
+        effectiveCoverage: hosted.effectiveCoverage,
+        ...(hosted.vehicle === undefined ? {} : { vehicle: hosted.vehicle }),
+        reviewTarget: hosted.reviewTarget,
+        requirement: hosted.requirement,
+        outcome: sealedResult.outcome,
+        reviewUrl: sealedResult.reviewUrl,
+        findings: sealedResult.findings,
+      });
+      if (sealedResult.hostedResultId !== expectedResultId) {
+        context.addIssue({
+          code: "custom",
+          path: ["hosted", "sealedResult", "hostedResultId"],
+          message: "hosted result identity does not match its canonical producer content",
+        });
+      }
+    }
   }
   if (new Set(attempt.hosted.settledFindingIds).size !== attempt.hosted.settledFindingIds.length
     || attempt.hosted.settledFindingIds.some((findingId) => !findingIds.includes(findingId))) {
@@ -436,6 +554,16 @@ export const LaneProgressStateSchema = z.strictObject({
   completedPasses: z.number().int().nonnegative(),
   attempts: z.array(LaneAttemptSchema),
 }).superRefine((state, context) => {
+  const hostedAdmissionIds = state.attempts.flatMap((attempt) => (
+    attempt.hosted === undefined ? [] : [attempt.hosted.admission.admissionId]
+  ));
+  if (new Set(hostedAdmissionIds).size !== hostedAdmissionIds.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["attempts"],
+      message: "hosted admission identities must be unique within lane progress",
+    });
+  }
   state.attempts.forEach((attempt, index) => {
     if (state.lane === "frontline" && attempt.frontline === undefined) {
       context.addIssue({

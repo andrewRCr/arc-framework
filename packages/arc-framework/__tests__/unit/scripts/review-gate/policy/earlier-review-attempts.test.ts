@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
+
 import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delivery/review-vehicle.js";
 import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
 import {
@@ -72,6 +74,7 @@ function laneState(options: {
   sourceId?: "codex-pr" | "coderabbit-pr";
   targetRepository?: string;
   pullRequest?: number;
+  artifactId?: string;
   vehicle?: ReturnType<typeof deliveryVehicle>;
 } = {}) {
   const repositoryId = options.repositoryId ?? "repository-1";
@@ -132,6 +135,16 @@ function laneState(options: {
     requirement,
     actorIdentity: "github-user-1",
   });
+  const terminal = createHostedTerminalAttemptFixture({
+    admission,
+    artifact: {
+      kind: "issue-comment",
+      id: options.artifactId ?? "comment-1",
+      url: `https://example.invalid/${options.artifactId ?? "comment-1"}`,
+      createdAt: "2026-08-15T11:00:00Z",
+    },
+    outcome: "clean",
+  });
   return LaneProgressStateSchema.parse({
     schemaVersion: 1 as const,
     semanticsVersion: "review-operation/v1" as const,
@@ -143,7 +156,7 @@ function laneState(options: {
     lineage,
     completedPasses: 1,
     attempts: [{
-      attemptId: "attempt-prior",
+      attemptId: terminal.attemptId,
       logicalPass: 1,
       retryGeneration: 0,
       changeRequestId: "pull/42",
@@ -151,20 +164,7 @@ function laneState(options: {
       terminalProducer: true,
       sourceId,
       outcome: "clean" as const,
-      hosted: {
-        admission,
-        target,
-        requestedCoverage: "complete",
-        effectiveCoverage: "complete",
-        ...(vehicle === undefined ? {} : { vehicle }),
-        reviewTarget,
-        requirement,
-        actorIdentity: "github-user-1",
-        requestFailureReason: null,
-        findings: [],
-        dispositionSetId: null,
-        settledFindingIds: [],
-      },
+      hosted: terminal.hosted,
     }],
   });
 }
@@ -315,15 +315,16 @@ describe("earlier review attempt query", () => {
   });
 
   it("returns the complete exact candidate set from one complete operation snapshot", () => {
+    const prior = laneState();
     expect(queryEarlierReviewAttempts(selector(), {
       status: "complete",
-      records: [{ version: 2, state: laneState() }],
+      records: [{ version: 2, state: prior }],
     })).toMatchObject({
       status: "complete",
       candidates: [{
         operationId: "lane-progress/prior",
         version: 2,
-        attemptId: "attempt-prior",
+        attemptId: prior.attempts[0]?.attemptId,
         sourceId: "codex-pr",
         priorHead: oid("a"),
         target: { repository: "Owner/Repository", pullRequest: 42, headSha: oid("a") },
@@ -636,29 +637,30 @@ describe("earlier review attempt query", () => {
   });
 
   it("returns multiple exact candidates in stable record and attempt order", () => {
+    const prior = laneState();
+    const laterState = laneState({ artifactId: "comment-later" });
     const later = {
-      ...laneState(),
+      ...laterState,
       operationId: "lane-progress/later",
       updatedAt: "2026-08-23T13:00:00Z",
-      attempts: [{ ...laneState().attempts[0]!, attemptId: "attempt-later" }],
     };
     const result = queryEarlierReviewAttempts(selector(), {
       status: "complete",
-      records: [{ version: 1, state: later }, { version: 2, state: laneState() }],
+      records: [{ version: 1, state: later }, { version: 2, state: prior }],
     });
     expect(result.status === "complete" && result.candidates.map(({ attemptId }) => attemptId))
-      .toEqual(["attempt-prior", "attempt-later"]);
+      .toEqual([prior.attempts[0]?.attemptId, laterState.attempts[0]?.attemptId]);
   });
 
   it("projects an exact hosted response plan for an earlier findings attempt", async () => {
     const clean = laneState();
     const findings = LaneProgressStateSchema.parse({
       ...clean,
-      attempts: clean.attempts.map((attempt) => ({
-        ...attempt,
-        outcome: "findings",
-        hosted: {
-          ...attempt.hosted!,
+      attempts: clean.attempts.map((attempt) => {
+        const terminal = createHostedTerminalAttemptFixture({
+          admission: attempt.hosted!.admission,
+          artifact: attempt.hosted!.handle!.artifact,
+          outcome: "findings",
           findings: [{
             findingId: "finding-prior",
             origin: "review-thread",
@@ -669,8 +671,14 @@ describe("earlier review attempt query", () => {
             locus: "src/example.ts:1",
             url: "https://example.test/finding-prior",
           }],
-        },
-      })),
+        });
+        return {
+          ...attempt,
+          attemptId: terminal.attemptId,
+          outcome: "findings" as const,
+          hosted: terminal.hosted,
+        };
+      }),
     });
     const projected = await projectEarlierReviewApplicability({
       query: selector(),
@@ -692,7 +700,9 @@ describe("earlier review attempt query", () => {
         responsePlan: {
           source: {
             kind: "hosted",
-            attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fprior:attempt-prior",
+            attemptRef: `arc-review-source:v1:hosted:lane-progress%2Fprior:${encodeURIComponent(
+              findings.attempts[0]!.attemptId,
+            )}`,
           },
           findings: [{
             findingId: "finding-prior",
@@ -766,6 +776,8 @@ describe("earlier review attempt query", () => {
     currentVehicle,
     expected,
   }) => {
+    const state = laneVehicle === null ? laneState() : laneState({ vehicle: laneVehicle });
+    const priorAttemptId = state.attempts[0]!.attemptId;
     const selectedProjection = applicabilityDecision({
       schemaVersion: 1,
       repositoryId: "repository-1",
@@ -773,7 +785,7 @@ describe("earlier review attempt query", () => {
       pullRequest: 42,
       lane: "standard",
       sourceId: "codex-pr",
-      priorAttemptId: "attempt-prior",
+      priorAttemptId,
       priorHead: oid("a"),
       currentHead: oid("b"),
       priorBase: oid("1"),
@@ -793,7 +805,6 @@ describe("earlier review attempt query", () => {
       selectedAt: "2026-08-23T12:00:00.000Z",
       choice: "covered",
     };
-    const state = laneVehicle === null ? laneState() : laneState({ vehicle: laneVehicle });
     const result = await projectEarlierReviewApplicability({
       query: {
         ...selector(currentVehicle ?? undefined),
@@ -815,7 +826,8 @@ describe("earlier review attempt query", () => {
 
   it("composes the exact query, factual projection, and Candidate selection for both consumers", async () => {
     const query = { ...selector(), repository: "Owner/Repository" };
-    const snapshot = { status: "complete" as const, records: [{ version: 1, state: laneState() }] };
+    const state = laneState();
+    const snapshot = { status: "complete" as const, records: [{ version: 1, state }] };
     const projectedSelector = {
       schemaVersion: 1 as const,
       repositoryId: query.repositoryId,
@@ -823,7 +835,7 @@ describe("earlier review attempt query", () => {
       pullRequest: query.pullRequest,
       lane: "standard" as const,
       sourceId: query.sourceId,
-      priorAttemptId: "attempt-prior",
+      priorAttemptId: state.attempts[0]!.attemptId,
       priorHead: oid("a"),
       currentHead: oid("c"),
       priorBase: oid("1"),

@@ -92,6 +92,7 @@ import {
   settleHostedAttemptFinding,
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { createHostedTerminalAttemptFixture } from "../fixtures/hosted-review.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
@@ -1067,6 +1068,35 @@ describe("arc delivery position", () => {
       initialAdmission: "checkpoint",
     });
     if (responseRequirement === null) throw new Error("response-loss requirement must derive");
+    const responseLossTerminal = createHostedTerminalAttemptFixture({
+      admission: hostedMemberAdmission({
+        repositoryId: "repo-1",
+        target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+        vehicle: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: selectedDeliverableId,
+          workUnitId: fixture.plan.workUnitId,
+          head: reviewedHead,
+        },
+        reviewTarget: oldTarget,
+        requirement: responseRequirement,
+        actorIdentity: "host-actor-1",
+      }),
+      outcome: "findings",
+      findings: [{
+        findingId: "finding-response-loss",
+        origin: "review-thread",
+        commentId: "comment-response-loss",
+        threadId: "thread-response-loss",
+        settlement: "reply-and-resolve",
+        severity: "major",
+        locus: "member-one.txt:1",
+        url: "https://example.test/thread-response-loss",
+      }],
+      dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      settledFindingIds: [],
+    });
     await new LocalReviewOperationStateStore(publisher).publishOperation({
       schemaVersion: 1,
       semanticsVersion: "review-operation/v1",
@@ -1083,7 +1113,7 @@ describe("arc delivery position", () => {
       },
       completedPasses: 1,
       attempts: [{
-        attemptId: "operation-response-loss",
+        ...responseLossTerminal,
         logicalPass: 1,
         retryGeneration: 0,
         changeRequestId: "pull/401",
@@ -1091,48 +1121,6 @@ describe("arc delivery position", () => {
         terminalProducer: true,
         sourceId: "codex-pr",
         outcome: "findings",
-        hosted: {
-          admission: hostedMemberAdmission({
-            repositoryId: "repo-1",
-            target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-            vehicle: {
-              kind: "delivery-member",
-              planId: fixture.plan.planId,
-              deliverableId: selectedDeliverableId,
-              workUnitId: fixture.plan.workUnitId,
-              head: reviewedHead,
-            },
-            reviewTarget: oldTarget,
-            requirement: responseRequirement,
-            actorIdentity: "host-actor-1",
-          }),
-          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-          requestedCoverage: "complete",
-          effectiveCoverage: "complete",
-          vehicle: {
-            kind: "delivery-member",
-            planId: fixture.plan.planId,
-            deliverableId: selectedDeliverableId,
-            workUnitId: fixture.plan.workUnitId,
-            head: reviewedHead,
-          },
-          reviewTarget: oldTarget,
-          requirement: responseRequirement,
-          actorIdentity: "host-actor-1",
-          requestFailureReason: null,
-          findings: [{
-            findingId: "finding-response-loss",
-            origin: "review-thread",
-            commentId: "comment-response-loss",
-            threadId: "thread-response-loss",
-            settlement: "reply-and-resolve",
-            severity: "major",
-            locus: "member-one.txt:1",
-            url: "https://example.test/thread-response-loss",
-          }],
-          dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
-          settledFindingIds: [],
-        },
       }],
     }, 0);
     const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
@@ -1140,7 +1128,7 @@ describe("arc delivery position", () => {
         schemaVersion: 1,
         semanticsVersion: "review-advisory/v1",
         repositoryId: "repo-1",
-        operationId: "operation-response-loss",
+        operationId: responseLossTerminal.attemptId,
         candidate: null,
         errand: null,
         deliveryMember: {
@@ -1152,7 +1140,11 @@ describe("arc delivery position", () => {
         },
         source: {
           kind: "hosted",
-          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fresponse-loss:hosted%2F1",
+          attemptRef: bindReviewSourceReference({
+            kind: "hosted",
+            operationId: "lane-progress/response-loss",
+            durableRef: responseLossTerminal.attemptId,
+          }),
         },
         approvedDisposition,
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
@@ -2142,15 +2134,7 @@ describe("arc delivery position", () => {
         },
         completedPasses: 1,
         attempts: [{
-          attemptId: `settled-teardown-${index + 1}`,
-          logicalPass: 1,
-          retryGeneration: 0,
-          changeRequestId: `pull/${pullRequest}`,
-          headSha: member.coordinates.head,
-          terminalProducer: true,
-          sourceId: "codex-pr",
-          outcome: "clean",
-          hosted: {
+          ...createHostedTerminalAttemptFixture({
             admission: hostedMemberAdmission({
               repositoryId,
               target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
@@ -2165,24 +2149,15 @@ describe("arc delivery position", () => {
               requirement,
               actorIdentity: "host-actor-1",
             }),
-            target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
-            requestedCoverage: "complete",
-            effectiveCoverage: "complete",
-            vehicle: {
-              kind: "delivery-member",
-              planId: fixture.plan.planId,
-              deliverableId: member.deliverableId,
-              workUnitId: fixture.plan.workUnitId,
-              head: member.coordinates.head,
-            },
-            reviewTarget,
-            requirement,
-            actorIdentity: "host-actor-1",
-            requestFailureReason: null,
-            findings: [],
-            dispositionSetId: null,
-            settledFindingIds: [],
-          },
+            outcome: "clean",
+          }),
+          logicalPass: 1,
+          retryGeneration: 0,
+          changeRequestId: `pull/${pullRequest}`,
+          headSha: member.coordinates.head,
+          terminalProducer: true,
+          sourceId: "codex-pr",
+          outcome: "clean",
         }],
       }, 0);
     }
@@ -2813,6 +2788,26 @@ describe("arc delivery position", () => {
       locus: "member-one.txt:1",
       url: "https://example.test/thread-published",
     };
+    const publishedTerminal = createHostedTerminalAttemptFixture({
+      admission: hostedMemberAdmission({
+        repositoryId: "repo-1",
+        target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+        vehicle: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: selectedDeliverableId,
+          workUnitId: fixture.plan.workUnitId,
+          head: reviewedHead,
+        },
+        reviewTarget: oldTarget,
+        requirement,
+        actorIdentity: "host-actor-1",
+      }),
+      outcome: "findings",
+      findings: [finding],
+      dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      settledFindingIds: [],
+    });
     await new LocalReviewOperationStateStore(publisher).publishOperation({
       schemaVersion: 1,
       semanticsVersion: "review-operation/v1",
@@ -2829,7 +2824,7 @@ describe("arc delivery position", () => {
       },
       completedPasses: 1,
       attempts: [{
-        attemptId: "operation-published-member-fix",
+        ...publishedTerminal,
         logicalPass: 1,
         retryGeneration: 0,
         changeRequestId: "pull/401",
@@ -2837,39 +2832,6 @@ describe("arc delivery position", () => {
         terminalProducer: true,
         sourceId: "codex-pr",
         outcome: "findings",
-        hosted: {
-          admission: hostedMemberAdmission({
-            repositoryId: "repo-1",
-            target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-            vehicle: {
-              kind: "delivery-member",
-              planId: fixture.plan.planId,
-              deliverableId: selectedDeliverableId,
-              workUnitId: fixture.plan.workUnitId,
-              head: reviewedHead,
-            },
-            reviewTarget: oldTarget,
-            requirement,
-            actorIdentity: "host-actor-1",
-          }),
-          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-          requestedCoverage: "complete",
-          effectiveCoverage: "complete",
-          vehicle: {
-            kind: "delivery-member",
-            planId: fixture.plan.planId,
-            deliverableId: selectedDeliverableId,
-            workUnitId: fixture.plan.workUnitId,
-            head: reviewedHead,
-          },
-          reviewTarget: oldTarget,
-          requirement,
-          actorIdentity: "host-actor-1",
-          requestFailureReason: null,
-          findings: [finding],
-          dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
-          settledFindingIds: [],
-        },
       }],
     }, 0);
     await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
@@ -2877,7 +2839,7 @@ describe("arc delivery position", () => {
         schemaVersion: 1,
         semanticsVersion: "review-advisory/v1",
         repositoryId: "repo-1",
-        operationId: "operation-published-member-fix",
+        operationId: publishedTerminal.attemptId,
         candidate: null,
         errand: null,
         deliveryMember: {
@@ -2889,7 +2851,11 @@ describe("arc delivery position", () => {
         },
         source: {
           kind: "hosted",
-          attemptRef: "arc-review-source:v1:hosted:lane-progress%2Fpublished:hosted%2F1",
+          attemptRef: bindReviewSourceReference({
+            kind: "hosted",
+            operationId: "lane-progress/published",
+            durableRef: publishedTerminal.attemptId,
+          }),
         },
         approvedDisposition,
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
@@ -3392,7 +3358,27 @@ describe("arc delivery position", () => {
       approvedAt: "2026-08-31T12:10:00Z",
     });
     const replayOperationId = "lane-progress/response-replay";
-    const replayAttemptId = "operation-response-replay";
+    const replayTerminal = createHostedTerminalAttemptFixture({
+      admission: hostedMemberAdmission({
+        repositoryId,
+        target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+        vehicle: {
+          kind: "delivery-member",
+          planId: fixture.plan.planId,
+          deliverableId: selectedDeliverableId,
+          workUnitId: fixture.plan.workUnitId,
+          head: reviewedHead,
+        },
+        reviewTarget: replayOldTarget,
+        requirement: replayRequirement,
+        actorIdentity: "host-actor-1",
+      }),
+      outcome: "findings",
+      findings: [finding],
+      dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
+      settledFindingIds: [],
+    });
+    const replayAttemptId = replayTerminal.attemptId;
     const replaySource = {
       kind: "hosted" as const,
       attemptRef: bindReviewSourceReference({
@@ -3470,39 +3456,7 @@ describe("arc delivery position", () => {
         terminalProducer: true,
         sourceId: "codex-pr",
         outcome: "findings",
-        hosted: {
-          admission: hostedMemberAdmission({
-            repositoryId,
-            target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-            vehicle: {
-              kind: "delivery-member",
-              planId: fixture.plan.planId,
-              deliverableId: selectedDeliverableId,
-              workUnitId: fixture.plan.workUnitId,
-              head: reviewedHead,
-            },
-            reviewTarget: replayOldTarget,
-            requirement: replayRequirement,
-            actorIdentity: "host-actor-1",
-          }),
-          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-          requestedCoverage: "complete",
-          effectiveCoverage: "complete",
-          vehicle: {
-            kind: "delivery-member",
-            planId: fixture.plan.planId,
-            deliverableId: selectedDeliverableId,
-            workUnitId: fixture.plan.workUnitId,
-            head: reviewedHead,
-          },
-          reviewTarget: replayOldTarget,
-          requirement: replayRequirement,
-          actorIdentity: "host-actor-1",
-          requestFailureReason: null,
-          findings: [finding],
-          dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
-          settledFindingIds: [],
-        },
+        hosted: replayTerminal.hosted,
       }],
     }, 0);
 
@@ -3621,12 +3575,37 @@ describe("arc delivery position", () => {
       initialAdmission: "checkpoint",
     });
     if (retainedRequirement === null) throw new Error("retained review requirement must derive");
-    const retainedAttemptIds = ["retained-first", "retained-second"];
-    for (const [index, retainedAttemptId] of retainedAttemptIds.entries()) {
+    const retainedAttemptLabels = ["retained-first", "retained-second"];
+    const retainedAttemptIds: string[] = [];
+    for (const [index, retainedAttemptLabel] of retainedAttemptLabels.entries()) {
+      const terminal = createHostedTerminalAttemptFixture({
+        admission: hostedMemberAdmission({
+          repositoryId,
+          target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+          vehicle: {
+            kind: "delivery-member",
+            planId: fixture.plan.planId,
+            deliverableId: selectedDeliverableId,
+            workUnitId: fixture.plan.workUnitId,
+            head: reviewedHead,
+          },
+          reviewTarget: retainedTarget,
+          requirement: retainedRequirement,
+          actorIdentity: "host-actor-1",
+        }),
+        artifact: {
+          kind: "issue-comment",
+          id: retainedAttemptLabel,
+          url: `https://example.invalid/${retainedAttemptLabel}`,
+          createdAt: "2026-08-15T11:00:00Z",
+        },
+        outcome: "clean",
+      });
+      retainedAttemptIds.push(terminal.attemptId);
       await new LocalReviewOperationStateStore(publisher).publishOperation({
         schemaVersion: 1,
         semanticsVersion: "review-operation/v1",
-        operationId: `lane-progress/${retainedAttemptId}`,
+        operationId: `lane-progress/${retainedAttemptLabel}`,
         updatedAt: `2026-08-31T12:${15 + index}:00Z`,
         kind: "lane-progress",
         lane: "standard",
@@ -3639,7 +3618,7 @@ describe("arc delivery position", () => {
         },
         completedPasses: 1,
         attempts: [{
-          attemptId: `operation-${retainedAttemptId}`,
+          attemptId: terminal.attemptId,
           logicalPass: 1,
           retryGeneration: 0,
           changeRequestId: "pull/401",
@@ -3647,39 +3626,7 @@ describe("arc delivery position", () => {
           terminalProducer: true,
           sourceId: "codex-pr",
           outcome: "clean",
-          hosted: {
-            admission: hostedMemberAdmission({
-              repositoryId,
-              target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-              vehicle: {
-                kind: "delivery-member",
-                planId: fixture.plan.planId,
-                deliverableId: selectedDeliverableId,
-                workUnitId: fixture.plan.workUnitId,
-                head: reviewedHead,
-              },
-              reviewTarget: retainedTarget,
-              requirement: retainedRequirement,
-              actorIdentity: "host-actor-1",
-            }),
-            target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
-            requestedCoverage: "complete",
-            effectiveCoverage: "complete",
-            vehicle: {
-              kind: "delivery-member",
-              planId: fixture.plan.planId,
-              deliverableId: selectedDeliverableId,
-              workUnitId: fixture.plan.workUnitId,
-              head: reviewedHead,
-            },
-            reviewTarget: retainedTarget,
-            requirement: retainedRequirement,
-            actorIdentity: "host-actor-1",
-            requestFailureReason: null,
-            findings: [],
-            dispositionSetId: null,
-            settledFindingIds: [],
-          },
+          hosted: terminal.hosted,
         }],
       }, 0);
     }
@@ -3710,8 +3657,8 @@ describe("arc delivery position", () => {
         selectionAction: {
           kind: "review-applicability-selection-batch",
           projections: [
-            { selector: { priorAttemptId: "operation-retained-first" } },
-            { selector: { priorAttemptId: "operation-retained-second" } },
+            { selector: { priorAttemptId: retainedAttemptIds[0]! } },
+            { selector: { priorAttemptId: retainedAttemptIds[1]! } },
           ],
         },
       },
@@ -3747,7 +3694,7 @@ describe("arc delivery position", () => {
       ({ selector }) => selector.priorAttemptId,
     )).toEqual([
       replayAttemptId,
-      ...retainedAttemptIds.map((attemptId) => `operation-${attemptId}`),
+      ...retainedAttemptIds,
     ]);
 
     const continuedAfterBatch = await runArcWithStdin(

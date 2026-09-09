@@ -979,8 +979,18 @@ describe("hosted await lane recording", () => {
     expect(concluded?.attempts).toEqual([expect.objectContaining({
       attemptId: hostedLaneAttemptId(handle),
       outcome: "clean",
-      hosted: expect.objectContaining({ handle }),
+      hosted: expect.objectContaining({
+        handle,
+        sealedResult: {
+          schemaVersion: 1,
+          outcome: "clean",
+          reviewUrl: "https://example.invalid/review",
+          findings: [],
+          hostedResultId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+        },
+      }),
     })]);
+    expect(concluded?.attempts[0]?.hosted).not.toHaveProperty("findings");
 
     const replay = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
@@ -1064,6 +1074,8 @@ describe("hosted await lane recording", () => {
     });
     if (progress === null) throw new Error("expected hosted lane progress");
     const attemptId = hostedLaneAttemptId(handle);
+    const sealedResult = progress.attempts[0]?.hosted?.sealedResult;
+    if (sealedResult === undefined) throw new Error("expected sealed hosted result");
     const bound = await bindHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
@@ -1074,7 +1086,7 @@ describe("hosted await lane recording", () => {
     });
     expect(bound.attempts[0]).toMatchObject({
       outcome: "findings",
-      hosted: { settledFindingIds: ["body-1"] },
+      hosted: { sealedResult, settledFindingIds: ["body-1"] },
     });
     const settled = await settleHostedAttemptFinding(store, {
       operationId: progress.operationId,
@@ -1085,7 +1097,7 @@ describe("hosted await lane recording", () => {
     });
     expect(settled.attempts[0]).toMatchObject({
       outcome: "settled-findings",
-      hosted: { settledFindingIds: ["body-1", "thread-1"] },
+      hosted: { sealedResult, settledFindingIds: ["body-1", "thread-1"] },
     });
     await expect(settleHostedAttemptFinding(store, {
       operationId: progress.operationId,

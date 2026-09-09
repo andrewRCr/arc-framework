@@ -188,6 +188,11 @@ export const HostedRequestHandleSchema = z.strictObject({
 });
 export type HostedRequestHandle = z.infer<typeof HostedRequestHandleSchema>;
 
+/** Resolve the stable lane-attempt identity of one acknowledged hosted request. */
+export function hostedLaneAttemptId(handle: HostedRequestHandle): string {
+  return `hosted/${canonicalDigest(HostedRequestHandleSchema.parse(handle)).slice("sha256:".length)}`;
+}
+
 /** Submit-ready input for one bounded await of an acknowledged hosted request. */
 export const HostedAwaitActionSchema = z.strictObject({
   schemaVersion: z.literal(1),
