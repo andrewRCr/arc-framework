@@ -55,6 +55,9 @@ Edit only the starter map's authoring slots:
 - for extraction, set every started-Planning companion allocation to `retained-origin`; Active origins report no
   companion units;
 - disposition every incoming and outgoing dependency edge once;
+- use `internalEdges` for dependencies between declared destinations and `outgoingDispositions` to redistribute an
+  existing origin prerequisite;
+- add an `externalEdges` entry only from a new member or live existing-home work unit to a work unit outside the cut;
 - select the already-settled authoring shape and placement.
 
 Preserve every machine-owned field. Do not calculate paths or identifiers, create unreported destinations, or

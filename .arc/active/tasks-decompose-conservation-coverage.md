@@ -588,27 +588,22 @@ prose follows the executable contract.
 - _Outcome:_ Base advancement now distinguishes admissible target lifecycle movement from recipient version conflict,
   preserving append-only candidate history while refusing dependency drift before candidate mutation.
 
-### `[ ]` **3.4 Publish external-edge authoring and close cumulative workflow parity**
+### `[x]` **3.4 Publish external-edge authoring and close cumulative workflow parity**
 
 - _Goal:_ An agent can author external edges from the shipped workflow, and the final workflow still carries every
   refusal and companion instruction published by the preceding delivery members.
 
-- **Additional Context:** `strategy-workflow-authoring.md` §§ Prose economy, Verbs over mechanics
+    - `[x]` **3.4.a Update the package-source `decompose-work-unit.md` contract**
+        - The shipped map-authoring step now routes declared-destination dependencies through `internalEdges`, origin
+          prerequisite redistribution through `outgoingDispositions`, and outside-cut prerequisites through
+          `externalEdges`, without duplicating CLI validation.
 
-    - `[ ]` **3.4.a Update the package-source `decompose-work-unit.md` contract**
-        - In `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md`, add
-          `externalEdges` authoring from a member or existing home to a work unit outside the cut, and direct
-          destination-owned edges to the existing internal/outgoing slots.
-        - Preserve the cumulative refusal-envelope, companion-retention, provisional-scaffold, and manual-transfer
-          instructions already present; keep CLI-computed validation out of workflow prose.
+    - `[x]` **3.4.b Synchronize and verify the project-instance workflow**
+        - Applied the same targeted edit to the project workflow and extended the byte-parity contract to retain the
+          cumulative provisional-scaffold, manual-transfer, and typed refusal-envelope instructions.
 
-    - `[ ]` **3.4.b Synchronize and verify the project-instance workflow**
-        - Apply the package-source change as the same targeted edit to
-          `.arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md`; do not copy whole framework trees or
-          configurable files.
-        - Extend `packages/arc-framework/__tests__/unit/work-unit/decompose-workflow-contract.test.ts` to require the
-          external-edge slot and the cumulative scaffold, manual-transfer, and
-          status/remedy/evidence/optional-report rules in both installed and project surfaces.
+- _Outcome:_ Both workflow copies now publish the external-edge authoring boundary and remain byte-identical across
+  the cumulative decomposition contract.
 
 ### `[ ]` **3.5 Exercise external-edge refusals and workflow agreement end to end**
 

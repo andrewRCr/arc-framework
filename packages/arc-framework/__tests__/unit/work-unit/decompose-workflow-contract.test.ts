@@ -105,6 +105,25 @@ describe("decompose workflow contract", () => {
     }
   });
 
+  it("routes external-edge authoring without losing cumulative workflow guidance", () => {
+    for (const candidate of [workflow, projectWorkflow]) {
+      const mapStart = candidate.indexOf("## 2. Complete the operator-owned map");
+      const dispatchStart = candidate.indexOf("## 3. Dispatch the complete result");
+      const map = candidate.slice(mapStart, dispatchStart).replace(/\s+/gu, " ");
+
+      expect(map).toContain("`externalEdges`");
+      expect(map).toContain("new member or live existing-home work unit");
+      expect(map).toContain("work unit outside the cut");
+      expect(map).toContain("`internalEdges`");
+      expect(map).toContain("`outgoingDispositions`");
+      expect(candidate).toContain("`provisional-task` and `provisional-notes`");
+      expect(candidate).toContain("manually transfer allocated content");
+      expect(candidate).toMatch(
+        /status, reason, optional locus and evidence, remedy, and any optional report\s+unchanged/u,
+      );
+    }
+  });
+
   it("re-stages and verifies the approved authored bytes before either release arm", () => {
     const interlock = workflow.indexOf("`workflow-interlock`");
     const staging = workflow.indexOf("git add -- <reported-release-paths>");
