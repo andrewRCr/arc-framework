@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "stub-test-suite-right-sizing",
+  "claimId": "ca97991693ed99290ae10b192d0e7172",
+  "createdAt": "2026-09-09T12:23:10.420Z",
+  "updatedAt": "2026-09-09T12:23:10.420Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Create a startable planned work-unit stub for test-suite-right-sizing and sequence it on ROADMAP without designing the work unit.",
+  "branch": "chore/stub-test-suite-right-sizing",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
