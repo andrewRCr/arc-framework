@@ -3,14 +3,20 @@
   "slug": "repair-test-suite-right-sizing-launch-tuple",
   "claimId": "8c9ab738d7573a617d6a0ee6b1704faa",
   "createdAt": "2026-09-09T12:37:44.406Z",
-  "updatedAt": "2026-09-09T12:37:44.406Z",
+  "updatedAt": "2026-09-09T12:45:22.288Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make the newly planned test-suite-right-sizing stub launchable by converting its planning seed to the canonical draft-backed tuple.",
   "branch": "chore/repair-test-suite-right-sizing-launch-tuple",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/repair-test-suite-right-sizing-launch-tuple",
+    "headSha": "e7253b8ab7856218a55b28530a4965876bfb8eca"
+  }
 }
