@@ -605,7 +605,7 @@ prose follows the executable contract.
 - _Outcome:_ Both workflow copies now publish the external-edge authoring boundary and remain byte-identical across
   the cumulative decomposition contract.
 
-### `[ ]` **3.5 Exercise external-edge refusals and workflow agreement end to end**
+### `[x]` **3.5 Exercise external-edge refusals and workflow agreement end to end**
 
 - _Goal:_ The external-edge feature and its authoring guidance agree across schema, pinned-tree composition,
   advancement, public command output, and both workflow copies.
@@ -626,10 +626,12 @@ prose follows the executable contract.
           `arc ...` retry argv without mutation; workflow-contract coverage binds that envelope handling to both
           byte-equal workflow copies while remaining instruction-presence rather than agent-behavior evidence.
 
-    - `[ ]` **3.5.d Run the Phase 3 code-and-methodology checkpoint**
-        - Run targeted lint and tests as each behavior lands, then both TypeScript type checks, Markdown lint, and
-          all three ARC contract checks over the composed member.
-        - Treat a code/workflow mismatch, package/project drift, or primitive-only test result as a phase failure.
+    - `[x]` **3.5.d Run the Phase 3 code-and-methodology checkpoint**
+        - Closed the composed code-and-methodology checkpoint across full Markdown, ARC, TypeScript, shell, and test
+          gates after targeted schema, conservation, repository, E2E, and workflow-contract verification.
+
+- _Outcome:_ External-edge authoring now has one aligned proof from closed schema through pinned repository
+  composition, lifecycle advancement and extraction finish, typed command refusal, and byte-equal shipped guidance.
 
 ### `[ ]` **3.6 Close external-edge delivery** — validate criteria at member scope
 
