@@ -258,7 +258,9 @@ export function scanTaskListSegmentation(
     const closingIndex = phase.mode.throughPhaseId === null
       ? openingIndex
       : phases.findIndex((candidate, index) => (
-        index > openingIndex && candidate.reference.id === phase.mode?.throughPhaseId
+        index > openingIndex
+        && index < phases.length - 1
+        && candidate.reference.id === phase.mode?.throughPhaseId
       ));
     if (closingIndex < 0 && phase.mode.throughPhaseId !== null) {
       diagnostics.push(diagnostic(
