@@ -22,12 +22,16 @@ export const DeliveryArtifactBasenameSchema = z.string().min(1).refine(
   "must be a safe basename",
 );
 
+/** Closed verification scopes accepted by delivery inventories. */
+export const DeliveryTaskVerificationScopeSchema = z.enum(["segment", "member", "work-unit"]);
+export type DeliveryTaskVerificationScope = z.infer<typeof DeliveryTaskVerificationScopeSchema>;
+
 /** Semantic role assigned to one ordered parent task in a delivery inventory. */
 export const DeliveryTaskRoleV1Schema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("implementation") }),
   z.strictObject({
     kind: z.literal("verification"),
-    scope: NonEmptyTextSchema,
+    scope: DeliveryTaskVerificationScopeSchema,
   }),
 ]);
 export type DeliveryTaskRoleV1 = z.infer<typeof DeliveryTaskRoleV1Schema>;

@@ -276,6 +276,20 @@ describe("validateDeliveryTaskCoverage", () => {
     expect(result).toEqual({ status: "valid", advisories: [] });
   });
 
+  it("keeps a member verifier final when it immediately follows a segment verifier", () => {
+    const result = validateDeliveryTaskCoverage(coverageInput({
+      tasks: [
+        { taskId: "1.1", role: { kind: "implementation" } },
+        { taskId: "1.2", role: { kind: "verification", scope: "segment" } },
+        { taskId: "1.3", role: { kind: "verification", scope: "member" } },
+        { taskId: "2.1", role: { kind: "verification", scope: "work-unit" } },
+      ],
+      memberTaskIds: [["1.1", "1.2", "1.3"]],
+    }));
+
+    expect(result).toEqual({ status: "valid", advisories: [] });
+  });
+
   it("refuses a revision that changes its authoring entry", () => {
     const result = validateDeliveryTaskCoverage(coverageInput({
       entry: "from-branch",
