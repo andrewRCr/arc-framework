@@ -1846,8 +1846,11 @@ describe("routed review obligation", () => {
     });
   });
 
-  it("routes an ordinary moved-head residual to its canonical Candidate selection", async () => {
+  it("does not import review progress from a superseded Candidate lineage", async () => {
     const { root, approvedHead } = await settledReviewLineage();
+    const priorCandidate = await readCandidateRecord(root, "example");
+    if (priorCandidate === null) throw new Error("missing prior Candidate fixture");
+    const priorCandidateId = priorCandidate.attestation.candidateId;
     const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
     const operationStore = new LocalReviewOperationStateStore(publisher);
     const repositoryId = await resolveRepositoryIdentity(publisher);
@@ -1869,12 +1872,10 @@ describe("routed review obligation", () => {
       schemaVersion: 1,
       repositoryId,
       lineage: {
-        kind: "head-bound",
-        vehicleKind: "review-target",
-        vehicleIdentity: `${repositoryId}/${approvedHead}`,
-        headSha: approvedHead,
+        kind: "candidate",
+        candidateId: priorCandidateId,
       },
-      logicalPass: 1,
+      logicalPass: 2,
       sourceId: "codex-pr",
       target: hostedTarget,
       requestedCoverage: "complete",
@@ -1887,6 +1888,8 @@ describe("routed review obligation", () => {
       repositoryId,
       changeRequestId: "pull/42",
       headSha: approvedHead,
+      lineage: { kind: "candidate", candidateId: priorCandidateId },
+      logicalPass: 2,
       attemptId: "hosted-attempt-before-base-move",
       sourceId: "codex-pr",
       outcome: "clean",
@@ -1925,6 +1928,7 @@ describe("routed review obligation", () => {
     if (versionedCandidate.record === null || versionedCandidate.version === null) {
       throw new Error("missing current Candidate fixture");
     }
+    expect(versionedCandidate.record.attestation).toMatchObject({ supersedes: priorCandidateId });
     const candidateBaseRevision = versionedCandidate.record.attestation.baseRevision;
 
     const routed = await readRoutedObligation(root, gitExec, {
@@ -1948,19 +1952,9 @@ describe("routed review obligation", () => {
     });
     expect(routed, JSON.stringify(routed)).toMatchObject({
       state: "review-required",
-      scope: "singleton",
-      selectionAction: {
-        kind: "review-applicability-selection",
-        workUnitId: "example",
-        expectedRecordVersion: versionedCandidate.version,
-        candidateId: versionedCandidate.record.attestation.candidateId,
-        choices: ["covered", "review-required"],
-        projection: {
-          state: "decision-required",
-          paths: expect.arrayContaining([expect.any(String)]),
-        },
-      },
+      detail: expect.stringContaining("not produced a settled review"),
     });
+    expect(routed).not.toHaveProperty("selectionAction");
   }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("reports a work unit with no recorded publication boundary as blocked", async () => {
