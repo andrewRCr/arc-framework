@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-evidence-applicability.md`
+- **Design:** `spec-evidence-applicability.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** draft-design — draft formalization-ready after a third adversarial pass over the widened
   evidence-applicability design; captured with the stage advance to create-spec (`e666cd7ff`)
 - **Next Task:** [none]
