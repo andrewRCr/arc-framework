@@ -7,12 +7,14 @@ import {
 } from "../../../lib/delivery/review-vehicle.js";
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
 import {
+  assertStandardReviewExecutionAdmission,
   resolveReviewPolicy,
   type ReviewPolicyCommandRequest,
   type ReviewResolveEnvelope,
 } from "./review-policy-driver.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { ReviewApplicabilityConsumerAction } from "./review-applicability-authority.js";
+import type { HostedReservationDischarge } from "./hosted-reservation-discharge.js";
 
 interface ReservationAttempt {
   sourceId: string;
@@ -251,6 +253,90 @@ export function assertHostedReservationPolicyAdmission(input: {
       `Hosted review source \`${input.provider}\` is not driver-admissible; `
       + `the standard lane requires \`${resolution.policy.payload.sourceId}\` next.`,
     );
+  }
+}
+
+/** Refuse a Candidate request that no longer has fresh discharge and driver admission. */
+export function assertCandidateHostedReservationPolicyAdmission(input: {
+  readonly reservation: StandardReviewReservationV1;
+  readonly discharge: HostedReservationDischarge;
+  readonly progress: {
+    readonly completedPasses: number;
+    readonly attempts: ReadonlyArray<{
+      readonly headSha: string;
+      readonly sourceId: string;
+      readonly outcome: "pending" | ReviewPolicyCommandRequest["attempts"][number]["outcome"];
+      readonly chunkSeriesComplete?: boolean;
+    }>;
+  } | null;
+  readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
+  readonly provider: string;
+  readonly coverage: "complete" | "incremental";
+  readonly maxPasses: number;
+  readonly logicalPass: number;
+  readonly invocation?: ReviewPolicyCommandRequest["invocation"];
+  readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
+}): void {
+  if (input.discharge.discharged || input.discharge.nextSource === null
+    || (input.invocation === undefined && input.discharge.nextSource !== input.provider)) {
+    throw new Error("Hosted Candidate request no longer matches the fresh discharge position.");
+  }
+  if (input.discharge.requestCoverage !== undefined
+    && input.discharge.requestCoverage !== input.coverage) {
+    throw new Error("Hosted Candidate request coverage no longer matches the fresh discharge position.");
+  }
+  const currentHeadAttempts = input.progress?.attempts.filter((attempt) => (
+    attempt.headSha === input.target.headSha
+  )) ?? [];
+  if (currentHeadAttempts.some(({ outcome }) => outcome === "pending")) {
+    throw new Error("Hosted review capacity is already held by a pending request.");
+  }
+  const completedCurrentHeadAttempts = currentHeadAttempts.filter((attempt): attempt is typeof attempt & {
+    outcome: ReviewPolicyCommandRequest["attempts"][number]["outcome"];
+  } => attempt.outcome !== "pending");
+  let lastSettledIndex = -1;
+  completedCurrentHeadAttempts.forEach((attempt, index) => {
+    if (attempt.outcome === "settled-findings") lastSettledIndex = index;
+  });
+  const attemptsBySource = new Map<string, ReviewPolicyCommandRequest["attempts"][number]>();
+  for (const attempt of [
+    ...input.discharge.requestAttempts ?? [],
+    ...completedCurrentHeadAttempts.slice(lastSettledIndex + 1),
+  ]) {
+    attemptsBySource.set(attempt.sourceId, {
+      sourceId: attempt.sourceId,
+      outcome: attempt.outcome,
+      ...(!("chunkSeriesComplete" in attempt) || attempt.chunkSeriesComplete === undefined
+        ? {}
+        : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
+    });
+  }
+  const attempts = input.reservation.sources.flatMap((sourceId) => {
+    const attempt = attemptsBySource.get(sourceId);
+    return attempt === undefined ? [] : [attempt];
+  });
+  if (attempts.length !== attemptsBySource.size) {
+    throw new Error("Hosted Candidate request progress names a source outside the reservation.");
+  }
+  const admission = assertStandardReviewExecutionAdmission({
+    target: input.target,
+    frontlineActive: false,
+    standardReview: input.reservation.obligation,
+    completedPasses: input.progress?.completedPasses ?? 0,
+    attempts,
+    sources: input.reservation.sources,
+    maxPasses: input.maxPasses,
+    expectedSourceId: input.provider,
+    expectedNextAction: "hosted-request",
+    ...(input.invocation === undefined
+      ? {}
+      : { judgment: { invocation: input.invocation } }),
+    ...(input.ceilingOverride === undefined
+      ? {}
+      : { ceilingOverride: input.ceilingOverride }),
+  });
+  if (admission.payload.pass !== input.logicalPass) {
+    throw new Error("Hosted review capacity changed before durable admission.");
   }
 }
 

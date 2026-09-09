@@ -213,6 +213,7 @@ import {
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
 import {
+  assertCandidateHostedReservationPolicyAdmission,
   assertHostedErrandAdmission,
   assertHostedErrandBindingAuthority,
   assertHostedReservationAdmission,
@@ -2750,10 +2751,43 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
         if (standardReview === undefined || sources === undefined) {
           throw new Error("Hosted review capacity lacks standard-review authority.");
         }
+        if (context.candidateRecord !== null) {
+          const discharge = await createHostedReservationDischargeReader({
+            cwd: root,
+            exec: gitExec,
+            host: new GhDeliveryHostPort(hostedGhRunner),
+          })({
+            reservation: context.reservation,
+            baseRevision: context.reviewTarget.diffBaseSha,
+            approvedHead: request.target.headSha,
+            changeRequest: {
+              repository: request.target.repository,
+              pullRequest: request.target.pullRequest,
+            },
+            candidate: context.candidateRecord,
+          });
+          assertCandidateHostedReservationPolicyAdmission({
+            reservation: context.reservation,
+            discharge,
+            progress,
+            target: request.target,
+            provider: request.provider,
+            coverage: request.coverage,
+            maxPasses: policy.maxPasses,
+            logicalPass,
+            ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
+            ...(request.ceilingOverride === undefined
+              ? {}
+              : { ceilingOverride: request.ceilingOverride }),
+          });
+          return;
+        }
         const currentAttempts = progress?.attempts.filter((attempt): attempt is typeof attempt & {
           outcome: Exclude<typeof attempt.outcome, "pending">;
-        } => attempt.outcome !== "pending") ?? [];
-        if (progress?.attempts.some(({ outcome }) => outcome === "pending") === true) {
+        } => attempt.headSha === request.target.headSha && attempt.outcome !== "pending") ?? [];
+        if (progress?.attempts.some((attempt) => (
+          attempt.headSha === request.target.headSha && attempt.outcome === "pending"
+        )) === true) {
           throw new Error("Hosted review capacity is already held by a pending request.");
         }
         let lastSettledIndex = -1;

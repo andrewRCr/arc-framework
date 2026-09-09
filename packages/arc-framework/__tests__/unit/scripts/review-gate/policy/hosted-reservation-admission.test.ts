@@ -19,6 +19,7 @@ import { createStandardReviewReservation } from
 import {
   assertHostedErrandBindingAuthority,
   assertHostedErrandAdmission,
+  assertCandidateHostedReservationPolicyAdmission,
   assertHostedReservationAdmission,
   assertHostedReservationPolicyAdmission,
   configuredSourceSuffix,
@@ -932,6 +933,74 @@ describe("hosted reservation admission", () => {
         exhaustedPassCount: 1,
         nextPass: 2,
       },
+    })).not.toThrow();
+  });
+
+  it("excludes prior-head terminals when rechecking Candidate capacity at the pass ceiling", () => {
+    const target = { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD };
+    const input = {
+      reservation,
+      discharge: {
+        discharged: false,
+        detail: "The current Candidate head requires review.",
+        nextSource: "coderabbit-pr",
+      },
+      progress: {
+        completedPasses: 2,
+        attempts: [1, 2].map((logicalPass) => ({
+          attemptId: `prior-clean-${String(logicalPass)}`,
+          logicalPass,
+          retryGeneration: 0,
+          changeRequestId: "pull/42",
+          headSha: "d".repeat(40),
+          terminalProducer: true,
+          sourceId: "coderabbit-pr",
+          outcome: "clean" as const,
+        })),
+      },
+      target,
+      provider: "coderabbit-pr",
+      coverage: "complete" as const,
+      maxPasses: 2,
+      logicalPass: 3,
+    };
+
+    expect(() => assertCandidateHostedReservationPolicyAdmission(input)).toThrow(/approval-required/u);
+    expect(() => assertCandidateHostedReservationPolicyAdmission({
+      ...input,
+      ceilingOverride: {
+        target,
+        lane: "standard" as const,
+        exhaustedPassCount: 2,
+        nextPass: 3,
+      },
+    })).not.toThrow();
+  });
+
+  it("retains only applicability-approved fallback progress across Candidate heads", () => {
+    const target = { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD };
+    expect(() => assertCandidateHostedReservationPolicyAdmission({
+      reservation,
+      discharge: {
+        discharged: false,
+        detail: "The retained first source is safely unavailable.",
+        nextSource: "codex-pr",
+        requestCoverage: "complete",
+        requestAttempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+      },
+      progress: {
+        completedPasses: 0,
+        attempts: [{
+          headSha: "d".repeat(40),
+          sourceId: "coderabbit-pr",
+          outcome: "rate-limited",
+        }],
+      },
+      target,
+      provider: "codex-pr",
+      coverage: "complete",
+      maxPasses: 2,
+      logicalPass: 1,
     })).not.toThrow();
   });
 

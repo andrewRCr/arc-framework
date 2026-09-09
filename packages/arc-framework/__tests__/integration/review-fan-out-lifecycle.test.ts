@@ -89,6 +89,7 @@ import {
   bindHostedAttemptDisposition,
   hostedLaneAttemptId,
   recordHostedAwaitAttempt,
+  recordLaneAttempt,
   recordHostedRequestAdmission,
   recordHostedRequestConclusion,
   settleHostedAttemptFinding,
@@ -1202,7 +1203,7 @@ async function selectReviewRequiredUntilRouted(
   throw new Error("review applicability selections did not reach a routed status");
 }
 
-async function installHostedRequestTestHost(harness: FanOutHarness) {
+async function installHostedRequestTestHost(harness: FanOutHarness, singletonHead?: string) {
   const fakeBin = join(harness.root, "fake-bin");
   const fakeGh = join(fakeBin, "gh");
   const providerCalled = join(harness.root, "provider-called");
@@ -1219,9 +1220,9 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     number: 42,
     url: "https://example.test/pull/42",
     state: "OPEN",
-    baseRefName: "delivery/delivery-plan-record/first",
+    baseRefName: singletonHead === undefined ? "delivery/delivery-plan-record/first" : "main",
     headRefName: "prior-top",
-    headRefOid: harness.priorSecond,
+    headRefOid: singletonHead ?? harness.priorSecond,
   }]);
   const observedRequest = (
     pullRequest: number,
@@ -1288,8 +1289,8 @@ async function installHostedRequestTestHost(harness: FanOutHarness) {
     `    printf '%s\\n' '${observedRequest(
       42,
       "prior-top",
-      harness.priorSecond,
-      "delivery/delivery-plan-record/first",
+      singletonHead ?? harness.priorSecond,
+      singletonHead === undefined ? "delivery/delivery-plan-record/first" : "main",
     )}'`,
     "    ;;",
     `  api:repos/owner/repository/commits/${harness.oldFirst}/check-runs?filter=all\\&per_page=100)`,
@@ -2466,6 +2467,110 @@ describe("hosted review fan-out lifecycle", () => {
       deliveryCursor: { completedMemberCount: 1 },
     });
     await expect(access(providerCalled)).resolves.toBeUndefined();
+    await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
+  });
+
+  it("admits a moved-head Candidate request with exact authority at the pass ceiling", async () => {
+    const harness = await createHarness();
+    await git(harness.root, ["checkout", "prior-top"]);
+    await writeFile(
+      join(harness.root, ".git", "info", "exclude"),
+      ".arc/\nfake-bin/\nprovider-called\nprovider-verdict\n",
+      "utf8",
+    );
+    await mkdir(join(harness.root, ".arc", "active"), { recursive: true });
+    await writeFile(join(harness.root, ".arc", "active", `meta-${harness.plan.workUnitId}.md`), [
+      `# Metadata: ${harness.plan.workUnitId}`,
+      "",
+      "| **State** | **Owner** | **Branch**  | **Class** | **Priority** |",
+      "| --------- | --------- | ----------- | --------- | ------------ |",
+      "| `Active`  | `andrew`  | `prior-top` | `Heavy`   | `P1`         |",
+      "",
+      "- **Cohort:** [none]",
+      "- **Depends On:** [none]",
+      "",
+      "- **Origin:** [internal]",
+      "- **Design:** [none]",
+      `- **Task List:** \`tasks-${harness.plan.workUnitId}.md\``,
+      "- **Review Rubric:** [none]",
+      "",
+      "- **Current Workflow:** [none]",
+      "- **Last Completed:** verification",
+      "- **Next Task:** [none]",
+      "- **Blockers:** [none]",
+      "",
+      "- **Next Action:** integration",
+      "",
+      "- **PR URL:** [none]",
+      "- **Completed:** [none]",
+      "",
+      "---",
+      "",
+    ].join("\n"), "utf8");
+    const candidate = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
+    const boundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
+    if (candidate.record === null || boundary.boundary?.reservation === null
+      || boundary.boundary?.reservation === undefined) {
+      throw new Error("expected Candidate and publication reservation");
+    }
+    const pinnedReservation = createStandardReviewReservation({
+      candidateId: candidate.record.attestation.candidateId,
+      sourceId: "coderabbit-pr",
+      sources: ["coderabbit-pr", "codex-pr"],
+      repository,
+      headSha: harness.priorSecond,
+      obligation: boundary.boundary.reservation.obligation,
+    });
+    await writeSubmissionBoundary(harness.root, projectPublicationBoundary({
+      workUnit: harness.plan.workUnitId,
+      branch: "prior-top",
+      candidateId: candidate.record.attestation.candidateId,
+      candidateSubjectDigest: candidate.record.subject.subjectDigest,
+      reservation: pinnedReservation,
+      changeRequest: { repository, pullRequest: 42 },
+    }), boundary.version);
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: candidate.record.attestation.candidateId,
+    };
+    for (const [index, sourceId] of ["coderabbit-pr", "codex-pr"].entries()) {
+      await recordLaneAttempt(harness.store, {
+        lane: "standard",
+        repositoryId: harness.repositoryId,
+        changeRequestId: "pull/42",
+        headSha: harness.oldFirst,
+        lineage,
+        logicalPass: index + 1,
+        retryGeneration: 0,
+        attemptId: `prior-head-clean-${String(index + 1)}`,
+        sourceId,
+        outcome: "clean",
+        consumedPass: true,
+        now: `2026-09-01T11:0${String(index)}:00.000Z`,
+      });
+    }
+    const target = { repository, pullRequest: 42, headSha: harness.priorSecond };
+    const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness, harness.priorSecond);
+    expect(await git(harness.root, ["status", "--porcelain"])).toBe("");
+
+    const result = await requestThroughProductionHandler(harness, fakeBin, {
+      schemaVersion: 1,
+      target,
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      ceilingOverride: {
+        target,
+        lane: "standard",
+        exhaustedPassCount: 2,
+        nextPass: 3,
+      },
+    });
+
+    expect(result.exitCodes, JSON.stringify(result.output)).toEqual([]);
+    expect(result.output).toMatchObject({
+      state: "requested",
+      handle: { admission: { lineage, logicalPass: 3 } },
+    });
     await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
   });
 
