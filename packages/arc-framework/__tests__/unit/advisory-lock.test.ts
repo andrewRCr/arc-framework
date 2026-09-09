@@ -746,6 +746,19 @@ describe("releaseAdvisoryLock", () => {
     expect((await readHolder(lockPath)).token).toBe("second");
   });
 
+  it("tolerates release when the lock's parent becomes inaccessible after acquisition", async () => {
+    const handle = await acquireAdvisoryLock(lockPath, {
+      pid: 5,
+      token: "ours",
+      now: () => 1,
+      isProcessAlive: () => true,
+    });
+    await rm(dir, { recursive: true, force: true });
+    await writeFile(dir, "not a directory", "utf-8");
+
+    await expect(releaseAdvisoryLock(handle, { maxWaitMs: 20 })).resolves.toBeUndefined();
+  });
+
   it("tolerates an already-absent lock", async () => {
     await expect(releaseAdvisoryLock({ path: lockPath, pid: 5, token: "x" })).resolves.toBeUndefined();
   });

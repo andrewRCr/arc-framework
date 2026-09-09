@@ -485,7 +485,17 @@ function isOwnedHolder(
   holder: AdvisoryLockHolder | "absent" | "corrupt" | "unreadable",
   handle: AdvisoryLockHandle,
 ): holder is AdvisoryLockHolder {
-  return typeof holder === "object" && holder.pid === handle.pid && holder.token === handle.token;
+  return isReleasableHolder(holder, handle, false);
+}
+
+function isReleasableHolder(
+  holder: AdvisoryLockHolder | "absent" | "corrupt" | "empty" | "unreadable",
+  handle: AdvisoryLockHandle,
+  allowTokenless: boolean,
+): holder is AdvisoryLockHolder {
+  return typeof holder === "object"
+    && holder.pid === handle.pid
+    && (holder.token === undefined ? allowTokenless : holder.token === handle.token);
 }
 
 /**
@@ -512,6 +522,8 @@ export async function releaseAdvisoryLock(
   const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
   const breakLockTtlMs = options.breakLockTtlMs ?? DEFAULT_BREAK_LOCK_TTL_MS;
   const breakLockPath = `${handle.path}${BREAK_LOCK_SUFFIX}`;
+  const observedHolder = await readHolder(readFile, handle.path);
+  if (!isReleasableHolder(observedHolder, handle, true)) return;
   const breakHandle = await acquireBreakLockForRelease(handle.path, {
     breakLockPath,
     exclusiveCreate,
@@ -571,9 +583,7 @@ async function releaseOwnedLockDirect(
   allowTokenless: boolean,
 ): Promise<void> {
   const holder = await readHolder(readFile, handle.path);
-  if (holder === "absent" || holder === "corrupt" || holder === "empty" || holder === "unreadable") return;
-  if (holder.pid !== handle.pid) return;
-  if (holder.token === undefined ? !allowTokenless : holder.token !== handle.token) return;
+  if (!isReleasableHolder(holder, handle, allowTokenless)) return;
   await tolerantRemove(removeFile, handle.path);
 }
 
