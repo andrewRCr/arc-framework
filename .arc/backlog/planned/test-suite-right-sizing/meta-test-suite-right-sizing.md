@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** Housekeep follow-up from recurring test-suite wall-clock friction.
-- **Design:** [none]
+- **Design:** `draft-test-suite-right-sizing.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
@@ -17,8 +17,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Start planning from the problem and ownership boundaries in
-  `notes-test-suite-right-sizing.md`; measure before proposing removal or consolidation.
+- **Next Action:** Start planning from `draft-test-suite-right-sizing.md`; measure before proposing removal or
+  consolidation.
 
 - **PR URL:** [none]
 - **Completed:** [none]
