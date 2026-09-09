@@ -342,14 +342,17 @@ describe("v3 decomposition refusals", () => {
     expect(remedy.argv).toEqual(["arc", "decompose", "origin", "--extract", "map.json"]);
   });
 
-  it("maps source publication to an exact Git push", () => {
+  it.each([
+    ["plan/origin", "refs/heads/plan/origin:refs/heads/plan/origin"],
+    ["--mirror", "refs/heads/--mirror:refs/heads/--mirror"],
+  ] as const)("maps source publication for %s to an unambiguous Git push", (branch, refspec) => {
     const remedy = v3DecomposeRemedy({
       invocation: { mode: "execute", origin: "origin", cutMapPath: "map.json" },
       reason: "source-unpublished",
-      locus: "plan/origin",
+      locus: branch,
     });
 
-    expect(remedy.argv).toEqual(["git", "push", "origin", "plan/origin"]);
+    expect(remedy.argv).toEqual(["git", "push", "origin", refspec]);
     expect(remedy.text).toMatch(/publish.*reported source branch/iu);
   });
 

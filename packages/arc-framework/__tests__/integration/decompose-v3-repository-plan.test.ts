@@ -4197,7 +4197,9 @@ describe("Git v3 repository plan", () => {
         actual: completedMap.machine.resultBase.head,
       },
       recovery: { kind: "none" },
-      remedy: { argv: ["git", "push", "origin", "plan/origin"] },
+      remedy: {
+        argv: ["git", "push", "origin", "refs/heads/plan/origin:refs/heads/plan/origin"],
+      },
     });
     expect(await claimFiles(repo)).toEqual([]);
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
@@ -4229,7 +4231,9 @@ describe("Git v3 repository plan", () => {
         actual: { kind: "absent" },
       },
       recovery: { kind: "none" },
-      remedy: { argv: ["git", "push", "origin", "plan/origin"] },
+      remedy: {
+        argv: ["git", "push", "origin", "refs/heads/plan/origin:refs/heads/plan/origin"],
+      },
     });
     expect(await claimFiles(repo)).toEqual([]);
   });

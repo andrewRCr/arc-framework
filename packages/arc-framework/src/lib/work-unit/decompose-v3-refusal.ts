@@ -1271,10 +1271,11 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
   switch (code) {
     case "source-unpublished": {
       const branch = input.locus ?? input.invocation.origin;
+      const ref = `refs/heads/${branch}`;
       return spineRemedy(
         "A branch-backed source must be published at its authenticated commit before mutation.",
         "Publish the reported source branch, then retry the selected mode",
-        ["git", "push", "origin", branch],
+        ["git", "push", "origin", `${ref}:${ref}`],
       );
     }
     case "authoring-shape": {
