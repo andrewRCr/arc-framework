@@ -217,18 +217,9 @@ identity; native bindings preserve exactness without a generic persisted executi
   retry, and member movement. Exact ref/member lookup keeps shared-head siblings on distinct operation, request, and
   admission identities; failed local reruns advance only native generation and complete logical pass 1 once.
 
-### `[ ]` **2.6 Verify native admission and shared accounting** — validate criteria at member scope
+### `[x]` **2.6 Verify native admission and shared accounting** — validate criteria at member scope
 
 - _Goal:_ Native admission, coverage, and accounting criteria are proven at this delivery boundary.
-
-- _Note:_ Spec §§ 3 and 5; SC 8 and 12.
-
-- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
-  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
-  markers unchanged; route any corrective work through normal task review, not this verifier.
-
-- _Forward correction:_ The approved first adversarial pass found that public local and non-delivery hosted actions can
-  allocate a fresh pass without revalidating the configured ceiling at the capacity-spend boundary.
 
     - `[x]` **2.6.R.a Enforce cap authority at every native public producer admission**
 
@@ -236,10 +227,15 @@ identity; native bindings preserve exactness without a generic persisted executi
           hosted vehicle re-run the standard-lane driver from live progress and configuration before fresh producer
           effects; replay stays first, and an override binds only its exact exhausted count and next pass.
 
-    - `[ ]` **2.6.R.b Revalidate the repaired Member 2 boundary** — validate criteria at member scope
+    - `[x]` **2.6.R.b Revalidate the repaired Member 2 boundary** — validate criteria at member scope
 
-        - Update the recorded Member 2 span and criterion evidence after the correction gates pass, then consume the
-          conditionally authorized fresh full-rubric Pass 2. Leave Success Criteria markers unchanged.
+        - The cumulative Member 2 walk resolves all four criteria through `b5489ba54`; Pass 5's local concurrency,
+          receipt-recovery, and lane-authority responses are complete. The full Tier 2 gate passed on the reconciled
+          tree, and every Success Criteria marker remains unchanged for terminal verification.
+
+- _Outcome:_ Native admission now closes at one lineage owner across local, frontline, and hosted producers. Every
+  capacity-spend boundary revalidates exact live authority before effects; interrupted or concurrent local transitions
+  repair one producer with truthful coverage, and unattached operation residue cannot execute.
 
 ## **Phase 3:** Seal terminal evidence and bind approval to its producer
 

@@ -1,15 +1,15 @@
 # Notes: Review Signal Convergence
 
-## Member 2 criteria report — 2026-09-08
+## Member 2 criteria report — 2026-09-09
 
 ```yaml
 criteria-slice: "Success Criteria > Member 2 — `native-review-admission`"
 span:
-  diff: "339714b0958b8b78b71aab9ef27ed185ced55681..953e553f2595cf0f8328e737b375ad01aa03d7c1"
+  diff: "339714b0958b8b78b71aab9ef27ed185ced55681..b5489ba54e53b889e8df710386d56d01c9ce1f64"
   reachability: >-
-    Repository tree at 953e553f2595cf0f8328e737b375ad01aa03d7c1, including the upstream spec, the five
-    native-admission and accounting commits, their public command handlers and production stores, generated schemas,
-    integration/E2E fixtures, and the current delivery-member status and checkpoint consumers.
+    Repository tree at d598c9db4bdad06ab318f423356356b31145709a, including the upstream spec, all Member 2
+    admission and correction commits, the reconciled shared advisory-lock primitive, public command handlers and
+    production stores, generated schemas, integration/E2E fixtures, status, reservation, and checkpoint consumers.
   boundary-order-deviation: null
 criteria:
   - locus: "Success Criteria > Member 2 — `native-review-admission` > 1"
@@ -17,10 +17,10 @@ criteria:
     evidence: >-
       Local operation/request identity binds runtime lineage, logical pass, and retry generation; frontline resolve
       derives and run revalidates one durable admission; hosted request persists and replays its source-specific
-      admission. Repository lookup now resolves public status by retained ref and effects by stable member vehicle.
-      The public fan-out lifecycle proves shared-head sibling local receipts and hosted admissions stay distinct,
-      failed local generation 0 reruns as generation 1 within logical pass 1, and moved-member replay remains scoped.
-      Frontline command/run tests refuse caller pass fields and forged ready envelopes while executing returned inputs.
+      admission. Local attest and resume additionally require the exact lane-owner attempt, so operation-first crash
+      residue remains non-executable until prepare admits it. Public fan-out and interruption tests prove shared-head
+      siblings stay distinct, failed local generation 0 reruns as generation 1 within logical pass 1, concurrent
+      prepare replays one producer, and policy drift cannot promote an unadmitted operation.
     state: "[x]"
   - locus: "Success Criteria > Member 2 — `native-review-admission` > 2"
     criterion-digest: sha256:31a90bb5d460853094167d60867c39f4df30c6412d1166ddd26f917bc16835da
@@ -34,22 +34,22 @@ criteria:
     criterion-digest: sha256:8619bd5e9363aa4bfb521c86d58fe64c6f45232d335d4f01d8c6db0a927a0ca1
     evidence: >-
       Lane progress deduplicates terminal producers by logical pass and derives completePasses only from effective
-      complete coverage. Local and hosted bindings retain requested/effective coverage into reservation, earlier
-      history, status, and checkpoint projections. Public fan-out tests cover incremental completion followed by a
-      complete upgrade, hosted/local fallback, a moved member after response, and distinct one-pass sibling histories.
+      complete coverage. One receipt-conclusion projection now serves attest, resume, and prepare recovery; terminal
+      local coverage must equal admitted requested coverage, nonterminal attempts cannot claim it, and settled findings
+      replay idempotently without regressing their operational state. Public interruption coverage proves a receipt
+      persisted before lane publication repairs the original pass with truthful incremental or complete coverage.
     state: "[x]"
   - locus: "Success Criteria > Member 2 — `native-review-admission` > 4"
     criterion-digest: sha256:09be87242667f8d03b08830a7a427a55f1d31dcd42e9612363dc9d200b778d44
     evidence: >-
-      Lane arbitration leaves pending, unavailable, failed, replayed, and partial observations count-neutral and
-      rejects competing terminal producers for one admitted pass. Frontline and delivery-member hosted admission
-      enforce the configured ceiling from durable progress before effects. However, public local prepare accepts a
-      delivery-member head without its driver-issued admission, and Candidate/Errand hosted request admission checks
-      source order without the configured maximum. Those paths allocate `completedPasses + 1` and can invoke a fresh
-      producer above the ceiling. The member-boundary Tier 2 run passed 869 test files (one skipped) and 11,570 tests
-      (one skipped), but it did not cover these bypasses.
-    state: "[ ]"
-summary: "3 [x], 0 [~], 1 [ ]; Member 2 criterion 4 remains unresolved"
+      Lane arbitration leaves pending, unavailable, failed, replayed, partial, and settlement observations
+      count-neutral and rejects competing terminal producers. Every local, frontline, and hosted capacity-spend
+      boundary revalidates exact live owner state and ceiling authority before effects. Final local admission always
+      reconciles under the repository-local review lock before generation or artifact creation, and hosted admission
+      reauthorizes on owner-version conflict. The terminal Tier 2 run passed 873 test files with one skipped and 11,627
+      tests with one skipped.
+    state: "[x]"
+summary: "4 [x], 0 [~], 0 [ ]; no unresolved Member 2 criterion"
 ```
 
 ### Member 2 fresh-context companion
@@ -226,8 +226,65 @@ writer previously admitted a complete `codex-pr` fallback into the incremental p
 233 tests; the production fan-out integration passed 20 tests. The complete Tier 2 gate passed 869 test files with one
 skipped and 11,582 tests with one skipped.
 
-One fresh full-rubric Pass 4 is conditionally authorized after this correction is committed. That authority names
-Pass 4 only, is consumed when it launches, and does not authorize Pass 5.
+That conditional authority was consumed by Pass 4 after the correction commit landed.
+
+**Pass 4 — four confirmed major findings; non-converged. Stop reason: suspended pending approved response
+performance.** The pass found four remaining authority seams: earlier-attempt lookup could cross Candidate lineage;
+status could compose a response reference outside the owner read; local capacity validation could race pending
+publication; and Candidate admission could reuse lineage-wide progress without exact-head authority.
+
+Primary source verification confirmed the four seams. Approved responses bound earlier-attempt discovery to the
+runtime-resolved lineage, composed status response references from the same owner snapshot, moved local authorization
+inside the version-checked pending transition, and required exact-head Candidate admission with only explicit
+applicability-backed fallback. The corrections landed in `6770af909`, `8abcbafcb`, `8775fe483`, and `c3a247156`; the
+reroot expectation correction landed in `98e2e7c47`. Response performance and the correction gates completed before
+the explicitly authorized Pass 5 launched.
+
+**Pass 5 — two confirmed major findings; non-converged. Stop reason: cap exhausted.** No successor pass is authorized.
+
+```yaml
+findings:
+  - title: "Concurrent local preparation can fail instead of replaying the admitted attempt"
+    severity: major
+    locus: "packages/arc-framework/src/scripts/review-gate/runtime/local-prepare.ts"
+    evidence: >-
+      Two serialized callers could both miss the initial replay. The second caller's first final-lock iteration skipped
+      reconciliation, created replacement artifacts, and then failed the one-pending-producer schema invariant instead
+      of replaying the first caller's admitted operation.
+  - title: "Receipt-backed local recovery publishes terminal complete reviews with null effective coverage"
+    severity: major
+    locus: "packages/arc-framework/src/scripts/review-gate/runtime/local-prepare.ts"
+    evidence: >-
+      Recovery after receipt persistence but before lane publication reused the pending binding's null effective
+      coverage. It advanced completed passes without complete coverage and made later truthful replay conflict.
+withstood:
+  - Hosted and frontline producers retain pre-effect admission, stored replay context, and exact cap authority.
+  - Lineage-keyed owner state keeps shared-head members and Candidate roots isolated.
+  - Logical terminal counts remain distinct from complete-coverage counts across status and checkpoint consumers.
+verdict: >-
+  Member 2 remained unresolved because local final admission and receipt recovery did not share one authoritative,
+  replay-safe transition boundary.
+```
+
+Primary verification confirmed both findings. Advisor consultation identified their common cause as a distributed
+transition: initial replay, final lock acquisition, artifact publication, owner admission, and receipt recovery made
+different validity assumptions. A discriminating operation-first interruption check also established a third public
+authority gap: attest and resume accepted an operation record without its exact lane-owner admission.
+
+**Disposition P5-F1 — `fix` (approved and applied):** every final local lock entry now reconciles pending admission
+before generation or artifact work. A serialized production-lock-shaped regression proves concurrent callers publish
+one source and return one operation. **P5-F2 — `fix` (approved and applied):** attest, resume, and prepare recovery use
+one validated terminal receipt projection; schema invariants require truthful terminal and nonterminal local coverage,
+and a receipt/progress interruption repairs the original pass. **P5-F3 — `fix` (approved and applied):** attest and
+resume require the exact lane-owner attempt before source or receipt effects. Operation-first crash residue is either
+admitted as the same producer under compatible runtime drift or remains inert when policy identity changes.
+
+Base reconciliation at `41fe42b4b` supplied the shared advisory-lock primitive. The local review boundary now delegates
+to that primitive while preserving its repository-local lock path, so prepare, attest, resume, and sweep share one DRY
+serialization mechanism. The coupled correction landed in `b5489ba54`; the merged request-schema closure expectation
+landed separately in `d598c9db4`. Focused verification passed 126 local transition tests plus the public
+findings/settlement E2E and schema-surface integration. The complete Tier 2 gate passed 873 test files with one skipped
+and 11,627 tests with one skipped.
 
 ## Member 1 criteria report — 2026-09-07
 
