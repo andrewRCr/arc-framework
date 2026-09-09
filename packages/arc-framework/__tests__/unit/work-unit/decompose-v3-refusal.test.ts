@@ -425,6 +425,7 @@ describe("v3 decomposition refusals", () => {
     ["base-ancestry-unavailable", "advance"],
     ["base-dependency-snapshot-unavailable", "advance"],
     ["base-acquired-incoming-dependency", "preflight"],
+    ["dependency-recipient-drift", "cleanup"],
     ["candidate-history-unavailable", "cleanup"],
     ["candidate-initial-transition-invalid", "cleanup"],
     ["candidate-transform-mismatch:path-state", "cleanup"],
@@ -450,6 +451,17 @@ describe("v3 decomposition refusals", () => {
       : command === "preflight"
         ? ["arc", "decompose", "origin", "--preflight"]
         : ["arc", "decompose", "origin", "--advance-base", "map.json"]);
+  });
+
+  it("directs dependency-recipient drift through cleanup and a fresh preflight", () => {
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "advance-base", origin: "origin", cutMapPath: "map.json" },
+      reason: "dependency-recipient-drift",
+      locus: ".arc/backlog/planned/consumer/meta-consumer.md",
+    });
+
+    expect(remedy.argv).toEqual(["arc", "teardown", "--branch", "chore/decompose-origin"]);
+    expect(remedy.text).toContain("arc decompose origin --preflight");
   });
 
   it("maps an unavailable advancement ancestry probe to its own invariant", () => {

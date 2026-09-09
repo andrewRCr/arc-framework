@@ -3,6 +3,7 @@
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
+import { parseMetaRecord } from "../active/meta-reader.js";
 import {
   canonicalize,
   digestBytes,
@@ -74,6 +75,29 @@ interface AdvancementMismatch {
   locus?: string;
   evidence?: V3DecomposeRefusalEvidence;
 }
+
+interface CandidateAdvancementCommit {
+  commit: string;
+  absorbedBaseHead: string;
+}
+
+type CandidateChainResult =
+  | {
+      status: "ready";
+      initialCommit: string;
+      advancements: CandidateAdvancementCommit[];
+      previousBaseHead: string;
+    }
+  | { status: "refused"; refusal: AdvancementRefusal };
+
+type DependencyRecipientComparison =
+  | { status: "matched" }
+  | { status: "unavailable"; locus: string }
+  | {
+      status: "drift";
+      locus: string;
+      evidence: V3DecomposeRefusalEvidence;
+    };
 
 function refuse(
   reason: string,
@@ -473,6 +497,107 @@ async function firstParentChain(
   }
 }
 
+async function candidateChain(
+  dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
+  authoredBaseHead: string,
+  candidateHead: string,
+): Promise<CandidateChainResult> {
+  const chain = await firstParentChain(dependencies, authoredBaseHead, candidateHead);
+  if (chain === null) {
+    return { status: "refused", refusal: refuse("candidate-history-unavailable") };
+  }
+  const initialCommit = chain[0];
+  if (initialCommit === undefined) {
+    return { status: "refused", refusal: refuse("candidate-history-unavailable") };
+  }
+  const initialParents = await commitParents(dependencies, initialCommit);
+  if (initialParents?.length !== 1 || initialParents[0] !== authoredBaseHead) {
+    return { status: "refused", refusal: refuse("candidate-initial-transition-invalid") };
+  }
+
+  const advancements: CandidateAdvancementCommit[] = [];
+  let previousCandidateHead = initialCommit;
+  let previousBaseHead = authoredBaseHead;
+  for (const advancementCommit of chain.slice(1)) {
+    const parents = await commitParents(dependencies, advancementCommit);
+    if (parents?.length !== 2 || parents[0] !== previousCandidateHead || parents[1] === undefined) {
+      return { status: "refused", refusal: refuse("candidate-advancement-chain-invalid") };
+    }
+    const absorbedBaseHead = parents[1];
+    const absorbedBaseAncestry = await observeAncestry(
+      dependencies,
+      previousBaseHead,
+      absorbedBaseHead,
+    );
+    if (absorbedBaseAncestry.status === "unavailable") {
+      return {
+        status: "refused",
+        refusal: refuse("base-ancestry-unavailable", absorbedBaseAncestry.locus),
+      };
+    }
+    if (absorbedBaseAncestry.status === "not-ancestor") {
+      return { status: "refused", refusal: refuse("candidate-advancement-base-invalid") };
+    }
+    advancements.push({ commit: advancementCommit, absorbedBaseHead });
+    previousCandidateHead = advancementCommit;
+    previousBaseHead = absorbedBaseHead;
+  }
+  if (previousCandidateHead !== candidateHead) {
+    return { status: "refused", refusal: refuse("candidate-advancement-chain-invalid") };
+  }
+  return { status: "ready", initialCommit, advancements, previousBaseHead };
+}
+
+function dependencyRecipientPaths(composed: ComposedPlan): string[] {
+  return composed.plan.mutations.flatMap((mutation) => (
+    mutation.kind === "composed"
+      && mutation.contributors.some(({ kind }) => kind === "dependency")
+      ? [mutation.path]
+      : []
+  ));
+}
+
+async function dependencyTargetsAt(
+  dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
+  ref: string,
+  path: string,
+): Promise<string[] | null> {
+  try {
+    const bytes = await dependencies.readBlob(ref, path);
+    if (bytes === null) return [];
+    const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return [...parseMetaRecord(content).dependsOn];
+  } catch {
+    return null;
+  }
+}
+
+async function compareDependencyRecipientPrestates(
+  dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
+  composed: ComposedPlan,
+  previousBaseHead: string,
+  currentBaseHead: string,
+): Promise<DependencyRecipientComparison> {
+  if (previousBaseHead === currentBaseHead) return { status: "matched" };
+  for (const path of dependencyRecipientPaths(composed)) {
+    const [previousTargets, currentTargets] = await Promise.all([
+      dependencyTargetsAt(dependencies, previousBaseHead, path),
+      dependencyTargetsAt(dependencies, currentBaseHead, path),
+    ]);
+    if (previousTargets === null || currentTargets === null) {
+      return { status: "unavailable", locus: path };
+    }
+    if (canonicalize(previousTargets) !== canonicalize(currentTargets)) {
+      return {
+        status: "drift",
+        locus: path,
+        evidence: { expected: previousTargets, actual: currentTargets },
+      };
+    }
+  }
+  return { status: "matched" };
+}
+
 /** Advance one exact committed transition candidate over a descendant configured base. */
 export async function advanceGitDecomposeTransitionBase(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
@@ -603,18 +728,28 @@ export async function advanceGitDecomposeTransitionBase(
       currentPlan.refusal.evidence,
     );
   }
-  const chain = await firstParentChain(dependencies, authoredBaseHead, candidateHead);
-  if (chain === null) return { status: "refused", reason: "candidate-history-unavailable" };
-  const initialCommit = chain[0];
-  if (initialCommit === undefined) return { status: "refused", reason: "candidate-history-unavailable" };
-  const initialParents = await commitParents(dependencies, initialCommit);
-  if (initialParents?.length !== 1 || initialParents[0] !== authoredBaseHead) {
-    return { status: "refused", reason: "candidate-initial-transition-invalid" };
+  const discoveredChain = await candidateChain(dependencies, authoredBaseHead, candidateHead);
+  if (discoveredChain.status === "refused") return discoveredChain.refusal;
+  const recipientComparison = await compareDependencyRecipientPrestates(
+    dependencies,
+    currentPlan,
+    discoveredChain.previousBaseHead,
+    currentBaseHead,
+  );
+  if (recipientComparison.status === "unavailable") {
+    return refuse("base-dependency-snapshot-unavailable", recipientComparison.locus);
+  }
+  if (recipientComparison.status === "drift") {
+    return refuse(
+      "dependency-recipient-drift",
+      recipientComparison.locus,
+      recipientComparison.evidence,
+    );
   }
   const initialMismatch = await exactTransitionTree(
     dependencies,
     authoredBaseHead,
-    initialCommit,
+    discoveredChain.initialCommit,
     currentPlan,
     recordPath,
     recordBytes,
@@ -628,25 +763,7 @@ export async function advanceGitDecomposeTransitionBase(
     );
   }
 
-  let previousCandidateHead = initialCommit;
-  let previousBaseHead = authoredBaseHead;
-  for (const advancementCommit of chain.slice(1)) {
-    const parents = await commitParents(dependencies, advancementCommit);
-    if (parents?.length !== 2 || parents[0] !== previousCandidateHead || parents[1] === undefined) {
-      return { status: "refused", reason: "candidate-advancement-chain-invalid" };
-    }
-    const absorbedBaseHead = parents[1];
-    const absorbedBaseAncestry = await observeAncestry(
-      dependencies,
-      previousBaseHead,
-      absorbedBaseHead,
-    );
-    if (absorbedBaseAncestry.status === "unavailable") {
-      return refuse("base-ancestry-unavailable", absorbedBaseAncestry.locus);
-    }
-    if (absorbedBaseAncestry.status === "not-ancestor") {
-      return { status: "refused", reason: "candidate-advancement-base-invalid" };
-    }
+  for (const { commit: advancementCommit, absorbedBaseHead } of discoveredChain.advancements) {
     const mismatch = await exactTransitionTree(
       dependencies,
       absorbedBaseHead,
@@ -663,15 +780,10 @@ export async function advanceGitDecomposeTransitionBase(
         mismatch.evidence,
       );
     }
-    previousCandidateHead = advancementCommit;
-    previousBaseHead = absorbedBaseHead;
-  }
-  if (previousCandidateHead !== candidateHead) {
-    return { status: "refused", reason: "candidate-advancement-chain-invalid" };
   }
   const remainingBaseAncestry = await observeAncestry(
     dependencies,
-    previousBaseHead,
+    discoveredChain.previousBaseHead,
     currentBaseHead,
   );
   if (remainingBaseAncestry.status !== "ancestor") {
@@ -679,7 +791,7 @@ export async function advanceGitDecomposeTransitionBase(
       ? refuse(
           "base-not-descendant",
           input.baseBranch,
-          { expected: previousBaseHead, actual: currentBaseHead },
+          { expected: discoveredChain.previousBaseHead, actual: currentBaseHead },
         )
       : refuse("base-ancestry-unavailable", remainingBaseAncestry.locus);
   }
@@ -698,7 +810,7 @@ export async function advanceGitDecomposeTransitionBase(
     );
   }
 
-  if (currentBaseHead === previousBaseHead) {
+  if (currentBaseHead === discoveredChain.previousBaseHead) {
     return { status: "unchanged", candidateBranch, candidateHead, currentBaseHead };
   }
   const preMergeBindingMismatch = await observeBindingMismatch(
@@ -760,7 +872,7 @@ export async function advanceGitDecomposeTransitionBase(
     status: "advanced",
     candidateBranch,
     candidateHead,
-    previousBaseHead,
+    previousBaseHead: discoveredChain.previousBaseHead,
     currentBaseHead,
   };
 }

@@ -303,6 +303,7 @@ function advancementNeedsCandidateCleanup(reason: string): boolean {
     || code === "candidate-history-unavailable"
     || code === "candidate-initial-transition-invalid"
     || code === "candidate-advancement-base-invalid"
+    || code === "dependency-recipient-drift"
     || code === "candidate-restore-failed";
 }
 
@@ -957,6 +958,11 @@ const V3_ADVANCEMENT_REMEDIES: Readonly<Record<string, V3RepositoryPlanRemedyDef
     correction: "Re-run preflight and reauthor the completed map",
     command: "preflight",
   },
+  "dependency-recipient-drift": {
+    invariant: "A dependency-bearing recipient must retain its last authenticated base dependency set.",
+    correction: "Clean the candidate, then re-run preflight and recreate it",
+    command: "preflight",
+  },
   "binding-raced": {
     invariant: "The candidate and configured base refs must remain at their authenticated commits.",
     correction: "Stabilize the reported ref, then retry base advancement",
@@ -1244,9 +1250,13 @@ export function v3DecomposeRemedy(input: V3DecomposeRemedyInput): SpineRemedy {
         ? "A refused base advancement must restore its candidate to the authenticated head."
         : mismatchDefinition?.invariant
           ?? "A decomposition candidate that cannot advance must be cleaned through its deterministic branch.",
-      `Clean the stranded candidate at ${locus}, then retry with ${
-        renderV3DecomposeArgv(invocationArgv(input.invocation))
-      }`,
+      code === "dependency-recipient-drift"
+        ? `Clean the stale candidate at ${locus}, then run ${
+            renderV3DecomposeArgv(v3DecomposePreflightArgv(input.invocation.origin))
+          } and recreate it`
+        : `Clean the stranded candidate at ${locus}, then retry with ${
+            renderV3DecomposeArgv(invocationArgv(input.invocation))
+          }`,
       ["arc", "teardown", "--branch", decomposeCandidateBranch(input.invocation.origin)],
     );
   }

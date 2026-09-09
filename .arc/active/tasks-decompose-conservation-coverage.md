@@ -565,39 +565,28 @@ prose follows the executable contract.
 - _Outcome:_ External-target eligibility now follows the pinned result-base tree without expanding preflight identity,
   source-bound conservation inputs, lifecycle metadata parsing, or repository-read cost.
 
-### `[ ]` **3.3 Preserve external edges through base-advancement recomposition**
+### `[x]` **3.3 Preserve external edges through base-advancement recomposition**
 
 - _Goal:_ A committed candidate remains authoritatively reproducible when its external prerequisite changes from live
   to completed before base advancement.
 
-    - `[ ]` **3.3.a Recompose against current live and completed eligibility**
-        - Reuse the result-base tree already read by `advanceGitDecomposeTransitionBase()` so a shipped target remains
-          valid without rewriting the completed cut map.
-        - Build `test-first` (one behavior at a time):
-            - Compose with a live target at execute time and the same target completed at advancement time.
-            - Admit a target created on the result base after the origin fork.
-            - Refuse a target removed from every eligible set before candidate mutation.
-            - Refuse `dependency-recipient-drift` when a dependency-bearing recipient changes after candidate
-              creation, carrying previous/current target sets and a candidate-cleanup plus fresh-preflight remedy;
-              update the refusal registry and source-totality proof in the same leaf.
+    - `[x]` **3.3.a Recompose against current live and completed eligibility**
+        - Advancement now admits live-to-completed and late-created targets from its single current recomposition,
+          refuses targets removed from every eligible set, and emits typed dependency-recipient drift evidence with
+          cleanup and fresh-preflight guidance.
 
-    - `[ ]` **3.3.b Keep external edges outside transition-record and source-proof authority**
-        - Assert the existing transition-record schema, incoming-disposition record, and machine preflight envelope
-          do not acquire external-edge fields.
-        - Prove exact transform-delta comparison still accepts only the dependency delta derived from the authored map
-          and rebased onto the current pinned result-base recipient state.
-        - Compare dependency-bearing recipient prestates between the candidate's last authenticated base and the
-          current base before history authentication or merge. Keep the result out of the transition record and do
-          not replay dependency transformations across historical bases.
+    - `[x]` **3.3.b Keep external edges outside transition-record and source-proof authority**
+        - Dependency-bearing recipient paths come from the current validated plan, while their previous and current
+          target sequences are compared before exact candidate-history authentication. External authoring remains
+          outside the transition record, incoming dispositions, and machine preflight envelope.
 
-    - `[ ]` **3.3.c Exercise full-protection advancement with target lifecycle changes**
-        - Extend the real-Git repository-plan suite through execute, candidate commit, target completion on base, and
-          `--advance-base` recomposition.
-        - Verify the candidate keeps its exact first-parent chain, the edge lands once, and no force/rewrite or extra
-          transition record is introduced.
-        - Change an unrelated dependency on the recipient after candidate commit and require the specific drift
-          refusal, evidence, and no mutation. Retain one current full-tree recomposition and no per-historical-base
-          composition.
+    - `[x]` **3.3.c Exercise full-protection advancement with target lifecycle changes**
+        - Real-Git coverage follows execute, candidate commit, target completion, base advancement, and merge commit;
+          it proves the exact first-parent chain, one retained edge and transition record, one recomposition, and a
+          no-mutation drift refusal before historical transform scans.
+
+- _Outcome:_ Base advancement now distinguishes admissible target lifecycle movement from recipient version conflict,
+  preserving append-only candidate history while refusing dependency drift before candidate mutation.
 
 ### `[ ]` **3.4 Publish external-edge authoring and close cumulative workflow parity**
 

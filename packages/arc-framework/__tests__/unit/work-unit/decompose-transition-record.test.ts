@@ -8,6 +8,7 @@ import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
 describe("decompose transition record projection", () => {
   it("projects only origin, new successors, and dependent-keyed authored dispositions", () => {
     const map = v3DecompositionEvidenceFixture().preparation.facts.completedMap;
+    map.authoring.externalEdges = [{ from: "member-a", to: "foundation" }];
 
     const record = createDecomposeTransitionRecord(map);
 
