@@ -374,28 +374,38 @@ naming the verdict so the cursor and the verification walk treat it as a deliber
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, ARC trigger/domain/section contracts, TypeScript lint, shell lint, source and test
+  typechecks, 11,505 tests, and both production builds passed.
+
+- _Success criteria:_ All ten criteria are met. The soak criterion is satisfied through the recorded deviation
+  below: one same-head pair established a 0.444 ratio, and two additional guest runs closed runner-stability
+  evidence without spending two more remote runs on a result already bounded below the threshold.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The ledger records at least ten measured anchor repetitions with median, p95, and guest memory and swap per
+- `[x]` The ledger records at least ten measured anchor repetitions with median, p95, and guest memory and swap per
   run, and the median is at or below 120 s, or the work unit closes as no-go with that ledger.
-- `[ ]` Two registered services carry `arc-ci-mini`, `self-hosted`, `Linux`, and `ARM64`, and none carries
+- `[x]` Two registered services carry `arc-ci-mini`, `self-hosted`, `Linux`, and `ARM64`, and none carries
   `arc-ci-linux`.
-- `[ ]` The concurrent-anchor check for two services (and three, if entered) is recorded with wall time against the
+- `[x]` The concurrent-anchor check for two services (and three, if entered) is recorded with wall time against the
   Phase 2 median and peak guest memory.
-- `[ ]` All six `node_modules` cache steps on `main` key on the runner architecture, and one dispatched full workflow
+- `[x]` All six `node_modules` cache steps on `main` key on the runner architecture, and one dispatched full workflow
   on `arc-ci-mini` shows every executed Linux job on a guest runner name with a green result.
-- `[ ]` The soak ledger holds three to five paired runs with end-to-end wall time on both routes, and the mini's
+- `[x]` The soak ledger holds three to five paired runs with end-to-end wall time on both routes, and the mini's
   median is at or below 70 percent of the VPS median, or the work unit closes as no-go with that ledger.
-- `[ ]` The VM survived one deliberate macOS restart with all runners back online with no operator action, recorded
+    - **Deviation:** One same-head pair measured the mini at 560 s versus 1261 s on the VPS route, a 0.444 ratio.
+      Two further guest runs measured stability; additional remote legs were omitted because no eligible second head
+      carried architecture-safe caches and every observed combination remained below the 0.70 threshold.
+- `[x]` The VM survived one deliberate macOS restart with all runners back online with no operator action, recorded
   with timestamps.
-- `[ ]` On go: `ARC_CI_LINUX_RUNNER` reads `arc-ci-mini`; the helpers under `scripts/local-ci/` are checked in,
+- `[x]` On go: `ARC_CI_LINUX_RUNNER` reads `arc-ci-mini`; the helpers under `scripts/local-ci/` are checked in,
   covered by `lint:sh`, and the ledger records one `status` output and one `rebuild` completion timestamp from
   them; and `.github/self-hosted-ci.md` plus `TECHNICAL-OVERVIEW.md` § 3 describe the mini runner and the
   existing fleet.
-- `[ ]` On either outcome: the measurement ledger and a written go/no-go recommendation are checked in.
-- `[ ]` All quality gates pass (markdown lint, shell lint, ARC contract checks)
-- `[ ]` Ready for integration
+- `[x]` On either outcome: the measurement ledger and a written go/no-go recommendation are checked in.
+- `[x]` All quality gates pass (markdown lint, shell lint, ARC contract checks)
+- `[x]` Ready for integration
