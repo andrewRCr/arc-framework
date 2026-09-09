@@ -1428,6 +1428,7 @@ describe("hosted review fan-out lifecycle", () => {
       severity: "minor" as const,
       locus: "first.txt:1",
       url: "https://example.test/finding-before-owner-terminus",
+      sourceOrdinal: 1,
     };
     const awaited = await awaitThroughHandler(requested.handle, {
       kind: "findings",
@@ -1742,6 +1743,7 @@ describe("hosted review fan-out lifecycle", () => {
       severity: "minor" as const,
       locus: "second.txt:1",
       url: "https://example.test/finding-before-final-terminus",
+      sourceOrdinal: 1,
     };
     const finalAwaited = await awaitThroughHandler(finalRequested.handle, {
       kind: "findings",
@@ -2806,6 +2808,7 @@ describe("hosted review fan-out lifecycle", () => {
       severity: "major" as const,
       locus: "first.txt:1",
       url: "https://example.test/finding-member-fix",
+      sourceOrdinal: 1,
     };
     const awaited = await awaitThroughHandler(requested.handle, {
       kind: "findings",
@@ -3404,6 +3407,7 @@ describe("hosted review fan-out lifecycle", () => {
       severity: "major",
       locus: "src/prior.ts:1",
       url: "https://example.test/finding-prior",
+      sourceOrdinal: 1,
     };
     const priorSecondAwait = await awaitThroughHandler(priorSecondRequested.handle, {
       kind: "findings",
@@ -3535,6 +3539,7 @@ describe("hosted review fan-out lifecycle", () => {
       severity: "major",
       locus: "src/example.ts:1",
       url: "https://example.test/finding-1",
+      sourceOrdinal: 1,
     };
     const secondAwait = await awaitThroughHandler(secondRequested.handle, {
       kind: "findings",

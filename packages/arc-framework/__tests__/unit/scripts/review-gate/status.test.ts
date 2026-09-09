@@ -120,6 +120,7 @@ const hostedResponsePlan = {
     severity: "major" as const,
     locus: "src/example.ts:1",
     evidenceUrlOrId: "https://example.test/finding-prior",
+    sourceOrdinal: 1,
   }],
 };
 

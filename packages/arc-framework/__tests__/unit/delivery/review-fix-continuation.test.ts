@@ -450,6 +450,7 @@ describe("delivery review-fix continuation projection", () => {
         severity: "major" as const,
         locus: "src/review.ts:42",
         evidenceUrlOrId: "review:finding-1",
+        sourceOrdinal: 1,
       }],
     };
     expect(selectDurableDeliveryReviewFixResponseReplay({

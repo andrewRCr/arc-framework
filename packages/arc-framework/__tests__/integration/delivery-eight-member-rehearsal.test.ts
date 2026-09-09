@@ -185,6 +185,7 @@ describe("eight-member delivery integration rehearsal", () => {
         severity: "major" as const,
         locus: "src/example.ts:1",
         evidenceUrlOrId: "https://example.test/retained-finding",
+        sourceOrdinal: 1,
       }],
     };
     const outstanding = composeDeliveryReviewObligation({

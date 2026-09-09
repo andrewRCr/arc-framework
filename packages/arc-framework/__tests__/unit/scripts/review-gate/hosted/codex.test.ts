@@ -157,7 +157,12 @@ describe("Codex hosted adapter", () => {
     await expect(clean.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
     await expect(findings.observeHandle(target)).resolves.toMatchObject({
       kind: "findings",
-      findings: [{ severity: "major", locus: "src/a.ts:7" }],
+      findings: [{
+        severity: "major",
+        locus: "src/a.ts:7",
+        sourceOrdinal: 1,
+        sourceLabel: "[P1] boundary failure",
+      }],
     });
   });
 

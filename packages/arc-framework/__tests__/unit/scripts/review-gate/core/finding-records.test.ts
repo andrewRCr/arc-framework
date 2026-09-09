@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   FindingSettlementV2Schema,
   NormalizedReviewFindingSchema,
+  NormalizedReviewFindingsSchema,
+  captureReviewFindingSourceLabel,
+  escapeReviewFindingSourceLabel,
   normalizeProviderFindingClassification,
 } from "../../../../../src/scripts/review-gate/core/finding-records.js";
 import {
@@ -33,6 +36,7 @@ describe("provider finding classification", () => {
       severity: "critical",
       locus: "src/review.ts:42",
       evidenceUrlOrId: "review:finding-1",
+      sourceOrdinal: 1,
     };
     expect(NormalizedReviewFindingSchema.safeParse(finding).success).toBe(true);
     expect(NormalizedReviewFindingSchema.safeParse({ ...finding, severity: "blocker" }).success).toBe(false);
@@ -133,5 +137,62 @@ describe("provider finding classification", () => {
     })).success).toBe(true);
     expect(DispositionReportItemSchema.safeParse(dispositionItem({ reportedNit: true })).success).toBe(false);
     expect(DispositionReportItemSchema.safeParse(dispositionItem({ verifiedNit: true })).success).toBe(false);
+  });
+});
+
+describe("normalized finding navigation", () => {
+  const finding = (sourceOrdinal: number) => ({
+    findingId: `finding-${sourceOrdinal}`,
+    severity: "major" as const,
+    locus: `src/review.ts:${sourceOrdinal}`,
+    evidenceUrlOrId: `review:finding-${sourceOrdinal}`,
+    sourceOrdinal,
+  });
+
+  it("captures a provider title or first non-empty body line as a bounded Unicode label", () => {
+    expect(captureReviewFindingSourceLabel({ title: "Provider title", body: "Body fallback" })).toEqual({
+      sourceLabel: "Provider title",
+    });
+    expect(captureReviewFindingSourceLabel({ body: "\n\n**Actual heading**\nDetails" })).toEqual({
+      sourceLabel: "**Actual heading**",
+    });
+
+    const exact = "😀".repeat(512);
+    const clipped = captureReviewFindingSourceLabel({ body: `${exact}Z` });
+    expect(Array.from(clipped.sourceLabel ?? "")).toHaveLength(512);
+    expect(clipped).toEqual({ sourceLabel: exact, sourceLabelTruncated: true });
+    expect(captureReviewFindingSourceLabel({ body: exact })).toEqual({ sourceLabel: exact });
+  });
+
+  it("escapes provider labels as inert display text and validates truthful truncation metadata", () => {
+    expect(escapeReviewFindingSourceLabel("<script>*unsafe* [link](target)"))
+      .toBe("&lt;script&gt;\\*unsafe\\* \\[link\\]\\(target\\)");
+
+    expect(NormalizedReviewFindingSchema.safeParse({
+      ...finding(1),
+      sourceLabel: "x".repeat(512),
+      sourceLabelTruncated: true,
+    }).success).toBe(true);
+    expect(NormalizedReviewFindingSchema.safeParse({
+      ...finding(1),
+      sourceLabel: "short",
+      sourceLabelTruncated: true,
+    }).success).toBe(false);
+    expect(NormalizedReviewFindingSchema.safeParse({
+      ...finding(1),
+      sourceLabelTruncated: true,
+    }).success).toBe(false);
+    expect(NormalizedReviewFindingSchema.safeParse({
+      ...finding(1),
+      sourceLabel: "short",
+      sourceLabelTruncated: false,
+    }).success).toBe(false);
+  });
+
+  it("requires complete producer arrays to preserve one-based capture order", () => {
+    expect(NormalizedReviewFindingsSchema.safeParse([finding(1), finding(2)]).success).toBe(true);
+    expect(NormalizedReviewFindingsSchema.safeParse([finding(1), finding(1)]).success).toBe(false);
+    expect(NormalizedReviewFindingsSchema.safeParse([finding(2)]).success).toBe(false);
+    expect(NormalizedReviewFindingsSchema.safeParse([finding(2), finding(1)]).success).toBe(false);
   });
 });

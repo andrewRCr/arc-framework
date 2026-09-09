@@ -27,6 +27,7 @@ import type {
 } from "./review-contribution-applicability.js";
 import { bindReviewSourceReference, parseReviewSourceReference } from "../core/review-source-reference.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
+import { projectHostedFinding } from "../hosted/await.js";
 
 export type EarlierHostedAttemptApplicabilityRead =
   | {
@@ -282,12 +283,7 @@ export async function projectEarlierReviewApplicability(
                   durableRef: candidate.attemptId,
                 }),
               },
-              findings: candidate.findings.map((finding) => ({
-                findingId: finding.findingId,
-                severity: finding.severity,
-                locus: finding.locus,
-                evidenceUrlOrId: finding.url,
-              })),
+              findings: candidate.findings.map(projectHostedFinding),
             },
           }),
       ...(candidate.sourceKind === "local" && candidate.outcome === "findings"

@@ -184,6 +184,8 @@ describe("CodeRabbit hosted adapter", () => {
         threadId: "PRRT_1",
         settlement: "reply-and-resolve",
         severity: "major",
+        sourceOrdinal: 1,
+        sourceLabel: "_🟠 Major_ broken boundary",
       }],
     });
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.botUserId).toBe("136622811");
@@ -377,6 +379,8 @@ The contract should distinguish findings that have no review thread.
         settlement: "not-applicable",
         severity: "minor",
         locus: "src/a.ts:7-9",
+        sourceOrdinal: 1,
+        sourceLabel: "**Keep the boundary explicit.**",
       }],
     });
     const result = await adapter.observeHandle(target);
@@ -385,6 +389,42 @@ The contract should distinguish findings that have no review thread.
       expect(result.findings[0]).not.toHaveProperty("commentId");
       expect(result.findings[0]).not.toHaveProperty("threadId");
     }
+  });
+
+  it("assigns one capture order after combining thread and review-body findings", async () => {
+    const duplicateLabel = "_🟠 Major_ duplicated provider label";
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: `**Actionable comments posted: 1**
+
+<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/body.ts (1)</summary><blockquote>
+
+\`4\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+${duplicateLabel}
+
+Body details.
+
+<!-- cr-comment:v1:abcdef1234567890abcdef12 -->
+
+</blockquote></details>
+</blockquote></details>`,
+      })]),
+      readThreads: () => Promise.resolve([findingThread(duplicateLabel)]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [
+        { origin: "review-thread", sourceOrdinal: 1, sourceLabel: duplicateLabel },
+        { origin: "review-body", sourceOrdinal: 2, sourceLabel: duplicateLabel },
+      ],
+    });
   });
 
   it("normalizes outside-diff comments under the same no-settlement contract", async () => {

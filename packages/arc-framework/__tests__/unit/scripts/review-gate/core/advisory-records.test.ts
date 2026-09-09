@@ -193,6 +193,41 @@ describe("advisory review records", () => {
     }).success).toBe(false);
   });
 
+  it("includes frontline finding navigation in the immutable outcome digest", () => {
+    const normalized = (sourceLabel: string) => normalizeFrontlineOutcome({
+      providerResult: {
+        kind: "findings" as const,
+        findings: [{
+          findingId: "finding-1",
+          severity: "major" as const,
+          locus: "src/review.ts:42",
+          evidenceUrlOrId: "review:finding-1",
+          sourceOrdinal: 1,
+          sourceLabel,
+        }],
+      },
+      source: outcome.source,
+      target,
+      pass: 1,
+      maxPasses: 2,
+    });
+    const recordFor = (sourceLabel: string) => createFrontlineOutcomeRecord({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: "repo-1",
+      operationId: "operation-1",
+      sourceIdentity: "review-cli",
+      executableIdentity: {
+        digest: canonicalDigest({ executable: "reviewer" }),
+        qualifiedVersion: "reviewer/v1",
+      },
+      outcome: normalized(sourceLabel),
+    });
+
+    expect(recordFor("First native label").outcomeDigest)
+      .not.toBe(recordFor("Changed native label").outcomeDigest);
+  });
+
   it("requires no executable identity for a never-launched terminal", () => {
     const unbound = normalizeFrontlineOutcome({
       providerResult: { kind: "unavailable", reason: "unbound" },

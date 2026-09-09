@@ -39,6 +39,7 @@ import type {
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
+import { projectHostedFinding } from "../../../../../src/scripts/review-gate/hosted/await.js";
 import { createHostedAdmission } from "../../../../../src/scripts/review-gate/hosted/request.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { projectLocalReviewGuidance } from
@@ -156,6 +157,7 @@ function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
     severity: "major" as const,
     locus: "src/index.ts:7",
     evidenceUrlOrId: "review:finding-1",
+    sourceOrdinal: 1,
   };
   const receipt = createLocalReviewReceipt({
     target,
@@ -523,6 +525,7 @@ function hostedResponseFixture(
         severity: records.finding.severity,
         locus: records.finding.locus,
         url: "https://example.test/thread-1",
+        sourceOrdinal: 1,
       }
     : {
         findingId: records.finding.findingId,
@@ -534,6 +537,7 @@ function hostedResponseFixture(
         locus: records.finding.locus,
         url: "https://example.test/review-1",
         body: "Finding body.",
+        sourceOrdinal: 1,
       };
   const lineage = LaneSubjectLineageSchema.parse(vehicle.kind === "delivery-member"
     ? {
@@ -626,12 +630,7 @@ function hostedResult(input: ReturnType<typeof hostedResponseFixture>): ReviewRe
     target: hosted.reviewTarget,
     sourceIdentity: attempt.sourceId,
     originalOutcome: sealed.outcome,
-    findings: sealed.findings.map((finding) => ({
-      findingId: finding.findingId,
-      severity: finding.severity,
-      locus: finding.locus,
-      evidenceUrlOrId: finding.url,
-    })),
+    findings: sealed.findings.map(projectHostedFinding),
     resultDigest: sealed.hostedResultId,
     admission: {
       lineage: hosted.admission.lineage,
@@ -773,6 +772,7 @@ describe("review response command", () => {
       severity: "major" as const,
       locus: "src/earlier.ts:3",
       evidenceUrlOrId: "review:finding-0",
+      sourceOrdinal: 2,
     };
     records.receipt.findings.push(earlierFinding);
 
@@ -1010,6 +1010,7 @@ describe("review response command", () => {
       threadId: "thread-2",
       locus: "src/deferred.ts:9",
       url: "https://example.test/thread-2",
+      sourceOrdinal: 2,
     };
     attempt.hosted = createHostedTerminalAttemptFixture({
       admission: attempt.hosted.admission,

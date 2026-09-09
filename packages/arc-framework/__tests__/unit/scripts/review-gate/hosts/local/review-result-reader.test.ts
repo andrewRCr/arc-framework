@@ -57,7 +57,7 @@ import { reduceReviewRouting } from
 const oid = (character: string): string => character.repeat(40);
 const digest = (value: string): `sha256:${string}` => canonicalDigest({ value });
 
-function localFixture() {
+function localFixture(options: { findingSourceLabel?: string } = {}) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -160,6 +160,8 @@ function localFixture() {
       severity: "major",
       locus: "src/index.ts:10",
       evidenceUrlOrId: "local:finding-1",
+      sourceOrdinal: 1,
+      ...(options.findingSourceLabel === undefined ? {} : { sourceLabel: options.findingSourceLabel }),
     }],
   });
   const lane = LaneProgressStateSchema.parse({
@@ -194,8 +196,14 @@ function localFixture() {
   return { target, requirement, source, state, receipt, lane };
 }
 
-function readerForLocalFixture(options: { exactReceiptMissing?: boolean; settled?: boolean } = {}) {
-  const fixture = localFixture();
+function readerForLocalFixture(options: {
+  exactReceiptMissing?: boolean;
+  findingSourceLabel?: string;
+  settled?: boolean;
+} = {}) {
+  const fixture = localFixture(options.findingSourceLabel === undefined
+    ? {}
+    : { findingSourceLabel: options.findingSourceLabel });
   const lane = options.settled === true
     ? LaneProgressStateSchema.parse({
         ...fixture.lane,
@@ -285,6 +293,7 @@ function readerForFrontlineFixture(options: { settled?: boolean } = {}) {
       severity: "minor",
       locus: "src/frontline.ts:20",
       evidenceUrlOrId: "frontline:finding",
+      sourceOrdinal: 1,
     }] },
     source,
     target,
@@ -394,6 +403,8 @@ function readerForHostedFixture() {
         severity: "major",
         locus: "src/hosted.ts:10",
         url: "https://example.invalid/thread-1",
+        sourceOrdinal: 1,
+        sourceLabel: "Thread native label",
       },
       {
         findingId: "hosted-body",
@@ -405,6 +416,8 @@ function readerForHostedFixture() {
         locus: "src/hosted.ts:20",
         url: "https://example.invalid/review-1",
         body: "Consider simplifying this branch.",
+        sourceOrdinal: 2,
+        sourceLabel: "Body native label",
       },
     ],
   });
@@ -482,6 +495,15 @@ describe("local review result reader", () => {
     });
   });
 
+  it("includes local finding navigation in the immutable result digest", async () => {
+    const original = await readerForLocalFixture().reader.readResult(localFixture().state.operationId);
+    const navigatedFixture = readerForLocalFixture({ findingSourceLabel: "Native finding label" });
+    const navigated = await navigatedFixture.reader.readResult(navigatedFixture.fixture.state.operationId);
+
+    expect(navigated.findings[0]).toMatchObject({ sourceLabel: "Native finding label" });
+    expect(navigated.resultDigest).not.toBe(original.resultDigest);
+  });
+
   it("rejects a local ledger entry whose store-issued exact reference no longer resolves", async () => {
     const { fixture, reader } = readerForLocalFixture({ exactReceiptMissing: true });
 
@@ -551,12 +573,16 @@ describe("local review result reader", () => {
           severity: "major",
           locus: "src/hosted.ts:10",
           evidenceUrlOrId: "https://example.invalid/thread-1",
+          sourceOrdinal: 1,
+          sourceLabel: "Thread native label",
         },
         {
           findingId: "hosted-body",
           severity: "minor",
           locus: "src/hosted.ts:20",
           evidenceUrlOrId: "https://example.invalid/review-1",
+          sourceOrdinal: 2,
+          sourceLabel: "Body native label",
         },
       ],
       admission: {
@@ -674,6 +700,16 @@ describe("local review result reader", () => {
     });
 
     expect(validateApprovedDispositionRecordForResult(record, result)).toEqual(record);
+    expect(approvedDisposition.dispositionSet.findings[0]).not.toHaveProperty("sourceOrdinal");
+    expect(approvedDisposition.dispositionSet.findings[0]).not.toHaveProperty("sourceLabel");
+
+    const navigatedFixture = readerForLocalFixture({ findingSourceLabel: "Changed native label" });
+    const navigationAlteredResult = await navigatedFixture.reader.readResult(
+      navigatedFixture.fixture.state.operationId,
+    );
+    expect(() => validateApprovedDispositionSetForResult(approvedDisposition, navigationAlteredResult)).toThrow(
+      /immutable producer result/u,
+    );
 
     const { dispositionSetId, ...substitutedFields } =
       approvedDisposition.dispositionSet;

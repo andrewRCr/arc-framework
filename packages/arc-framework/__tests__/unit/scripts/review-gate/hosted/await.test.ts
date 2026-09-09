@@ -75,9 +75,32 @@ describe("hosted review await", () => {
         severity: "major",
         locus: "src/index.ts:7",
         url: "https://github.com/owner/repo/pull/42#discussion_r1",
+        sourceOrdinal: 1,
       }],
       responseSourceRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
     }).success).toBe(true);
+  });
+
+  it("rejects hosted findings whose ordinals do not match final combined order", () => {
+    expect(HostedAwaitResultSchema.safeParse({
+      schemaVersion: 1,
+      mode: "review-hosted-await",
+      handle,
+      state: "findings",
+      nextAction: "triage",
+      reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+      findings: [{
+        findingId: "PRRT_1",
+        origin: "review-thread",
+        commentId: "PRRC_1",
+        threadId: "PRRT_1",
+        settlement: "reply-and-resolve",
+        severity: "major",
+        locus: "src/index.ts:7",
+        url: "https://github.com/owner/repo/pull/42#discussion_r1",
+        sourceOrdinal: 2,
+      }],
+    }).success).toBe(false);
   });
 
   it.each([
@@ -89,6 +112,7 @@ describe("hosted review await", () => {
       settlement: "reply-and-resolve",
       locus: "src/index.ts:7",
       url: "https://github.com/owner/repo/pull/42#discussion_r1",
+      sourceOrdinal: 1,
     }],
     [HostedReviewBodyFindingSchema, {
       findingId: "PRR_1:0",
@@ -99,6 +123,7 @@ describe("hosted review await", () => {
       locus: "src/index.ts:7",
       url: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
       body: "Finding body",
+      sourceOrdinal: 1,
     }],
   ] as const)("accepts critical and rejects retired blocker in hosted finding schemas", (schema, finding) => {
     expect(schema.safeParse({ ...finding, severity: "critical" }).success).toBe(true);
@@ -153,6 +178,7 @@ describe("hosted review await", () => {
         severity: "major",
         locus: "src/a.ts:7",
         url: "https://github.com/owner/repo/pull/42#discussion_r1",
+        sourceOrdinal: 1,
       }],
     }],
     ["rate-limited", { kind: "rate-limited" }],

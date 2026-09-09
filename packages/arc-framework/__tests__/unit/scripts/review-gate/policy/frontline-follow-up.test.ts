@@ -32,6 +32,7 @@ const finding = {
   severity: "major" as const,
   locus: "src/index.ts:7",
   evidenceUrlOrId: "frontline:finding-1",
+  sourceOrdinal: 1,
 };
 const source = {
   sourceId: "review-cli",

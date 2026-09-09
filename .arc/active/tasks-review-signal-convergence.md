@@ -319,32 +319,14 @@ changes.
   gating only from the verified judgment, and reject omitted or invalid unsupported judgments. Proposal, approval,
   response, reduction, resume, frontline, and shared fixture consumers migrated together without compatibility aliases.
 
-### `[ ]` **4.2 Preserve native finding labels and capture ordinals through all producers**
+### `[x]` **4.2 Preserve native finding labels and capture ordinals through all producers**
 
 - _Goal:_ Each finding remains recognizable in source order even when canonical disposition order differs.
 
-- _Note:_ Spec § 4 Native navigation; SC 8 and 15.
-
-- _Approach:_ Extend normalized/local/frontline/hosted producers and all required readers/fixtures together. Assign
-  source ordinals from actual capture order before canonical sorting; preserve labels only when genuinely available.
-  Separate evaluator-input findings from runtime-normalized findings in `local-review-result.ts`; add no local
-  evaluator title/body field, and leave local labels absent when the wire provides no source text.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Combined thread/body sources, duplicates, and titleless findings retain stable native references and capture
-          ordinals.
-
-        - Labels are inert escaped data, bounded to 512 Unicode code points with truthful truncation metadata.
-
-        - Local input remains free of runtime navigation fields; normalization assigns ordinals. Opaque evidence
-          references do not become labels. Provider adapters capture genuine source text before discarding it.
-
-        - Complete producer arrays validate one-based index correspondence, rejecting duplicate, gapped, or reordered
-          ordinals. Hosted numbering follows final thread/body combination; filtered/report projections retain those
-          ordinals without renumbering. Replay preserves capture order and existing native finding identity.
-
-        - Metadata participates in immutable producer hashing and approval binding, not separate disposition fields.
+- _Outcome:_ Normalized, local, frontline, and hosted findings now retain validated one-based capture ordinals and
+  genuine bounded source labels, with hosted numbering applied after thread/body combination. Complete producer
+  boundaries refuse reordered metadata; projections and replay preserve native identity without renumbering. Navigation
+  participates in each producer's immutable result identity and approval binding while remaining outside dispositions.
 
 ### `[ ]` **4.3 Render canonical proposed and approved reports in the public response command**
 

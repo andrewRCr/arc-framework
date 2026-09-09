@@ -136,6 +136,7 @@ function localFixture(result: "clean" | "findings" | "failed" | "unavailable" = 
     severity: "major" as const,
     locus: "src/index.ts:7",
     evidenceUrlOrId: "review:finding-1",
+    sourceOrdinal: 1,
   };
   const terminal = result === "findings" ? "findings" : "clean";
   const cleanOrFindings = createLocalReviewReceipt({

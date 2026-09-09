@@ -673,6 +673,8 @@ describe("earlier review attempt query", () => {
             severity: "major",
             locus: "src/example.ts:1",
             url: "https://example.test/finding-prior",
+            sourceOrdinal: 1,
+            sourceLabel: "Prior native finding",
           }],
         });
         return {
@@ -712,6 +714,8 @@ describe("earlier review attempt query", () => {
             severity: "major",
             locus: "src/example.ts:1",
             evidenceUrlOrId: "https://example.test/finding-prior",
+            sourceOrdinal: 1,
+            sourceLabel: "Prior native finding",
           }],
         },
       }],

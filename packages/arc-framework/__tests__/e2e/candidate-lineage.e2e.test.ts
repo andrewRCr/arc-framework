@@ -1187,6 +1187,7 @@ describe("review-fix Candidate lineage", () => {
       severity: "major" as const,
       locus: "reviewed.txt:1",
       url: "https://example.test/thread-1",
+      sourceOrdinal: 1,
     };
     const hostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: originTarget.headSha };
     const admission = createHostedAdmission({
@@ -1773,6 +1774,7 @@ describe("routed review obligation", () => {
       locus: "src/example.ts:1",
       url: "https://example.test/review-1",
       body: "Review finding.",
+      sourceOrdinal: 1,
     };
     const hostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: approvedHead };
     const admission = createHostedAdmission({

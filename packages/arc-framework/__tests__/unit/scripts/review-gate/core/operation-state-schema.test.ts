@@ -567,6 +567,39 @@ describe("review operation state schemas", () => {
     })).toThrow(/hosted admission identities must be unique/iu);
   });
 
+  it("binds hosted navigation into the sealed result identity and rejects invalid capture order", () => {
+    const handle = createHostedHandleFixture();
+    const finding = {
+      findingId: "thread-1",
+      origin: "review-thread" as const,
+      commentId: "comment-1",
+      threadId: "thread-1",
+      settlement: "reply-and-resolve" as const,
+      severity: "major" as const,
+      locus: "src/index.ts:7",
+      url: "https://example.invalid/thread-1",
+      sourceOrdinal: 1,
+    };
+    const first = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      outcome: "findings",
+      findings: [{ ...finding, sourceLabel: "First native label" }],
+    });
+    const changed = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      outcome: "findings",
+      findings: [{ ...finding, sourceLabel: "Changed native label" }],
+    });
+
+    expect(first.hosted.sealedResult?.hostedResultId)
+      .not.toBe(changed.hosted.sealedResult?.hostedResultId);
+    expect(() => createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      outcome: "findings",
+      findings: [{ ...finding, sourceOrdinal: 2 }],
+    })).toThrow(/source ordinal must match one-based capture order/iu);
+  });
+
   it("rejects a source id the policy driver would refuse", () => {
     for (const sourceId of ["CodeRabbit_PR", "-leading", "trailing-", "has space"]) {
       expect(() => LaneProgressStateSchema.parse({

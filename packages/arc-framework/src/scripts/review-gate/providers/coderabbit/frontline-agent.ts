@@ -2,7 +2,11 @@
 
 import { canonicalDigest } from "../../../../lib/kernel/index.js";
 
-import type { NormalizedReviewFinding } from "../../core/finding-records.js";
+import {
+  NormalizedReviewFindingsSchema,
+  captureReviewFindingSourceLabel,
+  type NormalizedReviewFinding,
+} from "../../core/finding-records.js";
 
 export const CODERABBIT_AGENT_MODE = "agent";
 export const CODERABBIT_AGENT_CONTRACT = "coderabbit-agent-ndjson/v1";
@@ -108,7 +112,7 @@ function parseCompleteEvent(event: Record<string, unknown>): AgentCompleteEvent 
   };
 }
 
-function normalizeFinding(event: AgentFindingEvent): NormalizedReviewFinding {
+function normalizeFinding(event: AgentFindingEvent, sourceOrdinal: number): NormalizedReviewFinding {
   return {
     findingId: canonicalDigest({
       schemaVersion: 1,
@@ -120,6 +124,8 @@ function normalizeFinding(event: AgentFindingEvent): NormalizedReviewFinding {
     severity: event.severity === "blocker" ? "critical" : event.severity,
     locus: event.fileName,
     evidenceUrlOrId: event.codegenInstructions,
+    sourceOrdinal,
+    ...captureReviewFindingSourceLabel({ body: event.codegenInstructions }),
   };
 }
 
@@ -171,7 +177,7 @@ export function parseCodeRabbitAgentResult(input: {
     if (parsed.type === "finding") {
       const finding = parseFindingEvent(parsed);
       if (finding === null) return { kind: "malformed" };
-      findings.push(normalizeFinding(finding));
+      findings.push(normalizeFinding(finding, findings.length + 1));
       continue;
     }
     if (parsed.type === "complete") {
@@ -192,5 +198,7 @@ export function parseCodeRabbitAgentResult(input: {
   if (new Set(findings.map((finding) => finding.findingId)).size !== findings.length) {
     return { kind: "ambiguous" };
   }
-  return findings.length === 0 ? { kind: "clean" } : { kind: "findings", findings };
+  return findings.length === 0
+    ? { kind: "clean" }
+    : { kind: "findings", findings: NormalizedReviewFindingsSchema.parse(findings) };
 }

@@ -15,6 +15,7 @@ import type {
 import type { ReviewResult } from "../../core/review-result.js";
 import type { ReviewOperationStateSnapshotRecord } from "../../core/ports.js";
 import type { LaneProgressState } from "../../core/operation-state-schema.js";
+import { projectHostedFinding } from "../../hosted/await.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 type ProducerCandidate =
@@ -312,12 +313,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
       || canonicalize(state.lineage) !== canonicalize(hosted.admission.lineage)) {
       throw new LocalReviewResultReaderError("corrupt-result", "hosted producer admission mismatch");
     }
-    const findings = sealed.findings.map((finding) => ({
-      findingId: finding.findingId,
-      severity: finding.severity,
-      locus: finding.locus,
-      evidenceUrlOrId: finding.url,
-    }));
+    const findings = sealed.findings.map(projectHostedFinding);
     return {
       kind: "hosted",
       producerId: attempt.attemptId,

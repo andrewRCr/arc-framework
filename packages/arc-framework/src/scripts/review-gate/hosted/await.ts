@@ -6,6 +6,12 @@ import {
   type BoundedWaitAttempt,
   type BoundedWaitClock,
 } from "../bounded-wait.js";
+import {
+  NormalizedReviewFindingSchema,
+  ReviewFindingSourceLabelSchema,
+  ReviewFindingSourceOrdinalSchema,
+  type NormalizedReviewFinding,
+} from "../core/finding-records.js";
 
 import {
   HostedAwaitActionSchema,
@@ -16,6 +22,12 @@ import {
   type HostedRequestHandle,
 } from "./request.js";
 
+const HostedFindingNavigationShape = {
+  sourceOrdinal: ReviewFindingSourceOrdinalSchema,
+  sourceLabel: ReviewFindingSourceLabelSchema.optional(),
+  sourceLabelTruncated: z.literal(true).optional(),
+};
+
 export const HostedThreadFindingSchema = z.strictObject({
   findingId: z.string().min(1),
   origin: z.literal("review-thread"),
@@ -25,6 +37,7 @@ export const HostedThreadFindingSchema = z.strictObject({
   severity: z.enum(["critical", "major", "minor"]),
   locus: z.string().min(1),
   url: z.url(),
+  ...HostedFindingNavigationShape,
 });
 
 export const HostedReviewBodyFindingSchema = z.strictObject({
@@ -37,13 +50,58 @@ export const HostedReviewBodyFindingSchema = z.strictObject({
   locus: z.string().min(1),
   url: z.url(),
   body: z.string().min(1),
+  ...HostedFindingNavigationShape,
 });
 
 export const HostedFindingSchema = z.discriminatedUnion("origin", [
   HostedThreadFindingSchema,
   HostedReviewBodyFindingSchema,
-]);
+]).superRefine((finding, context) => {
+  if (finding.sourceLabelTruncated === true
+    && (finding.sourceLabel === undefined || Array.from(finding.sourceLabel).length !== 512)) {
+    context.addIssue({
+      code: "custom",
+      message: "truncated source labels must retain a 512-code-point prefix",
+      path: ["sourceLabelTruncated"],
+    });
+  }
+});
 export type HostedFinding = z.infer<typeof HostedFindingSchema>;
+
+export const HostedFindingsSchema = z.array(HostedFindingSchema).superRefine((findings, context) => {
+  for (const [index, finding] of findings.entries()) {
+    if (finding.sourceOrdinal !== index + 1) {
+      context.addIssue({
+        code: "custom",
+        message: "source ordinal must match one-based capture order",
+        path: [index, "sourceOrdinal"],
+      });
+    }
+  }
+});
+const NonEmptyHostedFindingsSchema = HostedFindingsSchema.refine((findings) => findings.length > 0, {
+  message: "hosted finding results require at least one finding",
+});
+
+/**
+ * Project one hosted finding without changing its native source navigation.
+ *
+ * @param finding - Captured hosted finding in final combined source order.
+ * @returns The channel-neutral finding consumed by response projections.
+ */
+export function projectHostedFinding(finding: HostedFinding): NormalizedReviewFinding {
+  return NormalizedReviewFindingSchema.parse({
+    findingId: finding.findingId,
+    severity: finding.severity,
+    locus: finding.locus,
+    evidenceUrlOrId: finding.url,
+    sourceOrdinal: finding.sourceOrdinal,
+    ...(finding.sourceLabel === undefined ? {} : { sourceLabel: finding.sourceLabel }),
+    ...(finding.sourceLabelTruncated === undefined
+      ? {}
+      : { sourceLabelTruncated: finding.sourceLabelTruncated }),
+  });
+}
 
 const HostedObservationSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("pending") }),
@@ -51,7 +109,7 @@ const HostedObservationSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("findings"),
     reviewUrl: z.url(),
-    findings: z.array(HostedFindingSchema).min(1),
+    findings: NonEmptyHostedFindingsSchema,
     responseSourceRef: z.string().trim().min(1).optional(),
   }),
   z.strictObject({ kind: z.literal("rate-limited") }),
@@ -135,7 +193,7 @@ export const HostedAwaitResultSchema = z.union([
     state: z.literal("findings"),
     nextAction: z.literal("triage"),
     reviewUrl: z.url(),
-    findings: z.array(HostedFindingSchema).min(1),
+    findings: NonEmptyHostedFindingsSchema,
     responseSourceRef: z.string().trim().min(1).optional(),
     hostedResultId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   }),

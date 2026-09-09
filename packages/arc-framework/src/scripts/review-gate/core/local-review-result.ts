@@ -7,7 +7,10 @@ import {
   ReviewCanonicalDigestSchema,
   ReviewIdentifierSchema,
 } from "./gate-contract-v2-schema.js";
-import { NormalizedReviewFindingSchema } from "./finding-records.js";
+import {
+  NormalizedReviewFindingsSchema,
+  ReviewFindingContentSchema,
+} from "./finding-records.js";
 
 const EvaluatorOwnedLocalReviewResultShape = {
   status: z.enum(["complete", "partial", "unavailable", "failed"]),
@@ -15,7 +18,7 @@ const EvaluatorOwnedLocalReviewResultShape = {
   evaluatorIdentity: ReviewIdentifierSchema,
   reviewRunId: ReviewIdentifierSchema,
   applicabilityId: ReviewCanonicalDigestSchema.nullable(),
-  findings: z.array(NormalizedReviewFindingSchema),
+  findings: z.array(ReviewFindingContentSchema),
 };
 
 const RuntimeOwnedLocalReviewBindingShape = {
@@ -30,7 +33,7 @@ const RuntimeOwnedLocalReviewBindingShape = {
 };
 
 function validateResultConsistency(
-  result: z.infer<z.ZodObject<typeof EvaluatorOwnedLocalReviewResultShape>>,
+  result: { status: string; result: string | null; findings: readonly unknown[] },
   context: z.RefinementCtx,
 ): void {
   if (result.status === "complete" && (result.result === "findings") !== (result.findings.length > 0)) {
@@ -56,6 +59,7 @@ export type LocalReviewResultBindings = z.infer<typeof LocalReviewResultBindings
 
 export const NormalizedLocalReviewResultSchema = z.strictObject({
   ...EvaluatorOwnedLocalReviewResultShape,
+  findings: NormalizedReviewFindingsSchema,
   ...RuntimeOwnedLocalReviewBindingShape,
 }).superRefine(validateResultConsistency);
 export type NormalizedLocalReviewResult = z.infer<typeof NormalizedLocalReviewResultSchema>;
@@ -83,5 +87,9 @@ export function normalizeLocalReviewResult(
       throw new LocalReviewResultBindingError(binding);
     }
   }
-  return NormalizedLocalReviewResultSchema.parse({ ...result, ...bindings });
+  return NormalizedLocalReviewResultSchema.parse({
+    ...result,
+    findings: result.findings.map((finding, index) => ({ ...finding, sourceOrdinal: index + 1 })),
+    ...bindings,
+  });
 }

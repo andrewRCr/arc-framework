@@ -29,7 +29,7 @@ import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-app
 import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
-import type { HostedAwaitEnvelope } from "../hosted/await.js";
+import { projectHostedFinding, type HostedAwaitEnvelope } from "../hosted/await.js";
 import type { HostedReviewCoverage } from "../hosted/request.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
@@ -450,12 +450,7 @@ export async function projectHostedReservationDischarge(input: {
               kind: "hosted",
               attemptRef: input.bindCurrentAttemptRef(attempt.attemptId),
             },
-            findings: attempt.hosted.sealedResult.findings.map((finding) => ({
-              findingId: finding.findingId,
-              severity: finding.severity,
-              locus: finding.locus,
-              evidenceUrlOrId: finding.url,
-            })),
+            findings: attempt.hosted.sealedResult.findings.map(projectHostedFinding),
           },
         };
       })

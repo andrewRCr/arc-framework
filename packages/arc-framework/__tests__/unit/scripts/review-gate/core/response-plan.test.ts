@@ -36,6 +36,7 @@ const normalizedFinding = {
   severity: "major" as const,
   locus: "src/index.ts:7",
   evidenceUrlOrId: "review:finding-1",
+  sourceOrdinal: 1,
 };
 const routing = {
   schemaVersion: 1 as const,
@@ -257,6 +258,7 @@ describe("review response planning", () => {
         severity: "minor",
         locus: "src/other.ts:2",
         evidenceUrlOrId: "review:finding-2",
+        sourceOrdinal: 2,
       }],
     })).toMatchObject({ state: "blocked", blocking: true, allowedCapabilities: [] });
     expect(projectReviewResponse({

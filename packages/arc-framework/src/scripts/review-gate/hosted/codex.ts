@@ -1,5 +1,6 @@
 /** Lean Codex hosted-review adapter. */
 
+import { captureReviewFindingSourceLabel } from "../core/finding-records.js";
 import type { HostedObservation, HostedReviewObserver } from "./await.js";
 import {
   HostedGitHubReadError,
@@ -49,6 +50,7 @@ function severity(body: string): "critical" | "major" | "minor" | null {
 function finding(
   threadId: string,
   comment: HostedGitHubThreadComment,
+  sourceOrdinal: number,
 ): Extract<HostedObservation, { kind: "findings" }>["findings"][number] | null {
   const parsedSeverity = severity(comment.body);
   if (parsedSeverity === null || comment.line === null) return null;
@@ -61,6 +63,8 @@ function finding(
     severity: parsedSeverity,
     locus: `${comment.path}:${comment.line}`,
     url: comment.url,
+    sourceOrdinal,
+    ...captureReviewFindingSourceLabel({ body: comment.body }),
   };
 }
 
@@ -168,8 +172,8 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
             && comment.headSha === target.headSha
             && comment.reviewId === review.id)
           .map((comment) => ({ threadId: thread.id, comment })));
-      const findings = candidateComments.flatMap(({ threadId, comment }) => {
-        const parsed = finding(threadId, comment);
+      const findings = candidateComments.flatMap(({ threadId, comment }, index) => {
+        const parsed = finding(threadId, comment, index + 1);
         return parsed === null ? [] : [parsed];
       });
       if (candidateComments.length !== findings.length) {

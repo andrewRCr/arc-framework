@@ -27,7 +27,7 @@ import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewPassSchema } from "./review-pass.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
 import { ReviewReductionProjectionSchema } from "./advisory-records.js";
-import { NormalizedReviewFindingSchema } from "./finding-records.js";
+import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
@@ -876,7 +876,7 @@ export const LocalResumeResponsePlanSchema = z.strictObject({
     kind: z.literal("attested-local"),
     receiptRef: DurableReferenceSchema,
   }),
-  findings: z.array(NormalizedReviewFindingSchema).min(1),
+  findings: NormalizedReviewFindingsSchema.refine((findings) => findings.length > 0),
 });
 export const LocalResumeEnvelopeSchema = z.union([
   envelopeVariant(

@@ -1,10 +1,12 @@
 /** Lean CodeRabbit hosted-review adapter. */
 
+import { captureReviewFindingSourceLabel } from "../core/finding-records.js";
 import type {
   HostedFinding,
   HostedObservation,
   HostedReviewObserver,
 } from "./await.js";
+import { HostedFindingsSchema } from "./await.js";
 import {
   HostedGitHubReadError,
   normalizeHostedGitHubReadFailure,
@@ -93,10 +95,12 @@ function severity(body: string): "critical" | "major" | "minor" | null {
   }
 }
 
+type UnorderedThreadFinding = Omit<Extract<HostedFinding, { origin: "review-thread" }>, "sourceOrdinal">;
+
 function finding(
   threadId: string,
   comment: HostedGitHubThreadComment,
-): Extract<HostedObservation, { kind: "findings" }>["findings"][number] | null {
+): UnorderedThreadFinding | null {
   const parsedSeverity = severity(comment.body);
   if (parsedSeverity === null || comment.line === null) return null;
   return {
@@ -108,10 +112,11 @@ function finding(
     severity: parsedSeverity,
     locus: `${comment.path}:${comment.line}`,
     url: comment.url,
+    ...captureReviewFindingSourceLabel({ body: comment.body }),
   };
 }
 
-type ReviewBodyFinding = Extract<HostedFinding, { origin: "review-body" }>;
+type ReviewBodyFinding = Omit<Extract<HostedFinding, { origin: "review-body" }>, "sourceOrdinal">;
 type SupplementalCategory = "nitpick" | "outside-diff";
 
 export type CodeRabbitReviewBodyParseResult =
@@ -263,6 +268,7 @@ function parseSupplementalSection(
         locus: `${group.path}:${locusMatch[1]}`,
         url: review.url,
         body: findingBody,
+        ...captureReviewFindingSourceLabel({ body: substantiveBody }),
       });
       itemStart = marker.index + marker[0].length;
     }
@@ -496,7 +502,12 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
           }),
         };
       }
-      const allFindings = [...findings, ...parsedBody.findings];
+      const allFindings = HostedFindingsSchema.parse(
+        [...findings, ...parsedBody.findings].map((finding, index) => ({
+          ...finding,
+          sourceOrdinal: index + 1,
+        })),
+      );
       if (allFindings.length > 0) {
         return { kind: "findings", reviewUrl: review.url, findings: allFindings };
       }

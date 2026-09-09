@@ -7,7 +7,7 @@ import {
   ApprovedDispositionSetSchema,
   DispositionSetStateSchema,
 } from "./disposition-records.js";
-import { NormalizedReviewFindingSchema } from "./finding-records.js";
+import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 import { ReviewRoutingDecisionSchema } from "../policy/routing-schema.js";
@@ -26,7 +26,7 @@ export type ReviewResponseCapabilities = z.infer<typeof ReviewResponseCapabiliti
 
 export const ReviewResponseInputSchema = z.strictObject({
   currentTarget: ReviewTargetSchema,
-  findings: z.array(NormalizedReviewFindingSchema).min(1),
+  findings: NormalizedReviewFindingsSchema.refine((findings) => findings.length > 0),
   routing: ReviewRoutingDecisionSchema,
   dispositionState: DispositionSetStateSchema.nullable(),
   candidateTarget: ReviewTargetSchema.nullable(),
@@ -73,7 +73,7 @@ export const HostedFindingsResponsePlanSchema = z.strictObject({
   schemaVersion: z.literal(1),
   target: ReviewTargetSchema,
   source: z.strictObject({ kind: z.literal("hosted"), attemptRef: z.string().trim().min(1) }),
-  findings: z.array(NormalizedReviewFindingSchema).min(1),
+  findings: NormalizedReviewFindingsSchema.refine((findings) => findings.length > 0),
 });
 export type HostedFindingsResponsePlan = z.infer<typeof HostedFindingsResponsePlanSchema>;
 

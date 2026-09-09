@@ -473,6 +473,7 @@ describe("review gate v2 contract", () => {
         severity: "critical",
         locus: "src/review.ts:42",
         evidenceUrlOrId: "review:finding-1",
+        sourceOrdinal: 1,
       }],
     };
 
@@ -481,6 +482,34 @@ describe("review gate v2 contract", () => {
       ...receipt,
       findings: [{ ...receipt.findings[0], severity: "blocker" }],
     }).success).toBe(false);
+  });
+
+  it("rejects receipt findings whose ordinals do not match complete capture order", () => {
+    const receipt = {
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      requestId: canonicalDigest({ request: "ordinal" }),
+      targetId: canonicalDigest({ target: "ordinal" }),
+      requirementId: canonicalDigest({ requirement: "ordinal" }),
+      applicabilityId: null,
+      reviewRunId: "run-ordinal",
+      evaluatorIdentity: "reviewer-1",
+      attestingRuntimeIdentity: "review-gate-app",
+      attestationMechanism: "github-app",
+      providerEventIdentity: null,
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "ordinal" }),
+      result: "findings",
+      findings: [{
+        findingId: "finding-1",
+        severity: "major",
+        locus: "src/review.ts:42",
+        evidenceUrlOrId: "review:finding-1",
+        sourceOrdinal: 2,
+      }],
+    };
+
+    expect(ReviewReceiptV2Schema.safeParse(receipt).success).toBe(false);
   });
 
   it("separates identical content across the registered ID domains", () => {

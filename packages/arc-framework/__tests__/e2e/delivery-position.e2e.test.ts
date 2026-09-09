@@ -1068,6 +1068,7 @@ describe("arc delivery position", () => {
       severity: "major" as const,
       locus: "member-one.txt:1",
       url: "https://example.test/thread-response-loss",
+      sourceOrdinal: 1,
     };
     const responseLossResult = createHostedTerminalAttemptFixture({
       admission: responseAdmission,
@@ -2779,6 +2780,7 @@ describe("arc delivery position", () => {
       severity: "major" as const,
       locus: "member-one.txt:1",
       url: "https://example.test/thread-published",
+      sourceOrdinal: 1,
     };
     const publishedAdmission = hostedMemberAdmission({
       repositoryId: "repo-1",

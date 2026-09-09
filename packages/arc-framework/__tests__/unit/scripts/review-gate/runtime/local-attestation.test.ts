@@ -101,6 +101,7 @@ describe("local review attestation", () => {
           severity: "major" as const,
           locus: "src/index.ts:1",
           evidenceUrlOrId: "local:finding-1",
+          sourceOrdinal: 1,
         }] : [],
       },
       currentTarget: async () => records.target,

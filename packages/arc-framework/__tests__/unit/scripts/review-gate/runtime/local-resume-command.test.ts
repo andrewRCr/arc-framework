@@ -522,6 +522,7 @@ describe("local resume command", () => {
       severity: "major" as const,
       locus: "src/index.ts:7",
       evidenceUrlOrId: "review:finding-1",
+      sourceOrdinal: 1,
     };
     const receipt = createLocalReviewReceipt({
       target: records.operation.target,
@@ -617,6 +618,7 @@ describe("local resume command", () => {
       nit: true as const,
       locus: "src/index.ts:7",
       evidenceUrlOrId: "review:finding-1",
+      sourceOrdinal: 1,
     };
     const receipt = createLocalReviewReceipt({
       target: records.operation.target,

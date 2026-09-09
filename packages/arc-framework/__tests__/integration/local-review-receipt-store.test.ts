@@ -154,6 +154,7 @@ describe("local forward receipt authority", () => {
         severity: "major",
         locus: "src/index.ts:1",
         evidenceUrlOrId: "local:finding-1",
+        sourceOrdinal: 1,
       }],
     }, 1)).rejects.toThrow(/conflicting-replay/u);
     await expect(records.store.appendReceipt({ ...records.receipt, reviewRunId: "run-2" }, 0))

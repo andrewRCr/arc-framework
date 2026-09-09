@@ -17,7 +17,7 @@ import {
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
 import { FrontlineAdmissionSchema } from "./frontline-admission.js";
-import { HostedFindingSchema } from "../hosted/await.js";
+import { HostedFindingsSchema } from "../hosted/await.js";
 import {
   HostedAdmissionSchema,
   HostedProviderIdSchema,
@@ -200,7 +200,7 @@ export const HostedSealedResultSchema = z.strictObject({
   schemaVersion: z.literal(1),
   outcome: z.enum(["clean", "findings"]),
   reviewUrl: z.url(),
-  findings: z.array(HostedFindingSchema),
+  findings: HostedFindingsSchema,
   hostedResultId: CanonicalDigestSchema,
 }).superRefine((result, context) => {
   if ((result.outcome === "clean") !== (result.findings.length === 0)) {

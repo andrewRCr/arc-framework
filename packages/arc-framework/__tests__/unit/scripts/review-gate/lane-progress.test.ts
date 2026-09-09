@@ -1047,6 +1047,8 @@ describe("hosted await lane recording", () => {
       severity: "major" as const,
       locus: "src/index.ts:7",
       url: "https://example.invalid/thread-1",
+      sourceOrdinal: 1,
+      sourceLabel: "Thread native label",
     }, {
       findingId: "body-1",
       origin: "review-body" as const,
@@ -1057,6 +1059,8 @@ describe("hosted await lane recording", () => {
       locus: "pull-request review body",
       url: "https://example.invalid/review-1",
       body: "Body finding",
+      sourceOrdinal: 2,
+      sourceLabel: "Body native label",
     }];
     const progress = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
@@ -1076,6 +1080,22 @@ describe("hosted await lane recording", () => {
     const attemptId = hostedLaneAttemptId(handle);
     const sealedResult = progress.attempts[0]?.hosted?.sealedResult;
     if (sealedResult === undefined) throw new Error("expected sealed hosted result");
+    expect(sealedResult.findings).toEqual(findings);
+    const replayedProgress = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "findings",
+        nextAction: "triage",
+        reviewUrl: "https://example.invalid/review",
+        findings,
+      },
+      now: "2026-08-15T12:00:30Z",
+    });
+    expect(replayedProgress).toEqual(progress);
     const bound = await bindHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,

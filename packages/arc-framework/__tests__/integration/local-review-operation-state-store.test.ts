@@ -282,6 +282,7 @@ describe("local review operation state authority", () => {
       locus: "pull-request review body",
       url: "https://example.invalid/review-1",
       body: "Body finding",
+      sourceOrdinal: 1,
     };
     const result = {
       schemaVersion: 1 as const,

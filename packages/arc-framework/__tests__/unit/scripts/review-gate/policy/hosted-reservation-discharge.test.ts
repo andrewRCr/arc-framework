@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
+
 import type { DeliveryHostPort } from
   "../../../../../src/lib/delivery/host.js";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
@@ -147,6 +149,8 @@ function attempt(
     severity: "major" as const,
     locus: "src/index.ts:1",
     url: "https://example.test/finding-1",
+    sourceOrdinal: 1,
+    sourceLabel: "Current native finding",
   };
   const hostedTarget = target(headSha);
   const admission = createHostedAdmission({
@@ -169,12 +173,21 @@ function attempt(
     requirement,
     actorIdentity: "actor-1",
   });
+  const terminal = outcome === "clean" || outcome === "findings" || outcome === "settled-findings"
+    ? createHostedTerminalAttemptFixture({
+        admission,
+        outcome: outcome === "clean" ? "clean" : "findings",
+        findings: outcome === "findings" || outcome === "settled-findings" ? [finding] : [],
+        dispositionSetId: outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
+        settledFindingIds: outcome === "settled-findings" ? [finding.findingId] : [],
+      })
+    : null;
   return {
-    attemptId: `${sourceId}-${headSha}`,
+    attemptId: terminal?.attemptId ?? `${sourceId}-${headSha}`,
     logicalPass: admission.logicalPass,
     sourceId,
     outcome,
-    hosted: {
+    hosted: terminal?.hosted ?? {
       admission,
       ...(outcome === "pending"
         ? {
@@ -1131,11 +1144,12 @@ describe("hosted reservation discharge", () => {
     expect(result.discharged).toBe(false);
   });
 
-  it("does not discharge raw findings before their dispositions settle", async () => {
+  it("preserves native navigation when routing current findings for disposition", async () => {
     const result = await projectHostedReservationDischarge({
       reservation: reservation(),
       span: [oid("a")],
       target: target(oid("a")),
+      bindCurrentAttemptRef: () => "arc-review-source:v1:hosted:lane-progress%2Fcurrent:hosted%2Fcurrent",
       readLaneProgress: progress({
         [oid("a")]: {
           status: "recorded",
@@ -1145,7 +1159,16 @@ describe("hosted reservation discharge", () => {
       }),
     });
 
-    expect(result.discharged).toBe(false);
+    expect(result).toMatchObject({
+      discharged: false,
+      responsePlan: {
+        findings: [{
+          findingId: "finding-1",
+          sourceOrdinal: 1,
+          sourceLabel: "Current native finding",
+        }],
+      },
+    });
   });
 
   it("discharges from the next ordered source only after the preferred source was safely unavailable", async () => {
@@ -1349,6 +1372,7 @@ describe("hosted reservation discharge", () => {
         severity: "major" as const,
         locus: "src/index.ts:1",
         evidenceUrlOrId: "https://example.test/finding-1",
+        sourceOrdinal: 1,
       }],
     };
     const result = await projectHostedReservationDischarge({
@@ -1427,6 +1451,7 @@ describe("hosted reservation discharge", () => {
         severity: "major" as const,
         locus: "src/index.ts:1",
         evidenceUrlOrId: "https://example.test/finding-1",
+        sourceOrdinal: 1,
       }],
     };
     const result = await projectHostedReservationDischarge({
@@ -1477,6 +1502,7 @@ describe("hosted reservation discharge", () => {
         severity: "major" as const,
         locus: "src/index.ts:1",
         evidenceUrlOrId: "https://example.test/finding-1",
+        sourceOrdinal: 1,
       }],
     };
     const result = await projectHostedReservationDischarge({

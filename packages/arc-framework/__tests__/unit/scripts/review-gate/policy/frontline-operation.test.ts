@@ -180,6 +180,7 @@ function normalizedOutcome(
           severity: "major",
           locus: "src/index.ts",
           evidenceUrlOrId: "finding-one",
+          sourceOrdinal: 1,
         }],
       },
       source,

@@ -11,7 +11,7 @@ import {
   ReviewTargetSchema,
 } from "../core/gate-contract-v2-schema.js";
 import { HostedReviewCoverageSchema, HostedTargetSchema } from "../hosted/request.js";
-import { HostedFindingSchema } from "../hosted/await.js";
+import { HostedFindingsSchema } from "../hosted/await.js";
 import {
   LaneSubjectLineageSchema,
   laneSubjectLineageId,
@@ -61,7 +61,7 @@ const EarlierReviewAttemptCandidateSchema = z.strictObject({
   priorVehicle: DeliveryReviewMemberVehicleSchema.optional(),
   reviewTarget: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema.optional(),
-  findings: z.array(HostedFindingSchema),
+  findings: HostedFindingsSchema,
 });
 export type EarlierReviewAttemptCandidate = z.infer<typeof EarlierReviewAttemptCandidateSchema>;
 
