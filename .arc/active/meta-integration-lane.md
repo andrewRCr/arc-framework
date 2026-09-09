@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** draft-design pass one — base-movement design settled through two adversarial passes; scope
-  widened to the unified evidence-applicability classification and method (`412d18241`)
+- **Last Completed:** draft-design — draft formalization-ready after a third adversarial pass over the widened
+  evidence-applicability design; captured with the stage advance to create-spec (`e666cd7ff`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
