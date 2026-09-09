@@ -86,11 +86,12 @@ execution-entry contract violation.
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.
-       - **Completion notes — content discipline.** At `[x]`, **`_Goal:_` is preserved verbatim**.
+       - **Completion notes — content discipline.** At `[x]`, **`_Goal:_` and every `_Retired in:_ Phase N`
+         detail bullet are preserved verbatim**.
          **Replace** pre-completion peer descriptors (`_Note:_`, `_Rationale:_`, `_Approach:_`,
-         `_Context:_`, `_Shape:_`) and Goal-children (description bullets, Build test-first lists)
-         with a single `_Outcome:_` bullet at root — peer to Goal, **placed after the subtasks**
-         (Goal opens; Outcome closes from below). Don't accumulate plan AND outcome.
+         `_Context:_`, `_Shape:_`) and all other Goal-children (description bullets, Build test-first lists)
+         with a single `_Outcome:_` bullet at root — peer to Goal, **placed after the subtasks** (Goal opens;
+         Outcome closes from below). Don't accumulate plan AND outcome.
 
          **Add an Outcome only when it earns signal** — one of: **synthesis** (emerges from the
          union of subtasks; not in any one subtask's notes), **verification** (non-trivial closure
@@ -119,7 +120,7 @@ execution-entry contract violation.
 
          **Per-subtask outcome content:** the indented description bullet under each subtask shifts from plan
          to outcome at `[x]`. Same shape, no label change — the indent under a `[x]` already signals "what
-         got done."
+         got done." A `_Retired in:_ Phase N` detail bullet stays verbatim instead of shifting.
        - **Deferred or superseded tasks**: When a task is intentionally skipped — deferred to a later work
          unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
          instead of `[x]`. Add a brief outcome note explaining why (e.g., "Deferred to WU3", "Superseded by

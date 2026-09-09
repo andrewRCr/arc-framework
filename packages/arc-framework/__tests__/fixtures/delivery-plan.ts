@@ -1,5 +1,6 @@
 import { bindDesignInventory } from "../../src/lib/delivery/design-inventory.js";
 import { constructDeliveryPlanRevision } from "../../src/lib/delivery/plan.js";
+import type { DeliveryTaskInventoryEntry } from "../../src/lib/delivery/task-inventory.js";
 import {
   DeliveryPlanAuthoringInputV1Schema,
   type DeliveryPlanV1,
@@ -84,12 +85,12 @@ function buildDeliveryPlanFixture(
     ];
   const ordinalNames = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"];
   const chunkKeys = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
-  const assignableParents = Array.from({ length: memberCount }, (_, index) => ({
+  const assignableParents: DeliveryTaskInventoryEntry[] = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
     semanticDigest: canonicalDigest({ goal: ordinalNames[index] }),
     role: { kind: "verification" as const, scope: "member" },
   }));
-  const parents = [
+  const parents: DeliveryTaskInventoryEntry[] = [
     ...assignableParents,
     {
       taskId: "2.1",

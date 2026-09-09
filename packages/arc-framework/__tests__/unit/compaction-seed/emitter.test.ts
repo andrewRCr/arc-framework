@@ -12,11 +12,15 @@ import {
   stringifyCompactionSeed,
   type CompactionSeed,
 } from "../../../src/lib/compaction-seed/schema.js";
+import { buildDeliveryTaskInventory } from "../../../src/lib/delivery/task-inventory.js";
 import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
 } from "../../../src/lib/load-set/types.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
+import { analyzeTaskList } from "../../../src/lib/task-list/cursor.js";
+import { scanTaskListStructure } from "../../../src/lib/task-list/scanner.js";
+import { scanTaskListSegmentation } from "../../../src/lib/task-list/segmentation.js";
 
 const LOAD_SET = {
   manifestVersion: LOAD_SET_MANIFEST_VERSION,
@@ -47,6 +51,41 @@ const CURSOR = {
     },
   },
 };
+
+const SEGMENTED_COMPATIBILITY_FIXTURE = [
+  "# Task List: segmented-compatible",
+  "",
+  "## Delivery Plan",
+  "",
+  "### `[x]` **9.9 Rendered member**",
+  "",
+  "## **Phase 1:** Foundation",
+  "",
+  "_Mode:_ `layer` through Phase 2 — closes on the consumer chain.",
+  "",
+  "### `[x]` **1.1 Build foundation**",
+  "",
+  "- _Goal:_ Build the shared foundation.",
+  "",
+  "## **Phase 2:** Exercise",
+  "",
+  "_Exit criterion:_ The consumer chain preserves the segmented plan shape.",
+  "",
+  "### `[ ]` **2.1 Exercise the chain** — validate exit criterion at segment scope",
+  "",
+  "- _Goal:_ Exercise the segmented consumer chain.",
+  "",
+  "    - `[ ]` **2.1.a Preserve the cursor**",
+  "",
+  "### `[ ]` **2.2 Close the member** — validate criteria at member scope",
+  "",
+  "- _Goal:_ Close the delivery member.",
+  "",
+  "## **Phase 3:** Verification",
+  "",
+  "### `[ ]` **3.1 Verify the work unit**",
+  "",
+].join("\n");
 
 function derivedFrame(parentCheckoutPath: string | null = null): DerivedLocusFrame {
   const row = {
@@ -92,6 +131,7 @@ function derivedWorkUnitFrame(options: {
   sessionType?: "planning" | "execution" | "prepublication" | "integration";
   workflow?: string;
   loadSet?: LoadSetManifest;
+  taskCursor?: typeof CURSOR;
 } = {}): DerivedLocusFrame {
   const sessionType = options.sessionType ?? "execution";
   const workflow = options.workflow ?? "process-task-loop";
@@ -123,7 +163,7 @@ function derivedWorkUnitFrame(options: {
       workflow: sessionType === "planning" ? "planning" : workflow,
       stage: sessionType === "planning" ? planningStage : null,
       taskListPath: ".arc/active/tasks-compaction-recovery.md",
-      taskCursor: sessionType === "planning" ? null : CURSOR,
+      taskCursor: sessionType === "planning" ? null : options.taskCursor ?? CURSOR,
       cohortDocPath: null,
       loadSet,
       integrationBoundary: null,
@@ -340,6 +380,74 @@ describe("emitCompactionSeed", () => {
         },
       });
     }
+  });
+
+  it("preserves segmented plan shape across task consumers and compaction", async () => {
+    const structure = scanTaskListStructure(SEGMENTED_COMPATIBILITY_FIXTURE);
+    expect(structure.status).toBe("scanned");
+    if (structure.status !== "scanned") throw new Error("expected task-list structure");
+    expect(structure.events
+      .filter((event) => event.type === "parent")
+      .map((event) => event.item.id))
+      .toEqual(["1.1", "2.1", "2.2", "3.1"]);
+
+    const segmentation = scanTaskListSegmentation({
+      path: ".arc/active/tasks-segmented-compatible.md",
+      content: SEGMENTED_COMPATIBILITY_FIXTURE,
+    });
+    expect(segmentation).toMatchObject({
+      diagnostics: [],
+      segments: [{
+        mode: "layer",
+        openingPhase: { id: "1" },
+        closingPhase: { id: "2" },
+        phaseIds: ["1", "2"],
+        exitCriterion: { text: "The consumer chain preserves the segmented plan shape." },
+      }],
+    });
+
+    const analysis = analyzeTaskList(SEGMENTED_COMPATIBILITY_FIXTURE);
+    expect(analysis).toEqual({
+      status: "found",
+      cursor: {
+        section: { id: "2.1", title: "Exercise the chain", lineHint: 19 },
+        leaf: { id: "2.1.a", title: "Preserve the cursor", lineHint: 23 },
+      },
+      phaseHeadingLine: 15,
+      tallies: {
+        phase: { current: 2, total: 3 },
+        taskId: "2.1",
+        subtask: { current: 1, total: 1 },
+        overall: { done: 1, total: 5 },
+      },
+    });
+    if (analysis.status !== "found") throw new Error("expected task-list cursor");
+
+    const inventory = buildDeliveryTaskInventory(SEGMENTED_COMPATIBILITY_FIXTURE);
+    expect(inventory).toMatchObject({
+      status: "ok",
+      inventory: {
+        parents: [
+          { taskId: "1.1", role: { kind: "implementation" } },
+          { taskId: "2.1", role: { kind: "verification", scope: "segment" } },
+          { taskId: "2.2", role: { kind: "verification", scope: "member" } },
+          { taskId: "3.1", role: { kind: "verification", scope: "work-unit" } },
+        ],
+      },
+    });
+
+    const taskCursor = { status: "found" as const, cursor: analysis.cursor };
+    const result = await emit({
+      envelope: {
+        derivedLocusState: {
+          ok: true,
+          value: derivedWorkUnitFrame({ taskCursor }),
+        },
+        taskCursor: { ok: true, value: taskCursor },
+      },
+    });
+    expect(result.status).toBe("written");
+    if (result.status === "written") expect(result.seed.taskCursor).toEqual(analysis.cursor);
   });
 
   it("sets taskCursor to null in planning sessions", async () => {

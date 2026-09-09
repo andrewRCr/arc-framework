@@ -41,10 +41,11 @@ already advanced `Current Workflow` here.
 ## Resolve depth & Class
 
 Make **one scale-axis read** — the implementation surface and the codebase-grounding breadth a correct task plan
-needs — then run [`resolve-planning-depth`][arc-methods-rpd] and [`classify-work-unit`][arc-methods-cwu] off it:
-one read drives both, yielding this run's **level** (`low` / `medium` / `high`) and confirming, ratcheting, or
-correcting **`Class`** against that same read. The methods own how the read maps to a level, and the mid-stage
-re-entry valve.
+needs — then run [`resolve-planning-depth`][arc-methods-rpd], [`classify-work-unit`][arc-methods-cwu], and
+**Resolve plan segmentation** below from that read. One read drives all three, yielding this run's **level**
+(`low` / `medium` / `high`), confirming, ratcheting, or correcting **`Class`**, and producing an ordered sequence of
+segments with modes. Segmentation also reads the spec's lifecycle statements. The methods own how the read maps to
+a level and the mid-stage re-entry valve.
 
 The level is transient and feed-forward-immune — no upstream artifact carries scale, so this stage reads the
 work surface directly and cross-checks against `Class`. The `**Class:**` decision is live from this read, but
@@ -52,6 +53,28 @@ its write defers to the Finalize ceremony commit.
 
 **No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel
 overlay (it reaches novelty only indirectly, through scale).
+
+## Resolve plan segmentation
+
+**Signature:** `resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes;
+ordering doctrine`
+
+When authoring the phase structure and its exit criteria, divide the plan into an ordered sequence of contiguous
+segments. Each segment spans one or more phases and closes on one stated kind of progress. Attach the mode to the
+segment, not the work unit; mixed-mode plans are ordinary, while a single-mode plan is the simplest case. The read is
+universal — a light work unit still yields one segment with an evident mode.
+
+Choose each segment's mode from the dominant residual risk after planning closes:
+
+| Residual risk lies in                                           | Mode              | The segment closes on                              |
+| --------------------------------------------------------------- | ----------------- | -------------------------------------------------- |
+| **Composition** — do the parts assemble into intended behavior? | **`slice`**       | a thin end-to-end capability that can be exercised |
+| **Substrate contract** — is the shared thing underneath right?  | **`layer`**       | a complete, settled layer                          |
+| **Mechanics at scale** — does this transformation work N times? | **`replication`** | the enumerated surface exhausted, batch-verified   |
+
+`pilot-then-replicate` is a composition, not a fourth mode: use a thin `slice` segment to prove one instance, then a
+`replication` segment to exhaust the enumerated surface. Order segments to retire the dominant residual risk earliest;
+place the first `slice` as early as its required substrate allows.
 
 ## Generate in the resolved level
 
@@ -159,8 +182,10 @@ Design elements (RFC), settled Decisions (`outline`), or the single falsifiable 
 **Principles:**
 
 - Each phase should produce testable, verifiable progress
-- Order phases to minimize dependencies and enable incremental delivery
-- When test-first applies, group test and implementation together by module or concern
+- Order phases from the resolved segments: preserve the sequence that retires the dominant residual risk earliest,
+  then minimize dependencies within each segment
+- When test-first applies, group test and implementation by the segment's mode: by behavior path for `slice`, by
+  module or concern for `layer`, and by repeatable transformation batch for `replication`
 - **Always end with a verification phase** — single task pointing to `verify-work-unit.md`. See
   [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
 
@@ -172,8 +197,13 @@ below. It stays on disk through the remaining procedures and Finalize.
 - Header per [`template-tasks.md`][template-tasks] planned variant — the single `**Design:**` chain-of-authority
   pointer (bare spec filename). No `Purpose` / `Branch` / `Base Branch` on `tasks-*`: Purpose lives on the spec,
   branch on `meta-*`. See [strategy-task-list-formatting § Task List Headers][task-list-formatting]
-- Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_` block stating
-  key calls
+- Phase shapes: `## **Phase X:**` headings followed by a preamble in this order: any `**Delivery member:**`
+  pointers, the required `_Purpose:_`, `_Mode:_` on a segment's opening phase, `_Exit criterion:_` on its closing
+  phase, then any `_Design decisions:_` block. A single-phase segment carries both structural lines, `_Mode:_`
+  first. Separate every preamble entry with a blank line.
+    - `_Mode:_` takes a backticked `slice`, `layer`, or `replication` token, an optional `through Phase N` span,
+      then an em dash and a non-empty prose gloss naming what the segment closes on.
+    - `_Exit criterion:_` takes the segment's specific, non-empty criterion as prose.
 - Parent-task skeletons (titles only — H3 headings with backtick-wrapped marker per
   [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing the spec's enumerable units
   (which units does this parent satisfy?)
@@ -187,7 +217,8 @@ below. It stays on disk through the remaining procedures and Finalize.
 - **Coverage** — every enumerable unit covered by some task (the task list is validated against the form's
   enumerable substrate; implementation is validated separately against Success Criteria)
 - **Asymmetry** — single parents overcommitting (subtask-count signal flags candidates)
-- **Ordering** — phase sequence minimizes dependencies
+- **Ordering** — phase sequence preserves the resolved risk-retirement segment order, then minimizes dependencies
+  within each segment
 
 ### Assess design proportionality before content fill
 
@@ -273,9 +304,10 @@ For each parent task, fill in the body:
   through the planning/execution methods.
 
 **Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API endpoints,
-business logic, complex algorithms), group test and implementation together in each task — named by module or
-concern, not by activity. Use the ``Build `test-first` (one behavior at a time):`` marker line to introduce the
-behavior list; the executing agent treats this as the signal to apply the red-green-refactor loop. See
+business logic, complex algorithms), group test and implementation together using the segment's mode: name tasks by
+behavior path for `slice`, module or concern for `layer`, and repeatable transformation batch for `replication`,
+never by testing-versus-implementation activity. Use the ``Build `test-first` (one behavior at a time):`` marker line
+to introduce the behavior list; the executing agent treats this as the signal to apply the red-green-refactor loop. See
 [DEV-RULES.ARC][dev-rules-arc] § Test-first assessment for the decision tree, and
 [strategy-task-list-formatting][task-list-formatting] § Test-First Task Structure for the full pattern.
 
@@ -400,8 +432,12 @@ pre-save checklist and bundles the commit.
 - [ ] Header is the single `**Design:**` chain-of-authority pointer (bare spec filename) — no
       `Purpose` / `Branch` / `Base Branch` on `tasks-*` (Purpose lives on the spec, branch on `meta-*`).
 - [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
-- [ ] Phase preambles open with any delivery-member pointers when a Delivery Plan is present, then `_Purpose:_`
-      (italic); optional `_Design decisions:_` links to `notes-{name}.md`; soft cap ~12 lines per preamble
+- [ ] Phase preambles carry, in order, any delivery-member pointers, the required `_Purpose:_`, `_Mode:_` on a
+      segment's opening phase, `_Exit criterion:_` on its closing phase, then any `_Design decisions:_` links to
+      `notes-{name}.md`. A single-phase segment carries both structural lines with `_Mode:_` first; every preamble
+      entry has a blank line after it; soft cap ~12 lines per preamble.
+- [ ] Segmentation diagnostics are clean for the saved task-list corpus. Run `npm run -s lint:md:descriptors`
+      before the interlock; it scans tracked and untracked task lists and emits the structural diagnostic family.
 - [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
       [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
@@ -417,9 +453,13 @@ pre-save checklist and bundles the commit.
 - [ ] Subtasks and description bullets indent 4 spaces under the root-level descriptor block
 - [ ] Blank lines between every subtask (always — see § Blank-Line Discipline in the strategy doc)
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
+- [ ] Every stub a `slice` creates carries a `_Retired in:_ Phase N` detail bullet naming the phase whose exit
+      criterion replaces or removes it. Identify scaffolding tasks, add the bullet, and confirm every named phase
+      exists.
 - [ ] Italic for non-actionable descriptors (`_Purpose:_`, `_Goal:_`, `_Outcome:_`, `_Note:_`,
       `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`); bold for actionable titles (`**X.Y Title**`)
-- [ ] Test-first tasks group test + implementation together (by concern, not activity)
+- [ ] Test-first tasks group test + implementation together by segment mode — behavior path for `slice`, module or
+      concern for `layer`, repeatable transformation batch for `replication` — never by activity
 - [ ] Test-first tasks use ``Build `test-first` (one behavior at a time):`` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
@@ -437,6 +477,9 @@ pre-save checklist and bundles the commit.
       register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` / companions)
       that would survive verbatim execution into the target. See [strategy-task-list-formatting § Instruction
       Audience][task-list-formatting]
+- [ ] On a composition-risk plan, every mandatory lifecycle row stated by the spec is present in Success Criteria
+      and assigned to a `slice` segment or parent task that wires its production callsite and proves it with an
+      executable scenario. Inventory and assign the rows before any boundary report is recorded.
 - [ ] Success Criteria section at bottom with root-indent checkboxes; a Delivery Plan groups them by member and
       cross-member seams, while a single-deliverable work unit keeps the flat form (marked only at verification)
 

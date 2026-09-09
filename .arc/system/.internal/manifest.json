@@ -470,7 +470,12 @@
     "system/methods/test-first.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "bc699c5ae1e973d76cc58b018c5e0306ea8b57bbe3889d8a42e46537fe9b353f"
+      "pristine_hash": "4b43ee5c0b03ea424e3ffe6bee42718b98a00e8a78fd4c005a195176a3f37e41"
+    },
+    "system/methods/testing-standards.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "81df59e19e1e3339aaaa16c429064a2c00fa99b16576c682dcbce22f2e5ec483"
     },
     "system/methods/validate-criteria.md": {
       "classification": "Configurable",

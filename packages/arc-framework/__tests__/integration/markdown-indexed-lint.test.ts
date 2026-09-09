@@ -125,6 +125,75 @@ describe("indexed Markdown certification", () => {
     ]);
   });
 
+  it("runs segmentation validation over the same indexed content map", async () => {
+    await stageFixture();
+    await write(
+      ".arc/active/tasks-segmented.md",
+      [
+        "## **Phase 1:** Build",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "- _Goal:_ Build the structure.",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    );
+    await execFileAsync("git", ["add", ".arc/active/tasks-segmented.md"], { cwd: root });
+
+    const result = await runIndexedMarkdownCertification(options());
+    expect(result.diagnostics).toEqual([{
+      path: ".arc/active/tasks-segmented.md",
+      line: 1,
+      message: ".arc/active/tasks-segmented.md:1: Segment closing at Phase 1 has no _Exit criterion:_",
+    }]);
+  });
+
+  it("keeps the segmentation verdict bound to index bytes", async () => {
+    await stageFixture();
+    const path = ".arc/active/tasks-segmented.md";
+    await write(path, [
+      "## **Phase 1:** Build",
+      "",
+      "_Mode:_ `layer` — closes on settled structure.",
+      "",
+      "### `[ ]` **1.1 Build the structure**",
+      "",
+      "- _Goal:_ Build the structure.",
+      "",
+      "## **Phase 2:** Verification",
+      "",
+      "### `[ ]` **2.1 Verify the work unit**",
+    ].join("\n"));
+    await execFileAsync("git", ["add", path], { cwd: root });
+    await write(path, [
+      "## **Phase 1:** Build",
+      "",
+      "_Mode:_ `layer` — closes on settled structure.",
+      "",
+      "_Exit criterion:_ The structure is settled.",
+      "",
+      "### `[ ]` **1.1 Build the structure**",
+      "",
+      "- _Goal:_ Build the structure.",
+      "",
+      "## **Phase 2:** Verification",
+      "",
+      "### `[ ]` **2.1 Verify the work unit**",
+    ].join("\n"));
+
+    const result = await runIndexedMarkdownCertification(options());
+    expect(result.diagnostics).toEqual([{
+      path,
+      line: 1,
+      message: `${path}:1: Segment closing at Phase 1 has no _Exit criterion:_`,
+    }]);
+  });
+
   it("fails candidate/runtime dependency drift before invoking markdownlint", async () => {
     await stageFixture();
     await write("package-lock.json", lockfile("0.39.0"));
