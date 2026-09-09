@@ -1,14 +1,14 @@
-# Metadata: integration-lane
+# Metadata: evidence-applicability
 
-| **State**  | **Owner** | **Branch**              | **Class** | **Priority** |
-| ---------- | --------- | ----------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/integration-lane` | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**                    | **Class** | **Priority** |
+| ---------- | --------- | ----------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/evidence-applicability` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-integration-lane.md`
+- **Design:** `draft-evidence-applicability.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
