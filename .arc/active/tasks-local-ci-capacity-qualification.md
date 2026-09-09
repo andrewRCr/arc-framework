@@ -287,22 +287,33 @@ completion, so both sides exclude the pull-request-only roll-ups. The go verdict
 recorded evidence; Tasks 4.4 and 4.5 are mutually exclusive, and the one not entered is marked `[~]` with a note
 naming the verdict so the cursor and the verification walk treat it as a deliberate skip.
 
-### `[ ]` **4.1 Run the paired soak**
+### `[x]` **4.1 Run the paired soak**
 
 - _Goal:_ Three to five representative heavy heads each have one full run on `arc-ci-mini` and one on `arc-ci-linux`,
   with both durations and run ids in the ledger and the median ratio computed.
 
-    - Record the variable's prior state as in Task 3.4. Select the heads as live refs on origin, since
-      `gh workflow run --ref` accepts a branch or tag and never a commit: `main`, this work unit's branch, and
-      other open branch heads. For each: set `arc-ci-mini`, dispatch, wait for completion, set `arc-ci-linux`
-      explicitly (the VPS pool is the route the mini would replace, whether or not it is live that day), dispatch,
-      wait. Restore the prior state after the last pair.
-    - Duration is `createdAt` to `updatedAt` from `gh run view <id> --json createdAt,updatedAt`; the runs API has
-      no completion timestamp, and `updatedAt` lands within seconds of it, so the ledger states that proxy once.
-      Record each run's `node_modules` cache hit or miss from its cache step: the key includes the architecture,
-      so the mini's first run per lockfile hash pays a cold `npm ci` the VPS side does not. Record any
-      runner-caused failure separately; it disqualifies go regardless of the ratio.
-    - Compute both medians and the mini-to-VPS ratio; the go threshold is at or below 0.70.
+    - **Guest median 560 s against 1261 s on the remote pool at the same head: ratio 0.444, inside the 0.70
+      threshold by 37 percent.** Three guest runs spread 6.1 percent. Run ids, durations, cache state, and per-job
+      failures are in the ledger.
+    - **No runner-caused failure on the guest** across four full-suite runs including the routed dispatch — roughly
+      forty jobs. That was the open question the reshaped soak was spent on, since a runner-caused failure
+      disqualifies go regardless of ratio.
+    - Two deviations from the planned shape, both recorded in the ledger rather than absorbed. Only one head was
+      eligible: every other remote branch predates the architecture-keyed cache change, so dispatching one to the
+      guest would have restored a dependency tree built for the other architecture. And after the first pair the
+      remaining legs were made guest-only, because every combination of samples already fell between 0.20 and 0.52
+      while a remote leg cost four times a guest leg — buying full-suite failure evidence instead of restating a
+      ratio that was never close. The criterion is therefore one paired ratio, not a median of pairs.
+    - The remote leg failed on `delivery-position.e2e.test.ts` with vitest test-level timeouts. All its jobs ran to
+      completion, so the duration stands as a workload measurement and the failure is recorded separately.
+
+- _Outcome:_ The paired dispatch corrected the projection this work unit had been carrying. Historical remote runs
+  median around 2584 s, which implied a ratio near 0.2; measured at one head against an idle pool the remote route
+  takes 1261 s, and the true ratio is 0.444. The gap was never job speed — those historical runs pack at 1.55x
+  across four slots against this one's 3.27x, so they were contending for the pool, and the projection inherited
+  that contention as though it were slowness. It also overturned a claim made earlier in this work unit: the remote
+  route hits timeout-class failures in normal operation, so timing fragility is a property of the current default
+  route rather than something the guest introduces.
 
 ### `[ ]` **4.2 Restart test**
 

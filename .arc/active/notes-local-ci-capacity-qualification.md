@@ -283,17 +283,49 @@ Phase 4's paired dispatches at one head are what settle the ratio.
 
 ### Soak
 
-Three to five representative heads, each dispatched once per route with a routing flip between the runs. Duration is
-`createdAt` to `updatedAt` from the runs API, which lands within seconds of completion and is the stated proxy for
-it. The architecture is part of the `node_modules` cache key, so the guest's first run per lockfile hash pays a cold
-install the other route does not.
+Dispatched at one head with a routing flip between legs, so both routes ran identical code minutes apart.
+Duration is `createdAt` to `updatedAt` from the runs API, which lands within seconds of completion and is the
+stated proxy for it.
 
-| Head | Mini run id | Mini duration | Mini cache | VPS run id | VPS duration | VPS cache |
-| ---- | ----------- | ------------- | ---------- | ---------- | ------------ | --------- |
-|      | —           | —             | —          | —          | —            | —         |
+| Leg   | Route        | Run id      | Result  | Duration | Cache | Failed jobs   |
+| ----- | ------------ | ----------- | ------- | -------- | ----- | ------------- |
+| pair1 | arc-ci-mini  | 34295343310 | success | 556 s    | warm  | none          |
+| pair1 | arc-ci-linux | 34296001318 | failure | 1261 s   | warm  | E2E Tests (4) |
+| leg2  | arc-ci-mini  | 34297486981 | success | 560 s    | warm  | none          |
+| leg3  | arc-ci-mini  | 34298169303 | success | 590 s    | warm  | none          |
 
-- Mini median: — · VPS median: — · ratio: — (go threshold at or below 0.70)
-- Runner-caused failures (any disqualifies go regardless of the ratio): —
+- Guest median **560 s** across three runs, 6.1 percent spread. Remote pool **1261 s** at the same head.
+- **Ratio 0.444** against a 0.70 threshold — 37 percent inside it.
+- Guest runner-caused failures: **none**, across four full-suite runs including the routed dispatch, roughly forty
+  jobs.
+
+**Deviation from the planned shape, and why.** The plan calls for three to five _paired_ runs across several heads.
+Only one head was eligible: every other branch on the remote predates the architecture-keyed cache change, so
+dispatching one to the guest would have handed it a dependency tree built for the other architecture — the exact
+corruption that change prevents. Pairs therefore ran repeatedly at one head. The remaining legs were then made
+guest-only after the first pair, because every combination of the samples already landed between 0.20 and 0.52
+against a 0.70 threshold, while a remote leg cost roughly four times a guest leg in wall time. Trading two remote
+legs for two guest legs bought the evidence that was still open — full-suite behaviour under two-slot contention —
+instead of restating a ratio that was never close. The go criterion is therefore a single paired ratio rather than
+a median of pairs.
+
+**The remote baseline is faster than its own history suggests, and the reason matters.** Historical pull-request
+runs on that route median around 2584 s, but they pack only 1.55x across four slots, while this idle dispatch
+packed at 3.27x. The jobs were never the constraint — those runs were contending with each other for the pool. Any
+projection built on the historical median therefore overstated the guest's advantage; the paired dispatch is what
+corrected it, from a projected 0.15–0.31 to a measured 0.444.
+
+**The remote leg failed on timeout-class assertions**, in `delivery-position.e2e.test.ts`, with vitest's own
+`Test timed out in 30000ms` and `90000ms`. Every job ran to completion — the failing shard took 744 s against
+603–832 s for its siblings — so the duration remains a valid workload measurement and the failure is recorded
+separately rather than discarded.
+
+That failure also corrects a claim made earlier in this ledger's concurrency section. The statement that no
+timeout-class failure appears in either route's history rested on searching for one signature, the end-to-end
+helper's own timed-out field. Vitest's test-level timeout is a different signature in the same class, and the
+remote route hits it in normal operation. Timing fragility is therefore a live property of the current default
+route rather than something the guest would introduce; being roughly four times faster per job, the guest is less
+exposed to it, not more.
 
 ### Restart test
 
