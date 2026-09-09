@@ -610,15 +610,10 @@ prose follows the executable contract.
 - _Goal:_ The external-edge feature and its authoring guidance agree across schema, pinned-tree composition,
   advancement, public command output, and both workflow copies.
 
-    - `[ ]` **3.5.a Complete the external-edge schema and conservation matrix**
-        - Cover new-member and existing-home sources against live, completed, late-created, redundant, unknown,
-          retiring-origin, self, unchanged, and extraction-origin targets.
-        - Pin canonical order, distinct edge identity, dependency-edit order, and first-refusal precedence, including
-          self-edge classification through `redundant-external-edge`.
-        - Prove every dependency-capable declared destination pair accepted by the decoder is accepted by internal-edge
-          conservation, while undeclared or non-work-unit existing homes still refuse at their established boundary.
-        - Consolidate the matrix in `packages/arc-framework/__tests__/unit/work-unit/decompose-v3-schema.test.ts` and
-          `packages/arc-framework/__tests__/unit/work-unit/decompose-v3-conservation.test.ts`.
+    - `[x]` **3.5.a Complete the external-edge schema and conservation matrix**
+        - Consolidated both source kinds across live/late-created, completed, redundant, unknown, retiring-origin,
+          self, unchanged, and extraction-origin outcomes; pinned distinct identities, canonical edit/refusal order,
+          and every declared dependency-capable internal endpoint pairing while retaining non-work-unit refusals.
 
     - `[ ]` **3.5.b Exercise retirement and extraction repository lifecycles against real Git state**
         - Cover member-meta and existing-home writes, ROADMAP rendering, target completion between execute and

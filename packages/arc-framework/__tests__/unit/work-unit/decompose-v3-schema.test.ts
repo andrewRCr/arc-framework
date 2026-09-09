@@ -464,6 +464,38 @@ describe("v3 decomposition map schema", () => {
     }
   });
 
+  it.each([
+    [{ from: "new-a", to: "new-b" }],
+    [{ from: "existing-work-unit", to: "new-a" }],
+    [{ from: "new-a", to: "existing-work-unit" }],
+    [{ from: "existing-work-unit", to: "existing-work-unit-b" }],
+  ])("accepts internal edges across every dependency-capable destination-kind pair", (edge) => {
+    const value = comprehensiveCompleted();
+    value.authoring.destinations.splice(4, 0, {
+      kind: "existing-home",
+      destinationId: "existing-work-unit-b",
+      target: { kind: "work-unit", slug: "existing-work-unit-b" },
+    });
+    value.authoring.internalEdges = [edge];
+
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({ status: "accepted" });
+  });
+
+  it.each([
+    ["existing-document", "new-a", "authoring.internalEdges.0.from"],
+    ["existing-draft", "new-a", "authoring.internalEdges.0.from"],
+    ["new-a", "existing-document", "authoring.internalEdges.0.to"],
+    ["new-a", "missing", "authoring.internalEdges.0.to"],
+  ])("refuses an internal edge outside the declared work-unit endpoint set", (from, to, path) => {
+    const value = comprehensiveCompleted();
+    value.authoring.internalEdges = [{ from, to }];
+
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+      status: "rejected",
+      issue: { code: "authoring-identity", path },
+    });
+  });
+
   it("requires an explicit completed external-edge value", () => {
     const value = completed();
     const authoring = { ...value.authoring } as Partial<typeof value.authoring>;

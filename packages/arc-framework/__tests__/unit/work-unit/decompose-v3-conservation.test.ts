@@ -69,6 +69,32 @@ function extractionInput(replacementTargets: string[]): V3DecomposeConservationI
   return input;
 }
 
+function addExistingWorkUnitDestination(
+  input: V3DecomposeConservationInput,
+  slug: string,
+  dependsOn: string[] = [],
+): void {
+  input.completedMap.authoring.shape = input.completedMap.authoring.shape === "extraction"
+    ? "extraction"
+    : "heterogeneous";
+  input.completedMap.authoring.destinations.unshift({
+    kind: "existing-home",
+    destinationId: slug,
+    target: { kind: "work-unit", slug },
+  });
+  input.workUnits.push({
+    slug,
+    writablePath: `.arc/active/meta-${slug}.md`,
+    dependsOn,
+  });
+}
+
+function externalSource(input: V3DecomposeConservationInput, source: "existing-home" | "new-member"): string {
+  if (source === "new-member") return "member-a";
+  addExistingWorkUnitDestination(input, "existing");
+  return "existing";
+}
+
 describe("v3 decomposition allocation and dependency conservation", () => {
   it("returns the exact ordered allocation and dependency edits", () => {
     const input = validInput();
@@ -500,62 +526,71 @@ describe("v3 decomposition allocation and dependency conservation", () => {
     );
   });
 
-  it("projects a live external prerequisite as a distinct canonical edge edit", () => {
-    const input = { ...validInput(), resultBaseLiveSlugs: ["foundation"] };
-    input.completedMap.authoring.externalEdges = [{ from: "member-a", to: "foundation" }];
+  it.each(["new-member", "existing-home"] as const)(
+    "projects a live prerequisite absent from source-bound facts for a %s source",
+    (source) => {
+      const input = { ...validInput(), resultBaseLiveSlugs: ["foundation"] };
+      const from = externalSource(input, source);
+      input.completedMap.authoring.externalEdges = [{ from, to: "foundation" }];
 
-    const result = validateV3DecomposeConservation(input);
+      const result = validateV3DecomposeConservation(input);
 
-    expect(result).toMatchObject({ status: "validated" });
-    if (result.status !== "validated") return;
-    expect(result.dependencyEdits).toContainEqual({
-      kind: "external",
-      edgeId: canonicalDigest({
-        schemaVersion: 3,
+      expect(result).toMatchObject({ status: "validated" });
+      if (result.status !== "validated") return;
+      const externalId = canonicalDigest({ schemaVersion: 3, kind: "external", from, to: "foundation" });
+      expect(externalId).not.toBe(canonicalDigest({ schemaVersion: 3, kind: "internal", from, to: "foundation" }));
+      expect(result.dependencyEdits).toContainEqual({
         kind: "external",
-        from: "member-a",
-        to: "foundation",
-      }),
-      locus: "authoring.externalEdges.0",
-      destinationId: "member-a",
-      dependent: "member-a",
-      writablePath: null,
-      beforeTargets: [],
-      afterTargets: ["foundation"],
-    });
-  });
-
-  it("projects a completed external prerequisite", () => {
-    const input = { ...validInput(), resultBaseCompletedSlugs: ["foundation"] };
-    input.completedMap.authoring.externalEdges = [{ from: "member-a", to: "foundation" }];
-
-    const result = validateV3DecomposeConservation(input);
-
-    expect(result).toMatchObject({
-      status: "validated",
-      dependencyEdits: expect.arrayContaining([expect.objectContaining({
-        kind: "external",
-        dependent: "member-a",
+        edgeId: externalId,
+        locus: "authoring.externalEdges.0",
+        destinationId: source === "new-member" ? "member-a" : "existing",
+        dependent: from,
+        writablePath: source === "new-member" ? null : ".arc/active/meta-existing.md",
+        beforeTargets: [],
         afterTargets: ["foundation"],
-      })]),
-    });
-  });
+      });
+    },
+  );
 
-  it("admits the authenticated surviving origin as an extraction prerequisite", () => {
-    const input = extractionInput(["origin"]);
-    input.completedMap.authoring.externalEdges = [{ from: "member-a", to: "origin" }];
+  it.each(["new-member", "existing-home"] as const)(
+    "projects a completed prerequisite for a %s source",
+    (source) => {
+      const input = { ...validInput(), resultBaseCompletedSlugs: ["foundation"] };
+      const from = externalSource(input, source);
+      input.completedMap.authoring.externalEdges = [{ from, to: "foundation" }];
 
-    const result = validateV3DecomposeConservation(input);
+      const result = validateV3DecomposeConservation(input);
 
-    expect(result).toMatchObject({
-      status: "validated",
-      dependencyEdits: expect.arrayContaining([expect.objectContaining({
-        kind: "external",
-        dependent: "member-a",
-        afterTargets: ["origin"],
-      })]),
-    });
-  });
+      expect(result).toMatchObject({
+        status: "validated",
+        dependencyEdits: expect.arrayContaining([expect.objectContaining({
+          kind: "external",
+          dependent: from,
+          afterTargets: ["foundation"],
+        })]),
+      });
+    },
+  );
+
+  it.each(["new-member", "existing-home"] as const)(
+    "admits the authenticated surviving origin as an extraction prerequisite for a %s source",
+    (source) => {
+      const input = extractionInput(["origin"]);
+      const from = externalSource(input, source);
+      input.completedMap.authoring.externalEdges = [{ from, to: "origin" }];
+
+      const result = validateV3DecomposeConservation(input);
+
+      expect(result).toMatchObject({
+        status: "validated",
+        dependencyEdits: expect.arrayContaining([expect.objectContaining({
+          kind: "external",
+          dependent: from,
+          afterTargets: ["origin"],
+        })]),
+      });
+    },
+  );
 
   it("classifies an external self-edge as destination-owned redundancy", () => {
     const input = validInput();
@@ -596,6 +631,94 @@ describe("v3 decomposition allocation and dependency conservation", () => {
       refusal: {
         stage: "dependency-projection",
         reason: "unknown-external-target",
+        locus: "authoring.externalEdges.0.to",
+      },
+    });
+  });
+
+  it.each([
+    ["new-member", "member-b"],
+    ["existing-home", "member-a"],
+  ] as const)("refuses a declared destination target for a %s source", (source, to) => {
+    const input = validInput();
+    const from = externalSource(input, source);
+    input.completedMap.authoring.externalEdges = [{ from, to }];
+
+    expect(validateV3DecomposeConservation(input)).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "dependency-projection",
+        reason: "redundant-external-edge",
+        locus: "authoring.externalEdges.0.to",
+      },
+    });
+  });
+
+  it.each(["new-member", "existing-home"] as const)(
+    "classifies a %s source self-edge as declared-destination redundancy",
+    (source) => {
+      const input = validInput();
+      const from = externalSource(input, source);
+      input.resultBaseLiveSlugs = [from];
+      input.completedMap.authoring.externalEdges = [{ from, to: from }];
+
+      expect(validateV3DecomposeConservation(input)).toEqual({
+        status: "refused",
+        refusal: {
+          stage: "dependency-projection",
+          reason: "redundant-external-edge",
+          locus: "authoring.externalEdges.0.to",
+        },
+      });
+    },
+  );
+
+  it.each(["new-member", "existing-home"] as const)(
+    "refuses an unknown prerequisite for a %s source",
+    (source) => {
+      const input = validInput();
+      const from = externalSource(input, source);
+      input.completedMap.authoring.externalEdges = [{ from, to: "missing" }];
+
+      expect(validateV3DecomposeConservation(input)).toMatchObject({
+        status: "refused",
+        refusal: {
+          reason: "unknown-external-target",
+          locus: "authoring.externalEdges.0.to",
+        },
+      });
+    },
+  );
+
+  it.each(["new-member", "existing-home"] as const)(
+    "refuses the retiring origin for a %s source before target eligibility",
+    (source) => {
+      const input = validInput();
+      const from = externalSource(input, source);
+      input.resultBaseLiveSlugs = ["origin"];
+      input.completedMap.authoring.externalEdges = [{ from, to: "origin" }];
+
+      expect(validateV3DecomposeConservation(input)).toMatchObject({
+        status: "refused",
+        refusal: {
+          reason: "retiring-origin-target",
+          locus: "authoring.externalEdges.0.to",
+        },
+      });
+    },
+  );
+
+  it("reports the first external-edge refusal in canonical authored order", () => {
+    const input = validInput();
+    input.completedMap.authoring.externalEdges = [
+      { from: "member-a", to: "member-b" },
+      { from: "member-a", to: "zzz-missing" },
+    ];
+
+    expect(validateV3DecomposeConservation(input)).toMatchObject({
+      status: "refused",
+      refusal: {
+        reason: "redundant-external-edge",
         locus: "authoring.externalEdges.0.to",
       },
     });
@@ -664,9 +787,11 @@ describe("v3 decomposition allocation and dependency conservation", () => {
   });
 
   it.each([
+    [{ from: "member-a", to: "member-b" }],
     [{ from: "consumer", to: "member-a" }],
     [{ from: "member-a", to: "consumer" }],
-  ])("accepts internal edges across every dependency-capable destination pair", (edge) => {
+    [{ from: "consumer", to: "provider" }],
+  ])("accepts internal edges across every dependency-capable destination-kind pair", (edge) => {
     const input = validInput();
     input.completedMap.authoring.shape = "heterogeneous";
     input.completedMap.authoring.destinations = [
@@ -676,7 +801,17 @@ describe("v3 decomposition allocation and dependency conservation", () => {
         target: { kind: "work-unit", slug: "consumer" },
       },
       ...input.completedMap.authoring.destinations,
+      {
+        kind: "existing-home",
+        destinationId: "provider",
+        target: { kind: "work-unit", slug: "provider" },
+      },
     ];
+    input.workUnits.push({
+      slug: "provider",
+      writablePath: ".arc/active/meta-provider.md",
+      dependsOn: [],
+    });
     input.completedMap.authoring.internalEdges = [edge];
 
     const result = validateV3DecomposeConservation(input);
@@ -711,7 +846,9 @@ describe("v3 decomposition allocation and dependency conservation", () => {
       edgeId: outgoing.edgeId,
       disposition: { kind: "targets", targets: ["consumer"] },
     }];
+    input.completedMap.authoring.externalEdges = [{ from: "consumer", to: "foundation-b" }];
     input.originDependsOn = ["foundation"];
+    input.resultBaseLiveSlugs = ["foundation-b"];
     rebindCurrentPreflight(input);
 
     const result = validateV3DecomposeConservation(input);
@@ -719,8 +856,13 @@ describe("v3 decomposition allocation and dependency conservation", () => {
     expect(result).toMatchObject({ status: "validated" });
     if (result.status !== "validated") return;
     const consumerEdits = result.dependencyEdits.filter(({ dependent }) => dependent === "consumer");
-    expect(consumerEdits).toHaveLength(2);
+    expect(consumerEdits).toHaveLength(3);
+    expect(consumerEdits.map(({ edgeId }) => edgeId)).toEqual(
+      [...consumerEdits.map(({ edgeId }) => edgeId)].sort(),
+    );
+    expect(new Set(consumerEdits.map(({ kind }) => kind))).toEqual(new Set(["external", "incoming", "outgoing"]));
     expect(consumerEdits[0]!.afterTargets).toEqual(consumerEdits[1]!.beforeTargets);
-    expect([...consumerEdits.at(-1)!.afterTargets].sort()).toEqual(["foundation", "member-a"]);
+    expect(consumerEdits[1]!.afterTargets).toEqual(consumerEdits[2]!.beforeTargets);
+    expect([...consumerEdits.at(-1)!.afterTargets].sort()).toEqual(["foundation", "foundation-b", "member-a"]);
   });
 });
