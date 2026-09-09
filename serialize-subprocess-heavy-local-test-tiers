@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "serialize-subprocess-heavy-local-test-tiers",
+  "claimId": "e25fe3bd436b157337ec208f77cdb83e",
+  "createdAt": "2026-09-09T01:17:57.769Z",
+  "updatedAt": "2026-09-09T01:17:57.769Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Serialize canonical local subprocess-heavy test runs across concurrent worktrees with visible holder-aware queueing while preserving CI fan-out.",
+  "branch": "chore/serialize-subprocess-heavy-local-test-tiers",
+  "origin": "inbox",
+  "originEntry": "Serialize subprocess-heavy local test tiers across concurrent sessions",
+  "originEntrySourceDigest": "sha256:658b84a216013690b4667d2715df68a8656de53a81e73620415f5aec5e70d86e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
