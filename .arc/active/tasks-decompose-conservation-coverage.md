@@ -633,7 +633,7 @@ prose follows the executable contract.
 - _Outcome:_ External-edge authoring now has one aligned proof from closed schema through pinned repository
   composition, lifecycle advancement and extraction finish, typed command refusal, and byte-equal shipped guidance.
 
-### `[ ]` **3.6 Close external-edge delivery** — validate criteria at member scope
+### `[x]` **3.6 Close external-edge delivery** — validate criteria at member scope
 
 - _Goal:_ Member 3 has independently reviewable evidence that authored external edges survive target lifecycle
   changes and remain operable from the shipped workflow.
@@ -656,7 +656,7 @@ prose follows the executable contract.
 
 - _Outcome:_ Member 3 criteria report.
     - _Criteria slice:_ `Success Criteria > Member 3 — external-dependency-authoring`.
-    - _Span:_ bounded diff `3dd845308..93357a45c`; cumulative reachability `93357a45c` at tree `9b596b5c7`;
+    - _Span:_ bounded diff `3dd845308..c3aeedf43`; cumulative reachability `c3aeedf43` at tree `fd5ec34dd`;
       `boundary-order-deviation: null`.
     - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 1`;
       _criterion-digest:_ `sha256:4c43c443f7dae7cafeb75d2f5dc6d2108e2f4d129ef07638fdfc11604e95727b`;
@@ -687,17 +687,21 @@ prose follows the executable contract.
       malformed, live, and backlog paths while the pre-existing loose filesystem and ref readers remain separate.
     - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 6`;
       _criterion-digest:_ `sha256:5d4bbcefbe4f6cbc5474b63fb6d54abf29f8cd90e57fb52ceb863b7f4531b2e0`;
-      _State:_ `[x]`; _Evidence:_ advancement performs one current recomposition, compares every dependency recipient
-      between previous and current bases, and refuses drift with expected/actual targets before exact-history reads;
-      real-Git coverage proves zero history authentication and an unchanged clean candidate on refusal.
+      _State:_ `[x]`; _Evidence:_ advancement retains one current recomposition, binds each dependency recipient by
+      slug across previous/current pinned live paths, and classifies same-path target drift, pre-satisfied edges,
+      incoming-plus-external drift, nonempty or empty relocation, and removal or archival with exact
+      target/path/absence evidence before `diff-tree`; every real-Git refusal leaves candidate HEAD, clean state, and
+      absent `MERGE_HEAD` unchanged.
     - _Criterion:_ `Success Criteria > Member 3 — external-dependency-authoring > 7`;
       _criterion-digest:_ `sha256:e9111e606c6d5e4f086f5c9ac8d1132477c75bb007ed93de37dd92c6fabb928f`;
       _State:_ `[x]`; _Evidence:_ both workflow copies are byte-identical at
       `sha256:05c9f161c429dca68673de8a58e5812ddee732193f75a643726eac0fa60cef87`; contract coverage requires external,
       internal, and outgoing routing plus cumulative companion, scaffold, manual-transfer, and typed-refusal guidance,
       and the built CLI proves the reported external-edge locus and corrective invocation without mutation.
-    - _Adversarial companion:_ not run during the approved deferred-review batch; one fresh Heavy pass remains
-      available at delivery review.
+    - _Adversarial companion:_ four explicitly authorized fresh Heavy passes reran the complete member rubric. Their
+      majors on pre-satisfied no-ops, incoming-plus-external precedence, live-path relocation, and live-recipient
+      removal were resolved by `ada6fa00b`, `14ae0ba13`, `106e3f190`, and `c3aeedf43`; no open finding remains above
+      minor.
     - _Summary:_ seven `[x]`, zero `[~]`, zero `[ ]`; terminal Success Criteria markers remain unchanged.
 
 ## **Phase 4:** Verification
