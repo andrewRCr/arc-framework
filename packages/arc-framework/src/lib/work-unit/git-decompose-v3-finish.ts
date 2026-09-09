@@ -200,6 +200,11 @@ export function validateV3ExtractionDestinationStates(
   authority?: V3ExtractionDestinationValidationAuthority,
 ): V3ExtractionDestinationValidationResult {
   const blobBytes = new Map(authority?.blobs.map(({ contentDigest, bytes }) => [contentDigest, bytes]) ?? []);
+  const composedDependencyDependents = new Set(plan.mutations.flatMap((mutation) =>
+    mutation.kind === "composed"
+      ? mutation.contributors.flatMap((contributor) =>
+          contributor.kind === "dependency" ? [contributor.dependent] : [])
+      : []));
   const destinations: V3ExtractionDestinationState[] = [];
   let roadmapPath: string | null = null;
   for (const mutation of plan.mutations) {
@@ -313,6 +318,7 @@ export function validateV3ExtractionDestinationStates(
   if (authority !== undefined) {
     const map = authority.completedMap;
     for (const [index, edge] of map.machine.incomingEdges.entries()) {
+      if (composedDependencyDependents.has(edge.dependent)) continue;
       const authored = map.authoring.incomingDispositions[index];
       const expected = authored?.disposition.kind === "replace"
         ? replaceDependencySlot(edge.currentTargets, map.machine.source.origin, authored.disposition.replacementTargets)

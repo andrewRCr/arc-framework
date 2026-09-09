@@ -615,21 +615,11 @@ prose follows the executable contract.
           self, unchanged, and extraction-origin outcomes; pinned distinct identities, canonical edit/refusal order,
           and every declared dependency-capable internal endpoint pairing while retaining non-work-unit refusals.
 
-    - `[ ]` **3.5.b Exercise retirement and extraction repository lifecycles against real Git state**
-        - Cover member-meta and existing-home writes, ROADMAP rendering, target completion between execute and
-          advancement, and target creation after the source fork.
-        - Diverge an existing home's source and result-base dependency sets, then prove the authored delta preserves
-          unrelated pinned-base changes and an already-satisfied edge refuses before write.
-        - Carry a new member's external prerequisite to the authenticated surviving origin through `--extract`,
-          result landing, finish preview, finish apply, and repeat; require the dependency and ROADMAP claims to pass
-          finish proof without changing the origin's companion bytes.
-        - Make one incoming dependent an existing-home destination with an external edge. In finish proof, use the
-          complete composed dependency mutation for that touched recipient and reserve the incoming-only recomputation
-          for dependents with no dependency mutation; carry the overlap through preview, apply, and repeat.
-        - Assert source-bound facts and the transition record remain unchanged while the staged dependency and
-          derived projection match the authored map exactly.
-        - Use `packages/arc-framework/__tests__/integration/decompose-v3-repository-plan.test.ts` as the real-Git
-          lifecycle seam.
+    - `[x]` **3.5.b Exercise retirement and extraction repository lifecycles against real Git state**
+        - Exercised pinned-base rebasing and pre-write no-op refusal, target creation/completion, member and
+          existing-home writes, ROADMAP projection, and unchanged transition/source facts in real repositories.
+          Extraction now carries origin prerequisites and overlapping incoming/external mutations through result
+          landing plus finish preview/apply/repeat while preserving every companion byte.
 
     - `[ ]` **3.5.c Verify command output and workflow contract agreement**
         - Extend E2E and workflow-contract coverage so emitted external-edge refusals name the exact authored locus

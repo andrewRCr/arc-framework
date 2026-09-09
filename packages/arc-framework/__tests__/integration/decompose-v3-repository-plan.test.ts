@@ -133,6 +133,8 @@ async function startedRepository(options: {
   existingRecipient?: boolean;
   lateLiveTarget?: boolean;
   liveTarget?: boolean;
+  resultBaseRecipientDependsOn?: string[];
+  sourceRecipientDependsOn?: string[];
   sourceRider?: boolean;
   uncoveredCompanion?: boolean;
 } = {}) {
@@ -253,6 +255,7 @@ Preserve the nonstandard guarantee.
         owner: "andrew",
         workClass: "Light",
         priority: "P2",
+        dependsOn: options.sourceRecipientDependsOn ?? [],
         origin: "internal",
         design: ["draft-consumer.md"],
         currentWorkflow: "draft-design",
@@ -322,6 +325,26 @@ Preserve the nonstandard guarantee.
   await git(repo, ["commit", "-m", "start"]);
   const sourceHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
   await git(repo, ["switch", "main"]);
+  if (options.resultBaseRecipientDependsOn !== undefined) {
+    await write(
+      repo,
+      ".arc/backlog/planned/consumer/meta-consumer.md",
+      renderMetaFile("consumer", {
+        state: "Planning",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        dependsOn: options.resultBaseRecipientDependsOn,
+        origin: "internal",
+        design: ["draft-consumer.md"],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }),
+    );
+    await git(repo, ["add", ".arc/backlog/planned/consumer/meta-consumer.md"]);
+    await git(repo, ["commit", "-m", "diverge dependency recipient"]);
+    baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
+  }
   if (options.lateLiveTarget === true) {
     await write(
       repo,
@@ -465,6 +488,7 @@ async function activeExtractionRepository(
   incoming = false,
   extraCompanions = false,
   sourceMaturity: "active" | "started-planning" = "active",
+  externalTarget = false,
 ) {
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-extraction-plan-"));
   roots.push(repo);
@@ -489,6 +513,20 @@ async function activeExtractionRepository(
     }));
     await git(repo, ["add", "."]);
     await git(repo, ["commit", "-m", "add dependent"]);
+  }
+  if (externalTarget) {
+    await write(repo, ".arc/backlog/planned/foundation/meta-foundation.md", renderMetaFile("foundation", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      origin: "internal",
+      design: ["draft-foundation.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await git(repo, ["add", "."]);
+    await git(repo, ["commit", "-m", "add external target"]);
   }
   const baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
 
@@ -555,7 +593,7 @@ async function activeExtractionRepository(
         workClass: "Heavy" as const,
       }],
       internalEdges: [],
-      externalEdges: [],
+      externalEdges: [] as Array<{ from: string; to: string }>,
       sourceAllocations: machine.sourceUnits.map((unit, index) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned" as const,
@@ -1038,6 +1076,106 @@ describe("Git v3 repository plan", () => {
     expect(result.status, JSON.stringify(result)).toBe("composed");
   });
 
+  it("rebases an existing-home external edge onto divergent pinned dependencies", async () => {
+    const fixture = await startedRepository({
+      existingRecipient: true,
+      liveTarget: true,
+      resultBaseRecipientDependsOn: ["base-only"],
+      sourceRecipientDependsOn: ["source-only"],
+    });
+    const completedMap: unknown = {
+      ...fixture.completedMap,
+      authoring: {
+        ...fixture.completedMap.authoring,
+        destinations: fixture.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+      },
+    };
+    const machineBefore = canonicalize(fixture.completedMap.machine);
+
+    const staged = await executeGitV3DecomposeOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    roots.push(candidatePath);
+    const consumerPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    const consumer = await readFile(join(candidatePath, consumerPath), "utf8");
+    const roadmap = await readFile(
+      join(candidatePath, ".arc/backlog/ROADMAP.md"),
+      "utf8",
+    );
+    expect(consumer).toContain("**Depends On:** `base-only`, `foundation`");
+    expect(consumer).not.toContain("source-only");
+    expect(roadmap).toContain("foundation");
+    expect(JSON.parse(await readFile(
+      join(candidatePath, resolveTransitionRecordRelativePath("origin")),
+      "utf8",
+    ))).toEqual({
+      schemaVersion: 1,
+      origin: "origin",
+      kind: "decompose",
+      successors: ["member"],
+      edges: [],
+    });
+    expect(canonicalize(fixture.completedMap.machine)).toBe(machineBefore);
+    expect(new TextDecoder().decode(await readBlob(fixture.repo, fixture.sourceHead, consumerPath) ?? undefined))
+      .toContain("**Depends On:** `source-only`");
+  });
+
+  it("refuses an existing-home external edge already satisfied on the pinned result base", async () => {
+    const fixture = await startedRepository({
+      completedTarget: true,
+      existingRecipient: true,
+      resultBaseRecipientDependsOn: ["base-only", "foundation"],
+      sourceRecipientDependsOn: ["source-only"],
+    });
+    const completedMap: unknown = {
+      ...fixture.completedMap,
+      authoring: {
+        ...fixture.completedMap.authoring,
+        destinations: fixture.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+      },
+    };
+    const consumerPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    const before = await readBlob(fixture.repo, fixture.baseHead, consumerPath);
+
+    const result = await composeGitV3RepositoryPlan(fixture.dependencies, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "dependency",
+        reason: "unchanged-dependency-slot",
+        locus: "authoring.externalEdges.0",
+      },
+    });
+    await expect(readBlob(fixture.repo, fixture.baseHead, consumerPath)).resolves.toEqual(before);
+    expect(await git(fixture.repo, ["status", "--porcelain=v1"])).toBe("");
+  });
+
   it.each([
     ["draft", false],
     ["draft", true],
@@ -1243,6 +1381,165 @@ describe("Git v3 repository plan", () => {
       cutMapPath: fixture.cutMapPath,
       applyAuthority: null,
     })).resolves.toEqual({ status: "already-finished" });
+  });
+
+  it("carries a surviving-origin prerequisite through extraction finish without companion drift", async () => {
+    const fixture = await activeExtractionRepository(
+      "single-spec",
+      false,
+      false,
+      true,
+      "started-planning",
+    );
+    fixture.completedMap.authoring.externalEdges = [{ from: "member", to: "origin" }];
+    const machineBefore = canonicalize(fixture.completedMap.machine);
+    const companionPaths = [
+      ".arc/active/assurance-origin.md",
+      ".arc/active/draft-origin.md",
+      ".arc/active/notes-origin.md",
+      ".arc/active/tasks-origin.md",
+    ];
+    const companionBefore = new Map(await Promise.all(companionPaths.map(async (path) => {
+      const bytes = await readBlob(fixture.repo, fixture.sourceHead, path);
+      if (bytes === null) throw new Error(`missing companion bytes ${path}`);
+      return [path, bytes] as const;
+    })));
+    const staged = await executeGitV3ExtractionOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: fixture.completedMap,
+    });
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+      throw new Error(JSON.stringify(staged));
+    }
+    const candidatePath = staged.operation.occupation.path;
+    roots.push(candidatePath);
+    const memberMeta = await readFile(
+      join(candidatePath, ".arc/backlog/planned/member/meta-member.md"),
+      "utf8",
+    );
+    const roadmap = await readFile(join(candidatePath, ".arc/backlog/ROADMAP.md"), "utf8");
+    expect(memberMeta).toContain("**Depends On:** `origin`");
+    expect(roadmap).toContain("origin");
+    await expect(pathExists(join(candidatePath, resolveTransitionRecordRelativePath("origin"))))
+      .resolves.toBe(false);
+    await git(candidatePath, ["commit", "-m", "land origin prerequisite extraction"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+    const cutMapPath = join(fixture.repo, "origin-prerequisite-cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(fixture.completedMap)}\n`);
+    await git(fixture.repo, ["switch", fixture.sourceBranch]);
+
+    const preview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    });
+    expect(preview.status, JSON.stringify(preview)).toBe("previewed");
+    if (preview.status !== "previewed") return;
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: preview.preview.applyAuthority,
+    })).resolves.toEqual({ status: "finished" });
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    })).resolves.toEqual({ status: "already-finished" });
+    for (const [path, bytes] of companionBefore) {
+      await expect(readFile(join(fixture.repo, path))).resolves.toEqual(Buffer.from(bytes));
+    }
+    expect(canonicalize(fixture.completedMap.machine)).toBe(machineBefore);
+  });
+
+  it("uses the composed dependency mutation when an incoming dependent also has an external edge", async () => {
+    const fixture = await activeExtractionRepository("single-spec", false, true, false, "active", true);
+    const completedMap = {
+      ...fixture.completedMap,
+      authoring: {
+        ...fixture.completedMap.authoring,
+        destinations: [
+          {
+            kind: "existing-home" as const,
+            destinationId: "dependent",
+            target: { kind: "work-unit" as const, slug: "dependent" },
+          },
+          ...fixture.completedMap.authoring.destinations,
+        ],
+        externalEdges: [{ from: "dependent", to: "foundation" }],
+      },
+    };
+    const machineBefore = canonicalize(completedMap.machine);
+    const staged = await executeGitV3ExtractionOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+      throw new Error(JSON.stringify(staged));
+    }
+    const candidatePath = staged.operation.occupation.path;
+    roots.push(candidatePath);
+    const dependentPath = ".arc/backlog/planned/dependent/meta-dependent.md";
+    const dependentMutation = staged.plan.mutations.find(({ path }) => path === dependentPath);
+    expect(dependentMutation).toMatchObject({
+      kind: "composed",
+      contributors: expect.arrayContaining([
+        expect.objectContaining({ kind: "dependency", dependent: "dependent" }),
+      ]),
+    });
+    const dependentBeforeFinish = await readFile(join(candidatePath, dependentPath), "utf8");
+    expect(dependentBeforeFinish).toContain("**Depends On:** `origin`, `foundation`");
+    expect(await readFile(join(candidatePath, ".arc/backlog/ROADMAP.md"), "utf8"))
+      .toContain("foundation");
+    await expect(pathExists(join(candidatePath, resolveTransitionRecordRelativePath("origin"))))
+      .resolves.toBe(false);
+    await git(candidatePath, ["commit", "-m", "land overlapping dependency extraction"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+    const cutMapPath = join(fixture.repo, "overlapping-dependency-cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    await git(fixture.repo, ["switch", fixture.sourceBranch]);
+
+    const preview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    });
+    expect(preview.status, JSON.stringify(preview)).toBe("previewed");
+    if (preview.status !== "previewed") return;
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: preview.preview.applyAuthority,
+    })).resolves.toEqual({ status: "finished" });
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    })).resolves.toEqual({ status: "already-finished" });
+    await expect(readBlob(fixture.repo, "main", dependentPath))
+      .resolves.toEqual(new Uint8Array(Buffer.from(dependentBeforeFinish)));
+    expect(canonicalize(completedMap.machine)).toBe(machineBefore);
   });
 
   it("ignores committed changes outside the origin artifact group", async () => {
