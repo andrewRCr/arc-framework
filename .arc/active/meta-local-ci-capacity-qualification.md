@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task list generated and work unit activated on `chore/local-ci-capacity-qualification`;
-  implementation has not begun (2026-09-08).
-- **Next Task:** Task 1.1 — Open the measurement ledger (line ~18)
+- **Last Completed:** Phase 4 — go verdict recorded and Linux CI routed to the local arm64 runner, with the remote
+  pool retained as fallback.
+- **Next Task:** Task 5.1 — Complete verification (line ~377)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Open the measurement ledger
+- **Next Action:** Begin Task 5.1 — load and follow `verify-work-unit.md`
 
 ## Scope Contract
 
