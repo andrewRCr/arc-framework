@@ -23,6 +23,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Integrating` | plan-segmentation               | P1       | andrew | —                               | —                         |
 | `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                               | —                         |
 | `Planning`    | stub-mint-to-launch             | P1       | andrew | —                               | —                         |
+| `Planning`    | test-suite-right-sizing         | P2       | andrew | —                               | —                         |
 
 ## Ready
 
@@ -64,7 +65,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | package-project-development-sync    | P2       | andrew | —          | —                          |
 | planning-lane-relief                | P2       | andrew | —          | —                          |
 | review-orchestration-right-sizing   | P2       | andrew | —          | —                          |
-| test-suite-right-sizing             | P2       | andrew | —          | —                          |
 | workflow-eval-harness               | P2       | andrew | —          | —                          |
 | handoff-optimization                | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening         | P3       | andrew | —          | architecture-remediation   |
