@@ -107,10 +107,16 @@ describe("decompose workflow contract", () => {
 
   it("routes external-edge authoring without losing cumulative workflow guidance", () => {
     for (const candidate of [workflow, projectWorkflow]) {
+      const refusalStart = candidate.indexOf("Use only CLI-reported paths, packets, statuses, and remedies");
+      const preconditionsStart = candidate.indexOf("## Preconditions");
       const mapStart = candidate.indexOf("## 2. Complete the operator-owned map");
       const dispatchStart = candidate.indexOf("## 3. Dispatch the complete result");
+      const refusal = candidate.slice(refusalStart, preconditionsStart).replace(/\s+/gu, " ");
       const map = candidate.slice(mapStart, dispatchStart).replace(/\s+/gu, " ");
 
+      expect(refusalStart).toBeGreaterThan(-1);
+      expect(refusal).toContain("surface its status, reason, optional locus and evidence, remedy");
+      expect(refusal).toContain("Stop until the reported correction is complete");
       expect(map).toContain("`externalEdges`");
       expect(map).toContain("new member or live existing-home work unit");
       expect(map).toContain("work unit outside the cut");
@@ -121,6 +127,7 @@ describe("decompose workflow contract", () => {
       expect(candidate).toMatch(
         /status, reason, optional locus and evidence, remedy, and any optional report\s+unchanged/u,
       );
+      expect(candidate).not.toMatch(/\bnpx\s+arc\b/u);
     }
   });
 

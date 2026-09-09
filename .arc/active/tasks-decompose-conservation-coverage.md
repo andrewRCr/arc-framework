@@ -621,14 +621,10 @@ prose follows the executable contract.
           Extraction now carries origin prerequisites and overlapping incoming/external mutations through result
           landing plus finish preview/apply/repeat while preserving every companion byte.
 
-    - `[ ]` **3.5.c Verify command output and workflow contract agreement**
-        - Extend E2E and workflow-contract coverage so emitted external-edge refusals name the exact authored locus
-          and corrective command, and the workflow tells the agent how to act on the same result.
-        - Prove package/project workflow parity and retain bare `arc ...` commands inside shipped prose.
-        - Use `packages/arc-framework/__tests__/e2e/decompose-command-modes.e2e.test.ts` and
-          `packages/arc-framework/__tests__/unit/work-unit/decompose-workflow-contract.test.ts`.
-        - Treat the workflow assertions as instruction-presence and parity evidence, not agent-behavior eval coverage;
-          `workflow-eval-harness` owns that unavailable gate.
+    - `[x]` **3.5.c Verify command output and workflow contract agreement**
+        - The built CLI now proves an external-target refusal's exact authored locus, correction text, and bare
+          `arc ...` retry argv without mutation; workflow-contract coverage binds that envelope handling to both
+          byte-equal workflow copies while remaining instruction-presence rather than agent-behavior evidence.
 
     - `[ ]` **3.5.d Run the Phase 3 code-and-methodology checkpoint**
         - Run targeted lint and tests as each behavior lands, then both TypeScript type checks, Markdown lint, and

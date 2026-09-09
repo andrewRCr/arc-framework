@@ -153,7 +153,10 @@ Medium.
   return repo;
 }
 
-async function writeCompletedCutMap(repo: string): Promise<string> {
+async function writeCompletedCutMap(
+  repo: string,
+  externalEdges: Array<{ from: string; to: string }> = [],
+): Promise<string> {
   const preflight = await runArcNoTty(["decompose", "origin", "--preflight"], repo);
   expect(preflight.exitCode, preflight.stderr).toBe(0);
   const starter = JSON.parse(preflight.stdout) as {
@@ -182,7 +185,7 @@ async function writeCompletedCutMap(repo: string): Promise<string> {
         },
       ],
       internalEdges: [],
-      externalEdges: [],
+      externalEdges,
       sourceAllocations: starter.machine.sourceUnits.map((unit) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned",
@@ -587,6 +590,29 @@ describe("arc decompose command modes", () => {
       });
       expect(await repositorySnapshot(repo), scenario.mode).toEqual(before);
     }
+  });
+
+  it("emits an external-edge refusal with its authored locus and corrective invocation", async () => {
+    repo = await startedRepository();
+    const cutMapPath = await writeCompletedCutMap(repo, [{ from: "member", to: "missing-target" }]);
+    const before = await repositorySnapshot(repo);
+
+    const result = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+
+    expect(parseSingleDecomposeRefusal(result)).toMatchObject({
+      status: "refused",
+      reason: "conservation:dependency-projection:unknown-external-target",
+      locus: "authoring.externalEdges.0.to",
+      remedy: {
+        argv: ["arc", "decompose", "origin", "--execute", cutMapPath],
+        text: expect.stringContaining("Choose an eligible external target"),
+      },
+    });
+    expect(await repositorySnapshot(repo)).toEqual(before);
   });
 
   it("accepts an allocated companion when the committed candidate transform is unchanged", async () => {
