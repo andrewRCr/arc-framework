@@ -285,28 +285,14 @@ migration.
   across local, frontline, and hosted evidence. Native result identity survives findings settlement, while durable-only
   source fields are projected deliberately at narrower public request boundaries.
 
-### `[ ]` **3.3 Exercise concurrent terminal writes, settled replay, and stale approval refusal**
+### `[x]` **3.3 Exercise concurrent terminal writes, settled replay, and stale approval refusal**
 
 - _Goal:_ Immutable evidence and approval binding survive real-store interruption, concurrency, and settlement replay.
 
-- _Note:_ Spec §§ 4–5; SC 5, 7, 8, and 17.
-
-- _Approach:_ Extend existing operation-store, hosted-await, response, and public lifecycle tests rather than creating
-  another storage harness.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Concurrent equal terminals with different timestamps replay the same evidence. Interleave settlement or
-          another attempt update and retain the winner's progress without double counting. Different sealed content
-          conflicts, and direct schema-valid evidence rewrites refuse.
-
-        - Lose the acknowledgment after successful sealing, or fail a later progress write: re-entry reads the original
-          seal, repairs the same producer/count, and makes no provider call. Inject failure before sealing separately:
-          retain acknowledged pending admission, allow re-observation under it, and claim no recovery of unstored
-          content. Uncertain write outcomes reread storage first; neither case dispatches a new request or pass.
-
-        - Proposal approval fails against a later producer or altered result, while exact settled replay preserves
-          evidence.
+- _Outcome:_ Real-store fault injection proves effect-before-acknowledgment loss replays the original seal without
+  provider observation or recounting, while pre-seal interruption retains acknowledged admission and re-observes into
+  the same producer/pass. Existing concurrency, immutable-transition, settlement, and source-bound approval cases cover
+  the remaining adversarial paths.
 
 ### `[ ]` **3.4 Verify immutable evidence and approval identity** — validate criteria at member scope
 

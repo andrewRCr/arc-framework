@@ -10,6 +10,7 @@ import {
   ReviewReceiptV2Schema,
 } from "../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
 import { parseEvidence } from "../../src/scripts/review-gate/core/evidence.js";
+import type { ReviewOperationStateStore } from "../../src/scripts/review-gate/core/ports.js";
 import {
   RepositoryGitCommonStatePublisher,
   type GitCommonStatePublisher,
@@ -83,12 +84,12 @@ async function acknowledgedHostedFixture() {
     now: "2026-08-15T11:59:00Z",
   });
   if (decision.state !== "admitted") throw new Error("expected hosted admission");
-  await acknowledgeHostedRequest(records.store, {
+  const progress = await acknowledgeHostedRequest(records.store, {
     admission: decision.admission,
     handle,
     now: "2026-08-15T11:59:30Z",
   });
-  return { ...records, handle };
+  return { ...records, handle, progress };
 }
 
 async function sealedHostedFixture() {
@@ -334,6 +335,113 @@ describe("local review operation state authority", () => {
       result,
     });
     expect(observations).toBe(0);
+  });
+
+  it("recovers a durably sealed result after its publication acknowledgment is lost", async () => {
+    const records = await acknowledgedHostedFixture();
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "clean" as const,
+      nextAction: "complete" as const,
+      reviewUrl: "https://example.invalid/review",
+    };
+    let loseAcknowledgment = true;
+    const uncertainStore: ReviewOperationStateStore = {
+      readOperation: records.store.readOperation.bind(records.store),
+      publishOperation: async (state, expectedVersion) => {
+        const published = await records.store.publishOperation(state, expectedVersion);
+        if (loseAcknowledgment && state.kind === "lane-progress"
+          && state.attempts.some((attempt) => attempt.hosted?.sealedResult !== undefined)) {
+          loseAcknowledgment = false;
+          throw new Error("publication-acknowledgment-lost");
+        }
+        return published;
+      },
+    };
+    let observations = 0;
+
+    await expect(resolveHostedAwaitResult(uncertainStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe: async () => {
+        observations += 1;
+        return result;
+      },
+      now: () => "2026-08-15T12:00:00Z",
+    })).rejects.toThrow(/publication-acknowledgment-lost/u);
+    const sealed = await readHostedAwaitReplay(records.store, records.handle);
+    if (sealed === null) throw new Error("expected the uncertain write to have sealed its result");
+
+    await expect(resolveHostedAwaitResult(uncertainStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe: async () => {
+        observations += 1;
+        throw new Error("provider observation must not run after durable sealing");
+      },
+      now: () => "2026-08-15T12:01:00Z",
+    })).resolves.toEqual(sealed);
+    expect(observations).toBe(1);
+    expect(sealed.progress.completedPasses).toBe(1);
+    expect(sealed.progress.attempts).toHaveLength(1);
+  });
+
+  it("retains acknowledged admission for re-observation when terminal publication fails", async () => {
+    const records = await acknowledgedHostedFixture();
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "clean" as const,
+      nextAction: "complete" as const,
+      reviewUrl: "https://example.invalid/review",
+    };
+    let failBeforePublication = true;
+    const interruptedStore: ReviewOperationStateStore = {
+      readOperation: records.store.readOperation.bind(records.store),
+      publishOperation: async (state, expectedVersion) => {
+        if (failBeforePublication && state.kind === "lane-progress"
+          && state.attempts.some((attempt) => attempt.hosted?.sealedResult !== undefined)) {
+          failBeforePublication = false;
+          throw new Error("publication-interrupted-before-write");
+        }
+        return records.store.publishOperation(state, expectedVersion);
+      },
+    };
+    let observations = 0;
+    const observe = async () => {
+      observations += 1;
+      return result;
+    };
+
+    await expect(resolveHostedAwaitResult(interruptedStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe,
+      now: () => "2026-08-15T12:00:00Z",
+    })).rejects.toThrow(/publication-interrupted-before-write/u);
+    await expect(records.store.readOperation(records.progress.operationId)).resolves.toEqual({
+      version: 2,
+      state: records.progress,
+    });
+    await expect(readHostedAwaitReplay(records.store, records.handle)).resolves.toBeNull();
+
+    const recovered = await resolveHostedAwaitResult(interruptedStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe,
+      now: () => "2026-08-15T12:01:00Z",
+    });
+    expect(observations).toBe(2);
+    expect(recovered.progress.completedPasses).toBe(1);
+    expect(recovered.progress.attempts).toHaveLength(1);
+    expect(recovered.progress.attempts[0]).toMatchObject({
+      attemptId: hostedLaneAttemptId(records.handle),
+      logicalPass: records.handle.admission.logicalPass,
+      hosted: { handle: records.handle },
+    });
   });
 
   it("rejects a same-record operation identity mismatch without overwriting it", async () => {
