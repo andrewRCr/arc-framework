@@ -244,7 +244,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - run: npm run build
@@ -280,7 +280,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     # Documentation / ARC-doc linters - relevant to docs and code alike; always run.
@@ -333,7 +333,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - run: npm run test:unit
@@ -361,7 +361,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -409,7 +409,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -459,7 +459,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8

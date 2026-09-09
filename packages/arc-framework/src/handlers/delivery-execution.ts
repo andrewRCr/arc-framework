@@ -4151,7 +4151,7 @@ async function executeDeliveryCommand(
         protectedBaseRef,
         topRef,
       });
-      lifecyclePaths = [...resolvedPaths.workUnitArtifacts, ...resolvedPaths.sharedProjections];
+      lifecyclePaths = resolvedPaths.paths;
     } catch {
       return { status: "refused", reason: "evidence-unavailable" };
     }
@@ -4920,7 +4920,7 @@ async function executeDeliveryCommand(
             protectedBaseRef: parsed.protectedBaseRef,
             topRef: parsed.topRef,
           });
-          return [...paths.workUnitArtifacts, ...paths.sharedProjections];
+          return paths.paths;
         } catch {
           return null;
         }
@@ -5791,7 +5791,7 @@ async function executeDeliveryCommand(
                 protectedBaseRef: parsed.protectedBaseRef,
                 topRef: parsed.topRef,
               });
-              return [...paths.workUnitArtifacts, ...paths.sharedProjections];
+              return paths.paths;
             } catch {
               return null;
             }

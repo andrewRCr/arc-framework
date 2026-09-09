@@ -27,7 +27,7 @@ afterEach(async () => {
 });
 
 describe("pre-publication delivery target composition", () => {
-  it("closes real candidate refs and gate checkouts before projecting the originating terminal top", async () => {
+  it("closes real candidate refs across machine-owned publication-state advances", async () => {
     const root = await createTempRepoCore({ prefix: "arc-prepublication-delivery-targets-" });
     roots.push(root);
     const plan = deliveryThreeMemberStackPlanFixture();
@@ -58,6 +58,16 @@ describe("pre-publication delivery target composition", () => {
     ].join("\n"), "utf8");
     await git(["add", ".arc/active"]);
     await git(["commit", "-m", "active work unit"]);
+    const candidateDirectory = join(root, ".arc", "system", ".internal", "candidates");
+    await mkdir(candidateDirectory, { recursive: true });
+    await writeFile(join(candidateDirectory, `${plan.workUnitId}.json`), "candidate review state\n", "utf8");
+    await writeFile(
+      join(candidateDirectory, `${plan.workUnitId}.boundary.json`),
+      "prepublication boundary\n",
+      "utf8",
+    );
+    await git(["add", ".arc/system/.internal/candidates"]);
+    await git(["commit", "-m", "record prepublication state"]);
     const top = await git(["rev-parse", "HEAD"]);
 
     const gitExec: GitExec = async (command, args, options) => {
@@ -97,7 +107,29 @@ describe("pre-publication delivery target composition", () => {
     await expect(stat(join(root, commonDir, "arc", "delivery", "state")))
       .rejects.toMatchObject({ code: "ENOENT" });
 
-    await git(["branch", "feat/foreign-top", top]);
+    await writeFile(join(candidateDirectory, `${plan.workUnitId}.json`), "published candidate state\n", "utf8");
+    await writeFile(
+      join(candidateDirectory, `${plan.workUnitId}.boundary.json`),
+      "publication-pending boundary\n",
+      "utf8",
+    );
+    await git(["add", ".arc/system/.internal/candidates"]);
+    await git(["commit", "-m", "advance publication state"]);
+    const publicationTop = await git(["rev-parse", "HEAD"]);
+
+    await expect(composePreBindingDeliveryReviewTargets({
+      workUnitId: plan.workUnitId,
+      baseRef: "main",
+    }, createPreBindingDeliveryReviewTargetDependencies({ cwd: root, exec: gitExec }))).resolves.toMatchObject({
+      status: "composed",
+      targets: [
+        { target: { diffBaseSha: base, headSha: first } },
+        { target: { diffBaseSha: first, headSha: second } },
+        { target: { diffBaseSha: second, headSha: publicationTop } },
+      ],
+    });
+
+    await git(["branch", "feat/foreign-top", publicationTop]);
     await writeFile(join(root, ".arc", "active", `meta-${plan.workUnitId}.md`), [
       `# Metadata: ${plan.workUnitId}`,
       "",
