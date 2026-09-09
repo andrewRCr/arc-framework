@@ -144,7 +144,7 @@ export function scanTaskListSegmentation(
   const outsidePhaseSegmentVerifiers: ParentRecord[] = [];
   let currentPhase: PhaseRecord | null = null;
   let currentParentTaskId: string | null = null;
-  let currentSubtask: { readonly id: string; readonly indent: number } | null = null;
+  const activeSubtasks: Array<{ readonly id: string; readonly indent: number }> = [];
   let segmentationPresent = false;
 
   for (const event of scan.events) {
@@ -173,7 +173,7 @@ export function scanTaskListSegmentation(
       };
       phases.push(currentPhase);
       currentParentTaskId = null;
-      currentSubtask = null;
+      activeSubtasks.length = 0;
       continue;
     }
     if (event.type === "parent") {
@@ -193,30 +193,41 @@ export function scanTaskListSegmentation(
         outsidePhaseSegmentVerifiers.push(parent);
       }
       currentParentTaskId = event.item.id;
-      currentSubtask = null;
+      activeSubtasks.length = 0;
       continue;
     }
     if (event.type === "subtask") {
-      currentSubtask = {
+      const indent = leadingWhitespaceLength(lines[event.line - 1] ?? "");
+      let activeSubtask = activeSubtasks.at(-1);
+      while (activeSubtask !== undefined && activeSubtask.indent >= indent) {
+        activeSubtasks.pop();
+        activeSubtask = activeSubtasks.at(-1);
+      }
+      activeSubtasks.push({
         id: event.item.id,
-        indent: leadingWhitespaceLength(lines[event.line - 1] ?? ""),
-      };
+        indent,
+      });
       continue;
     }
     if (event.type === "section") {
       currentPhase = null;
       currentParentTaskId = null;
-      currentSubtask = null;
+      activeSubtasks.length = 0;
       continue;
     }
     if (event.type !== "content") continue;
+    const contentIndent = leadingWhitespaceLength(event.text);
+    if (event.text.trim() !== "") {
+      let activeSubtask = activeSubtasks.at(-1);
+      while (activeSubtask !== undefined && activeSubtask.indent >= contentIndent) {
+        activeSubtasks.pop();
+        activeSubtask = activeSubtasks.at(-1);
+      }
+    }
     if (currentParentTaskId !== null) {
       const phaseId = RETIRING_PHASE_RE.exec(event.text)?.groups?.phaseId;
       if (phaseId !== undefined) {
-        const taskId = currentSubtask !== null
-          && leadingWhitespaceLength(event.text) > currentSubtask.indent
-          ? currentSubtask.id
-          : currentParentTaskId;
+        const taskId = activeSubtasks.at(-1)?.id ?? currentParentTaskId;
         retiringPhaseReferences.push({ taskId, line: event.line, phaseId });
       }
     }

@@ -216,6 +216,43 @@ describe("scanTaskListSegmentation", () => {
     }]);
   });
 
+  it("restores outer-subtask ownership after a nested subtask", () => {
+    const result = scanTaskListSegmentation({
+      path: "tasks-example.md",
+      content: [
+        "## **Phase 1:** Build",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "_Exit criterion:_ The structure is settled.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "    - `[ ]` **1.1.a Build temporary scaffolding**",
+        "",
+        "        - `[ ]` **1.1.a.1 Build one supporting part**",
+        "",
+        "            - The supporting part is complete.",
+        "",
+        "        - _Retired in:_ Phase cleanup",
+        "",
+        "## **Phase cleanup:** Remove scaffolding",
+        "",
+        "### `[ ]` **2.1 Remove temporary scaffolding**",
+        "",
+        "## **Phase final:** Verification",
+        "",
+        "### `[ ]` **3.1 Verify the work unit**",
+      ].join("\n"),
+    });
+
+    expect(result.retiringPhaseReferences).toEqual([{
+      taskId: "1.1.a",
+      line: 15,
+      phaseId: "cleanup",
+    }]);
+  });
+
   it("leaves task lists authored before the segmentation contract unsegmented", () => {
     const result = scanTaskListSegmentation({
       path: "tasks-legacy.md",
