@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-integration-lane.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]
