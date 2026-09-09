@@ -215,6 +215,7 @@ export async function recordLaneAttempt(
     advancePendingAttempt?: boolean;
     logicalPass?: number;
     retryGeneration?: number;
+    expectedOwnerVersion?: number;
   },
 ): Promise<LaneProgressState> {
   const lineage = input.lineage ?? {
@@ -226,6 +227,9 @@ export async function recordLaneAttempt(
   const operationId = laneProgressOperationId({ ...input, lineage });
   for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
     const { version, state } = await store.readOperation(operationId);
+    if (input.expectedOwnerVersion !== undefined && version !== input.expectedOwnerVersion) {
+      throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
+    }
     const existing = state !== null && state.kind === "lane-progress" ? state : null;
     const replay = existing?.attempts.find((candidate) => candidate.attemptId === input.attemptId);
     const attempt: LaneAttempt = {
@@ -287,6 +291,7 @@ export async function recordLaneAttempt(
       return next;
     } catch (error) {
       if (!isReviewVersionConflict(error)) throw error;
+      if (input.expectedOwnerVersion !== undefined) throw error;
     }
   }
   throw new Error("lane progress exceeded version-conflict retry attempts");
@@ -673,7 +678,11 @@ export async function recordHostedAwaitAttempt(
 /** Persist one admitted local producer before its executable inputs leave the runtime. */
 export async function recordLocalPendingAttempt(
   store: ReviewOperationStateStore,
-  input: { state: Extract<import("./core/operation-state-schema.js").ReviewOperationState, { kind: "local-review" }>; now: string },
+  input: {
+    state: Extract<import("./core/operation-state-schema.js").ReviewOperationState, { kind: "local-review" }>;
+    ownerVersion: number;
+    now: string;
+  },
 ): Promise<LaneProgressState> {
   const { state } = input;
   const requestedCoverage = localReviewRequestedCoverage(state.requirement);
@@ -689,6 +698,7 @@ export async function recordLocalPendingAttempt(
     sourceId: state.laneSourceId,
     outcome: "pending",
     consumedPass: false,
+    expectedOwnerVersion: input.ownerVersion,
     local: {
       operationId: state.operationId,
       requestId: state.requestId,
@@ -1000,6 +1010,25 @@ export type LaneProgressProjection =
   };
 
 /** Read one complete lineage owner without applying an exact-head projection. */
+export async function readLaneProgressOwnerVersioned(
+  store: ReviewOperationStateStore,
+  input: {
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+  },
+): Promise<{ version: number; state: LaneProgressState | null }> {
+  const { version, state } = await store.readOperation(laneProgressOperationId(input));
+  if (state === null
+    || state.kind !== "lane-progress"
+    || state.lane !== input.lane
+    || state.repositoryId !== input.repositoryId
+    || canonicalize(state.lineage) !== canonicalize(input.lineage)) return { version, state: null };
+  return { version, state };
+}
+
+/** Read one complete lineage owner without applying an exact-head projection. */
 export async function readLaneProgressOwner(
   store: ReviewOperationStateStore,
   input: {
@@ -1009,13 +1038,7 @@ export async function readLaneProgressOwner(
     lineage: LaneSubjectLineage;
   },
 ): Promise<LaneProgressState | null> {
-  const { state } = await store.readOperation(laneProgressOperationId(input));
-  if (state === null
-    || state.kind !== "lane-progress"
-    || state.lane !== input.lane
-    || state.repositoryId !== input.repositoryId
-    || canonicalize(state.lineage) !== canonicalize(input.lineage)) return null;
-  return state;
+  return (await readLaneProgressOwnerVersioned(store, input)).state;
 }
 
 /**

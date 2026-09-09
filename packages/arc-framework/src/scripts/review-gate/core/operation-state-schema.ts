@@ -503,6 +503,14 @@ export const LaneProgressStateSchema = z.strictObject({
   const terminalPasses = state.attempts
     .filter(({ terminalProducer }) => terminalProducer)
     .map(({ logicalPass }) => logicalPass);
+  const terminalPassSet = new Set(terminalPasses);
+  if (pendingPasses.some((logicalPass) => terminalPassSet.has(logicalPass))) {
+    context.addIssue({
+      code: "custom",
+      path: ["attempts"],
+      message: "a logical pass cannot retain a pending source after its terminal producer",
+    });
+  }
   if (new Set(terminalPasses).size !== terminalPasses.length) {
     context.addIssue({
       code: "custom",

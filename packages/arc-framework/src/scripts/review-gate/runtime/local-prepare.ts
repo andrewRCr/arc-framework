@@ -63,6 +63,7 @@ import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js"
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import {
   readLaneProgressOwner,
+  readLaneProgressOwnerVersioned,
   recordLaneAttempt,
   recordLocalPendingAttempt,
 } from "../lane-progress.js";
@@ -177,6 +178,19 @@ function cleanupExpired(state: LocalReviewState, nowInput: string): boolean {
     throw new Error("invalid local review cleanup clock");
   }
   return now >= admittedAt + state.cleanupTtlMs;
+}
+
+async function retryLaneOwnerConflicts<T>(
+  action: (attempt: number) => Promise<T>,
+): Promise<T | null> {
+  for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await action(attempt);
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
+  }
+  return null;
 }
 
 /** Stable durable-state failure at the local prepare boundary. */
@@ -460,15 +474,33 @@ export async function prepareLocalReview(
       || target.headSha !== request.deliveryAdmission.vehicle.head) {
       throw new LocalPrepareCommandError("local review target does not match its delivery admission");
     }
-    await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
   }
-  const settled = await dependencies.withSourceLock(async () => {
-    const owner = await readLaneProgressOwner(dependencies.operationStore, {
-      lane: "standard",
-      repositoryId,
-      headSha: target.headSha,
-      lineage,
-    });
+  const settled = await retryLaneOwnerConflicts((ownerAttempt) => dependencies.withSourceLock(async () => {
+    if (ownerAttempt > 0) {
+      const concurrentReplay = await replayPendingLocalAdmission({
+        request,
+        dependencies,
+        repositoryId,
+        target,
+        lineage,
+        cleanupTtlMs,
+      });
+      if (concurrentReplay !== null) {
+        return { state: "replayed" as const, envelope: concurrentReplay };
+      }
+    }
+    const { version: ownerVersion, state: owner } = await readLaneProgressOwnerVersioned(
+      dependencies.operationStore,
+      {
+        lane: "standard",
+        repositoryId,
+        headSha: target.headSha,
+        lineage,
+      },
+    );
+    if (request.deliveryAdmission !== undefined) {
+      await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
+    }
     const currentAttempts = owner?.attempts.filter((attempt): attempt is typeof attempt & {
       outcome: Exclude<typeof attempt.outcome, "pending">;
     } => attempt.headSha === target.headSha && attempt.outcome !== "pending") ?? [];
@@ -663,12 +695,14 @@ export async function prepareLocalReview(
     if (admitted?.state === "prepared") {
       await recordLocalPendingAttempt(dependencies.operationStore, {
         state: admitted.preparation.state,
+        ownerVersion,
         now: dependencies.now(),
       });
     }
     return admitted;
-  });
+  }));
   if (settled === null) throw new Error("local review preparation exceeded version-conflict retry attempts");
+  if (settled.state === "replayed") return settled.envelope;
   if (settled.state === "completed") {
     return LocalPrepareEnvelopeSchema.parse({
       schemaVersion: 1,

@@ -369,6 +369,25 @@ describe("review operation state schemas", () => {
     expect(LaneProgressStateSchema.parse({ ...laneProgress, completedPasses: 1, attempts }).attempts).toEqual(attempts);
   });
 
+  it("rejects a pending attempt after the same logical pass has a terminal producer", () => {
+    const terminal = {
+      ...laneProgress.attempts[0],
+      terminalProducer: true,
+      outcome: "clean" as const,
+    };
+    const pending = {
+      ...laneProgress.attempts[0],
+      attemptId: "local/attempt-2",
+      sourceId: "delegated-agent",
+      outcome: "pending" as const,
+    };
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      completedPasses: 1,
+      attempts: [terminal, pending],
+    })).toThrow(/cannot retain a pending source/iu);
+  });
+
   it("binds hosted and local attempt evidence to their owning source kinds", () => {
     const localAttempt = {
       ...laneProgress.attempts[0],

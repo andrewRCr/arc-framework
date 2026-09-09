@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type { ReviewReceiptV2 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { ReviewOperationState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type { LocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
+import { createHostedAdmission } from "../../../../../src/scripts/review-gate/hosted/request.js";
 import { projectLocalReviewGuidance } from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { DEFAULT_LOCAL_REVIEW_POLICY_BINDING } from "../../../../../src/scripts/review-gate/policy/local-review-policy.js";
 import { assertStandardReviewExecutionAdmission } from
@@ -214,7 +218,12 @@ describe("local review preparation request", () => {
       ));
       const materialize = vi.fn(async () => ({ reviewRoot: "/tmp/review-root" }));
       const validateDeliveryAdmission = vi.fn(async () => undefined);
-      const validatePolicyAdmission = vi.fn(async () => 1);
+      const validatePolicyAdmission = vi.fn(async (
+        _input: Parameters<Parameters<typeof prepareLocalReview>[1]["validatePolicyAdmission"]>[0],
+      ) => {
+        void _input;
+        return 1;
+      });
       const composeAssurance = vi.fn(async () => ({
         status: "resolved" as const,
         assurance: { workContext: "work-unit" as const, workClass: "Heavy" as const },
@@ -369,6 +378,84 @@ describe("local review preparation request", () => {
         .rejects.toThrow(/ceiling requires approval/u);
       expect(context.materialize).not.toHaveBeenCalled();
       expect(context.operations.size).toBe(0);
+    });
+
+    it("reauthorizes local admission when a hosted terminal wins the lane owner", async () => {
+      const context = fixture();
+      const store = context.dependencies.operationStore;
+      const publish = store.publishOperation.bind(store);
+      let injectedHostedTerminal = false;
+      store.publishOperation = async (state, expectedVersion) => {
+        const result = await publish(state, expectedVersion);
+        if (state.kind !== "local-review" || injectedHostedTerminal) return result;
+        injectedHostedTerminal = true;
+        const hostedTarget = {
+          repository: "owner/repository",
+          pullRequest: 42,
+          headSha: state.target.headSha,
+        };
+        const requirement = createReviewRequirement({
+          target: state.target,
+          projection: {
+            obligation: "required",
+            reasons: ["sensitive-change-set"],
+            rubricVersion: "standard-review/v1",
+            rubricDigest: `sha256:${"e".repeat(64)}`,
+            retrigger: "full-final",
+            count: 1,
+          },
+          acceptableSources: [{ sourceKind: "hosted", qualifier: "coderabbit-pr" }],
+          initialAdmission: "automatic",
+        });
+        if (requirement === null) throw new Error("expected hosted requirement");
+        const admission = createHostedAdmission({
+          schemaVersion: 1,
+          repositoryId: state.repositoryId,
+          lineage: state.lineage,
+          logicalPass: 1,
+          sourceId: "coderabbit-pr",
+          target: hostedTarget,
+          requestedCoverage: "complete",
+          reviewTarget: state.target,
+          requirement,
+          actorIdentity: "github-user-1",
+        });
+        await recordLaneAttempt(store, {
+          lane: "standard",
+          repositoryId: state.repositoryId,
+          changeRequestId: "pull/42",
+          headSha: state.target.headSha,
+          lineage: state.lineage,
+          logicalPass: 1,
+          retryGeneration: 0,
+          attemptId: admission.admissionId,
+          sourceId: admission.sourceId,
+          outcome: "clean",
+          consumedPass: true,
+          hosted: {
+            admission,
+            target: hostedTarget,
+            requestedCoverage: admission.requestedCoverage,
+            effectiveCoverage: "complete",
+            reviewTarget: state.target,
+            requirement,
+            actorIdentity: admission.actorIdentity,
+            requestFailureReason: null,
+            findings: [],
+            dispositionSetId: null,
+            settledFindingIds: [],
+          },
+          now: "2026-08-06T17:00:30Z",
+        });
+        return result;
+      };
+      context.validatePolicyAdmission.mockImplementation(async ({ completedPasses }) => {
+        if (completedPasses > 0) throw new Error("review pass already completed");
+        return 1;
+      });
+
+      await expect(prepareLocalReview(request, context.dependencies))
+        .rejects.toThrow(/pass already completed/u);
     });
 
     it("carries and freshly validates the exact driver admission before local preparation", async () => {
@@ -818,8 +905,7 @@ describe("local review preparation request", () => {
       headSha: objectId("c"),
       headTree: objectId("d"),
     });
-    let persistedVersion = 0;
-    let persistedState: ReviewOperationState | null = null;
+    const persisted = new Map<string, { version: number; state: ReviewOperationState }>();
     let persistedSource: LocalReviewSource | null = null;
     let initialReads = 0;
     let releaseInitialReads: (() => void) | undefined;
@@ -865,22 +951,24 @@ describe("local review preparation request", () => {
       validatePolicyAdmission: async () => 1,
       validateDeliveryAdmission: async () => undefined,
       operationStore: {
-        readOperation: async () => {
-          if (persistedState === null && initialReads < 2) {
+        readOperation: async (operationId: string) => {
+          const current = persisted.get(operationId);
+          if (current === undefined && initialReads < 2) {
             initialReads += 1;
             if (initialReads === 2) releaseInitialReads?.();
             await bothInitialReads;
             return { version: 0, state: null };
           }
-          return { version: persistedVersion, state: persistedState };
+          return current ?? { version: 0, state: null };
         },
         publishOperation: async (state: ReviewOperationState, expectedVersion: number) => {
-          if (persistedVersion !== expectedVersion) {
+          const current = persisted.get(state.operationId)?.version ?? 0;
+          if (current !== expectedVersion) {
             throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
           }
-          persistedVersion += 1;
-          persistedState = state;
-          return { version: persistedVersion };
+          const version = current + 1;
+          persisted.set(state.operationId, { version, state });
+          return { version };
         },
       },
       sourceStore: {
