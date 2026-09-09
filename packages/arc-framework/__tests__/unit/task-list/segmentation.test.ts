@@ -441,6 +441,17 @@ describe("scanTaskListSegmentation", () => {
       "",
       "### `[ ]` **3.1 Verify the work unit**",
     ], 7, "2", "1"],
+    ["terminal", [
+      "## **Phase 1:** Build",
+      "",
+      "_Mode:_ `slice` through Phase 2 — closes on behavior.",
+      "",
+      "### `[ ]` **1.1 Build the behavior**",
+      "",
+      "## **Phase 2:** Verification",
+      "",
+      "### `[ ]` **2.1 Verify the work unit**",
+    ], 3, "1", "2"],
   ] as const)("reports a %s segment span", (_kind, lines, line, phaseId, targetPhaseId) => {
     const result = scanTaskListSegmentation({
       path: "tasks-span.md",
