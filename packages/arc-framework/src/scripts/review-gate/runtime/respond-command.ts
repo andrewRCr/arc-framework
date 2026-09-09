@@ -33,6 +33,7 @@ import {
   proposeDispositionSet,
   validateDispositionState,
 } from "../core/dispositions.js";
+import { renderDispositionReport } from "../core/disposition-report.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import {
@@ -101,20 +102,27 @@ const RespondProposalRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   source: ReviewResponseSettlementSourceSchema,
   proposal: z.strictObject({
+    proposedVerification: CandidateVerificationApplicabilitySchema,
     findings: z.array(AuthorDispositionSchema).min(1),
   }),
 });
 
 /**
- * The one judgment the repository cannot establish: how much verification the applied fix warranted.
+ * Confirmation of the verification performed for an approved fix.
  *
- * Its presence is what distinguishes the post-fix settlement pass from the approval pass — the same
- * approved dispositions and durable source, submitted once the fix has landed and been verified.
+ * Its presence distinguishes the post-fix settlement pass from the approval pass. The approved
+ * disposition set supplies the minimum scope; this record supplies the actual scope and its evidence.
  */
 export const RespondVerifiedFixSchema = z.strictObject({
   applicability: CandidateVerificationApplicabilitySchema,
   verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
 });
+
+const VerificationApplicabilityRank = {
+  targeted: 0,
+  focused: 1,
+  full: 2,
+} as const;
 
 /**
  * The head an approved set's fixes settled at, supplied when the checkpoint's plan replays it.
@@ -133,6 +141,15 @@ const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.exten
       code: "custom",
       path: ["settledFixTarget"],
       message: "a settlement replay cannot also submit a verified fix",
+    });
+  }
+  if (request.verifiedFix !== undefined
+    && VerificationApplicabilityRank[request.verifiedFix.applicability]
+      < VerificationApplicabilityRank[request.dispositions.dispositionSet.proposedVerification]) {
+    context.addIssue({
+      code: "custom",
+      path: ["verifiedFix", "applicability"],
+      message: "verified fix applicability is narrower than the approved scope",
     });
   }
 });
@@ -338,6 +355,7 @@ function prepareDispositionProposal(
       targetId: source.target.targetId,
       ...dispositionContext,
       proposedBy: source.actors.proposerIdentity,
+      proposedVerification: request.proposal.proposedVerification,
       findings,
     }));
   } catch (error) {
@@ -512,6 +530,7 @@ async function persistCandidateResponse(
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
+  dispositionReportText: string,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const lineage = await dependencies.readCandidateLineage(source.target);
@@ -563,6 +582,7 @@ async function persistCandidateResponse(
         candidateId: currentness.candidateId,
         recordPath,
         implementationChanged: currentness.implementationChanged,
+        dispositionReportText,
       },
     });
   }
@@ -585,6 +605,7 @@ async function persistCandidateResponse(
     dispositionId: dispositions.dispositionSet.dispositionSetId,
     approvedBy: dispositions.approval.approvedBy,
     appliedBy: dispositions.dispositionSet.proposedBy,
+    approvedVerification: dispositions.dispositionSet.proposedVerification,
     applicability: verifiedFix.applicability,
     verificationEvidenceRefs: verifiedFix.verificationEvidenceRefs,
   });
@@ -606,6 +627,7 @@ async function persistCandidateResponse(
       responseId: response.responseId,
       recordPath,
       implementationChanged: response.implementationChanged,
+      dispositionReportText,
     },
   });
 }
@@ -635,6 +657,7 @@ async function persistErrandResponse(
   dispositions: ApprovedDispositionSet,
   newTarget: ReviewTarget,
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
+  dispositionReportText: string,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const [existing, activeErrand] = await Promise.all([
@@ -673,6 +696,7 @@ async function persistErrandResponse(
         operationId: source.operationId,
         dispositionRecordRef,
         fixAuthorizationId: existing.fixAuthorization.fixAuthorizationId,
+        dispositionReportText,
       },
     });
   }
@@ -704,6 +728,7 @@ async function persistErrandResponse(
       operationId: source.operationId,
       dispositionRecordRef,
       fixAuthorizationId: fixConsumption.fixAuthorizationId,
+      dispositionReportText,
     },
   });
 }
@@ -735,6 +760,7 @@ async function persistDeliveryMemberResponse(
   currentTarget: ReviewTarget,
   hostedFixTarget: HostedTarget,
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
+  dispositionReportText: string,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
@@ -793,6 +819,7 @@ async function persistDeliveryMemberResponse(
         fixAuthorizationId: existing.fixAuthorization.fixAuthorizationId,
         currentTarget,
         hostedFixTarget,
+        dispositionReportText,
         ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
       },
     });
@@ -828,6 +855,7 @@ async function persistDeliveryMemberResponse(
       fixAuthorizationId: fixConsumption.fixAuthorizationId,
       currentTarget,
       hostedFixTarget,
+      dispositionReportText,
       ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
     },
   });
@@ -858,6 +886,7 @@ function staleTargetEnvelope(
 async function settleApprovedReplay(
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
+  dispositionReportText: string,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
@@ -884,6 +913,7 @@ async function settleApprovedReplay(
     payload: {
       operationId: source.operationId,
       dispositionRecordRef: appended.dispositionRecordRef,
+      dispositionReportText,
     },
   });
 }
@@ -967,6 +997,7 @@ export async function respondToReviewCommand(
     unchangedCandidateLineage = lineage;
   }
   if ("proposal" in request) {
+    const proposal = prepareDispositionProposal(request, source);
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-respond",
@@ -975,7 +1006,11 @@ export async function respondToReviewCommand(
       nextAction: "obtain-approval",
       payload: {
         operationId: source.operationId,
-        proposal: prepareDispositionProposal(request, source),
+        proposal,
+        dispositionReportText: renderDispositionReport({
+          dispositionSet: proposal.dispositionSet,
+          producerFindings: source.findings,
+        }),
       },
     });
   }
@@ -1005,10 +1040,18 @@ export async function respondToReviewCommand(
       });
     }
     validateFindings(dispositions, source);
-    return settleApprovedReplay(source, dispositions, dependencies);
+    const dispositionReportText = renderDispositionReport({
+      dispositionSet: dispositions.dispositionSet,
+      producerFindings: source.findings,
+    });
+    return settleApprovedReplay(source, dispositions, dispositionReportText, dependencies);
   }
   validateActors(dispositions, source.actors);
   validateFindings(dispositions, source);
+  const dispositionReportText = renderDispositionReport({
+    dispositionSet: dispositions.dispositionSet,
+    producerFindings: source.findings,
+  });
   if (verifiedFix !== undefined && changedTarget !== null) {
     const settlement = projectApprovedResponse(source, dispositions, {
       candidateTarget: changedTarget,
@@ -1027,13 +1070,21 @@ export async function respondToReviewCommand(
         deliveryMemberFixTarget.currentTarget,
         deliveryMemberFixTarget.hostedFixTarget,
         verifiedFix,
+        dispositionReportText,
         dependencies,
       );
     }
     if (await dependencies.readCandidateLineage(source.target) === null) {
-      return persistErrandResponse(source, dispositions, changedTarget, verifiedFix, dependencies);
+      return persistErrandResponse(
+        source,
+        dispositions,
+        changedTarget,
+        verifiedFix,
+        dispositionReportText,
+        dependencies,
+      );
     }
-    return persistCandidateResponse(source, dispositions, verifiedFix, dependencies);
+    return persistCandidateResponse(source, dispositions, verifiedFix, dispositionReportText, dependencies);
   }
   const plan = projectApprovedResponse(source, dispositions);
   if (plan.state !== "ready-to-fix" && plan.state !== "ready-to-close") {
@@ -1113,6 +1164,7 @@ export async function respondToReviewCommand(
         dispositionRecordRef: appended.dispositionRecordRef,
         fixAuthorization: plan.fixAuthorization,
         deliveryMember,
+        dispositionReportText,
         correctionAction: {
           argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
           input: { repository, remote: "origin" },
@@ -1130,6 +1182,7 @@ export async function respondToReviewCommand(
     payload: {
       operationId: source.operationId,
       dispositionRecordRef: appended.dispositionRecordRef,
+      dispositionReportText,
       ...(plan.fixAuthorization === null ? {} : { fixAuthorization: plan.fixAuthorization }),
       ...(plan.fixAuthorization === null
         ? {}

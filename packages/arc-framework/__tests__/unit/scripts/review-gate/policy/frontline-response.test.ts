@@ -69,6 +69,7 @@ function approved() {
     rubricVersion: "implementation-audit/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
+    proposedVerification: "full",
     findings: [{
       findingId: finding.findingId,
       sourceIdentity: source.sourceId,

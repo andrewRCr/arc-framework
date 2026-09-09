@@ -365,6 +365,7 @@ async function approvedSet(
     schemaVersion: 1,
     source,
     proposal: {
+      proposedVerification: "targeted",
       findings: [{
         findingId: "finding-1",
         sourceVerification: "verified",

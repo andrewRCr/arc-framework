@@ -2859,6 +2859,7 @@ describe("hosted review fan-out lifecycle", () => {
         rubricVersion: review.requirement.rubricVersion,
         rubricDigest: review.requirement.rubricDigest,
         proposedBy: "arc-cli/integration-test",
+        proposedVerification: "focused",
         findings: [{
           findingId: finding.findingId,
           sourceIdentity: "coderabbit-pr",

@@ -60,6 +60,7 @@ function approved(disposition: "fix" | "defer" | "reject" = "fix") {
     rubricVersion: "standard-review/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
+    proposedVerification: "full",
     findings: [{
       findingId: normalizedFinding.findingId,
       sourceIdentity: "codex-pr",
@@ -173,6 +174,7 @@ describe("review response planning", () => {
       rubricVersion: "standard-review/v1",
       rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
       proposedBy: "author-1",
+      proposedVerification: "full",
       findings: [{
         findingId: normalizedFinding.findingId,
         sourceIdentity: "codex-pr",
@@ -212,6 +214,7 @@ describe("review response planning", () => {
       rubricVersion: "standard-review/v1",
       rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
       proposedBy: "author-1",
+      proposedVerification: "full",
       findings: [
         {
           findingId: normalizedFinding.findingId,

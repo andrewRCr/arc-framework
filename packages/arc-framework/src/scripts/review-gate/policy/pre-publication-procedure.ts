@@ -183,7 +183,7 @@ export const CandidateDeltaVerificationProjectionSchema = z.strictObject({
 });
 export type CandidateDeltaVerificationProjection = z.infer<typeof CandidateDeltaVerificationProjectionSchema>;
 
-/** Supply the exact Candidate delta and prior evidence before the primary chooses verification applicability. */
+/** Supply the exact Candidate delta and prior evidence before performed verification is recorded. */
 export function projectCandidateDeltaVerification(input: {
   record: CandidateManagedRecordV1;
   current: z.input<typeof CandidateLineageTargetSchema>;
@@ -212,11 +212,12 @@ export const RecordCandidateVerifiedResponseInputSchema = z.strictObject({
   dispositionId: CandidateIdSchema,
   approvedBy: z.string().trim().min(1),
   appliedBy: z.string().trim().min(1),
+  approvedVerification: CandidateVerificationApplicabilitySchema.optional(),
   applicability: CandidateVerificationApplicabilitySchema,
   verificationEvidenceRefs: z.array(ReviewEvidenceReferenceSchema).min(1),
 });
 
-/** Record one primary-selected verification applicability over an approved exact Candidate delta. */
+/** Record one performed verification and any approved scope supplied by the response boundary. */
 export function recordCandidateVerifiedResponse(input: unknown): CandidateReviewResponseEvidenceV1 {
   const request = RecordCandidateVerifiedResponseInputSchema.parse(input);
   const exactDelta = diffCandidateSubjectSnapshots(
@@ -226,17 +227,21 @@ export function recordCandidateVerifiedResponse(input: unknown): CandidateReview
   if (!sameDelta(exactDelta, request.projection.delta)) {
     throw new Error("Candidate delta verification projection does not match its exact targets");
   }
-  return createCandidateReviewResponseEvidence({
+  const transitionInput = {
     candidateId: request.projection.candidateId,
     oldTarget: request.projection.oldTarget,
     newTarget: request.projection.newTarget,
     dispositionId: request.dispositionId,
     approvedBy: request.approvedBy,
     appliedBy: request.appliedBy,
+    ...(request.approvedVerification === undefined
+      ? {}
+      : { approvedVerification: request.approvedVerification }),
     applicability: request.applicability,
     verificationEvidenceRefs: request.verificationEvidenceRefs,
     implementationChanged: deltaChanged(exactDelta),
-  });
+  };
+  return createCandidateReviewResponseEvidence(transitionInput);
 }
 
 function policyEnvelope(

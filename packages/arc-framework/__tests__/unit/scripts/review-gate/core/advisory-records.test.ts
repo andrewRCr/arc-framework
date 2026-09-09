@@ -38,6 +38,7 @@ const approvedDisposition = approveDispositionState({
     rubricVersion: "standard-review/v1",
     rubricDigest: canonicalDigest({ rubric: "standard" }),
     proposedBy: "agent-1",
+    proposedVerification: "full",
     findings: [{
       findingId: "finding-1",
       sourceIdentity: "delegated-agent",
@@ -102,6 +103,7 @@ describe("advisory review records", () => {
       resultDigest: dispositionSet.resultDigest,
       policyVersion: dispositionSet.policyVersion,
       proposedBy: dispositionSet.proposedBy,
+      proposedVerification: dispositionSet.proposedVerification,
       findings: dispositionSet.findings,
     };
     const frontlineBinding = {

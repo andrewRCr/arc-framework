@@ -215,6 +215,7 @@ function approvedLocal(records: ReturnType<typeof localFixture>): ApprovedDispos
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
       proposedBy: records.operation.attestation.runtimeIdentity,
+      proposedVerification: "full",
       findings: [{
         findingId: records.finding.findingId,
         sourceIdentity: records.operation.request.evaluatorIdentity,
@@ -504,6 +505,7 @@ describe("review reduction command: attested local", () => {
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
       proposedBy: records.operation.attestation.runtimeIdentity,
+      proposedVerification: "full",
       findings: [{
         findingId: records.finding.findingId,
         sourceIdentity: records.operation.request.evaluatorIdentity,
@@ -611,6 +613,7 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
         outcomeDigest: records.record.outcomeDigest,
       },
       proposedBy: "arc-cli/0.1.0",
+      proposedVerification: "full",
       findings: [{
         findingId: records.finding.findingId,
         sourceIdentity: records.source.sourceId,

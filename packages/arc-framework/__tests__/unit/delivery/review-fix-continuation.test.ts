@@ -77,6 +77,7 @@ function deliveryDispositionRecord(input: {
       rubricVersion: "standard-review/v1",
       rubricDigest: canonicalDigest({ rubric: "standard" }),
       proposedBy: "agent-1",
+      proposedVerification: "full",
       findings: [{
         findingId: "finding-1",
         sourceIdentity: "codex-pr",

@@ -670,6 +670,7 @@ const HostedSettlementPlanSchema = z.strictObject({
 const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
+  dispositionReportText: z.string().trim().min(1),
   frontlineFollowUp: FrontlineFollowUpAdviceSchema.optional(),
   hostedSettlementPlan: HostedSettlementPlanSchema.optional(),
 });
@@ -697,6 +698,7 @@ export const RespondEnvelopeSchema = z.union([
     z.strictObject({
       operationId: IdentifierSchema,
       proposal: ProposedDispositionSetSchema,
+      dispositionReportText: z.string().trim().min(1),
     }),
   ),
   envelopeVariant(
@@ -741,6 +743,7 @@ export const RespondEnvelopeSchema = z.union([
       responseId: CanonicalDigestSchema,
       recordPath: DurableReferenceSchema,
       implementationChanged: z.boolean(),
+      dispositionReportText: z.string().trim().min(1),
     }),
   ),
   envelopeVariant(
@@ -752,6 +755,7 @@ export const RespondEnvelopeSchema = z.union([
       candidateId: CanonicalDigestSchema,
       recordPath: DurableReferenceSchema,
       implementationChanged: z.boolean(),
+      dispositionReportText: z.string().trim().min(1),
     }),
   ),
   envelopeVariant(

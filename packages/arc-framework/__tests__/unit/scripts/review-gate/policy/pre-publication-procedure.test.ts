@@ -939,7 +939,7 @@ function candidateRecord(): CandidateManagedRecordV1 {
 }
 
 describe("Candidate delta verification", () => {
-  it("supplies exact delta and prior evidence while the primary selects applicability", () => {
+  it("supplies exact delta and prior evidence while carrying the approved verification scope", () => {
     const record = candidateRecord();
     const projection = projectCandidateDeltaVerification({
       record,
@@ -958,6 +958,7 @@ describe("Candidate delta verification", () => {
       dispositionId: canonicalDigest({ disposition: "approved" }),
       approvedBy: "andrew",
       appliedBy: "codex",
+      approvedVerification: "targeted",
       applicability: "focused",
       verificationEvidenceRefs: ["test://focused"],
     })).toMatchObject({

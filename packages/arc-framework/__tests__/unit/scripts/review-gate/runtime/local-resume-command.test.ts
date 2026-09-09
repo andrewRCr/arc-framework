@@ -659,6 +659,7 @@ describe("local resume command", () => {
       rubricVersion: records.operation.requirement.rubricVersion,
       rubricDigest: records.operation.requirement.rubricDigest,
       proposedBy: records.operation.attestation.runtimeIdentity,
+      proposedVerification: "full",
       findings: [{
         findingId: finding.findingId,
         reportedSeverity: finding.severity,

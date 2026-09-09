@@ -285,6 +285,7 @@ const respondProposalRequest = {
     receiptRef: "arc-review-source:v1:attested-local:operation:receipt",
   },
   proposal: {
+    proposedVerification: "full",
     findings: [{
       findingId: "finding-1",
       sourceVerification: "verified",
@@ -1917,6 +1918,7 @@ describe("handleReviewRespond", () => {
       payload: {
         operationId: "local-operation",
         dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
+        dispositionReportText: "Verification: full\n\nFinding F1: Standalone account.",
       },
     }));
 

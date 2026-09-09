@@ -349,6 +349,25 @@ producer content and its result digest, not to separate disposition-item fields 
 decisions. The producer digest is already part of approval binding: changed source content requires a newly bound
 proposal, while merely reordering or styling the report changes no identity.
 
+**Forward amendment — approved verification scope.** Add required `proposedVerification` to the immutable canonical
+disposition-set content, at set level beside `proposedBy` and `findings`, using the existing
+`CandidateVerificationApplicabilitySchema` (`targeted | focused | full`). The proposal request supplies it as
+`proposal.proposedVerification`; it participates in the disposition-set digest and approval binding rather than a
+separate continuation capture. The canonical report renders `Verification: <scope>` once at set level before its
+findings.
+
+For a performed fix, `verifiedFix.applicability` confirms the approved proposal. Rank the existing scopes
+`targeted < focused < full`: equal or broader verification is valid, while narrower verification is a schema refusal.
+The response writer passes the approved scope to the existing review-response transition constructor as
+`approvedVerification`. The ready-to-fix authorization and a changed-target continuation preserve that approved value
+with the response plan, just as the existing ceiling-override capture is preserved. This work does not use the field to
+skip or narrow verification; until the Candidate-lineage consumer lands, an absent or unread transition field retains
+today's `full` behavior.
+
+This moves the scope judgment to the approval gate because it decides which checks apply to the agent's own work, an
+authority reserved to the approver. Declaring it only after the fix disclosed that judgment too late, at the merge
+gate, and allowed the same authority error to recur.
+
 ### 5. Resolve immutable producer evidence through existing stores
 
 #### Execution admission
@@ -1207,6 +1226,9 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
     Workflow and method declarations match actual invocation ownership without code-review persistence on advisory
     planning/criteria reviews or author self-review. Bounded agent-behavior evaluations report observed adherence
     separately from static contract checks; no unshipped composition or evaluation engine is required.
+19. Every canonical disposition proposal includes one approved verification scope in immutable set content and its
+    report. A verified fix refuses verification narrower than that scope, forwards it as `approvedVerification`, and
+    preserves it through ready-to-fix and changed-target continuation without yet narrowing Candidate verification.
 
 ## Open Questions
 

@@ -792,6 +792,7 @@ describe("arc delivery position", () => {
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
         proposedBy: "agent-1",
+        proposedVerification: "full",
         findings: [{
           findingId: "finding-1",
           sourceIdentity: "codex-pr",
@@ -1086,6 +1087,7 @@ describe("arc delivery position", () => {
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
         proposedBy: "agent-1",
+        proposedVerification: "full",
         findings: [{
           findingId: "finding-response-loss",
           sourceIdentity: "codex-pr",
@@ -1885,6 +1887,7 @@ describe("arc delivery position", () => {
         rubricVersion: requirement.rubricVersion,
         rubricDigest: requirement.rubricDigest,
         proposedBy: "agent-1",
+        proposedVerification: "full",
         findings: [{
           findingId: "finding-direct-pending",
           sourceIdentity: "delegated-agent",
@@ -2812,6 +2815,7 @@ describe("arc delivery position", () => {
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
         proposedBy: "arc-cli/0.1.0",
+        proposedVerification: "full",
         findings: [{
           findingId: "finding-published",
           sourceIdentity: "codex-pr",
@@ -3392,6 +3396,7 @@ describe("arc delivery position", () => {
         rubricVersion: replayRequirement.rubricVersion,
         rubricDigest: replayRequirement.rubricDigest,
         proposedBy: "arc-cli/0.1.0",
+        proposedVerification: "focused",
         findings: [{
           findingId: finding.findingId,
           sourceIdentity: "codex-pr",

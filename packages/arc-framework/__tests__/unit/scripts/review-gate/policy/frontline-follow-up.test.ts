@@ -71,6 +71,7 @@ function approved(severity: "critical" | "major" | "minor", disposition: "fix" |
     rubricVersion: "implementation-audit/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
+    proposedVerification: "full",
     findings: [{
       findingId: finding.findingId,
       sourceIdentity: source.sourceId,
@@ -107,6 +108,7 @@ function approvedRegradeFromReviewerNit() {
     rubricVersion: "implementation-audit/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
+    proposedVerification: "full",
     findings: [{
       findingId: finding.findingId,
       sourceIdentity: source.sourceId,

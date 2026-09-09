@@ -64,6 +64,7 @@ interface ProposedDispositionState {
     rubricVersion: string;
     rubricDigest: string;
     proposedBy: string;
+    proposedVerification: "targeted" | "focused" | "full";
     findings: unknown[];
     dispositionSetId: string;
   };
@@ -219,6 +220,7 @@ async function approvedRejection(
     schemaVersion: 1,
     source,
     proposal: {
+      proposedVerification: "full",
       findings: [{
         findingId: "finding-1",
         sourceVerification: "verified",

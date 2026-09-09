@@ -45,6 +45,7 @@ function approvedSet(targetId: string, disposition: "fix" | "defer") {
     rubricVersion: "standard-review/v1",
     rubricDigest: digest("2"),
     proposedBy: "review-runtime",
+    proposedVerification: "full",
     findings: [{
       findingId: "finding-1",
       sourceIdentity: "reviewer",

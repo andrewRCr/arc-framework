@@ -328,24 +328,15 @@ changes.
   boundaries refuse reordered metadata; projections and replay preserve native identity without renumbering. Navigation
   participates in each producer's immutable result identity and approval binding while remaining outside dispositions.
 
-### `[ ]` **4.3 Render canonical proposed and approved reports in the public response command**
+### `[x]` **4.3 Render canonical proposed and approved reports in the public response command**
 
 - _Goal:_ The public response command returns one deterministic, standalone report for proposal, approval, and replay.
 
-- _Note:_ Spec § 4; SC 6, 15, and 18.
-
-- _Approach:_ Add a pure renderer beside response composition; join canonical dispositions to exact producer findings.
-  Expose `payload.dispositionReportText` without a new narrative record or rendering command.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Reports include complete claim/locus/evidence/consequence, ARC assessment before reviewer severity, native
-          identity, one-based canonical `F` labels, combined recommendation/action, optional questions, and separators.
-
-        - Proposal and approved replay use the same renderer; presentation-only changes preserve canonical identity.
-
-        - Missing source correspondence fails rather than inventing an account; escaping and clipping preserve source
-          meaning.
+- _Outcome:_ Canonical proposals now bind an approver-selected verification scope into immutable set identity and return
+  one producer-joined report across proposal, approval, and replay. Reports preserve native navigation,
+  verified-before-reported assessment, complete response narratives, and exact correspondence. Post-fix settlement
+  rejects narrower verification and forwards the approved scope as `approvedVerification` without changing Candidate
+  consumption.
 
 ### `[ ]` **4.4 Close presentation callers and exercise producer-backed and self-review approval**
 
@@ -356,6 +347,9 @@ changes.
 
 - _Approach:_ Update existing triage/response methods and actual prepare/integrate/delivery/Errand callers in both
   copies. Self-review uses its standalone non-producer report and existing complete-set approval.
+
+- _Forward amendment:_ Carry approved verification scope through ready-to-fix authorization and preserve it with the
+  response plan on changed-target continuation. No caller uses the field to skip or narrow verification in this phase.
 
     - `[ ]` **4.4.a Close default report consumption and invocation ownership**
 

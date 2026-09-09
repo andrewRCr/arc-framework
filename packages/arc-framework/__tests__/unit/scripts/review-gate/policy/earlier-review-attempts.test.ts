@@ -538,6 +538,7 @@ describe("earlier review attempt query", () => {
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
         proposedBy: "agent-1",
+        proposedVerification: "full",
         findings: [{
           findingId: "finding-local",
           sourceIdentity: "delegated-agent",

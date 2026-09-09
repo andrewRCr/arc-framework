@@ -325,6 +325,7 @@ describe("arc review respond for an Errand", () => {
         schemaVersion: 1,
         source,
         proposal: {
+          proposedVerification: "focused",
           findings: [{
             findingId: "finding-1",
             sourceVerification: "verified",

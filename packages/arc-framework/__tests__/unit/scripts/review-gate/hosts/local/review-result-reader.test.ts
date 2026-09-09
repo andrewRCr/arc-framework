@@ -659,6 +659,7 @@ describe("local review result reader", () => {
           ? { rubricVersion: context.rubricVersion, rubricDigest: context.rubricDigest }
           : { frontlineBinding: context.frontlineBinding }),
         proposedBy: "arc-cli/0.1.0",
+        proposedVerification: "full",
         findings: result.findings.map((finding) => ({
           findingId: finding.findingId,
           sourceIdentity: result.sourceIdentity,

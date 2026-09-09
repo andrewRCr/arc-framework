@@ -3,6 +3,8 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { CandidateVerificationApplicabilitySchema } from
+  "../../../lib/work-unit/candidate-attestation.js";
 import { FindingDispositionSchema, ReviewSeveritySchema } from "./review-primitives.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
@@ -115,6 +117,7 @@ const DispositionSetFieldsShape = {
   rubricDigest: CanonicalDigestSchema.optional(),
   frontlineBinding: FrontlineDispositionBindingSchema.optional(),
   proposedBy: IdentifierSchema,
+  proposedVerification: CandidateVerificationApplicabilitySchema,
   findings: z.array(DispositionReportItemSchema).min(1),
 };
 

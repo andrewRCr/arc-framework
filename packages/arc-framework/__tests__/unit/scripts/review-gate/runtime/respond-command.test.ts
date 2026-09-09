@@ -230,6 +230,7 @@ function approved(input: {
   sourceIdentity: string;
   finding: ReturnType<typeof fixture>["finding"];
   disposition?: "fix" | "defer" | "reject";
+  proposedVerification?: "targeted" | "focused" | "full";
   proposedBy?: string;
   approvedBy?: string;
 }) {
@@ -245,6 +246,7 @@ function approved(input: {
       rubricVersion: input.rubricVersion,
       rubricDigest: input.rubricDigest,
       proposedBy: input.proposedBy ?? "arc-cli/0.1.0",
+      proposedVerification: input.proposedVerification ?? "full",
       findings: [{
         findingId: input.finding.findingId,
         sourceIdentity: input.sourceIdentity,
@@ -490,6 +492,7 @@ function verifiedFixRequest(records: ReturnType<typeof fixture>, disposition: "f
 function localRequest(
   records: ReturnType<typeof fixture>,
   disposition: "fix" | "defer" | "reject" = "fix",
+  proposedVerification: "targeted" | "focused" | "full" = "focused",
 ) {
   const result = localResult(records);
   return {
@@ -505,6 +508,7 @@ function localRequest(
       sourceIdentity: records.authority.evaluatorIdentity,
       finding: records.finding,
       disposition,
+      proposedVerification,
     }),
   };
 }
@@ -752,6 +756,7 @@ describe("review response command", () => {
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
+        proposedVerification: "focused",
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -763,6 +768,27 @@ describe("review response command", () => {
         }],
       },
     }, dependencies(records))).rejects.toThrow();
+  });
+
+  it("rejects an author proposal that omits the approved verification scope", async () => {
+    const records = fixture();
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "major",
+          disposition: "fix",
+          rationale: "The selected source supports this disposition.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }, dependencies(records))).rejects.toThrow("proposedVerification");
   });
 
   it("constructs a source-bound proposal from author-owned finding decisions", async () => {
@@ -780,6 +806,7 @@ describe("review response command", () => {
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
+        proposedVerification: "focused",
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -813,6 +840,7 @@ describe("review response command", () => {
             rubricVersion: records.operation.requirement.rubricVersion,
             rubricDigest: records.operation.requirement.rubricDigest,
             proposedBy: records.authority.runtimeIdentity,
+            proposedVerification: "focused",
             findings: [{
               findingId: earlierFinding.findingId,
               sourceIdentity: records.authority.evaluatorIdentity,
@@ -831,7 +859,72 @@ describe("review response command", () => {
             dispositionSetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
           },
         },
+        dispositionReportText: [
+          "Verification: focused",
+          "",
+          "Finding F1: The selected source supports this disposition.",
+          "Source: source #2 · review:finding-0",
+          "Assessment: CONFIRMED · minor (ARC) · major (reviewer)",
+          "Recommendation: FIX [record-only] — Apply the fix.",
+          "",
+          "---",
+          "",
+          "Finding F2: The selected source supports this disposition.",
+          "Source: source #1 · review:finding-1",
+          "Assessment: CONFIRMED · major (ARC) · major (reviewer)",
+          "Recommendation: FIX [blocking] — Apply the fix.",
+        ].join("\n"),
       },
+    });
+  });
+
+  it("returns the same canonical report for proposal, approval, and approved replay", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const source = { kind: "attested-local", receiptRef: records.receiptRef } as const;
+    const proposed = await respondToReviewCommand({
+      schemaVersion: 1,
+      source,
+      proposal: {
+        proposedVerification: "full",
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          rationale: "The alleged failure is not supported by the cited branch.",
+          recommendation: "Reject the finding without changing code.",
+          openQuestions: ["Should the reviewer clarify the cited execution path?"],
+        }],
+      },
+    }, deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected a proposed disposition set");
+    const expectedReport = proposed.payload.dispositionReportText;
+    expect(expectedReport).toContain(
+      "Assessment: NOT SUPPORTED · no ARC severity (ARC) · major (reviewer)",
+    );
+    const dispositions = approveDispositionState({
+      proposed: proposed.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T20:00:00Z",
+    });
+
+    const approvedRequest = { schemaVersion: 1, source, dispositions } as const;
+    await expect(respondToReviewCommand(approvedRequest, deps)).resolves.toMatchObject({
+      state: "settled",
+      payload: { dispositionReportText: expectedReport },
+    });
+    await expect(respondToReviewCommand(approvedRequest, deps)).resolves.toMatchObject({
+      state: "already-settled",
+      payload: { dispositionReportText: expectedReport },
+    });
+    await expect(respondToReviewCommand({
+      ...approvedRequest,
+      settledFixTarget: records.target,
+    }, deps)).resolves.toMatchObject({
+      state: "already-settled",
+      payload: { dispositionReportText: expectedReport },
     });
   });
 
@@ -853,6 +946,7 @@ describe("review response command", () => {
       rubricDigest: attempt.hosted.requirement.rubricDigest,
       sourceIdentity: "codex-pr",
       finding: hosted.records.finding,
+      proposedVerification: "focused",
       disposition: "defer",
     });
 
@@ -932,6 +1026,7 @@ describe("review response command", () => {
       rubricDigest: attempt.hosted.requirement.rubricDigest,
       sourceIdentity: "codex-pr",
       finding: hosted.records.finding,
+      proposedVerification: "focused",
     });
     const request = {
       schemaVersion: 1 as const,
@@ -1031,6 +1126,7 @@ describe("review response command", () => {
         rubricVersion: attempt.hosted.requirement.rubricVersion,
         rubricDigest: attempt.hosted.requirement.rubricDigest,
         proposedBy: "arc-cli/0.1.0",
+        proposedVerification: "full",
         findings: [{
           findingId: hosted.records.finding.findingId,
           sourceIdentity: "codex-pr",
@@ -1087,6 +1183,7 @@ describe("review response command", () => {
         schemaVersion: 1,
         source: { kind: "attested-local", receiptRef: records.receiptRef },
         proposal: {
+          proposedVerification: "full",
           findings: [{
             findingId: records.finding.findingId,
             sourceVerification,
@@ -1124,6 +1221,7 @@ describe("review response command", () => {
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
+        proposedVerification: "full",
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -1148,6 +1246,7 @@ describe("review response command", () => {
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
+        proposedVerification: "full",
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -1180,6 +1279,7 @@ describe("review response command", () => {
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
+        proposedVerification: "full",
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -1430,6 +1530,7 @@ describe("review response command", () => {
       schemaVersion: 1,
       source: { kind: "frontline", outcomeRef },
       proposal: {
+        proposedVerification: "full",
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "not-supported",
@@ -1577,6 +1678,38 @@ describe("review response command", () => {
 });
 
 describe("verified-fix Candidate settlement", () => {
+  it("refuses verification narrower than the approved proposal", async () => {
+    const records = fixture();
+    const { deps } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+
+    await expect(respondToReviewCommand({
+      ...localRequest(records, "fix", "full"),
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    }, deps)).rejects.toThrow("narrower than the approved scope");
+  });
+
+  it("accepts verification broader than the approved proposal", async () => {
+    const records = fixture();
+    const { deps } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+
+    await expect(respondToReviewCommand({
+      ...localRequest(records, "fix", "targeted"),
+      verifiedFix: {
+        applicability: "full",
+        verificationEvidenceRefs: ["verification://full-fix"],
+      },
+    }, deps)).resolves.toMatchObject({ state: "candidate-advanced" });
+  });
+
   it("appends the approved response and its delta evidence to the Candidate record", async () => {
     const records = fixture();
     const { deps, record, appends } = lineageDependencies(records, {
@@ -1836,6 +1969,7 @@ describe("verified-fix Candidate settlement", () => {
         rubricDigest: attempt.hosted.requirement.rubricDigest,
         sourceIdentity: "codex-pr",
         finding: hosted.records.finding,
+        proposedVerification: "focused",
       }),
     };
     await respondToReviewCommand(request, deps);

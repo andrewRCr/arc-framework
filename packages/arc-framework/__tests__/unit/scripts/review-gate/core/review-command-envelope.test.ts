@@ -163,6 +163,7 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
   rubricVersion: "standard-review/v1",
   rubricDigest: digest,
   proposedBy: "arc-cli/0.1.0",
+  proposedVerification: "full",
   findings: [{
     findingId: "finding-1",
     sourceIdentity: "evaluator-1",
@@ -178,6 +179,7 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
     openQuestions: [],
   }],
 }));
+const dispositionReportText = "Verification: full\n\nFinding F1: The source supports this finding.";
 
 describe("review command envelopes", () => {
   it.each([
@@ -312,12 +314,12 @@ describe("review command envelopes", () => {
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
       state: "awaiting-approval", nextAction: "obtain-approval",
-      payload: { operationId: "local-1", proposal: dispositionProposal },
+      payload: { operationId: "local-1", proposal: dispositionProposal, dispositionReportText },
     }],
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
       state: "settled", nextAction: "reduce",
-      payload: { operationId: "local-1", dispositionRecordRef: "disposition/1" },
+      payload: { operationId: "local-1", dispositionRecordRef: "disposition/1", dispositionReportText },
     }],
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
