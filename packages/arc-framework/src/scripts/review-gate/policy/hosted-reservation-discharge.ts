@@ -895,6 +895,7 @@ export function createHostedReservationDischargeReader(input: {
           lane: "standard",
           repositoryId: currentRepositoryId,
           headSha: approvedHead,
+          ...(lineage === undefined ? {} : { lineage }),
         }),
         durableRef: attemptId,
       }),

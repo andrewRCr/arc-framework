@@ -2712,11 +2712,21 @@ describe("hosted review fan-out lifecycle", () => {
     if (progress === null) throw new Error("expected findings progress");
     const attemptId = hostedLaneAttemptId(requested.handle);
     const operationId = progress.operationId;
-    const attemptRef = bindReviewSourceReference({
+    const findingsStatus = await statusThroughHandler(harness, statusTarget);
+    expect(findingsStatus).toMatchObject({
+      nextAction: "respond-to-findings",
+      responsePlan: { findings: [{ findingId: finding.findingId }] },
+    });
+    if (findingsStatus.nextAction !== "respond-to-findings"
+      || findingsStatus.responsePlan.source.kind !== "hosted") {
+      throw new Error("expected hosted findings response plan");
+    }
+    const attemptRef = findingsStatus.responsePlan.source.attemptRef;
+    expect(attemptRef).toBe(bindReviewSourceReference({
       kind: "hosted",
       operationId,
       durableRef: attemptId,
-    });
+    }));
     const dispositions = approveDispositionState({
       proposed: proposeDispositionSet(createDispositionSet({
         schemaVersion: 2,
