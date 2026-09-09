@@ -2,12 +2,13 @@
 
 import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
+import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
 import { listCurrentWuArtifactPaths } from "../work-unit/reference-reconcile.js";
+import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
 
 /** Repository paths through which one work unit can contribute lifecycle state. */
 export interface DeliveryLifecycleContributionPaths {
-  readonly workUnitArtifacts: readonly ManagedPath[];
-  readonly sharedProjections: readonly ManagedPath[];
+  readonly paths: readonly ManagedPath[];
 }
 
 /** Storage/projection boundary for repository-materialized lifecycle contributions. */
@@ -162,16 +163,20 @@ implements DeliveryLifecycleContributionPathSource {
           this.input.readArtifactsAtRef(input.topRef, input.workUnitId),
         ])
       : [[], []] as const;
-    const workUnitArtifacts = [...new Set([
+    const workUnitArtifacts = [
       ...currentArtifacts.map(validateManagedPath),
       ...refArtifacts.flat(),
-    ])].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+    ];
     const projectReadinessPath = this.input.projectReadinessPath === undefined
       ? resolveArcPath({ kind: "project-document", document: "roadmap" })
       : this.input.projectReadinessPath;
     return {
-      workUnitArtifacts,
-      sharedProjections: projectReadinessPath === null ? [] : [projectReadinessPath],
+      paths: [...new Set([
+        ...workUnitArtifacts,
+        ...(projectReadinessPath === null ? [] : [projectReadinessPath]),
+        validateManagedPath(resolveCandidateRecordRelativePath(input.workUnitId)),
+        validateManagedPath(resolveSubmissionBoundaryPath(input.workUnitId)),
+      ])].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))),
     };
   }
 }

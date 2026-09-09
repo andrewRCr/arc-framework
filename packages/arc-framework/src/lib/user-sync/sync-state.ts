@@ -21,7 +21,7 @@ import { atomicWriteJson, exclusiveCreateFile } from "../fs.js";
 import { ensureDir } from "../template/index.js";
 import type { CoreIO } from "../types.js";
 
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "./notes-lock.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";
 import { getRepoSharedUserInternalDir } from "./repo-shared-paths.js";
 import {
   LocalSyncStateSchema,

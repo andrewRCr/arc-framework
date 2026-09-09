@@ -64,6 +64,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | package-project-development-sync    | P2       | andrew | —          | —                          |
 | planning-lane-relief                | P2       | andrew | —          | —                          |
 | review-orchestration-right-sizing   | P2       | andrew | —          | —                          |
+| test-suite-right-sizing             | P2       | andrew | —          | —                          |
 | workflow-eval-harness               | P2       | andrew | —          | —                          |
 | handoff-optimization                | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening         | P3       | andrew | —          | architecture-remediation   |

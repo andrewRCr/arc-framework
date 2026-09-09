@@ -115,7 +115,7 @@ export function createPreBindingDeliveryReviewTargetDependencies(input: {
         protectedBaseRef,
         topRef,
       });
-      return [...paths.workUnitArtifacts, ...paths.sharedProjections];
+      return paths.paths;
     },
     eligibility: {
       observeRef: (ref) => observeDeliveryEligibilityRef(input.exec, ref),

@@ -30,7 +30,7 @@ import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
-import { projectKernelSchemas } from "../lib/kernel/schema/generate.js";
+import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
 import { resolveArcRoot } from "../lib/paths.js";
@@ -224,6 +224,8 @@ import {
   settleHostedFinding,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
+import { explainHostedSettlementBindingMismatch } from
+  "../scripts/review-gate/hosted/settlement-binding.js";
 import {
   GhHostedReviewPort,
   hostedGhRunner,
@@ -2242,7 +2244,7 @@ export type ReviewPublicRequestSchemaId =
   | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
   | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID;
 
-/** Emit one public request root together with the complete registry bundle its refs require. */
+/** Emit one public request root together with only the registry documents its refs require. */
 export function handleReviewRequestSchema(
   schemaId: ReviewPublicRequestSchemaId,
   source?: string,
@@ -2255,7 +2257,7 @@ export function handleReviewRequestSchema(
     reviewDiscoverableCommandInputSchema().parse({ input: source, schema: true });
     const registry = registerReviewDomainSchemas(createKernelRegistry());
     if (registry.get(schemaId) === undefined) throw new Error(`Review request schema unavailable: ${schemaId}`);
-    const bundle = projectKernelSchemas(registry);
+    const bundle = projectKernelSchemaClosure(registry, schemaId);
     overrides.write(`${JSON.stringify({ rootId: `${schemaId}.schema.json`, ...bundle })}\n`);
   } catch (error) {
     overrides.write(`${JSON.stringify({
@@ -2764,18 +2766,18 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
         ? persisted.state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
         : undefined;
       const hosted = attempt?.hosted;
-      const finding = hosted?.findings.find(({ findingId }) => findingId === request.response.findingId);
-      if (persisted.state?.kind !== "lane-progress"
-        || persisted.state.lane !== "standard"
-        || attempt === undefined
-        || hosted === undefined
-        || hosted.dispositionSetId !== request.response.dispositionSetId
-        || finding?.origin !== "review-thread"
-        || finding.commentId !== request.finding.commentId
-        || finding.threadId !== request.finding.threadId
-        || hosted.actorIdentity !== request.actorIdentity
-        || canonicalize(hosted.target) !== canonicalize(request.target)) {
-        throw new Error("Hosted settlement does not match its approved findings attempt.");
+      if (persisted.state?.kind !== "lane-progress" || persisted.state.lane !== "standard") {
+        throw new Error("Hosted settlement requires a persisted standard-lane operation.");
+      }
+      if (attempt === undefined) {
+        throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
+      }
+      if (hosted === undefined) {
+        throw new Error(`Hosted settlement attempt has no hosted binding: ${reference.durableRef}`);
+      }
+      const bindingMismatch = explainHostedSettlementBindingMismatch(hosted, request);
+      if (bindingMismatch !== null) {
+        throw new Error(`Hosted settlement does not match its approved findings attempt: ${bindingMismatch}.`);
       }
       const dispositionRecord = await new LocalApprovedDispositionRecordStore(publisher)
         .readDispositionRecord(attempt.attemptId);
