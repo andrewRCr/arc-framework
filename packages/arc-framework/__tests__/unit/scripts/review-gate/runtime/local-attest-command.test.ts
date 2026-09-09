@@ -11,10 +11,14 @@ import type {
 } from "../../../../../src/scripts/review-gate/core/local-review-authority.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type {
+  LaneProgressState,
   LocalReviewState,
   ReviewOperationState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { LaneProgressStateSchema } from
+  "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import { laneProgressOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
@@ -39,7 +43,7 @@ const targetInput = (target: LocalReviewState["target"]) => ({
   headTree: target.headTree,
 });
 const releaseMaterialization = async (): Promise<void> => undefined;
-const withSourceLock = async <T>(action: () => Promise<T>): Promise<T> => action();
+const withLocalReviewLock = async <T>(action: () => Promise<T>): Promise<T> => action();
 
 const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
 const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
@@ -131,6 +135,40 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
     materializationRef: `/tmp/${admission.operationId}`,
   });
   operation.sourceDigest = source.sourceDigest;
+  const laneProgress: LaneProgressState = LaneProgressStateSchema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "review-operation/v1",
+    kind: "lane-progress",
+    operationId: laneProgressOperationId({
+      lane: "standard",
+      repositoryId: operation.repositoryId,
+      headSha: operation.target.headSha,
+      lineage: operation.lineage,
+    }),
+    updatedAt: operation.updatedAt,
+    lane: "standard",
+    repositoryId: operation.repositoryId,
+    lineage: operation.lineage,
+    completedPasses: 0,
+    attempts: [{
+      attemptId: operation.operationId,
+      logicalPass: operation.logicalPass,
+      retryGeneration: operation.retryGeneration,
+      changeRequestId: null,
+      headSha: operation.target.headSha,
+      terminalProducer: false,
+      sourceId: operation.laneSourceId,
+      outcome: "pending",
+      local: {
+        operationId: operation.operationId,
+        requestId: operation.requestId,
+        vehicle: operation.vehicle,
+        target: operation.target,
+        requestedCoverage: "complete",
+        effectiveCoverage: null,
+      },
+    }],
+  });
   const result = {
     status: "partial" as const,
     result: "clean" as const,
@@ -155,10 +193,61 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
     applicabilityId: result.applicabilityId,
     findings: result.findings,
   };
-  return { admission, evaluatorResult, operation, result, source };
+  return { admission, evaluatorResult, laneProgress, operation, result, source };
+}
+
+function readAdmittedOperation(
+  records: ReturnType<typeof fixture>,
+): (operationId: string) => Promise<{ version: number; state: ReviewOperationState | null }> {
+  return async (operationId) => {
+    if (operationId === records.operation.operationId) {
+      return { version: 1, state: records.operation };
+    }
+    if (operationId === records.laneProgress.operationId) {
+      return { version: 1, state: records.laneProgress };
+    }
+    return { version: 0, state: null };
+  };
 }
 
 describe("local attest command", () => {
+  it("refuses terminal output for an operation without lane-owner admission", async () => {
+    const records = fixture();
+    const appendReceipt = vi.fn(async () => ({
+      ledgerVersion: 1,
+      durableEvidenceRef: "receipt.json#1",
+    }));
+    const publishOperation = vi.fn();
+
+    await expect(attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+      result: { ...records.evaluatorResult, status: "complete" },
+    }, {
+      withLocalReviewLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation,
+      },
+      sourceStore: {
+        readSource: async () => records.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+        appendReceipt,
+      },
+      resolveAuthority: async () => records.admission.authority,
+      resolveGuidanceDigest: async () => records.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
+    })).rejects.toThrow(/not durably admitted/u);
+    expect(appendReceipt).not.toHaveBeenCalled();
+    expect(publishOperation).not.toHaveBeenCalled();
+  });
+
   it("injects runtime-owned bindings into evaluator-authored terminal output", async () => {
     const records = fixture();
     const appendReceipt = vi.fn(async () => ({
@@ -172,9 +261,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.evaluatorResult, status: "complete" },
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: async (state) => {
           published = state;
           return { version: 2 };
@@ -233,9 +322,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: records.result,
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: { readSource, appendSource: vi.fn() },
@@ -279,9 +368,9 @@ describe("local attest command", () => {
         findings: [],
       },
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: async (state) => {
           published = state;
           return { version: 2 };
@@ -339,9 +428,9 @@ describe("local attest command", () => {
         sourceDigest: digest("different-source"),
       },
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -371,9 +460,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -415,9 +504,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -472,9 +561,9 @@ describe("local attest command", () => {
         operationId: records.operation.operationId,
         result: { ...records.result, status: "complete" },
       }, {
-        withSourceLock,
+        withLocalReviewLock,
         operationStore: {
-          readOperation: async () => ({ version: 1, state: records.operation }),
+          readOperation: readAdmittedOperation(records),
           publishOperation: vi.fn(),
         },
         sourceStore: {
@@ -529,9 +618,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -583,9 +672,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -642,9 +731,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result,
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -686,9 +775,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -747,9 +836,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result,
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -802,9 +891,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result,
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -840,9 +929,9 @@ describe("local attest command", () => {
       operationId: records.operation.operationId,
       result: { ...records.result, status: "complete" },
     }, {
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {

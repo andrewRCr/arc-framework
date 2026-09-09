@@ -13,8 +13,13 @@ import {
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
-import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import {
+  LaneProgressStateSchema,
+  type LocalReviewState,
+  type ReviewOperationState,
+} from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import { laneProgressOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { resumeLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-resume-command.js";
@@ -27,7 +32,7 @@ const receiptRef = (operationId: string, durableRef: string) => bindReviewSource
   operationId,
   durableRef,
 });
-const withSourceLock = async <T>(action: () => Promise<T>): Promise<T> => action();
+const withLocalReviewLock = async <T>(action: () => Promise<T>): Promise<T> => action();
 
 function fixture() {
   const target = createReviewTarget({
@@ -114,6 +119,40 @@ function fixture() {
     attestation: admission.carrier.attestation,
     cleanupTtlMs: 60_000,
   };
+  const laneProgress = LaneProgressStateSchema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "review-operation/v1",
+    kind: "lane-progress",
+    operationId: laneProgressOperationId({
+      lane: "standard",
+      repositoryId: operation.repositoryId,
+      headSha: operation.target.headSha,
+      lineage: operation.lineage,
+    }),
+    updatedAt: operation.updatedAt,
+    lane: "standard",
+    repositoryId: operation.repositoryId,
+    lineage: operation.lineage,
+    completedPasses: 0,
+    attempts: [{
+      attemptId: operation.operationId,
+      logicalPass: operation.logicalPass,
+      retryGeneration: operation.retryGeneration,
+      changeRequestId: null,
+      headSha: operation.target.headSha,
+      terminalProducer: false,
+      sourceId: operation.laneSourceId,
+      outcome: "pending",
+      local: {
+        operationId: operation.operationId,
+        requestId: operation.requestId,
+        vehicle: operation.vehicle,
+        target: operation.target,
+        requestedCoverage: "complete",
+        effectiveCoverage: null,
+      },
+    }],
+  });
   const receipt = createLocalReviewReceipt({
     target,
     requirement,
@@ -139,10 +178,57 @@ function fixture() {
     sourceDigest: source.sourceDigest,
     guidanceDigest: operation.guidanceDigest,
   });
-  return { operation, receipt, source };
+  return { laneProgress, operation, receipt, source };
+}
+
+function readAdmittedOperation(
+  records: ReturnType<typeof fixture>,
+): (operationId: string) => Promise<{ version: number; state: ReviewOperationState | null }> {
+  return async (operationId) => {
+    if (operationId === records.operation.operationId) {
+      return { version: 1, state: records.operation };
+    }
+    if (operationId === records.laneProgress.operationId) {
+      return { version: 1, state: records.laneProgress };
+    }
+    return { version: 0, state: null };
+  };
 }
 
 describe("local resume command", () => {
+  it("refuses an operation without lane-owner admission before restoring its source", async () => {
+    const records = fixture();
+    const materialize = vi.fn();
+
+    await expect(resumeLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+    }, {
+      sweep: vi.fn(),
+      withLocalReviewLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: records.operation }),
+        publishOperation: vi.fn(),
+      },
+      sourceStore: {
+        readSource: async () => records.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+        appendReceipt: vi.fn(),
+      },
+      dispositionStore: {
+        readDispositionRecord: vi.fn(),
+        appendDispositionRecord: vi.fn(),
+      },
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      materialize,
+      now: () => "2026-07-23T17:00:30Z",
+    })).rejects.toThrow(/not durably admitted/u);
+    expect(materialize).not.toHaveBeenCalled();
+  });
+
   it("repairs a live receipt-less source and returns suspended", async () => {
     const records = fixture();
     const materialize = vi.fn(async () => ({ reviewRoot: records.source.materializationRef }));
@@ -152,9 +238,9 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -193,9 +279,9 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -246,9 +332,9 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: { readSource, appendSource: vi.fn() },
@@ -284,16 +370,20 @@ describe("local resume command", () => {
       ledgerVersion: 1,
       durableEvidenceRef: "receipts-v2.json#1",
     }));
+    let published: ReviewOperationState | null = null;
 
     await expect(resumeLocalReviewCommand({
       schemaVersion: 1,
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
-        publishOperation: vi.fn(),
+        readOperation: readAdmittedOperation(records),
+        publishOperation: async (state) => {
+          published = state;
+          return { version: 2 };
+        },
       },
       sourceStore: {
         readSource: async () => records.source,
@@ -321,6 +411,19 @@ describe("local resume command", () => {
       },
     });
     expect(appendReceipt).toHaveBeenCalledWith(records.receipt, 1);
+    expect(published).toMatchObject({
+      kind: "lane-progress",
+      completedPasses: 1,
+      attempts: [expect.objectContaining({
+        attemptId: records.operation.operationId,
+        outcome: "clean",
+        terminalProducer: true,
+        local: expect.objectContaining({
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+        }),
+      })],
+    });
   });
 
   it("rejects multiple terminal receipts for one local operation", async () => {
@@ -332,9 +435,9 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -405,9 +508,9 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {
@@ -539,9 +642,9 @@ describe("local resume command", () => {
       operationId: records.operation.operationId,
     }, {
       sweep: vi.fn(),
-      withSourceLock,
+      withLocalReviewLock,
       operationStore: {
-        readOperation: async () => ({ version: 1, state: records.operation }),
+        readOperation: readAdmittedOperation(records),
         publishOperation: vi.fn(),
       },
       sourceStore: {

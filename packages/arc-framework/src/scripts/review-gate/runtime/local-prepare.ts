@@ -64,7 +64,7 @@ import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import {
   readLaneProgressOwner,
   readLaneProgressOwnerVersioned,
-  recordLaneAttempt,
+  recordLocalReceiptConclusion,
   recordLocalPendingAttempt,
 } from "../lane-progress.js";
 import {
@@ -124,7 +124,7 @@ type AssuranceComposition =
 
 export interface LocalPrepareDependencies {
   sweep(): Promise<void>;
-  withSourceLock<T>(action: () => Promise<T>): Promise<T>;
+  withLocalReviewLock<T>(action: () => Promise<T>): Promise<T>;
   resolveRepositoryId(): Promise<string>;
   /** Configured review-policy source represented by this local carrier. */
   laneSourceId: string;
@@ -256,23 +256,9 @@ async function replayPendingLocalAdmission(input: {
   }
   const receipt = receipts[0];
   if (receipt !== undefined) {
-    await recordLaneAttempt(input.dependencies.operationStore, {
-      lane: "standard",
-      repositoryId: state.repositoryId,
-      changeRequestId: null,
-      headSha: state.target.headSha,
-      lineage: state.lineage,
-      logicalPass: state.logicalPass,
-      retryGeneration: state.retryGeneration,
-      attemptId: state.operationId,
-      sourceId: state.laneSourceId,
-      outcome: receipt.result === "unavailable"
-        ? "transient-unavailable"
-        : receipt.result === "failed" ? "terminal-failure" : receipt.result,
-      consumedPass: receipt.result === "clean" || receipt.result === "findings",
-      chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
-      advancePendingAttempt: true,
-      local: binding,
+    await recordLocalReceiptConclusion(input.dependencies.operationStore, {
+      state,
+      receipt,
       now: input.dependencies.now(),
     });
     return LocalPrepareEnvelopeSchema.parse({
@@ -396,7 +382,7 @@ export async function prepareLocalReview(
     request.deliveryAdmission,
     member ?? undefined,
   );
-  const pendingReplay = await dependencies.withSourceLock(() => replayPendingLocalAdmission({
+  const pendingReplay = await dependencies.withLocalReviewLock(() => replayPendingLocalAdmission({
     request,
     dependencies,
     repositoryId,
@@ -475,19 +461,17 @@ export async function prepareLocalReview(
       throw new LocalPrepareCommandError("local review target does not match its delivery admission");
     }
   }
-  const settled = await retryLaneOwnerConflicts((ownerAttempt) => dependencies.withSourceLock(async () => {
-    if (ownerAttempt > 0) {
-      const concurrentReplay = await replayPendingLocalAdmission({
-        request,
-        dependencies,
-        repositoryId,
-        target,
-        lineage,
-        cleanupTtlMs,
-      });
-      if (concurrentReplay !== null) {
-        return { state: "replayed" as const, envelope: concurrentReplay };
-      }
+  const settled = await retryLaneOwnerConflicts(() => dependencies.withLocalReviewLock(async () => {
+    const concurrentReplay = await replayPendingLocalAdmission({
+      request,
+      dependencies,
+      repositoryId,
+      target,
+      lineage,
+      cleanupTtlMs,
+    });
+    if (concurrentReplay !== null) {
+      return { state: "replayed" as const, envelope: concurrentReplay };
     }
     const { version: ownerVersion, state: owner } = await readLaneProgressOwnerVersioned(
       dependencies.operationStore,

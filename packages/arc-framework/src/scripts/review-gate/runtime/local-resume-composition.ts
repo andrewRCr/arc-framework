@@ -29,7 +29,7 @@ export function createLocalResumeDependencies(input: {
   };
   return {
     sweep: () => prepare.sweep(),
-    withSourceLock: (action) => prepare.withSourceLock(action),
+    withLocalReviewLock: (action) => prepare.withLocalReviewLock(action),
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
     receiptStore: {

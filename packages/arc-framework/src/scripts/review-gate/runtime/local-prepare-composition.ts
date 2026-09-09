@@ -12,7 +12,7 @@ import {
 } from "../hosts/local/operation-state-store.js";
 import {
   resolveRepositoryIdentity,
-  withRepositoryReviewSweepLock,
+  withRepositoryLocalReviewLock,
 } from "../hosts/local/git-common-state.js";
 import { RepositoryLocalReviewSourceStore } from "../hosts/local/source-store.js";
 import {
@@ -100,10 +100,10 @@ export function createLocalPrepareDependencies(input: {
     operationStore,
     sourceStore,
     now: () => new Date().toISOString(),
-    withSourceLock: (action) => withRepositoryReviewSweepLock(input.exec, input.cwd, action),
+    withLocalReviewLock: (action) => withRepositoryLocalReviewLock(input.exec, input.cwd, action),
     sweep: async () => {
       const receiptStore = await receipts();
-      await withRepositoryReviewSweepLock(input.exec, input.cwd, async () => {
+      await withRepositoryLocalReviewLock(input.exec, input.cwd, async () => {
         await sweepLocalReviewSources({
           listOperationIds: () => sweepAdapter.listOperationIds(),
           readOperation: (operationId) => operationStore.readOperation(operationId),

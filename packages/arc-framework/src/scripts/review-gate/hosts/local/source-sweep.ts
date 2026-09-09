@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { resolveGitCommonDir } from "../../../../lib/user-sync/repo-shared-paths.js";
 import { ReviewIdentifierSchema } from "../../core/gate-contract-v2-schema.js";
-import { withRepositoryReviewSweepLock } from "./git-common-state.js";
+import { withRepositoryLocalReviewLock } from "./git-common-state.js";
 
 const LOCAL_PIN_PREFIX = "refs/arc/review/local/";
 
@@ -45,7 +45,7 @@ export class RepositoryLocalReviewSourceSweepAdapter {
   }
 
   async release(operationIdInput: string): Promise<void> {
-    await withRepositoryReviewSweepLock(this.exec, this.cwd, async () => {
+    await withRepositoryLocalReviewLock(this.exec, this.cwd, async () => {
       await this.releaseWithinLock(operationIdInput);
     });
   }

@@ -3,8 +3,11 @@
 import { createHash } from "node:crypto";
 
 import { canonicalDigest, canonicalize } from "../../lib/kernel/index.js";
+import { validateReviewReceipt } from "./core/gate-contract-v2.js";
+import type { ReviewReceiptV2 } from "./core/gate-contract-v2-schema.js";
 import {
   LaneProgressStateSchema,
+  type LocalReviewState,
   type LaneProgressState,
 } from "./core/operation-state-schema.js";
 import type { FrontlineAdmission } from "./core/frontline-admission.js";
@@ -115,6 +118,96 @@ export function localReviewRequestedCoverage(
     throw new Error("local review admission requires a reviewable coverage policy");
   }
   return requirement.retrigger === "incremental" ? "incremental" : "complete";
+}
+
+function localLaneAttemptMatchesState(attempt: LaneAttempt, state: LocalReviewState): boolean {
+  const requestedCoverage = localReviewRequestedCoverage(state.requirement);
+  return attempt.attemptId === state.operationId
+    && attempt.logicalPass === state.logicalPass
+    && attempt.retryGeneration === state.retryGeneration
+    && attempt.changeRequestId === null
+    && attempt.headSha === state.target.headSha
+    && attempt.sourceId === state.laneSourceId
+    && attempt.local !== undefined
+    && canonicalize(attempt.local) === canonicalize({
+      operationId: state.operationId,
+      requestId: state.requestId,
+      vehicle: state.vehicle,
+      target: state.target,
+      requestedCoverage,
+      effectiveCoverage: attempt.terminalProducer ? requestedCoverage : null,
+      ...(state.deliveryAdmission === undefined
+        ? {}
+        : { deliveryAdmission: state.deliveryAdmission }),
+    });
+}
+
+/** Reconcile one persisted local receipt into its canonical terminal lane attempt. */
+export async function recordLocalReceiptConclusion(
+  store: ReviewOperationStateStore,
+  input: {
+    state: LocalReviewState;
+    receipt: ReviewReceiptV2;
+    now: string;
+  },
+): Promise<LaneProgressState> {
+  const { state } = input;
+  const receipt = validateReviewReceipt(
+    state.target,
+    state.requirement,
+    state.request,
+    input.receipt,
+  );
+  const consumedPass = receipt.result === "clean" || receipt.result === "findings";
+  const requestedCoverage = localReviewRequestedCoverage(state.requirement);
+  const outcome = receipt.result === "unavailable"
+    ? "transient-unavailable"
+    : receipt.result === "failed" ? "terminal-failure" : receipt.result;
+  const existingOwner = await readLaneProgressOwner(store, {
+    lane: "standard",
+    repositoryId: state.repositoryId,
+    headSha: state.target.headSha,
+    lineage: state.lineage,
+  });
+  const existing = existingOwner?.attempts.filter((attempt) => (
+    localLaneAttemptMatchesState(attempt, state)
+  )) ?? [];
+  const existingAttempt = existing.length === 1 ? existing[0] : undefined;
+  if (existingOwner !== null && existingAttempt !== undefined && existingAttempt.outcome !== "pending") {
+    const outcomeCompatible = existingAttempt.outcome === outcome
+      || (outcome === "findings" && existingAttempt.outcome === "settled-findings");
+    if (!outcomeCompatible || existingAttempt.terminalProducer !== consumedPass) {
+      throw new Error("conflicting local receipt conclusion");
+    }
+    return existingOwner;
+  }
+  return recordLaneAttempt(store, {
+    lane: "standard",
+    repositoryId: state.repositoryId,
+    changeRequestId: null,
+    headSha: state.target.headSha,
+    lineage: state.lineage,
+    logicalPass: state.logicalPass,
+    retryGeneration: state.retryGeneration,
+    attemptId: state.operationId,
+    sourceId: state.laneSourceId,
+    outcome,
+    consumedPass,
+    chunkSeriesComplete: consumedPass,
+    advancePendingAttempt: true,
+    local: {
+      operationId: state.operationId,
+      requestId: state.requestId,
+      vehicle: state.vehicle,
+      target: state.target,
+      requestedCoverage,
+      effectiveCoverage: consumedPass ? requestedCoverage : null,
+      ...(state.deliveryAdmission === undefined
+        ? {}
+        : { deliveryAdmission: state.deliveryAdmission }),
+    },
+    now: input.now,
+  });
 }
 
 function countCompleteLogicalPasses(attempts: readonly LaneAttempt[]): number {
@@ -1039,6 +1132,21 @@ export async function readLaneProgressOwner(
   },
 ): Promise<LaneProgressState | null> {
   return (await readLaneProgressOwnerVersioned(store, input)).state;
+}
+
+/** Resolve the exact lane-owner attempt that authorizes one local operation. */
+export async function readAdmittedLocalLaneAttempt(
+  store: ReviewOperationStateStore,
+  state: LocalReviewState,
+): Promise<LaneAttempt | null> {
+  const owner = await readLaneProgressOwner(store, {
+    lane: "standard",
+    repositoryId: state.repositoryId,
+    headSha: state.target.headSha,
+    lineage: state.lineage,
+  });
+  const matches = owner?.attempts.filter((attempt) => localLaneAttemptMatchesState(attempt, state)) ?? [];
+  return matches.length === 1 ? matches[0] ?? null : null;
 }
 
 /**

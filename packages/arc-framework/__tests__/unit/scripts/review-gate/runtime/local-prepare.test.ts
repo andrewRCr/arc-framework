@@ -251,7 +251,7 @@ describe("local review preparation request", () => {
       const dependencies = {
         sweep: async () => undefined,
         laneSourceId: "delegated-agent",
-        withSourceLock: async <T>(action: () => Promise<T>) => action(),
+        withLocalReviewLock: async <T>(action: () => Promise<T>) => action(),
         resolveRepositoryId: async () => "repo-1",
         deriveTarget,
         confirmTarget: async (target: typeof memberTarget) => ({ state: "current" as const, target }),
@@ -689,6 +689,71 @@ describe("local review preparation request", () => {
         expect(context.resolvePolicy).toHaveBeenCalledTimes(1);
       });
 
+      it.each([
+        ["runtime", false],
+        ["policy", true],
+      ] as const)(
+        "keeps operation-first crash residue unexecutable across %s drift",
+        async (drift, allocatesReplacement) => {
+          const context = fixture();
+          const operationStore = context.dependencies.operationStore;
+          const interruptedStore = {
+            readOperation: operationStore.readOperation,
+            publishOperation: async (state: ReviewOperationState, expectedVersion: number) => {
+              if (state.kind === "lane-progress") {
+                throw new Error("lane-owner admission interrupted");
+              }
+              return operationStore.publishOperation(state, expectedVersion);
+            },
+          };
+
+          await expect(prepareLocalReview(request, {
+            ...context.dependencies,
+            operationStore: interruptedStore,
+          })).rejects.toThrow(/lane-owner admission interrupted/u);
+          const orphan = [...context.operations.values()]
+            .map(({ state }) => state)
+            .find((state) => state.kind === "local-review");
+          if (orphan === undefined || orphan.kind !== "local-review") {
+            throw new Error("interrupted local operation was not published");
+          }
+          expect(context.laneProgress()).toBeNull();
+
+          if (drift === "runtime") {
+            context.resolveAuthority.mockResolvedValueOnce({
+              authority: {
+                vehicle: { kind: "work-unit", identity: "review-surface-binding" },
+                authorIdentity: "author-1",
+                evaluatorIdentity: "evaluator-1",
+                attestationRuntimeKind: "arc-cli",
+                runtimeIdentity: "arc-cli/0.2.0",
+                attestationMechanism: "local-attestation",
+              },
+              member: null,
+            });
+          } else {
+            context.resolvePolicy.mockReturnValueOnce({
+              status: "resolved",
+              binding: {
+                ...DEFAULT_LOCAL_REVIEW_POLICY_BINDING,
+                bindingDigest: `sha256:${"8".repeat(64)}`,
+              },
+              diagnostics: [],
+            });
+          }
+
+          const recovered = await prepareLocalReview(request, context.dependencies);
+          if (recovered.state !== "ready") throw new Error("local operation was not recovered");
+          expect(recovered.payload.operationId === orphan.operationId).toBe(!allocatesReplacement);
+          expect(context.laneProgress()).toMatchObject({
+            attempts: [{
+              attemptId: recovered.payload.operationId,
+              outcome: "pending",
+            }],
+          });
+        },
+      );
+
       it("renews an expired pending admission with the requested cleanup lifetime", async () => {
         const context = fixture();
         const first = await prepareLocalReview(
@@ -828,7 +893,10 @@ describe("local review preparation request", () => {
           consumedPass: true,
           chunkSeriesComplete: true,
           advancePendingAttempt: true,
-          local: owner.attempts[0].local,
+          local: {
+            ...owner.attempts[0].local,
+            effectiveCoverage: owner.attempts[0].local.requestedCoverage,
+          },
           now: "2026-08-06T18:00:00Z",
         });
         await settleLaneAttempt(context.dependencies.operationStore, {
@@ -907,16 +975,34 @@ describe("local review preparation request", () => {
     });
     const persisted = new Map<string, { version: number; state: ReviewOperationState }>();
     let persistedSource: LocalReviewSource | null = null;
-    let initialReads = 0;
-    let releaseInitialReads: (() => void) | undefined;
-    const bothInitialReads = new Promise<void>((resolve) => {
-      releaseInitialReads = resolve;
+    let sweepCalls = 0;
+    let releaseSweeps: (() => void) | undefined;
+    const bothSweeps = new Promise<void>((resolve) => {
+      releaseSweeps = resolve;
     });
+    let lockTail = Promise.resolve();
+    let sourceAppendCount = 0;
     let clockTick = 0;
     const dependencies = {
-      sweep: async () => undefined,
+      sweep: async () => {
+        sweepCalls += 1;
+        if (sweepCalls === 2) releaseSweeps?.();
+        await bothSweeps;
+      },
       laneSourceId: "delegated-agent",
-      withSourceLock: async <T>(action: () => Promise<T>) => action(),
+      withLocalReviewLock: async <T>(action: () => Promise<T>) => {
+        const predecessor = lockTail;
+        let releaseLock: (() => void) | undefined;
+        lockTail = new Promise<void>((resolve) => {
+          releaseLock = resolve;
+        });
+        await predecessor;
+        try {
+          return await action();
+        } finally {
+          releaseLock?.();
+        }
+      },
       resolveRepositoryId: async () => target.repositoryId,
       deriveTarget: async () => target,
       confirmTarget: async () => ({ state: "current" as const, target }),
@@ -953,12 +1039,6 @@ describe("local review preparation request", () => {
       operationStore: {
         readOperation: async (operationId: string) => {
           const current = persisted.get(operationId);
-          if (current === undefined && initialReads < 2) {
-            initialReads += 1;
-            if (initialReads === 2) releaseInitialReads?.();
-            await bothInitialReads;
-            return { version: 0, state: null };
-          }
           return current ?? { version: 0, state: null };
         },
         publishOperation: async (state: ReviewOperationState, expectedVersion: number) => {
@@ -974,6 +1054,7 @@ describe("local review preparation request", () => {
       sourceStore: {
         readSource: async () => persistedSource,
         appendSource: async (source: LocalReviewSource) => {
+          sourceAppendCount += 1;
           persistedSource = source;
           return { sourceRef: "sources/local.json" };
         },
@@ -1021,6 +1102,7 @@ describe("local review preparation request", () => {
         persistedVersion: 1,
       },
     });
+    expect(sourceAppendCount).toBe(1);
   });
 
   it.each(["clean", "findings"] as const)(
@@ -1048,7 +1130,7 @@ describe("local review preparation request", () => {
       const dependencies = {
         sweep: async () => undefined,
         laneSourceId: "delegated-agent",
-        withSourceLock: async <T>(action: () => Promise<T>) => action(),
+        withLocalReviewLock: async <T>(action: () => Promise<T>) => action(),
         resolveRepositoryId: async () => target.repositoryId,
         deriveTarget: async () => target,
         confirmTarget: async () => ({ state: "current" as const, target }),
@@ -1178,13 +1260,24 @@ describe("local review preparation request", () => {
             }]
           : [],
       };
+      let interruptLanePublication = true;
+      const interruptedOperationStore = {
+        readOperation: dependencies.operationStore.readOperation,
+        publishOperation: async (nextState: ReviewOperationState, expectedVersion: number) => {
+          if (nextState.kind === "lane-progress" && interruptLanePublication) {
+            interruptLanePublication = false;
+            throw new Error("lane publication interrupted");
+          }
+          return dependencies.operationStore.publishOperation(nextState, expectedVersion);
+        },
+      };
       await expect(attestLocalReviewCommand({
         schemaVersion: 1,
         operationId: state.operationId,
         result: attestationResult,
       }, {
-        withSourceLock: dependencies.withSourceLock,
-        operationStore: dependencies.operationStore,
+        withLocalReviewLock: dependencies.withLocalReviewLock,
+        operationStore: interruptedOperationStore,
         sourceStore: dependencies.sourceStore,
         receiptStore: {
           readReceipts: dependencies.readReceipts,
@@ -1202,10 +1295,7 @@ describe("local review preparation request", () => {
         inspectMaterialization: async () => "materialized",
         releaseMaterialization: async () => undefined,
         now: () => "2026-07-23T21:00:00Z",
-      })).resolves.toMatchObject({
-        state: "attested-current",
-        nextAction: "reduce",
-      });
+      })).rejects.toThrow(/lane publication interrupted/u);
 
       await expect(prepareLocalReview(request, dependencies)).resolves.toMatchObject({
         state: "review-complete",
@@ -1215,6 +1305,46 @@ describe("local review preparation request", () => {
           persistedVersion: 2,
           target,
         },
+      });
+      const recoveredLaneState = laneState as ReviewOperationState | null;
+      if (recoveredLaneState === null || recoveredLaneState.kind !== "lane-progress") {
+        throw new Error("local review lane progress was not recovered");
+      }
+      expect(recoveredLaneState).toMatchObject({
+        completedPasses: 1,
+        attempts: [{
+          outcome: result,
+          terminalProducer: true,
+          local: {
+            requestedCoverage: "incremental",
+            effectiveCoverage: "incremental",
+          },
+        }],
+      });
+      await expect(attestLocalReviewCommand({
+        schemaVersion: 1,
+        operationId: state.operationId,
+        result: attestationResult,
+      }, {
+        withLocalReviewLock: dependencies.withLocalReviewLock,
+        operationStore: dependencies.operationStore,
+        sourceStore: dependencies.sourceStore,
+        receiptStore: {
+          readReceipts: dependencies.readReceipts,
+          appendReceipt: async () => ({
+            ledgerVersion: receipts.length,
+            durableEvidenceRef: "receipts.json#1",
+          }),
+        },
+        resolveAuthority: async () => (await dependencies.resolveAuthority()).authority,
+        resolveGuidanceDigest: async () => state.guidanceDigest,
+        confirmTarget: dependencies.confirmTarget,
+        inspectMaterialization: async () => "materialized",
+        releaseMaterialization: async () => undefined,
+        now: () => "2026-07-23T21:01:00Z",
+      })).resolves.toMatchObject({
+        state: "attested-current",
+        nextAction: "reduce",
       });
       expect(materialize).toHaveBeenCalledTimes(2);
     },

@@ -427,6 +427,22 @@ describe("review operation state schemas", () => {
       completedPasses: 1,
       attempts: [{
         ...localAttempt,
+        local: { ...localAttempt.local, effectiveCoverage: null },
+      }],
+    })).toThrow(/terminal local coverage/iu);
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      attempts: [{
+        ...localAttempt,
+        terminalProducer: false,
+        outcome: "pending" as const,
+      }],
+    })).toThrow(/nonterminal local attempts/iu);
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      completedPasses: 1,
+      attempts: [{
+        ...localAttempt,
         local: { ...localAttempt.local, operationId: "local-other" },
       }],
     })).toThrow(/local attempt operation/iu);

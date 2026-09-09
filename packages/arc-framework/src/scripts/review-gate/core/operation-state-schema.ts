@@ -470,6 +470,23 @@ export const LaneProgressStateSchema = z.strictObject({
         });
       }
     }
+    if (attempt.local !== undefined) {
+      if (attempt.terminalProducer
+        && attempt.local.effectiveCoverage !== attempt.local.requestedCoverage) {
+        context.addIssue({
+          code: "custom",
+          path: ["attempts", index, "local", "effectiveCoverage"],
+          message: "terminal local coverage must equal its admitted requested coverage",
+        });
+      }
+      if (!attempt.terminalProducer && attempt.local.effectiveCoverage !== null) {
+        context.addIssue({
+          code: "custom",
+          path: ["attempts", index, "local", "effectiveCoverage"],
+          message: "nonterminal local attempts cannot claim effective coverage",
+        });
+      }
+    }
     if (attempt.frontline !== undefined
       && (state.lane !== "frontline"
         || attempt.frontline.admission.target.repositoryId !== state.repositoryId

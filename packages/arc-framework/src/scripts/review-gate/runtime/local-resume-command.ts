@@ -20,6 +20,10 @@ import type {
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import { LocalResumeEnvelopeSchema } from "../core/review-command-envelope.js";
+import {
+  readAdmittedLocalLaneAttempt,
+  recordLocalReceiptConclusion,
+} from "../lane-progress.js";
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
 
 export const LocalResumeRequestSchema = z.strictObject({
@@ -29,7 +33,7 @@ export const LocalResumeRequestSchema = z.strictObject({
 
 export interface LocalResumeDependencies {
   sweep(): Promise<void>;
-  withSourceLock<T>(action: () => Promise<T>): Promise<T>;
+  withLocalReviewLock<T>(action: () => Promise<T>): Promise<T>;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
@@ -58,10 +62,10 @@ export async function resumeLocalReviewCommand(
 ): Promise<z.infer<typeof LocalResumeEnvelopeSchema>> {
   const request = LocalResumeRequestSchema.parse(requestInput);
   await dependencies.sweep();
-  return dependencies.withSourceLock(() => resumeLocalReviewWithinSourceLock(request, dependencies));
+  return dependencies.withLocalReviewLock(() => resumeLocalReviewWithinLocalReviewLock(request, dependencies));
 }
 
-async function resumeLocalReviewWithinSourceLock(
+async function resumeLocalReviewWithinLocalReviewLock(
   request: z.infer<typeof LocalResumeRequestSchema>,
   dependencies: LocalResumeDependencies,
 ): Promise<z.infer<typeof LocalResumeEnvelopeSchema>> {
@@ -72,6 +76,9 @@ async function resumeLocalReviewWithinSourceLock(
     throw new LocalResumeCommandError("local review operation is unavailable");
   }
   const state = persisted.state;
+  if (await readAdmittedLocalLaneAttempt(dependencies.operationStore, state) === null) {
+    throw new LocalResumeCommandError("local review operation is not durably admitted");
+  }
   const receiptReference = (durableRef: string) => bindReviewSourceReference({
     kind: "attested-local",
     operationId: state.operationId,
@@ -146,6 +153,11 @@ async function resumeLocalReviewWithinSourceLock(
     receipts[0],
   );
   const replay = await dependencies.receiptStore.appendReceipt(receipt, ledger.ledgerVersion);
+  await recordLocalReceiptConclusion(dependencies.operationStore, {
+    state,
+    receipt,
+    now: dependencies.now(),
+  });
   if (receipt.result !== "findings") {
     return LocalResumeEnvelopeSchema.parse({
       schemaVersion: 1,

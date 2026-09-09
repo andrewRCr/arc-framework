@@ -14,8 +14,9 @@ import type {
 } from "../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
 import { createLocalReviewAdmission } from "../../src/scripts/review-gate/core/local-operation.js";
 import { createLocalReviewSource } from "../../src/scripts/review-gate/core/local-review-source.js";
-import type {
-  LocalReviewState,
+import {
+  LaneProgressStateSchema,
+  type LocalReviewState,
 } from "../../src/scripts/review-gate/core/operation-state-schema.js";
 import {
   composeDeliveryMemberTarget,
@@ -23,6 +24,7 @@ import {
   deriveLocalReviewTarget,
 } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 import { createLocalReviewReceipt } from "../../src/scripts/review-gate/runtime/local-attestation.js";
+import { laneProgressOperationId } from "../../src/scripts/review-gate/lane-progress.js";
 import { projectLocalReviewGuidance } from
   "../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { resumeLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-resume-command.js";
@@ -35,7 +37,7 @@ const roots: string[] = [];
 const exec = createExecaGitExec();
 const repositoryId = "12345678-1234-1234-1234-123456789abc";
 const digest = (value: string): string => canonicalDigest({ value });
-const withSourceLock = async <T>(action: () => Promise<T>): Promise<T> => action();
+const withLocalReviewLock = async <T>(action: () => Promise<T>): Promise<T> => action();
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(async (root) => rm(root, { recursive: true, force: true })));
@@ -157,6 +159,40 @@ function operationOver(target: ReviewTarget) {
     attestation: admission.carrier.attestation,
     cleanupTtlMs: 60_000,
   };
+  const laneProgress = LaneProgressStateSchema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "review-operation/v1",
+    kind: "lane-progress",
+    operationId: laneProgressOperationId({
+      lane: "standard",
+      repositoryId: state.repositoryId,
+      headSha: state.target.headSha,
+      lineage: state.lineage,
+    }),
+    updatedAt: state.updatedAt,
+    lane: "standard",
+    repositoryId: state.repositoryId,
+    lineage: state.lineage,
+    completedPasses: 0,
+    attempts: [{
+      attemptId: state.operationId,
+      logicalPass: state.logicalPass,
+      retryGeneration: state.retryGeneration,
+      changeRequestId: null,
+      headSha: state.target.headSha,
+      terminalProducer: false,
+      sourceId: state.laneSourceId,
+      outcome: "pending",
+      local: {
+        operationId: state.operationId,
+        requestId: state.requestId,
+        vehicle: state.vehicle,
+        target: state.target,
+        requestedCoverage: "complete",
+        effectiveCoverage: null,
+      },
+    }],
+  });
   const receipt = createLocalReviewReceipt({
     target,
     requirement,
@@ -182,7 +218,7 @@ function operationOver(target: ReviewTarget) {
     sourceDigest: source.sourceDigest,
     guidanceDigest: state.guidanceDigest,
   });
-  return { state, source, receipt };
+  return { state, laneProgress, source, receipt };
 }
 
 /** Re-entry dependencies whose only live boundary is the repository's own confirmation. */
@@ -193,7 +229,15 @@ function reentry(root: string, records: ReturnType<typeof operationOver>) {
     attemptedTarget: target,
   });
   const operationStore = {
-    readOperation: async () => ({ version: 1, state: records.state }),
+    readOperation: async (operationId: string) => {
+      if (operationId === records.state.operationId) {
+        return { version: 1, state: records.state };
+      }
+      if (operationId === records.laneProgress.operationId) {
+        return { version: 1, state: records.laneProgress };
+      }
+      return { version: 0, state: null };
+    },
     publishOperation: vi.fn(),
   };
   const sourceStore = {
@@ -207,7 +251,7 @@ function reentry(root: string, records: ReturnType<typeof operationOver>) {
   return {
     resume: {
       sweep: vi.fn(),
-      withSourceLock,
+      withLocalReviewLock,
       operationStore,
       sourceStore,
       receiptStore: {

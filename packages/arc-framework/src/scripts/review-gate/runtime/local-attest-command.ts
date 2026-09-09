@@ -21,7 +21,12 @@ import type {
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import { LocalAttestEnvelopeSchema } from "../core/review-command-envelope.js";
-import { localReviewRequestedCoverage, recordLaneAttempt } from "../lane-progress.js";
+import {
+  localReviewRequestedCoverage,
+  readAdmittedLocalLaneAttempt,
+  recordLaneAttempt,
+  recordLocalReceiptConclusion,
+} from "../lane-progress.js";
 import {
   isReviewVersionConflict,
   REVIEW_VERSION_RETRY_ATTEMPTS,
@@ -37,7 +42,7 @@ export const LocalAttestRequestSchema = z.strictObject({
 });
 
 export interface LocalAttestDependencies {
-  withSourceLock<T>(action: () => Promise<T>): Promise<T>;
+  withLocalReviewLock<T>(action: () => Promise<T>): Promise<T>;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
@@ -98,10 +103,10 @@ export async function attestLocalReviewCommand(
   dependencies: LocalAttestDependencies,
 ): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
   const request = LocalAttestRequestSchema.parse(requestInput);
-  return dependencies.withSourceLock(() => attestLocalReviewWithinSourceLock(request, dependencies));
+  return dependencies.withLocalReviewLock(() => attestLocalReviewWithinLocalReviewLock(request, dependencies));
 }
 
-async function attestLocalReviewWithinSourceLock(
+async function attestLocalReviewWithinLocalReviewLock(
   request: z.infer<typeof LocalAttestRequestSchema>,
   dependencies: LocalAttestDependencies,
 ): Promise<z.infer<typeof LocalAttestEnvelopeSchema>> {
@@ -117,6 +122,9 @@ async function attestLocalReviewWithinSourceLock(
     throw new LocalAttestCommandError("corrupt-state", "local review operation is unavailable");
   }
   const state = persisted.state;
+  if (await readAdmittedLocalLaneAttempt(dependencies.operationStore, state) === null) {
+    throw new LocalAttestCommandError("corrupt-state", "local review operation is not durably admitted");
+  }
   const requestedCoverage = localReviewRequestedCoverage(state.requirement);
   const result = normalizeLocalReviewResult(request.result, {
     repositoryId: state.repositoryId,
@@ -209,36 +217,10 @@ async function attestLocalReviewWithinSourceLock(
       receipt,
       ledger.ledgerVersion,
     );
-    await recordLaneAttempt(dependencies.operationStore, {
-      lane: "standard",
-      repositoryId: state.repositoryId,
-      changeRequestId: null,
-      headSha: state.target.headSha,
-      lineage: state.lineage,
-      logicalPass: state.logicalPass,
-      retryGeneration: state.retryGeneration,
-      attemptId: state.operationId,
-      sourceId: state.laneSourceId,
-      outcome: receipt.result === "unavailable"
-        ? "transient-unavailable"
-        : receipt.result === "failed" ? "terminal-failure" : receipt.result,
-      consumedPass: receipt.result === "clean" || receipt.result === "findings",
-      chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
-      local: {
-        operationId: state.operationId,
-        requestId: state.requestId,
-        vehicle: state.vehicle,
-        target: state.target,
-        requestedCoverage,
-        effectiveCoverage: receipt.result === "clean" || receipt.result === "findings"
-          ? requestedCoverage
-          : null,
-        ...(state.deliveryAdmission === undefined
-          ? {}
-          : { deliveryAdmission: state.deliveryAdmission }),
-      },
+    await recordLocalReceiptConclusion(dependencies.operationStore, {
+      state,
+      receipt,
       now: dependencies.now(),
-      advancePendingAttempt: true,
     });
     await dependencies.releaseMaterialization(request.operationId);
     const current = await dependencies.confirmTarget(state.target);
@@ -334,36 +316,10 @@ async function attestLocalReviewWithinSourceLock(
     receipt,
     ledger.ledgerVersion,
   );
-  await recordLaneAttempt(dependencies.operationStore, {
-    lane: "standard",
-    repositoryId: state.repositoryId,
-    changeRequestId: null,
-    headSha: state.target.headSha,
-    lineage: state.lineage,
-    logicalPass: state.logicalPass,
-    retryGeneration: state.retryGeneration,
-    attemptId: state.operationId,
-    sourceId: state.laneSourceId,
-    outcome: receipt.result === "unavailable"
-      ? "transient-unavailable"
-      : receipt.result === "failed" ? "terminal-failure" : receipt.result,
-    consumedPass: receipt.result === "clean" || receipt.result === "findings",
-    chunkSeriesComplete: receipt.result === "clean" || receipt.result === "findings",
-    local: {
-      operationId: state.operationId,
-      requestId: state.requestId,
-      vehicle: state.vehicle,
-      target: state.target,
-      requestedCoverage,
-      effectiveCoverage: receipt.result === "clean" || receipt.result === "findings"
-        ? requestedCoverage
-        : null,
-      ...(state.deliveryAdmission === undefined
-        ? {}
-        : { deliveryAdmission: state.deliveryAdmission }),
-    },
+  await recordLocalReceiptConclusion(dependencies.operationStore, {
+    state,
+    receipt,
     now: dependencies.now(),
-    advancePendingAttempt: true,
   });
   await dependencies.releaseMaterialization(request.operationId);
   const afterAppend = await dependencies.confirmTarget(state.target);
