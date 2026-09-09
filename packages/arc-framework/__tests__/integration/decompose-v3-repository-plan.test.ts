@@ -3171,6 +3171,93 @@ describe("Git v3 repository plan", () => {
     await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
   });
 
+  it("preserves dependency-recipient drift for an incoming-plus-external recipient", async () => {
+    const started = await startedRepository({
+      completedTarget: true,
+      existingRecipient: true,
+      sourceRecipientDependsOn: ["origin"],
+    });
+    const completedMap: unknown = {
+      ...started.completedMap,
+      authoring: {
+        ...started.completedMap.authoring,
+        destinations: started.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+        incomingDispositions: started.completedMap.machine.incomingEdges.map((edge) => ({
+          edgeId: edge.edgeId,
+          disposition: { kind: "replace", replacementTargets: ["member"] },
+        })),
+      },
+    };
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit overlapping dependency transition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    const recipientPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    await write(started.repo, recipientPath, renderMetaFile("consumer", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      dependsOn: ["origin", "foundation"],
+      origin: "internal",
+      design: ["draft-consumer.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await git(started.repo, ["add", recipientPath]);
+    await git(started.repo, ["commit", "-m", "satisfy overlapping authored edge independently"]);
+    let recompositions = 0;
+    let historyAuthentications = 0;
+    const guarded = {
+      ...started.dependencies,
+      exec: async (...args: Parameters<typeof started.dependencies.exec>) => {
+        if (args[1][0] === "diff-tree") historyAuthentications += 1;
+        return await started.dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...guarded,
+      composePlan: async (baseRef, map) => {
+        recompositions += 1;
+        return await composeGitV3RepositoryPlan(guarded, baseRef, map);
+      },
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "dependency-recipient-drift",
+      locus: recipientPath,
+      evidence: { expected: ["origin"], actual: ["origin", "foundation"] },
+    });
+    expect(recompositions).toBe(1);
+    expect(historyAuthentications).toBe(0);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
   it("re-advances through a validated first-parent base-merge chain", async () => {
     const { repo, completedMap, dependencies } = await startedRepository();
     const staged = await executeGitV3DecomposeOperation({

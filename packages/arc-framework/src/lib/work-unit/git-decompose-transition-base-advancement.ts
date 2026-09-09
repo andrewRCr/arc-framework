@@ -716,7 +716,13 @@ export async function advanceGitDecomposeTransitionBase(
   }
   const expectedIncomingEdges = sortByCanonicalBytes(map.machine.incomingEdges);
   const actualIncomingEdges = sortByCanonicalBytes(currentIncomingEdges);
-  if (canonicalize(actualIncomingEdges) !== canonicalize(expectedIncomingEdges)) {
+  const expectedIncomingDependents = sortByCanonicalBytes(
+    expectedIncomingEdges.map(({ dependent }) => dependent),
+  );
+  const actualIncomingDependents = sortByCanonicalBytes(
+    actualIncomingEdges.map(({ dependent }) => dependent),
+  );
+  if (canonicalize(actualIncomingDependents) !== canonicalize(expectedIncomingDependents)) {
     const length = Math.max(expectedIncomingEdges.length, actualIncomingEdges.length);
     let locus = map.machine.source.origin;
     for (let index = 0; index < length; index += 1) {
@@ -737,6 +743,14 @@ export async function advanceGitDecomposeTransitionBase(
   const currentMap = restateMap(map, map.machine.resultBase.ref, currentBaseHead);
   const currentPlan = await compose(input.baseBranch, currentMap);
   if (currentPlan.status !== "composed") {
+    if (currentPlan.refusal.stage === "conservation"
+      && currentPlan.refusal.reason === "dependency-projection:stale-dependent") {
+      return refuse(
+        "dependency-recipient-drift",
+        currentPlan.refusal.locus,
+        currentPlan.refusal.evidence,
+      );
+    }
     const recipient = currentPlan.refusal.stage === "dependency"
       && currentPlan.refusal.reason === "unchanged-dependency-slot"
       ? currentPlan.refusal.dependencyRecipient
