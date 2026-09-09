@@ -228,14 +228,58 @@ pinning discipline is load-bearing; enforcing it is captured separately as out-o
 
 ### Routed dispatch
 
-One full workflow dispatched with routing pointed at the guest, then routing restored.
+One `workflow_dispatch` of the full workflow with routing pointed at the guest, two runner services.
 
-- `ARC_CI_LINUX_RUNNER` prior state: — · restored to: —
-- Run id: — · duration: —
+- Routing variable prior state: **absent** (hosted). Restored by deletion, not by resetting a value.
+- Window: 00:05:02Z to 00:16:45Z, 11 minutes 43 seconds. Nothing was left queued and both runners returned idle.
+- Run duration: **641 s**, conclusion success.
+- Every executed job ran on a guest runner; none landed on hosted or on the remote pool.
 
-| Linux job | `runner_name` | `conclusion` |
-| --------- | ------------- | ------------ |
-|           | —             | —            |
+| Job                                      | Runner        | Result  | Duration |
+| ---------------------------------------- | ------------- | ------- | -------- |
+| Classify lane & weight                   | arc-ci-mini-2 | success | 13 s     |
+| Shared setup                             | arc-ci-mini-1 | success | 26 s     |
+| Unit Tests                               | arc-ci-mini-1 | success | 80 s     |
+| Portability (concurrency guards) (linux) | arc-ci-mini-2 | success | 24 s     |
+| Integration Tests                        | arc-ci-mini-1 | success | 176 s    |
+| Lint & Typecheck                         | arc-ci-mini-2 | success | 65 s     |
+| E2E Tests (1)                            | arc-ci-mini-2 | success | 156 s    |
+| E2E Tests (2)                            | arc-ci-mini-2 | success | 172 s    |
+| E2E Tests (3)                            | arc-ci-mini-2 | success | 170 s    |
+| E2E Tests (4)                            | arc-ci-mini-1 | success | 172 s    |
+
+**Per-job speed against hosted**, matched by job name from a hosted pull-request run of the same workflow:
+
+| Job                                      | Guest  | Hosted | Speed-up |
+| ---------------------------------------- | ------ | ------ | -------- |
+| E2E Tests (3)                            | 170 s  | 495 s  | 2.9x     |
+| E2E Tests (4)                            | 172 s  | 444 s  | 2.6x     |
+| E2E Tests (1)                            | 156 s  | 397 s  | 2.5x     |
+| E2E Tests (2)                            | 172 s  | 421 s  | 2.4x     |
+| Lint & Typecheck                         | 65 s   | 156 s  | 2.4x     |
+| Integration Tests                        | 176 s  | 355 s  | 2.0x     |
+| Portability (concurrency guards) (linux) | 24 s   | 41 s   | 1.7x     |
+| Unit Tests                               | 80 s   | 123 s  | 1.5x     |
+| Shared setup                             | 26 s   | 35 s   | 1.3x     |
+| Classify lane & weight                   | 13 s   | 15 s   | 1.2x     |
+| **Total job work**                       | 1054 s | 2482 s | **2.4x** |
+
+**Cache behaviour: the architecture-keyed cost is negligible and paid once.** `Shared setup` reported
+`Cache not found` for the new architecture key — a genuinely cold first population — then completed `npm ci` in
+**2 s** for 322 packages and saved both the dependency and package-manager caches. Every downstream job restored
+from them. The run is therefore representative rather than pessimistic; a warm run saves seconds, not minutes.
+
+**Reading the two numbers together.** The guest does 2.4x less work than hosted yet finishes in about the same wall
+time, because the two are bound by different things: hosted runs every job at once and is bounded by its longest
+job, while the guest has two slots and is bounded by them. Effective parallelism here was 1.64x, consistent with
+the 1.44x measured on pure anchor rounds and higher only because the job graph has serial phases where one job runs
+alone. Against the remote pool — the route actually in daily use once hosted minutes are exhausted — the guest is
+roughly four times faster.
+
+Comparability, stated once: this was a `workflow_dispatch`, so the pull-request-only roll-ups skip. They cost 10 s
+on hosted and 5 s on the remote pool, about 1.4 percent and 0.2 percent of their runs, so the comparison holds
+within that. The historical medians quoted here come from an older job graph than today's and are a sighting only;
+Phase 4's paired dispatches at one head are what settle the ratio.
 
 ### Soak
 

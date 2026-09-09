@@ -251,21 +251,30 @@ does not already read the label being registered.
   a routed workflow runs under the same contention and which was not measured here. No third service was created,
   so nothing needs removing.
 
-### `[ ]` **3.4 Dispatch one full workflow routed to the mini**
+### `[x]` **3.4 Dispatch one full workflow routed to the mini**
 
 - _Goal:_ Every executed Linux job of one dispatched full workflow reports a guest runner name and a green result,
   with routing returned to its prior state afterwards.
 
-    - Precondition: `git fetch origin main` and confirm all six `actions/cache` keys in `.github/workflows/ci.yml`
-      on `origin/main` include `runner.arch`. Stop if the errand has not merged.
-    - Record the variable's prior state first (`gh variable list`; it is absent while hosted minutes remain and
-      reads `arc-ci-linux` once they run out). In a quiet window from the workstation:
-      `gh variable set ARC_CI_LINUX_RUNNER --body arc-ci-mini`, then
-      `gh workflow run ci.yml --ref main` (a dispatch classifies as heavy; `ci_ok` and `merge-ok` are pull-request
-      only and skip). All repository CI rides the mini for the window, so keep it short.
-    - After completion, list jobs with `gh api repos/{owner}/{repo}/actions/runs/<id>/jobs` and record each Linux
-      job's `runner_name` and `conclusion` plus the run duration; then restore the variable to its recorded prior
-      state (`gh variable delete` when it was absent) and cancel any job still queued for `arc-ci-mini`.
+    - Precondition verified against `origin/main` after the external errand merged: all six `actions/cache` keys
+      now carry the runner architecture. The check distinguished a partial landing from a complete one — a
+      half-applied change would have given the guest a hit on an x64-built dependency tree for exactly the steps
+      still unfixed.
+    - Prior state recorded as **absent**, so restoring meant deleting the variable rather than resetting a value.
+      Dispatched in a window with no run in flight; every executed job reported a guest runner name and success,
+      and the run completed in 641 s. Routing was restored 11 minutes 43 seconds after the flip, with nothing left
+      queued and both runners idle.
+    - Job work totals 1054 s against 2482 s for the same job set on hosted — **2.4x faster per job**, with the four
+      E2E shards between 2.4x and 2.9x. Full table in the ledger.
+    - The cold-cache concern carried into this task proved unfounded, in both of its parts. The architecture-keyed
+      miss is paid once by `Shared setup` rather than per job, and it cost 2 s: `npm ci` installs 322 packages in
+      two seconds on this host. The run is representative, not pessimistic.
+
+- _Outcome:_ The guest runs the repository's real workflow green, end to end, at 2.4x hosted's per-job speed. Wall
+  time lands about even with hosted and roughly four times better than the remote pool, because the guest is
+  bounded by its two slots while hosted is bounded by its longest job — the slot-versus-speed tradeoff the Phase 3
+  throughput curve predicted, now visible on a real workflow. Against the route in daily use once hosted minutes
+  are exhausted, that is a large improvement; against hosted itself it is a wash on wall time.
 
 ## **Phase 4:** Soak and decision
 
