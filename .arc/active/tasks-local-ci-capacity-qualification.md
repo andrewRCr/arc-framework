@@ -351,29 +351,26 @@ naming the verdict so the cursor and the verification walk treat it as a deliber
       not three — and bounds the claim to the routed Linux target with the remote pool retained as fallback,
       settling nothing about the permanent architecture or the paid remote allocation.
 
-### `[ ]` **4.4 Ship the go outcome**
+### `[x]` **4.4 Ship the go outcome**
 
 - _Goal:_ The repository routes Linux CI to the mini with the VPS pool left registered as fallback, and the
   operating documents describe the new runner.
 
-    - `.github/self-hosted-ci.md`: an arm64 local-runner section covering the arm64 download and `arc-ci-mini`
-      label variant, the Lima recipe and helpers under `scripts/local-ci/`, the distinct-label registration
-      precondition, the fallback cancel step extended to `arc-ci-mini`, the manual flip for maintenance windows,
-      and the note that macOS updates restart the VM through auto-login and launchd.
-    - `.arc/reference/TECHNICAL-OVERVIEW.md` § 3 Infrastructure: record the runner fleet — the VPS pair under
-      `arc-ci-linux` and the mini under `arc-ci-mini` — and the routing variable.
-    - From the workstation: `gh variable set ARC_CI_LINUX_RUNNER --body arc-ci-mini`; confirm the next run's Linux
-      jobs land on guest runners.
+    - `.github/self-hosted-ci.md`: a local arm64 runner section covering the arm64 download and label variant, the
+      recipe and helpers, the distinct-label registration precondition, the two-service configuration and why a
+      third is rejected, the unattended-restart behaviour including macOS updates, and the maintenance-window flip.
+      The lede now names both classes and which is the normal target, the operating contract is scoped to the VPS
+      class, and the hosted-fallback cancel step covers both self-hosted labels rather than one.
+    - `.arc/reference/TECHNICAL-OVERVIEW.md` § 3: the fleet and the routing variable, including that an unset
+      variable routes to GitHub-hosted runners.
+    - Routing set to the local label with both runners online and nothing in flight; a dispatched run placed its
+      jobs on guest runners, confirming the cutover rather than assuming it.
     - `npm run -s lint:md` and `npm run lint:sh` green.
 
-### `[ ]` **4.5 Ship the no-go outcome**
+### `[~]` **4.5 Ship the no-go outcome**
 
-- _Goal:_ The ledger and recommendation are checked in with routing unchanged and no operating artifacts left in
-  the repository.
-
-    - Remove `scripts/local-ci/` and the `lint:sh` glob extension in one commit; deregister any runner services
-      registered in Phase 3 and stop the Lima instance. `ARC_CI_LINUX_RUNNER` keeps its prior state (absent, or
-      `arc-ci-linux` once hosted minutes run out).
+- _Outcome:_ Not entered. The recommendation records a go verdict, so the helpers and the shell-lint glob stay and
+  routing moves to the local runner rather than reverting. This branch and Task 4.4 are mutually exclusive.
 
 ## **Phase 5:** Verification
 
