@@ -329,14 +329,32 @@ exposed to it, not more.
 
 ### Restart test
 
-One deliberate macOS restart, issued while routing is off the guest.
+One deliberate macOS restart from the console, issued with routing off the guest so no job could land during the
+reboot. Everything after the restart was observed from the workstation; nothing was touched on the host.
 
-| Event                    | Timestamp |
-| ------------------------ | --------- |
-| Restart issued           | —         |
-| SSH to the CI user back  | —         |
-| Instance reports running | —         |
-| Each runner online       | —         |
+| Event                         | Timestamp | After the drop |
+| ----------------------------- | --------- | -------------- |
+| Restart issued (SSH drops)    | 01:32:12Z | —              |
+| Host kernel boot              | 01:32:21Z | 9 s            |
+| SSH to the CI user accepting  | 01:32:39Z | 27 s           |
+| Guest reports `READY`         | 01:32:48Z | 36 s           |
+| Both runners online in GitHub | 01:35:27Z | **195 s**      |
+
+The whole chain fired unattended: automatic login to the CI user, the login agent starting the instance, the guest
+booting, and both services reconnecting. `who` afterwards showed only the CI user's console session, confirming
+auto-login rather than a lingering operator session, and the guest reported zero minutes of uptime on a new SSH
+control port, confirming a fresh instance rather than a survivor.
+
+Two details worth carrying forward:
+
+- **`limactl list` reports `Running` before the guest is usable** — 9 s before `READY` here. Its status reflects
+  the virtual machine's process, not the guest's readiness. `status.sh` reads that field, so it can name a running
+  instance that will not yet accept a shell; the shell command it runs next fails visibly rather than silently, so
+  this is a reporting nuance rather than a defect.
+- **Runner reconnection dominates the recovery time.** The host and guest were up in 36 s; the remaining 159 s was
+  the runner services re-establishing their connections and GitHub marking them online. Services reported `active`
+  inside the guest well before GitHub would schedule work on them, so local service state is not the signal to
+  trust when judging readiness after a restart.
 
 ### Recommendation
 

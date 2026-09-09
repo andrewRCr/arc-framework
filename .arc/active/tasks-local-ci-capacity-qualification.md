@@ -315,16 +315,26 @@ naming the verdict so the cursor and the verification walk treat it as a deliber
   route hits timeout-class failures in normal operation, so timing fragility is a property of the current default
   route rather than something the guest introduces.
 
-### `[ ]` **4.2 Restart test**
+### `[x]` **4.2 Restart test**
 
 - _Goal:_ After one deliberate macOS restart the VM and every registered runner are back online with no operator
   action, recorded with timestamps.
 
-- _Approach:_ The operator issues the restart (Apple menu or the admin account) only while routing is off the mini,
-  so no job lands during the reboot; everything after is observed from the workstation.
+    - **Both runners were online 195 s after the restart, with nothing touched on the host.** SSH returned at 27 s,
+      the guest reported `READY` at 36 s, and runner reconnection accounted for the remaining 159 s. Full timeline
+      in the ledger.
+    - The recovery was verified rather than inferred: host uptime and kernel boot time confirm a real restart,
+      `who` showed only the CI user's console session (so automatic login fired rather than an operator session
+      persisting), and the guest reported zero minutes of uptime on a new SSH control port, confirming a fresh
+      instance rather than one that survived.
+    - `limactl list` reported the instance `Running` 9 s before the guest was actually `READY`, so its status
+      tracks the virtual machine's process rather than guest readiness. Recorded because `status.sh` reads that
+      field; the shell it runs next fails visibly, so this is a reporting nuance, not a defect.
 
-    - Record the restart timestamp, the time SSH to the CI user returns, the time `limactl list` reports the
-      instance running, and the time each runner shows online in GitHub.
+- _Outcome:_ The unattended-restart path works end to end, and the measurement located where the time actually
+  goes: host and guest are ready in 36 s, while runner reconnection takes another 159 s. Service state inside the
+  guest goes `active` well before GitHub will schedule work, so local service state is the wrong readiness signal
+  after a restart — the runner list is the one that matters.
 
 ### `[ ]` **4.3 Write the go/no-go recommendation**
 
