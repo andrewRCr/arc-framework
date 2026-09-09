@@ -1,5 +1,70 @@
 # Notes: Review Signal Convergence
 
+## Member 3 criteria report — 2026-09-09
+
+```yaml
+criteria-slice: "Success Criteria > Member 3 — `sealed-review-evidence`"
+span:
+  diff: "ab4be92ada8a904ba1b0a09972b2cbe409cc4bed..4a17c4af820d354e1778aa35704ef6ef6e0a1e51"
+  reachability: >-
+    Repository tree at 4a17c4af820d354e1778aa35704ef6ef6e0a1e51, including the upstream spec, all Member 3
+    sealing, result-reader, producer-binding, and interruption-test commits, the repository-common operation and
+    native evidence stores, public response/reduction/resume composition, and integration/E2E replay consumers.
+  boundary-order-deviation: null
+criteria:
+  - locus: "Success Criteria > Member 3 — `sealed-review-evidence` > 1"
+    criterion-digest: sha256:c090a4b809543cccc4c3da6f27b0994879353bff5519f16f0c1a76aacc5711cf
+    evidence: >-
+      Hosted terminal publication seals admitted handle, target, execution/coverage context, requirement, original
+      outcome, review URL, and ordered findings into one hosted result identity while excluding mutable progress and
+      settlement. The repository-common publisher rejects disappearance or mutation of admitted and sealed evidence;
+      lane replay compares the sealed producer rather than timestamps or settlement state and returns the original
+      result before provider observation. Real-store tests cover concurrent equal publication, different-content and
+      direct schema-valid rewrite refusal, settled replay, effect-before-acknowledgment loss, and pre-seal interruption
+      without duplicate attempts or pass counts.
+    state: "[x]"
+  - locus: "Success Criteria > Member 3 — `sealed-review-evidence` > 2"
+    criterion-digest: sha256:b3ff98f678fba7c27cc3c726ec76ad19684f5d034f29956957e4425ad377b1b7
+    evidence: >-
+      One read contract composes local receipt/source/operation, frontline outcome/admission, and hosted sealed-attempt
+      records from their existing native stores, preserving producer identity, immutable content digest, original
+      findings, and admitted lineage, pass, scope, policy, and rubric context. Response, reduction, and local resume
+      use that production composition and one shared validator that binds producer ID, result digest, source reference,
+      and the complete one-for-one finding set. Unit, integration, and public E2E cases reject a later producer or
+      altered result, preserve exact settled replay, and require no empty disposition for clean results. The terminal
+      Tier 2 run passed 874 test files with one skipped and 11,650 tests with one skipped.
+    state: "[x]"
+summary: "2 [x], 0 [~], 0 [ ]; no unresolved Member 3 criterion"
+```
+
+### Member 3 fresh-context companion
+
+**Pass 1 of 2 — zero findings; clean convergence. Stop reason: converged.**
+
+```yaml
+findings: []
+withstood:
+  - >-
+      Hosted await resolves sealed snapshots before configuration/provider observation; the version-checked operation
+      store prevents admitted or sealed hosted evidence mutation, while equal concurrent publication and settlement
+      preserve the winning snapshot.
+  - >-
+      The shared result reader resolves local receipts, frontline outcomes, and hosted seals from their native stores;
+      proposal and approved-request validation bind producer ID plus result digest, preventing approval reuse across
+      same-looking passes.
+  - >-
+      Interruption paths distinguish a durably sealed lost acknowledgment from a pre-publication failure: replay avoids
+      observation after sealing, while an unsealed acknowledged attempt re-observes without creating another producer
+      or pass.
+verdict: >-
+  Yes — the complete bounded Member 3 implementation satisfies both criteria through the examined production paths,
+  including interruption, concurrency, settlement, and stale/substituted approval handling.
+```
+
+Primary spot-checking confirmed the externally verifiable attention claims against the hosted await handler and
+replay-first resolver, the repository-common publisher transition validation, the source-neutral result reader and
+shared disposition validator, and the real-store interruption/concurrency tests.
+
 ## Member 2 criteria report — 2026-09-09
 
 ```yaml

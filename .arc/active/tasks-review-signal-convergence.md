@@ -294,15 +294,13 @@ migration.
   the same producer/pass. Existing concurrency, immutable-transition, settlement, and source-bound approval cases cover
   the remaining adversarial paths.
 
-### `[ ]` **3.4 Verify immutable evidence and approval identity** — validate criteria at member scope
+### `[x]` **3.4 Verify immutable evidence and approval identity** — validate criteria at member scope
 
 - _Goal:_ Immutable evidence and exact producer-approval criteria are proven through the real storage/command path.
 
-- _Note:_ Spec §§ 4–5; SC 5, 7, and 8.
-
-- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
-  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
-  markers unchanged; route any corrective work through normal task review, not this verifier.
+- _Outcome:_ The Member 3 criteria report resolves both immutable-evidence criteria across the bounded member diff and
+  cumulative tree. Its fresh-context companion converged with zero findings; the exact report and primary source
+  spot-checks are retained in `notes-review-signal-convergence.md` while Success Criteria markers remain unchanged.
 
 ## **Phase 4:** Unify verified dispositions and recognizable finding reports
 
