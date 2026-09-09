@@ -633,10 +633,14 @@ prose follows the executable contract.
 - _Outcome:_ External-edge authoring now has one aligned proof from closed schema through pinned repository
   composition, lifecycle advancement and extraction finish, typed command refusal, and byte-equal shipped guidance.
 
-### `[x]` **3.6 Close external-edge delivery** — validate criteria at member scope
+### `[ ]` **3.6 Close external-edge delivery** — validate criteria at member scope
 
 - _Goal:_ Member 3 has independently reviewable evidence that authored external edges survive target lifecycle
   changes and remain operable from the shipped workflow.
+
+    - `[x]` **3.6.R.a Preserve recipient drift classification when the authored edge becomes pre-satisfied**
+        - Advancement now carries the pinned current-base recipient through a dependency no-op, compares it with the
+          previously absorbed base, and refuses drift with evidence before exact candidate-history authentication.
 
 - _Outcome:_ Member 3 criteria report.
     - _Criteria slice:_ `Success Criteria > Member 3 — external-dependency-authoring`.

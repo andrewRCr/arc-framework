@@ -829,7 +829,7 @@ describe("v3 repository plan projection", () => {
 
   it("refuses an external edge already satisfied on the pinned result base", async () => {
     const input = fixture();
-    configureExistingHomeExternal(input, [], ["foundation"]);
+    const consumerPath = configureExistingHomeExternal(input, [], ["foundation"]);
 
     const result = await composeV3RepositoryPlan({
       completedMap: input.completedMap,
@@ -848,6 +848,7 @@ describe("v3 repository plan projection", () => {
         stage: "dependency",
         reason: "unchanged-dependency-slot",
         locus: "authoring.externalEdges.0",
+        dependencyRecipient: { path: consumerPath, targets: ["foundation"] },
       },
     });
   });

@@ -598,6 +598,21 @@ async function compareDependencyRecipientPrestates(
   return { status: "matched" };
 }
 
+async function compareRefusedDependencyRecipient(
+  dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
+  recipient: { path: string; targets: string[] },
+  previousBaseHead: string,
+): Promise<DependencyRecipientComparison> {
+  const previousTargets = await dependencyTargetsAt(dependencies, previousBaseHead, recipient.path);
+  if (previousTargets === null) return { status: "unavailable", locus: recipient.path };
+  if (canonicalize(previousTargets) === canonicalize(recipient.targets)) return { status: "matched" };
+  return {
+    status: "drift",
+    locus: recipient.path,
+    evidence: { expected: previousTargets, actual: recipient.targets },
+  };
+}
+
 /** Advance one exact committed transition candidate over a descendant configured base. */
 export async function advanceGitDecomposeTransitionBase(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
@@ -722,6 +737,29 @@ export async function advanceGitDecomposeTransitionBase(
   const currentMap = restateMap(map, map.machine.resultBase.ref, currentBaseHead);
   const currentPlan = await compose(input.baseBranch, currentMap);
   if (currentPlan.status !== "composed") {
+    const recipient = currentPlan.refusal.stage === "dependency"
+      && currentPlan.refusal.reason === "unchanged-dependency-slot"
+      ? currentPlan.refusal.dependencyRecipient
+      : undefined;
+    if (recipient !== undefined) {
+      const discoveredChain = await candidateChain(dependencies, authoredBaseHead, candidateHead);
+      if (discoveredChain.status === "refused") return discoveredChain.refusal;
+      const recipientComparison = await compareRefusedDependencyRecipient(
+        dependencies,
+        recipient,
+        discoveredChain.previousBaseHead,
+      );
+      if (recipientComparison.status === "unavailable") {
+        return refuse("base-dependency-snapshot-unavailable", recipientComparison.locus);
+      }
+      if (recipientComparison.status === "drift") {
+        return refuse(
+          "dependency-recipient-drift",
+          recipientComparison.locus,
+          recipientComparison.evidence,
+        );
+      }
+    }
     return refuse(
       `advancement-plan-refused:${currentPlan.refusal.stage}:${currentPlan.refusal.reason}`,
       currentPlan.refusal.locus,

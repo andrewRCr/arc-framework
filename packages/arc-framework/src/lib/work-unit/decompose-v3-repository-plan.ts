@@ -95,6 +95,8 @@ export interface V3RepositoryPlanRefusal {
   reason: string;
   locus?: string;
   evidence?: V3DecomposeRefusalEvidence;
+  /** Pinned recipient fact reserved for base-advancement conflict classification. */
+  dependencyRecipient?: { path: string; targets: string[] };
 }
 
 export type V3RepositoryPlanResult =
@@ -134,6 +136,7 @@ function refuse(
   reason: string,
   locus?: string,
   evidence?: V3DecomposeRefusalEvidence,
+  dependencyRecipient?: { path: string; targets: string[] },
 ): V3RepositoryPlanResult {
   return {
     status: "refused",
@@ -142,6 +145,7 @@ function refuse(
       reason,
       ...(locus === undefined ? {} : { locus }),
       ...(evidence === undefined ? {} : { evidence }),
+      ...(dependencyRecipient === undefined ? {} : { dependencyRecipient }),
     },
   };
 }
@@ -761,6 +765,7 @@ type V3DependencyProjectionResult =
       status: "refused";
       reason: "dependency-projection-failed" | "unchanged-dependency-slot";
       locus?: string;
+      dependencyRecipient?: { path: string; targets: string[] };
     };
 
 function dependencies(
@@ -780,6 +785,8 @@ function dependencies(
     let afterText: string;
     try {
       const currentTargets = parseMetaRecord(text).dependsOn;
+      const pinnedText = decodeText(stateAt(baseTree, path));
+      const pinnedTargets = pinnedText === null ? null : parseMetaRecord(pinnedText).dependsOn;
       const removedTargets = new Set(edit.beforeTargets.filter((target) =>
         !edit.afterTargets.includes(target)));
       const addedTargets = edit.afterTargets.filter((target) =>
@@ -790,7 +797,14 @@ function dependencies(
       }
       if (currentTargets.length === afterTargets.length
         && currentTargets.every((target, index) => target === afterTargets[index])) {
-        return { status: "refused", reason: "unchanged-dependency-slot", locus: edit.locus };
+        return {
+          status: "refused",
+          reason: "unchanged-dependency-slot",
+          locus: edit.locus,
+          ...(pinnedTargets === null
+            ? {}
+            : { dependencyRecipient: { path, targets: [...pinnedTargets] } }),
+        };
       }
       afterText = setMetaBulletFields(text, {
         "Depends On": afterTargets.length === 0
@@ -1053,7 +1067,13 @@ async function composeRepositoryPlan(
     projectedContent.states,
   );
   if (dependencyProjection.status === "refused") {
-    return refuse("dependency", dependencyProjection.reason, dependencyProjection.locus);
+    return refuse(
+      "dependency",
+      dependencyProjection.reason,
+      dependencyProjection.locus,
+      undefined,
+      dependencyProjection.dependencyRecipient,
+    );
   }
   const dependencyContributions = dependencyProjection.contributions;
 
