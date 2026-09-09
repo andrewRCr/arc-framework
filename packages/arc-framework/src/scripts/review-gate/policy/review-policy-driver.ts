@@ -834,10 +834,27 @@ export function assertStandardReviewExecutionAdmission(input: {
   readonly expectedSourceId: string;
   readonly expectedNextAction: "local-prepare" | "hosted-request";
   readonly judgment?: ReviewLaneJudgment;
+  readonly ceilingOverride?: ReviewCeilingOverride;
 }): Extract<ReviewResolveEnvelope, { state: "ready" }> {
   const judgment = input.judgment === undefined
     ? undefined
     : ReviewLaneJudgmentSchema.parse(input.judgment);
+  const fullCeilingOverride = input.ceilingOverride === undefined
+    ? undefined
+    : ReviewCeilingOverrideSchema.parse(input.ceilingOverride);
+  if (fullCeilingOverride !== undefined
+    && judgment?.ceilingOverride !== undefined
+    && (fullCeilingOverride.exhaustedPassCount !== judgment.ceilingOverride.exhaustedPassCount
+      || fullCeilingOverride.nextPass !== judgment.ceilingOverride.nextPass)) {
+    throw new Error("Full and targetless review ceiling authority disagree.");
+  }
+  const ceilingOverride = fullCeilingOverride ?? (judgment?.ceilingOverride === undefined
+    ? undefined
+    : {
+        ...judgment.ceilingOverride,
+        target: input.target,
+        lane: "standard" as const,
+      });
   const resolution = resolveReviewPolicy({
     schemaVersion: 1,
     target: input.target,
@@ -852,21 +869,17 @@ export function assertStandardReviewExecutionAdmission(input: {
       ? {}
       : { scopeSelection: { mode: judgment.scopeMode, target: input.target } }),
     ...(judgment?.invocation === undefined ? {} : { invocation: judgment.invocation }),
-    ...(judgment?.ceilingOverride === undefined
-      ? {}
-      : {
-          ceilingOverride: {
-            ...judgment.ceilingOverride,
-            target: input.target,
-            lane: "standard",
-          },
-        }),
+    ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
     ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
   });
   if (resolution.state !== "ready"
     || resolution.nextAction !== input.expectedNextAction) {
+    const reason = resolution.state === "invalid-override"
+      ? `/${resolution.payload.reason}`
+      : "";
     throw new Error(
-      `Review capacity lacks standard-review driver admission (${resolution.state}/${resolution.nextAction}).`,
+      `Review capacity lacks standard-review driver admission `
+      + `(${resolution.state}/${resolution.nextAction}${reason}).`,
     );
   }
   if (resolution.payload.sourceId !== input.expectedSourceId) {

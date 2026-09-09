@@ -110,7 +110,6 @@ function admittedRequest(
 }
 
 const ADMIT_REQUEST = {
-  admitRequestCapacity: async () => undefined,
   admitRequest: async (request: HostedRequestEnvelope, vehicle: HostedProgressVehicle | undefined) => (
     { state: "admitted" as const, admission: admittedRequest(request, vehicle) }
   ),
@@ -184,7 +183,6 @@ describe("hosted review request", () => {
       adapters: [adapter(async () => {
         throw new Error("provider effect ran");
       })],
-      admitRequestCapacity: async () => undefined,
       admitRequest: async () => {
         throw new Error("admission write failed");
       },
@@ -204,7 +202,7 @@ describe("hosted review request", () => {
         providerCalled = true;
         return { kind: "rate-limited" };
       })],
-      admitRequestCapacity: async () => {
+      admitRequest: async () => {
         throw new Error("review pass ceiling requires approval");
       },
     } as Parameters<typeof requestHostedReview>[1])).rejects.toThrow(/ceiling requires approval/u);
@@ -246,7 +244,10 @@ describe("hosted review request", () => {
     }, {
       ...ADMIT_REQUEST,
       adapters: [adapter(async () => ({ kind: "rate-limited" }))],
-      admitRequestCapacity: async (request) => capacity(request.ceilingOverride ?? ceilingOverride),
+      admitRequest: async (request, vehicle) => {
+        capacity(request.ceilingOverride ?? ceilingOverride);
+        return ADMIT_REQUEST.admitRequest(request, vehicle);
+      },
     });
     expect(requested).toMatchObject({ state: "rate-limited", nextAction: "try-next-source" });
 
@@ -261,7 +262,10 @@ describe("hosted review request", () => {
       adapters: [adapter(async () => {
         throw new Error("provider effect ran");
       })],
-      admitRequestCapacity: async (request) => capacity(request.ceilingOverride ?? ceilingOverride),
+      admitRequest: async (request, vehicle) => {
+        capacity(request.ceilingOverride ?? ceilingOverride);
+        return ADMIT_REQUEST.admitRequest(request, vehicle);
+      },
     })).rejects.toThrow(/invalid-override\/stop/u);
   });
 
@@ -277,7 +281,6 @@ describe("hosted review request", () => {
         throw new Error("provider effect ran");
       })],
       errandBinding: ERRAND_BINDING,
-      admitRequestCapacity: async () => undefined,
       admitRequest: async () => {
         throw new Error("admission write failed");
       },
@@ -302,7 +305,6 @@ describe("hosted review request", () => {
         throw new Error("provider effect ran");
       })],
       deliveryMemberLookup: deliveryMemberLookup(),
-      admitRequestCapacity: async () => undefined,
       admitRequest: async () => {
         throw new Error("admission write failed");
       },
@@ -336,7 +338,6 @@ describe("hosted review request", () => {
       adapters: [adapter(async () => {
         throw new Error("provider effect ran");
       })],
-      admitRequestCapacity: async () => undefined,
       admitRequest: async () => ({
         state: "acknowledged",
         handle,
@@ -357,7 +358,6 @@ describe("hosted review request", () => {
       adapters: [adapter(async () => {
         throw new Error("provider effect ran");
       })],
-      admitRequestCapacity: async () => undefined,
       admitRequest: async () => ({ state: "ambiguous-delivery" }),
     })).toMatchObject({ state: "ambiguous-delivery", nextAction: "stop" });
   });
@@ -455,7 +455,7 @@ describe("hosted review request", () => {
         return { kind: "rate-limited" };
       })],
       deliveryMemberLookup: deliveryMemberLookup(),
-      admitRequestCapacity: async () => {
+      admitRequest: async () => {
         throw new Error("review pass ceiling requires approval");
       },
     })).rejects.toThrow(/ceiling requires approval/u);
@@ -482,7 +482,7 @@ describe("hosted review request", () => {
         return { kind: "rate-limited" };
       })],
       deliveryMemberLookup: deliveryMemberLookup(),
-    })).rejects.toThrow(/request-time driver admission/u);
+    })).rejects.toThrow(/capacity-checked durable request admission/u);
     expect(providerCalled).toBe(false);
   });
 

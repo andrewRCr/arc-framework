@@ -2673,6 +2673,120 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
           readFile: (path) => readFile(path, "utf8"),
         }),
       });
+      const authorizeCapacity = async ({
+        progress,
+        logicalPass,
+      }: Parameters<Parameters<typeof recordHostedRequestAdmission>[1]["authorizeCapacity"]>[0]) => {
+        if (deliveryVehicle !== null) {
+          if (context.reservation === null) {
+            throw new Error("Hosted delivery-member review requires a carried reservation.");
+          }
+          const discharge = await createHostedReservationDischargeReader({
+            cwd: root,
+            exec: gitExec,
+            delivery: deliveryMemberLookup,
+            host: new GhDeliveryHostPort(hostedGhRunner),
+          })({
+            reservation: context.reservation,
+            baseRevision: context.reviewTarget.diffBaseSha,
+            approvedHead: request.target.headSha,
+            changeRequest: {
+              repository: request.target.repository,
+              pullRequest: request.target.pullRequest,
+            },
+            vehicle: deliveryVehicle,
+            candidate: context.candidateRecord,
+          });
+          if (discharge.discharged
+            || (request.invocation === undefined && discharge.nextSource !== request.provider)) {
+            throw new Error("Hosted delivery-member request no longer matches the fresh discharge position.");
+          }
+          assertHostedReservationPolicyAdmission({
+            reservation: context.reservation,
+            snapshot: await context.store.readOperationSnapshot(),
+            repositoryId: context.repositoryId,
+            target: request.target,
+            vehicle: deliveryVehicle,
+            provider: request.provider,
+            maxPasses: policy.maxPasses,
+            ...(discharge.requestAttempts === undefined
+              ? {}
+              : { requestAttempts: discharge.requestAttempts }),
+            ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
+            ...(request.ceilingOverride === undefined
+              ? {}
+              : { ceilingOverride: request.ceilingOverride }),
+          });
+          const currentObligation = await readRoutedObligation(
+            root,
+            gitExec,
+            context.statusTarget,
+            request.target.pullRequest,
+            deliveryMemberLookup,
+            undefined,
+            {
+              ...(request.ceilingOverride === undefined
+                ? {}
+                : { ceilingOverride: request.ceilingOverride }),
+              coverage: request.coverage,
+              ...(request.invocation === undefined
+                ? {}
+                : { sourceId: request.invocation.sourceId }),
+            },
+          );
+          if (currentObligation.state !== "review-required"
+            || !("action" in currentObligation)
+            || canonicalize(currentObligation.action) !== canonicalize(request)) {
+            throw new Error(
+              "Hosted delivery-member request no longer matches the current first outstanding delivery member.",
+            );
+          }
+          return;
+        }
+        const standardReview = context.errandBinding?.standardReview
+          ?? context.reservation?.obligation;
+        const sources = context.errandBinding?.sources ?? context.reservation?.sources;
+        if (standardReview === undefined || sources === undefined) {
+          throw new Error("Hosted review capacity lacks standard-review authority.");
+        }
+        const currentAttempts = progress?.attempts.filter((attempt): attempt is typeof attempt & {
+          outcome: Exclude<typeof attempt.outcome, "pending">;
+        } => attempt.outcome !== "pending") ?? [];
+        if (progress?.attempts.some(({ outcome }) => outcome === "pending") === true) {
+          throw new Error("Hosted review capacity is already held by a pending request.");
+        }
+        let lastSettledIndex = -1;
+        currentAttempts.forEach((attempt, index) => {
+          if (attempt.outcome === "settled-findings") lastSettledIndex = index;
+        });
+        const attempts = currentAttempts.slice(lastSettledIndex + 1).map((attempt) => ({
+          sourceId: attempt.sourceId,
+          outcome: attempt.outcome,
+          ...(attempt.chunkSeriesComplete === undefined
+            ? {}
+            : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
+        }));
+        const admission = assertStandardReviewExecutionAdmission({
+          target: request.target,
+          frontlineActive: false,
+          standardReview,
+          completedPasses: progress?.completedPasses ?? 0,
+          attempts,
+          sources,
+          maxPasses: policy.maxPasses,
+          expectedSourceId: request.provider,
+          expectedNextAction: "hosted-request",
+          ...(request.invocation === undefined
+            ? {}
+            : { judgment: { invocation: request.invocation } }),
+          ...(request.ceilingOverride === undefined
+            ? {}
+            : { ceilingOverride: request.ceilingOverride }),
+        });
+        if (admission.payload.pass !== logicalPass) {
+          throw new Error("Hosted review capacity changed before durable admission.");
+        }
+      };
       const result = await requestHostedReview(request, {
         adapters,
         deliveryMemberLookup,
@@ -2687,6 +2801,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             reviewTarget: context.reviewTarget,
             requirement: context.requirement,
             actorIdentity,
+            authorizeCapacity,
             now: new Date().toISOString(),
           },
         ),
@@ -2702,128 +2817,6 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             admission,
             result: concluded,
             now: new Date().toISOString(),
-          });
-        },
-        admitRequestCapacity: async () => {
-          if (deliveryVehicle !== null) {
-            if (context.reservation === null) {
-              throw new Error("Hosted delivery-member review requires a carried reservation.");
-            }
-            const discharge = await createHostedReservationDischargeReader({
-              cwd: root,
-              exec: gitExec,
-              delivery: deliveryMemberLookup,
-              host: new GhDeliveryHostPort(hostedGhRunner),
-            })({
-              reservation: context.reservation,
-              baseRevision: context.reviewTarget.diffBaseSha,
-              approvedHead: request.target.headSha,
-              changeRequest: {
-                repository: request.target.repository,
-                pullRequest: request.target.pullRequest,
-              },
-              vehicle: deliveryVehicle,
-              candidate: context.candidateRecord,
-            });
-            if (discharge.discharged
-              || (request.invocation === undefined && discharge.nextSource !== request.provider)) {
-              throw new Error("Hosted delivery-member request no longer matches the fresh discharge position.");
-            }
-            assertHostedReservationPolicyAdmission({
-              reservation: context.reservation,
-              snapshot: await context.store.readOperationSnapshot(),
-              repositoryId: context.repositoryId,
-              target: request.target,
-              vehicle: deliveryVehicle,
-              provider: request.provider,
-              maxPasses: policy.maxPasses,
-              ...(discharge.requestAttempts === undefined
-                ? {}
-                : { requestAttempts: discharge.requestAttempts }),
-              ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
-              ...(request.ceilingOverride === undefined
-                ? {}
-                : { ceilingOverride: request.ceilingOverride }),
-            });
-            const currentObligation = await readRoutedObligation(
-              root,
-              gitExec,
-              context.statusTarget,
-              request.target.pullRequest,
-              deliveryMemberLookup,
-              undefined,
-              {
-                ...(request.ceilingOverride === undefined
-                  ? {}
-                  : { ceilingOverride: request.ceilingOverride }),
-                coverage: request.coverage,
-                ...(request.invocation === undefined
-                  ? {}
-                  : { sourceId: request.invocation.sourceId }),
-              },
-            );
-            if (currentObligation.state !== "review-required"
-              || !("action" in currentObligation)
-              || canonicalize(currentObligation.action) !== canonicalize(request)) {
-              throw new Error(
-                "Hosted delivery-member request no longer matches the current first outstanding delivery member.",
-              );
-            }
-            return;
-          }
-          const standardReview = context.errandBinding?.standardReview
-            ?? context.reservation?.obligation;
-          const sources = context.errandBinding?.sources ?? context.reservation?.sources;
-          if (standardReview === undefined || sources === undefined) {
-            throw new Error("Hosted review capacity lacks standard-review authority.");
-          }
-          const currentAttempts = context.progress.status === "recorded"
-            ? context.progress.attempts.filter((attempt): attempt is typeof attempt & {
-                outcome: Exclude<typeof attempt.outcome, "pending">;
-              } => attempt.outcome !== "pending")
-            : [];
-          if (context.progress.status === "recorded"
-            && context.progress.attempts.some(({ outcome }) => outcome === "pending")) {
-            throw new Error("Hosted review capacity is already held by a pending request.");
-          }
-          let lastSettledIndex = -1;
-          currentAttempts.forEach((attempt, index) => {
-            if (attempt.outcome === "settled-findings") lastSettledIndex = index;
-          });
-          const attempts = currentAttempts.slice(lastSettledIndex + 1).map((attempt) => ({
-            sourceId: attempt.sourceId,
-            outcome: attempt.outcome,
-            ...(attempt.chunkSeriesComplete === undefined
-              ? {}
-              : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
-          }));
-          assertStandardReviewExecutionAdmission({
-            target: request.target,
-            frontlineActive: false,
-            standardReview,
-            completedPasses: context.progress.status === "recorded"
-              ? context.progress.completedPasses
-              : 0,
-            attempts,
-            sources,
-            maxPasses: policy.maxPasses,
-            expectedSourceId: request.provider,
-            expectedNextAction: "hosted-request",
-            ...((request.invocation === undefined && request.ceilingOverride === undefined)
-              ? {}
-              : {
-                  judgment: {
-                    ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
-                    ...(request.ceilingOverride === undefined
-                      ? {}
-                      : {
-                          ceilingOverride: {
-                            exhaustedPassCount: request.ceilingOverride.exhaustedPassCount,
-                            nextPass: request.ceilingOverride.nextPass,
-                          },
-                        }),
-                  },
-                }),
           });
         },
       });

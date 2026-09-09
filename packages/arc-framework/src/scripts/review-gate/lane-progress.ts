@@ -379,6 +379,11 @@ export async function recordHostedRequestAdmission(
     reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
     requirement: NonNullable<LaneAttempt["hosted"]>["requirement"];
     actorIdentity: string;
+    authorizeCapacity(input: {
+      ownerVersion: number;
+      progress: LaneProgressState | null;
+      logicalPass: number;
+    }): Promise<void>;
     now: string;
   },
 ): Promise<HostedRequestAdmissionDecision> {
@@ -437,6 +442,11 @@ export async function recordHostedRequestAdmission(
         || attempt.outcome === "terminal-failure")
     ));
     if (unresolved !== undefined) return { state: "ambiguous-delivery" };
+    await input.authorizeCapacity({
+      ownerVersion: version,
+      progress: existing,
+      logicalPass,
+    });
     const attempt: LaneAttempt = {
       attemptId: admission.admissionId,
       logicalPass,

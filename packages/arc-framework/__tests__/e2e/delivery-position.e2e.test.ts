@@ -3963,6 +3963,7 @@ describe("arc delivery position", () => {
       reviewTarget: requestedReviewTarget,
       requirement: requestedRequirement,
       actorIdentity: "host-actor-1",
+      authorizeCapacity: async () => undefined,
       now: "2026-08-31T12:44:59.000Z",
     });
     if (admission.state !== "admitted") throw new Error("pending hosted request must be admitted");

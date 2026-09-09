@@ -429,10 +429,6 @@ export async function requestHostedReview(
     adapters: readonly HostedReviewAdapter[];
     errandBinding?: HostedErrandProgressBinding;
     deliveryMemberLookup?: DeliveryMemberLookup;
-    admitRequestCapacity?: (
-      request: HostedRequestEnvelope,
-      progressVehicle: HostedProgressVehicle | undefined,
-    ) => Promise<void>;
     admitRequest?: (
       request: HostedRequestEnvelope,
       progressVehicle: HostedProgressVehicle | undefined,
@@ -480,12 +476,8 @@ export async function requestHostedReview(
     };
   }
 
-  if (dependencies.admitRequestCapacity === undefined) {
-    throw new Error("Hosted review capacity requires request-time driver admission.");
-  }
-  await dependencies.admitRequestCapacity(request, progressVehicle);
   if (dependencies.admitRequest === undefined) {
-    throw new Error("Hosted review dispatch requires durable request admission.");
+    throw new Error("Hosted review dispatch requires capacity-checked durable request admission.");
   }
   const admissionResolution = await dependencies.admitRequest(request, progressVehicle);
   const replay = projectHostedRequestAdmissionResolution(request, admissionResolution);

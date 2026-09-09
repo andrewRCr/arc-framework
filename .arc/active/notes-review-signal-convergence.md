@@ -110,9 +110,75 @@ bound back to the current target. Durable replay remains first and does not spen
 Response performance is complete. Regression tests cover head-only member refusal, pre-effect cap refusal, exact
 targetless override use and non-reuse, wrong-source refusal, local admission under the source lock, and hosted capacity
 checks before every provider path. The correction also passed the public local, Candidate, and Errand E2E paths and the
-complete Tier 2 gate: 869 test files passed with one skipped and 11,576 tests passed with one skipped. The previously
-authorized fresh full-rubric Pass 2 may run once the exact correction commit exists; criterion 4 remains unresolved
-until that independent pass and the repaired member criteria walk complete.
+complete Tier 2 gate: 869 test files passed with one skipped and 11,576 tests passed with one skipped.
+
+**Pass 2 of 2 — four confirmed major findings; non-converged. Stop reason: cap exhausted.** The pass reviewed the
+complete Member 2 boundary through `02d08366854c352a37f432bc9c6af295d163f8a5`. One fresh full-rubric Pass 3 is
+conditionally authorized after all four approved responses are complete, the correction gates pass, and the exact
+correction commit exists. That authority names Pass 3 only and is consumed when it launches.
+
+```yaml
+findings:
+  - title: "Settled local findings replay the completed producer instead of admitting the next pass"
+    severity: major
+    locus: "packages/arc-framework/src/scripts/review-gate/runtime/local-prepare.ts"
+    evidence: >-
+      Non-delivery replay selected the latest completed terminal local attempt before policy admission, including a
+      settled-findings attempt whose response was already complete, so a fresh same-target request returned the old
+      producer rather than a distinct next logical pass.
+  - title: "Local failure retry is blocked by its own terminal-failure observation"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/scripts/review-gate/runtime/local-prepare.ts` and
+      `packages/arc-framework/src/scripts/review-gate/policy/review-policy-driver.ts`
+    evidence: >-
+      The non-delivery retry path sent the failed native attempt back to the policy driver. Terminal failure is a
+      non-fall-through blocking outcome, so the production driver stopped before allocating the same logical pass with
+      an advanced native retry generation.
+  - title: "Hosted non-delivery admission can rebind foreign ceiling authority"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/handlers/review.ts` and
+      `packages/arc-framework/src/scripts/review-gate/policy/review-policy-driver.ts`
+    evidence: >-
+      The hosted handler projected a full ceiling override down to its two counts and the helper rebound those counts
+      to the current request target and standard lane, discarding the override's original target and lane authority.
+  - title: "Hosted capacity validation is not atomic with durable admission"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/handlers/review.ts`,
+      `packages/arc-framework/src/scripts/review-gate/hosted/request.ts`, and
+      `packages/arc-framework/src/scripts/review-gate/lane-progress.ts`
+    evidence: >-
+      The handler validated capacity and then the durable admission routine reread progress and calculated the next
+      pass independently. An intervening terminal completion could therefore exhaust the ceiling while the later
+      write still admitted the newly advanced ordinal.
+withstood:
+  - Native target bindings, lane lineage, and shared-head sibling isolation remain exact.
+  - Hosted replay precedes current policy and actor resolution, and acknowledged versus unacknowledged delivery keeps
+    its stored await or ambiguous-stop semantics.
+  - Logical terminal-pass counting remains unique and separate from effective complete-coverage accounting.
+verdict: >-
+  Member 2 remains unresolved at the repaired boundary: same-target local continuation, native retry, override
+  authority, and hosted capacity/write atomicity each admit or block a producer inconsistently with criterion 4.
+```
+
+Primary source verification confirmed all four findings. **Disposition P2-F1 — `fix` (approved and applied):**
+non-delivery replay excludes a settled-findings producer, so completed response work reaches a distinct next logical
+pass while pending, delivery-bound, and other terminal replay semantics remain unchanged. **P2-F2 — `fix` (approved
+and applied):** a current local terminal failure re-enters the live driver without treating failed generations of that
+same source/pass as a competing policy outcome, then requires the returned ordinal to match before advancing only the
+native generation. **P2-F3 — `fix` (approved and applied):** the shared execution-admission helper accepts and validates
+the complete target/lane-bound override; targetless local judgment remains a separate invocation-only compatibility
+input and cannot overwrite full authority. **P2-F4 — `fix` (approved and applied):** hosted capacity authorization now
+runs inside the version-checked lane-owner transition against its exact version, progress, and proposed ordinal;
+version conflict rereads and reauthorizes before any provider effect.
+
+Fail-first regressions cover distinct same-target continuation, production-driver retry across repeated failed
+generations, foreign target/lane override rejection, and an intervening owner transition that forces reauthorization
+and cap refusal. The correction passed the complete Tier 2 gate: 869 test files passed with one skipped and 11,579
+tests passed with one skipped. Criterion 4 remains unresolved until the correction commit, the single authorized Pass
+3, and the repaired member criteria walk complete.
 
 ## Member 1 criteria report — 2026-09-07
 

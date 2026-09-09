@@ -1059,6 +1059,34 @@ describe("standard review execution admission", () => {
     })).toThrow(/invalid-override\/stop/u);
   });
 
+  it("does not rebind full ceiling authority onto another target or lane", () => {
+    const judgment = {
+      ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+    } as const;
+    const foreignTarget = {
+      target: { ...target, headSha: "c".repeat(40) },
+      lane: "standard" as const,
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    };
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 2,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment,
+      ceilingOverride: foreignTarget,
+    } as Parameters<typeof assertStandardReviewExecutionAdmission>[0])).toThrow(/target-mismatch/u);
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 2,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment,
+      ceilingOverride: { ...foreignTarget, target, lane: "frontline" },
+    } as Parameters<typeof assertStandardReviewExecutionAdmission>[0])).toThrow(/lane-mismatch/u);
+  });
+
   it("refuses a public producer that is not the driver's selected source", () => {
     expect(() => assertStandardReviewExecutionAdmission({
       ...base,

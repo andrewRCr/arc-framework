@@ -7,12 +7,17 @@ import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/
 import type { LocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import { projectLocalReviewGuidance } from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { DEFAULT_LOCAL_REVIEW_POLICY_BINDING } from "../../../../../src/scripts/review-gate/policy/local-review-policy.js";
+import { assertStandardReviewExecutionAdmission } from
+  "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import {
   LocalPrepareRequestSchema,
   prepareLocalReview,
 } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
-import { recordLaneAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import {
+  recordLaneAttempt,
+  settleLaneAttempt,
+} from "../../../../../src/scripts/review-gate/lane-progress.js";
 
 const objectId = (character: string): string => character.repeat(40);
 const routingFacts = {
@@ -621,7 +626,34 @@ describe("local review preparation request", () => {
 
       it("advances native retry generation after a failed local attempt", async () => {
         const context = fixture();
-        const first = await prepareLocalReview(request, context.dependencies);
+        const validatePolicyAdmission: Parameters<
+          typeof prepareLocalReview
+        >[1]["validatePolicyAdmission"] = async ({
+          standardReview,
+          completedPasses,
+          attempts,
+          judgment,
+        }) => assertStandardReviewExecutionAdmission({
+          target: {
+            repository: "owner/repository",
+            pullRequest: null,
+            headSha: context.changeSetTarget.headSha,
+          },
+          frontlineActive: false,
+          standardReview,
+          completedPasses,
+          attempts,
+          sources: ["delegated-agent"],
+          maxPasses: 2,
+          expectedSourceId: "delegated-agent",
+          expectedNextAction: "local-prepare",
+          judgment: {
+            ...judgment,
+            invocation: { mode: "force", sourceId: "delegated-agent" },
+          },
+        }).payload.pass;
+        const dependencies = { ...context.dependencies, validatePolicyAdmission };
+        const first = await prepareLocalReview(request, dependencies);
         const state = context.published();
         const owner = context.laneProgress();
         if (first.state !== "ready"
@@ -647,10 +679,89 @@ describe("local review preparation request", () => {
           now: "2026-08-06T18:00:00Z",
         });
 
-        const retry = await prepareLocalReview(request, context.dependencies);
+        const retry = await prepareLocalReview(request, dependencies);
         if (retry.state !== "ready") throw new Error("local retry was not prepared");
         expect(retry.payload.operationId).not.toBe(first.payload.operationId);
         expect(retry.payload.request).toMatchObject({ logicalPass: 1, generation: 1 });
+
+        const retryState = context.published();
+        const retryOwner = context.laneProgress();
+        const retryAttempt = retryOwner?.kind === "lane-progress"
+          ? retryOwner.attempts.find(({ attemptId }) => attemptId === retry.payload.operationId)
+          : undefined;
+        if (retryState?.kind !== "local-review" || retryAttempt?.local === undefined) {
+          throw new Error("local retry admission was not persisted");
+        }
+        await recordLaneAttempt(context.dependencies.operationStore, {
+          lane: "standard",
+          repositoryId: retryState.repositoryId,
+          changeRequestId: null,
+          headSha: retryState.target.headSha,
+          lineage: retryState.lineage,
+          logicalPass: retryState.logicalPass,
+          retryGeneration: retryState.retryGeneration,
+          attemptId: retryState.operationId,
+          sourceId: retryState.laneSourceId,
+          outcome: "terminal-failure",
+          consumedPass: false,
+          advancePendingAttempt: true,
+          local: retryAttempt.local,
+          now: "2026-08-06T18:01:00Z",
+        });
+
+        const secondRetry = await prepareLocalReview(request, dependencies);
+        expect(secondRetry).toMatchObject({
+          state: "ready",
+          payload: { request: { logicalPass: 1, generation: 2 } },
+        });
+      });
+
+      it("admits a distinct same-target pass after findings are settled", async () => {
+        const context = fixture();
+        const first = await prepareLocalReview(request, context.dependencies);
+        const state = context.published();
+        const owner = context.laneProgress();
+        if (first.state !== "ready"
+          || state?.kind !== "local-review"
+          || owner?.kind !== "lane-progress"
+          || owner.attempts[0]?.local === undefined) {
+          throw new Error("first local attempt was not admitted");
+        }
+        await recordLaneAttempt(context.dependencies.operationStore, {
+          lane: "standard",
+          repositoryId: state.repositoryId,
+          changeRequestId: null,
+          headSha: state.target.headSha,
+          lineage: state.lineage,
+          logicalPass: state.logicalPass,
+          retryGeneration: state.retryGeneration,
+          attemptId: state.operationId,
+          sourceId: state.laneSourceId,
+          outcome: "findings",
+          consumedPass: true,
+          chunkSeriesComplete: true,
+          advancePendingAttempt: true,
+          local: owner.attempts[0].local,
+          now: "2026-08-06T18:00:00Z",
+        });
+        await settleLaneAttempt(context.dependencies.operationStore, {
+          lane: "standard",
+          repositoryId: state.repositoryId,
+          headSha: state.target.headSha,
+          lineage: state.lineage,
+          attemptId: state.operationId,
+          now: "2026-08-06T18:01:00Z",
+        });
+        context.validatePolicyAdmission.mockResolvedValueOnce(2);
+
+        const next = await prepareLocalReview(request, context.dependencies);
+
+        expect(next).toMatchObject({
+          state: "ready",
+          payload: { request: { logicalPass: 2, generation: 0 } },
+        });
+        if (next.state !== "ready") throw new Error("next local pass was not prepared");
+        expect(next.payload.operationId).not.toBe(first.payload.operationId);
       });
 
       it("holds distinct operation identities for a member and a work unit in one repository", async () => {

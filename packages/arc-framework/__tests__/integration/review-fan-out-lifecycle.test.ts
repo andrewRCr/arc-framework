@@ -296,6 +296,7 @@ async function requestThroughHandler(
         reviewTarget,
         requirement,
         actorIdentity: "andrew",
+        authorizeCapacity: async () => undefined,
         now: "2026-09-01T09:59:00.000Z",
       }),
       acknowledgeRequest: async (admission, handle) => {
@@ -312,7 +313,6 @@ async function requestThroughHandler(
           now: "2026-09-01T09:59:01.000Z",
         });
       },
-      admitRequestCapacity: async () => undefined,
     }),
     write: (text) => output.push(text),
     setExitCode: (code) => exitCodes.push(code),

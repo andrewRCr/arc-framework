@@ -212,6 +212,8 @@ async function replayPendingLocalAdmission(input: {
     .filter((attempt) => attempt.terminalProducer
       && attempt.local !== undefined
       && attempt.headSha === input.target.headSha
+      && (input.request.deliveryAdmission !== undefined
+        || attempt.outcome !== "settled-findings")
       && (input.request.deliveryAdmission === undefined
         || attempt.logicalPass === input.request.deliveryAdmission.pass))
     .sort((left, right) => right.logicalPass - left.logicalPass) ?? [];
@@ -474,7 +476,20 @@ export async function prepareLocalReview(
     currentAttempts.forEach((attempt, index) => {
       if (attempt.outcome === "settled-findings") lastSettledIndex = index;
     });
-    const policyAttempts = currentAttempts.slice(lastSettledIndex + 1).map((attempt) => ({
+    const activeAttempts = currentAttempts.slice(lastSettledIndex + 1);
+    const retryableLocalFailure = activeAttempts.at(-1);
+    const retryingLocalFailure = retryableLocalFailure?.outcome === "terminal-failure"
+      && retryableLocalFailure.local !== undefined
+      && retryableLocalFailure.sourceId === dependencies.laneSourceId
+      ? retryableLocalFailure
+      : undefined;
+    const policyAttempts = activeAttempts.filter((attempt) => (
+      retryingLocalFailure === undefined
+      || attempt.outcome !== "terminal-failure"
+      || attempt.local === undefined
+      || attempt.sourceId !== dependencies.laneSourceId
+      || attempt.logicalPass !== retryingLocalFailure.logicalPass
+    )).map((attempt) => ({
       sourceId: attempt.sourceId,
       outcome: attempt.outcome,
       ...(attempt.chunkSeriesComplete === undefined
@@ -489,6 +504,10 @@ export async function prepareLocalReview(
       attempts: policyAttempts,
       ...(request.policyJudgment === undefined ? {} : { judgment: request.policyJudgment }),
     });
+    if (retryingLocalFailure !== undefined
+      && logicalPass !== retryingLocalFailure.logicalPass) {
+      throw new LocalPrepareCommandError("local review retry changed its admitted logical pass");
+    }
     const priorRetryGenerations = owner?.attempts
       .filter((attempt) => attempt.logicalPass === logicalPass
         && attempt.sourceId === dependencies.laneSourceId

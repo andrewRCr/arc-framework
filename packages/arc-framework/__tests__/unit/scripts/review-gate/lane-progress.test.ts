@@ -54,7 +54,7 @@ function createStore() {
     },
     publishOperation: async (next: ReviewOperationState, expectedVersion: number) => {
       const current = records.get(next.operationId)?.version ?? 0;
-      if (expectedVersion !== current + store.drift) throw new Error("operation-state-version-conflict");
+      if (expectedVersion !== current + store.drift) throw new Error("version-conflict");
       const version = current + 1;
       records.set(next.operationId, { version, state: next });
       return { version };
@@ -416,6 +416,7 @@ const hostedContext = {
   reviewTarget: hostedReviewTarget,
   requirement: hostedRequirement,
   actorIdentity: "github-user-1",
+  authorizeCapacity: async () => undefined,
 };
 const hostedAdmission = createHostedAdmission({
   schemaVersion: 1,
@@ -459,6 +460,7 @@ const deliveryHostedContext = {
   reviewTarget: deliveryHostedReviewTarget,
   requirement: deliveryHostedRequirement,
   actorIdentity: "github-user-1",
+  authorizeCapacity: async () => undefined,
 };
 const deliveryAdmission = createHostedAdmission({
   schemaVersion: 1,
@@ -503,6 +505,7 @@ async function seedAcknowledgedRequest(
     reviewTarget: admission.reviewTarget,
     requirement: admission.requirement,
     actorIdentity: admission.actorIdentity,
+    authorizeCapacity: async () => undefined,
     now: "2026-08-15T11:59:00Z",
   });
   if (decision.state !== "admitted") throw new Error("expected hosted admission");
@@ -514,6 +517,50 @@ async function seedAcknowledgedRequest(
 }
 
 describe("hosted await lane recording", () => {
+  it("revalidates capacity after an intervening owner transition before admission", async () => {
+    const store = createStore();
+    let authorizationAttempts = 0;
+
+    await expect(recordHostedRequestAdmission(store, {
+      repositoryId: "repo-1",
+      lineage: hostedAdmission.lineage,
+      request: {
+        schemaVersion: 1,
+        target: handle.target,
+        provider: handle.provider,
+        coverage: handle.requestedCoverage,
+      },
+      ...hostedContext,
+      authorizeCapacity: async ({ logicalPass }: { logicalPass: number }) => {
+        authorizationAttempts += 1;
+        if (authorizationAttempts === 1) {
+          await recordLaneAttempt(store, {
+            lane: "standard",
+            repositoryId: "repo-1",
+            changeRequestId: "pull/42",
+            headSha: handle.target.headSha,
+            lineage: hostedAdmission.lineage,
+            attemptId: "concurrent-terminal-producer",
+            sourceId: handle.provider,
+            outcome: "clean",
+            consumedPass: true,
+            chunkSeriesComplete: true,
+            now: "2026-08-15T11:59:59Z",
+          });
+          return;
+        }
+        if (logicalPass > 1) throw new Error("review pass ceiling requires approval");
+      },
+      now: "2026-08-15T12:00:00Z",
+    })).rejects.toThrow(/ceiling requires approval/u);
+    expect(authorizationAttempts).toBe(2);
+    expect(store.state).toMatchObject({
+      kind: "lane-progress",
+      completedPasses: 1,
+      attempts: [{ attemptId: "concurrent-terminal-producer" }],
+    });
+  });
+
   it("persists an unacknowledged hosted admission in the lineage owner", async () => {
     const store = createStore();
     const decision = await recordHostedRequestAdmission(store, {
