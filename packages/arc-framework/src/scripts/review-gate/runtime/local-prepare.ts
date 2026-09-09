@@ -11,6 +11,13 @@ import type { ReviewMethodActivity, ReviewAssuranceInput } from "../policy/assur
 import { resolveReviewRouting } from "../policy/routing.js";
 import { LocalReviewRoutingInputSchema } from "../policy/routing-schema.js";
 import { projectStandardReviewObligation } from "../policy/standard-review-projection.js";
+import type { StandardReviewObligationProjection } from
+  "../policy/standard-review-projection-schema.js";
+import {
+  ReviewLaneJudgmentSchema,
+  type ReviewLaneJudgment,
+  type ReviewPolicyCommandRequest,
+} from "../policy/review-policy-driver.js";
 import { createReviewRequirement } from "../core/gate-contract-v2.js";
 import {
   GitObjectIdSchema,
@@ -75,7 +82,16 @@ export const LocalPrepareRequestSchema = z.strictObject({
   memberHeadObjectId: GitObjectIdSchema.optional(),
   /** Exact standard-lane admission returned by delivery-member status. */
   deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
+  /** Caller-held bounded judgment for a non-delivery standard-lane admission. */
+  policyJudgment: ReviewLaneJudgmentSchema.optional(),
 }).superRefine((request, context) => {
+  if (request.memberHeadObjectId !== undefined && request.deliveryAdmission === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["memberHeadObjectId"],
+      message: "a member selector requires the exact delivery admission",
+    });
+  }
   if (request.memberHeadObjectId !== undefined
     && request.deliveryAdmission !== undefined
     && request.memberHeadObjectId !== request.deliveryAdmission.vehicle.head) {
@@ -83,6 +99,13 @@ export const LocalPrepareRequestSchema = z.strictObject({
       code: "custom",
       path: ["memberHeadObjectId"],
       message: "member selector must match the exact delivery admission",
+    });
+  }
+  if (request.deliveryAdmission !== undefined && request.policyJudgment !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["policyJudgment"],
+      message: "delivery admission already carries the exact standard-lane judgment",
     });
   }
 });
@@ -126,6 +149,14 @@ export interface LocalPrepareDependencies {
     binding: LocalReviewPolicyBinding,
     authority: LocalReviewAuthority,
   ): void;
+  validatePolicyAdmission(input: {
+    repositoryId: string;
+    target: ReviewTarget;
+    standardReview: StandardReviewObligationProjection;
+    completedPasses: number;
+    attempts: ReviewPolicyCommandRequest["attempts"];
+    judgment?: ReviewLaneJudgment;
+  }): Promise<number>;
   validateDeliveryAdmission(admission: DeliveryLocalReviewAdmission): Promise<void>;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
@@ -359,21 +390,6 @@ export async function prepareLocalReview(
   }));
   if (pendingReplay !== null) return pendingReplay;
   await dependencies.sweep();
-  const owner = await readLaneProgressOwner(dependencies.operationStore, {
-    lane: "standard",
-    repositoryId,
-    headSha: target.headSha,
-    lineage,
-  });
-  const logicalPass = request.deliveryAdmission?.pass ?? (owner?.completedPasses ?? 0) + 1;
-  const priorRetryGenerations = owner?.attempts
-    .filter((attempt) => attempt.logicalPass === logicalPass
-      && attempt.sourceId === dependencies.laneSourceId
-      && attempt.local !== undefined)
-    .map(({ retryGeneration }) => retryGeneration) ?? [];
-  const retryGeneration = priorRetryGenerations.length === 0
-    ? 0
-    : Math.max(...priorRetryGenerations) + 1;
   const assurance = await dependencies.composeAssurance(authority);
   if (assurance.status === "refused") {
     return LocalPrepareEnvelopeSchema.parse({
@@ -423,20 +439,6 @@ export async function prepareLocalReview(
     initialAdmission: policy.binding.initialAdmission,
   });
   if (requirement === null) throw new Error("non-exempt local review produced no requirement");
-  const admissionInput = {
-    target,
-    requirement,
-    authority,
-    laneSourceId: dependencies.laneSourceId,
-    policyBindingDigest: policy.binding.bindingDigest,
-    requestMechanism: policy.binding.requestMechanism,
-    lineage,
-    logicalPass,
-    retryGeneration,
-    ...(request.deliveryAdmission === undefined
-      ? {}
-      : { deliveryAdmission: request.deliveryAdmission }),
-  };
   const confirmation = await dependencies.confirmTarget(target);
   if (confirmation.state === "stale-target") {
     return LocalPrepareEnvelopeSchema.parse({
@@ -459,6 +461,56 @@ export async function prepareLocalReview(
     await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
   }
   const settled = await dependencies.withSourceLock(async () => {
+    const owner = await readLaneProgressOwner(dependencies.operationStore, {
+      lane: "standard",
+      repositoryId,
+      headSha: target.headSha,
+      lineage,
+    });
+    const currentAttempts = owner?.attempts.filter((attempt): attempt is typeof attempt & {
+      outcome: Exclude<typeof attempt.outcome, "pending">;
+    } => attempt.headSha === target.headSha && attempt.outcome !== "pending") ?? [];
+    let lastSettledIndex = -1;
+    currentAttempts.forEach((attempt, index) => {
+      if (attempt.outcome === "settled-findings") lastSettledIndex = index;
+    });
+    const policyAttempts = currentAttempts.slice(lastSettledIndex + 1).map((attempt) => ({
+      sourceId: attempt.sourceId,
+      outcome: attempt.outcome,
+      ...(attempt.chunkSeriesComplete === undefined
+        ? {}
+        : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
+    }));
+    const logicalPass = request.deliveryAdmission?.pass ?? await dependencies.validatePolicyAdmission({
+      repositoryId,
+      target,
+      standardReview: projection,
+      completedPasses: owner?.completedPasses ?? 0,
+      attempts: policyAttempts,
+      ...(request.policyJudgment === undefined ? {} : { judgment: request.policyJudgment }),
+    });
+    const priorRetryGenerations = owner?.attempts
+      .filter((attempt) => attempt.logicalPass === logicalPass
+        && attempt.sourceId === dependencies.laneSourceId
+        && attempt.local !== undefined)
+      .map(({ retryGeneration }) => retryGeneration) ?? [];
+    const retryGeneration = priorRetryGenerations.length === 0
+      ? 0
+      : Math.max(...priorRetryGenerations) + 1;
+    const admissionInput = {
+      target,
+      requirement,
+      authority,
+      laneSourceId: dependencies.laneSourceId,
+      policyBindingDigest: policy.binding.bindingDigest,
+      requestMechanism: policy.binding.requestMechanism,
+      lineage,
+      logicalPass,
+      retryGeneration,
+      ...(request.deliveryAdmission === undefined
+        ? {}
+        : { deliveryAdmission: request.deliveryAdmission }),
+    };
     let admitted:
       | {
           state: "prepared";
@@ -589,6 +641,12 @@ export async function prepareLocalReview(
         if (!isReviewVersionConflict(error)) throw error;
       }
     }
+    if (admitted?.state === "prepared") {
+      await recordLocalPendingAttempt(dependencies.operationStore, {
+        state: admitted.preparation.state,
+        now: dependencies.now(),
+      });
+    }
     return admitted;
   });
   if (settled === null) throw new Error("local review preparation exceeded version-conflict retry attempts");
@@ -607,10 +665,6 @@ export async function prepareLocalReview(
     });
   }
   const { resolution, preparation } = settled;
-  await recordLocalPendingAttempt(dependencies.operationStore, {
-    state: preparation.state,
-    now: dependencies.now(),
-  });
   const sourcePayload = createLocalReviewSourcePayload(resolution, preparation);
   return LocalPrepareEnvelopeSchema.parse({
     schemaVersion: 1,

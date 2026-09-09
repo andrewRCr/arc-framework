@@ -1,5 +1,7 @@
 /** Production adapters for the local review prepare command. */
 
+import { readFile } from "node:fs/promises";
+
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
@@ -57,6 +59,12 @@ import { resolveReviewStatus } from "../status.js";
 import { createReviewStatusPort } from "../status-composition.js";
 import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
 import { LaneSubjectLineageSchema } from "../core/lane-admission.js";
+import { createLocalFrontlineSourcePreferenceReader } from
+  "../hosts/local/frontline-source-preferences.js";
+import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
+import { resolveChangeRequest } from "../change-request.js";
+import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
+import { assertStandardReviewExecutionAdmission } from "../policy/review-policy-driver.js";
 
 const LOCAL_STANDARD_SOURCE = {
   sourceKind: "agent",
@@ -204,6 +212,70 @@ export function createLocalPrepareDependencies(input: {
         source: LOCAL_STANDARD_SOURCE,
         runtimeKind: authority.attestationRuntimeKind,
       });
+    },
+    validatePolicyAdmission: async ({
+      repositoryId,
+      target,
+      standardReview,
+      completedPasses,
+      attempts,
+      judgment,
+    }) => {
+      const settings = (await readConfigSettings(input.cwd)).settings;
+      const policy = await resolveConfiguredLanePolicy({
+        lane: "standard",
+        settings,
+        preferences: createLocalFrontlineSourcePreferenceReader({
+          cwd: input.cwd,
+          exec: input.exec,
+          readFile: (path) => readFile(path, "utf8"),
+        }),
+      });
+      const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+        cwd: input.cwd,
+      })).stdout.trim();
+      if (branch === "" || branch === "HEAD") {
+        throw new Error("Local review requires an attached originating branch.");
+      }
+      const changeRequest = await resolveChangeRequest({
+        headRef: branch,
+        headSha: target.headSha,
+        baseRef: settings["branch.base"],
+      }, createGhChangeRequestResolutionPort(input.exec, input.cwd));
+      if (changeRequest.targetRef !== null && (changeRequest.state === "blocked"
+        || changeRequest.state === "ambiguous")) {
+        throw new Error("Local review could not resolve exact change-request authority.");
+      }
+      const policyTarget = changeRequest.targetRef === null
+        ? {
+            repository: `local/${repositoryId}`,
+            pullRequest: null,
+            headSha: target.headSha,
+          }
+        : {
+            repository: changeRequest.targetRef.repository,
+            pullRequest: changeRequest.state === "open" ? changeRequest.candidate.number : null,
+            headSha: target.headSha,
+          };
+      const resolution = assertStandardReviewExecutionAdmission({
+        target: policyTarget,
+        frontlineActive: false,
+        standardReview,
+        completedPasses,
+        attempts,
+        sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
+        maxPasses: policy.maxPasses,
+        expectedSourceId: "delegated-agent",
+        expectedNextAction: "local-prepare",
+        judgment: {
+          ...judgment,
+          invocation: judgment?.invocation ?? {
+            mode: "force",
+            sourceId: "delegated-agent",
+          },
+        },
+      });
+      return resolution.payload.pass;
     },
     validateDeliveryAdmission: async (admission) => {
       const current = await resolveReviewStatus({

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveReviewPolicy } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import {
+  assertStandardReviewExecutionAdmission,
+  resolveReviewPolicy,
+} from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
 const target = {
   repository: "arc-framework/example",
@@ -1014,5 +1017,54 @@ describe("resolveReviewPolicy", () => {
       maxPasses: 2,
       attempts,
     })).toThrow();
+  });
+});
+
+describe("standard review execution admission", () => {
+  const base = {
+    target,
+    frontlineActive: false,
+    standardReview,
+    attempts: [],
+    sources: ["codex-pr", "delegated-agent"],
+    maxPasses: 2,
+  } as const;
+
+  it("refuses an exhausted producer admission without exact one-pass authority", () => {
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 2,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+    })).toThrow(/approval-required\/obtain-ceiling-override/u);
+  });
+
+  it("binds a targetless ceiling judgment to exactly its named next pass", () => {
+    const judgment = {
+      ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+    } as const;
+    expect(assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 2,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment,
+    }).payload).toMatchObject({ pass: 3, ceilingOverrideApplied: true });
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 3,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment,
+    })).toThrow(/invalid-override\/stop/u);
+  });
+
+  it("refuses a public producer that is not the driver's selected source", () => {
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 0,
+      expectedSourceId: "delegated-agent",
+      expectedNextAction: "hosted-request",
+    })).toThrow(/not driver-admissible/u);
   });
 });

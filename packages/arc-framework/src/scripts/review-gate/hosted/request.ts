@@ -240,20 +240,6 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
   }).readonly().optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
 }).superRefine((request, context) => {
-  if (request.ceilingOverride !== undefined && request.vehicle?.kind !== "delivery-member") {
-    context.addIssue({
-      code: "custom",
-      path: ["ceilingOverride"],
-      message: "a hosted ceiling override requires one exact delivery-member vehicle",
-    });
-  }
-  if (request.invocation !== undefined && request.vehicle?.kind !== "delivery-member") {
-    context.addIssue({
-      code: "custom",
-      path: ["invocation"],
-      message: "a hosted source invocation requires one exact delivery-member vehicle",
-    });
-  }
   if (request.invocation !== undefined && request.invocation.sourceId !== request.provider) {
     context.addIssue({
       code: "custom",
@@ -443,8 +429,9 @@ export async function requestHostedReview(
     adapters: readonly HostedReviewAdapter[];
     errandBinding?: HostedErrandProgressBinding;
     deliveryMemberLookup?: DeliveryMemberLookup;
-    admitDeliveryMemberRequest?: (
-      request: HostedRequestEnvelope & { vehicle: HostedDeliveryMemberRequestVehicle },
+    admitRequestCapacity?: (
+      request: HostedRequestEnvelope,
+      progressVehicle: HostedProgressVehicle | undefined,
     ) => Promise<void>;
     admitRequest?: (
       request: HostedRequestEnvelope,
@@ -493,12 +480,10 @@ export async function requestHostedReview(
     };
   }
 
-  if (request.vehicle?.kind === "delivery-member") {
-    if (dependencies.admitDeliveryMemberRequest === undefined) {
-      throw new Error("Hosted delivery-member capacity requires request-time driver admission.");
-    }
-    await dependencies.admitDeliveryMemberRequest({ ...request, vehicle: request.vehicle });
+  if (dependencies.admitRequestCapacity === undefined) {
+    throw new Error("Hosted review capacity requires request-time driver admission.");
   }
+  await dependencies.admitRequestCapacity(request, progressVehicle);
   if (dependencies.admitRequest === undefined) {
     throw new Error("Hosted review dispatch requires durable request admission.");
   }

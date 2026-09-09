@@ -227,6 +227,20 @@ identity; native bindings preserve exactness without a generic persisted executi
   preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
   markers unchanged; route any corrective work through normal task review, not this verifier.
 
+- _Forward correction:_ The approved first adversarial pass found that public local and non-delivery hosted actions can
+  allocate a fresh pass without revalidating the configured ceiling at the capacity-spend boundary.
+
+    - `[x]` **2.6.R.a Enforce cap authority at every native public producer admission**
+
+        - Local delivery members now require and revalidate their exact status-issued admission. Other local and every
+          hosted vehicle re-run the standard-lane driver from live progress and configuration before fresh producer
+          effects; replay stays first, and an override binds only its exact exhausted count and next pass.
+
+    - `[ ]` **2.6.R.b Revalidate the repaired Member 2 boundary** — validate criteria at member scope
+
+        - Update the recorded Member 2 span and criterion evidence after the correction gates pass, then consume the
+          conditionally authorized fresh full-rubric Pass 2. Leave Success Criteria markers unchanged.
+
 ## **Phase 3:** Seal terminal evidence and bind approval to its producer
 
 **Delivery member:** 3 — `sealed-review-evidence`

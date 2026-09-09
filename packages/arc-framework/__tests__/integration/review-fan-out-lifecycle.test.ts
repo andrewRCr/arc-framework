@@ -312,9 +312,7 @@ async function requestThroughHandler(
           now: "2026-09-01T09:59:01.000Z",
         });
       },
-      ...(request.vehicle?.kind !== "delivery-member"
-        ? {}
-        : { admitDeliveryMemberRequest: async () => undefined }),
+      admitRequestCapacity: async () => undefined,
     }),
     write: (text) => output.push(text),
     setExitCode: (code) => exitCodes.push(code),

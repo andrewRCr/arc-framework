@@ -14,6 +14,11 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  assertStandardReviewExecutionAdmission,
+  type ReviewCeilingOverride,
+} from
+  "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
 const HEAD = "a".repeat(40);
 const STANDARD_REVIEW = {
@@ -105,6 +110,7 @@ function admittedRequest(
 }
 
 const ADMIT_REQUEST = {
+  admitRequestCapacity: async () => undefined,
   admitRequest: async (request: HostedRequestEnvelope, vehicle: HostedProgressVehicle | undefined) => (
     { state: "admitted" as const, admission: admittedRequest(request, vehicle) }
   ),
@@ -178,10 +184,85 @@ describe("hosted review request", () => {
       adapters: [adapter(async () => {
         throw new Error("provider effect ran");
       })],
+      admitRequestCapacity: async () => undefined,
       admitRequest: async () => {
         throw new Error("admission write failed");
       },
     })).rejects.toThrow("admission write failed");
+  });
+
+  it("does not invoke a singleton provider when live capacity admission fails", async () => {
+    let providerCalled = false;
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+    }, {
+      ...ADMIT_REQUEST,
+      adapters: [adapter(async () => {
+        providerCalled = true;
+        return { kind: "rate-limited" };
+      })],
+      admitRequestCapacity: async () => {
+        throw new Error("review pass ceiling requires approval");
+      },
+    } as Parameters<typeof requestHostedReview>[1])).rejects.toThrow(/ceiling requires approval/u);
+    expect(providerCalled).toBe(false);
+  });
+
+  it("invokes a singleton provider for only the exact driver-approved override pass", async () => {
+    const ceilingOverride = {
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      lane: "standard" as const,
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    };
+    const capacity = (override: ReviewCeilingOverride) => {
+      assertStandardReviewExecutionAdmission({
+        target: override.target,
+        frontlineActive: false,
+        standardReview: STANDARD_REVIEW,
+        completedPasses: 2,
+        attempts: [],
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        expectedSourceId: "coderabbit-pr",
+        expectedNextAction: "hosted-request",
+        judgment: {
+          ceilingOverride: {
+            exhaustedPassCount: override.exhaustedPassCount,
+            nextPass: override.nextPass,
+          },
+        },
+      });
+    };
+    const requested = await requestHostedReview({
+      schemaVersion: 1,
+      target: ceilingOverride.target,
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      ceilingOverride,
+    }, {
+      ...ADMIT_REQUEST,
+      adapters: [adapter(async () => ({ kind: "rate-limited" }))],
+      admitRequestCapacity: async (request) => capacity(request.ceilingOverride ?? ceilingOverride),
+    });
+    expect(requested).toMatchObject({ state: "rate-limited", nextAction: "try-next-source" });
+
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: ceilingOverride.target,
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      ceilingOverride: { ...ceilingOverride, nextPass: 4 },
+    }, {
+      ...ADMIT_REQUEST,
+      adapters: [adapter(async () => {
+        throw new Error("provider effect ran");
+      })],
+      admitRequestCapacity: async (request) => capacity(request.ceilingOverride ?? ceilingOverride),
+    })).rejects.toThrow(/invalid-override\/stop/u);
   });
 
   it("does not invoke an Errand provider when durable admission fails", async () => {
@@ -196,6 +277,7 @@ describe("hosted review request", () => {
         throw new Error("provider effect ran");
       })],
       errandBinding: ERRAND_BINDING,
+      admitRequestCapacity: async () => undefined,
       admitRequest: async () => {
         throw new Error("admission write failed");
       },
@@ -220,7 +302,7 @@ describe("hosted review request", () => {
         throw new Error("provider effect ran");
       })],
       deliveryMemberLookup: deliveryMemberLookup(),
-      admitDeliveryMemberRequest: async () => undefined,
+      admitRequestCapacity: async () => undefined,
       admitRequest: async () => {
         throw new Error("admission write failed");
       },
@@ -254,6 +336,7 @@ describe("hosted review request", () => {
       adapters: [adapter(async () => {
         throw new Error("provider effect ran");
       })],
+      admitRequestCapacity: async () => undefined,
       admitRequest: async () => ({
         state: "acknowledged",
         handle,
@@ -274,6 +357,7 @@ describe("hosted review request", () => {
       adapters: [adapter(async () => {
         throw new Error("provider effect ran");
       })],
+      admitRequestCapacity: async () => undefined,
       admitRequest: async () => ({ state: "ambiguous-delivery" }),
     })).toMatchObject({ state: "ambiguous-delivery", nextAction: "stop" });
   });
@@ -342,7 +426,6 @@ describe("hosted review request", () => {
         },
       }))],
       deliveryMemberLookup: deliveryMemberLookup(),
-      admitDeliveryMemberRequest: async () => undefined,
       ...ADMIT_REQUEST,
     });
 
@@ -372,7 +455,7 @@ describe("hosted review request", () => {
         return { kind: "rate-limited" };
       })],
       deliveryMemberLookup: deliveryMemberLookup(),
-      admitDeliveryMemberRequest: async () => {
+      admitRequestCapacity: async () => {
         throw new Error("review pass ceiling requires approval");
       },
     })).rejects.toThrow(/ceiling requires approval/u);
@@ -447,13 +530,18 @@ describe("hosted review request", () => {
       provider: "codex-pr",
       coverage: "complete",
     })).toThrow();
-    expect(() => HostedRequestEnvelopeSchema.parse({
+    expect(HostedRequestEnvelopeSchema.parse({
       schemaVersion: 1,
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "codex-pr",
       coverage: "complete",
-      invocation: { mode: "force", sourceId: "codex-pr" },
-    })).toThrow(/exact delivery-member vehicle/u);
+      ceilingOverride: {
+        target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+        lane: "standard",
+        exhaustedPassCount: 2,
+        nextPass: 3,
+      },
+    }).ceilingOverride).toMatchObject({ exhaustedPassCount: 2, nextPass: 3 });
     expect(() => HostedRequestEnvelopeSchema.parse({
       schemaVersion: 1,
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },

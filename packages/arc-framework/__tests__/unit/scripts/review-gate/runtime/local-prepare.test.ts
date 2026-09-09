@@ -48,14 +48,14 @@ describe("local review preparation request", () => {
     }).routingFacts).toEqual(routingFactsInput);
   });
 
-  it("carries an optional member selector without any other verb surface", () => {
+  it("refuses a member selector without the exact delivery admission", () => {
     const memberHeadObjectId = objectId("e");
-    expect(LocalPrepareRequestSchema.parse({
+    expect(() => LocalPrepareRequestSchema.parse({
       schemaVersion: 1,
       evaluatorIdentity: "evaluator-1",
       routingFacts,
       memberHeadObjectId,
-    }).memberHeadObjectId).toBe(memberHeadObjectId);
+    })).toThrow(/delivery admission/u);
     expect(LocalPrepareRequestSchema.parse({
       schemaVersion: 1,
       evaluatorIdentity: "evaluator-1",
@@ -69,7 +69,7 @@ describe("local review preparation request", () => {
     })).toThrow();
   });
 
-  it("hands the request's member selector to authority resolution, and nothing when absent", async () => {
+  it("rejects an unadmitted member selector before authority resolution", async () => {
     const target = createReviewTarget({
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
@@ -97,8 +97,8 @@ describe("local review preparation request", () => {
     await expect(prepareLocalReview(
       { ...request, memberHeadObjectId: objectId("e") },
       dependencies,
-    )).rejects.toThrow(/delivery-member-unbound/u);
-    expect(resolveAuthority).toHaveBeenCalledWith("evaluator-1", objectId("e"));
+    )).rejects.toThrow(/delivery admission/u);
+    expect(resolveAuthority).not.toHaveBeenCalled();
 
     resolveAuthority.mockClear();
     await expect(prepareLocalReview(request, dependencies)).rejects.toThrow(/delivery-member-unbound/u);
@@ -121,6 +121,27 @@ describe("local review preparation request", () => {
   describe("member preparation", () => {
     const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
     const PLAN_ID = "123e4567-e89b-42d3-a456-426614174000";
+
+    function deliveryAdmission(head: string) {
+      return {
+        schemaVersion: 1 as const,
+        sourceId: "delegated-agent" as const,
+        statusTarget: {
+          repository: "owner/repository",
+          headRef: "delivery/member-1",
+          headSha: head,
+        },
+        target: { repository: "owner/repository", pullRequest: 41, headSha: head },
+        vehicle: {
+          kind: "delivery-member" as const,
+          planId: PLAN_ID,
+          deliverableId: DELIVERABLE_ID,
+          workUnitId: "review-surface-binding",
+          head,
+        },
+        pass: 1,
+      };
+    }
 
     function fixture() {
       const targetOf = (kind: "change-set" | "delivery-member", seed: string) => createReviewTarget({
@@ -188,6 +209,7 @@ describe("local review preparation request", () => {
       ));
       const materialize = vi.fn(async () => ({ reviewRoot: "/tmp/review-root" }));
       const validateDeliveryAdmission = vi.fn(async () => undefined);
+      const validatePolicyAdmission = vi.fn(async () => 1);
       const composeAssurance = vi.fn(async () => ({
         status: "resolved" as const,
         assurance: { workContext: "work-unit" as const, workClass: "Heavy" as const },
@@ -225,6 +247,7 @@ describe("local review preparation request", () => {
         resolvePolicy,
         validatePolicySelection: () => undefined,
         validateDeliveryAdmission,
+        validatePolicyAdmission,
         operationStore: {
           readOperation: async (operationId: string) => (
             operations.get(operationId) ?? { version: 0, state: null }
@@ -268,6 +291,7 @@ describe("local review preparation request", () => {
         composeAssurance,
         resolvePolicy,
         validateDeliveryAdmission,
+        validatePolicyAdmission,
         operations,
         published: () => lastLocalPublished ?? lastPublished,
         laneProgress: () => [...operations.values()]
@@ -286,7 +310,7 @@ describe("local review preparation request", () => {
       const context = fixture();
 
       await expect(prepareLocalReview(
-        { ...request, memberHeadObjectId: context.memberTarget.headSha },
+        { ...request, deliveryAdmission: deliveryAdmission(context.memberTarget.headSha) },
         context.dependencies,
       )).resolves.toMatchObject({ state: "ready", nextAction: "launch-review" });
 
@@ -324,6 +348,22 @@ describe("local review preparation request", () => {
           },
         }],
       });
+      expect(context.validatePolicyAdmission).toHaveBeenCalledWith(expect.objectContaining({
+        repositoryId: "repo-1",
+        target: context.changeSetTarget,
+        completedPasses: 0,
+        attempts: [],
+      }));
+    });
+
+    it("stops a non-delivery pass without live driver admission before materialization", async () => {
+      const context = fixture();
+      context.validatePolicyAdmission.mockRejectedValueOnce(new Error("review pass ceiling requires approval"));
+
+      await expect(prepareLocalReview(request, context.dependencies))
+        .rejects.toThrow(/ceiling requires approval/u);
+      expect(context.materialize).not.toHaveBeenCalled();
+      expect(context.operations.size).toBe(0);
     });
 
     it("carries and freshly validates the exact driver admission before local preparation", async () => {
@@ -402,7 +442,7 @@ describe("local review preparation request", () => {
       const context = fixture();
 
       await prepareLocalReview(
-        { ...request, memberHeadObjectId: context.memberTarget.headSha },
+        { ...request, deliveryAdmission: deliveryAdmission(context.memberTarget.headSha) },
         context.dependencies,
       );
       expect(context.deriveTarget).toHaveBeenCalledWith("repo-1", context.memberCoordinates);
@@ -434,7 +474,7 @@ describe("local review preparation request", () => {
       const context = fixture();
 
       await prepareLocalReview(
-        { ...request, memberHeadObjectId: context.memberTarget.headSha },
+        { ...request, deliveryAdmission: deliveryAdmission(context.memberTarget.headSha) },
         context.dependencies,
       );
 
@@ -449,7 +489,7 @@ describe("local review preparation request", () => {
       const context = fixture();
 
       await prepareLocalReview(
-        { ...request, memberHeadObjectId: context.memberTarget.headSha },
+        { ...request, deliveryAdmission: deliveryAdmission(context.memberTarget.headSha) },
         context.dependencies,
       );
 
@@ -519,7 +559,7 @@ describe("local review preparation request", () => {
         const context = fixture();
         const memberRequest = {
           ...request,
-          memberHeadObjectId: context.memberTarget.headSha,
+          deliveryAdmission: deliveryAdmission(context.memberTarget.headSha),
         };
 
         const first = await prepareLocalReview(memberRequest, context.dependencies);
@@ -617,7 +657,7 @@ describe("local review preparation request", () => {
         const context = fixture();
 
         const member = await prepareLocalReview(
-          { ...request, memberHeadObjectId: context.memberTarget.headSha },
+          { ...request, deliveryAdmission: deliveryAdmission(context.memberTarget.headSha) },
           context.dependencies,
         );
         const workUnit = await prepareLocalReview(request, context.dependencies);
@@ -639,7 +679,7 @@ describe("local review preparation request", () => {
         const context = fixture();
 
         await prepareLocalReview(
-          { ...request, memberHeadObjectId: context.memberTarget.headSha },
+          { ...request, deliveryAdmission: deliveryAdmission(context.memberTarget.headSha) },
           context.dependencies,
         );
         // A forgotten selector reviews the work-unit branch rather than the member,
@@ -711,6 +751,7 @@ describe("local review preparation request", () => {
         diagnostics: [] as [],
       }),
       validatePolicySelection: () => undefined,
+      validatePolicyAdmission: async () => 1,
       validateDeliveryAdmission: async () => undefined,
       operationStore: {
         readOperation: async () => {
@@ -840,6 +881,7 @@ describe("local review preparation request", () => {
           diagnostics: [] as [],
         }),
         validatePolicySelection: () => undefined,
+        validatePolicyAdmission: async () => 1,
         validateDeliveryAdmission: async () => undefined,
         operationStore: {
           readOperation: async (operationId: string) => (

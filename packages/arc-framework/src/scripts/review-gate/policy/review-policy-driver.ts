@@ -817,6 +817,67 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   }, diagnostics);
 }
 
+/**
+ * Re-run the standard-lane driver from current facts immediately before a producer spends capacity.
+ *
+ * @param input - Live target, obligation, progress, configuration, and optional caller-held judgment.
+ * @returns The exact ready resolution authorizing the expected producer action and source.
+ */
+export function assertStandardReviewExecutionAdmission(input: {
+  readonly target: ReviewPolicyRequest["target"];
+  readonly frontlineActive: boolean;
+  readonly standardReview: ReviewPolicyRequest["standardReview"];
+  readonly completedPasses: number;
+  readonly attempts: ReviewPolicyCommandRequest["attempts"];
+  readonly sources: readonly string[];
+  readonly maxPasses: number;
+  readonly expectedSourceId: string;
+  readonly expectedNextAction: "local-prepare" | "hosted-request";
+  readonly judgment?: ReviewLaneJudgment;
+}): Extract<ReviewResolveEnvelope, { state: "ready" }> {
+  const judgment = input.judgment === undefined
+    ? undefined
+    : ReviewLaneJudgmentSchema.parse(input.judgment);
+  const resolution = resolveReviewPolicy({
+    schemaVersion: 1,
+    target: input.target,
+    lane: "standard",
+    frontlineActive: input.frontlineActive,
+    standardReview: input.standardReview,
+    completedPasses: input.completedPasses,
+    attempts: input.attempts,
+    sources: input.sources,
+    maxPasses: input.maxPasses,
+    ...(judgment?.scopeMode === undefined
+      ? {}
+      : { scopeSelection: { mode: judgment.scopeMode, target: input.target } }),
+    ...(judgment?.invocation === undefined ? {} : { invocation: judgment.invocation }),
+    ...(judgment?.ceilingOverride === undefined
+      ? {}
+      : {
+          ceilingOverride: {
+            ...judgment.ceilingOverride,
+            target: input.target,
+            lane: "standard",
+          },
+        }),
+    ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
+  });
+  if (resolution.state !== "ready"
+    || resolution.nextAction !== input.expectedNextAction) {
+    throw new Error(
+      `Review capacity lacks standard-review driver admission (${resolution.state}/${resolution.nextAction}).`,
+    );
+  }
+  if (resolution.payload.sourceId !== input.expectedSourceId) {
+    throw new Error(
+      `Review source \`${input.expectedSourceId}\` is not driver-admissible; `
+      + `the standard lane requires \`${resolution.payload.sourceId}\` next.`,
+    );
+  }
+  return resolution;
+}
+
 function resolveInvalidOverrideReason(
   request: ReviewPolicyRequest,
 ): InvalidOverrideReason | null {

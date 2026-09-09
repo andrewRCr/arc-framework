@@ -1,5 +1,119 @@
 # Notes: Review Signal Convergence
 
+## Member 2 criteria report — 2026-09-08
+
+```yaml
+criteria-slice: "Success Criteria > Member 2 — `native-review-admission`"
+span:
+  diff: "339714b0958b8b78b71aab9ef27ed185ced55681..953e553f2595cf0f8328e737b375ad01aa03d7c1"
+  reachability: >-
+    Repository tree at 953e553f2595cf0f8328e737b375ad01aa03d7c1, including the upstream spec, the five
+    native-admission and accounting commits, their public command handlers and production stores, generated schemas,
+    integration/E2E fixtures, and the current delivery-member status and checkpoint consumers.
+  boundary-order-deviation: null
+criteria:
+  - locus: "Success Criteria > Member 2 — `native-review-admission` > 1"
+    criterion-digest: sha256:914b199099bd86543779aab8a167c6a0e3641df214b07cceca1411a326e5d393
+    evidence: >-
+      Local operation/request identity binds runtime lineage, logical pass, and retry generation; frontline resolve
+      derives and run revalidates one durable admission; hosted request persists and replays its source-specific
+      admission. Repository lookup now resolves public status by retained ref and effects by stable member vehicle.
+      The public fan-out lifecycle proves shared-head sibling local receipts and hosted admissions stay distinct,
+      failed local generation 0 reruns as generation 1 within logical pass 1, and moved-member replay remains scoped.
+      Frontline command/run tests refuse caller pass fields and forged ready envelopes while executing returned inputs.
+    state: "[x]"
+  - locus: "Success Criteria > Member 2 — `native-review-admission` > 2"
+    criterion-digest: sha256:31a90bb5d460853094167d60867c39f4df30c6412d1166ddd26f917bc16835da
+    evidence: >-
+      Hosted request tests cover admission-write refusal before provider invocation for singleton, Errand, and
+      delivery-member vehicles. Lane-progress and request tests distinguish acknowledged replay from unacknowledged
+      ambiguous delivery; production fan-out tests retain stored await context across restart and source-policy drift,
+      and refuse later-member capacity before the provider boundary.
+    state: "[x]"
+  - locus: "Success Criteria > Member 2 — `native-review-admission` > 3"
+    criterion-digest: sha256:8619bd5e9363aa4bfb521c86d58fe64c6f45232d335d4f01d8c6db0a927a0ca1
+    evidence: >-
+      Lane progress deduplicates terminal producers by logical pass and derives completePasses only from effective
+      complete coverage. Local and hosted bindings retain requested/effective coverage into reservation, earlier
+      history, status, and checkpoint projections. Public fan-out tests cover incremental completion followed by a
+      complete upgrade, hosted/local fallback, a moved member after response, and distinct one-pass sibling histories.
+    state: "[x]"
+  - locus: "Success Criteria > Member 2 — `native-review-admission` > 4"
+    criterion-digest: sha256:09be87242667f8d03b08830a7a427a55f1d31dcd42e9612363dc9d200b778d44
+    evidence: >-
+      Lane arbitration leaves pending, unavailable, failed, replayed, and partial observations count-neutral and
+      rejects competing terminal producers for one admitted pass. Frontline and delivery-member hosted admission
+      enforce the configured ceiling from durable progress before effects. However, public local prepare accepts a
+      delivery-member head without its driver-issued admission, and Candidate/Errand hosted request admission checks
+      source order without the configured maximum. Those paths allocate `completedPasses + 1` and can invoke a fresh
+      producer above the ceiling. The member-boundary Tier 2 run passed 869 test files (one skipped) and 11,570 tests
+      (one skipped), but it did not cover these bypasses.
+    state: "[ ]"
+summary: "3 [x], 0 [~], 1 [ ]; Member 2 criterion 4 remains unresolved"
+```
+
+### Member 2 fresh-context companion
+
+**Pass 1 of 2 — one confirmed major finding; non-converged. Stop reason: suspended pending disposition approval and
+response performance.** No successor pass is authorized.
+
+```yaml
+findings:
+  - title: "Public local and non-delivery hosted producers can admit fresh passes beyond the configured ceiling"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/scripts/review-gate/runtime/local-prepare.ts`,
+      `packages/arc-framework/src/handlers/review.ts`,
+      `packages/arc-framework/src/scripts/review-gate/policy/hosted-reservation-admission.ts`, and
+      `packages/arc-framework/src/scripts/review-gate/lane-progress.ts`
+    evidence: >-
+      Local prepare makes `deliveryAdmission` optional beside a delivery-member head, derives the logical pass as
+      `completedPasses + 1`, and validates the driver admission only when the caller supplied it. The hosted handler
+      performs exact policy admission only for delivery-member vehicles; Candidate and Errand paths check reservation
+      or binding/source order without `maxPasses`. Hosted admission then allocates `completedPasses + 1`, while the
+      request schema rejects a ceiling override without a delivery-member vehicle.
+    rationale: >-
+      Durable accounting does not enforce the ceiling unless every fresh producer admission consults the count,
+      configured maximum, and exact one-pass override before effects.
+withstood:
+  - >-
+      Runtime-resolved lane lineage isolates same-head delivery siblings, while local/frontline identities retain
+      logical pass and retry generation so replay and failed reruns do not manufacture a new pass.
+  - >-
+      Hosted admission persists before dispatch; acknowledged replay returns stored await inputs and uncertain
+      unacknowledged dispatch stops without redispatch or fallback.
+  - >-
+      Terminal counts deduplicate logical-pass ordinals and derive complete coverage separately, leaving unavailable,
+      partial, replay, status, and head-movement observations count-neutral.
+verdict: >-
+  Member 2's identity, replay, pre-effect persistence, and coverage accounting largely hold, but criterion 4 does not:
+  fresh local and Candidate/Errand hosted passes can bypass the configured ceiling at their public action boundaries.
+```
+
+Primary source verification confirmed the finding. The public local request schema and authority resolver permit a
+head-selected non-final delivery member without `deliveryAdmission`; `prepareLocalReview` allocates the next ordinal
+from progress and runs `validateDeliveryAdmission` only when that optional field is present. The hosted request handler
+constructs its exact driver recheck only for a delivery-member vehicle. Candidate admission checks reservation,
+applicability, and source order; Errand admission checks active identity and source order; neither reads the configured
+maximum. `recordHostedRequestAdmission` then allocates the next ordinal from `completedPasses`. The reviewer’s externally
+verifiable `withstood` claims were spot-checked against the lineage-keyed lane owner, native identity and replay code,
+hosted acknowledgment flow, and terminal-count reducer; they do not answer the confirmed cap gap.
+
+**Disposition F1 — `fix` (approved and applied):** every fresh local or hosted producer now proves current driver and cap
+authority before evaluator or provider effects. Delivery-member local prepare requires and revalidates the exact
+status-issued admission. Candidate and Errand local paths re-read live lineage progress and the configured ceiling under
+the source lock; explicit local preparation binds the delegated producer, while a repository with no resolvable hosted
+identity uses its stable local identity and no pull request. Candidate, Errand, singleton, and delivery-member hosted
+requests all run request-time capacity admission before durable dispatch admission, with targetless one-pass authority
+bound back to the current target. Durable replay remains first and does not spend capacity again.
+
+Response performance is complete. Regression tests cover head-only member refusal, pre-effect cap refusal, exact
+targetless override use and non-reuse, wrong-source refusal, local admission under the source lock, and hosted capacity
+checks before every provider path. The correction also passed the public local, Candidate, and Errand E2E paths and the
+complete Tier 2 gate: 869 test files passed with one skipped and 11,576 tests passed with one skipped. The previously
+authorized fresh full-rubric Pass 2 may run once the exact correction commit exists; criterion 4 remains unresolved
+until that independent pass and the repaired member criteria walk complete.
+
 ## Member 1 criteria report — 2026-09-07
 
 ```yaml
