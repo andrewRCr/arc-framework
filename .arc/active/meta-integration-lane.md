@@ -13,11 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design pass one — base-movement design settled through two adversarial passes; scope
+  widened to the unified evidence-applicability classification and method (`412d18241`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** draft-design — re-enter at `high`: inventory the applicability surfaces and author the unified
+  classification and method per `draft-integration-lane.md` § Open design, then the readiness read
 
 - **PR URL:** [none]
 - **Completed:** [none]
