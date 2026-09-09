@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "repair-test-suite-right-sizing-launch-tuple",
+  "claimId": "8c9ab738d7573a617d6a0ee6b1704faa",
+  "createdAt": "2026-09-09T12:37:44.406Z",
+  "updatedAt": "2026-09-09T12:37:44.406Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the newly planned test-suite-right-sizing stub launchable by converting its planning seed to the canonical draft-backed tuple.",
+  "branch": "chore/repair-test-suite-right-sizing-launch-tuple",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
