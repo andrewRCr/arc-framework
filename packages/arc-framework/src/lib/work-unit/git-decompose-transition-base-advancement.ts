@@ -16,6 +16,7 @@ import {
   scanRegisteredWorktrees,
   type RegisteredWorktreeScanResult,
 } from "../git/worktree-roster.js";
+import { identifyWorkUnitArtifactPath } from "../layout/index.js";
 import { createDecomposeTransitionRecord } from "./decompose-transition-record.js";
 import { decomposeCandidateBranch } from "./decompose-candidate.js";
 import type {
@@ -98,6 +99,16 @@ type DependencyRecipientComparison =
       locus: string;
       evidence: V3DecomposeRefusalEvidence;
     };
+
+interface DependencyRecipient {
+  dependent: string;
+  path: string;
+}
+
+type DependencyRecipientObservation =
+  | { status: "present"; path: string; targets: string[] }
+  | { status: "absent" }
+  | { status: "unavailable"; locus: string };
 
 function refuse(
   reason: string,
@@ -548,28 +559,106 @@ async function candidateChain(
   return { status: "ready", initialCommit, advancements, previousBaseHead };
 }
 
-function dependencyRecipientPaths(composed: ComposedPlan): string[] {
-  return composed.plan.mutations.flatMap((mutation) => (
-    mutation.kind === "composed"
-      && mutation.contributors.some(({ kind }) => kind === "dependency")
-      ? [mutation.path]
-      : []
-  ));
+function dependencyRecipients(composed: ComposedPlan): DependencyRecipient[] {
+  const recipients = new Map<string, DependencyRecipient>();
+  for (const mutation of composed.plan.mutations) {
+    if (mutation.kind !== "composed") continue;
+    for (const contributor of mutation.contributors) {
+      if (contributor.kind !== "dependency") continue;
+      recipients.set(`${contributor.dependent}\0${mutation.path}`, {
+        dependent: contributor.dependent,
+        path: mutation.path,
+      });
+    }
+  }
+  return [...recipients.values()].sort((left, right) =>
+    compareUtf8(left.dependent, right.dependent) || compareUtf8(left.path, right.path));
 }
 
-async function dependencyTargetsAt(
+async function dependencyRecipientAtPath(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
   ref: string,
   path: string,
-): Promise<string[] | null> {
+): Promise<DependencyRecipientObservation> {
   try {
     const bytes = await dependencies.readBlob(ref, path);
-    if (bytes === null) return [];
+    if (bytes === null) return { status: "absent" };
     const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    return [...parseMetaRecord(content).dependsOn];
+    return { status: "present", path, targets: [...parseMetaRecord(content).dependsOn] };
   } catch {
-    return null;
+    return { status: "unavailable", locus: path };
   }
+}
+
+async function dependencyRecipientAt(
+  dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
+  ref: string,
+  recipient: DependencyRecipient,
+): Promise<DependencyRecipientObservation> {
+  const args = [
+    "ls-tree",
+    "-r",
+    "--name-only",
+    "-z",
+    ref,
+    "--",
+    ".arc/active",
+    ".arc/backlog/planned",
+    ".arc/backlog/provisional",
+  ];
+  let paths: string[];
+  try {
+    const { stdout } = await dependencies.exec("git", args, { cwd: dependencies.cwd });
+    paths = stdout.split("\0").filter(Boolean).filter((path) => {
+      const identified = identifyWorkUnitArtifactPath(path);
+      return identified?.artifact === "meta"
+        && identified.slug === recipient.dependent
+        && (identified.placement.kind === "active"
+          || identified.placement.kind === "backlog");
+    });
+  } catch {
+    return { status: "unavailable", locus: recipient.path };
+  }
+  if (paths.length === 0) return { status: "absent" };
+  if (paths.length !== 1 || paths[0] === undefined) {
+    return { status: "unavailable", locus: recipient.path };
+  }
+  return await dependencyRecipientAtPath(dependencies, ref, paths[0]);
+}
+
+function compareDependencyRecipientObservations(
+  dependent: string,
+  previous: DependencyRecipientObservation,
+  current: DependencyRecipientObservation,
+): DependencyRecipientComparison {
+  if (previous.status === "unavailable") return previous;
+  if (current.status === "unavailable") return current;
+  if (previous.status === "absent" && current.status === "absent") return { status: "matched" };
+  if (previous.status === "present" && current.status === "present") {
+    const targetsMatch = canonicalize(previous.targets) === canonicalize(current.targets);
+    if (previous.path === current.path && targetsMatch) return { status: "matched" };
+    if (previous.path === current.path) {
+      return {
+        status: "drift",
+        locus: current.path,
+        evidence: { expected: previous.targets, actual: current.targets },
+      };
+    }
+  }
+  return {
+    status: "drift",
+    locus: current.status === "present"
+      ? current.path
+      : previous.status === "present" ? previous.path : dependent,
+    evidence: {
+      expected: previous.status === "present"
+        ? { path: previous.path, targets: previous.targets }
+        : { kind: "absent" },
+      actual: current.status === "present"
+        ? { path: current.path, targets: current.targets }
+        : { kind: "absent" },
+    },
+  };
 }
 
 async function compareDependencyRecipientPrestates(
@@ -579,38 +668,29 @@ async function compareDependencyRecipientPrestates(
   currentBaseHead: string,
 ): Promise<DependencyRecipientComparison> {
   if (previousBaseHead === currentBaseHead) return { status: "matched" };
-  for (const path of dependencyRecipientPaths(composed)) {
-    const [previousTargets, currentTargets] = await Promise.all([
-      dependencyTargetsAt(dependencies, previousBaseHead, path),
-      dependencyTargetsAt(dependencies, currentBaseHead, path),
+  for (const recipient of dependencyRecipients(composed)) {
+    const [previous, current] = await Promise.all([
+      dependencyRecipientAt(dependencies, previousBaseHead, recipient),
+      dependencyRecipientAtPath(dependencies, currentBaseHead, recipient.path),
     ]);
-    if (previousTargets === null || currentTargets === null) {
-      return { status: "unavailable", locus: path };
-    }
-    if (canonicalize(previousTargets) !== canonicalize(currentTargets)) {
-      return {
-        status: "drift",
-        locus: path,
-        evidence: { expected: previousTargets, actual: currentTargets },
-      };
-    }
+    const comparison = compareDependencyRecipientObservations(recipient.dependent, previous, current);
+    if (comparison.status !== "matched") return comparison;
   }
   return { status: "matched" };
 }
 
 async function compareRefusedDependencyRecipient(
   dependencies: GitDecomposeTransitionBaseAdvancementDependencies,
-  recipient: { path: string; targets: string[] },
+  recipient: { dependent: string; path: string; targets: string[] },
   previousBaseHead: string,
 ): Promise<DependencyRecipientComparison> {
-  const previousTargets = await dependencyTargetsAt(dependencies, previousBaseHead, recipient.path);
-  if (previousTargets === null) return { status: "unavailable", locus: recipient.path };
-  if (canonicalize(previousTargets) === canonicalize(recipient.targets)) return { status: "matched" };
-  return {
-    status: "drift",
-    locus: recipient.path,
-    evidence: { expected: previousTargets, actual: recipient.targets },
+  const previous = await dependencyRecipientAt(dependencies, previousBaseHead, recipient);
+  const current: DependencyRecipientObservation = {
+    status: "present",
+    path: recipient.path,
+    targets: recipient.targets,
   };
+  return compareDependencyRecipientObservations(recipient.dependent, previous, current);
 }
 
 /** Advance one exact committed transition candidate over a descendant configured base. */

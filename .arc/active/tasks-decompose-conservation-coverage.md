@@ -646,6 +646,10 @@ prose follows the executable contract.
         - Advancement now reserves the incoming-set refusal for dependent-membership changes and translates an
           existing incoming recipient's stale sequence into typed drift evidence and the candidate-cleanup remedy.
 
+    - `[x]` **3.6.R.c Bind recipient drift evidence across live-path relocation**
+        - Advancement now resolves each logical recipient in both pinned live trees and reports old/new path plus
+          targets when placement changes, including equal empty target sets, before history authentication.
+
 - _Outcome:_ Member 3 criteria report.
     - _Criteria slice:_ `Success Criteria > Member 3 — external-dependency-authoring`.
     - _Span:_ bounded diff `3dd845308..93357a45c`; cumulative reachability `93357a45c` at tree `9b596b5c7`;

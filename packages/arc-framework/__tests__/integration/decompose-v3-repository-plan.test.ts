@@ -1171,6 +1171,7 @@ describe("Git v3 repository plan", () => {
         reason: "unchanged-dependency-slot",
         locus: "authoring.externalEdges.0",
         dependencyRecipient: {
+          dependent: "consumer",
           path: consumerPath,
           targets: ["base-only", "foundation"],
         },
@@ -3250,6 +3251,102 @@ describe("Git v3 repository plan", () => {
       reason: "dependency-recipient-drift",
       locus: recipientPath,
       evidence: { expected: ["origin"], actual: ["origin", "foundation"] },
+    });
+    expect(recompositions).toBe(1);
+    expect(historyAuthentications).toBe(0);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it.each([
+    ["nonempty", ["base-only"]],
+    ["empty", []],
+  ] as const)("preserves %s dependency-recipient drift across a live-path relocation", async (
+    _prestate,
+    initialTargets,
+  ) => {
+    const started = await startedRepository({
+      completedTarget: true,
+      existingRecipient: true,
+      sourceRecipientDependsOn: [...initialTargets],
+    });
+    const completedMap: unknown = {
+      ...started.completedMap,
+      authoring: {
+        ...started.completedMap.authoring,
+        destinations: started.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+      },
+    };
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit external transition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    const previousRecipientPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    const currentRecipientPath = ".arc/active/meta-consumer.md";
+    await mkdir(join(started.repo, ".arc/active"), { recursive: true });
+    await git(started.repo, ["mv", previousRecipientPath, currentRecipientPath]);
+    await write(started.repo, currentRecipientPath, renderMetaFile("consumer", {
+      state: "Active",
+      owner: "andrew",
+      branch: "feat/consumer",
+      workClass: "Light",
+      priority: "P2",
+      dependsOn: [...initialTargets],
+      origin: "internal",
+      design: ["draft-consumer.md"],
+      currentWorkflow: "process-task-loop",
+      nextAction: "Continue implementation",
+    }));
+    await git(started.repo, ["add", "-A"]);
+    await git(started.repo, ["commit", "-m", "start dependency recipient"]);
+    let recompositions = 0;
+    let historyAuthentications = 0;
+    const guarded = {
+      ...started.dependencies,
+      exec: async (...args: Parameters<typeof started.dependencies.exec>) => {
+        if (args[1][0] === "diff-tree") historyAuthentications += 1;
+        return await started.dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...guarded,
+      composePlan: async (baseRef, map) => {
+        recompositions += 1;
+        return await composeGitV3RepositoryPlan(guarded, baseRef, map);
+      },
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "dependency-recipient-drift",
+      locus: currentRecipientPath,
+      evidence: {
+        expected: { path: previousRecipientPath, targets: [...initialTargets] },
+        actual: { path: currentRecipientPath, targets: [...initialTargets] },
+      },
     });
     expect(recompositions).toBe(1);
     expect(historyAuthentications).toBe(0);

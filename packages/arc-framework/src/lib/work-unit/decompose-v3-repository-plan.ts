@@ -96,7 +96,7 @@ export interface V3RepositoryPlanRefusal {
   locus?: string;
   evidence?: V3DecomposeRefusalEvidence;
   /** Pinned recipient fact reserved for base-advancement conflict classification. */
-  dependencyRecipient?: { path: string; targets: string[] };
+  dependencyRecipient?: { dependent: string; path: string; targets: string[] };
 }
 
 export type V3RepositoryPlanResult =
@@ -136,7 +136,7 @@ function refuse(
   reason: string,
   locus?: string,
   evidence?: V3DecomposeRefusalEvidence,
-  dependencyRecipient?: { path: string; targets: string[] },
+  dependencyRecipient?: { dependent: string; path: string; targets: string[] },
 ): V3RepositoryPlanResult {
   return {
     status: "refused",
@@ -765,7 +765,7 @@ type V3DependencyProjectionResult =
       status: "refused";
       reason: "dependency-projection-failed" | "unchanged-dependency-slot";
       locus?: string;
-      dependencyRecipient?: { path: string; targets: string[] };
+      dependencyRecipient?: { dependent: string; path: string; targets: string[] };
     };
 
 function dependencies(
@@ -803,7 +803,13 @@ function dependencies(
           locus: edit.locus,
           ...(pinnedTargets === null
             ? {}
-            : { dependencyRecipient: { path, targets: [...pinnedTargets] } }),
+            : {
+                dependencyRecipient: {
+                  dependent: edit.dependent,
+                  path,
+                  targets: [...pinnedTargets],
+                },
+              }),
         };
       }
       afterText = setMetaBulletFields(text, {

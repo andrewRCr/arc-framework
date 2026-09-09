@@ -848,7 +848,7 @@ describe("v3 repository plan projection", () => {
         stage: "dependency",
         reason: "unchanged-dependency-slot",
         locus: "authoring.externalEdges.0",
-        dependencyRecipient: { path: consumerPath, targets: ["foundation"] },
+        dependencyRecipient: { dependent: "consumer", path: consumerPath, targets: ["foundation"] },
       },
     });
   });
