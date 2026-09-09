@@ -1,4 +1,4 @@
-# Metadata: integration-lane
+# Metadata: delivery-correction-convergence
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -8,8 +8,9 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-integration-lane.md`
+- **Design:** `draft-delivery-correction-convergence.md`
 - **Task List:** [none]
+- **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
 - **Last Completed:** [none]
