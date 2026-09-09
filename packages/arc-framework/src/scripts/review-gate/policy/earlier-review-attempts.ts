@@ -12,6 +12,10 @@ import {
 } from "../core/gate-contract-v2-schema.js";
 import { HostedReviewCoverageSchema, HostedTargetSchema } from "../hosted/request.js";
 import { HostedFindingSchema } from "../hosted/await.js";
+import {
+  LaneSubjectLineageSchema,
+  laneSubjectLineageId,
+} from "../core/lane-admission.js";
 
 const SourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z.string()
@@ -28,6 +32,7 @@ export const EarlierReviewAttemptQuerySchema = z.strictObject({
   currentHead: GitObjectIdSchema,
   lane: z.enum(["frontline", "standard"]),
   sourceId: SourceIdSchema,
+  lineage: LaneSubjectLineageSchema,
   currentVehicle: DeliveryReviewMemberVehicleSchema.optional(),
 }).superRefine((selector, context) => {
   if (selector.currentVehicle !== undefined && selector.currentVehicle.head !== selector.currentHead) {
@@ -109,7 +114,8 @@ export function queryEarlierReviewAttempts(
     const state = record.state;
     if (state.kind !== "lane-progress"
       || state.lane !== selector.lane
-      || state.repositoryId !== selector.repositoryId) continue;
+      || state.repositoryId !== selector.repositoryId
+      || laneSubjectLineageId(state.lineage) !== laneSubjectLineageId(selector.lineage)) continue;
     for (const attempt of state.attempts) {
       if (attempt.headSha === selector.currentHead) continue;
       const hosted = attempt.hosted;

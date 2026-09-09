@@ -898,7 +898,7 @@ export function createHostedReservationDischargeReader(input: {
         }),
         durableRef: attemptId,
       }),
-      ...(snapshot === null || changeRequest === null || candidate === undefined
+      ...(snapshot === null || changeRequest === null || candidate === undefined || lineage === undefined
         ? {}
         : {
             readEarlierAttemptApplicability: async (sourceId: string) => projectEarlierReviewApplicability({
@@ -910,6 +910,7 @@ export function createHostedReservationDischargeReader(input: {
                 currentHead: approvedHead,
                 lane: "standard",
                 sourceId,
+                lineage,
                 ...(vehicle === undefined ? {} : { currentVehicle: vehicle }),
               },
               currentBase: baseRevision,
@@ -928,6 +929,7 @@ export function createHostedReservationDischargeReader(input: {
                 currentHead: approvedHead,
                 lane: "standard",
                 sourceId,
+                lineage,
                 ...(vehicle === undefined ? {} : { currentVehicle: vehicle }),
               })
             ),

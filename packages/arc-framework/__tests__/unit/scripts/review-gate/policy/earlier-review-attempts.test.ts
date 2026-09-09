@@ -66,6 +66,7 @@ const localAdmission = (head: string) => DeliveryLocalReviewAdmissionSchema.pars
 
 function laneState(options: {
   delivery?: boolean;
+  candidateId?: string;
   repositoryId?: string;
   headSha?: string;
   sourceId?: "codex-pr" | "coderabbit-pr";
@@ -78,7 +79,10 @@ function laneState(options: {
   const sourceId = options.sourceId ?? "codex-pr";
   const vehicle = options.vehicle ?? (options.delivery === true ? deliveryVehicle(headSha) : undefined);
   const lineage = vehicle === undefined
-    ? { kind: "candidate" as const, candidateId: `sha256:${"8".repeat(64)}` }
+    ? {
+        kind: "candidate" as const,
+        candidateId: options.candidateId ?? `sha256:${"8".repeat(64)}`,
+      }
     : {
         kind: "delivery-member" as const,
         planId: vehicle.planId,
@@ -218,7 +222,7 @@ function frontlineLaneState() {
   };
 }
 
-function selector() {
+function selector(currentVehicle?: ReturnType<typeof deliveryVehicle>) {
   return {
     schemaVersion: 1 as const,
     repositoryId: "repository-1",
@@ -227,6 +231,15 @@ function selector() {
     currentHead: oid("c"),
     lane: "standard" as const,
     sourceId: "codex-pr",
+    lineage: currentVehicle === undefined
+      ? { kind: "candidate" as const, candidateId: `sha256:${"8".repeat(64)}` }
+      : {
+          kind: "delivery-member" as const,
+          planId: currentVehicle.planId,
+          workUnitId: currentVehicle.workUnitId,
+          deliverableId: currentVehicle.deliverableId,
+        },
+    ...(currentVehicle === undefined ? {} : { currentVehicle }),
   };
 }
 
@@ -341,11 +354,18 @@ describe("earlier review attempt query", () => {
     }
   });
 
+  it("excludes an earlier attempt owned by another Candidate lineage", () => {
+    expect(queryEarlierReviewAttempts(selector(), {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: laneState({ candidateId: `sha256:${"7".repeat(64)}` }),
+      }],
+    })).toMatchObject({ status: "unavailable", reason: "no-matching-attempt" });
+  });
+
   it("requires the same exact delivery member identity while allowing its head coordinate to move", () => {
-    const input = {
-      ...selector(),
-      currentVehicle: deliveryVehicle(oid("c")),
-    };
+    const input = selector(deliveryVehicle(oid("c")));
     const snapshot = { status: "complete" as const, records: [{ version: 1, state: laneState({ delivery: true }) }] };
     expect(queryEarlierReviewAttempts(input, snapshot)).toMatchObject({
       status: "complete",
@@ -390,9 +410,8 @@ describe("earlier review attempt query", () => {
     });
 
     expect(queryEarlierReviewAttempts({
-      ...selector(),
+      ...selector(deliveryVehicle(oid("c"))),
       sourceId: "delegated-agent",
-      currentVehicle: deliveryVehicle(oid("c")),
     }, {
       status: "complete",
       records: [{ version: 1, state: local }],
@@ -425,9 +444,8 @@ describe("earlier review attempt query", () => {
       })),
     });
     expect(queryEarlierReviewAttempts({
-      ...selector(),
+      ...selector(deliveryVehicle(oid("c"))),
       sourceId: "delegated-agent",
-      currentVehicle: deliveryVehicle(oid("c")),
     }, {
       status: "complete",
       records: [{ version: 1, state: replacedPullRequest }],
@@ -461,9 +479,8 @@ describe("earlier review attempt query", () => {
 
     await expect(projectEarlierReviewApplicability({
       query: {
-        ...selector(),
+        ...selector(deliveryVehicle(oid("c"))),
         sourceId: "delegated-agent",
-        currentVehicle: deliveryVehicle(oid("c")),
       },
       currentBase: oid("2"),
       snapshot: { status: "complete", records: [{ version: 1, state: local }] },
@@ -583,9 +600,8 @@ describe("earlier review attempt query", () => {
 
     await expect(projectEarlierReviewApplicability({
       query: {
-        ...selector(),
+        ...selector(deliveryVehicle(oid("c"))),
         sourceId: "delegated-agent",
-        currentVehicle: deliveryVehicle(oid("c")),
       },
       currentBase: newTarget.diffBaseSha,
       snapshot: { status: "complete", records: [{ version: 1, state: local }] },
@@ -780,8 +796,7 @@ describe("earlier review attempt query", () => {
     const state = laneVehicle === null ? laneState() : laneState({ vehicle: laneVehicle });
     const result = await projectEarlierReviewApplicability({
       query: {
-        ...selector(),
-        ...(currentVehicle === null ? {} : { currentVehicle }),
+        ...selector(currentVehicle ?? undefined),
       },
       currentBase: oid("7"),
       snapshot: { status: "complete", records: [{ version: 1, state }] },

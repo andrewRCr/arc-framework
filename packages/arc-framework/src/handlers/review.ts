@@ -1996,6 +1996,7 @@ async function resolveHostedProgressContext(input: {
     currentHead: input.target.headSha,
     lane: "standard" as const,
     sourceId: input.provider,
+    lineage,
     ...(input.vehicle?.kind === "delivery-member" ? { currentVehicle: input.vehicle } : {}),
   };
   const bindingAuthority = {
