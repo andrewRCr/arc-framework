@@ -1,6 +1,9 @@
 /** Lean CodeRabbit hosted-review adapter. */
 
-import { captureReviewFindingSourceLabel } from "../core/finding-records.js";
+import {
+  captureReviewFindingSourceLabel,
+  hasExplicitPurePolishMarker,
+} from "../core/finding-records.js";
 import type {
   HostedFinding,
   HostedObservation,
@@ -110,6 +113,9 @@ function finding(
     threadId,
     settlement: "reply-and-resolve",
     severity: parsedSeverity,
+    ...(parsedSeverity === "minor" && hasExplicitPurePolishMarker(comment.body)
+      ? { nit: true as const }
+      : {}),
     locus: `${comment.path}:${comment.line}`,
     url: comment.url,
     ...captureReviewFindingSourceLabel({ body: comment.body }),
@@ -265,6 +271,10 @@ function parseSupplementalSection(
         fingerprint,
         settlement: "not-applicable",
         severity: parsedSeverity,
+        ...(parsedSeverity === "minor"
+          && (section.category === "nitpick" || hasExplicitPurePolishMarker(findingBody))
+          ? { nit: true as const }
+          : {}),
         locus: `${group.path}:${locusMatch[1]}`,
         url: review.url,
         body: findingBody,

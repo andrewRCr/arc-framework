@@ -359,6 +359,29 @@ changes.
   scope. Fresh-context exercises establish faithful standalone reports without synthetic producer identity and close
   the discovered renderer omission at its source.
 
+### `[ ]` **4.R Close Member 4 verification findings**
+
+- _Goal:_ Producer-backed proposals preserve reported judgment and effective gating while their human report remains
+  structurally inert.
+
+- _Note:_ Member 4 adversarial Pass 1 confirmed three material gaps; the complete correction set and a full Pass 2
+  were approved before mutation.
+
+    - `[x]` **4.R.a Preserve hosted provider nit judgments**
+
+        - CodeRabbit supplemental and explicit thread nitpick markers now survive hosted validation, immutable result
+          identity, and proposal/report projection as reported judgment while verified severity still controls gating.
+
+    - `[ ]` **4.R.b Apply the effective severity-gating policy**
+
+        - Make the public proposal request carry the existing severity-gating policy and derive ordinary verified
+          minor gating from it rather than silently selecting the package default.
+
+    - `[ ]` **4.R.c Render source references as inert report text**
+
+        - Prevent multiline or Markdown-bearing source references from creating fake report fields or separators while
+          leaving canonical producer content and identity unchanged.
+
 ### `[ ]` **4.5 Verify judgment provenance and finding presentation** — validate criteria at member scope
 
 - _Goal:_ Verified judgment and report ergonomics criteria are supported by canonical and observed behavior evidence.

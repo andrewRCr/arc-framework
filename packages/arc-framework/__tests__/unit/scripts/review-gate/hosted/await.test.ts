@@ -128,6 +128,8 @@ describe("hosted review await", () => {
   ] as const)("accepts critical and rejects retired blocker in hosted finding schemas", (schema, finding) => {
     expect(schema.safeParse({ ...finding, severity: "critical" }).success).toBe(true);
     expect(schema.safeParse({ ...finding, severity: "blocker" }).success).toBe(false);
+    expect(schema.safeParse({ ...finding, severity: "minor", nit: true }).success).toBe(true);
+    expect(schema.safeParse({ ...finding, severity: "major", nit: true }).success).toBe(false);
   });
 
   it("accepts a pending result that asks for inspection or an explicit extension", () => {

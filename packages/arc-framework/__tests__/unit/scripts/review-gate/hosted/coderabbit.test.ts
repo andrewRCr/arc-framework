@@ -210,6 +210,18 @@ describe("CodeRabbit hosted adapter", () => {
     });
   });
 
+  it("preserves an explicit thread-level nitpick marker", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({ state: "changes-requested", body: "Review complete." })]),
+      readThreads: () => Promise.resolve([findingThread("_🔵 Trivial_\n\nNitpick: simplify the name")]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ severity: "minor", nit: true }],
+    });
+  });
+
   it("recognizes exact-head clean completion without a new review object", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readIssueComments: () => Promise.resolve([summaryComment(), commandReply()]),
@@ -378,6 +390,7 @@ The contract should distinguish findings that have no review thread.
         fingerprint: "abcdef1234567890abcdef12",
         settlement: "not-applicable",
         severity: "minor",
+        nit: true,
         locus: "src/a.ts:7-9",
         sourceOrdinal: 1,
         sourceLabel: "**Keep the boundary explicit.**",

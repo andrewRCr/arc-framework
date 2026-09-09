@@ -517,9 +517,13 @@ function localRequest(
 function hostedResponseFixture(
   origin: "review-thread" | "review-body",
   vehicle: LocalReviewState["vehicle"] = workUnitVehicle,
+  reportedNit = false,
 ) {
   const records = fixture(vehicle);
   const operationId = "lane-progress/hosted-1";
+  const reportedClassification = reportedNit
+    ? { severity: "minor" as const, nit: true as const }
+    : { severity: records.finding.severity };
   const hostedFinding = origin === "review-thread"
     ? {
         findingId: records.finding.findingId,
@@ -527,7 +531,7 @@ function hostedResponseFixture(
         commentId: "comment-1",
         threadId: "thread-1",
         settlement: "reply-and-resolve" as const,
-        severity: records.finding.severity,
+        ...reportedClassification,
         locus: records.finding.locus,
         url: "https://example.test/thread-1",
         sourceOrdinal: 1,
@@ -538,7 +542,7 @@ function hostedResponseFixture(
         reviewId: "review-1",
         fingerprint: "fingerprint-1",
         settlement: "not-applicable" as const,
-        severity: records.finding.severity,
+        ...reportedClassification,
         locus: records.finding.locus,
         url: "https://example.test/review-1",
         body: "Finding body.",
@@ -1239,18 +1243,17 @@ describe("review response command", () => {
   });
 
   it("preserves a reported nit independently from a non-minor verified grade", async () => {
-    const records = fixture();
-    const sourceFinding = records.receipt.findings[0];
-    if (sourceFinding === undefined) throw new Error("expected a source finding");
-    Object.assign(sourceFinding, { severity: "minor", nit: true });
+    const hosted = hostedResponseFixture("review-thread", workUnitVehicle, true);
+    const deps = dependencies(hosted.records);
+    deps.resultReader.readResult = async () => hostedResult(hosted);
 
     const proposal = await respondToReviewCommand({
       schemaVersion: 1,
-      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      source: { kind: "hosted", attemptRef: hosted.attemptRef },
       proposal: {
         proposedVerification: "full",
         findings: [{
-          findingId: records.finding.findingId,
+          findingId: hosted.records.finding.findingId,
           sourceVerification: "verified",
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: "major",
@@ -1260,7 +1263,8 @@ describe("review response command", () => {
           openQuestions: [],
         }],
       },
-    }, dependencies(records));
+    }, deps);
+    if (proposal.state !== "awaiting-approval") throw new Error("hosted proposal was not materialized");
 
     expect(proposal).toMatchObject({
       state: "awaiting-approval",
@@ -1272,6 +1276,9 @@ describe("review response command", () => {
         },
       },
     });
+    expect(proposal.payload.dispositionReportText).toContain(
+      "Assessment: CONFIRMED · major (ARC) · minor nit (reviewer)",
+    );
   });
 
   it("preserves a verified nit independently from a non-nit reported grade", async () => {

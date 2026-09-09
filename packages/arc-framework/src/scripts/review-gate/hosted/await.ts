@@ -28,35 +28,29 @@ const HostedFindingNavigationShape = {
   sourceLabelTruncated: z.literal(true).optional(),
 };
 
-export const HostedThreadFindingSchema = z.strictObject({
-  findingId: z.string().min(1),
-  origin: z.literal("review-thread"),
-  commentId: z.string().min(1),
-  threadId: z.string().min(1),
-  settlement: z.literal("reply-and-resolve"),
+const HostedFindingClassificationShape = {
   severity: z.enum(["critical", "major", "minor"]),
-  locus: z.string().min(1),
-  url: z.url(),
-  ...HostedFindingNavigationShape,
-});
+  nit: z.literal(true).optional(),
+};
 
-export const HostedReviewBodyFindingSchema = z.strictObject({
-  findingId: z.string().min(1),
-  origin: z.literal("review-body"),
-  reviewId: z.string().min(1),
-  fingerprint: z.string().min(1),
-  settlement: z.literal("not-applicable"),
-  severity: z.enum(["critical", "major", "minor"]),
-  locus: z.string().min(1),
-  url: z.url(),
-  body: z.string().min(1),
-  ...HostedFindingNavigationShape,
-});
+interface HostedFindingValidationInput {
+  severity: "critical" | "major" | "minor";
+  nit?: true;
+  sourceLabel?: string;
+  sourceLabelTruncated?: true;
+}
 
-export const HostedFindingSchema = z.discriminatedUnion("origin", [
-  HostedThreadFindingSchema,
-  HostedReviewBodyFindingSchema,
-]).superRefine((finding, context) => {
+function validateHostedFinding(
+  finding: HostedFindingValidationInput,
+  context: z.RefinementCtx,
+): void {
+  if (finding.nit === true && finding.severity !== "minor") {
+    context.addIssue({
+      code: "custom",
+      message: "nit is valid only for minor findings",
+      path: ["nit"],
+    });
+  }
   if (finding.sourceLabelTruncated === true
     && (finding.sourceLabel === undefined || Array.from(finding.sourceLabel).length !== 512)) {
     context.addIssue({
@@ -65,7 +59,37 @@ export const HostedFindingSchema = z.discriminatedUnion("origin", [
       path: ["sourceLabelTruncated"],
     });
   }
-});
+}
+
+export const HostedThreadFindingSchema = z.strictObject({
+  findingId: z.string().min(1),
+  origin: z.literal("review-thread"),
+  commentId: z.string().min(1),
+  threadId: z.string().min(1),
+  settlement: z.literal("reply-and-resolve"),
+  ...HostedFindingClassificationShape,
+  locus: z.string().min(1),
+  url: z.url(),
+  ...HostedFindingNavigationShape,
+}).superRefine(validateHostedFinding);
+
+export const HostedReviewBodyFindingSchema = z.strictObject({
+  findingId: z.string().min(1),
+  origin: z.literal("review-body"),
+  reviewId: z.string().min(1),
+  fingerprint: z.string().min(1),
+  settlement: z.literal("not-applicable"),
+  ...HostedFindingClassificationShape,
+  locus: z.string().min(1),
+  url: z.url(),
+  body: z.string().min(1),
+  ...HostedFindingNavigationShape,
+}).superRefine(validateHostedFinding);
+
+export const HostedFindingSchema = z.discriminatedUnion("origin", [
+  HostedThreadFindingSchema,
+  HostedReviewBodyFindingSchema,
+]);
 export type HostedFinding = z.infer<typeof HostedFindingSchema>;
 
 export const HostedFindingsSchema = z.array(HostedFindingSchema).superRefine((findings, context) => {
@@ -93,6 +117,7 @@ export function projectHostedFinding(finding: HostedFinding): NormalizedReviewFi
   return NormalizedReviewFindingSchema.parse({
     findingId: finding.findingId,
     severity: finding.severity,
+    ...(finding.nit === undefined ? {} : { nit: finding.nit }),
     locus: finding.locus,
     evidenceUrlOrId: finding.url,
     sourceOrdinal: finding.sourceOrdinal,
