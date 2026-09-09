@@ -654,6 +654,41 @@ describe("releaseAdvisoryLock", () => {
     expect(await exists(lockPath)).toBe(false);
   });
 
+  it("serializes release with replacement acquisition at the maintenance boundary", async () => {
+    const breakPath = `${lockPath}.break`;
+    const replacement = holder(6, 2, "theirs");
+    const memory = buildMemoryLockFs({
+      [lockPath]: holder(5, 1, "ours"),
+    });
+    let replacementAcquired = false;
+
+    await releaseAdvisoryLock(
+      { path: lockPath, pid: 5, token: "ours" },
+      {
+        exclusiveCreate: memory.exclusiveCreate,
+        readFile: memory.readFile,
+        removeFile: async (path) => {
+          if (path === lockPath && !memory.files.has(breakPath)) {
+            memory.files.set(lockPath, replacement);
+            replacementAcquired = true;
+          }
+          await memory.removeFile(path);
+          if (path === breakPath) {
+            memory.files.set(lockPath, replacement);
+            replacementAcquired = true;
+          }
+        },
+        isProcessAlive: () => true,
+        now: () => 10,
+        sleep: async () => {},
+      },
+    );
+
+    expect(replacementAcquired).toBe(true);
+    expect(memory.files.get(lockPath)).toBe(replacement);
+    expect(memory.files.has(breakPath)).toBe(false);
+  });
+
   it("frees an owned lock synchronously during process exit", async () => {
     const handle = await acquireAdvisoryLock(lockPath, {
       pid: 5,
@@ -665,6 +700,26 @@ describe("releaseAdvisoryLock", () => {
     releaseAdvisoryLockSync(handle);
 
     expect(await exists(lockPath)).toBe(false);
+    expect(await exists(`${lockPath}.break`)).toBe(false);
+  });
+
+  it("leaves an owned lock untouched when synchronous exit cannot acquire maintenance", async () => {
+    const handle = await acquireAdvisoryLock(lockPath, {
+      pid: 5,
+      token: "ours",
+      now: () => 1,
+      isProcessAlive: () => true,
+    });
+    await writeFile(
+      `${lockPath}.break`,
+      JSON.stringify({ pid: 6, acquiredAt: 2, token: "maintenance" }),
+      "utf-8",
+    );
+
+    releaseAdvisoryLockSync(handle);
+
+    expect(await exists(lockPath)).toBe(true);
+    expect((await readHolder(lockPath)).token).toBe("ours");
   });
 
   it("never drops another holder's lock — verifies ownership before removing", async () => {

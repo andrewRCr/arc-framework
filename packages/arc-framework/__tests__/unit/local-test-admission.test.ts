@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   LOCAL_TEST_CONCURRENCY_OVERRIDE,
+  resolveProcessVisibilityScope,
   withLocalHeavyTestAdmission,
 } from "../../src/lib/local-test-admission.js";
 
@@ -19,6 +20,34 @@ function gitResult(args: string[]): { stdout: string; stderr: string } {
   }
   throw new Error(`Unexpected git invocation: ${args.join(" ")}`);
 }
+
+describe("resolveProcessVisibilityScope", () => {
+  it("uses the Linux PID namespace when procfs exposes it", async () => {
+    await expect(resolveProcessVisibilityScope(
+      "linux",
+      "process-a",
+      async () => "pid:[4026531836]",
+    )).resolves.toBe("pid:[4026531836]");
+  });
+
+  it("uses a stable process-specific unknown scope when Linux procfs is unavailable", async () => {
+    const unavailable = async (): Promise<string> => {
+      throw new Error("procfs unavailable");
+    };
+
+    await expect(resolveProcessVisibilityScope("linux", "process-a", unavailable))
+      .resolves.toBe("linux:unknown:process-a");
+    await expect(resolveProcessVisibilityScope("linux", "process-a", unavailable))
+      .resolves.toBe("linux:unknown:process-a");
+    await expect(resolveProcessVisibilityScope("linux", "process-b", unavailable))
+      .resolves.toBe("linux:unknown:process-b");
+  });
+
+  it("uses the host scope on platforms without Linux PID namespaces", async () => {
+    await expect(resolveProcessVisibilityScope("darwin", "process-a"))
+      .resolves.toBe("darwin:host");
+  });
+});
 
 describe("withLocalHeavyTestAdmission", () => {
   it("queues behind the shared holder with useful diagnostics, then releases after the run", async () => {

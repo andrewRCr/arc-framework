@@ -64,6 +64,29 @@ interface LocalTestAdmissionDependencies {
   readonly writeLine: (line: string) => void;
 }
 
+const PROCESS_INSTANCE = randomUUID();
+
+/**
+ * Resolve the process-visibility scope used to interpret recorded holder PIDs.
+ *
+ * @param platform - Runtime operating-system platform.
+ * @param processInstance - Stable identity for this exact runtime process.
+ * @param readPidNamespace - Linux procfs namespace reader.
+ * @returns A scope shared only by runtimes whose PIDs are mutually observable.
+ */
+export async function resolveProcessVisibilityScope(
+  platform: NodeJS.Platform,
+  processInstance: string,
+  readPidNamespace: () => Promise<string> = async () => await fsReadlink("/proc/self/ns/pid"),
+): Promise<string> {
+  if (platform !== "linux") return `${platform}:host`;
+  try {
+    return await readPidNamespace();
+  } catch {
+    return `linux:unknown:${processInstance}`;
+  }
+}
+
 const DEFAULT_DEPENDENCIES: LocalTestAdmissionDependencies = {
   acquireLock: acquireAdvisoryLock,
   git: createGitExec(),
@@ -72,7 +95,7 @@ const DEFAULT_DEPENDENCIES: LocalTestAdmissionDependencies = {
   },
   now: Date.now,
   pid: process.pid,
-  processInstance: randomUUID(),
+  processInstance: PROCESS_INSTANCE,
   registerExitCleanup: (handle) => {
     const listener = () => {
       releaseAdvisoryLockSync(handle);
@@ -84,14 +107,7 @@ const DEFAULT_DEPENDENCIES: LocalTestAdmissionDependencies = {
   },
   releaseLock: releaseAdvisoryLock,
   renewLock: renewAdvisoryLock,
-  resolveProcessScope: async () => {
-    if (process.platform !== "linux") return `${process.platform}:host`;
-    try {
-      return await fsReadlink("/proc/self/ns/pid");
-    } catch {
-      return "linux:host";
-    }
-  },
+  resolveProcessScope: async () => await resolveProcessVisibilityScope(process.platform, PROCESS_INSTANCE),
   scheduleEvery: (callback, intervalMs) => {
     const timer = setInterval(callback, intervalMs);
     timer.unref();

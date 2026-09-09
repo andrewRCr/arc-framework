@@ -19,7 +19,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { readFileSync, unlinkSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { readFile as fsReadFile, unlink as fsUnlink, writeFile as fsWriteFile } from "node:fs/promises";
 import { exclusiveCreateFile } from "./fs.js";
 
@@ -141,6 +141,13 @@ export interface AdvisoryLockRenewOptions extends Pick<
   /** Lock-record writer; defaults to the real filesystem. */
   writeFile?: (path: string, content: string) => Promise<void>;
 }
+
+/** Injectable seams and wait tuning for releasing an owned advisory lock. */
+export type AdvisoryLockReleaseOptions = Pick<
+  AdvisoryLockOptions,
+  "exclusiveCreate" | "readFile" | "removeFile" | "isProcessAlive" | "now" | "sleep" | "maxWaitMs"
+  | "breakLockTtlMs"
+>;
 
 /** Thrown when a held-and-live lock could not be acquired within the bounded wait. */
 export class AdvisoryLockTimeoutError extends Error {
@@ -324,7 +331,7 @@ export async function renewAdvisoryLock(
     }));
     return true;
   } finally {
-    await releaseAdvisoryLock(breakHandle, { readFile, removeFile });
+    await releaseOwnedLockDirect(breakHandle, readFile, removeFile, false);
   }
 }
 
@@ -365,14 +372,25 @@ async function attemptSerializedBreak(context: SerializedBreakContext): Promise<
       await tolerantRemove(context.removeFile, context.lockPath);
     }
   } finally {
-    await releaseAdvisoryLock(breakHandle, {
-      readFile: context.readFile,
-      removeFile: context.removeFile,
-    });
+    await releaseOwnedLockDirect(breakHandle, context.readFile, context.removeFile, false);
   }
 }
 
-async function tryAcquireBreakLock(context: SerializedBreakContext): Promise<AdvisoryLockHandle | null> {
+type BreakLockContext = Pick<
+  SerializedBreakContext,
+  | "breakLockPath"
+  | "exclusiveCreate"
+  | "readFile"
+  | "removeFile"
+  | "isProcessAlive"
+  | "now"
+  | "sleep"
+  | "pid"
+  | "token"
+  | "breakLockTtlMs"
+>;
+
+async function tryAcquireBreakLock(context: BreakLockContext): Promise<AdvisoryLockHandle | null> {
   const breakToken = `${context.token}:break`;
   try {
     await context.exclusiveCreate(
@@ -389,6 +407,26 @@ async function tryAcquireBreakLock(context: SerializedBreakContext): Promise<Adv
     await tolerantRemove(context.removeFile, context.breakLockPath);
   }
   return null;
+}
+
+async function acquireBreakLockForRelease(
+  lockPath: string,
+  context: BreakLockContext,
+  maxWaitMs: number,
+): Promise<AdvisoryLockHandle> {
+  const waitStartedAt = context.now();
+  const deadline = waitStartedAt + maxWaitMs;
+  let backoff = BACKOFF_INITIAL_MS;
+
+  for (;;) {
+    const handle = await tryAcquireBreakLock(context);
+    if (handle !== null) return handle;
+    if (context.now() >= deadline) {
+      throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+    }
+    await context.sleep(backoff);
+    backoff = Math.min(backoff * 2, BACKOFF_CAP_MS);
+  }
 }
 
 function isMainLockBreakable(
@@ -463,18 +501,35 @@ function isOwnedHolder(
  */
 export async function releaseAdvisoryLock(
   handle: AdvisoryLockHandle,
-  options: Pick<AdvisoryLockOptions, "readFile" | "removeFile"> = {},
+  options: AdvisoryLockReleaseOptions = {},
 ): Promise<void> {
+  const exclusiveCreate = options.exclusiveCreate ?? exclusiveCreateFile;
   const readFile = options.readFile ?? defaultReadFile;
   const removeFile = options.removeFile ?? defaultRemoveFile;
+  const isProcessAlive = options.isProcessAlive ?? realProcessAlive;
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? defaultSleep;
+  const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
+  const breakLockTtlMs = options.breakLockTtlMs ?? DEFAULT_BREAK_LOCK_TTL_MS;
+  const breakLockPath = `${handle.path}${BREAK_LOCK_SUFFIX}`;
+  const breakHandle = await acquireBreakLockForRelease(handle.path, {
+    breakLockPath,
+    exclusiveCreate,
+    readFile,
+    removeFile,
+    isProcessAlive,
+    now,
+    sleep,
+    pid: handle.pid,
+    token: handle.token,
+    breakLockTtlMs,
+  }, maxWaitMs);
 
-  const holder = await readHolder(readFile, handle.path);
-  if (holder === "absent" || holder === "corrupt" || holder === "empty" || holder === "unreadable") return;
-  if (holder.pid !== handle.pid) return;
-  // A tokenless holder (an older lockfile) falls back to the pid match above; a
-  // tokened one must match exactly, so a same-pid sibling never drops our lock.
-  if (holder.token !== undefined && holder.token !== handle.token) return;
-  await tolerantRemove(removeFile, handle.path);
+  try {
+    await releaseOwnedLockDirect(handle, readFile, removeFile, true);
+  } finally {
+    await releaseOwnedLockDirect(breakHandle, readFile, removeFile, false);
+  }
 }
 
 /**
@@ -487,16 +542,49 @@ export async function releaseAdvisoryLock(
  * @param handle - The acquisition to release if it still owns the lockfile.
  */
 export function releaseAdvisoryLockSync(handle: AdvisoryLockHandle): void {
+  const breakHandle = {
+    path: `${handle.path}${BREAK_LOCK_SUFFIX}`,
+    pid: handle.pid,
+    token: `${handle.token}:break`,
+  };
+  try {
+    writeFileSync(
+      breakHandle.path,
+      JSON.stringify({ pid: breakHandle.pid, acquiredAt: Date.now(), token: breakHandle.token }),
+      { encoding: "utf-8", flag: "wx" },
+    );
+  } catch {
+    return;
+  }
+
+  try {
+    releaseOwnedLockSyncDirect(handle, false);
+  } finally {
+    releaseOwnedLockSyncDirect(breakHandle, false);
+  }
+}
+
+async function releaseOwnedLockDirect(
+  handle: AdvisoryLockHandle,
+  readFile: (path: string) => Promise<string>,
+  removeFile: (path: string) => Promise<void>,
+  allowTokenless: boolean,
+): Promise<void> {
+  const holder = await readHolder(readFile, handle.path);
+  if (holder === "absent" || holder === "corrupt" || holder === "empty" || holder === "unreadable") return;
+  if (holder.pid !== handle.pid) return;
+  if (holder.token === undefined ? !allowTokenless : holder.token !== handle.token) return;
+  await tolerantRemove(removeFile, handle.path);
+}
+
+function releaseOwnedLockSyncDirect(handle: AdvisoryLockHandle, allowTokenless: boolean): void {
   try {
     const parsed: unknown = JSON.parse(readFileSync(handle.path, "utf-8"));
-    if (
-      typeof parsed !== "object"
-      || parsed === null
-      || (parsed as { pid?: unknown }).pid !== handle.pid
-      || (parsed as { token?: unknown }).token !== handle.token
-    ) {
-      return;
-    }
+    if (typeof parsed !== "object" || parsed === null) return;
+    const pid = (parsed as { pid?: unknown }).pid;
+    const token = (parsed as { token?: unknown }).token;
+    if (pid !== handle.pid) return;
+    if (token === undefined ? !allowTokenless : token !== handle.token) return;
     unlinkSync(handle.path);
   } catch {
     // Process-exit cleanup is best effort; lease expiry remains the crash backstop.
