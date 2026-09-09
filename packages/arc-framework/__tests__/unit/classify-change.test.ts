@@ -392,7 +392,7 @@ describe("classify-change.sh classify", () => {
     const command = manifest.scripts["test:arc-contracts"];
     const suites = ["framework-sync", "pr-open-extensions", "review-gate-workflows"];
 
-    expect(command).toBe(`vitest run --project integration ${suites.join(" ")}`);
+    expect(command).toBe("node --import tsx src/scripts/run-local-test-tier.ts arc-contracts");
     for (const suite of suites) {
       const path = `packages/arc-framework/__tests__/integration/${suite}.test.ts`;
       expect(await readFile(join(root, path), "utf8")).not.toBe("");

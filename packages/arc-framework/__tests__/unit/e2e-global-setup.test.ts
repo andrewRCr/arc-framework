@@ -29,11 +29,17 @@ describe("E2E global setup build selection", () => {
     expect(packageManifest.scripts["test:integration"]).toBe(
       "node --import tsx src/scripts/run-local-test-tier.ts integration",
     );
+    expect(packageManifest.scripts["test:arc-contracts"]).toBe(
+      "node --import tsx src/scripts/run-local-test-tier.ts arc-contracts",
+    );
     expect(packageManifest.scripts["test:e2e"]).toBe(
       "node --import tsx src/scripts/run-local-test-tier.ts e2e",
     );
     expect(packageManifest.scripts["test:e2e:focused"]).toBe(
       "node --import tsx src/scripts/run-local-test-tier.ts e2e-focused",
+    );
+    expect(packageManifest.scripts["test:portability"]).toBe(
+      "node --import tsx src/scripts/run-local-test-tier.ts portability",
     );
     expect(rootManifest.scripts["test:e2e:focused"]).toBe(
       "npm run test:e2e:focused -w packages/arc-framework",

@@ -8,9 +8,24 @@ describe("runLocalVitestTier", () => {
   it.each([
     ["full", []],
     ["integration", ["--project", "integration"]],
+    ["arc-contracts", [
+      "--project",
+      "integration",
+      "framework-sync",
+      "pr-open-extensions",
+      "review-gate-workflows",
+    ]],
     ["e2e", ["--project", "e2e"]],
     ["e2e-focused", ["--project", "e2e"]],
-  ] as const)("runs the %s tier through the current Vitest controller process", async (tier, projectArgs) => {
+    ["portability", [
+      "advisory-lock",
+      "user-sync-notes-lock",
+      "ref-tree-cas",
+      "state-ref-race.e2e",
+      "git-executor",
+      "delivery-transfer.e2e",
+    ]],
+  ] as const)("runs the %s tier through the current Vitest controller process", async (tier, tierArgs) => {
     const exit = vi.fn(async () => {});
     const parseCli = vi.fn(() => ({ filter: ["filtered.test.ts"], options: { run: true } }));
     const start = vi.fn(async () => ({ shouldKeepServer: () => false, exit }));
@@ -20,7 +35,7 @@ describe("runLocalVitestTier", () => {
     expect(parseCli).toHaveBeenCalledWith([
       "vitest",
       "run",
-      ...projectArgs,
+      ...tierArgs,
       "filtered.test.ts",
       "--passWithNoTests=false",
     ]);

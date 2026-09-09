@@ -142,6 +142,9 @@ export interface AdvisoryLockRenewOptions extends Pick<
   writeFile?: (path: string, content: string) => Promise<void>;
 }
 
+/** Outcome of one renewable-lease heartbeat attempt. */
+export type AdvisoryLockRenewalResult = "renewed" | "ownership-lost" | "retry";
+
 /** Injectable seams and wait tuning for releasing an owned advisory lock. */
 export type AdvisoryLockReleaseOptions = Pick<
   AdvisoryLockOptions,
@@ -281,13 +284,13 @@ export async function acquireAdvisoryLock(
  * @param handle - The acquisition whose lease should be renewed.
  * @param leaseDurationMs - New duration measured from the renewal clock.
  * @param options - Injectable filesystem, liveness, and clock seams.
- * @returns `true` when renewed; `false` when ownership or maintenance-lock acquisition was lost.
+ * @returns Whether the lease renewed, ownership is confirmed lost, or transient contention should retry.
  */
 export async function renewAdvisoryLock(
   handle: AdvisoryLockHandle,
   leaseDurationMs: number,
   options: AdvisoryLockRenewOptions = {},
-): Promise<boolean> {
+): Promise<AdvisoryLockRenewalResult> {
   if (!Number.isFinite(leaseDurationMs) || leaseDurationMs <= 0) {
     throw new Error("Advisory-lock lease duration must be a positive finite number");
   }
@@ -301,12 +304,14 @@ export async function renewAdvisoryLock(
   const sleep = options.sleep ?? defaultSleep;
   const breakLockTtlMs = options.breakLockTtlMs ?? DEFAULT_BREAK_LOCK_TTL_MS;
   const currentHolder = await readHolderSettled(readFile, sleep, handle.path);
-  if (!isOwnedHolder(currentHolder, handle)) return false;
+  const currentOwnership = classifyRenewalOwnership(currentHolder, handle);
+  if (currentOwnership.state !== "owned") return currentOwnership.state;
+  const ownedHolder = currentOwnership.holder;
 
   const context: SerializedBreakContext = {
     lockPath: handle.path,
     breakLockPath: `${handle.path}${BREAK_LOCK_SUFFIX}`,
-    observedHolder: currentHolder,
+    observedHolder: ownedHolder,
     exclusiveCreate,
     readFile,
     removeFile,
@@ -316,23 +321,37 @@ export async function renewAdvisoryLock(
     pid: handle.pid,
     token: handle.token,
     breakLockTtlMs,
-    processScope: currentHolder.processScope,
-    processInstance: currentHolder.processInstance,
+    processScope: ownedHolder.processScope,
+    processInstance: ownedHolder.processInstance,
   };
   const breakHandle = await tryAcquireBreakLock(context);
-  if (breakHandle === null) return false;
+  if (breakHandle === null) return "retry";
 
   try {
     const latestHolder = await readHolderSettled(readFile, sleep, handle.path);
-    if (!isOwnedHolder(latestHolder, handle)) return false;
+    const latestOwnership = classifyRenewalOwnership(latestHolder, handle);
+    if (latestOwnership.state !== "owned") return latestOwnership.state;
     await writeFile(handle.path, JSON.stringify({
-      ...latestHolder,
+      ...latestOwnership.holder,
       leaseUntil: now() + leaseDurationMs,
     }));
-    return true;
+    return "renewed";
   } finally {
     await releaseOwnedLockDirect(breakHandle, readFile, removeFile, false);
   }
+}
+
+function classifyRenewalOwnership(
+  holder: AdvisoryLockHolder | "absent" | "corrupt" | "unreadable",
+  handle: AdvisoryLockHandle,
+):
+  | { readonly state: "owned"; readonly holder: AdvisoryLockHolder }
+  | { readonly state: Exclude<AdvisoryLockRenewalResult, "renewed"> } {
+  if (typeof holder === "object" && holder.pid === handle.pid && holder.token === handle.token) {
+    return { state: "owned", holder };
+  }
+  if (holder === "corrupt" || holder === "unreadable") return { state: "retry" };
+  return { state: "ownership-lost" };
 }
 
 interface SerializedBreakContext {
@@ -479,13 +498,6 @@ function isSameBreakTarget(
     && observed.processScope === current.processScope
     && observed.processInstance === current.processInstance
   );
-}
-
-function isOwnedHolder(
-  holder: AdvisoryLockHolder | "absent" | "corrupt" | "unreadable",
-  handle: AdvisoryLockHandle,
-): holder is AdvisoryLockHolder {
-  return isReleasableHolder(holder, handle, false);
 }
 
 function isReleasableHolder(

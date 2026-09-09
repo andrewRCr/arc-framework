@@ -1,7 +1,7 @@
 /**
  * Repository-wide admission for subprocess-heavy local test tiers.
  *
- * Unit-only runs remain concurrent. Full, integration, and E2E runners call this
+ * Unit-only runs remain concurrent. Every subprocess-heavy local tier calls this
  * boundary so linked worktrees on one machine share a single heavy-test slot.
  *
  * @module
@@ -21,6 +21,7 @@ import {
   type AdvisoryLockContention,
   type AdvisoryLockHandle,
   type AdvisoryLockOptions,
+  type AdvisoryLockRenewalResult,
 } from "./advisory-lock.js";
 import { resolveGitCommonDir } from "./user-sync/repo-shared-paths.js";
 
@@ -28,7 +29,13 @@ import { resolveGitCommonDir } from "./user-sync/repo-shared-paths.js";
 export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
 
 /** Local tiers whose subprocess load must be admitted through the shared slot. */
-export type LocalHeavyTestTier = "full" | "integration" | "e2e" | "e2e-focused";
+export type LocalHeavyTestTier =
+  | "full"
+  | "integration"
+  | "arc-contracts"
+  | "e2e"
+  | "e2e-focused"
+  | "portability";
 
 /** Inputs resolved by the package-script adapter. */
 export interface LocalTestAdmissionInput {
@@ -58,9 +65,13 @@ interface LocalTestAdmissionDependencies {
   readonly processInstance: string;
   readonly registerExitCleanup: (handle: AdvisoryLockHandle) => () => void;
   readonly releaseLock: (handle: AdvisoryLockHandle) => Promise<void>;
-  readonly renewLock: (handle: AdvisoryLockHandle, leaseDurationMs: number) => Promise<boolean>;
+  readonly renewLock: (
+    handle: AdvisoryLockHandle,
+    leaseDurationMs: number,
+  ) => Promise<AdvisoryLockRenewalResult>;
   readonly resolveProcessScope: () => Promise<string>;
   readonly scheduleEvery: (callback: () => void, intervalMs: number) => () => void;
+  readonly terminateProcess: () => void;
   readonly writeLine: (line: string) => void;
 }
 
@@ -114,6 +125,9 @@ const DEFAULT_DEPENDENCIES: LocalTestAdmissionDependencies = {
     return () => {
       clearInterval(timer);
     };
+  },
+  terminateProcess: () => {
+    process.kill(process.pid, "SIGTERM");
   },
   writeLine: (line) => {
     process.stderr.write(`${line}\n`);
@@ -199,16 +213,28 @@ export async function withLocalHeavyTestAdmission<T>(
   }
 
   const unregisterExitCleanup = dependencies.registerExitCleanup(handle);
+  let heartbeatActive = true;
+  let terminationRequested = false;
   const cancelHeartbeat = dependencies.scheduleEvery(() => {
-    void dependencies.renewLock(handle, LEASE_DURATION_MS).catch((error: unknown) => {
-      const detail = error instanceof Error ? error.message : String(error);
-      dependencies.writeLine(`Unable to renew the local heavy-test lock heartbeat: ${detail}`);
-    });
+    void dependencies.renewLock(handle, LEASE_DURATION_MS)
+      .then((result) => {
+        if (!heartbeatActive || result !== "ownership-lost" || terminationRequested) return;
+        terminationRequested = true;
+        dependencies.writeLine(
+          "Local heavy-test lock ownership was lost; stopping the admitted test controller.",
+        );
+        dependencies.terminateProcess();
+      })
+      .catch((error: unknown) => {
+        const detail = error instanceof Error ? error.message : String(error);
+        dependencies.writeLine(`Unable to renew the local heavy-test lock heartbeat: ${detail}`);
+      });
   }, LEASE_RENEW_INTERVAL_MS);
 
   try {
     return await action();
   } finally {
+    heartbeatActive = false;
     cancelHeartbeat();
     try {
       await dependencies.releaseLock(handle);
@@ -256,12 +282,20 @@ function parseHolderMetadata(value: unknown): LocalTestHolderMetadata | null {
   };
 }
 
-function isLocalHeavyTestTier(value: unknown): value is LocalHeavyTestTier {
-  return value === "full" || value === "integration" || value === "e2e" || value === "e2e-focused";
+export function isLocalHeavyTestTier(value: unknown): value is LocalHeavyTestTier {
+  return value === "full"
+    || value === "integration"
+    || value === "arc-contracts"
+    || value === "e2e"
+    || value === "e2e-focused"
+    || value === "portability";
 }
 
 function tierLabel(tier: LocalHeavyTestTier): string {
-  return tier === "e2e-focused" ? "focused E2E" : tier === "e2e" ? "E2E" : tier;
+  if (tier === "e2e-focused") return "focused E2E";
+  if (tier === "e2e") return "E2E";
+  if (tier === "arc-contracts") return "ARC contract";
+  return tier;
 }
 
 function formatDuration(milliseconds: number): string {

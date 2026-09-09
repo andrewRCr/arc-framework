@@ -617,7 +617,7 @@ describe("renewAdvisoryLock", () => {
     });
     clock = 500;
 
-    await expect(renewAdvisoryLock(handle, 1_000, { now: () => clock })).resolves.toBe(true);
+    await expect(renewAdvisoryLock(handle, 1_000, { now: () => clock })).resolves.toBe("renewed");
 
     expect(await readHolder(lockPath)).toEqual({
       pid: 5,
@@ -626,6 +626,33 @@ describe("renewAdvisoryLock", () => {
       metadata: { worktree: "/repo/worktree-a" },
       leaseUntil: 1_500,
     });
+  });
+
+  it("reports confirmed ownership loss when another holder replaced the lease", async () => {
+    const handle = await acquireAdvisoryLock(lockPath, {
+      pid: 5,
+      token: "ours",
+      now: () => 100,
+      leaseDurationMs: 1_000,
+    });
+    await writeFile(lockPath, holder(6, 200, "theirs"), "utf-8");
+
+    await expect(renewAdvisoryLock(handle, 1_000)).resolves.toBe("ownership-lost");
+  });
+
+  it("reports a retry when another process temporarily holds maintenance", async () => {
+    const handle = await acquireAdvisoryLock(lockPath, {
+      pid: 5,
+      token: "ours",
+      now: () => 100,
+      leaseDurationMs: 1_000,
+    });
+    await writeFile(`${lockPath}.break`, holder(6, 200, "maintenance"), "utf-8");
+
+    await expect(renewAdvisoryLock(handle, 1_000, {
+      isProcessAlive: () => true,
+      now: () => 300,
+    })).resolves.toBe("retry");
   });
 });
 

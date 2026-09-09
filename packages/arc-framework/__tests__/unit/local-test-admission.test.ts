@@ -131,7 +131,7 @@ describe("withLocalHeavyTestAdmission", () => {
 
   it("renews the crash-recovery lease and installs immediate process-exit cleanup", async () => {
     const handle = { path: "/repo/.git/lock", pid: 42, token: "ours" };
-    const renewLock = vi.fn(async () => true);
+    const renewLock = vi.fn(async () => "renewed" as const);
     const cancelHeartbeat = vi.fn();
     const unregisterExitCleanup = vi.fn();
     let heartbeat: (() => void) | undefined;
@@ -165,6 +165,47 @@ describe("withLocalHeavyTestAdmission", () => {
     expect(registerExitCleanup).toHaveBeenCalledWith(handle);
     expect(cancelHeartbeat).toHaveBeenCalledOnce();
     expect(unregisterExitCleanup).toHaveBeenCalledOnce();
+  });
+
+  it("retries temporary renewal contention but terminates after confirmed ownership loss", async () => {
+    const lines: string[] = [];
+    let heartbeat: (() => void) | undefined;
+    let terminationRequests = 0;
+    const renewLock = vi.fn()
+      .mockResolvedValueOnce("retry" as const)
+      .mockResolvedValueOnce("ownership-lost" as const);
+
+    await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "portability" },
+      async () => {
+        heartbeat?.();
+        await vi.waitFor(() => expect(renewLock).toHaveBeenCalledTimes(1));
+        expect(terminationRequests).toBe(0);
+        heartbeat?.();
+        await vi.waitFor(() => expect(terminationRequests).toBe(1));
+      },
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: vi.fn(async (_command, args) => gitResult(args)),
+        mkdir: vi.fn(async () => undefined),
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        renewLock,
+        resolveProcessScope: async () => "pid:[test]",
+        scheduleEvery: (callback) => {
+          heartbeat = callback;
+          return () => {};
+        },
+        terminateProcess: () => {
+          terminationRequests += 1;
+        },
+        writeLine: (line) => lines.push(line),
+      },
+    );
+
+    expect(lines).toContain(
+      "Local heavy-test lock ownership was lost; stopping the admitted test controller.",
+    );
   });
 
   it.each([

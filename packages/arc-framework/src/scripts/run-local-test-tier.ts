@@ -9,6 +9,7 @@
  */
 
 import {
+  isLocalHeavyTestTier,
   type LocalHeavyTestTier,
   withLocalHeavyTestAdmission,
 } from "../lib/local-test-admission.js";
@@ -29,8 +30,6 @@ await withLocalHeavyTestAdmission(
 );
 
 function parseTier(value: string | undefined): LocalHeavyTestTier {
-  if (value === "full" || value === "integration" || value === "e2e" || value === "e2e-focused") {
-    return value;
-  }
+  if (isLocalHeavyTestTier(value)) return value;
   throw new Error(`Unknown local heavy-test tier: ${value ?? "(missing)"}`);
 }

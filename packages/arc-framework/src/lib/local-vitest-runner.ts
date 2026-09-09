@@ -34,13 +34,41 @@ export async function runLocalVitestTier(
   forwardedArguments: string[],
   dependencies: LocalVitestRunnerDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<void> {
-  const projectArguments = tier === "full" ? [] : ["--project", tier.startsWith("e2e") ? "e2e" : tier];
   const { filter, options } = dependencies.parseCli([
     "vitest",
     "run",
-    ...projectArguments,
+    ...localVitestTierArguments(tier),
     ...forwardedArguments,
   ]);
   const context = await dependencies.start("test", filter, options);
   if (!context.shouldKeepServer()) await context.exit();
+}
+
+function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
+  switch (tier) {
+    case "full":
+      return [];
+    case "integration":
+      return ["--project", "integration"];
+    case "arc-contracts":
+      return [
+        "--project",
+        "integration",
+        "framework-sync",
+        "pr-open-extensions",
+        "review-gate-workflows",
+      ];
+    case "e2e":
+    case "e2e-focused":
+      return ["--project", "e2e"];
+    case "portability":
+      return [
+        "advisory-lock",
+        "user-sync-notes-lock",
+        "ref-tree-cas",
+        "state-ref-race.e2e",
+        "git-executor",
+        "delivery-transfer.e2e",
+      ];
+  }
 }
