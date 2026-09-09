@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { digestBytes } from "../canonical/canonical-json.js";
 import { atomicWriteFile } from "../fs.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "../user-sync/notes-lock.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";
 import {
   parseCandidateManagedRecord,
   serializeCandidateManagedRecord,

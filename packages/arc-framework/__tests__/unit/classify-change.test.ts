@@ -233,7 +233,8 @@ describe("classify-change.sh portability", () => {
   }
 
   it("targets concurrency primitives and their focused tests", async () => {
-    expect(await portability(["packages/arc-framework/src/lib/user-sync/notes-lock.ts"])).toBe("true");
+    expect(await portability(["packages/arc-framework/src/lib/advisory-lock.ts"])).toBe("true");
+    expect(await portability(["packages/arc-framework/__tests__/unit/advisory-lock.test.ts"])).toBe("true");
     expect(await portability(["packages/arc-framework/src/lib/git/ref-tree.ts"])).toBe("true");
     expect(await portability(["packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts"])).toBe("true");
   });

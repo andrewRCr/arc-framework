@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { canonicalDigest } from "../../../../lib/kernel/index.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "../../../../lib/user-sync/notes-lock.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock } from "../../../../lib/advisory-lock.js";
 import { resolveGitCommonDir } from "../../../../lib/user-sync/repo-shared-paths.js";
 
 const RepositoryIdentityRecordSchema = z.strictObject({

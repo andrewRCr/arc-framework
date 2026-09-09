@@ -7,7 +7,7 @@ import {
   acquireAdvisoryLock,
   releaseAdvisoryLock,
   type AdvisoryLockOptions,
-} from "../user-sync/notes-lock.js";
+} from "../advisory-lock.js";
 import { resolveGitCommonDir } from "../user-sync/repo-shared-paths.js";
 
 /** Canonical lockfile shared by worktree rename and teardown. */

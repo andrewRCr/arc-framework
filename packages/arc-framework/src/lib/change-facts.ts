@@ -327,11 +327,12 @@ const PACKAGED_CONTENT_SENSITIVE_GLOBS = [
 ] as const;
 
 const PORTABILITY_SURFACE_GLOBS = [
+  "packages/arc-framework/src/lib/advisory-lock.ts",
   "packages/arc-framework/src/lib/git/ref-tree.ts",
   "packages/arc-framework/src/lib/errand/*",
   "packages/arc-framework/src/lib/user-sync/*",
   "packages/arc-framework/src/commands/user/shared.ts",
-  "packages/arc-framework/__tests__/unit/user-sync-notes-lock.test.ts",
+  "packages/arc-framework/__tests__/unit/advisory-lock.test.ts",
   "packages/arc-framework/__tests__/integration/ref-tree-cas*.test.ts",
   "packages/arc-framework/__tests__/integration/sync-state-ref*.test.ts",
   "packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts",
