@@ -292,6 +292,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
         state: "Active",
         branch: "main",
         candidateId,
+        currentWorkflow: "prepare-work-unit",
       }),
     );
     await writeFile(
