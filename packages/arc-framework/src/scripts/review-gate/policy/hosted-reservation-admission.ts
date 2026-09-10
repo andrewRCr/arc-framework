@@ -16,6 +16,10 @@ import {
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { ReviewApplicabilityConsumerAction } from "./review-applicability-authority.js";
 import type { HostedReservationDischarge } from "./hosted-reservation-discharge.js";
+import {
+  resolveEvidenceBoundReviewPolicyContinuation,
+  type EvidenceBoundReviewPolicyDependencies,
+} from "./review-policy-evidence.js";
 
 interface ReservationAttempt {
   sourceId: string;
@@ -57,6 +61,12 @@ export type HostedReservationPolicyResolution =
   | { readonly status: "resolved"; readonly policy: ReviewResolveEnvelope }
   | { readonly status: "unavailable"; readonly detail: string };
 
+type HostedReservationPolicyInput = Parameters<typeof resolveHostedReservationPolicy>[0];
+type HostedReservationEvidenceDependencies = Pick<
+  EvidenceBoundReviewPolicyDependencies,
+  "resultReader" | "dispositionStore" | "confirmTarget"
+>;
+
 /** Project driver-grade progress for one delivery member across exact head movement. */
 export function projectHostedReservationPolicyProgress(input: {
   readonly snapshot: ReviewOperationStateSnapshot;
@@ -84,7 +94,6 @@ export function projectHostedReservationPolicyProgress(input: {
     readonly updatedAt: string;
     readonly operationId: string;
     readonly attemptIndex: number;
-    readonly settled: boolean;
     readonly attempt: ReviewPolicyCommandRequest["attempts"][number];
   }> = [];
   for (const { state } of input.snapshot.records) {
@@ -103,8 +112,6 @@ export function projectHostedReservationPolicyProgress(input: {
         && hosted.reviewTarget.repositoryId === input.repositoryId
         && hosted.reviewTarget.headSha === attempt.headSha
         && sameDeliveryReviewMemberIdentity(input.vehicle, hosted.vehicle);
-      const hostedCompleteMatches = hostedIdentityMatches
-        && (hosted.requestedCoverage === "complete" || hosted.effectiveCoverage === "complete");
       const localMatches = attempt.changeRequestId === null
         && local?.deliveryAdmission !== undefined
         && local.vehicle.kind === "delivery-member"
@@ -142,13 +149,11 @@ export function projectHostedReservationPolicyProgress(input: {
       }
       if (attempt.headSha === input.target.headSha
         && attempt.outcome !== "pending"
-        && ((localMatches && local.effectiveCoverage === "complete") || (hostedCompleteMatches
-          && sameDeliveryReviewMemberVehicle(input.vehicle, hosted.vehicle)))) {
+        && (hostedIdentityMatches || (localMatches && local.effectiveCoverage !== null))) {
         currentTimeline.push({
           updatedAt: state.updatedAt,
           operationId: state.operationId,
           attemptIndex,
-          settled: attempt.outcome === "settled-findings",
           attempt: projectReviewPolicyAttempt(attempt),
         });
       }
@@ -165,11 +170,7 @@ export function projectHostedReservationPolicyProgress(input: {
     { updatedAt: right.progress.updatedAt, operationId: right.operationId, attemptIndex: right.attemptIndex },
   ));
   currentTimeline.sort(compareTimeline);
-  let latestSettledIndex = -1;
-  for (const [index, entry] of currentTimeline.entries()) {
-    if (entry.settled) latestSettledIndex = index;
-  }
-  const attempts = currentTimeline.slice(latestSettledIndex + 1).map(({ attempt }) => attempt);
+  const attempts = currentTimeline.map(({ attempt }) => attempt);
   const attemptHistory = historyTimeline.map(({ progress }) => progress);
   return {
     status: "complete",
@@ -224,6 +225,76 @@ export function resolveHostedReservationPolicy(input: {
   };
 }
 
+/**
+ * Resolve one delivery member after binding any terminal attempt to its immutable producer evidence.
+ *
+ * @param input - Reservation, target, policy progress, and caller-owned review judgments.
+ * @param dependencies - Repository-bound readers and exact-target confirmation.
+ * @returns The verified policy resolution or a typed progress-projection refusal.
+ */
+export async function resolveEvidenceBoundHostedReservationPolicy(
+  input: HostedReservationPolicyInput,
+  dependencies: HostedReservationEvidenceDependencies,
+): Promise<HostedReservationPolicyResolution> {
+  const progress = projectHostedReservationPolicyProgress(input);
+  if (progress.status === "unavailable") return progress;
+  const attemptsBySource = new Map<string, ReviewPolicyCommandRequest["attempts"][number]>();
+  for (const attempt of [...(input.requestAttempts ?? []), ...progress.attempts]) {
+    attemptsBySource.set(attempt.sourceId, attempt);
+  }
+  const attempts = input.reservation.sources.flatMap((sourceId) => {
+    const attempt = attemptsBySource.get(sourceId);
+    return attempt === undefined ? [] : [attempt];
+  });
+  if (attempts.length !== attemptsBySource.size) {
+    return { status: "unavailable", detail: "Review request progress names a source outside the reservation." };
+  }
+  const request = {
+    schemaVersion: 1 as const,
+    target: input.target,
+    lane: "standard" as const,
+    standardReview: input.reservation.obligation,
+    completedPasses: progress.completedPasses,
+    attempts,
+    ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
+    ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+    ...(input.scopeSelection === undefined ? {} : { scopeSelection: input.scopeSelection }),
+  };
+  const latestCurrentAttempt = [...progress.attemptHistory].reverse().find((attempt) => (
+    attempt.headSha === input.target.headSha
+  ));
+  const policy = await resolveEvidenceBoundReviewPolicyContinuation(request, {
+    terminalResponsePerformed: latestCurrentAttempt?.outcome === "settled-findings",
+  }, {
+    sources: input.reservation.sources,
+    maxPasses: input.maxPasses,
+    ...dependencies,
+  });
+  return { status: "resolved", policy };
+}
+
+function assertHostedPolicyResolution(
+  resolution: HostedReservationPolicyResolution,
+  provider: string,
+): asserts resolution is {
+  readonly status: "resolved";
+  readonly policy: Extract<ReviewResolveEnvelope, { state: "ready"; nextAction: "hosted-request" }>;
+} {
+  if (resolution.status === "unavailable") throw new Error(resolution.detail);
+  if (resolution.policy.state !== "ready"
+    || resolution.policy.nextAction !== "hosted-request") {
+    throw new Error(
+      `Hosted review capacity lacks standard-review driver admission (${resolution.policy.state}/${resolution.policy.nextAction}).`,
+    );
+  }
+  if (resolution.policy.payload.sourceId !== provider) {
+    throw new Error(
+      `Hosted review source \`${provider}\` is not driver-admissible; `
+      + `the standard lane requires \`${resolution.policy.payload.sourceId}\` next.`,
+    );
+  }
+}
+
 /** Refuse a hosted request that no longer has exact driver admission at capacity-spend time. */
 export function assertHostedReservationPolicyAdmission(input: {
   readonly reservation: StandardReviewReservationV1;
@@ -238,19 +309,24 @@ export function assertHostedReservationPolicyAdmission(input: {
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
 }): void {
   const resolution = resolveHostedReservationPolicy(input);
-  if (resolution.status === "unavailable") throw new Error(resolution.detail);
-  if (resolution.policy.state !== "ready"
-    || resolution.policy.nextAction !== "hosted-request") {
-    throw new Error(
-      `Hosted review capacity lacks standard-review driver admission (${resolution.policy.state}/${resolution.policy.nextAction}).`,
-    );
-  }
-  if (resolution.policy.payload.sourceId !== input.provider) {
-    throw new Error(
-      `Hosted review source \`${input.provider}\` is not driver-admissible; `
-      + `the standard lane requires \`${resolution.policy.payload.sourceId}\` next.`,
-    );
-  }
+  assertHostedPolicyResolution(resolution, input.provider);
+}
+
+/**
+ * Refuse a hosted request unless immutable terminal evidence admits the exact next source.
+ *
+ * @param input - Exact reservation request being authorized at capacity-spend time.
+ * @param dependencies - Repository-bound readers and exact-target confirmation.
+ * @returns Nothing; throws unless verified policy admits the requested source.
+ */
+export async function assertEvidenceBoundHostedReservationPolicyAdmission(
+  input: Parameters<typeof assertHostedReservationPolicyAdmission>[0],
+  dependencies: HostedReservationEvidenceDependencies,
+): Promise<void> {
+  assertHostedPolicyResolution(
+    await resolveEvidenceBoundHostedReservationPolicy(input, dependencies),
+    input.provider,
+  );
 }
 
 /** Refuse a Candidate request that no longer has fresh discharge and driver admission. */
@@ -331,6 +407,72 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
       : { ceilingOverride: input.ceilingOverride }),
   });
   if (admission.payload.pass !== input.logicalPass) {
+    throw new Error("Hosted review capacity changed before durable admission.");
+  }
+}
+
+/**
+ * Refuse a Candidate request unless its current terminal producer and performed response admit it.
+ *
+ * @param input - Candidate request, fresh discharge, progress, and policy judgments.
+ * @param dependencies - Repository-bound readers and exact-target confirmation.
+ * @returns Nothing; throws unless verified policy admits the requested source and logical pass.
+ */
+export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmission(
+  input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
+  dependencies: HostedReservationEvidenceDependencies,
+): Promise<void> {
+  if (input.discharge.discharged || input.discharge.nextSource === null
+    || (input.invocation === undefined && input.discharge.nextSource !== input.provider)) {
+    throw new Error("Hosted Candidate request no longer matches the fresh discharge position.");
+  }
+  if (input.discharge.requestCoverage !== undefined
+    && input.discharge.requestCoverage !== input.coverage) {
+    throw new Error("Hosted Candidate request coverage no longer matches the fresh discharge position.");
+  }
+  const currentHeadAttempts = input.progress?.attempts.filter((attempt) => (
+    attempt.headSha === input.target.headSha
+  )) ?? [];
+  if (currentHeadAttempts.some(({ outcome }) => outcome === "pending")) {
+    throw new Error("Hosted review capacity is already held by a pending request.");
+  }
+  const completed = currentHeadAttempts.filter((attempt): attempt is typeof attempt & {
+    outcome: Exclude<typeof attempt.outcome, "pending">;
+  } => attempt.outcome !== "pending");
+  const attemptsBySource = new Map<string, ReviewPolicyCommandRequest["attempts"][number]>();
+  for (const attempt of [
+    ...input.discharge.requestAttempts ?? [],
+    ...completed.map(projectReviewPolicyAttempt),
+  ]) {
+    attemptsBySource.set(attempt.sourceId, attempt);
+  }
+  const attempts = input.reservation.sources.flatMap((sourceId) => {
+    const attempt = attemptsBySource.get(sourceId);
+    return attempt === undefined ? [] : [attempt];
+  });
+  if (attempts.length !== attemptsBySource.size) {
+    throw new Error("Hosted Candidate request progress names a source outside the reservation.");
+  }
+  const latest = completed.at(-1);
+  const policy = await resolveEvidenceBoundReviewPolicyContinuation({
+    schemaVersion: 1,
+    target: input.target,
+    lane: "standard",
+    frontlineActive: false,
+    standardReview: input.reservation.obligation,
+    completedPasses: input.progress?.completedPasses ?? 0,
+    attempts,
+    ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
+    ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+  }, {
+    terminalResponsePerformed: latest?.outcome === "settled-findings",
+  }, {
+    sources: input.reservation.sources,
+    maxPasses: input.maxPasses,
+    ...dependencies,
+  });
+  assertHostedPolicyResolution({ status: "resolved", policy }, input.provider);
+  if (!("pass" in policy.payload) || policy.payload.pass !== input.logicalPass) {
     throw new Error("Hosted review capacity changed before durable admission.");
   }
 }

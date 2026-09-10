@@ -7,6 +7,7 @@ import {
 } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/canonical/canonical-json.js";
 import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../../../lib/delivery/host.js";
+import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
@@ -19,6 +20,8 @@ import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from
   "../hosts/local/disposition-record-store.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
+import { createRepositoryReviewResultReader } from
+  "../hosts/local/review-result-reader-composition.js";
 import {
   laneProgressOperationId,
   readLaneProgressAcrossLineage,
@@ -36,19 +39,23 @@ import {
   candidateExpectsEarlierReviewAttempt,
   projectEarlierReviewApplicability,
 } from "./earlier-review-applicability.js";
+import type { ReviewResolveEnvelope } from "./review-policy-driver.js";
+import { projectReviewPolicyAttempt } from "./review-policy-driver.js";
+import { resolveEvidenceBoundReviewPolicy } from "./review-policy-evidence.js";
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
-
-function lastMatchingIndex<T>(values: readonly T[], predicate: (value: T) => boolean): number {
-  for (let index = values.length - 1; index >= 0; index -= 1) {
-    const value = values[index];
-    if (value !== undefined && predicate(value)) return index;
-  }
-  return -1;
-}
+type EarlierApplicableAttempt = Extract<
+  EarlierHostedAttemptApplicabilityRead,
+  { status: "complete" }
+>["attempts"][number];
 
 function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
   return attempt.local?.effectiveCoverage === "complete" || attempt.hosted?.effectiveCoverage === "complete";
+}
+
+function terminalPolicyOutcome(outcome: string): "clean" | "settled-findings" {
+  if (outcome === "clean" || outcome === "settled-findings") return outcome;
+  throw new Error("Terminal discharge evidence has no policy-bearing outcome.");
 }
 
 function attemptMatchesTarget(
@@ -379,6 +386,8 @@ export async function projectHostedReservationDischarge(input: {
   ) => Promise<EarlierHostedAttemptApplicabilityRead>;
   requireEarlierApplicabilityEvidence?: boolean | ((sourceId: string) => boolean);
   bindCurrentAttemptRef?: (attemptId: string) => string;
+  resolveTerminalPolicy: (attempt: ProjectedLaneAttempt) => Promise<ReviewResolveEnvelope>;
+  resolveEarlierTerminalPolicy: (attempt: EarlierApplicableAttempt) => Promise<ReviewResolveEnvelope>;
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
   if (reservation === null) {
@@ -404,13 +413,9 @@ export async function projectHostedReservationDischarge(input: {
   }
   const allAttempts = [...attemptsByHead.values()].flat();
   const currentAttemptHistory = attemptsByHead.get(target.headSha) ?? [];
-  const latestSettledIndex = lastMatchingIndex(currentAttemptHistory, (attempt) => (
-    attempt.outcome === "settled-findings" && isCompleteStandardVerdict(attempt)
-  ));
-  const currentAttempts = latestSettledIndex < 0
-    ? currentAttemptHistory
-    : currentAttemptHistory.slice(latestSettledIndex + 1);
-  const activeLogicalPass = (completedPassesByHead.get(target.headSha) ?? 0) + 1;
+  const currentAttempts = currentAttemptHistory;
+  const completedPasses = Math.max(0, ...completedPassesByHead.values());
+  const activeLogicalPass = completedPasses + 1;
   const activeCurrentAttempts = currentAttemptHistory.filter((attempt) => (
     attempt.logicalPass === activeLogicalPass
   ));
@@ -476,20 +481,51 @@ export async function projectHostedReservationDischarge(input: {
       awaitAction: { schemaVersion: 1, handle: pending.hosted.handle },
     };
   }
-  const completedChunkedLocal = currentAttempts.some((attempt) => (
-    attempt.sourceId === "delegated-agent"
-    && attempt.outcome === "clean"
-    && attempt.chunkSeriesComplete === true
-    && attempt.local?.deliveryAdmission?.scopeSelection?.mode === "chunked"
-  ));
-  if (completedChunkedLocal) {
-    return {
-      discharged: true,
-      detail: "Standard source `delegated-agent` completed the selected chunk series.",
-      nextSource: null,
-    };
+  const latestCurrentTerminalPass = currentAttempts.reduce<number | null>((latest, attempt) => (
+    reservation.sources.includes(attempt.sourceId)
+      && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
+      && (latest === null || attempt.logicalPass > latest)
+      ? attempt.logicalPass
+      : latest
+  ), null);
+  if (latestCurrentTerminalPass !== null) {
+    const admittedLocalTerminal = [...currentAttemptHistory].reverse().find((attempt) => (
+      attempt.logicalPass === latestCurrentTerminalPass
+      && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
+      && attempt.local?.deliveryAdmission !== undefined
+    ));
+    for (const sourceId of reservation.sources) {
+      const sourceAttempts = currentAttemptHistory.filter((attempt) => (
+        attempt.sourceId === sourceId && attempt.logicalPass === latestCurrentTerminalPass
+      ));
+      const currentTerminal = [...sourceAttempts].reverse().find((attempt) => (
+        attempt.outcome === "clean" || attempt.outcome === "settled-findings"
+      ));
+      if (currentTerminal !== undefined) {
+        const policy = await input.resolveTerminalPolicy(currentTerminal);
+        if (policy.state === "pass-complete") {
+          return {
+            discharged: true,
+            detail: currentTerminal.outcome === "clean"
+              ? `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\`.`
+              : `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\` converged with `
+                + "no verified material findings.",
+            nextSource: null,
+          };
+        }
+        if (currentTerminal.outcome === "clean" || policy.state !== "findings") {
+          return {
+            discharged: false,
+            detail: `The terminal review producer did not establish convergence (${policy.state}/${policy.nextAction}).`,
+            nextSource: null,
+          };
+        }
+        break;
+      }
+      if (admittedLocalTerminal !== undefined) continue;
+      if (retainedSafeUnavailableAttempt(sourceId, sourceAttempts) === null) break;
+    }
   }
-
   const earlierBySource = new Map<string, EarlierHostedAttemptApplicabilityRead>();
   const readEarlier = async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> => {
     if (input.readEarlierAttemptApplicability === undefined) return null;
@@ -500,38 +536,13 @@ export async function projectHostedReservationDischarge(input: {
     return read;
   };
   let activeEarlierBySource: Map<string, EarlierHostedAttemptApplicabilityRead> | null = null;
-  const earlierTimeline = { settledPass: false };
   const readActiveEarlier = async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> => {
     if (input.readEarlierAttemptApplicability === undefined) return null;
     if (activeEarlierBySource === null) {
       await Promise.all(reservation.sources.map((reservedSourceId) => readEarlier(reservedSourceId)));
-      const ordered = [...earlierBySource.values()].flatMap((read) => read.status === "complete"
-        ? read.attempts
-        : []);
-      ordered.sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)
-        || left.operationId.localeCompare(right.operationId)
-        || left.attemptId.localeCompare(right.attemptId));
-      const settledIndex = lastMatchingIndex(ordered, ({
-        outcome, applicability, requestedCoverage, effectiveCoverage,
-      }) => (
-        outcome === "settled-findings"
-        && applicability === "retain-prior-attempt"
-        && (requestedCoverage === "complete" || effectiveCoverage === "complete")
-      ));
-      earlierTimeline.settledPass = settledIndex >= 0;
-      const activeKeys = new Set(ordered.slice(settledIndex + 1).map((attempt) => (
-        `${attempt.operationId}\0${attempt.attemptId}`
-      )));
       activeEarlierBySource = new Map([...earlierBySource].map(([reservedSourceId, read]) => [
         reservedSourceId,
-        read.status !== "complete"
-          ? read
-          : {
-              ...read,
-              attempts: read.attempts.filter((attempt) => activeKeys.has(
-                `${attempt.operationId}\0${attempt.attemptId}`,
-              )),
-            },
+        read,
       ]));
     }
     return activeEarlierBySource.get(sourceId) ?? null;
@@ -554,8 +565,8 @@ export async function projectHostedReservationDischarge(input: {
           nextSource: null,
         };
       }
-      if ((earlier.status === "not-found" && evidenceRequired && !earlierTimeline.settledPass)
-        || (earlier.status === "complete" && earlier.attempts.length === 0 && !earlierTimeline.settledPass)) {
+      if ((earlier.status === "not-found" && evidenceRequired)
+        || (earlier.status === "complete" && earlier.attempts.length === 0)) {
         return {
           discharged: false,
           detail: "Earlier review applicability evidence is incomplete.",
@@ -599,17 +610,13 @@ export async function projectHostedReservationDischarge(input: {
     const orderedSourceAttempts = currentAttemptHistory.filter((attempt) => (
       attempt.sourceId === sourceId && attempt.logicalPass === orderedLogicalPass
     ));
-    const settledCurrentHead = currentAttempts.some((attempt) => attempt.sourceId === sourceId
-      && isCompleteStandardVerdict(attempt)
-      && attempt.outcome === "clean");
-    const settledWithoutApplicabilityReader = input.readEarlierAttemptApplicability === undefined
+    if (input.readEarlierAttemptApplicability === undefined
       && allAttempts.some((attempt) => attempt.sourceId === sourceId
         && isCompleteStandardVerdict(attempt)
-        && attempt.outcome === "clean");
-    if (settledCurrentHead || settledWithoutApplicabilityReader) {
+        && attempt.outcome === "clean")) {
       return {
-        discharged: true,
-        detail: `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\`.`,
+        discharged: false,
+        detail: "Earlier review applicability evidence is incomplete.",
         nextSource: null,
       };
     }
@@ -627,8 +634,7 @@ export async function projectHostedReservationDischarge(input: {
       const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
         ? input.requireEarlierApplicabilityEvidence(sourceId)
         : input.requireEarlierApplicabilityEvidence === true;
-      if ((earlier.status === "not-found" && !evidenceRequired)
-        || (earlier.status === "complete" && earlier.attempts.length === 0 && earlierTimeline.settledPass)) {
+      if (earlier.status === "not-found" && !evidenceRequired) {
         const retainedFindings = await retainedFindingsBeforeRequest();
         if (retainedFindings !== null) return retainedFindings;
         return {
@@ -692,12 +698,35 @@ export async function projectHostedReservationDischarge(input: {
       const cleanApplicable = applicable.find(({ outcome, effectiveCoverage }) => effectiveCoverage === "complete"
         && outcome === "clean");
       if (cleanApplicable !== undefined) {
+        const policy = await input.resolveEarlierTerminalPolicy(cleanApplicable);
+        if (policy.state !== "pass-complete") {
+          return {
+            discharged: false,
+            detail: `The retained terminal review producer did not establish convergence `
+              + `(${policy.state}/${policy.nextAction}).`,
+            nextSource: null,
+          };
+        }
         return {
           discharged: true,
           detail: `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\` through `
             + "contribution applicability.",
           nextSource: null,
         };
+      }
+      const settledApplicable = applicable.find(({ outcome, effectiveCoverage }) => (
+        effectiveCoverage === "complete" && outcome === "settled-findings"
+      ));
+      if (settledApplicable !== undefined) {
+        const policy = await input.resolveEarlierTerminalPolicy(settledApplicable);
+        if (policy.state === "pass-complete") {
+          return {
+            discharged: true,
+            detail: `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\` through `
+              + "contribution applicability with no verified material findings.",
+            nextSource: null,
+          };
+        }
       }
       const orderedApplicable = selected.filter(({ applicability, logicalPass }) => (
         applicability === "retain-prior-attempt" && logicalPass === orderedLogicalPass
@@ -769,6 +798,14 @@ export function createHostedReservationDischargeReader(input: {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
   const dispositions = new LocalApprovedDispositionRecordStore(publisher);
+  const resultReader = createRepositoryReviewResultReader(publisher);
+  let maxPassesPromise: Promise<number> | null = null;
+  const maxPasses = () => {
+    maxPassesPromise ??= readConfigSettings(input.cwd).then(({ settings }) => (
+      Number(settings["review.standard_max_passes"])
+    ));
+    return maxPassesPromise;
+  };
   let repositoryIdPromise: Promise<string> | null = null;
   const repositoryId = () => {
     repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
@@ -792,11 +829,16 @@ export function createHostedReservationDischargeReader(input: {
     candidate?: CandidateManagedRecordV1;
   }): Promise<HostedReservationDischarge> => {
     if (reservation === null) {
+      const unreachableTerminalPolicy = (): Promise<ReviewResolveEnvelope> => Promise.reject(
+        new Error("A reservation-free discharge has no terminal review policy."),
+      );
       return projectHostedReservationDischarge({
         reservation,
         span: [],
         target: null,
         readLaneProgress: () => Promise.resolve({ status: "unrecorded" }),
+        resolveTerminalPolicy: unreachableTerminalPolicy,
+        resolveEarlierTerminalPolicy: unreachableTerminalPolicy,
       });
     }
     let stdout: string;
@@ -871,6 +913,48 @@ export function createHostedReservationDischargeReader(input: {
       );
       return { head: observed.request.headSha, base: observedBase.trim() };
     };
+    const resolveTerminalPolicy = async (terminal: {
+      readonly attemptId: string;
+      readonly logicalPass: number;
+      readonly sourceId: string;
+      readonly outcome: "clean" | "settled-findings";
+      readonly producerTarget: NonNullable<EarlierApplicableAttempt["producerTarget"]>;
+      readonly scopeMode?: "whole-target" | "chunked";
+      readonly chunkSeriesComplete?: boolean;
+    }): Promise<ReviewResolveEnvelope> => {
+      if (changeRequest === null) {
+        throw new Error("Terminal review policy requires exact change-request coordinates.");
+      }
+      const policyTarget = {
+        repository: changeRequest.repository,
+        pullRequest: changeRequest.pullRequest,
+        headSha: terminal.producerTarget.headSha,
+      };
+      return resolveEvidenceBoundReviewPolicy({
+        schemaVersion: 1,
+        target: policyTarget,
+        lane: "standard",
+        standardReview: reservation.obligation,
+        completedPasses: terminal.logicalPass,
+        attempts: [projectReviewPolicyAttempt({
+          attemptId: terminal.attemptId,
+          sourceId: terminal.sourceId,
+          outcome: terminal.outcome,
+          ...(terminal.chunkSeriesComplete === undefined
+            ? {}
+            : { chunkSeriesComplete: terminal.chunkSeriesComplete }),
+        })],
+        ...(terminal.scopeMode === undefined
+          ? {}
+          : { scopeSelection: { mode: terminal.scopeMode, target: policyTarget } }),
+      }, {
+        sources: reservation.sources,
+        maxPasses: await maxPasses(),
+        resultReader,
+        dispositionStore: dispositions,
+        confirmTarget: () => Promise.resolve(terminal.producerTarget),
+      });
+    };
     return projectHostedReservationDischarge({
       reservation,
       span,
@@ -894,6 +978,37 @@ export function createHostedReservationDischargeReader(input: {
         }),
         durableRef: attemptId,
       }),
+      resolveTerminalPolicy: (attempt) => {
+        const producerTarget = attempt.local?.target ?? attempt.hosted?.reviewTarget;
+        if (producerTarget === undefined) {
+          throw new Error("Terminal review progress has no immutable producer target.");
+        }
+        return resolveTerminalPolicy({
+          attemptId: attempt.attemptId,
+          logicalPass: attempt.logicalPass,
+          sourceId: attempt.sourceId,
+          outcome: terminalPolicyOutcome(attempt.outcome),
+          producerTarget,
+          ...(attempt.local?.deliveryAdmission?.scopeSelection?.mode === undefined
+            ? {}
+            : { scopeMode: attempt.local.deliveryAdmission.scopeSelection.mode }),
+          ...(attempt.chunkSeriesComplete === undefined
+            ? {}
+            : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
+        });
+      },
+      resolveEarlierTerminalPolicy: (attempt) => {
+        if (attempt.producerTarget === undefined) {
+          throw new Error("Earlier review applicability has no immutable producer target.");
+        }
+        return resolveTerminalPolicy({
+          attemptId: attempt.attemptId,
+          logicalPass: attempt.logicalPass,
+          sourceId: attempt.sourceId,
+          outcome: terminalPolicyOutcome(attempt.outcome),
+          producerTarget: attempt.producerTarget,
+        });
+      },
       ...(snapshot === null || changeRequest === null || candidate === undefined || lineage === undefined
         ? {}
         : {

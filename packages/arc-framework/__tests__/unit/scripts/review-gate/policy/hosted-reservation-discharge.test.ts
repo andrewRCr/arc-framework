@@ -15,12 +15,14 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { resolveReviewPolicy } from
+  "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { classifyReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 import {
   allHostedReservationTargetsDischarged,
   createHostedReservationDischargeReader,
-  projectHostedReservationDischarge,
+  projectHostedReservationDischarge as projectHostedReservationDischargeRaw,
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
@@ -313,6 +315,48 @@ function progress(
     if (entry === undefined || entry.status === "unrecorded") return { status: "unrecorded" };
     return { ...entry, completePasses: entry.completePasses ?? entry.completedPasses };
   };
+}
+
+type DischargeInput = Parameters<typeof projectHostedReservationDischargeRaw>[0];
+type TerminalPolicyResolvers = Pick<
+  DischargeInput,
+  "resolveTerminalPolicy" | "resolveEarlierTerminalPolicy"
+>;
+type TerminalPolicyAttempt = Parameters<TerminalPolicyResolvers[keyof TerminalPolicyResolvers]>[0];
+
+async function defaultTerminalPolicy(
+  attempt: TerminalPolicyAttempt,
+) {
+  const outcome = attempt.outcome === "clean" ? "clean" as const : "findings" as const;
+  const coverageAdequate = "effectiveCoverage" in attempt
+    ? attempt.effectiveCoverage === "complete"
+    : attempt.local?.effectiveCoverage === "complete" || attempt.hosted?.effectiveCoverage === "complete";
+  return resolveReviewPolicy({
+    schemaVersion: 1,
+    target: target(oid("a")),
+    lane: "standard",
+    standardReview: reservation(attempt.sourceId, [attempt.sourceId]).obligation,
+    sources: [attempt.sourceId],
+    maxPasses: 2,
+    completedPasses: attempt.logicalPass,
+    attempts: [{ sourceId: attempt.sourceId, outcome, reviewOperationId: attempt.attemptId }],
+    verifiedTerminalSignal: {
+      reviewOperationId: attempt.attemptId,
+      confirmedFindingCount: outcome === "clean" ? 0 : 1,
+      maxConfirmedSeverity: outcome === "clean" ? null : "major",
+      coverageAdequate,
+    },
+  });
+}
+
+function projectHostedReservationDischarge(
+  input: Omit<DischargeInput, keyof TerminalPolicyResolvers> & Partial<TerminalPolicyResolvers>,
+) {
+  return projectHostedReservationDischargeRaw({
+    ...input,
+    resolveTerminalPolicy: input.resolveTerminalPolicy ?? defaultTerminalPolicy,
+    resolveEarlierTerminalPolicy: input.resolveEarlierTerminalPolicy ?? defaultTerminalPolicy,
+  });
 }
 
 function earlierAttempt<T extends { readonly sourceId: string }>(input: T) {
@@ -928,7 +972,7 @@ describe("hosted reservation discharge", () => {
     })).resolves.toMatchObject({ discharged: true });
   });
 
-  it("discharges from a clean verdict the reserved source returned earlier in the span", async () => {
+  it("does not discharge an earlier clean verdict without current applicability evidence", async () => {
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
       span: [oid("a"), oid("b")],
@@ -943,20 +987,89 @@ describe("hosted reservation discharge", () => {
       }),
     });
 
-    expect(result.discharged).toBe(true);
-    expect(result.detail).toBe("Hosted source `coderabbit-pr`.");
+    expect(result).toEqual({
+      discharged: false,
+      detail: "Earlier review applicability evidence is incomplete.",
+      nextSource: null,
+    });
+  });
+
+  it("discharges an applicable earlier settled result only after verified nonmaterial policy", async () => {
+    const prior = earlierAttempt({
+      sourceId: "coderabbit-pr",
+      outcome: "settled-findings",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      applicability: "retain-prior-attempt" as const,
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({ status: "complete", attempts: [prior] }),
+      requireEarlierApplicabilityEvidence: true,
+      resolveEarlierTerminalPolicy: async () => resolveReviewPolicy({
+        schemaVersion: 1,
+        target: target(oid("a")),
+        lane: "standard",
+        standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: prior.attemptId,
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: prior.attemptId,
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "minor",
+          coverageAdequate: true,
+        },
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: true,
+      detail: "Hosted source `coderabbit-pr` through contribution applicability with no verified material findings.",
+      nextSource: null,
+    });
   });
 
   it("keeps a member outstanding after findings settle so the next pass can converge", async () => {
+    const headSha = oid("a");
+    const settled = attempt(headSha, "coderabbit-pr", "settled-findings");
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
-      span: [oid("a")],
-      target: target(oid("a")),
+      span: [headSha],
+      target: target(headSha),
       readLaneProgress: progress({
-        [oid("a")]: {
+        [headSha]: {
           status: "recorded",
           completedPasses: 1,
-          attempts: [attempt(oid("a"), "coderabbit-pr", "settled-findings")],
+          attempts: [settled],
+        },
+      }),
+      resolveTerminalPolicy: async () => resolveReviewPolicy({
+        schemaVersion: 1,
+        target: target(headSha),
+        lane: "standard",
+        standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: settled.attemptId,
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: settled.attemptId,
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "major",
+          coverageAdequate: true,
         },
       }),
     });
@@ -965,6 +1078,49 @@ describe("hosted reservation discharge", () => {
       discharged: false,
       nextSource: "coderabbit-pr",
       detail: expect.stringContaining("has not produced a settled review"),
+    });
+  });
+
+  it("discharges settled findings only when verified policy finds no material signal", async () => {
+    const headSha = oid("a");
+    const settled = attempt(headSha, "coderabbit-pr", "settled-findings");
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [headSha],
+      target: target(headSha),
+      readLaneProgress: progress({
+        [headSha]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [settled],
+        },
+      }),
+      resolveTerminalPolicy: async () => resolveReviewPolicy({
+        schemaVersion: 1,
+        target: target(headSha),
+        lane: "standard",
+        standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: settled.attemptId,
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: settled.attemptId,
+          confirmedFindingCount: 0,
+          maxConfirmedSeverity: null,
+          coverageAdequate: true,
+        },
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: true,
+      detail: "Hosted source `coderabbit-pr` converged with no verified material findings.",
+      nextSource: null,
     });
   });
 
@@ -1039,8 +1195,61 @@ describe("hosted reservation discharge", () => {
       }),
     });
 
-    expect(result.discharged).toBe(false);
-    expect(result.nextSource).toBe("coderabbit-pr");
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: null,
+      detail: expect.stringContaining("coverage-required/select-coverage"),
+    });
+  });
+
+  it("preserves an incremental terminal result as coverage-required policy evidence", async () => {
+    const headSha = oid("b");
+    const incremental = attempt(
+      headSha,
+      "coderabbit-pr",
+      "clean",
+      undefined,
+      { requested: "incremental", effective: "incremental" },
+    );
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [headSha],
+      target: target(headSha),
+      readLaneProgress: progress({
+        [headSha]: {
+          status: "recorded",
+          completedPasses: 1,
+          completePasses: 0,
+          attempts: [incremental],
+        },
+      }),
+      resolveTerminalPolicy: async () => resolveReviewPolicy({
+        schemaVersion: 1,
+        target: target(headSha),
+        lane: "standard",
+        standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "clean",
+          reviewOperationId: incremental.attemptId,
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: incremental.attemptId,
+          confirmedFindingCount: 0,
+          maxConfirmedSeverity: null,
+          coverageAdequate: false,
+        },
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: false,
+      detail: "The terminal review producer did not establish convergence (coverage-required/select-coverage).",
+      nextSource: null,
+    });
   });
 
   it("discharges the exact member from the driver's delegated-agent result", async () => {
@@ -1296,6 +1505,69 @@ describe("hosted reservation discharge", () => {
 
     expect(result.discharged).toBe(false);
     expect(result.detail).toContain("coderabbit-pr");
+  });
+
+  it("accepts a lower local source after its exact delivery admission was validated", async () => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("a"),
+    });
+    const localTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: vehicle.head,
+      headTree: oid("2"),
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "delegated-agent"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [vehicle.head],
+      target: { ...target(vehicle.head), vehicle },
+      readLaneProgress: progress({
+        [vehicle.head]: {
+          status: "recorded",
+          completedPasses: 1,
+          completePasses: 1,
+          attempts: [{
+            attemptId: "local-review-1",
+            logicalPass: 1,
+            sourceId: "delegated-agent",
+            outcome: "clean",
+            local: {
+              vehicle: { kind: "delivery-member", identity: MEMBER_ONE },
+              target: localTarget,
+              requestedCoverage: "complete",
+              effectiveCoverage: "complete",
+              deliveryAdmission: {
+                ...delegatedAdmission(vehicle),
+                scopeSelection: {
+                  mode: "chunked",
+                  target: target(vehicle.head),
+                },
+              },
+            },
+          }],
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: true,
+      nextSource: null,
+      detail: "Standard source `delegated-agent`.",
+    });
   });
 
   it("leaves the reservation pending when the reserved source reached no verdict", async () => {

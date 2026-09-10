@@ -21,7 +21,10 @@ import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
 import { bindReviewSourceReference } from
   "../../../../../src/scripts/review-gate/core/review-source-reference.js";
-import { resolveEvidenceBoundReviewPolicy } from
+import {
+  resolveEvidenceBoundReviewPolicy,
+  resolveEvidenceBoundReviewPolicyContinuation,
+} from
   "../../../../../src/scripts/review-gate/policy/review-policy-evidence.js";
 import { DeliveryLocalReviewAdmissionSchema } from
   "../../../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
@@ -402,6 +405,63 @@ describe("evidence-bound review policy", () => {
           coverageAdequate: true,
         },
       },
+    });
+  });
+
+  it("starts a fresh logical pass only after a material response is durably performed", async () => {
+    const result = findingsHostedResult(["major"]);
+    const record = approvedRecord(result, [{
+      sourceVerification: "verified",
+      verifiedSeverity: "major",
+      disposition: "fix",
+    }]);
+    const request = findingsRequest(result);
+    const evidence = {
+      ...dependencies(result, record),
+      sources: ["codex-pr"],
+      maxPasses: 2,
+    };
+
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: false,
+    }, evidence)).resolves.toMatchObject({
+      state: "findings",
+      nextAction: "respond",
+    });
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: true,
+    }, evidence)).resolves.toMatchObject({
+      state: "ready",
+      nextAction: "hosted-request",
+      payload: { pass: 2, sourceId: "codex-pr" },
+    });
+  });
+
+  it("applies a ceiling override only after the terminal response opens the fresh pass", async () => {
+    const result = findingsHostedResult(["major"]);
+    const record = approvedRecord(result, [{
+      sourceVerification: "verified",
+      verifiedSeverity: "major",
+      disposition: "fix",
+    }]);
+    await expect(resolveEvidenceBoundReviewPolicyContinuation({
+      ...findingsRequest(result),
+      ceilingOverride: {
+        target: policyTarget,
+        lane: "standard",
+        exhaustedPassCount: 1,
+        nextPass: 2,
+      },
+    }, {
+      terminalResponsePerformed: true,
+    }, {
+      ...dependencies(result, record),
+      sources: ["codex-pr"],
+      maxPasses: 1,
+    })).resolves.toMatchObject({
+      state: "ready",
+      nextAction: "hosted-request",
+      payload: { pass: 2, sourceId: "codex-pr", ceilingOverrideApplied: true },
     });
   });
 

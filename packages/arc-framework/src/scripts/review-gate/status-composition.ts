@@ -48,12 +48,16 @@ import { createGhRequiredChecksPort } from "./hosts/github/checks-await.js";
 import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
+import { LocalApprovedDispositionRecordStore } from
+  "./hosts/local/disposition-record-store.js";
+import { createRepositoryReviewResultReader } from
+  "./hosts/local/review-result-reader-composition.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
 import type { HostedReviewCoverage } from "./hosted/request.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
 import {
   projectHostedReservationPolicyProgress,
-  resolveHostedReservationPolicy,
+  resolveEvidenceBoundHostedReservationPolicy,
 } from "./policy/hosted-reservation-admission.js";
 import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
 import type { DeliveryLocalReviewScopeSelection } from
@@ -465,6 +469,8 @@ export async function readRoutedObligation(
       })));
       const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
       const store = new LocalReviewOperationStateStore(publisher);
+      const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+      const resultReader = createRepositoryReviewResultReader(publisher);
       const snapshot = await store.readOperationSnapshot();
       const repositoryId = await resolveRepositoryIdentity(publisher);
       const policy = await resolveConfiguredLanePolicy({
@@ -525,7 +531,7 @@ export async function readRoutedObligation(
           planId: reservation.target.planId,
           target: firstTarget,
         });
-        const admission = resolveHostedReservationPolicy({
+        const admission = await resolveEvidenceBoundHostedReservationPolicy({
           reservation,
           snapshot,
           repositoryId,
@@ -546,6 +552,10 @@ export async function readRoutedObligation(
             ? {}
             : { invocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
           ...(scopeSelection === undefined ? {} : { scopeSelection }),
+        }, {
+          resultReader,
+          dispositionStore,
+          confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
         });
         if (admission.status === "unavailable") {
           return { state: "blocked", detail: admission.detail };

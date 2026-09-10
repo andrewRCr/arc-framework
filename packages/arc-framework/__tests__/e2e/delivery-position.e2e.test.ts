@@ -52,6 +52,8 @@ import type { DeliveryLocalReviewAdmission } from
   "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { projectLocalReviewGuidance } from
   "../../src/scripts/review-gate/policy/local-review-guidance.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from
+  "../../src/scripts/review-gate/policy/standard-review.js";
 import { ApprovedDispositionRecordSchema, currentApprovedDispositionNode } from
   "../../src/scripts/review-gate/core/advisory-records.js";
 import {
@@ -2761,7 +2763,7 @@ describe("arc delivery position", () => {
           obligation: "required",
           reasons: ["sensitive-change-set"],
           rubricVersion: "standard-review/v1",
-          rubricDigest: `sha256:${"f".repeat(64)}`,
+          rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
           retrigger: "full-final",
           count: 1,
         },
@@ -2787,7 +2789,7 @@ describe("arc delivery position", () => {
         obligation: "required",
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: `sha256:${"f".repeat(64)}`,
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         retrigger: "full-final",
         count: 1,
       },
@@ -2832,9 +2834,9 @@ describe("arc delivery position", () => {
         targetId: oldTarget.targetId,
         producerId: publishedResult.attemptId,
         resultDigest: publishedResult.hosted.sealedResult!.hostedResultId,
-        policyVersion: canonicalDigest({ policy: "review" }),
-        rubricVersion: "standard-review/v1",
-        rubricDigest: canonicalDigest({ rubric: "standard" }),
+        policyVersion: requirement.policyVersion,
+        rubricVersion: requirement.rubricVersion,
+        rubricDigest: requirement.rubricDigest,
         proposedBy: "arc-cli/0.1.0",
         proposedVerification: "full",
         findings: [{
@@ -3382,14 +3384,13 @@ describe("arc delivery position", () => {
       headSha: oldTarget.headSha,
       headTree: oldTarget.headTree,
     });
-    const replayRubricDigest = canonicalDigest({ rubric: "standard" });
     const replayRequirement = createReviewRequirement({
       target: replayOldTarget,
       projection: {
         obligation: "required",
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: replayRubricDigest,
+        rubricDigest: requirement.rubricDigest,
         retrigger: "full-final",
         count: 1,
       },
@@ -3664,7 +3665,7 @@ describe("arc delivery position", () => {
         obligation: "required",
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: `sha256:${"f".repeat(64)}`,
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         retrigger: "full-final",
         count: 1,
       },
@@ -3981,7 +3982,7 @@ describe("arc delivery position", () => {
         obligation: "required",
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: `sha256:${"f".repeat(64)}`,
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
         retrigger: "full-final",
         count: 1,
       },

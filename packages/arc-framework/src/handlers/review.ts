@@ -134,13 +134,15 @@ import { LaneSubjectLineageSchema } from "../scripts/review-gate/core/lane-admis
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import {
-  assertStandardReviewExecutionAdmission,
   projectReviewPolicyAttempt,
   ReviewPolicyCommandRequestSchema,
   ReviewResolveEnvelopeSchema,
   type ReviewPolicyCommandRequest,
 } from "../scripts/review-gate/policy/review-policy-driver.js";
-import { resolveEvidenceBoundReviewPolicy } from
+import {
+  assertEvidenceBoundReviewExecutionAdmission,
+  resolveEvidenceBoundReviewPolicy,
+} from
   "../scripts/review-gate/policy/review-policy-evidence.js";
 import {
   evaluateReviewReadiness,
@@ -214,12 +216,12 @@ import {
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
 import {
-  assertCandidateHostedReservationPolicyAdmission,
+  assertEvidenceBoundCandidateHostedReservationPolicyAdmission,
   assertHostedErrandAdmission,
   assertHostedErrandBindingAuthority,
   assertHostedReservationAdmission,
   assertHostedReservationBindingAuthority,
-  assertHostedReservationPolicyAdmission,
+  assertEvidenceBoundHostedReservationPolicyAdmission,
   configuredSourceSuffix,
   hostedReservationAttemptsForTarget,
 } from
@@ -2727,7 +2729,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             || (request.invocation === undefined && discharge.nextSource !== request.provider)) {
             throw new Error("Hosted delivery-member request no longer matches the fresh discharge position.");
           }
-          assertHostedReservationPolicyAdmission({
+          await assertEvidenceBoundHostedReservationPolicyAdmission({
             reservation: context.reservation,
             snapshot: await context.store.readOperationSnapshot(),
             repositoryId: context.repositoryId,
@@ -2742,6 +2744,10 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             ...(request.ceilingOverride === undefined
               ? {}
               : { ceilingOverride: request.ceilingOverride }),
+          }, {
+            resultReader: createRepositoryReviewResultReader(publisher),
+            dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+            confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
           });
           const currentObligation = await readRoutedObligation(
             root,
@@ -2790,7 +2796,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             },
             candidate: context.candidateRecord,
           });
-          assertCandidateHostedReservationPolicyAdmission({
+          await assertEvidenceBoundCandidateHostedReservationPolicyAdmission({
             reservation: context.reservation,
             discharge,
             progress,
@@ -2803,6 +2809,10 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             ...(request.ceilingOverride === undefined
               ? {}
               : { ceilingOverride: request.ceilingOverride }),
+          }, {
+            resultReader: createRepositoryReviewResultReader(publisher),
+            dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+            confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
           });
           return;
         }
@@ -2814,28 +2824,32 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
         )) === true) {
           throw new Error("Hosted review capacity is already held by a pending request.");
         }
-        let lastSettledIndex = -1;
-        currentAttempts.forEach((attempt, index) => {
-          if (attempt.outcome === "settled-findings") lastSettledIndex = index;
-        });
-        const attempts = currentAttempts.slice(lastSettledIndex + 1)
-          .map(projectReviewPolicyAttempt);
-        const admission = assertStandardReviewExecutionAdmission({
+        const latestAttempt = currentAttempts.at(-1);
+        const admission = await assertEvidenceBoundReviewExecutionAdmission({
           target: request.target,
+          schemaVersion: 1,
+          lane: "standard",
           frontlineActive: false,
           standardReview,
           completedPasses: progress?.completedPasses ?? 0,
-          attempts,
-          sources,
-          maxPasses: policy.maxPasses,
-          expectedSourceId: request.provider,
-          expectedNextAction: "hosted-request",
+          attempts: currentAttempts.map(projectReviewPolicyAttempt),
           ...(request.invocation === undefined
             ? {}
-            : { judgment: { invocation: request.invocation } }),
+            : { invocation: request.invocation }),
           ...(request.ceilingOverride === undefined
             ? {}
             : { ceilingOverride: request.ceilingOverride }),
+        }, {
+          terminalResponsePerformed: latestAttempt?.outcome === "settled-findings",
+        }, {
+          sourceId: request.provider,
+          nextAction: "hosted-request",
+        }, {
+          sources,
+          maxPasses: policy.maxPasses,
+          resultReader: createRepositoryReviewResultReader(publisher),
+          dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+          confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
         });
         if (admission.payload.pass !== logicalPass) {
           throw new Error("Hosted review capacity changed before durable admission.");

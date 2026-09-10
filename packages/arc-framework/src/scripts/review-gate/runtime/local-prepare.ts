@@ -157,9 +157,12 @@ export interface LocalPrepareDependencies {
     standardReview: StandardReviewObligationProjection;
     completedPasses: number;
     attempts: ReviewPolicyCommandRequest["attempts"];
+    terminalResponsePerformed: boolean;
     judgment?: ReviewLaneJudgment;
   }): Promise<number>;
-  validateDeliveryAdmission(admission: DeliveryLocalReviewAdmission): Promise<void>;
+  validateDeliveryAdmission(
+    admission: DeliveryLocalReviewAdmission,
+  ): Promise<StandardReviewObligationProjection | undefined>;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   readReceipts(targetId: string): Promise<ForwardReceiptLedger>;
@@ -411,7 +414,11 @@ export async function prepareLocalReview(
     assurance: assurance.assurance,
     activity: assurance.activity,
   });
-  const projection = projectStandardReviewObligation(routing.decision);
+  const routedProjection = projectStandardReviewObligation(routing.decision);
+  const admittedProjection = request.deliveryAdmission === undefined
+    ? undefined
+    : await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
+  const projection = admittedProjection ?? routedProjection;
   const allDiagnostics = [...assurance.diagnostics, ...routing.diagnostics];
   if (projection.obligation === "exempt") {
     return LocalPrepareEnvelopeSchema.parse({
@@ -484,16 +491,17 @@ export async function prepareLocalReview(
       },
     );
     if (request.deliveryAdmission !== undefined) {
-      await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
+      const currentProjection = await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
+      if ((admittedProjection !== undefined && currentProjection === undefined)
+        || (currentProjection !== undefined
+          && canonicalize(currentProjection) !== canonicalize(projection))) {
+        throw new LocalPrepareCommandError("local delivery review policy changed before preparation");
+      }
     }
     const currentAttempts = owner?.attempts.filter((attempt): attempt is typeof attempt & {
       outcome: Exclude<typeof attempt.outcome, "pending">;
     } => attempt.headSha === target.headSha && attempt.outcome !== "pending") ?? [];
-    let lastSettledIndex = -1;
-    currentAttempts.forEach((attempt, index) => {
-      if (attempt.outcome === "settled-findings") lastSettledIndex = index;
-    });
-    const activeAttempts = currentAttempts.slice(lastSettledIndex + 1);
+    const activeAttempts = currentAttempts;
     const retryableLocalFailure = activeAttempts.at(-1);
     const retryingLocalFailure = retryableLocalFailure?.outcome === "terminal-failure"
       && retryableLocalFailure.local !== undefined
@@ -513,6 +521,7 @@ export async function prepareLocalReview(
       standardReview: projection,
       completedPasses: owner?.completedPasses ?? 0,
       attempts: policyAttempts,
+      terminalResponsePerformed: currentAttempts.at(-1)?.outcome === "settled-findings",
       ...(request.policyJudgment === undefined ? {} : { judgment: request.policyJudgment }),
     });
     if (retryingLocalFailure !== undefined

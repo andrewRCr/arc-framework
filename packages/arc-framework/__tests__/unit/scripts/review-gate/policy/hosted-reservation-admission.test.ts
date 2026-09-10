@@ -20,6 +20,7 @@ import {
   assertHostedErrandBindingAuthority,
   assertHostedErrandAdmission,
   assertCandidateHostedReservationPolicyAdmission,
+  assertEvidenceBoundCandidateHostedReservationPolicyAdmission,
   assertHostedReservationAdmission,
   assertHostedReservationPolicyAdmission,
   configuredSourceSuffix,
@@ -300,7 +301,7 @@ describe("hosted reservation admission", () => {
     });
   });
 
-  it("requests a named pass-three override after two incremental findings passes", () => {
+  it("retains two incremental findings passes without claiming complete coverage", () => {
     const snapshot: ReviewOperationStateSnapshot = {
       status: "complete",
       records: [{
@@ -352,33 +353,24 @@ describe("hosted reservation admission", () => {
       status: "complete",
       completedPasses: 2,
       completePasses: 0,
-      attempts: [],
+      attempts: [
+        {
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: "attempt-pass-1",
+        },
+        {
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: "attempt-pass-2",
+        },
+      ],
       attemptHistory: [
         { sourceId: "coderabbit-pr", outcome: "settled-findings" },
         { sourceId: "coderabbit-pr", outcome: "settled-findings" },
       ],
     });
 
-    expect(resolveHostedReservationPolicy({
-      reservation: deliveryReservation,
-      snapshot,
-      repositoryId: "repo-1",
-      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
-      vehicle: deliveryVehicle,
-      maxPasses: 2,
-    })).toMatchObject({
-      status: "resolved",
-      policy: {
-        state: "approval-required",
-        nextAction: "obtain-ceiling-override",
-        payload: {
-          consequence: {
-            exhaustedPassCount: 2,
-            nextPass: 3,
-          },
-        },
-      },
-    });
   });
 
   it("derives the active pass tail from durable time rather than snapshot record order", () => {
@@ -447,7 +439,14 @@ describe("hosted reservation admission", () => {
       status: "complete",
       completedPasses: 1,
       completePasses: 1,
-      attempts: [],
+      attempts: [
+        { sourceId: "coderabbit-pr", outcome: "rate-limited" },
+        {
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: "attempt-settled",
+        },
+      ],
       attemptHistory: [
         { updatedAt: "2026-08-27T12:01:00.000Z", outcome: "rate-limited" },
         { updatedAt: "2026-08-27T12:02:00.000Z", outcome: "settled-findings" },
@@ -632,7 +631,11 @@ describe("hosted reservation admission", () => {
       status: "complete",
       completedPasses: 1,
       completePasses: 0,
-      attempts: [],
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "clean",
+        reviewOperationId: "attempt-incremental",
+      }],
       attemptHistory: [expect.objectContaining({
         updatedAt: "2026-08-31T18:00:00.000Z",
         headSha: deliveryVehicle.head,
@@ -715,7 +718,14 @@ describe("hosted reservation admission", () => {
       status: "complete",
       completedPasses: 1,
       completePasses: 0,
-      attempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+      attempts: [
+        { sourceId: "coderabbit-pr", outcome: "rate-limited" },
+        {
+          sourceId: "delegated-agent",
+          outcome: "clean",
+          reviewOperationId: "attempt-local-clean",
+        },
+      ],
       attemptHistory: [
         { sourceId: "coderabbit-pr", outcome: "rate-limited" },
         {
@@ -916,6 +926,12 @@ describe("hosted reservation admission", () => {
             }],
           }
         : { status: "not-found" },
+      resolveTerminalPolicy: async () => {
+        throw new Error("not reached");
+      },
+      resolveEarlierTerminalPolicy: async () => {
+        throw new Error("not reached");
+      },
     });
     const result = resolveHostedReservationPolicy({
       reservation: deliveryReservation,
@@ -1006,16 +1022,16 @@ describe("hosted reservation admission", () => {
     })).not.toThrow();
   });
 
-  it("retains only applicability-approved fallback progress across Candidate heads", () => {
+  it("retains only applicability-approved fallback progress across Candidate heads", async () => {
     const target = { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD };
-    expect(() => assertCandidateHostedReservationPolicyAdmission({
+    const input = {
       reservation,
       discharge: {
         discharged: false,
         detail: "The retained first source is safely unavailable.",
         nextSource: "codex-pr",
-        requestCoverage: "complete",
-        requestAttempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" }],
+        requestCoverage: "complete" as const,
+        requestAttempts: [{ sourceId: "coderabbit-pr", outcome: "rate-limited" as const }],
       },
       progress: {
         completedPasses: 0,
@@ -1023,15 +1039,27 @@ describe("hosted reservation admission", () => {
           attemptId: "hosted/coderabbit-attempt",
           headSha: "d".repeat(40),
           sourceId: "coderabbit-pr",
-          outcome: "rate-limited",
+          outcome: "rate-limited" as const,
         }],
       },
       target,
       provider: "codex-pr",
-      coverage: "complete",
+      coverage: "complete" as const,
       maxPasses: 2,
       logicalPass: 1,
-    })).not.toThrow();
+    };
+
+    expect(() => assertCandidateHostedReservationPolicyAdmission(input)).not.toThrow();
+    await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(input, {
+      resultReader: {
+        readResult: () => Promise.reject(new Error("no terminal producer expected")),
+      },
+      dispositionStore: {
+        readDispositionRecord: () => Promise.resolve(null),
+        appendDispositionRecord: () => Promise.reject(new Error("read-only test store")),
+      },
+      confirmTarget: () => Promise.reject(new Error("no terminal producer expected")),
+    })).resolves.toBeUndefined();
   });
 
   it("admits the preferred source before any attempt", () => {

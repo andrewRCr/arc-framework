@@ -62,6 +62,8 @@ import {
   createDispositionSet,
   proposeDispositionSet,
 } from "../../src/scripts/review-gate/core/dispositions.js";
+import { ApprovedDispositionRecordSchema } from
+  "../../src/scripts/review-gate/core/advisory-records.js";
 import {
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
@@ -80,6 +82,7 @@ import {
   HostedRequestResultSchema,
   requestHostedReview,
   type HostedRequestEnvelope,
+  type HostedRequestHandle,
   type HostedRequestOutcome,
   type HostedReviewCoverage,
 } from "../../src/scripts/review-gate/hosted/request.js";
@@ -96,6 +99,8 @@ import {
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { LocalApprovedDispositionRecordStore } from
+  "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { RepositoryDeliveryMemberLookup } from
   "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { resolveLocalReviewAuthority } from
@@ -118,6 +123,8 @@ import type { DeliveryLocalReviewAdmission } from
   "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { projectLocalReviewGuidance } from
   "../../src/scripts/review-gate/policy/local-review-guidance.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from
+  "../../src/scripts/review-gate/policy/standard-review.js";
 import {
   DeliveryReviewTerminusAcceptanceResultSchema,
   DeliveryReviewTerminusOfferSchema,
@@ -196,7 +203,7 @@ function targetAndRequirement(input: {
     obligation: "required" as const,
     reasons: ["sensitive-change-set" as const],
     rubricVersion: "standard-review/v1",
-    rubricDigest: canonicalDigest({ rubric: 1 }),
+    rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
     retrigger: "full-final" as const,
     count: 1 as const,
   };
@@ -211,6 +218,106 @@ function targetAndRequirement(input: {
   });
   if (requirement === null) throw new Error("expected hosted review requirement");
   return { reviewTarget, requirement, projection };
+}
+
+async function bindApprovedHostedFinding(
+  harness: FanOutHarness,
+  input: {
+    operationId: string;
+    handle: HostedRequestHandle;
+    progress: {
+      attempts: readonly {
+        attemptId: string;
+        hosted?: { sealedResult?: { hostedResultId: string } };
+      }[];
+    };
+    finding: {
+      findingId: string;
+      locus: string;
+      url: string;
+      severity: "minor" | "major" | "critical";
+    };
+    disposition: "defer" | "reject";
+    channelAction: "record-only" | "reply-and-resolve";
+    now: string;
+  },
+): Promise<string> {
+  const attemptId = hostedLaneAttemptId(input.handle);
+  const hostedResultId = input.progress.attempts.find((attempt) => attempt.attemptId === attemptId)
+    ?.hosted?.sealedResult?.hostedResultId;
+  if (hostedResultId === undefined) throw new Error("expected sealed hosted result");
+  const approvedDisposition = approveDispositionState({
+    proposed: proposeDispositionSet(createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId: input.handle.admission.reviewTarget.targetId,
+      producerId: attemptId,
+      resultDigest: hostedResultId,
+      policyVersion: input.handle.admission.requirement.policyVersion,
+      rubricVersion: input.handle.admission.requirement.rubricVersion,
+      rubricDigest: input.handle.admission.requirement.rubricDigest,
+      proposedBy: "arc-cli/integration-test",
+      proposedVerification: "focused",
+      findings: [{
+        findingId: input.finding.findingId,
+        sourceIdentity: input.handle.provider,
+        locus: input.finding.locus,
+        sourceVerification: "verified",
+        verificationRefs: [input.finding.url],
+        reportedSeverity: input.finding.severity,
+        verifiedSeverity: input.finding.severity,
+        disposition: input.disposition,
+        gating: "blocking",
+        rationale: "The hosted finding matches the reviewed source.",
+        recommendation: "Apply the approved response.",
+        openQuestions: [],
+      }],
+    })),
+    approvedBy: "andrew",
+    approvedAt: input.now,
+  });
+  const dispositionSetId = approvedDisposition.dispositionSet.dispositionSetId;
+  const attemptRef = bindReviewSourceReference({
+    kind: "hosted",
+    operationId: input.operationId,
+    durableRef: attemptId,
+  });
+  const publisher = new RepositoryGitCommonStatePublisher(harness.exec, harness.root);
+  await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
+    ApprovedDispositionRecordSchema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: harness.repositoryId,
+      operationId: attemptId,
+      candidate: null,
+      errand: null,
+      deliveryMember: input.handle.vehicle?.kind === "delivery-member"
+        ? input.handle.vehicle
+        : null,
+      source: { kind: "hosted", attemptRef, hostedResultId },
+      currentDispositionSetId: dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
+    }),
+  );
+  await bindHostedAttemptDisposition(harness.store, {
+    operationId: input.operationId,
+    attemptId,
+    dispositionSetId,
+    findingDispositions: [{
+      findingId: input.finding.findingId,
+      disposition: input.disposition,
+      channelAction: input.channelAction,
+    }],
+    now: input.now,
+  });
+  return dispositionSetId;
 }
 
 async function requestThroughHandler(
@@ -254,7 +361,7 @@ async function requestThroughHandler(
       obligation: "required",
       reasons: ["sensitive-change-set"],
       rubricVersion: "standard-review/v1",
-      rubricDigest: canonicalDigest({ rubric: 1 }),
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
       retrigger: "full-final",
       count: 1,
     },
@@ -1054,6 +1161,14 @@ async function completeLocalReviewThroughHandlers(
         || canonicalize(current.action) !== canonicalize(admission)) {
         throw new Error("local delivery admission moved before preparation");
       }
+      return {
+        obligation: "required" as const,
+        reasons: ["sensitive-change-set" as const],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
+        retrigger: "full-final" as const,
+        count: 1 as const,
+      };
     },
   };
   const prepareOutput: string[] = [];
@@ -1425,7 +1540,7 @@ describe("hosted review fan-out lifecycle", () => {
       commentId: "comment-before-owner-terminus",
       threadId: "thread-before-owner-terminus",
       settlement: "reply-and-resolve" as const,
-      severity: "minor" as const,
+      severity: "major" as const,
       locus: "first.txt:1",
       url: "https://example.test/finding-before-owner-terminus",
       sourceOrdinal: 1,
@@ -1743,7 +1858,7 @@ describe("hosted review fan-out lifecycle", () => {
       commentId: "comment-before-final-terminus",
       threadId: "thread-before-final-terminus",
       settlement: "reply-and-resolve" as const,
-      severity: "minor" as const,
+      severity: "major" as const,
       locus: "second.txt:1",
       url: "https://example.test/finding-before-final-terminus",
       sourceOrdinal: 1,
@@ -1759,15 +1874,13 @@ describe("hosted review fan-out lifecycle", () => {
       now: "2026-09-04T20:03:00.000Z",
     });
     if (finalProgress === null) throw new Error("expected final member findings progress");
-    await bindHostedAttemptDisposition(harness.store, {
+    await bindApprovedHostedFinding(harness, {
       operationId: finalProgress.operationId,
-      attemptId: hostedLaneAttemptId(finalRequested.handle),
-      dispositionSetId: canonicalDigest({ disposition: "final-owner-terminus" }),
-      findingDispositions: [{
-        findingId: finding.findingId,
-        disposition: "reject",
-        channelAction: "record-only",
-      }],
+      handle: finalRequested.handle,
+      progress: finalProgress,
+      finding,
+      disposition: "reject",
+      channelAction: "record-only",
       now: "2026-09-04T20:04:00.000Z",
     });
 
@@ -2675,7 +2788,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("re-enters the complete member lane after an incremental clean result", async () => {
+  it("retains an incremental clean result while complete coverage still lacks a basis", async () => {
     const harness = await createHarness();
     const statusTarget = {
       repository,
@@ -2708,27 +2821,30 @@ describe("hosted review fan-out lifecycle", () => {
     });
 
     await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
-      state: "review-required",
-      nextAction: "review-hosted-request",
-      action: {
-        target: { headSha: harness.oldFirst },
-        provider: "coderabbit-pr",
-        coverage: "complete",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      routedObligation: {
+        state: "blocked",
+        detail: "The first outstanding delivery member has no admissible reserved standard-review source.",
       },
-      deliveryCursor: {
-        currentMember: {
-          progress: {
-            completedPasses: 1,
-            completePasses: 0,
-            attempts: [expect.objectContaining({
-              sourceId: "coderabbit-pr",
+    });
+    const snapshot = await harness.store.readOperationSnapshot();
+    expect(snapshot).toMatchObject({
+      status: "complete",
+      records: [expect.objectContaining({
+        state: expect.objectContaining({
+          completedPasses: 1,
+          attempts: [expect.objectContaining({
+            sourceId: "coderabbit-pr",
+            outcome: "clean",
+            hosted: expect.objectContaining({
               requestedCoverage: "incremental",
               effectiveCoverage: "incremental",
-              outcome: "clean",
-            })],
-          },
-        },
-      },
+            }),
+          })],
+        }),
+      })],
     });
   });
 
@@ -3422,7 +3538,7 @@ describe("hosted review fan-out lifecycle", () => {
       commentId: "comment-prior",
       threadId: "thread-prior",
       settlement: "reply-and-resolve",
-      severity: "major",
+      severity: "major" as const,
       locus: "src/prior.ts:1",
       url: "https://example.test/finding-prior",
       sourceOrdinal: 1,
@@ -3447,15 +3563,13 @@ describe("hosted review fan-out lifecycle", () => {
       nextAction: "respond-to-findings",
       responsePlan: { findings: [{ findingId: priorFinding.findingId }] },
     });
-    await bindHostedAttemptDisposition(harness.store, {
+    await bindApprovedHostedFinding(harness, {
       operationId: priorProgress.operationId,
-      attemptId: hostedLaneAttemptId(priorSecondRequested.handle),
-      dispositionSetId: canonicalDigest({ disposition: "prior" }),
-      findingDispositions: [{
-        findingId: priorFinding.findingId,
-        disposition: "reject",
-        channelAction: "record-only",
-      }],
+      handle: priorSecondRequested.handle,
+      progress: priorProgress,
+      finding: priorFinding,
+      disposition: "reject",
+      channelAction: "record-only",
       now: "2026-08-24T04:05:30.000Z",
     });
 
@@ -3557,7 +3671,7 @@ describe("hosted review fan-out lifecycle", () => {
       commentId: "comment-1",
       threadId: "thread-1",
       settlement: "reply-and-resolve",
-      severity: "major",
+      severity: "major" as const,
       locus: "src/example.ts:1",
       url: "https://example.test/finding-1",
       sourceOrdinal: 1,
@@ -3575,16 +3689,13 @@ describe("hosted review fan-out lifecycle", () => {
     if (secondProgress === null) throw new Error("expected findings attempt");
     const attemptId = hostedLaneAttemptId(secondRequested.handle);
     const operationId = secondProgress.operationId;
-    const dispositionSetId = canonicalDigest({ disposition: "second" });
-    await bindHostedAttemptDisposition(harness.store, {
+    const dispositionSetId = await bindApprovedHostedFinding(harness, {
       operationId,
-      attemptId,
-      dispositionSetId,
-      findingDispositions: [{
-        findingId: finding.findingId,
-        disposition: "defer",
-        channelAction: "reply-and-resolve",
-      }],
+      handle: secondRequested.handle,
+      progress: secondProgress,
+      finding,
+      disposition: "defer",
+      channelAction: "reply-and-resolve",
       now: "2026-08-24T04:09:00.000Z",
     });
 

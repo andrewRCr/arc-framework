@@ -223,3 +223,66 @@ export async function resolveEvidenceBoundReviewPolicy(
 ): Promise<ReviewResolveEnvelope> {
   return resolveReviewPolicy(await bindReviewPolicyEvidence(input, dependencies));
 }
+
+/**
+ * Resolve a terminal result and, only after its response is durably performed, enter the next logical pass.
+ *
+ * @param input - External command request retaining the terminal producer reference.
+ * @param response - Durable response-performance fact for that terminal findings producer.
+ * @param dependencies - Repository-bound evidence readers and configured policy.
+ * @returns The terminal policy result, or the fresh empty-history policy after a performed material response.
+ */
+export async function resolveEvidenceBoundReviewPolicyContinuation(
+  input: unknown,
+  response: { readonly terminalResponsePerformed: boolean },
+  dependencies: EvidenceBoundReviewPolicyDependencies,
+): Promise<ReviewResolveEnvelope> {
+  const request = ReviewPolicyCommandRequestSchema.parse(input);
+  const terminalRequest = request.attempts.at(-1)?.outcome === "findings"
+    ? ReviewPolicyCommandRequestSchema.parse({ ...request, ceilingOverride: undefined })
+    : request;
+  const terminal = await resolveEvidenceBoundReviewPolicy(terminalRequest, dependencies);
+  if (!response.terminalResponsePerformed
+    || terminal.state !== "findings") return terminal;
+  return resolveReviewPolicy({
+    ...request,
+    attempts: [],
+    sources: dependencies.sources,
+    maxPasses: dependencies.maxPasses,
+  });
+}
+
+/**
+ * Resolve and require one exact evidence-bound capacity-spending action.
+ *
+ * @param input - Policy request retaining any terminal producer reference.
+ * @param response - Durable response-performance fact for the terminal findings producer.
+ * @param expectation - Exact source and action the caller is about to spend.
+ * @param dependencies - Repository-bound evidence readers and configured policy.
+ * @returns The exact ready policy envelope authorizing the expected action.
+ */
+export async function assertEvidenceBoundReviewExecutionAdmission(
+  input: unknown,
+  response: { readonly terminalResponsePerformed: boolean },
+  expectation: {
+    readonly sourceId: string;
+    readonly nextAction: "local-prepare" | "hosted-request";
+  },
+  dependencies: EvidenceBoundReviewPolicyDependencies,
+): Promise<Extract<ReviewResolveEnvelope, { state: "ready" }>> {
+  const resolution = await resolveEvidenceBoundReviewPolicyContinuation(input, response, dependencies);
+  if (resolution.state !== "ready" || resolution.nextAction !== expectation.nextAction) {
+    const reason = resolution.state === "invalid-override" ? `/${resolution.payload.reason}` : "";
+    throw new Error(
+      `Review capacity lacks standard-review driver admission `
+      + `(${resolution.state}/${resolution.nextAction}${reason}).`,
+    );
+  }
+  if (resolution.payload.sourceId !== expectation.sourceId) {
+    throw new Error(
+      `Review source \`${expectation.sourceId}\` is not driver-admissible; `
+      + `the standard lane requires \`${resolution.payload.sourceId}\` next.`,
+    );
+  }
+  return resolution;
+}

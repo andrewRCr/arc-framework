@@ -449,47 +449,26 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   mutable lane state. Provider findings survive completion markers, while a disproved judgment advances through one
   immutable successor without reviving predecessor authority or repeating compatible settlement.
 
-### `[ ]` **5.2 Close direct policy callers, independent discharge, status, and checkpoint**
+### `[x]` **5.2 Close direct policy callers, independent discharge, status, and checkpoint**
 
 - _Goal:_ All policy, discharge, status, and checkpoint paths apply the same verified signal and preserve outstanding
   work.
 
-- _Note:_ Spec §§ 6–7; SC 9, 10, and 14.
+    - `[x]` **5.2.a Switch the complete control graph**
 
-- _Approach:_ Close every direct `resolveReviewPolicy` consumer plus independent reservation discharge. Reuse common
-  evidence composition; resolve only the current approved-set lineage node and do not implement another hosted
-  materiality algorithm.
+        - Capacity-spend admission, local preparation, status, and checkpoint composition now bind terminal attempts to
+          immutable producer results and the current approved disposition node. Historical clean evidence requires its
+          original target plus current applicability; missing evidence refuses instead of clearing the obligation.
 
-    - `[ ]` **5.2.a Switch the complete control graph**
+    - `[x]` **5.2.b Preserve member conjunction and existing authority**
 
-        - Build `test-first` (one behavior at a time):
+        - Discharge classifies current and retained terminal results through verified policy while preserving source
+          order, member conjunction, exact Owner termini, cap overrides, and applicability-based reuse. Performed
+          material responses enter a fresh pass; unsettled or inadequately covered signal remains outstanding.
 
-            - Close `handlers/review.ts`, prepublication procedure/request, hosted reservation admission/discharge,
-              status, and integration checkpoint. Remove settlement-as-clearance and timeline truncation that discards
-              material evidence; do not split activation by local versus hosted lane.
-
-            - Replace the no-applicability-reader historical-clean fallback and its permissive regression assertion.
-              Validate historical producers at their original targets and require current applicability, preserving
-              existing tree-equality/mechanical-reapply recognition and recorded covered decisions with mechanical carry.
-              Missing applicability routes its existing decision/refusal, not clearance or an automatic new review.
-              Full incremental predecessor-chain traversal remains in Member 6.
-
-    - `[ ]` **5.2.b Preserve member conjunction and existing authority**
-
-        - Build `test-first` (one behavior at a time):
-
-            - the first outstanding member, same-target complete clean progression, material settlement, exact Owner
-              terminus, and cap override. Status and checkpoint must select the same action, and no completed/Owner arm
-              may discard an outstanding approved response.
-
-            - Earlier clean or nonmaterial evidence remains usable across proven equivalent heads without another
-              evaluator call, pass increment, or repeated unchanged applicability decision. A merely older clean
-              result without applicability cannot discharge; retaining historical material findings cannot create a
-              no-material signal. Preserve exact-head merge and Owner authority separately.
-
-            - A superseded approved set cannot supply convergence, discharge, status, checkpoint, response continuation,
-              or pass authority. Exact historical evidence remains readable while every control path selects the same
-              current successor or returns a typed lineage refusal.
+- _Outcome:_ Every review-control path now derives convergence from immutable producer evidence and the current approved
+  disposition successor. Operational settlement records response performance without becoming clearance, so status and
+  checkpoint retain the same first outstanding member and authority boundaries.
 
 ### `[ ]` **5.3 Compose policy inside approved respond and preserve response-first continuations**
 

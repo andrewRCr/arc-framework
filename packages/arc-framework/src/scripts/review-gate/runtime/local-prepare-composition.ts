@@ -53,6 +53,9 @@ import {
 } from "../policy/local-review-policy.js";
 import { RepositoryLocalReviewSourceSweepAdapter } from "../hosts/local/source-sweep.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
+import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
+import { createRepositoryReviewResultReader } from
+  "../hosts/local/review-result-reader-composition.js";
 import { sweepLocalReviewSources } from "../core/local-source-sweep.js";
 import type { LocalPrepareDependencies } from "./local-prepare.js";
 import { resolveReviewStatus } from "../status.js";
@@ -64,7 +67,7 @@ import { createLocalFrontlineSourcePreferenceReader } from
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
-import { assertStandardReviewExecutionAdmission } from "../policy/review-policy-driver.js";
+import { assertEvidenceBoundReviewExecutionAdmission } from "../policy/review-policy-evidence.js";
 
 const LOCAL_STANDARD_SOURCE = {
   sourceKind: "agent",
@@ -219,6 +222,7 @@ export function createLocalPrepareDependencies(input: {
       standardReview,
       completedPasses,
       attempts,
+      terminalResponsePerformed,
       judgment,
     }) => {
       const settings = (await readConfigSettings(input.cwd)).settings;
@@ -257,27 +261,55 @@ export function createLocalPrepareDependencies(input: {
             pullRequest: changeRequest.state === "open" ? changeRequest.candidate.number : null,
             headSha: target.headSha,
           };
-      const resolution = assertStandardReviewExecutionAdmission({
+      const resolution = await assertEvidenceBoundReviewExecutionAdmission({
+        schemaVersion: 1,
         target: policyTarget,
+        lane: "standard",
         frontlineActive: false,
         standardReview,
         completedPasses,
         attempts,
+        ...(judgment?.scopeMode === undefined
+          ? {}
+          : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
+        invocation: judgment?.invocation ?? {
+          mode: "force",
+          sourceId: "delegated-agent",
+        },
+        ...(judgment?.ceilingOverride === undefined
+          ? {}
+          : {
+              ceilingOverride: {
+                ...judgment.ceilingOverride,
+                target: policyTarget,
+                lane: "standard" as const,
+              },
+            }),
+        ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
+      }, {
+        terminalResponsePerformed,
+      }, {
+        sourceId: "delegated-agent",
+        nextAction: "local-prepare",
+      }, {
         sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
         maxPasses: policy.maxPasses,
-        expectedSourceId: "delegated-agent",
-        expectedNextAction: "local-prepare",
-        judgment: {
-          ...judgment,
-          invocation: judgment?.invocation ?? {
-            mode: "force",
-            sourceId: "delegated-agent",
-          },
-        },
+        resultReader: createRepositoryReviewResultReader(publisher),
+        dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+        confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
       });
       return resolution.payload.pass;
     },
     validateDeliveryAdmission: async (admission) => {
+      const before = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId);
+      const reservation = before.boundary?.reservation;
+      if (reservation === null || reservation === undefined
+        || reservation.target.kind !== "delivery"
+        || reservation.target.workUnitId !== admission.vehicle.workUnitId
+        || reservation.target.planId !== admission.vehicle.planId
+        || !reservation.sources.includes(admission.sourceId)) {
+        throw new Error("Local delivery-member review has no matching standard-review reservation.");
+      }
       const current = await resolveReviewStatus({
         target: admission.statusTarget,
         ...(admission.ceilingOverride === undefined
@@ -288,6 +320,11 @@ export function createLocalPrepareDependencies(input: {
         || canonicalize(current.action) !== canonicalize(admission)) {
         throw new Error("Local delivery-member review no longer has exact driver admission.");
       }
+      const after = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId);
+      if (after.version !== before.version) {
+        throw new Error("Local delivery-member review authority changed during admission validation.");
+      }
+      return reservation.obligation;
     },
     describeSource: (operationId, target) => createLocalReviewSourceDescriptor({
       exec: input.exec,

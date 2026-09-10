@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import type { StandardReviewObligationProjection } from
+  "../../../../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 
 import {
   createReviewRequirement,
@@ -219,7 +222,9 @@ describe("local review preparation request", () => {
         })
       ));
       const materialize = vi.fn(async () => ({ reviewRoot: "/tmp/review-root" }));
-      const validateDeliveryAdmission = vi.fn(async () => undefined);
+      const validateDeliveryAdmission = vi.fn(
+        async (): Promise<StandardReviewObligationProjection | undefined> => undefined,
+      );
       const validatePolicyAdmission = vi.fn(async (
         _input: Parameters<Parameters<typeof prepareLocalReview>[1]["validatePolicyAdmission"]>[0],
       ) => {
@@ -454,6 +459,15 @@ describe("local review preparation request", () => {
 
     it("carries and freshly validates the exact driver admission before local preparation", async () => {
       const context = fixture();
+      const admittedProjection = {
+        obligation: "required" as const,
+        reasons: ["sensitive-change-set" as const],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: canonicalDigest({ rubric: "admitted" }),
+        retrigger: "full-final" as const,
+        count: 1 as const,
+      };
+      context.validateDeliveryAdmission.mockResolvedValue(admittedProjection);
       const deliveryAdmission = {
         schemaVersion: 1 as const,
         sourceId: "delegated-agent" as const,
@@ -489,6 +503,13 @@ describe("local review preparation request", () => {
         deliveryAdmission,
       );
       expect(context.published()).toMatchObject({ deliveryAdmission });
+      expect(context.published()).toMatchObject({
+        requirement: {
+          reasons: ["sensitive-change-set"],
+          rubricDigest: admittedProjection.rubricDigest,
+          retrigger: "full-final",
+        },
+      });
     });
 
     it("stops a stale driver admission before publishing a local operation", async () => {
