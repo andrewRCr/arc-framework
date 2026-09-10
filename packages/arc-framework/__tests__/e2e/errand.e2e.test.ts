@@ -326,6 +326,7 @@ describe("arc review respond for an Errand", () => {
         source,
         proposal: {
           proposedVerification: "focused",
+          severityGatingPolicy: { minorGating: "record-only" },
           findings: [{
             findingId: "finding-1",
             sourceVerification: "verified",

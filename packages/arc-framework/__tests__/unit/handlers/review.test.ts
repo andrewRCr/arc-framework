@@ -286,6 +286,7 @@ const respondProposalRequest = {
   },
   proposal: {
     proposedVerification: "full",
+    severityGatingPolicy: { minorGating: "record-only" },
     findings: [{
       findingId: "finding-1",
       sourceVerification: "verified",

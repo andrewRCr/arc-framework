@@ -372,10 +372,10 @@ changes.
         - CodeRabbit supplemental and explicit thread nitpick markers now survive hosted validation, immutable result
           identity, and proposal/report projection as reported judgment while verified severity still controls gating.
 
-    - `[ ]` **4.R.b Apply the effective severity-gating policy**
+    - `[x]` **4.R.b Apply the effective severity-gating policy**
 
-        - Make the public proposal request carry the existing severity-gating policy and derive ordinary verified
-          minor gating from it rather than silently selecting the package default.
+        - Public proposals now require the existing `severityGatingPolicy`; command construction derives ordinary
+          verified-minor gating from that effective policy while verified nits remain record-only.
 
     - `[ ]` **4.R.c Render source references as inert report text**
 

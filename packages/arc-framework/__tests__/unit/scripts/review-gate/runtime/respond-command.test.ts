@@ -762,6 +762,7 @@ describe("review response command", () => {
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
         proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -782,6 +783,7 @@ describe("review response command", () => {
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
+        severityGatingPolicy: { minorGating: "record-only" },
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -794,6 +796,28 @@ describe("review response command", () => {
         }],
       },
     }, dependencies(records))).rejects.toThrow("proposedVerification");
+  });
+
+  it("rejects an author proposal that omits the effective severity-gating policy", async () => {
+    const records = fixture();
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "focused",
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          disposition: "fix",
+          rationale: "The selected source supports this disposition.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }, dependencies(records))).rejects.toThrow("severityGatingPolicy");
   });
 
   it("constructs a source-bound proposal from author-owned finding decisions", async () => {
@@ -812,6 +836,7 @@ describe("review response command", () => {
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
         proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -892,6 +917,7 @@ describe("review response command", () => {
       source,
       proposal: {
         proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "not-supported",
@@ -1190,6 +1216,7 @@ describe("review response command", () => {
         source: { kind: "attested-local", receiptRef: records.receiptRef },
         proposal: {
           proposedVerification: "full",
+          severityGatingPolicy: { minorGating: "record-only" },
           findings: [{
             findingId: records.finding.findingId,
             sourceVerification,
@@ -1228,6 +1255,7 @@ describe("review response command", () => {
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
         proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -1252,6 +1280,7 @@ describe("review response command", () => {
       source: { kind: "hosted", attemptRef: hosted.attemptRef },
       proposal: {
         proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
         findings: [{
           findingId: hosted.records.finding.findingId,
           sourceVerification: "verified",
@@ -1289,6 +1318,7 @@ describe("review response command", () => {
       source: { kind: "attested-local", receiptRef: records.receiptRef },
       proposal: {
         proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "blocking" },
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "verified",
@@ -1314,6 +1344,40 @@ describe("review response command", () => {
               verifiedNit: true,
               gating: "record-only",
             }],
+          },
+        },
+      },
+    });
+  });
+
+  it("applies the proposal's effective policy to an ordinary verified minor", async () => {
+    const records = fixture();
+
+    const proposal = await respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "blocking" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "minor",
+          disposition: "fix",
+          rationale: "The source supports an ordinary verified minor.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }, dependencies(records));
+
+    expect(proposal).toMatchObject({
+      state: "awaiting-approval",
+      payload: {
+        proposal: {
+          dispositionSet: {
+            findings: [{ verifiedSeverity: "minor", gating: "blocking" }],
           },
         },
       },
@@ -1540,6 +1604,7 @@ describe("review response command", () => {
       source: { kind: "frontline", outcomeRef },
       proposal: {
         proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
         findings: [{
           findingId: records.finding.findingId,
           sourceVerification: "not-supported",

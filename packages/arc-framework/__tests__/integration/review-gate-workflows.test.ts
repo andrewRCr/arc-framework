@@ -41,13 +41,15 @@ function sectionBetween(content: string, start: string, end?: string): string {
 function expectProducerBackedResponseOrder(content: string, start: string, end: string): void {
   const response = sectionBetween(content, start, end);
   const triage = response.indexOf("[`review-triage`]");
-  const proposalCall = response.indexOf("arc review respond -", triage);
+  const gatingPolicy = response.indexOf("proposal.severityGatingPolicy", triage);
+  const proposalCall = response.indexOf("arc review respond -", gatingPolicy);
   const report = response.indexOf("payload.dispositionReportText", proposalCall);
   const approval = response.indexOf("complete-set approval", report);
   const approvedCall = response.indexOf("arc review respond -", proposalCall + 1);
   const performance = response.indexOf("[`review-response`]", approvedCall);
 
   expect(triage).toBeGreaterThanOrEqual(0);
+  expect(gatingPolicy).toBeGreaterThan(triage);
   expect(proposalCall).toBeGreaterThan(triage);
   expect(report).toBeGreaterThan(proposalCall);
   expect(approval).toBeGreaterThan(report);

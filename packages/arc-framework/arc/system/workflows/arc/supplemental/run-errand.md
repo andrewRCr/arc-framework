@@ -237,8 +237,9 @@ remote base all name the same exact head. Any tracked change continues through t
      with the ready resolution and the target's `{ kind, baseRef, diffBaseSha, headSha }` projection.
    - `ready / local-prepare` — invoke `arc review local prepare -`; submit evaluator-owned result content through
      `arc review local attest -`, with runtime-owned bindings injected from the immutable operation.
-   - `findings / respond` — run [`review-triage`][review-triage], submit its proposal through the first
-     `arc review respond -` call, emit `payload.dispositionReportText`, obtain complete-set approval, submit the exact
+   - `findings / respond` — run [`review-triage`][review-triage], include the effective policy as
+     `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
+     `payload.dispositionReportText`, obtain complete-set approval, submit the exact
      approved set through the second `arc review respond -` call, and perform only its returned action through
      [`review-response`][review-response]. Preserve the `ready-to-fix` authorization's `approvedVerification` through
      re-entry and changed-target continuation; it does not select fewer checks here.
@@ -357,8 +358,9 @@ remote base all name the same exact head. Any tracked change continues through t
    series and non-pass outcomes retain the prior count.
 
    - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
-   - `findings / triage` — run [`review-triage`][review-triage], submit its proposal through the first
-     `arc review respond -` call, emit `payload.dispositionReportText`, obtain complete-set approval, submit the exact
+   - `findings / triage` — run [`review-triage`][review-triage], include the effective policy as
+     `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
+     `payload.dispositionReportText`, obtain complete-set approval, submit the exact
      approved set through the second `arc review respond -` call, and perform only its returned action through
      [`review-response`][review-response]. When the approved call returns `payload.hostedSettlementPlan` for
      `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for

@@ -366,6 +366,7 @@ async function approvedSet(
     source,
     proposal: {
       proposedVerification: "targeted",
+      severityGatingPolicy: { minorGating: "record-only" },
       findings: [{
         findingId: "finding-1",
         sourceVerification: "verified",

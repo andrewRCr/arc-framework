@@ -63,9 +63,10 @@ carrier-native blocking state, required conversation, or host requirement.
 
 ### 3. Materialize and approve before mutation
 
-For a producer-backed set, include one proposed verification scope — `targeted | focused | full` — beside the
-complete author-owned judgments. This is a recommendation until the approver accepts the immutable set; it does not
-itself skip or narrow any verification. Return the proposal input to the governing caller for the first
+For a producer-backed set, include the caller's effective severity-gating policy as
+`proposal.severityGatingPolicy` and one proposed verification scope — `targeted | focused | full` — beside the
+complete author-owned judgments. The scope is a recommendation until the approver accepts the immutable set; it does
+not itself skip or narrow any verification. Return the proposal input to the governing caller for the first
 `arc review respond -` invocation. The command resolves the durable producer, constructs the canonical set, and
 returns its default `payload.dispositionReportText`.
 

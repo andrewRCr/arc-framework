@@ -260,8 +260,9 @@ arc review local resume -
 Follow the same typed local sequence, then re-enter through `arc review status`.
 
 `respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
-[`review-triage`][review-triage] to verify the source, compose the complete proposal, and recommend
-`proposal.proposedVerification`. Submit the proposal through the first call:
+[`review-triage`][review-triage] to verify the source, compose the complete proposal with the effective policy in
+`proposal.severityGatingPolicy`, and recommend `proposal.proposedVerification`. Submit the proposal through the first
+call:
 
 ```bash
 arc review respond -

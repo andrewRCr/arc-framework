@@ -28,7 +28,8 @@ The caller supplies:
 
 - the exact current target and source-normalized findings with immutable loci;
 - the effective review-routing decision;
-- the effective severity-gating policy (`minorGating: blocking | record-only`);
+- the effective severity-gating policy as `proposal.severityGatingPolicy`
+  (`minorGating: blocking | record-only`);
 - the strict disposition state — absent, complete proposed set, or exact approved set, including its approved
   `proposedVerification` scope;
 - candidate-target, verification, and persistence evidence when fixes have run; and

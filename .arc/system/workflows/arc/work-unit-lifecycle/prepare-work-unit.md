@@ -122,8 +122,9 @@ run identity to `arc review local attest -`; runtime-owned bindings come from th
 `arc review local resume -`, reduce with `arc review reduce -`, and submit approved dispositions with
 `arc review respond -`. A command error envelope carries no dispatchable state.
 
-For every durable producer finding, run [`review-triage`][review-triage] to verify the source, propose the complete
-disposition set, and recommend `proposal.proposedVerification`. Submit that proposal through the first call:
+For every durable producer finding, run [`review-triage`][review-triage] to verify the source, compose the complete
+proposal with the effective policy in `proposal.severityGatingPolicy`, and recommend
+`proposal.proposedVerification`. Submit that proposal through the first call:
 
 ```bash
 arc review respond -

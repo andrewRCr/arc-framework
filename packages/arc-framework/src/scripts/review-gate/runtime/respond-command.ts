@@ -35,6 +35,7 @@ import {
 } from "../core/dispositions.js";
 import { renderDispositionReport } from "../core/disposition-report.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
+import { SeverityGatingPolicySchema } from "../core/severity-gating-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import {
   ReviewTargetSchema,
@@ -103,6 +104,7 @@ const RespondProposalRequestSchema = z.strictObject({
   source: ReviewResponseSettlementSourceSchema,
   proposal: z.strictObject({
     proposedVerification: CandidateVerificationApplicabilitySchema,
+    severityGatingPolicy: SeverityGatingPolicySchema,
     findings: z.array(AuthorDispositionSchema).min(1),
   }),
 });
@@ -357,7 +359,7 @@ function prepareDispositionProposal(
       proposedBy: source.actors.proposerIdentity,
       proposedVerification: request.proposal.proposedVerification,
       findings,
-    }));
+    }, request.proposal.severityGatingPolicy));
   } catch (error) {
     throw new RespondCommandError(
       "invalid-input",
