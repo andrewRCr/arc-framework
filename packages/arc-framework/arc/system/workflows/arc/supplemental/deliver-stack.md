@@ -168,7 +168,9 @@ After approval, invoke the returned `submitAction` unchanged. A `retryable` resu
 - `retryable / preserved / delivery-publish` with `operationKind: publish` revalidates and retries
   `arc delivery publish` against the retained reservation.
 - `retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix` reruns
-  `arc delivery rematerialize`.
+  `arc delivery rematerialize`; when present, its `reviewFixSelectedDeliverableId` and
+  `reviewFixVerificationDeliverableIds` retain the exact correction subject across the cleared predecessor
+  reservation.
 - `retryable / cleared / delivery-review-fix-publish` with `operationKind: rewrite` and
   `mode: selected-change` reruns `arc delivery review-fix publish` from the returned selected-member subject.
 - `retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and
@@ -187,10 +189,11 @@ After approval, invoke the returned `submitAction` unchanged. A `retryable` resu
   `arc delivery top-remedy`.
 
 For every arm, use the returned selector's exact `planId`, `operationId`, `affectedDeliverableIds`, `operationKind`,
-and narrow `mode` when present as the authoritative reservation subject. Render `recommendedActionText` verbatim and
-let the named ordinary verb reobserve and prepare every other input; workflow prose infers neither a selector nor a
-recovery policy. Any unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous
-result, stops with its reason rendered.
+and narrow `mode`, `reviewFixSelectedDeliverableId`, and `reviewFixVerificationDeliverableIds` when present as the
+authoritative reservation and correction subject. Render `recommendedActionText` verbatim and let the named ordinary
+verb reobserve and prepare every other input; workflow prose infers neither a selector nor a recovery policy. Any
+unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous result, stops with
+its reason rendered.
 
 Only after every request ID exists, compose the exact non-terminal native-link request without `optIn` and invoke:
 

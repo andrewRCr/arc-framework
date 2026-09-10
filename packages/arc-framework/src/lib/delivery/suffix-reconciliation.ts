@@ -635,7 +635,13 @@ export async function executeDeliverySuffixRewrite(input: {
     requested: input.requested,
     ...(input.supersedePendingReviewFixVerification === undefined
       ? {}
-      : { supersedePendingReviewFixVerification: input.supersedePendingReviewFixVerification }
+      : {
+          supersedePendingReviewFixVerification: input.supersedePendingReviewFixVerification,
+          reviewFixSelectedDeliverableId:
+            input.supersedePendingReviewFixVerification.selectedDeliverableId,
+          reviewFixVerificationDeliverableIds:
+            input.supersedePendingReviewFixVerification.memberDeliverableIds,
+        }
     ),
   });
   if (reserved.status !== "reserved") {

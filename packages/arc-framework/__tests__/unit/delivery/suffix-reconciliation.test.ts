@@ -13,6 +13,7 @@ import {
   deliveryFourMemberStackPlanFixture,
   deliveryPlanFixture,
   deliveryStackPlanWithMemberTitlesFixture,
+  deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -1142,8 +1143,15 @@ describe("delivery suffix reconciliation", () => {
     expect(proveContribution).not.toHaveBeenCalled();
   });
 
-  it("preserves a pending-verification reservation refusal until selected-change supersedes it", async () => {
-    const { plan, state } = movedFixture();
+  it("carries pending-verification identity through a rematerialization rewrite", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const fixtureState = deliveryStateFixture(plan);
+    const state = {
+      ...fixtureState,
+      members: fixtureState.members.map((candidate, index) => index === 1
+        ? { ...candidate, changeRequest: { providerId: "github", changeRequestId: "402" } }
+        : candidate),
+    };
     const member = state.members[1]!;
     const pending = {
       ...state,
@@ -1187,7 +1195,16 @@ describe("delivery suffix reconciliation", () => {
     })).resolves.toMatchObject({ status: "applied" });
     expect(writes[0]).toMatchObject({
       pendingReviewFixVerification: null,
-      activeOperation: { kind: "rewrite", mode: "review-fix" },
+      activeOperation: {
+        kind: "rewrite",
+        mode: "review-fix",
+        reviewFixSelectedDeliverableId: member.deliverableId,
+        reviewFixVerificationDeliverableIds: [member.deliverableId],
+      },
+    });
+    expect(writes[1]).toMatchObject({
+      pendingReviewFixVerification: pending.pendingReviewFixVerification,
+      activeOperation: null,
     });
   });
 });

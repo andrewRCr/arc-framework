@@ -316,9 +316,10 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
         contributionVerdicts,
         nextAction: "verify-review-fix",
         verification: {
-          memberDeliverableIds: contributionVerdicts
-            .filter((verdict) => verdict.contribution === "changed")
-            .map((verdict) => verdict.deliverableId),
+          memberDeliverableIds: supersession?.pendingVerification.memberDeliverableIds
+            ?? contributionVerdicts
+              .filter((verdict) => verdict.contribution === "changed")
+              .map((verdict) => verdict.deliverableId),
           tier1Required: true,
         },
       };
@@ -331,8 +332,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
       plan: fresh.plan,
       current: fresh.current,
       rewrite,
-      ...(nextIndex === 0
-        && supersession !== undefined
+      ...(supersession !== undefined
         ? {
             supersedePendingReviewFixVerification:
               supersession.pendingVerification,

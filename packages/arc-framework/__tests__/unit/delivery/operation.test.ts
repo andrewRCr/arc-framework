@@ -455,7 +455,7 @@ describe("reserveDeliveryOperation", () => {
     });
   });
 
-  it("supersedes exact pending verification for rematerialization without changing its recovery mode", () => {
+  it("carries exact pending verification through a rematerialization reservation", () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
     const predecessorDeliverableId = state.members[0]!.deliverableId;
@@ -474,6 +474,8 @@ describe("reserveDeliveryOperation", () => {
       {
         ...operationRequest(pending, { affectedDeliverableIds: [predecessorDeliverableId] }),
         supersedePendingReviewFixVerification: pending.pendingReviewFixVerification,
+        reviewFixSelectedDeliverableId: selectedDeliverableId,
+        reviewFixVerificationDeliverableIds: pending.pendingReviewFixVerification.memberDeliverableIds,
       },
     );
 
@@ -485,6 +487,8 @@ describe("reserveDeliveryOperation", () => {
           kind: "rewrite",
           mode: "review-fix",
           affectedDeliverableIds: [predecessorDeliverableId],
+          reviewFixSelectedDeliverableId: selectedDeliverableId,
+          reviewFixVerificationDeliverableIds: pending.pendingReviewFixVerification.memberDeliverableIds,
         },
       },
     });
@@ -500,6 +504,22 @@ describe("reserveDeliveryOperation", () => {
         },
       },
     )).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+  });
+
+  it("refuses a rematerialization continuation without exact pending-verification authority", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const selectedDeliverableId = state.members[1]!.deliverableId;
+
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      {
+        ...operationRequest(state),
+        reviewFixSelectedDeliverableId: selectedDeliverableId,
+        reviewFixVerificationDeliverableIds: [selectedDeliverableId],
+      },
+    )).toEqual({ status: "refused", reason: "operation-invalid" });
   });
 
   it("reserves only a paired plan-ordered review-fix verification set inside the affected suffix", () => {
