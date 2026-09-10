@@ -578,6 +578,7 @@ export async function executeDeliverySuffixRewrite(input: {
   /** Selected review fixes are authorized content changes, not false equivalence claims. */
   readonly contributionMode?: "prove-equivalent" | "selected-change";
   readonly operationMode?: "review-fix" | "selected-change";
+  readonly supersedePendingReviewFixVerification?: boolean;
   readonly revalidateLifecycle: () => Promise<{ readonly status: "ok" | "refused" }>;
   readonly rewriteRef: (input: {
     readonly ref: string;
@@ -631,6 +632,9 @@ export async function executeDeliverySuffixRewrite(input: {
     expectedStateRevision: input.current.revision,
     before,
     requested: input.requested,
+    ...(input.supersedePendingReviewFixVerification === true
+      ? { supersedePendingReviewFixVerification: true }
+      : {}),
   });
   if (reserved.status !== "reserved") {
     return {

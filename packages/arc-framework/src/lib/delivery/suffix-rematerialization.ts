@@ -99,7 +99,7 @@ export interface DeliverySuffixRematerializationDependencies {
     readonly plan: DeliveryPlanV1;
     readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
     readonly rewrite: DeliverySuffixRewritePlan;
-    readonly operationMode: "review-fix" | "selected-change";
+    readonly supersedePendingReviewFixVerification: boolean;
   }): Promise<
     | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
     | { readonly status: "refused"; readonly reason: "pending-review-fix-verification" }
@@ -312,9 +312,8 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
       plan: fresh.plan,
       current: fresh.current,
       rewrite,
-      operationMode: rewrite.selectedChange
-        ? input.selectedOperationMode ?? "review-fix"
-        : "review-fix",
+      supersedePendingReviewFixVerification: rewrite.selectedChange
+        && input.selectedOperationMode === "selected-change",
     });
     if (applied.status !== "applied") {
       if (applied.reason === "pending-review-fix-verification") {

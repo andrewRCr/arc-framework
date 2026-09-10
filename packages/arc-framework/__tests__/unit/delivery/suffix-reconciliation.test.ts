@@ -1153,15 +1153,19 @@ describe("delivery suffix reconciliation", () => {
       },
     };
     const requested = { target: pending.target, members: [{ ...member }] };
+    const writes: DeliveryStateV1[] = [];
     const dependencies = {
       revalidateLifecycle: async () => ({ status: "ok" as const }),
       rewriteRef: async () => ({ status: "rewritten" as const }),
       observeResult: async () => requested,
       proveContribution: async () => ({ status: "accepted" as const, proof: "tree-equality" as const }),
-      stateStore: { publish: async (_id: string, value: DeliveryStateV1, revision: number) => ({
-        status: "ok" as const,
-        value: { revision: revision + 1, value },
-      }) },
+      stateStore: { publish: async (_id: string, value: DeliveryStateV1, revision: number) => {
+        writes.push(value);
+        return {
+          status: "ok" as const,
+          value: { revision: revision + 1, value },
+        };
+      } },
     };
 
     await expect(executeDeliverySuffixRewrite({
@@ -1178,8 +1182,12 @@ describe("delivery suffix reconciliation", () => {
       deliverableId: member.deliverableId,
       requested,
       contributionMode: "selected-change",
-      operationMode: "selected-change",
+      supersedePendingReviewFixVerification: true,
       ...dependencies,
     })).resolves.toMatchObject({ status: "applied" });
+    expect(writes[0]).toMatchObject({
+      pendingReviewFixVerification: null,
+      activeOperation: { kind: "rewrite", mode: "review-fix" },
+    });
   });
 });

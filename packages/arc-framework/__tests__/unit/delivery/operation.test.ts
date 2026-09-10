@@ -455,6 +455,40 @@ describe("reserveDeliveryOperation", () => {
     });
   });
 
+  it("supersedes exact pending verification for rematerialization without changing its recovery mode", () => {
+    const plan = deliveryPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const selectedDeliverableId = state.members[0]!.deliverableId;
+    const pending = {
+      ...state,
+      pendingReviewFixVerification: {
+        selectedDeliverableId,
+        memberDeliverableIds: [selectedDeliverableId],
+      },
+    };
+
+    const result = reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: pending },
+      plan,
+      {
+        ...operationRequest(pending),
+        supersedePendingReviewFixVerification: true,
+      },
+    );
+
+    expect(result).toMatchObject({
+      status: "reserved",
+      state: {
+        pendingReviewFixVerification: null,
+        activeOperation: {
+          kind: "rewrite",
+          mode: "review-fix",
+          affectedDeliverableIds: [selectedDeliverableId],
+        },
+      },
+    });
+  });
+
   it("reserves only a paired plan-ordered review-fix verification set inside the affected suffix", () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);

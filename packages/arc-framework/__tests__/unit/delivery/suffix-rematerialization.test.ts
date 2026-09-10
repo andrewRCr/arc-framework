@@ -460,7 +460,7 @@ describe("delivery suffix rematerialization", () => {
     });
     expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({
-      operationMode: "selected-change",
+      supersedePendingReviewFixVerification: true,
       rewrite: expect.objectContaining({ deliverableId: second.deliverableId }),
     }));
   });

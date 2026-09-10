@@ -5832,7 +5832,7 @@ async function executeDeliveryCommand(
         exec: createRawGitExec(cwd),
         ...projectDeliveryContributionEndpoints(endpoints),
       }),
-      apply: async ({ plan, current, rewrite, operationMode }) => {
+      apply: async ({ plan, current, rewrite, supersedePendingReviewFixVerification }) => {
         const member = current.value.members.find((entry) => entry.deliverableId === rewrite.deliverableId);
         const requested = rewrite.requested.members[0];
         const snapshot = latestSnapshot;
@@ -5855,7 +5855,7 @@ async function executeDeliveryCommand(
           deliverableId: rewrite.deliverableId,
           requested: rewrite.requested,
           contributionMode: rewrite.selectedChange ? "selected-change" : "prove-equivalent",
-          operationMode,
+          supersedePendingReviewFixVerification,
           revalidateLifecycle: async () => {
             const candidate = latestCandidates?.find((entry) => entry.deliverableId === rewrite.deliverableId);
             if (candidate === undefined) return { status: "refused" as const };

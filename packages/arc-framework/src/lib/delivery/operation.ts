@@ -35,6 +35,7 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       ...reservationFields,
       kind: z.literal("rewrite"),
       mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
+      supersedePendingReviewFixVerification: z.boolean().optional(),
       terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
       reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
       reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
@@ -387,13 +388,19 @@ export function reserveDeliveryOperation(
     return { status: "refused", reason: "operation-active" };
   }
   const pendingVerification = parsedState.data.pendingReviewFixVerification;
+  const rewriteRequest = parsedRequest.data.kind === "rewrite" ? parsedRequest.data : null;
+  const explicitPendingVerificationSupersession = rewriteRequest?.supersedePendingReviewFixVerification === true;
+  if (explicitPendingVerificationSupersession
+    && (rewriteRequest.mode !== "review-fix" || pendingVerification === null)) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
   const supersedesPendingVerification = pendingVerification !== null
-    && parsedRequest.data.kind === "rewrite"
-    && parsedRequest.data.mode === "selected-change"
-    && canonicalize(parsedRequest.data.affectedDeliverableIds)
+    && rewriteRequest !== null
+    && (rewriteRequest.mode === "selected-change" || explicitPendingVerificationSupersession)
+    && canonicalize(rewriteRequest.affectedDeliverableIds)
       === canonicalize(pendingVerification.memberDeliverableIds)
-    && parsedRequest.data.affectedDeliverableIds.length === 1
-    && parsedRequest.data.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
+    && rewriteRequest.affectedDeliverableIds.length === 1
+    && rewriteRequest.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
   if (pendingVerification !== null && !supersedesPendingVerification) {
     return { status: "refused", reason: "pending-review-fix-verification" };
   }
