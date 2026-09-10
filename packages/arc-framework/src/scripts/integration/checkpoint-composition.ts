@@ -809,12 +809,10 @@ export function createIntegrationCheckpointDependencies(input: {
         readGitPaths(input.exec, input.cwd, ["diff", "--name-only", "-z", "--"]),
         readGitPaths(input.exec, input.cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
       ]);
-      if (stagedPaths.length === 0 && unstagedPaths.length === 0 && untrackedPaths.length === 0) {
-        return { status: "none" };
-      }
-      if (canonicalize(stagedPaths) !== canonicalize([boundaryPath])
+      const clean = stagedPaths.length === 0 && unstagedPaths.length === 0 && untrackedPaths.length === 0;
+      if (!clean && (canonicalize(stagedPaths) !== canonicalize([boundaryPath])
         || unstagedPaths.length > 0
-        || untrackedPaths.length > 0) {
+        || untrackedPaths.length > 0)) {
         return {
           status: "blocked",
           detail: "The worktree contains changes beyond the exact staged publication boundary.",
@@ -869,6 +867,11 @@ export function createIntegrationCheckpointDependencies(input: {
       if (expectedBoundary.locus !== "delivery-status-required"
         || expectedBoundary.deliveryContinuation === undefined) {
         throw new Error("The shipped delivery publication renewal could not be projected.");
+      }
+      if (clean) {
+        return canonicalize(headBoundary) === canonicalize(expectedBoundary)
+          ? { status: "none" }
+          : { status: "refresh-required" };
       }
       if (canonicalize(stagedBoundary) !== canonicalize(expectedBoundary)) {
         const refreshedContinuation = {

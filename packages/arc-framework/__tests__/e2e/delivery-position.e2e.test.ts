@@ -2531,11 +2531,39 @@ describe("arc delivery position", () => {
     await git(archivedCheckout, ["commit", "--no-verify", "-m", "refresh archived delivery publication"]);
     await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
 
-    await expect(createIntegrationCheckpointDependencies({
+    const cleanCheckpoint = createIntegrationCheckpointDependencies({
       cwd: archivedCheckout,
       exec: createExecaGitExec(),
-    }).readShippedDeliveryPublicationCommit(fixture.plan.workUnitId, currentBase))
+    });
+    await expect(cleanCheckpoint.readShippedDeliveryPublicationCommit(fixture.plan.workUnitId, currentBase))
       .resolves.toEqual({ status: "none" });
+
+    const committedState = await fixture.states.read(fixture.plan.planId);
+    if (committedState.status !== "ok" || committedState.value === null) {
+      throw new Error("committed delivery state must remain readable");
+    }
+    const publicationHead = await git(archivedCheckout, ["rev-parse", "HEAD"]);
+    const publicationTree = await git(archivedCheckout, ["rev-parse", "HEAD^{tree}"]);
+    const advancedAfterPublication = await fixture.states.publish(
+      fixture.plan.planId,
+      {
+        ...committedState.value.value,
+        members: committedState.value.value.members.map((member) => member.deliverableId === terminal.deliverableId
+          ? {
+              ...member,
+              coordinates: {
+                ...member.coordinates!,
+                head: publicationHead,
+                tree: publicationTree,
+              },
+            }
+          : member),
+      },
+      committedState.value.revision,
+    );
+    expect(advancedAfterPublication.status).toBe("ok");
+    await expect(cleanCheckpoint.readShippedDeliveryPublicationCommit(fixture.plan.workUnitId, currentBase))
+      .resolves.toEqual({ status: "refresh-required" });
   });
 
   it("routes review-fix planning through an append-only terminal authoring advance", async () => {
