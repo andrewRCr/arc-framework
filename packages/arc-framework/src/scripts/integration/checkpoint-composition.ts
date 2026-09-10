@@ -2,7 +2,10 @@
 
 import { resolve } from "node:path";
 
-import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
+import {
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../../lib/base-drift/current-adapters.js";
 import type { RawGitExec } from "../../lib/change-facts.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
@@ -412,13 +415,13 @@ export function createIntegrationCheckpointDependencies(input: {
   };
 
   return {
-    readDrift: async () => {
+    readDrift: async (workUnit) => {
       const config = await settings();
       return runBaseDrift({
         exec: input.exec,
         baseBranch: config.settings["branch.base"],
         mode: "authoritative",
-        ...createCurrentBaseDriftAdapters(input.exec),
+        ...createCurrentBaseDriftAdapters(input.exec, workUnitPathTreatmentContext(workUnit)),
       });
     },
     classifyDeliveryDrift: async (workUnit, drift) => {

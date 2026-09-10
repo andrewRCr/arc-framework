@@ -56,7 +56,7 @@ export {
   type BaseDistanceStatusResult,
   type IntegrationEvidenceResolver,
   type IntegrationEvidenceResolverFactory,
-  type ReconciliationClassifier,
+  type PathTreatmentClassifier,
   type RunBaseDriftOptions,
 } from "./base-distance.js";
 
@@ -85,7 +85,6 @@ export type {
   IntegrationEvent,
   IntegrationIdentity,
   OverlapEvidence,
-  ReconciliationBehavior,
   ResolverEvent,
   ResolverRead,
 } from "./base-drift-types.js";

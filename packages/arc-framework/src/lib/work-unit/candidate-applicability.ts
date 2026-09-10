@@ -241,7 +241,7 @@ export function classifyCandidateApplicability(
       );
       const reviewableResidual = structural.proof.paths.filter((path) =>
         treatments.get(path) === "reviewable" || !treatments.has(path));
-      // Candidate-owned projections and other operational entries deliberately do not participate
+      // Candidate-owned projections and other evidence-neutral entries deliberately do not participate
       // in the reviewable subject. D4 still compares complete Git trees, so its exact tree residual
       // can contain those post-attestation writes even when the reapplied reviewable contribution is
       // identical. Unknown paths remain substantive and therefore fail closed into the judgment arm.

@@ -5,7 +5,7 @@
  */
 
 import type { GitExec } from "./exec.js";
-import type { OverlapEvidence, ReconciliationClassifier } from "./base-drift-types.js";
+import type { OverlapEvidence, PathTreatmentClassifier } from "./base-drift-types.js";
 import { isGitObjectId } from "./object-id.js";
 
 export interface AnalyzeBaseOverlapOptions {
@@ -13,7 +13,7 @@ export interface AnalyzeBaseOverlapOptions {
   baseOid: string;
   ahead: number;
   behind: number;
-  classify: ReconciliationClassifier;
+  classify: PathTreatmentClassifier;
 }
 
 export async function analyzeBaseOverlap(
@@ -55,7 +55,9 @@ export async function analyzeBaseOverlap(
   const regenerablePaths: string[] = [];
   try {
     for (const path of overlap) {
-      (options.classify(path) === "regenerable" ? regenerablePaths : substantivePaths).push(path);
+      const treatment = options.classify(path);
+      if (treatment === "regenerable") regenerablePaths.push(path);
+      if (treatment === "reviewable") substantivePaths.push(path);
     }
   } catch {
     return { status: "unavailable", reason: "classification-failed" };

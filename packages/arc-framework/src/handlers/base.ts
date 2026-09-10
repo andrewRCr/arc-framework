@@ -6,7 +6,10 @@
 
 import * as p from "@clack/prompts";
 
-import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
+import {
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { runBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
 import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
@@ -24,6 +27,8 @@ import {
   type BaseMergeResult,
 } from "../scripts/base/merge.js";
 import { requireArcProjectRoot } from "./shared.js";
+import { readIdentityPointers } from "./identity-pointers.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 /** Options for `arc base sync`. */
 export interface BaseSyncOptions {
@@ -177,12 +182,35 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
         register: composeUnavailableRegister(null, "config-unavailable"),
         failureReason: "error",
       }
-    : await runBaseDrift({
-        exec,
-        baseBranch: config.settings["branch.base"],
-        mode: "authoritative",
-        ...createCurrentBaseDriftAdapters(exec),
-      });
+    : await (async () => {
+        const { identity } = await readIdentityPointers(exec);
+        let workUnit: string | null = null;
+        if (identity !== null) {
+          try {
+            const frame = await runDerivedLocusStateProbe({
+              cwd,
+              identity,
+              baseBranch: config.settings["branch.base"],
+              exec,
+            });
+            const row = frame.entering.kind === "selected" ? frame.entering.row : null;
+            workUnit = row?.kind === "work-unit" && row.subject.kind === "work-unit"
+              ? row.subject.key
+              : null;
+          } catch {
+            workUnit = null;
+          }
+        }
+        return runBaseDrift({
+          exec,
+          baseBranch: config.settings["branch.base"],
+          mode: "authoritative",
+          ...createCurrentBaseDriftAdapters(
+            exec,
+            workUnit === null ? {} : workUnitPathTreatmentContext(workUnit),
+          ),
+        });
+      })();
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);

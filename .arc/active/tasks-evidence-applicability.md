@@ -57,50 +57,22 @@ _Exit criterion:_ one provider-neutral substrate classifies paths, composes ever
 applicability input, preserves raw-distance and Candidate subject-digest behavior across the intentional treatment
 change, and removes the unused predecessor.
 
-### `[ ]` **1.1 Unify path-treatment classification** — D1
+### `[x]` **1.1 Unify path-treatment classification** — D1
 
 - _Goal:_ every consumer assigns the same treatment to a path, so review subjects, overlap reads, and regenerable
   conflict handling cannot disagree about whether content counts.
 
-    - `[ ]` **1.1.a Establish the shared registry contract**
-        - Create the cohesive `packages/arc-framework/src/lib/evidence-applicability/` surface around
-          `classifyPathTreatment`, deriving project documents from `ProjectDocumentKindSchema` and accepting explicit
-          optional work-unit and projection coordinates.
-        - Replace the binary `ReconciliationClassifier` boundary so `base-overlap.ts` consumes all three treatments,
-          omits `evidence-neutral`, retains `regenerable`, and counts only `reviewable` as substantive. Treat
-          `evidence-neutral` as an applicability value, not an ADR-022 document-class label.
-        - Build `test-first` (one behavior at a time):
-            - ordinary content is `reviewable`;
-            - the current WU's `meta-*`, `draft-*`, `spec-*`, `tasks-*`, `notes-*`, lifecycle-directory companions,
-              Candidate projections, relocation sources, and any non-regenerable project documents are
-              `evidence-neutral`;
-            - a foreign WU artifact and shipped ARC or ordinary implementation documentation remain `reviewable`;
-            - tracking or materialization mode does not change treatment; and
-            - only the current project-readiness document is `regenerable`, including when `evidence-neutral` and
-              `regenerable` paths coexist in one overlap.
+    - `[x]` **1.1.a Establish the shared registry contract**
+        - Added the pure `evidence-applicability` registry, derived project-document treatment from the layout schema,
+          and made overlap partitioning omit neutral paths while retaining readiness regeneration separately.
 
-    - `[ ]` **1.1.b Replace the two independent production classifiers**
-        - Route `packages/arc-framework/src/lib/base-drift/current-adapters.ts` and
-          `packages/arc-framework/src/lib/work-unit/git-candidate-subject.ts` through the registry, folding the old
-          `operational` and `candidate-projection` values into `evidence-neutral`. Candidate applicability and
-          `collectUnstagedReviewablePaths` select only `reviewable`, intentionally excluding the complete own-WU
-          planning group from implementation-review triggers without consulting storage configuration.
-        - Make the base-drift adapter accept explicit optional treatment context. Pass known work-unit coordinates
-          from checkpoint and merge compositions; resolve the current locus at the base-command and session-status
-          composition boundaries; pass no work-unit coordinates for an Errand. Never infer identity in the registry.
-        - Build `test-first` (one behavior at a time):
-            - a work-unit checkout classifies its complete planning group and projections by identity while leaving
-              foreign work-unit artifacts reviewable;
-            - an Errand checkout supplies no work-unit coordinates and still recognizes project documents; and
-            - relocated standard and companion planning artifacts keep both the vacated source and re-keyed content
-              `evidence-neutral`, so relocation or an accompanying planning edit cannot create an implementation
-              delta.
-        - Align `candidate-attestation.ts`, the collector, base-overlap adapters, and their fixtures in
-          `base-overlap.test.ts`, `base-distance.test.ts`, `git-candidate-subject.test.ts`,
-          `candidate-attestation.test.ts`, and `candidate-applicability.test.ts` so both consumers prove identical
-          treatment for the same representative corpus.
-        - Cover treatment-context plumbing in `handlers/base.test.ts`, the session-status remote-context suite, and
-          the checkpoint/merge composition unit suites without adding an ambient identity read to the registry.
+    - `[x]` **1.1.b Replace the two independent production classifiers**
+        - Routed Candidate collection and base-drift composition through explicit work-unit and projection context;
+          own planning groups and relocations are neutral, foreign artifacts remain reviewable, and Errands receive
+          no work-unit identity.
+
+- _Outcome:_ Candidate subjects, unstaged-review gates, and base-overlap reads now share one storage-agnostic path
+  treatment contract, with focused caller and classification coverage preserving raw-distance behavior.
 
 ### `[ ]` **1.2 Define total evidence-delta producer contracts** — D2
 

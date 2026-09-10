@@ -7,6 +7,7 @@ import {
   canonicalDigest,
   sortByCanonicalBytes,
 } from "../canonical/canonical-json.js";
+import { PathTreatmentSchema } from "../evidence-applicability/index.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { ReviewContributionApplicabilitySelectorSchema } from "./review-applicability-selector.js";
 
@@ -19,7 +20,7 @@ const CandidatePathSchema = z.string().min(1)
     "must be a repository-relative POSIX path",
   )
   .refine((value) => value.normalize("NFC") === value, "must use NFC-normalized repository path bytes");
-const CandidateSubjectTreatmentSchema = z.enum(["reviewable", "operational", "candidate-projection"]);
+const CandidateSubjectTreatmentSchema = PathTreatmentSchema;
 const CandidateTreeEntryModeSchema = z.union([
   z.string().regex(/^[0-7]{6}$/u),
   z.literal("absent"),
@@ -348,7 +349,7 @@ export interface CandidateSubjectEntryInput {
 }
 
 /**
- * Canonicalize one Candidate subject while excluding code-owned operational projections from its digest.
+ * Canonicalize one Candidate subject while excluding evidence-neutral projections from its digest.
  *
  * @param entries - Repository-relative content identities and their review treatment.
  * @returns A normalized snapshot and its reviewable-content digest.

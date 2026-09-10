@@ -110,7 +110,7 @@ describe("Candidate applicability", () => {
         path: ".arc/system/.internal/candidates/example.json",
         mode: "100644",
         digest: canonicalDigest({ source: "Candidate projection" }),
-        treatment: "candidate-projection",
+        treatment: "evidence-neutral",
       },
     ]);
     const input = request(currentSubject);

@@ -3,7 +3,10 @@
 import { z } from "zod";
 
 import { readConfigSettings } from "../../lib/config/status-reader.js";
-import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
+import {
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../../lib/base-drift/current-adapters.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
 import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
@@ -248,7 +251,10 @@ export function createIntegrationMergeDependencies(input: {
         exec: input.exec,
         baseBranch: config.settings["branch.base"],
         mode: "authoritative",
-        ...createCurrentBaseDriftAdapters(input.exec),
+        ...createCurrentBaseDriftAdapters(
+          input.exec,
+          workUnitPathTreatmentContext(input.workUnit),
+        ),
       });
     },
     mergePinned: async (target, method) => {
