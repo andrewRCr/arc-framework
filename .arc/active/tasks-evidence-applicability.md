@@ -431,31 +431,25 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
 - _Outcome:_ executing workflows now preserve exact authority while rendering code-owned terminal outcomes; agent
   judgment is isolated to declared, marked, bounded-residual fire-points.
 
-### `[ ]` **4.5 Align integration authority and concurrent-work doctrine** — D14
+### `[x]` **4.5 Align integration authority and concurrent-work doctrine** — D14
 
 - _Goal:_ the always-loaded rule and shipped strategies consistently state that evidence follows covered content,
   terminal overlap is reconciled once, and provider strictness comes only from configured host policy.
 
-- _Note:_ Author every shipped edit in the reader-facing register: no work-unit names, planning identifiers, or
-  transitional rationale may survive into package content.
+    - `[x]` **4.5.a Amend terminal integration doctrine**
+        - Bound applicability to covered content and terminal authority to disjoint host-admitted composition,
+          exact-head/named-target approval, head-bound checks, base-CI parity, and the disclosed provider race.
 
-    - `[ ]` **4.5.a Amend terminal integration doctrine**
-        - Update both copies of `strategy-integration.md` with content-based applicability, the disjoint compose path,
-          exact-head/named-target authority, the head-bound checks contract, base-CI backstop, and disclosed provider
-          race.
+    - `[x]` **4.5.b Remove lifecycle serialization from concurrent-work doctrine**
+        - Made each terminal boundary independently classify disjoint, overlapping, or unknown movement; removed the
+          designated merge locus and refresh sweep while retaining explicit dependencies and host-side queues.
 
-    - `[ ]` **4.5.b Remove lifecycle serialization from concurrent-work doctrine**
-        - Update both copies of `strategy-concurrent-work.md` so disjoint landings invalidate nothing, overlapping
-          landings reconcile only at their terminal boundary, Errands use the same rule, and merge-queue guidance
-          remains a host-side option rather than ARC machinery.
-        - Remove the designated-merge-worktree and refresh-all-after-merge obligations whose rationale no longer
-          survives the typed locus and applicability model.
+    - `[x]` **4.5.c Align the review-increment exception and integration workflow wording**
+        - Bound the reconcile exception to complete host evidence, disclosed overlap, Tier 1, fresh checkpoint
+          applicability, and exact-head approval; narrowed clearance invalidation to the overlapping merge arm.
 
-    - `[ ]` **4.5.c Align the review-increment exception and integration workflow wording**
-        - Amend both copies of `DEV-RULES.ARC.md` so a typed safe base reconcile carries the host-admitted,
-          overlap-disclosed meaning while Tier 1, checkpoint judgment, and exact-head authorization remain mandatory.
-        - Narrow both copies of `integrate-work-unit.md` from unconditional clearance invalidation to the overlapping
-          base-merge arm and prove every package/project pair remains byte-aligned where the recipe requires it.
+- _Outcome:_ always-loaded rules, integration doctrine, concurrent-work guidance, and executing workflow prose now
+  share one content-based terminal policy without lifecycle-wide serialization.
 
 ### `[ ]` **4.6 Exercise integration slice** — D3-D11, D14-D16 — validate exit criterion at segment scope
 

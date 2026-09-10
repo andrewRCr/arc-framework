@@ -638,7 +638,9 @@ For `merged / run-quality-gates` only, repeat the Step 1 push extension contract
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
 Restart this step. The checkpoint now owns Candidate applicability, ordinary publication settlement, delivery
-rebind, review status, and final readiness over the pushed exact head. Clearance never carries.
+rebind, review status, and final readiness over the pushed exact head. Clearance never carries across the
+overlapping base-merge arm; disjoint movement follows the typed applicability result without a fresh review by
+default.
 Advisory receipts are not merge authority.
 
 On `ready / request-approval`, render `payload.interlockSurface.machineEvidence.text` verbatim.

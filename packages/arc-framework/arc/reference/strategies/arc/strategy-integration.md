@@ -67,10 +67,10 @@ Each merge boundary is reviewed at an exact head. In a delivery, every member us
 the work-unit obligation settles only as the conjunction of the retained member bindings. Delivery records current
 review targets only where execution needs them; they do not copy review verdicts or clearance.
 
-Head movement never carries clearance merely because content appears similar. The review contracts and typed
-applicability projections decide whether an earlier result still covers the new subject, whether a bounded residual
-needs review, or whether a fresh review is required. Delivery and singleton integration use the same authority
-boundary.
+Evidence applicability follows the content an earlier result covers, never head movement by itself. The review
+contracts and typed applicability projections decide whether that evidence carries, whether a bounded residual enters
+[`assess-evidence-applicability`][assess-evidence-applicability], or whether fresh evidence is required. Delivery and
+singleton integration use the same authority boundary.
 
 An approved delivery-member review fix follows the presentation that currently exists. One fresh observation through
 the native-stack provider port selects only an exact registered or exact unregistered route. A registered remainder
@@ -94,6 +94,18 @@ the always-loaded integration-interlock invariant in [Development Rules]; approv
 head and plan, and the merge verb revalidates them before acting. A changed head or invalidated checkpoint returns to
 composition rather than inheriting the prior authorization.
 
+Disjoint protected-base movement proceeds without a reconcile commit when Git feasibility is exact and the configured
+host policy admits the current head into the named target. Overlapping movement enters one typed base reconcile and
+then a fresh checkpoint and approval; unknown movement, incomplete evidence, conflict, or unresolved host admission
+stops. Strict current-base requirements come only from authoritative host-policy evidence, never distance or provider
+guesswork.
+
+Authorization binds the exact Candidate head and change request into the named target ref, not a base object ID. The
+approval surface discloses the last observed base and the residual race between observation and merge. Required-check
+evidence is head-bound unless the host proves stronger currency: before merge, the host's current test-merge result is
+the integration evidence; after merge, base CI is the backstop and should run the same legs that gate a change request.
+A project that omits those base legs knowingly accepts the resulting coverage gap.
+
 ## Post-Landing Hand-Back
 
 After the terminal merge, integration hands control back in a fixed order:
@@ -108,6 +120,7 @@ authority from branch names. Delivery closeout is a no-op for a work unit with n
 ---
 
 [Concurrent Work]: strategy-concurrent-work.md
+[assess-evidence-applicability]: ../../../system/methods/assess-evidence-applicability.md
 [Development Rules]: ../../../system/rules/DEV-RULES.ARC.md
 [Deliver Stack]: ../../../system/workflows/arc/supplemental/deliver-stack.md
 [Integrate Work Unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md

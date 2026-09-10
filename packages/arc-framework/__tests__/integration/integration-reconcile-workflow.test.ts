@@ -112,8 +112,8 @@ describe("integration current-WU reconcile workflow", () => {
     expect(flatStep.slice(mergedOnly, postMergeRerun)).not.toContain("arc review status");
     expect(step).toMatch(/`pending`[\s\S]*requires direction/u);
 
+    expect(flatStep).toContain("Clearance never carries across the overlapping base-merge arm");
     for (const invariant of [
-      "Clearance never carries.",
       "Advisory receipts are not merge authority.",
       "The integration interlock is the sole merge authority.",
     ]) {
