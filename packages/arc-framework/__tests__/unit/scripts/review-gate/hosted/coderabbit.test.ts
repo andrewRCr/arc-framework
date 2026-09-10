@@ -296,6 +296,178 @@ Full review finished.`,
     await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
   });
 
+  it("retains supplemental observations before an empty approval for one request", async () => {
+    const supplemental = review({
+      id: "PRR_COMMENTED",
+      state: "commented",
+      submittedAt: "2026-07-23T12:04:55.000Z",
+      body: `<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Keep the request-bound observation.**
+
+The later approval is a completion marker, not a replacement result.
+
+<!-- cr-comment:v1:cead8563631e4f6a5cb8cb64 -->
+
+</blockquote></details>
+</blockquote></details>`,
+    });
+    const approval = review({
+      id: "PRR_APPROVED",
+      body: "",
+      submittedAt: "2026-07-23T12:05:00.000Z",
+    });
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([approval, supplemental]),
+    }));
+
+    await expect(adapter.observe(requestHandle())).resolves.toMatchObject({
+      kind: "findings",
+      reviewUrl: approval.url,
+      findings: [{
+        findingId: "PRR_COMMENTED:cead8563631e4f6a5cb8cb64",
+        origin: "review-body",
+        reviewId: "PRR_COMMENTED",
+        sourceOrdinal: 1,
+        severity: "minor",
+        nit: true,
+      }],
+    });
+  });
+
+  it("does not aggregate a later request generation or another head", async () => {
+    const currentApproval = review({
+      id: "PRR_CURRENT",
+      body: "",
+      submittedAt: "2026-07-23T12:03:00.000Z",
+    });
+    const laterSupplemental = review({
+      id: "PRR_LATER",
+      state: "commented",
+      submittedAt: "2026-07-23T12:05:00.000Z",
+      body: `<summary>🧹 Nitpick comments (1)</summary>
+<summary>src/later.ts (1)</summary>
+
+\`3\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_
+
+**Belongs to the later request.**
+
+<!-- cr-comment:v1:111111111111111111111111 -->`,
+    });
+    const wrongHead = review({
+      id: "PRR_WRONG_HEAD",
+      headSha: "b".repeat(40),
+      state: "commented",
+      submittedAt: "2026-07-23T12:02:00.000Z",
+      body: laterSupplemental.body,
+    });
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([laterSupplemental, wrongHead, currentApproval]),
+      readIssueComments: () => Promise.resolve([{
+        id: "IC_NEXT_REQUEST",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-next",
+        actorIdentity: "5678",
+        body: "@coderabbitai review",
+        createdAt: "2026-07-23T12:04:00.000Z",
+        updatedAt: "2026-07-23T12:04:00.000Z",
+      }]),
+    }));
+
+    await expect(adapter.observe(requestHandle())).resolves.toMatchObject({
+      kind: "clean",
+      reviewUrl: currentApproval.url,
+    });
+  });
+
+  it("refuses a request generation superseded before any attributable terminal result", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        id: "PRR_AFTER_NEXT_REQUEST",
+        body: "",
+        submittedAt: "2026-07-23T12:05:00.000Z",
+      })]),
+      readIssueComments: () => Promise.resolve([{
+        id: "IC_NEXT_REQUEST",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-next",
+        actorIdentity: "5678",
+        body: "@coderabbitai full review",
+        createdAt: "2026-07-23T12:04:00.000Z",
+        updatedAt: "2026-07-23T12:04:00.000Z",
+      }]),
+    }));
+
+    await expect(adapter.observe(requestHandle())).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
+  });
+
+  it("retains a repeated supplemental provider fingerprint exactly once", async () => {
+    const body = `<summary>🧹 Nitpick comments (1)</summary>
+<summary>src/a.ts (1)</summary>
+
+\`7\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_
+
+**Repeated provider observation.**
+
+<!-- cr-comment:v1:cead8563631e4f6a5cb8cb64 -->`;
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([
+        review({
+          id: "PRR_APPROVED",
+          body,
+          submittedAt: "2026-07-23T12:05:00.000Z",
+        }),
+        review({
+          id: "PRR_COMMENTED",
+          state: "commented",
+          body,
+          submittedAt: "2026-07-23T12:04:55.000Z",
+        }),
+      ]),
+    }));
+
+    const result = await adapter.observe(requestHandle());
+    expect(result.kind).toBe("findings");
+    if (result.kind === "findings") {
+      expect(result.findings).toHaveLength(1);
+      expect(result.findings[0]).toMatchObject({
+        reviewId: "PRR_COMMENTED",
+        fingerprint: "cead8563631e4f6a5cb8cb64",
+        sourceOrdinal: 1,
+      });
+    }
+  });
+
+  it("keeps handle-less observation on the newest exact-head review", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([
+        review({ id: "PRR_APPROVED", body: "", submittedAt: "2026-07-23T12:05:00.000Z" }),
+        review({
+          id: "PRR_OLDER",
+          state: "commented",
+          submittedAt: "2026-07-23T12:04:00.000Z",
+          body: `<summary>🧹 Nitpick comments (1)</summary>
+<summary>src/older.ts (1)</summary>
+
+\`2\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_
+
+**Cannot be request-bound without a handle.**
+
+<!-- cr-comment:v1:222222222222222222222222 -->`,
+        }),
+      ]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
+  });
+
   it.each(["-1", "1.5"])("rejects a present malformed actionable count of %s", async (count) => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({

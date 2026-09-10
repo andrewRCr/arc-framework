@@ -123,6 +123,7 @@ function finding(
 }
 
 type ReviewBodyFinding = Omit<Extract<HostedFinding, { origin: "review-body" }>, "sourceOrdinal">;
+type UnorderedFinding = UnorderedThreadFinding | ReviewBodyFinding;
 type SupplementalCategory = "nitpick" | "outside-diff";
 
 export type CodeRabbitReviewBodyParseResult =
@@ -363,8 +364,70 @@ export function parseCodeRabbitReviewBody(
   return { kind: "parsed", actionableCount, supplementalCounts, findings };
 }
 
-function newestTerminalReview(reviews: HostedGitHubReview[]): HostedGitHubReview | undefined {
-  return [...reviews].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt))[0];
+function orderedTerminalReviews(reviews: HostedGitHubReview[]): HostedGitHubReview[] {
+  return [...reviews].sort((left, right) => {
+    const submitted = left.submittedAt.localeCompare(right.submittedAt);
+    return submitted === 0 ? left.id.localeCompare(right.id) : submitted;
+  });
+}
+
+function nextRequestBoundary(
+  comments: HostedGitHubIssueComment[],
+  requestedAt: string,
+): string | null {
+  const next = comments
+    .filter((comment) => {
+      const body = comment.body.trim();
+      return comment.createdAt > requestedAt
+        && (body === COMMANDS.complete || body === COMMANDS.incremental);
+    })
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))[0];
+  return next?.createdAt ?? null;
+}
+
+function precedesBoundary(timestamp: string, boundary: string | null): boolean {
+  return boundary === null || timestamp < boundary;
+}
+
+function findingSequenceKey(item: UnorderedFinding): string {
+  return item.origin === "review-body"
+    ? `review-body:${item.fingerprint}`
+    : `review-thread:${item.threadId}`;
+}
+
+function findingSequenceContent(item: UnorderedFinding): string {
+  return JSON.stringify({
+    origin: item.origin,
+    settlement: item.settlement,
+    severity: item.severity,
+    nit: item.nit ?? false,
+    locus: item.locus,
+    sourceLabel: item.sourceLabel ?? null,
+    sourceLabelTruncated: item.sourceLabelTruncated ?? false,
+    ...(item.origin === "review-body"
+      ? { fingerprint: item.fingerprint, body: item.body }
+      : { threadId: item.threadId }),
+  });
+}
+
+function deduplicateTerminalFindings(findings: UnorderedFinding[]):
+  | { kind: "deduplicated"; findings: UnorderedFinding[] }
+  | { kind: "malformed"; reason: string } {
+  const retained = new Map<string, { finding: UnorderedFinding; content: string }>();
+  for (const item of findings) {
+    const key = findingSequenceKey(item);
+    const content = findingSequenceContent(item);
+    const existing = retained.get(key);
+    if (existing === undefined) {
+      retained.set(key, { finding: item, content });
+    } else if (existing.content !== content) {
+      return {
+        kind: "malformed",
+        reason: diagnostic("provider-finding-identity-conflict", { identity: key }),
+      };
+    }
+  }
+  return { kind: "deduplicated", findings: [...retained.values()].map(({ finding }) => finding) };
 }
 
 /** CodeRabbit request and exact-head observation through the lean GitHub port. */
@@ -446,74 +509,93 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         return { kind: "terminal-failure", reason: `provider-check-${failedCheck.conclusion}` };
       }
 
+      const requestBoundary = coverage === null ? null : nextRequestBoundary(comments, requestedAt);
       const providerReviews = reviews.filter((review) =>
         review.actorIdentity === BOT_USER_ID
         && review.headSha === target.headSha
-        && review.submittedAt >= requestedAt);
-      const review = newestTerminalReview(providerReviews);
+        && review.submittedAt >= requestedAt
+        && precedesBoundary(review.submittedAt, requestBoundary));
+      const completeSequence = orderedTerminalReviews(providerReviews);
+      const orderedReviews = coverage === null ? completeSequence.slice(-1) : completeSequence;
+      const review = orderedReviews.at(-1);
       if (review === undefined) {
         const providerComments = comments.filter((comment) =>
-          comment.actorIdentity === BOT_USER_ID && comment.appId === APP_ID);
+          comment.actorIdentity === BOT_USER_ID
+          && comment.appId === APP_ID
+          && precedesBoundary(comment.createdAt, requestBoundary));
         const completedStatus = statuses.find((status) =>
           status.context === "CodeRabbit"
           && status.state === "success"
           && status.createdAt >= requestedAt
+          && precedesBoundary(status.createdAt, requestBoundary)
           && /\breview completed\b/iu.test(status.description));
         const completedReply = providerComments.find((comment) =>
           commandReplyCompleted(comment, requestedAt, coverage));
         const completedSummary = providerComments.find((comment) =>
-          summaryCompletesHead(comment, target, requestedAt));
-        return completedStatus !== undefined && completedReply !== undefined && completedSummary !== undefined
-          ? { kind: "clean", reviewUrl: completedSummary.url }
-          : { kind: "pending" };
+          precedesBoundary(comment.updatedAt, requestBoundary)
+          && summaryCompletesHead(comment, target, requestedAt));
+        if (completedStatus !== undefined && completedReply !== undefined && completedSummary !== undefined) {
+          return { kind: "clean", reviewUrl: completedSummary.url };
+        }
+        return requestBoundary === null
+          ? { kind: "pending" }
+          : { kind: "terminal-failure", reason: "provider-request-generation-overlap" };
       }
-      const parsedBody = parseCodeRabbitReviewBody(review);
-      if (parsedBody.kind === "malformed") {
-        return { kind: "terminal-failure", reason: parsedBody.reason };
-      }
-      const candidateComments = threads.flatMap((thread) =>
-        thread.comments
-          .filter((comment) =>
-            comment.actorIdentity === BOT_USER_ID
-            && comment.headSha === target.headSha
-            && comment.reviewId === review.id)
-          .map((comment) => ({ threadId: thread.id, comment })));
-      const parsedComments = candidateComments.map(({ threadId, comment }) => ({
-        threadId,
-        comment,
-        parsed: finding(threadId, comment),
-      }));
-      const rejectedComment = parsedComments.find((candidate) => candidate.parsed === null);
-      if (rejectedComment !== undefined) {
-        const { threadId, comment } = rejectedComment;
-        const context = {
+      const terminalFindings: UnorderedFinding[] = [];
+      for (const terminalReview of orderedReviews) {
+        const parsedBody = parseCodeRabbitReviewBody(terminalReview);
+        if (parsedBody.kind === "malformed") {
+          return { kind: "terminal-failure", reason: parsedBody.reason };
+        }
+        const candidateComments = threads.flatMap((thread) =>
+          thread.comments
+            .filter((comment) =>
+              comment.actorIdentity === BOT_USER_ID
+              && comment.headSha === target.headSha
+              && comment.reviewId === terminalReview.id)
+            .map((comment) => ({ threadId: thread.id, comment })));
+        const parsedComments = candidateComments.map(({ threadId, comment }) => ({
           threadId,
-          commentId: comment.id,
-          path: comment.path,
-          ...(comment.line === null ? {} : { line: comment.line }),
-        };
-        return {
-          kind: "terminal-failure",
-          reason: comment.line === null
-            ? diagnostic("provider-thread-finding-locus-unavailable", context)
-            : diagnostic("provider-thread-finding-severity-unrecognized", context),
-        };
+          comment,
+          parsed: finding(threadId, comment),
+        }));
+        const rejectedComment = parsedComments.find((candidate) => candidate.parsed === null);
+        if (rejectedComment !== undefined) {
+          const { threadId, comment } = rejectedComment;
+          const context = {
+            threadId,
+            commentId: comment.id,
+            path: comment.path,
+            ...(comment.line === null ? {} : { line: comment.line }),
+          };
+          return {
+            kind: "terminal-failure",
+            reason: comment.line === null
+              ? diagnostic("provider-thread-finding-locus-unavailable", context)
+              : diagnostic("provider-thread-finding-severity-unrecognized", context),
+          };
+        }
+        const findings = parsedComments.map((candidate) => candidate.parsed)
+          .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+        if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
+          return {
+            kind: "terminal-failure",
+            reason: diagnostic("provider-actionable-finding-count-mismatch", {
+              advertised: parsedBody.actionableCount,
+              inline: findings.length,
+              outsideDiff: parsedBody.supplementalCounts["outside-diff"],
+              nitpick: parsedBody.supplementalCounts.nitpick,
+            }),
+          };
+        }
+        terminalFindings.push(...findings, ...parsedBody.findings);
       }
-      const findings = parsedComments.map((candidate) => candidate.parsed)
-        .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
-      if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
-        return {
-          kind: "terminal-failure",
-          reason: diagnostic("provider-actionable-finding-count-mismatch", {
-            advertised: parsedBody.actionableCount,
-            inline: findings.length,
-            outsideDiff: parsedBody.supplementalCounts["outside-diff"],
-            nitpick: parsedBody.supplementalCounts.nitpick,
-          }),
-        };
+      const deduplicated = deduplicateTerminalFindings(terminalFindings);
+      if (deduplicated.kind === "malformed") {
+        return { kind: "terminal-failure", reason: deduplicated.reason };
       }
       const allFindings = HostedFindingsSchema.parse(
-        [...findings, ...parsedBody.findings].map((finding, index) => ({
+        deduplicated.findings.map((finding, index) => ({
           ...finding,
           sourceOrdinal: index + 1,
         })),

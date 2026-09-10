@@ -436,17 +436,12 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   shared policy and response consumers. Reuse the Git-common publisher transaction and shared advisory-lock abstraction;
   do not add a response-specific lock or a general amendment framework.
 
-    - `[ ]` **5.1.R.a Preserve CodeRabbit observations across one terminal review sequence**
+    - `[x]` **5.1.R.a Preserve CodeRabbit observations across one terminal review sequence**
 
-        - Build `test-first` (one behavior at a time):
-
-            - Normalize a request-bound `COMMENTED` supplemental nitpick followed by empty `APPROVED` at the same exact
-              head as findings with provider completion, retaining each observation once in capture order. Approval-only
-              remains clean; verified severity and gating, not provider approval, control convergence.
-
-            - Bound aggregation to the admitted attempt's provider, actor, head, and request-generation interval.
-              Exclude another request/head and refuse overlap that cannot be attributed exactly. Keep fixture finding-ID
-              derivation independent without exporting a production helper solely for tests.
+        - Request-bound observation now composes supplemental reviews with a later completion marker, deduplicates stable
+          provider identities in capture order, excludes later request generations and other heads, and refuses a closed
+          request window with no attributable terminal result. Handle-less inspection retains its newest-review boundary;
+          fixture identity remains independent of production exports.
 
     - `[ ]` **5.1.R.b Add immutable approved-set lineage and successor publication**
 
