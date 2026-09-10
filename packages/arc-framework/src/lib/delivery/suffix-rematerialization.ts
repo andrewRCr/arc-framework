@@ -228,7 +228,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
 /** Reclose, reprove, and apply every non-terminal suffix rewrite in persisted order. */
 export async function executeFreshDeliverySuffixRematerialization(input: {
   readonly selectedDeliverableIds: readonly string[];
-  readonly selectedOperationMode?: "review-fix" | "selected-change";
+  readonly supersedePendingReviewFixVerification?: DeliveryPendingReviewFixVerificationV1;
 }, dependencies: DeliverySuffixRematerializationDependencies): Promise<
   | DeliverySuffixRematerializedResult
   | DeliveryContributionRefusal
@@ -314,14 +314,14 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
       current: fresh.current,
       rewrite,
       ...(nextIndex === 0
-        && input.selectedOperationMode === "selected-change"
+        && input.supersedePendingReviewFixVerification !== undefined
         && fresh.current.value.pendingReviewFixVerification !== null
         && input.selectedDeliverableIds.length === 1
         && input.selectedDeliverableIds[0]
-          === fresh.current.value.pendingReviewFixVerification.selectedDeliverableId
+          === input.supersedePendingReviewFixVerification.selectedDeliverableId
         ? {
             supersedePendingReviewFixVerification:
-              fresh.current.value.pendingReviewFixVerification,
+              input.supersedePendingReviewFixVerification,
           }
         : {}),
     });

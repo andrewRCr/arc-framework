@@ -90,6 +90,7 @@ import {
   DeliveryChangeRequestV1Schema,
   DeliveryMergePolicyBindingV1Schema,
   DeliveryOperationSnapshotV1Schema,
+  DeliveryPendingReviewFixVerificationV1Schema,
   DeliveryPlanIdSchema,
   DeliveryPlanV1Schema,
   DeliveryStateV1Schema,
@@ -471,7 +472,7 @@ const RematerializeSchema = z.strictObject({
   protectedBaseRef: RefSchema,
   topRef: RefSchema,
   selectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-  selectedOperationMode: z.enum(["review-fix", "selected-change"]).default("review-fix"),
+  supersedePendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.optional(),
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
 });
@@ -5739,7 +5740,9 @@ async function executeDeliveryCommand(
     const gitCommonDir = await resolveGitCommonDir(exec, cwd);
     const rematerialized = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: parsed.selectedDeliverableIds,
-      selectedOperationMode: parsed.selectedOperationMode,
+      ...(parsed.supersedePendingReviewFixVerification === undefined
+        ? {}
+        : { supersedePendingReviewFixVerification: parsed.supersedePendingReviewFixVerification }),
     }, {
       reobserve: async () => {
         const [planRead, stateRead] = await Promise.all([

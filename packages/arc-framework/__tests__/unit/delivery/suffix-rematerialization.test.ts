@@ -451,7 +451,6 @@ describe("delivery suffix rematerialization", () => {
     });
     const result = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [second.deliverableId],
-      selectedOperationMode: "selected-change",
     }, {
       reobserve: async () => ({
         status: "observed",
@@ -506,7 +505,7 @@ describe("delivery suffix rematerialization", () => {
 
     const result = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [selected.deliverableId],
-      selectedOperationMode: "selected-change",
+      supersedePendingReviewFixVerification: pendingReviewFixVerification,
     }, {
       reobserve: async () => ({
         status: "observed",
@@ -545,6 +544,42 @@ describe("delivery suffix rematerialization", () => {
 
     expect(result).toMatchObject({ status: "rematerialized", selectedDeliverableId: selected.deliverableId });
     expect(supersessions).toEqual([pendingReviewFixVerification, undefined]);
+  });
+
+  it("refuses a delayed supersession when pending verification has expanded", async () => {
+    const { plan, state, facts, snapshot, second, third } = fixture();
+    const projectedPendingVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId],
+    };
+    const newerPendingVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId, third.deliverableId],
+    };
+    const current = {
+      revision: 7,
+      value: { ...state, pendingReviewFixVerification: newerPendingVerification },
+    };
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [second.deliverableId],
+      supersedePendingReviewFixVerification: projectedPendingVerification,
+    }, {
+      reobserve: async () => ({ status: "observed", plan, current, facts, snapshot }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "tree-equality" }),
+      apply: async ({ supersedePendingReviewFixVerification }) => {
+        if (supersedePendingReviewFixVerification === undefined) return { status: "refused" };
+        if (JSON.stringify(supersedePendingReviewFixVerification)
+          !== JSON.stringify(newerPendingVerification)) {
+          return { status: "refused", reason: "pending-review-fix-verification" };
+        }
+        return { status: "applied", state: current };
+      },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
   });
 
   it("resumes after a persisted predecessor rewrite without weakening carried contribution proof", async () => {
