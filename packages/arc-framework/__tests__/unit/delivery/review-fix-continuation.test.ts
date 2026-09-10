@@ -729,7 +729,13 @@ describe("delivery review-fix continuation projection", () => {
       status: "dispatch",
       action: {
         kind: "delivery-rematerialize",
-        input: { supersedePendingReviewFixVerification: pendingReviewFixVerification },
+        input: {
+          supersedePendingReviewFixVerification: {
+            pendingVerification: pendingReviewFixVerification,
+            expectedStateRevision: 3,
+            continuationDigest: canonicalDigest(pendingState),
+          },
+        },
       },
     });
   });

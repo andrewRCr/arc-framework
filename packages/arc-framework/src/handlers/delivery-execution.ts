@@ -472,7 +472,11 @@ const RematerializeSchema = z.strictObject({
   protectedBaseRef: RefSchema,
   topRef: RefSchema,
   selectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-  supersedePendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.optional(),
+  supersedePendingReviewFixVerification: z.strictObject({
+    pendingVerification: DeliveryPendingReviewFixVerificationV1Schema,
+    expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    continuationDigest: DeliveryCanonicalDigestSchema,
+  }).optional(),
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
 });

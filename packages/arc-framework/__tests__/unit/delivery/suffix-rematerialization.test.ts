@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import {
   completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
@@ -505,7 +506,11 @@ describe("delivery suffix rematerialization", () => {
 
     const result = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [selected.deliverableId],
-      supersedePendingReviewFixVerification: pendingReviewFixVerification,
+      supersedePendingReviewFixVerification: {
+        pendingVerification: pendingReviewFixVerification,
+        expectedStateRevision: current.revision,
+        continuationDigest: canonicalDigest(current.value),
+      },
     }, {
       reobserve: async () => ({
         status: "observed",
@@ -560,10 +565,15 @@ describe("delivery suffix rematerialization", () => {
       revision: 7,
       value: { ...state, pendingReviewFixVerification: newerPendingVerification },
     };
+    const projectedState = { ...state, pendingReviewFixVerification: projectedPendingVerification };
 
     const result = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [second.deliverableId],
-      supersedePendingReviewFixVerification: projectedPendingVerification,
+      supersedePendingReviewFixVerification: {
+        pendingVerification: projectedPendingVerification,
+        expectedStateRevision: current.revision,
+        continuationDigest: canonicalDigest(projectedState),
+      },
     }, {
       reobserve: async () => ({ status: "observed", plan, current, facts, snapshot }),
       reobserveCandidate: async () => true,
@@ -577,6 +587,60 @@ describe("delivery suffix rematerialization", () => {
         }
         return { status: "applied", state: current };
       },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+  });
+
+  it("refuses a delayed supersession after its pending marker is cleared", async () => {
+    const { plan, state, facts, snapshot, second } = fixture();
+    const pendingVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId],
+    };
+    const projectedState = { ...state, pendingReviewFixVerification: pendingVerification };
+    const current = { revision: 8, value: state };
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [second.deliverableId],
+      supersedePendingReviewFixVerification: {
+        pendingVerification,
+        expectedStateRevision: 7,
+        continuationDigest: canonicalDigest(projectedState),
+      },
+    }, {
+      reobserve: async () => ({ status: "observed", plan, current, facts, snapshot }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "tree-equality" }),
+      apply: async () => ({ status: "applied", state: current }),
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+  });
+
+  it("refuses a delayed supersession after an identical marker is recreated", async () => {
+    const { plan, state, facts, snapshot, second } = fixture();
+    const pendingVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId],
+    };
+    const projectedState = { ...state, pendingReviewFixVerification: pendingVerification };
+    const current = { revision: 9, value: projectedState };
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [second.deliverableId],
+      supersedePendingReviewFixVerification: {
+        pendingVerification,
+        expectedStateRevision: 7,
+        continuationDigest: canonicalDigest(projectedState),
+      },
+    }, {
+      reobserve: async () => ({ status: "observed", plan, current, facts, snapshot }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "tree-equality" }),
+      apply: async () => ({ status: "applied", state: current }),
     });
 
     expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });

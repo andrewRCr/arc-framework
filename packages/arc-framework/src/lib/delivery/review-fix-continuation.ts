@@ -671,16 +671,27 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     if (protectedBaseRef === null || input.activeBranch === undefined) {
       return { status: "refused" as const, reason: "review-fix-rematerialization-unavailable" };
     }
-    const pendingVerification = entry.derivedFrom.kind === "pending-verification"
+    const pendingVerificationDerivation = entry.derivedFrom.kind === "pending-verification"
+      ? entry.derivedFrom
+      : null;
+    const pendingVerification = pendingVerificationDerivation !== null
       ? input.state?.value.pendingReviewFixVerification ?? null
       : null;
-    if (entry.derivedFrom.kind === "pending-verification"
+    if (pendingVerificationDerivation !== null
       && (input.state === undefined
-        || canonicalDigest(input.state.value) !== entry.derivedFrom.continuationDigest
+        || canonicalDigest(input.state.value) !== pendingVerificationDerivation.continuationDigest
         || pendingVerification === null
         || pendingVerification.selectedDeliverableId !== entry.selectedDeliverableId)) {
       return { status: "refused" as const, reason: "review-fix-rematerialization-unavailable" };
     }
+    const pendingVerificationSupersession = pendingVerificationDerivation === null
+      || pendingVerification === null
+      ? null
+      : {
+          pendingVerification,
+          expectedStateRevision: entry.stateRevision,
+          continuationDigest: pendingVerificationDerivation.continuationDigest,
+        };
     return dispatch({
       kind: "delivery-rematerialize" as const,
       argv: ["arc", "delivery", "rematerialize", "-", "--json"] as const,
@@ -689,9 +700,11 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
         protectedBaseRef,
         topRef: `refs/heads/${input.activeBranch}`,
         selectedDeliverableIds: [entry.selectedDeliverableId],
-        ...(pendingVerification === null
+        ...(pendingVerificationSupersession === null
           ? {}
-          : { supersedePendingReviewFixVerification: pendingVerification }),
+          : {
+              supersedePendingReviewFixVerification: pendingVerificationSupersession,
+            }),
         repository: request.repository,
         remote: request.remote,
       },
