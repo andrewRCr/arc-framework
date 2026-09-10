@@ -172,7 +172,7 @@ or provider-specific payloads.
 _Mode:_ `slice` through Phase 4 — closes on exercisable concurrent integration across work-unit, delivery, review,
 and Errand paths.
 
-### `[ ]` **2.1 Add orthogonal base-movement classification** — D4
+### `[x]` **2.1 Add orthogonal base-movement classification** — D4
 
 - _Goal:_ base drift reports path interaction independently of its distance verdict, allowing aware consumers to
   distinguish harmless movement while unaware consumers retain their current fail-closed behavior.
@@ -183,16 +183,14 @@ and Errand paths.
         - Test-first coverage proves incomplete integration evidence does not prevent `disjoint`, any substantive path
           yields `overlapping`, unavailable overlap yields `unknown`, and clean readings are `disjoint`.
 
-    - `[ ]` **2.1.b Carry movement without changing verdict dispatch**
-        - Render the field through `composeBaseDriftRegister`, `arc base drift`, and the session-init value schema,
-          requiring it on healthy readings and excluding it from not-applicable arms. Keep the raw verdict and
-          `recommendedAction` enum unchanged, but replace the register's unconditional reconcile instruction with
-          movement-aware text that delegates the integration continuation to the typed checkpoint.
-        - Build `test-first` (one behavior at a time):
-            - healthy command and session-init projections carry movement;
-            - not-applicable arms omit it; and
-            - every existing raw-distance verdict and recommendation action remains unchanged while disjoint,
-              overlapping, and unknown register text names the correct checkpoint consequence.
+    - `[x]` **2.1.b Carry movement without changing verdict dispatch**
+        - Healthy `arc base drift` and session-init projections now carry schema-validated movement while unavailable,
+          skipped, detached-head, and no-remote arms omit it.
+        - Register text names all three movement states and delegates proceed/reconcile/stop policy to the typed
+          checkpoint; focused unit and E2E coverage preserves every raw-distance verdict and recommendation action.
+
+- _Outcome:_ base drift now exposes path interaction independently of raw distance across its public projections,
+  while existing verdict and recommendation dispatch remains unchanged.
 
 ### `[ ]` **2.2 Separate Git feasibility from provider-neutral host admission** — D5
 

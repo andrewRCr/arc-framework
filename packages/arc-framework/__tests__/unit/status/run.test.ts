@@ -259,6 +259,7 @@ function baseDistance(
   const value: BaseDistanceStatusResult = {
     mode: "advisory", verdict: "clean", state: "clean", ahead: 0, behind: 0,
     base: "main", baseOid: "a".repeat(40),
+    movement: "disjoint",
     integrationEvidence: {
       coverage: "complete", scannedCommitCount: 0, events: [],
       unclassifiedCommitCount: 0, truncated: false, limitations: [],
@@ -273,7 +274,9 @@ function baseDistance(
   // rule refuses.
   const { state } = value;
   if (state === "skipped" || state === "no-remote" || state === "detached-head") {
-    return { ...value, state, remoteEvidence: "not-applicable" };
+    const { movement: _movement, ...notApplicable } = value;
+    void _movement;
+    return { ...notApplicable, state, remoteEvidence: "not-applicable" };
   }
   const { failureReason, ...result } = value;
   void failureReason;
@@ -1635,6 +1638,7 @@ describe("runSessionInitStatus — base-distance slot", () => {
       expect(result.baseDistance.value.state).toBe("remote-ahead");
       expect(result.baseDistance.value.behind).toBe(5);
       expect(result.baseDistance.value.base).toBe("main");
+      expect(result.baseDistance.value.movement).toBe("disjoint");
       // Behind-base drift surfaces an advisory reconcile offer (never gates).
       expect(result.baseDistance.value.recommendedAction).toBe("surface");
       expect(result.baseDistance.value.recommendedPromptText).toBe("Analyzer register text.");
@@ -1649,6 +1653,7 @@ describe("runSessionInitStatus — base-distance slot", () => {
     expect(result.baseDistance.ok).toBe(true);
     if (result.baseDistance.ok) {
       expect(result.baseDistance.value.state).toBe("clean");
+      expect(result.baseDistance.value.movement).toBe("disjoint");
       expect(result.baseDistance.value.recommendedAction).toBe("skip");
     }
   });
@@ -1661,6 +1666,7 @@ describe("runSessionInitStatus — base-distance slot", () => {
     expect(result.baseDistance.ok).toBe(true);
     if (result.baseDistance.ok) {
       expect(result.baseDistance.value.state).toBe("no-remote");
+      expect(result.baseDistance.value).not.toHaveProperty("movement");
     }
   });
 
@@ -1675,6 +1681,7 @@ describe("runSessionInitStatus — base-distance slot", () => {
     if (result.baseDistance.ok) {
       expect(result.baseDistance.value.state).toBe("detached-head");
       expect(result.baseDistance.value.base).toBeNull();
+      expect(result.baseDistance.value).not.toHaveProperty("movement");
     }
   });
 

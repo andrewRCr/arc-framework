@@ -75,7 +75,7 @@ export interface BaseDriftResult {
   behind: number;
   base: string | null;
   baseOid: string | null;
-  /** Path interaction for a healthy base-drift reading; omitted when drift is unavailable or skipped. */
+  /** Path interaction for a healthy reading; omitted when drift is unavailable or skipped. */
   movement?: BaseMovement;
   unavailableReason?: BaseDriftUnavailableReason;
   integrationEvidence: IntegrationEvidence | null;

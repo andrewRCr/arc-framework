@@ -344,7 +344,7 @@ async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promi
     movement,
     integrationEvidence,
     overlap,
-    register: composeBaseDriftRegister(baseBranch, behind, integrationEvidence, overlap),
+    register: composeBaseDriftRegister(baseBranch, behind, integrationEvidence, overlap, movement),
   };
 }
 

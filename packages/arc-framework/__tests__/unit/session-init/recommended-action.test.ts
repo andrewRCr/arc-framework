@@ -38,6 +38,7 @@ function baseDistance(
   return {
     mode: "advisory", verdict: "clean", state: "clean", ahead: 0, behind: 0,
     base: "main", baseOid: "a".repeat(40),
+    movement: "disjoint",
     integrationEvidence: {
       coverage: "complete", scannedCommitCount: 0, events: [],
       unclassifiedCommitCount: 0, truncated: false, limitations: [],

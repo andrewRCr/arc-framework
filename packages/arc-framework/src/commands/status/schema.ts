@@ -648,6 +648,7 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
     ahead: z.number().int().nonnegative(),
     behind: z.number().int().nonnegative(),
     baseOid: z.string().nullable(),
+    movement: z.enum(["disjoint", "overlapping", "unknown"]).optional(),
     unavailableReason: z.string().optional(),
   },
 ).loose().superRefine((value, context) => {
@@ -666,6 +667,9 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
           && ["exact", "pending-fetch", "unreachable"].includes(value.remoteEvidence);
   if (!evidenceMatches) {
     context.addIssue({ code: "custom", path: ["remoteEvidence"], message: "must match base-distance state" });
+  }
+  if (healthy !== (value.movement !== undefined)) {
+    context.addIssue({ code: "custom", path: ["movement"], message: "must be present only for healthy readings" });
   }
   const countsMatch = value.state === "remote-ahead"
     ? value.ahead === 0 && value.behind > 0
