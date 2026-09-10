@@ -502,16 +502,10 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   carry the persisted provider actor identity unchanged, so callers replay exact actions without translating logins or
   inventing identifiers; the accumulated lane, aggregate, cap, supersession, and checkpoint matrix closes the boundary.
 
-### `[ ]` **5.5.R Close Member 5 adversarial conformance gaps**
+### `[x]` **5.5.R Close Member 5 adversarial conformance gaps**
 
 - _Goal:_ Terminal scope and conditional pass authority remain exact through production response, supersession,
   withdrawal, concurrency, and earlier-evidence carry.
-
-- _Context:_ Tasks 5.5.R.a–d initially established exact producer scope and conditional next-pass authority across
-  supported response paths. Pass 2 of 2 found that exact-head locking did not serialize a singleton continuation across
-  head movement, predecessor invalidation blocked a successor authorization, performed fixes lacked independent durable
-  evidence, and installed guidance omitted the supersession choreography; this forward amendment reopens the parent
-  without altering the completed subtask record.
 
     - `[x]` **5.5.R.a Retain exact scope through every supported producer and earlier carry**
 
@@ -548,12 +542,15 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
           exact response performance with channel settlement in either order. Record-only fixes need no provider receipt;
           host-addressable fixes require the produced response head, and settlement shares the stable continuation lock.
 
-    - `[ ]` **5.5.R.g Publish supersession choreography and close the regression boundary**
+    - `[x]` **5.5.R.g Publish supersession choreography and close the regression boundary**
 
-        - Add the canonical two-call supersession flow, returned carry/reopen actions, expected-fix-dirt allowance, and
-          typed replay/refusal behavior to both installed `review-response` copies. Exercise the public command and
-          real-store paths across the stable lock, successor authorization, independent performance, and partial hosted
-          settlement contracts before closing the member correction.
+        - Published the two-call supersession flow, carry/reopen actions, expected-fix dirt allowance, and typed replay
+          and refusal rules in both installed `review-response` copies. Public command and real-store coverage now spans
+          stable continuation locking, successor authority, independent performance, and partial hosted settlement.
+
+- _Outcome:_ Exact producer scope and next-pass authority now survive every supported response continuation without
+  conflating approval, performance, or settlement. Stable owner locking, append-only successor authority, explicit
+  withdrawal, independent response evidence, and public supersession choreography close both adversarial passes.
 
 ### `[ ]` **5.5 Verify convergence and response precedence** — validate criteria at member scope
 

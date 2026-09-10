@@ -3379,6 +3379,20 @@ describe("hosted review fan-out lifecycle", () => {
       },
     });
     if (advanced.state !== "delivery-member-advanced") throw new Error("expected advanced member response");
+    const performedProgress = await harness.store.readOperation(operationId);
+    if (performedProgress.state?.kind !== "lane-progress") {
+      throw new Error("expected performed lane progress");
+    }
+    expect(performedProgress.state.attempts.find((attempt) => attempt.attemptId === attemptId)).toMatchObject({
+      attemptId,
+      outcome: "findings",
+      responsePerformance: {
+        producerId: attemptId,
+        dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+        originatingHeadSha: review.reviewTarget.headSha,
+        producedHeadSha: fixedHead,
+      },
+    });
     const replayed = await respondThroughHandler(harness, verifiedRequest);
     expect(replayed).toMatchObject({
       state: "delivery-member-current",
@@ -3465,6 +3479,15 @@ describe("hosted review fan-out lifecycle", () => {
     };
     await expect(settleThroughHandler()).resolves.toMatchObject({ state: "settled", nextAction: "complete" });
     await expect(settleThroughHandler()).resolves.toMatchObject({ state: "already-settled", nextAction: "complete" });
+    const settledProgress = await harness.store.readOperation(operationId);
+    if (settledProgress.state?.kind !== "lane-progress") {
+      throw new Error("expected settled lane progress");
+    }
+    expect(settledProgress.state.attempts.find((attempt) => attempt.attemptId === attemptId)).toMatchObject({
+      attemptId,
+      outcome: "settled-findings",
+      hosted: { settledFindingIds: [finding.findingId] },
+    });
 
     const fixedMemberStatus = await statusThroughHandler(harness, {
       repository,

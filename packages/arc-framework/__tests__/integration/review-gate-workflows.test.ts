@@ -563,6 +563,19 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("publishes the canonical approved-disposition supersession choreography", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/methods/review-response.md"),
+      readRepositoryFile(".arc/system/methods/review-response.md"),
+    ]);
+    expect(project).toBe(packaged);
+    expect(packaged).toMatch(/two-call supersession.*proposal call.*approval call/isu);
+    expect(packaged).toContain("predecessorDispositionSetId");
+    expect(packaged).toContain("expectedFixPaths");
+    expect(packaged).toMatch(/carriedFindingIds.*reopenedFindingIds/isu);
+    expect(packaged).toMatch(/supersession-refused.*do not edit.*Git-common/isu);
+  });
+
   it("re-enters retained hosted findings without spending a replacement review", async () => {
     const paths = [
       "packages/arc-framework/arc/system/workflows/arc/supplemental/deliver-stack.md",

@@ -65,6 +65,30 @@ approved response or edit its disposition set. Only `conditional-authority-withd
 `payload.replayed` distinguishing an exact replay. A stale-disposition, foreign, consumed, or superseded refusal
 stops. Withdrawal preserves the invalidated capture as audit evidence and can never create authority for another pass.
 
+### Correct an approved disposition before response performance
+
+New source evidence or fix verification may disprove an approved judgment while its fix increment is still
+uncommitted. Use the canonical two-call supersession through `arc review respond -`; never edit the approved set or
+repair Git-common state directly.
+
+1. **Proposal call:** resubmit the original `source`, add `supersedes.predecessorDispositionSetId`, and list only the
+   authorized dirty paths in `supersedes.expectedFixPaths`. Supply a fresh, complete `proposal` covering every source
+   finding. Only `awaiting-approval` yields the canonical successor proposal and report for fresh human approval.
+2. **Approval call:** resubmit that same `source` and `supersedes`, add the ordinary `policyRequest`, and supply the
+   exact freshly approved successor as `dispositions`. If another conditional next pass is approved, supply its fresh
+   `conditionalNextPassAuthorization`; predecessor authority never transfers implicitly.
+
+On success, consume `payload.supersession` as the transition receipt. `status: published | replayed` distinguishes a
+new successor from idempotent re-entry; `successorDispositionSetId` is the new current set. For hosted findings,
+preserve `carriedFindingIds` without repeating their compatible exact settlement and perform only the returned
+`reopenedFindingIds` through `payload.hostedSettlementPlan`. The response planner may return the corrected fix,
+settlement, or close leaf; execute only that selected leaf.
+
+Expected fix dirt is an allowance, not a target rewrite: a changed reviewed head, an unrelated dirty path, consumed
+authority, ambiguous hosted settlement, stale predecessor, or conflicting successor returns `supersession-refused`.
+Stop on that result. Do not edit the record, retry with a different predecessor, or perform direct Git-common surgery;
+correct the stated condition and replay the same canonical call when the refusal permits it.
+
 When building the disposition set, copy `reportedSeverity` and optional `reportedNit` from the producer while triage
 supplies explicit nullable `verifiedSeverity` and optional `verifiedNit`. Derive gating only from the verified lane plus
 project policy: `critical` and `major` are blocking, a verified nit is record-only, and an ordinary verified `minor`
