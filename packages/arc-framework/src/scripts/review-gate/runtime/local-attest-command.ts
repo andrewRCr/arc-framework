@@ -156,6 +156,7 @@ async function attestLocalReviewWithinLocalReviewLock(
         target: state.target,
         requestedCoverage,
         effectiveCoverage: null,
+        scopeMode: state.scopeMode,
         ...(state.deliveryAdmission === undefined
           ? {}
           : { deliveryAdmission: state.deliveryAdmission }),

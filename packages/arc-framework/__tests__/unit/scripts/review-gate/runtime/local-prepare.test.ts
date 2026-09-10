@@ -372,6 +372,7 @@ describe("local review preparation request", () => {
             requestId: prepared.payload.request.requestId,
             requestedCoverage: "incremental",
             effectiveCoverage: null,
+            scopeMode: "whole-target",
           },
         }],
       });
@@ -381,6 +382,20 @@ describe("local review preparation request", () => {
         completedPasses: 0,
         attempts: [],
       }));
+    });
+
+    it("persists ordinary local chunk scope through operation and lane admission", async () => {
+      const context = fixture();
+
+      await expect(prepareLocalReview({
+        ...request,
+        policyJudgment: { scopeMode: "chunked" },
+      }, context.dependencies)).resolves.toMatchObject({ state: "ready" });
+
+      expect(context.published()).toMatchObject({ scopeMode: "chunked" });
+      expect(context.laneProgress()).toMatchObject({
+        attempts: [{ local: { scopeMode: "chunked" } }],
+      });
     });
 
     it("stops a non-delivery pass without live driver admission before materialization", async () => {

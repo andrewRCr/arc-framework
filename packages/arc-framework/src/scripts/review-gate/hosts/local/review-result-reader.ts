@@ -159,6 +159,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
       || attempt.sourceId !== state.laneSourceId
       || attempt.headSha !== state.target.headSha
       || local.requestId !== state.requestId
+      || local.scopeMode !== state.scopeMode
       || canonicalize(local.target) !== canonicalize(state.target)
       || canonicalize(local.vehicle) !== canonicalize(state.vehicle)
       || canonicalize(local.deliveryAdmission ?? null) !== canonicalize(state.deliveryAdmission ?? null)
@@ -185,6 +186,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
         guidanceDigest: state.guidanceDigest,
         requestedCoverage: local.requestedCoverage,
         effectiveCoverage: local.effectiveCoverage,
+        scopeMode: state.scopeMode,
         deliveryAdmission: state.deliveryAdmission ?? null,
       },
     });
@@ -203,6 +205,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
         retryGeneration: state.retryGeneration,
         requestedCoverage: local.requestedCoverage,
         effectiveCoverage: local.effectiveCoverage,
+        scopeMode: state.scopeMode,
         policyVersion: state.policyVersion,
       },
       receiptRef: entry.durableEvidenceRef,
@@ -285,6 +288,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
         retryGeneration: admission.retryGeneration,
         requestedCoverage: admission.requestedCoverage,
         effectiveCoverage: frontline.effectiveCoverage,
+        scopeMode: "whole-target",
         policyVersion: admission.policyVersion,
       },
       outcomeRef: reading.outcomeRef,
@@ -329,6 +333,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
         retryGeneration: attempt.retryGeneration,
         requestedCoverage: hosted.requestedCoverage,
         effectiveCoverage: hosted.effectiveCoverage,
+        scopeMode: "whole-target",
         policyVersion: hosted.requirement.policyVersion,
       },
       laneOperationId: state.operationId,

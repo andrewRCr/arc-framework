@@ -16,6 +16,7 @@ import {
   LaneSubjectLineageSchema,
   laneSubjectLineageId,
 } from "../core/lane-admission.js";
+import { ReviewScopeModeSchema } from "../core/review-primitives.js";
 
 const SourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z.string()
@@ -56,6 +57,8 @@ const EarlierReviewAttemptCandidateSchema = z.strictObject({
   outcome: z.string().min(1),
   requestedCoverage: HostedReviewCoverageSchema,
   effectiveCoverage: HostedReviewCoverageSchema.nullable(),
+  scopeMode: ReviewScopeModeSchema,
+  chunkSeriesComplete: z.boolean().optional(),
   priorHead: GitObjectIdSchema,
   target: HostedTargetSchema,
   priorVehicle: DeliveryReviewMemberVehicleSchema.optional(),
@@ -139,6 +142,10 @@ export function queryEarlierReviewAttempts(
           outcome: attempt.outcome,
           requestedCoverage: hosted.requestedCoverage,
           effectiveCoverage: hosted.effectiveCoverage,
+          scopeMode: "whole-target",
+          ...(attempt.chunkSeriesComplete === undefined
+            ? {}
+            : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
           priorHead: attempt.headSha,
           target: hosted.target,
           ...(hosted.vehicle === undefined ? {} : { priorVehicle: hosted.vehicle }),
@@ -171,6 +178,10 @@ export function queryEarlierReviewAttempts(
         outcome: attempt.outcome,
         requestedCoverage: local.requestedCoverage,
         effectiveCoverage: local.effectiveCoverage,
+        scopeMode: local.scopeMode,
+        ...(attempt.chunkSeriesComplete === undefined
+          ? {}
+          : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
         priorHead: attempt.headSha,
         target: local.deliveryAdmission.target,
         priorVehicle: local.deliveryAdmission.vehicle,

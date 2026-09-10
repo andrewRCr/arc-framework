@@ -34,6 +34,7 @@ import {
   CompletedReviewPassCountSchema,
   ReviewPassSchema,
 } from "./review-pass.js";
+import { ReviewScopeModeSchema } from "./review-primitives.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -100,6 +101,7 @@ export const LocalReviewStateSchema = z.strictObject({
   requestId: CanonicalDigestSchema,
   /** Configured policy source; distinct from the evaluator that produced the attestation. */
   laneSourceId: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
+  scopeMode: ReviewScopeModeSchema,
   lineage: LaneSubjectLineageSchema,
   logicalPass: z.number().int().positive(),
   retryGeneration: z.number().int().nonnegative(),
@@ -131,6 +133,7 @@ export const LocalReviewStateSchema = z.strictObject({
     }
     if (state.deliveryAdmission !== undefined
       && (state.laneSourceId !== state.deliveryAdmission.sourceId
+        || state.scopeMode !== (state.deliveryAdmission.scopeSelection?.mode ?? "whole-target")
         || state.vehicle.kind !== "delivery-member"
         || state.vehicle.identity !== state.deliveryAdmission.vehicle.deliverableId
         || target.kind !== "delivery-member"
@@ -526,6 +529,7 @@ const LocalLaneAttemptBindingSchema = z.strictObject({
   target: ReviewTargetSchema,
   requestedCoverage: HostedReviewCoverageSchema,
   effectiveCoverage: HostedReviewCoverageSchema.nullable(),
+  scopeMode: ReviewScopeModeSchema,
   deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
 }).superRefine((local, context) => {
   if (local.requestedCoverage === "complete"
@@ -546,6 +550,7 @@ const LocalLaneAttemptBindingSchema = z.strictObject({
   }
   if (local.deliveryAdmission !== undefined
     && (local.vehicle.kind !== "delivery-member"
+      || local.scopeMode !== (local.deliveryAdmission.scopeSelection?.mode ?? "whole-target")
       || local.vehicle.identity !== local.deliveryAdmission.vehicle.deliverableId
       || local.target.kind !== "delivery-member"
       || local.target.headSha !== local.deliveryAdmission.vehicle.head)) {

@@ -106,6 +106,7 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     laneSourceId: admission.laneSourceId,
+    scopeMode: admission.scopeMode,
     lineage: admission.lineage,
     logicalPass: admission.logicalPass,
     retryGeneration: admission.retryGeneration,

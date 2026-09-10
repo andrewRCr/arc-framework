@@ -37,10 +37,7 @@ function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "ch
 }
 
 function resultScope(result: ReviewResult): "whole-target" | "chunked" {
-  return result.kind === "attested-local"
-    && result.deliveryAdmission?.scopeSelection?.mode === "chunked"
-    ? "chunked"
-    : "whole-target";
+  return result.admission.scopeMode;
 }
 
 function resultMatchesLaneAndSource(

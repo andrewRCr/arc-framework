@@ -989,9 +989,9 @@ export function createHostedReservationDischargeReader(input: {
           sourceId: attempt.sourceId,
           outcome: terminalPolicyOutcome(attempt.outcome),
           producerTarget,
-          ...(attempt.local?.deliveryAdmission?.scopeSelection?.mode === undefined
+          ...(attempt.local === undefined
             ? {}
-            : { scopeMode: attempt.local.deliveryAdmission.scopeSelection.mode }),
+            : { scopeMode: attempt.local.scopeMode }),
           ...(attempt.chunkSeriesComplete === undefined
             ? {}
             : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
@@ -1007,6 +1007,10 @@ export function createHostedReservationDischargeReader(input: {
           sourceId: attempt.sourceId,
           outcome: terminalPolicyOutcome(attempt.outcome),
           producerTarget: attempt.producerTarget,
+          scopeMode: attempt.scopeMode,
+          ...(attempt.chunkSeriesComplete === undefined
+            ? {}
+            : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
         });
       },
       ...(snapshot === null || changeRequest === null || candidate === undefined || lineage === undefined

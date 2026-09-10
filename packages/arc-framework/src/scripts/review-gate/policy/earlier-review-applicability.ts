@@ -45,6 +45,8 @@ export type EarlierHostedAttemptApplicabilityRead =
       readonly outcome: string;
       readonly requestedCoverage: "complete" | "incremental";
       readonly effectiveCoverage: "complete" | "incremental" | null;
+      readonly scopeMode: "whole-target" | "chunked";
+      readonly chunkSeriesComplete?: boolean;
       readonly producerTarget?: EarlierReviewAttemptCandidate["reviewTarget"];
       readonly applicability: ReviewApplicabilityConsumerAction;
       readonly retentionBasis?: "verified-fix-response";
@@ -268,6 +270,10 @@ export async function projectEarlierReviewApplicability(
       outcome: candidate.outcome,
       requestedCoverage: candidate.requestedCoverage,
       effectiveCoverage: candidate.effectiveCoverage,
+      scopeMode: candidate.scopeMode,
+      ...(candidate.chunkSeriesComplete === undefined
+        ? {}
+        : { chunkSeriesComplete: candidate.chunkSeriesComplete }),
       producerTarget: candidate.reviewTarget,
       applicability: authority === null
         ? "retain-prior-attempt" as const

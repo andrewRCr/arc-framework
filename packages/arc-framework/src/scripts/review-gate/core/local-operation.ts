@@ -24,6 +24,10 @@ import {
 } from "./lane-admission.js";
 import type { LocalReviewState } from "./operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./ports.js";
+import {
+  ReviewScopeModeSchema,
+  type ReviewScopeMode,
+} from "./review-primitives.js";
 import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
 
 const LocalOperationIdentityPreimageSchema = z.strictObject({
@@ -33,6 +37,7 @@ const LocalOperationIdentityPreimageSchema = z.strictObject({
   authorIdentity: ReviewIdentifierSchema,
   evaluatorIdentity: ReviewIdentifierSchema,
   laneSourceId: ReviewIdentifierSchema,
+  scopeMode: ReviewScopeModeSchema,
   policyBindingDigest: ReviewCanonicalDigestSchema,
   requestMechanism: ReviewIdentifierSchema,
   deliveryAdmissionDigest: ReviewCanonicalDigestSchema.nullable(),
@@ -46,6 +51,7 @@ export interface LocalReviewAdmissionInput {
   requirement: ReviewRequirementV2;
   authority: LocalReviewAuthority;
   laneSourceId: string;
+  scopeMode?: ReviewScopeMode;
   policyBindingDigest: string;
   requestMechanism: string;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
@@ -60,6 +66,7 @@ export interface LocalReviewAdmission {
   requirement: ReviewRequirementV2;
   authority: LocalReviewAuthority;
   laneSourceId: string;
+  scopeMode: ReviewScopeMode;
   policyBindingDigest: string;
   requestMechanism: string;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
@@ -101,6 +108,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
   const lineage = LaneSubjectLineageSchema.parse(input.lineage);
   const logicalPass = z.number().int().positive().parse(input.logicalPass);
   const retryGeneration = z.number().int().nonnegative().parse(input.retryGeneration);
+  const scopeMode = ReviewScopeModeSchema.parse(input.scopeMode ?? "whole-target");
   const carrier = createLocalChangeSetCarrier({
     target,
     requirementId: requirement.requirementId,
@@ -132,6 +140,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     authorIdentity: input.authority.authorIdentity,
     evaluatorIdentity: input.authority.evaluatorIdentity,
     laneSourceId: input.laneSourceId,
+    scopeMode,
     policyBindingDigest,
     requestMechanism,
     deliveryAdmissionDigest: input.deliveryAdmission === undefined
@@ -148,6 +157,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     requirement,
     authority: input.authority,
     laneSourceId: input.laneSourceId,
+    scopeMode,
     policyBindingDigest,
     requestMechanism,
     lineage,
@@ -189,6 +199,7 @@ export async function resolveLocalReviewAdmission(
     || persisted.state.policyBindingDigest !== admission.policyBindingDigest
     || persisted.state.repositoryId !== admission.target.repositoryId
     || persisted.state.laneSourceId !== admission.laneSourceId
+    || persisted.state.scopeMode !== admission.scopeMode
     || canonicalize(persisted.state.lineage) !== canonicalize(admission.lineage)
     || persisted.state.logicalPass !== admission.logicalPass
     || persisted.state.retryGeneration !== admission.retryGeneration

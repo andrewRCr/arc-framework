@@ -223,6 +223,30 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
+  it("keeps the Frontline carrier whole-target-only", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      frontlineActive: true,
+      standardReview,
+      sources: ["coderabbit-cli"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      scopeSelection: { mode: "chunked", target },
+    })).toMatchObject({
+      state: "unavailable",
+      nextAction: "stop",
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          code: "source-scope-ineligible",
+          message: expect.stringContaining("coderabbit-cli"),
+        }),
+      ]),
+    });
+  });
+
   it("reports unknown sources while continuing with a registered fallback", () => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,

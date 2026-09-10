@@ -55,6 +55,7 @@ function fixture() {
       attestationMechanism: "local-attestation" as const,
     },
     laneSourceId: "delegated-agent",
+    scopeMode: "whole-target" as const,
     lineage: {
       kind: "candidate" as const,
       candidateId: digest("candidate"),
@@ -91,6 +92,7 @@ describe("local review operation identity", () => {
       lineage: admission.lineage,
       logicalPass: admission.logicalPass,
       retryGeneration: admission.retryGeneration,
+      scopeMode: admission.scopeMode,
       attestationRuntimeKind: admission.authority.attestationRuntimeKind,
       sourceRef: "review-source.json",
       sourceDigest: digest("source"),
@@ -125,6 +127,7 @@ describe("local review operation identity", () => {
       { ...baseline, requestMechanism: "local-resume" },
       { ...baseline, policyBindingDigest: digest("stricter-policy") },
       { ...baseline, laneSourceId: "other-local-source" },
+      { ...baseline, scopeMode: "chunked" as const },
       { ...baseline, authority: { ...baseline.authority, evaluatorIdentity: "other-reviewer" } },
     ];
     const store: ReviewOperationStateStore = {

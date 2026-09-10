@@ -58,14 +58,23 @@ const deliveryVehicle = (head: string, workUnitId = "member-a") => DeliveryRevie
   head,
 });
 
-const localAdmission = (head: string) => DeliveryLocalReviewAdmissionSchema.parse({
+const localAdmission = (head: string, scopeMode: "whole-target" | "chunked" = "whole-target") => (
+  DeliveryLocalReviewAdmissionSchema.parse({
   schemaVersion: 1,
   sourceId: "delegated-agent",
   statusTarget: { repository: "owner/repository", headRef: "feature", headSha: head },
   target: { repository: "owner/repository", pullRequest: 42, headSha: head },
   vehicle: deliveryVehicle(head),
   pass: 1,
-});
+  ...(scopeMode === "whole-target"
+    ? {}
+    : {
+        scopeSelection: {
+          mode: scopeMode,
+          target: { repository: "owner/repository", pullRequest: 42, headSha: head },
+        },
+      }),
+}));
 
 function laneState(options: {
   delivery?: boolean;
@@ -406,6 +415,7 @@ describe("earlier review attempt query", () => {
           target: priorTarget,
           requestedCoverage: "incremental",
           effectiveCoverage: "incremental",
+          scopeMode: "whole-target",
           deliveryAdmission: localAdmission(oid("a")),
         },
       }],
@@ -474,8 +484,10 @@ describe("earlier review attempt query", () => {
           target: prior.attempts[0]!.hosted!.reviewTarget,
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
-          deliveryAdmission: localAdmission(oid("a")),
+          scopeMode: "chunked",
+          deliveryAdmission: localAdmission(oid("a"), "chunked"),
         },
+        chunkSeriesComplete: true,
       }],
     });
 
@@ -498,6 +510,8 @@ describe("earlier review attempt query", () => {
       attempts: [{
         sourceId: "delegated-agent",
         outcome: "findings",
+        scopeMode: "chunked",
+        chunkSeriesComplete: true,
         localResumeAction: { schemaVersion: 1, operationId: "local-review-prior" },
       }],
     });
@@ -524,6 +538,7 @@ describe("earlier review attempt query", () => {
           target: oldTarget,
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
+          scopeMode: "whole-target",
           deliveryAdmission: localAdmission(oid("a")),
         },
       }],

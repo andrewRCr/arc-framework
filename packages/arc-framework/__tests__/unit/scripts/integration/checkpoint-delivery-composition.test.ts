@@ -403,6 +403,7 @@ describe("delivery checkpoint composition", () => {
           retryGeneration: 0,
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
+          scopeMode: "whole-target",
           policyVersion: requirement.policyVersion,
         },
         laneOperationId: `lane-progress-${target.headSha}`,

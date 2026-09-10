@@ -87,6 +87,7 @@ function state(
     policyVersion: requirement.policyVersion,
     policyBindingDigest: digest("binding"),
     laneSourceId: "delegated-agent",
+    scopeMode: "whole-target",
     attestationRuntimeKind: "arc-cli",
     sourceRef: "source.json",
     sourceDigest: digest("source"),

@@ -13,6 +13,7 @@ import type { DeliveryLocalReviewAdmission } from
   "../policy/delivery-local-review-admission.js";
 import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
 import type { HostedReviewCoverage, HostedTarget } from "../hosted/request.js";
+import type { ReviewScopeMode } from "./review-primitives.js";
 
 /** Admission facts shared by every terminal producer. */
 export interface ReviewResultAdmissionContext {
@@ -21,6 +22,7 @@ export interface ReviewResultAdmissionContext {
   retryGeneration: number;
   requestedCoverage: HostedReviewCoverage;
   effectiveCoverage: HostedReviewCoverage;
+  scopeMode: ReviewScopeMode;
   policyVersion: string;
 }
 

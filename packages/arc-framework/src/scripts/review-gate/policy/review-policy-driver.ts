@@ -8,7 +8,7 @@ import {
   ReviewIdentifierSchema,
 } from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
-import { ReviewSeveritySchema } from "../core/review-primitives.js";
+import { ReviewScopeModeSchema, ReviewSeveritySchema } from "../core/review-primitives.js";
 import {
   OwnerAcceptedReviewTerminusJudgmentSchema,
   OwnerAcceptedReviewTerminusSchema,
@@ -22,7 +22,6 @@ const ReviewPolicyTargetShape = {
   headSha: GitObjectIdSchema,
 };
 const ReviewPolicyTargetSchema = z.strictObject(ReviewPolicyTargetShape).readonly();
-const ReviewScopeModeSchema = z.enum(["whole-target", "chunked"]);
 const FrontlinePolicyInvocationSchema = z.strictObject({
   mode: z.literal("skip"),
 }).readonly();
@@ -586,7 +585,7 @@ interface ReviewSourceCapability {
 const REVIEW_SOURCE_CAPABILITIES: Readonly<Record<string, ReviewSourceCapability>> = {
   "coderabbit-cli": {
     lanes: ["frontline"],
-    scopes: ["whole-target", "chunked"],
+    scopes: ["whole-target"],
     requiresPullRequest: false,
     nextAction: "run-frontline",
   },

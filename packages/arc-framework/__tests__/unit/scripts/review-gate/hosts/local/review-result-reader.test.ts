@@ -58,7 +58,10 @@ import { reduceReviewRouting } from
 const oid = (character: string): string => character.repeat(40);
 const digest = (value: string): `sha256:${string}` => canonicalDigest({ value });
 
-function localFixture(options: { findingSourceLabel?: string } = {}) {
+function localFixture(options: {
+  findingSourceLabel?: string;
+  scopeMode?: "whole-target" | "chunked";
+} = {}) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -97,6 +100,7 @@ function localFixture(options: { findingSourceLabel?: string } = {}) {
       attestationMechanism: "local-attestation",
     },
     laneSourceId: "delegated-agent",
+    scopeMode: options.scopeMode,
     policyBindingDigest: digest("policy-binding"),
     requestMechanism: "local-attestation",
     lineage,
@@ -128,6 +132,7 @@ function localFixture(options: { findingSourceLabel?: string } = {}) {
     targetId: target.targetId,
     requestId: admission.carrier.request.requestId,
     laneSourceId: admission.laneSourceId,
+    scopeMode: admission.scopeMode,
     lineage,
     logicalPass: 1,
     retryGeneration: 0,
@@ -191,6 +196,7 @@ function localFixture(options: { findingSourceLabel?: string } = {}) {
         target,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
+        scopeMode: admission.scopeMode,
       },
     }],
   });
@@ -200,11 +206,15 @@ function localFixture(options: { findingSourceLabel?: string } = {}) {
 function readerForLocalFixture(options: {
   exactReceiptMissing?: boolean;
   findingSourceLabel?: string;
+  scopeMode?: "whole-target" | "chunked";
   settled?: boolean;
 } = {}) {
-  const fixture = localFixture(options.findingSourceLabel === undefined
-    ? {}
-    : { findingSourceLabel: options.findingSourceLabel });
+  const fixture = localFixture({
+    ...(options.findingSourceLabel === undefined
+      ? {}
+      : { findingSourceLabel: options.findingSourceLabel }),
+    ...(options.scopeMode === undefined ? {} : { scopeMode: options.scopeMode }),
+  });
   const lane = options.settled === true
     ? LaneProgressStateSchema.parse({
         ...fixture.lane,
@@ -491,8 +501,17 @@ describe("local review result reader", () => {
         retryGeneration: 0,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
+        scopeMode: "whole-target",
         policyVersion: fixture.requirement.policyVersion,
       },
+    });
+  });
+
+  it("retains ordinary local chunk scope in immutable result admission", async () => {
+    const { fixture, reader } = readerForLocalFixture({ scopeMode: "chunked" });
+
+    await expect(reader.readResult(fixture.state.operationId)).resolves.toMatchObject({
+      admission: { scopeMode: "chunked" },
     });
   });
 
@@ -542,6 +561,7 @@ describe("local review result reader", () => {
         retryGeneration: 0,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
+        scopeMode: "whole-target",
         policyVersion: fixture.admission.policyVersion,
       },
     });
@@ -593,6 +613,7 @@ describe("local review result reader", () => {
         retryGeneration: 0,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
+        scopeMode: "whole-target",
         policyVersion: fixture.handle.admission.requirement.policyVersion,
       },
       hostSettlementFindingIds: ["hosted-thread"],

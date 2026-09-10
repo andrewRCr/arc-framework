@@ -7,6 +7,9 @@ import type { KernelRegistry } from "../../../lib/kernel/index.js";
 export const ReviewSeveritySchema = z.enum(["critical", "major", "minor"]);
 export type ReviewSeverity = z.infer<typeof ReviewSeveritySchema>;
 
+export const ReviewScopeModeSchema = z.enum(["whole-target", "chunked"]);
+export type ReviewScopeMode = z.infer<typeof ReviewScopeModeSchema>;
+
 export const FindingDispositionSchema = z.enum(["fix", "defer", "reject"]);
 export type FindingDisposition = z.infer<typeof FindingDispositionSchema>;
 

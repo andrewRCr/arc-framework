@@ -502,6 +502,33 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   carry the persisted provider actor identity unchanged, so callers replay exact actions without translating logins or
   inventing identifiers; the accumulated lane, aggregate, cap, supersession, and checkpoint matrix closes the boundary.
 
+### `[ ]` **5.5.R Close Member 5 adversarial conformance gaps**
+
+- _Goal:_ Terminal scope and conditional pass authority remain exact through production response, supersession,
+  withdrawal, concurrency, and earlier-evidence carry.
+
+    - `[x]` **5.5.R.a Retain exact scope through every supported producer and earlier carry**
+
+        - Persisted ordinary local scope through operation identity, state, lane admission, and immutable result
+          evidence; confined Frontline to whole-target capability; and carried prior scope plus aggregate completion
+          through earlier-applicability policy reconstruction without adding chunk transport.
+
+    - `[ ]` **5.5.R.b Compose prospective conditional consent through production respond**
+
+        - Resolve the terminal findings response without treating its prospective next-pass override as authority for
+          the completed pass, then prove the real composition and public command path.
+
+    - `[ ]` **5.5.R.c Prevent stale conditional authority across successor publication**
+
+        - Serialize successor publication and pass admission through the existing repository review-operation lock,
+          validate the authorization's disposition set is current at consumption, and prove crash/race replay cannot
+          spend predecessor authority.
+
+    - `[ ]` **5.5.R.d Add explicit pending-authority withdrawal**
+
+        - Expose one typed, idempotent response-continuation withdrawal that invalidates only matching pending authority
+          and cannot revive or rewrite consumed, superseded, stale, or foreign state.
+
 ### `[ ]` **5.5 Verify convergence and response precedence** — validate criteria at member scope
 
 - _Goal:_ Every lane/member control path meets the convergence and response-precedence boundary criteria.

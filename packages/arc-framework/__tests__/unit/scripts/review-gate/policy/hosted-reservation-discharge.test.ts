@@ -365,6 +365,7 @@ function earlierAttempt<T extends { readonly sourceId: string }>(input: T) {
     attemptId: `attempt-${input.sourceId}`,
     logicalPass: 1,
     updatedAt: "2026-08-27T12:00:00.000Z",
+    scopeMode: "whole-target" as const,
     ...input,
   };
 }
@@ -1294,6 +1295,7 @@ describe("hosted reservation discharge", () => {
               target: localTarget,
               requestedCoverage: "complete",
               effectiveCoverage: "complete",
+              scopeMode: "whole-target",
               deliveryAdmission: delegatedAdmission(vehicle),
             },
           }],
@@ -1351,6 +1353,7 @@ describe("hosted reservation discharge", () => {
               target: localTarget,
               requestedCoverage: "complete",
               effectiveCoverage: "complete",
+              scopeMode: "whole-target",
               deliveryAdmission: delegatedAdmission(vehicle),
             },
           }],
@@ -1550,6 +1553,7 @@ describe("hosted reservation discharge", () => {
               target: localTarget,
               requestedCoverage: "complete",
               effectiveCoverage: "complete",
+              scopeMode: "chunked",
               deliveryAdmission: {
                 ...delegatedAdmission(vehicle),
                 scopeSelection: {

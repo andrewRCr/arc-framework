@@ -73,6 +73,7 @@ import {
   DeliveryLocalReviewAdmissionSchema,
   type DeliveryLocalReviewAdmission,
 } from "../policy/delivery-local-review-admission.js";
+import type { ReviewScopeMode } from "../core/review-primitives.js";
 
 const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
 
@@ -214,6 +215,7 @@ async function replayPendingLocalAdmission(input: {
   repositoryId: string;
   target: ReviewTarget;
   lineage: LaneSubjectLineage;
+  scopeMode: ReviewScopeMode;
   cleanupTtlMs: number;
 }): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {
   const owner = await readLaneProgressOwner(input.dependencies.operationStore, {
@@ -227,9 +229,14 @@ async function replayPendingLocalAdmission(input: {
   if (pending.length > 1) {
     throw new LocalPrepareCommandError("local lane has multiple pending admissions");
   }
+  if (pending[0]?.local?.scopeMode !== undefined
+    && pending[0].local.scopeMode !== input.scopeMode) {
+    throw new LocalPrepareCommandError("local pending admission has a different review scope");
+  }
   const completed = owner?.attempts
     .filter((attempt) => attempt.terminalProducer
       && attempt.local !== undefined
+      && attempt.local.scopeMode === input.scopeMode
       && attempt.headSha === input.target.headSha
       && (input.request.deliveryAdmission !== undefined
         || attempt.outcome !== "settled-findings")
@@ -249,6 +256,8 @@ async function replayPendingLocalAdmission(input: {
     || state.operationId !== attempt.attemptId
     || state.operationId !== binding.operationId
     || state.requestId !== binding.requestId
+    || state.scopeMode !== binding.scopeMode
+    || state.scopeMode !== input.scopeMode
     || state.logicalPass !== attempt.logicalPass
     || state.retryGeneration !== attempt.retryGeneration
     || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
@@ -401,12 +410,16 @@ export async function prepareLocalReview(
     request.deliveryAdmission,
     member ?? undefined,
   );
+  const scopeMode = request.deliveryAdmission?.scopeSelection?.mode
+    ?? request.policyJudgment?.scopeMode
+    ?? "whole-target";
   const pendingReplay = await dependencies.withLocalReviewLock(() => replayPendingLocalAdmission({
     request,
     dependencies,
     repositoryId,
     target,
     lineage,
+    scopeMode,
     cleanupTtlMs,
   }));
   if (pendingReplay !== null) return pendingReplay;
@@ -491,6 +504,7 @@ export async function prepareLocalReview(
       repositoryId,
       target,
       lineage,
+      scopeMode,
       cleanupTtlMs,
     });
     if (concurrentReplay !== null) {
@@ -521,6 +535,7 @@ export async function prepareLocalReview(
     const retryingLocalFailure = retryableLocalFailure?.outcome === "terminal-failure"
       && retryableLocalFailure.local !== undefined
       && retryableLocalFailure.sourceId === dependencies.laneSourceId
+      && retryableLocalFailure.local.scopeMode === scopeMode
       ? retryableLocalFailure
       : undefined;
     const policyAttempts = activeAttempts.filter((attempt) => (
@@ -546,7 +561,7 @@ export async function prepareLocalReview(
     const priorRetryGenerations = owner?.attempts
       .filter((attempt) => attempt.logicalPass === logicalPass
         && attempt.sourceId === dependencies.laneSourceId
-        && attempt.local !== undefined)
+        && attempt.local?.scopeMode === scopeMode)
       .map(({ retryGeneration }) => retryGeneration) ?? [];
     const retryGeneration = priorRetryGenerations.length === 0
       ? 0
@@ -556,6 +571,7 @@ export async function prepareLocalReview(
       requirement,
       authority,
       laneSourceId: dependencies.laneSourceId,
+      scopeMode,
       policyBindingDigest: policy.binding.bindingDigest,
       requestMechanism: policy.binding.requestMechanism,
       lineage,

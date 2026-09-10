@@ -68,6 +68,7 @@ function fixture() {
       attestationMechanism: "local-attestation",
     },
     laneSourceId: "delegated-agent",
+    scopeMode: "chunked",
     lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
     logicalPass: 1,
     retryGeneration: 0,
@@ -105,6 +106,7 @@ describe("local prepare publication ordering", () => {
       persistedVersion: 1,
       sourceRef: "sources/source.json",
       reviewRoot: records.source.materializationRef,
+      state: { scopeMode: "chunked" },
     });
     expect(order).toEqual(["source", "operation", "materialization"]);
   });

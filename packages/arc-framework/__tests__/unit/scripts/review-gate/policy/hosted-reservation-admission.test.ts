@@ -502,6 +502,7 @@ describe("hosted reservation admission", () => {
               target: localTarget,
               requestedCoverage: "incremental",
               effectiveCoverage: "incremental",
+              scopeMode: "whole-target",
               deliveryAdmission: delegatedAdmission(DeliveryReviewMemberVehicleSchema.parse({
                 ...deliveryVehicle,
                 head: priorHead,
@@ -701,6 +702,7 @@ describe("hosted reservation admission", () => {
                 target: localTarget,
                 requestedCoverage: "incremental",
                 effectiveCoverage: "incremental",
+                scopeMode: "whole-target",
                 deliveryAdmission: delegatedAdmission(deliveryVehicle),
               },
             },
@@ -922,6 +924,7 @@ describe("hosted reservation admission", () => {
               outcome: "rate-limited",
               requestedCoverage: "complete",
               effectiveCoverage: null,
+              scopeMode: "whole-target",
               applicability: "retain-prior-attempt",
             }],
           }

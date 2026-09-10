@@ -82,6 +82,7 @@ export async function publishLocalReviewPreparation(
     targetId: admission.target.targetId,
     requestId: admission.carrier.request.requestId,
     laneSourceId: admission.laneSourceId,
+    scopeMode: admission.scopeMode,
     lineage: admission.lineage,
     logicalPass: admission.logicalPass,
     retryGeneration: admission.retryGeneration,

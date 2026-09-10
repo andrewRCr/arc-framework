@@ -242,6 +242,7 @@ function localLaneAttemptMatchesState(attempt: LaneAttempt, state: LocalReviewSt
       target: state.target,
       requestedCoverage,
       effectiveCoverage: attempt.terminalProducer ? requestedCoverage : null,
+      scopeMode: state.scopeMode,
       ...(state.deliveryAdmission === undefined
         ? {}
         : { deliveryAdmission: state.deliveryAdmission }),
@@ -308,6 +309,7 @@ export async function recordLocalReceiptConclusion(
       target: state.target,
       requestedCoverage,
       effectiveCoverage: consumedPass ? requestedCoverage : null,
+      scopeMode: state.scopeMode,
       ...(state.deliveryAdmission === undefined
         ? {}
         : { deliveryAdmission: state.deliveryAdmission }),
@@ -1011,6 +1013,7 @@ export async function recordLocalPendingAttempt(
       target: state.target,
       requestedCoverage,
       effectiveCoverage: null,
+      scopeMode: state.scopeMode,
       ...(state.deliveryAdmission === undefined ? {} : { deliveryAdmission: state.deliveryAdmission }),
     },
     now: input.now,
