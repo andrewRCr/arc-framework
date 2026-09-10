@@ -213,6 +213,7 @@ import {
   GitCommonStateAccessError,
   RepositoryGitCommonStatePublisher,
 } from "../lib/git-common-state.js";
+import { isGitProcessError } from "../lib/git/process-error.js";
 import {
   canonicalDigest,
   canonicalize,
@@ -1118,6 +1119,15 @@ const ReviewFixContinuationResultSchema = z.union([
 const REVIEW_FIX_ROUTING_REQUIRED_TEXT = "Select the delivery member that owns the approved correction, then run "
   + "`arc delivery review-fix plan` before authoring or publishing replacement content.";
 
+const GitProcessCauseSchema = z.enum([
+  "git.canceled",
+  "git.timed-out",
+  "git.output-limit",
+  "git.nonzero-exit",
+  "git.spawn-failure",
+  "git.unexpected",
+]);
+
 const ResultSchema = z.union([
   ReviewFixContinuationResultSchema,
   DeliveryRecoveryResultV1Schema,
@@ -1398,6 +1408,12 @@ const ResultSchema = z.union([
   ReviewFixRoutingRequiredRefusalSchema,
   InvalidServiceResultRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.literal("terminal-rebind-unavailable"),
+    cause: GitProcessCauseSchema,
+    detail: z.string().min(1).max(1_000),
+  }),
   z.strictObject({
     status: z.literal("refused"),
     reason: z.string().min(1),
@@ -5232,13 +5248,10 @@ async function executeDeliveryCommand(
     const currentState = state.value;
     if (currentState.value.activeOperation === null) {
       const terminal = currentState.value.members.at(-1);
-      const targetRef = currentState.value.target?.ref;
-      const baseBranch = targetRef?.startsWith("refs/heads/") === true
-        ? targetRef.slice("refs/heads/".length)
-        : null;
+      const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"].trim();
       if (terminal?.ref === null || terminal?.ref === undefined
         || terminal.changeRequest === null || terminal.coordinates === null
-        || baseBranch === null || baseBranch === "") {
+        || baseBranch === "") {
         return { status: "refused", reason: "terminal-binding-missing" };
       }
       try {
@@ -5258,6 +5271,24 @@ async function executeDeliveryCommand(
               }),
             },
           });
+        }
+        const observedTop = await new GhDeliveryHostPort(hostedGhRunner).readRequest(
+          parsed.repository,
+          terminal.changeRequest,
+        );
+        if (observedTop.status !== "observed") {
+          return { status: "refused", reason: "top-request-unavailable" };
+        }
+        const predecessor = currentState.value.members.at(-2);
+        const predecessorBranch = predecessor?.ref?.startsWith("refs/heads/") === true
+          ? predecessor.ref.slice("refs/heads/".length)
+          : null;
+        const predecessorHead = predecessor?.coordinates?.head ?? null;
+        const requestedPredecessorBase = predecessorBranch !== null
+          && predecessorHead !== null
+          && observedTop.request.baseRef === predecessorBranch;
+        if (observedTop.request.baseRef !== baseBranch && !requestedPredecessorBase) {
+          return { status: "refused", reason: "top-request-mismatch" };
         }
         const baseRevision = await resolveGitCandidateBaseRevision({ cwd, baseBranch, exec });
         const effective = await projectGitCandidateEffectiveTarget({
@@ -5368,24 +5399,10 @@ async function executeDeliveryCommand(
           };
           candidateTargetRevision = currentTarget.revision;
         }
-        const [coordinates, observedTop] = await Promise.all([
-          observeDeliveryEligibilityRef(localExec, candidateTargetRevision),
-          new GhDeliveryHostPort(hostedGhRunner).readRequest(parsed.repository, terminal.changeRequest),
-        ]);
+        const coordinates = await observeDeliveryEligibilityRef(localExec, candidateTargetRevision);
         if (coordinates === null || coordinates.head !== candidateTargetRevision) {
           return { status: "refused", reason: "candidate-coordinate-unavailable" };
         }
-        if (observedTop.status !== "observed") {
-          return { status: "refused", reason: "top-request-unavailable" };
-        }
-        const predecessor = currentState.value.members.at(-2);
-        const predecessorBranch = predecessor?.ref?.startsWith("refs/heads/") === true
-          ? predecessor.ref.slice("refs/heads/".length)
-          : null;
-        const predecessorHead = predecessor?.coordinates?.head ?? null;
-        const requestedPredecessorBase = predecessorBranch !== null
-          && predecessorHead !== null
-          && observedTop.request.baseRef === predecessorBranch;
         const base = await resolveGitCandidateTargetBase({
           cwd,
           revision: candidateTargetRevision,
@@ -5405,6 +5422,7 @@ async function executeDeliveryCommand(
             candidateSubjectDigest: boundary.candidateSubjectDigest,
           },
           repository: parsed.repository,
+          protectedTargetRef: `refs/heads/${baseBranch}`,
           request: observedTop.request,
           coordinates: { base, head: coordinates.head, tree: coordinates.tree },
           ...(internalContext?.settledRecordEffectHead == null
@@ -5442,6 +5460,15 @@ async function executeDeliveryCommand(
         };
       } catch (error) {
         if (error instanceof GitCommonStateAccessError) throw error;
+        if (isGitProcessError(error)) {
+          return {
+            status: "refused",
+            reason: "terminal-rebind-unavailable",
+            cause: error.code,
+            detail: `Terminal rebind against protected base \`${baseBranch}\` failed: ${error.message}`
+              .slice(0, 1_000),
+          };
+        }
         return { status: "refused", reason: "terminal-rebind-unavailable" };
       }
     }
