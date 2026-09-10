@@ -3,7 +3,7 @@
   "slug": "tolerate-provider-deleted-delivery-refs",
   "claimId": "e07b276842d208777ee686293abd509b",
   "createdAt": "2026-09-10T16:19:41.810Z",
-  "updatedAt": "2026-09-10T16:19:41.810Z",
+  "updatedAt": "2026-09-10T17:47:29.636Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "tolerate-provider-deleted-delivery-refs",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Tolerate provider-deleted intermediate refs across delivery recovery",
   "originEntrySourceDigest": "sha256:31343177fda3a47f85a8e596fc15a1a2fd73ea30b65ce44a3187ebac402d3d10",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/tolerate-provider-deleted-delivery-refs",
+    "headSha": "c818c6016d7c0f2a33979fda9a5db4320108b36d"
+  }
 }
