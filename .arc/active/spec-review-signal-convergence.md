@@ -815,6 +815,38 @@ Expose the transition, its replay/conflict/refusal states, and its settlement ca
 and hosted producer bindings wherever they share this record shape. Interrupted publication repairs idempotently from
 the current pointer and successor edge; no direct Git-common state surgery is part of the workflow.
 
+**Forward amendment — continuation serialization and performed-response evidence.** Member 5 adversarial verification
+showed that exact-head lane operation IDs are correct state owners but insufficient serialization identities for a
+singleton continuation that deliberately survives head movement. Keep persisted producer and lane identities exact.
+For mutation ordering only, derive a stable continuation-owner key from repository, lane, and the lineage identity
+without its mutable head coordinate. Successor publication, conditional-authorization capture, withdrawal,
+response-performance binding, and next-pass admission for that continuation owner all acquire the existing repository
+review-operation advisory lock by this stable key before currentness checks or writes. Candidate and delivery-member
+lineages retain their already-stable identity. No second lock abstraction or response-specific lock is introduced.
+
+One terminal producer may retain an append-only ordered history of conditional next-pass authorizations with one
+current pointer. Invalidating a predecessor records its terminal state and never deletes or overwrites its approval
+evidence. A freshly approved successor may append one distinct authorization bound to its own disposition-set ID even
+when the predecessor has an invalidated authorization; exact replay resolves that same node, while a conflicting
+successor, stale approval, consumed predecessor, or attempt to revive an earlier node refuses. The approved response
+command may publish the successor before appending its authorization only because replay repairs that exact partial
+state under the stable lock; it must never dispatch a pass from the partial state.
+
+Record fix response performance as its own durable fact, whether or not a conditional next-pass authorization exists.
+Bind the approved disposition set, exact response origin, and exact produced head; repeated recording is idempotent and
+conflicting performance refuses. Conditional authorization may consume this fact but is not its storage or proxy.
+For hosted findings, completion is the conjunction of every required host-addressable settlement and this performed-fix
+fact whenever the approved set contains a fix. A record-only fix requires no provider receipt but still requires the
+performed-fix fact. A host-addressable fix receipt must name the same produced head. Settlement-first and fix-first
+execution both retain partial evidence and converge when the other side arrives; neither partial ordering may report
+the hosted attempt settled. No-fix record-only actions retain their existing immediate settlement semantics.
+
+The public `review-response` guidance includes the complete two-call supersession choreography: a fresh complete
+proposal naming `supersedes`, fresh approval of the returned successor, performance of only the returned carried or
+reopened actions, and typed replay/refusal handling. It also states that expected authorized fix dirt may coexist with
+proposal materialization while unrelated dirt and moved HEAD still refuse. Public examples consume command-returned
+identities and actions rather than constructing Git-common state.
+
 The no-outstanding-set completion arm confirms the exact target is still current before completing. Convergence,
 suspension, and cap exhaustion therefore end only an unchanged-target loop and never discard approved work.
 
@@ -1291,6 +1323,17 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
     remain historical evidence; stale authorization cannot replay, changed actions reopen, ambiguous or consumed state
     refuses, and the public response path repairs the successor transition idempotently beside expected uncommitted fix
     work.
+22. Every mutation that can advance a head-surviving continuation serializes on one stable continuation-owner key through
+    the existing advisory-lock abstraction. A successor may append its own conditional next-pass authorization after
+    predecessor invalidation; the ordered authorization history retains one current node and cannot revive, overwrite,
+    or consume stale authority through concurrency or replay.
+23. Fix response performance is durable independently of optional next-pass authority. Hosted completion requires both
+    that fact and all required host-addressable settlement, accepts either arrival order, requires matching produced
+    heads for host-addressable fixes, and never asks a record-only fix for a provider receipt or reports a partial
+    conjunction settled.
+24. Shipped `review-response` guidance exposes the fresh-proposal/fresh-approval supersession path, returned carry/reopen
+    work, replay and refusal behavior, and the bounded expected-dirty-worktree rule without requiring direct state
+    surgery or caller-invented identities.
 
 ## Open Questions
 

@@ -502,10 +502,16 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   carry the persisted provider actor identity unchanged, so callers replay exact actions without translating logins or
   inventing identifiers; the accumulated lane, aggregate, cap, supersession, and checkpoint matrix closes the boundary.
 
-### `[x]` **5.5.R Close Member 5 adversarial conformance gaps**
+### `[ ]` **5.5.R Close Member 5 adversarial conformance gaps**
 
 - _Goal:_ Terminal scope and conditional pass authority remain exact through production response, supersession,
   withdrawal, concurrency, and earlier-evidence carry.
+
+- _Context:_ Tasks 5.5.R.a–d initially established exact producer scope and conditional next-pass authority across
+  supported response paths. Pass 2 of 2 found that exact-head locking did not serialize a singleton continuation across
+  head movement, predecessor invalidation blocked a successor authorization, performed fixes lacked independent durable
+  evidence, and installed guidance omitted the supersession choreography; this forward amendment reopens the parent
+  without altering the completed subtask record.
 
     - `[x]` **5.5.R.a Retain exact scope through every supported producer and earlier carry**
 
@@ -530,9 +536,38 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
           preserves the invalidation as audit evidence, and returns typed success, replay, or refusal without target-head
           movement blocking a legitimate post-fix withdrawal.
 
-- _Outcome:_ Exact producer scope and conditional next-pass authority now survive every supported response path without
-  becoming ambient permission. Canonical lane locking, current-disposition checks, immutable invalidation, and typed
-  withdrawal keep supersession, concurrency, replay, and earlier-evidence carry aligned across the member boundary.
+    - `[ ]` **5.5.R.e Serialize head-surviving continuation and append successor authority**
+
+        - Use the existing advisory-lock abstraction with one stable continuation-owner key across successor publication,
+          authorization mutation, response-performance binding, and next-pass admission. Replace the singular terminal
+          authorization slot with ordered append-only history plus one current pointer, preserving predecessor
+          invalidation while allowing one distinct successor authorization and repairable exact replay.
+
+        - Build `test-first` (one behavior at a time):
+            - Race an old-head authorization consumer against new-head successor publication for a singleton lineage;
+              prove one stable lock orders both and stale authority cannot dispatch.
+            - Capture a fresh successor authorization after predecessor invalidation, then prove exact replay,
+              conflicting successor refusal, retained history, and no predecessor revival.
+
+    - `[ ]` **5.5.R.f Persist response performance independently and join hosted completion**
+
+        - Record exact performed-fix evidence for every approved fix response independently of conditional pass authority.
+          Make hosted completion join that fact with required provider settlement, preserving partial evidence and
+          convergence in either order; record-only fixes need no provider receipt, while host-addressable fixes require
+          settlement at the produced response head.
+
+        - Build `test-first` (one behavior at a time):
+            - Prove record-only fix plus host-addressable defer/reject completes only after both response performance and
+              channel settlement, with and without conditional next-pass consent and in both arrival orders.
+            - Prove host-addressable fix settlement must match the performed response head, and neither partial side may
+              report the hosted attempt settled.
+
+    - `[ ]` **5.5.R.g Publish supersession choreography and close the regression boundary**
+
+        - Add the canonical two-call supersession flow, returned carry/reopen actions, expected-fix-dirt allowance, and
+          typed replay/refusal behavior to both installed `review-response` copies. Exercise the public command and
+          real-store paths across the stable lock, successor authorization, independent performance, and partial hosted
+          settlement contracts before closing the member correction.
 
 ### `[ ]` **5.5 Verify convergence and response precedence** — validate criteria at member scope
 
@@ -845,6 +880,16 @@ Member verifiers consume their group's evidence; only terminal verification chan
 - `[ ]` Explicit conditional next-pass consent survives pending work and restart, binds only the completed response's
   exact target, and is consumed with one admitted pass. Withdrawal, supersession, stale bindings, concurrent replay,
   and failed writes cannot create or revive permission; disposition approval alone is insufficient.
+
+- `[ ]` Head-surviving continuation mutations share one stable advisory-lock identity, and successor approval may append
+  one distinct current authorization while immutable predecessor history remains invalidated and unreplayable.
+
+- `[ ]` Performed fixes persist independently of optional next-pass consent. Hosted completion joins exact response
+  performance with every required provider action in either order; record-only fixes require no provider receipt, and
+  host-addressable fix settlement matches the produced head.
+
+- `[ ]` Installed response guidance exposes fresh proposal and approval for supersession, returned carry/reopen work,
+  expected authorized fix dirt, exact replay, and typed refusal without direct state surgery.
 
 - `[ ]` Changed-target fixes reroute without inherited clearance; status and checkpoint agree on the first outstanding
   member and distinguish exact Owner acceptance. Validated equivalent-head evidence and carried judgments remain usable
