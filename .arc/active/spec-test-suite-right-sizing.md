@@ -17,8 +17,9 @@ admission lock serializes subprocess-heavy tiers across worktrees, so every minu
 every other session.
 
 The presumed remedy was judging some eleven thousand cases one at a time — impractical. Measurement dissolves
-that, and reshapes the problem substantially. All figures below are tier-isolated on a quiet machine; the full
-method, per-file rankings, and caveats live in `analysis-test-suite-cost-baseline.md`.
+that, and reshapes the problem substantially. All figures below are tier-isolated on a quiet machine unless a row
+names its project set; the full method, per-file rankings, and caveats live in
+`analysis-test-suite-cost-baseline.md`.
 
 | Tier                      | Wall clock  | Summed file time | Files | Cases  |
 | ------------------------- | ----------- | ---------------- | ----- | ------ |
@@ -36,15 +37,17 @@ projects interleave in one worker pool, so the lane costs less than the two tier
 and it costs a policy decision plus one tier-runner mode rather than engineering.
 
 **Wall clock is floored by the longest file, not the total.** Files run in parallel and tests within a file run
-sequentially, so a tier cannot finish before its longest file does. `user.test.ts` at 40–48 s is the floor of a
-44 s integration tier whose summed time over 12 workers would be ~28 s; `classify-change.test.ts` at 23 s is the
-floor of a 24 s unit tier. Reducing summed time lowers CPU cost, contention under load, and CI job-seconds; it does
-not move the routine lane's wall clock until the longest files shrink or split.
+sequentially, so a tier cannot finish before its longest file does. `user.test.ts` at 40 s tier-isolated (46–49 s
+inside the lane) is the floor of a 44 s integration tier whose summed time over 12 workers would be ~28 s;
+`classify-change.test.ts` at 23 s is the floor of a 24 s unit tier. Reducing summed time lowers CPU cost,
+contention under load, and CI job-seconds; it does not move the routine lane's wall clock until the longest files
+shrink or split.
 
 **The two slow tiers are slow for different reasons.** In `integration`, only four of 137 files spawn the CLI at
-all; they hold 29% of tier cost, while the other 133 hold 71%. Probing the two largest non-spawning files puts
-per-test fixture construction at 26–36% of their time; the rest is test-body work. In `e2e`, per-spawn CLI startup
-is the recurring term across roughly a thousand spawns. A single "reduce per-spawn cost" story does not fit both.
+all; they hold 29% of tier cost, while the other 133 hold 71%. Probing two of the largest non-spawning files
+(`user`, `init`) puts per-test fixture construction at 26–36% of their time; the rest is test-body work. In `e2e`,
+per-spawn CLI startup is the recurring term across roughly a thousand spawns. A single "reduce per-spawn cost"
+story does not fit both.
 
 **Cost concentrates hard, but not where a rubric would look.** Two `unit` files are 55% of that tier and neither
 spawns the CLI. Four `integration` files are 47%. Twelve `e2e` files are 72%. In every case the expensive thing is
@@ -70,8 +73,9 @@ the text says so.
 5. Every behavior a removed or consolidated test protected remains protected by a retained test at some tier.
 
 Goal 2's CI side follows the runner's shape. The self-hosted mini runs two job slots at one Vitest worker each — a
-measured ceiling owned by `local-ci-capacity-qualification` — and a heavy run packs roughly 1,300 job-seconds onto
-them, so heavy-lane wall time is total job-seconds over two slots. Every CPU-second D3 and D4 remove is CI wall
+measured ceiling owned by `local-ci-capacity-qualification` — and a heavy run packs roughly 1,050–1,360
+job-seconds onto them (two recorded runs; `analysis-test-suite-cost-baseline.md` § CI on the mini), so heavy-lane
+wall time is total job-seconds over two slots. Every CPU-second D3 and D4 remove is CI wall
 clock there, which is why summed-time levers count on CI even where they do not move the local lane. The lever that
 would move CI by a large factor is not spawning the CLI a thousand times, and that is a separate work unit (see
 Coordination).
@@ -99,8 +103,8 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 - **No launcher entry, `bin` change, or dist-layout change** — `e2e-build-coordination` owns bundle freshness and
   publication. `bin` continues to point at `dist/cli.js`, and `dist/` stays a single file.
 - **No DI migration of the quarantined `unit-mocks` files** — `test-di-migration`.
-- **No restructuring of the notes-substrate tests beyond fixture sharing and spawn consolidation** — they retire
-  with the substrate.
+- **No restructuring of the notes-substrate tests beyond fixture sharing, file splitting along existing seams,
+  and spawn consolidation** — they retire with the substrate.
 - **No changes to test-first or testing-standards doctrine.** The per-test rubric is a triage aid for
   cost-selected tests, not a new standard.
 - **No coverage-based suite minimization** as a deletion criterion.
@@ -119,7 +123,8 @@ The largest lever, and the one that delivers Goal 1 almost entirely.
 `LocalHeavyTestTier` has no unit-plus-integration variant. So this carries product code:
 
 - Add a `LocalHeavyTestTier` variant for the routine lane and its argument list (`--project unit --project
-  unit-mocks --project integration`), plus the npm script that invokes it.
+  unit-mocks --project integration`). `npm test` re-points to it — it is what agents and the gate rows reach for —
+  and a new `test:full` keeps the whole run. CI calls only the per-tier scripts, so it is unaffected.
 
 Then extend `DEV-RULES.PROJECT` § Selecting what to run — vocabulary-neutral and confirmed absent from the package
 source, so a project-local edit — with rows resolving from `git diff --name-only`:
@@ -131,7 +136,9 @@ source, so a project-local edit — with rows resolving from `git diff --name-on
   files or on explicit request; the routine local run is unit plus integration.
 
 This changes _where and when_ a tier is enforced, never _whether_ — zero tolerance is untouched, and the existing
-rule already separates what must pass from how often each check is re-executed.
+rule already separates what must pass from how often each check is re-executed. **Load-bearing assumption:** the
+lane is safe only while `ci-ok` remains a required status check on the merge gate, since that is what makes the
+heavy lane's E2E run enforcement rather than advice. That is repository configuration, not something in the tree.
 
 **Four documents over-assert against this cut and must be amended.**
 
@@ -172,27 +179,34 @@ per-test durations per tier from Vitest's JSON reporter and reports:
 5. The share of tier cost that is substrate-bound (notes, sync, multi-clone), which has a known expiry.
 6. Per-tier budgets and each tier's standing against them (D6).
 
-**Measurement-mode discipline** · `[invariant]`. Every baseline records its mode — **single-file**,
-**tier-isolated**, or **under load** — and the instrument refuses to compare baselines whose modes differ. The
-same file measures 23.5 s single-file and 37.4 s tier-isolated; the same tier measures 4.4 s and 1.8 s per test
-under load versus isolated. **A single run cannot establish a lever below ~10%**, because run-to-run variance is
-roughly 8%; the instrument reports normalized multi-run figures and flags any claim inside that band.
+**Measurement-mode discipline** · `[invariant]`. Every baseline records its mode as a pair — the **condition**
+(**single-file**, **tier-isolated**, **under load**, or **standalone probe** for a spawn measured outside any
+tier) and the **project set** it ran in (one tier, the lane, or the full run) — and the instrument refuses to
+compare baselines whose pairs differ. The same file measures 23.5 s single-file, 40 s tier-isolated, and 46–49 s
+inside the lane; the same tier measures 4.4 s and 1.8 s per test under load versus isolated. **A single run
+cannot establish a lever below ~10%**, because run-to-run variance is roughly 8%; the instrument reports
+normalized multi-run figures and flags any claim inside that band.
 
 `analysis-test-suite-cost-baseline.md` already carries a hand-measured pre-instrument baseline. The instrument
 supersedes it and inherits its method notes.
 
 ### D3 — Integration fixture cost and file floors
 
-Two levers with different metrics. Fixture sharing cuts summed time — CI job-seconds on a throughput-bound runner,
-and the CPU floor locally. File splitting cuts the per-file floor, which is what the routine lane's wall clock
-actually sits on. Neither substitutes for the other.
+Three levers with different metrics. Fixture sharing cuts summed time — CI job-seconds on a throughput-bound
+runner, and the CPU floor locally. Re-tiering is a correctness fix that happens to remove both summed time and a
+file floor from the lane. File splitting cuts the per-file floor, which is what the routine lane's wall clock
+actually sits on. None substitutes for another.
 
-**Fixture sharing — a bounded lever, measured.** The two largest non-spawning files build one fixture per test
-through the tier helper: `initInTempRepo` plus a commit (~110 ms, 11 git spawns), or the same plus a bare remote
-(~140 ms, 14 spawns). Git spawns are not the cost — nine of them are ~24 ms of the ~106 ms `runInit` path; the
-rest is the init command writing a 187-file `.arc/` tree. Copying a built fixture costs ~7 ms. Fixture construction
-is 26–29% of `user.test.ts` and 32–36% of `init.test.ts`, so per-file yield is bounded near that share; across the
-133 non-spawning files it is the largest summed-time lever the tier has, not a dominant one.
+**Fixture sharing — a bounded lever, measured.** The largest and fourth-largest non-spawning files, `user` and
+`init`, build one fixture per test through the tier helper: `initInTempRepo` plus a commit (~110 ms, 11 git
+spawns), or the same plus a bare remote (~140 ms, 14 spawns). Git spawns are not the cost — nine of them are
+~24 ms of the ~106 ms `runInit` path; the rest is the init command writing a 187-file `.arc/` tree. Copying a
+built fixture costs ~7 ms. Fixture construction is 26–29% of `user.test.ts` and 32–36% of `init.test.ts`, so
+per-file yield is bounded near that share; across the
+133 non-spawning files it is the largest summed-time lever the tier is known to have, not a dominant one. The
+second-largest non-spawning file, `review-fan-out-lifecycle` (37.5 s, 15 cases), has a different profile entirely
+— no CLI spawns, no git, 2.5 s per case of in-process delivery-store work — and is a D2 probe target before any
+lever is chosen for it.
 
 - **Share a frozen prepared repository per fixture shape** — build once per file (or once per shape, where a few
   shapes cover most files), copy per test. **The copy must be audited for absolute paths** · `[invariant]`: the
@@ -203,21 +217,25 @@ is 26–29% of `user.test.ts` and 32–36% of `init.test.ts`, so per-file yield 
 - **Fix the remote leak in the same helper.** `addBareRemote` returns its temp directory and leaves removal to
   the caller; of a dozen calling files, one removes it. One developer machine had accumulated over a thousand
   `arc-remote-*` directories. Same-concern cleanup of code D3 already touches, not a rider.
-- **Move genuine full-CLI cases to E2E**, where they belong by tier definition.
-- **Spawn the built bundle rather than the `tsx` loader.** The loader costs 1.23 s per spawn against the bundle's
-  0.36 s. `config-validate` is the only integration file paying it, at ~21 spawns. All 13 of its cases assert
-  clean stderr and its launcher-shim comparison sits inside the compatibility corpus, so the file cannot be split
-  by what each case proves — move it whole. Freshness comes from the tier's existing `globalSetup`, which already
-  runs `build:fast` precisely so other suites can spawn `dist/cli.js` and assert clean stderr. This trades a
-  structural guarantee (source entries cannot run the staleness guard) for a procedural one; record that trade.
-  There is no environment seam to suppress the guard — `dev-check.ts` reads no `process.env` — and minting one is
-  out of scope.
+- **Re-tier by definition, not by cost.** The project's tier definition places full CLI invocation in E2E. A file
+  whose every case spawns the `arc` CLI is E2E and moves there because it is misclassified; the lane effect is a
+  consequence, never the reason. The set is enumerable — four integration files spawn the CLI (`config-validate`,
+  `review-cli-surfaces`, `decompose-v3-repository-plan`, `scripts/remedy-roadmap-conflict`) — and the rule is
+  applied per file at execution: a file that spawns a script rather than the CLI, or drives handler seams and
+  spawns only incidentally, stays. `config-validate` qualifies on inspection: every case spawns the CLI and asserts
+  clean stderr, and its launcher-shim comparison sits inside the compatibility corpus, so it moves whole.
+- **The move ends the `tsx` loader spawn.** `config-validate` is the only file spawning `src/cli.ts` through
+  `tsx` (1.23 s per spawn against the bundle's 0.36 s, ~21 spawns); in E2E it spawns `dist/cli.js` like every
+  other E2E file, fresh from that tier's `globalSetup` build. This trades a structural guarantee (a source entry
+  cannot run the staleness guard) for the procedural one E2E already lives with; record the trade. There is no
+  environment seam to suppress the guard — `dev-check.ts` reads no `process.env` — and minting one is out of
+  scope. The clean-stderr assertions survive: the guard is silent on a fresh bundle.
 
-**File splitting — the wall-clock lever.** Split the four longest integration files (`user`,
-`decompose-v3-repository-plan`, `review-fan-out-lifecycle`, `config-validate`; 34–48 s each) until no file exceeds
-the tier's summed-time floor — ~28 s at 12 workers today, lower once fixtures are shared. `user` has eleven
-`describe` blocks to cut along; `decompose-v3-repository-plan` and `review-fan-out-lifecycle` are one flat block
-each, so their seams are chosen by fixture shape and case count rather than found. Pure wall clock, no CPU
+**File splitting — the wall-clock lever.** After re-tiering, split whichever integration files still exceed the
+tier's summed-time floor — ~28 s at 12 workers today, lower once fixtures are shared. Today that is `user` (40 s),
+`review-fan-out-lifecycle` (37.5 s), and `decompose-v3-repository-plan` (44 s) if the rule keeps it. `user` has
+eleven `describe` blocks to cut along; the other two are one flat block each, so their seams are chosen by fixture
+shape and case count rather than found. Pure wall clock, no CPU
 saving, and the only thing that moves the lane after sharing: with templating alone `user.test.ts` stays near
 30 s and so does the tier. A split changes no test body and no assertion; SC10 is satisfied by construction.
 
@@ -269,17 +287,25 @@ and it drops the unit tier from ~24 s to a few seconds, which is what makes per-
 instant. Tune them only if they later become the integration floor. Both use `it.each`, so take case counts from
 D2 rather than a grep.
 
-**Local worker sizing.** The vitest config caps local runs at 50% of cores, a guard written before the heavy-test
-admission lock existed; the lock now serializes heavy tiers across worktrees, so the cap protects against the same
-thing twice. Measure the routine lane at 50%, 75%, and native sizing through D2 and raise the local default only if
-a run clears the noise band. The CI cap is untouched (Non-Goals).
+**Local worker sizing.** The vitest config caps local runs at 50% of cores to leave headroom for sibling agent
+sessions on one machine. The heavy-test admission lock now guarantees that only one admitted run executes at a
+time machine-wide, so an admitted run can safely use more of the machine — but unit-only runs stay outside the
+lock by design, and D1 makes them the per-task gate, so the config default must not move. Raise workers only
+inside the tier runner for the tiers it admits (it already passes the environment through, so it can set
+`VITEST_MAX_WORKERS` for the lane). Measure the lane at 50%, 75%, and native sizing through D2, and adopt a raise
+only if it clears the noise band with no sibling-session degradation in a paired run. The CI cap is untouched
+(Non-Goals).
 
 **CI leg structure.** Re-select the four pinned anchor files from D2's tier-isolated ranking. Measured, the
 largest four are `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand`, while the
-pinned set carries `lifecycle-exit` (5th) instead of `delivery-position` (2nd). Worth roughly 25 s of critical
-path. **Folding each leg's anchor and remainder into one invocation is not available**: Vitest applies file
-filters before sharding, so `vitest list --project unit classify-change --shard=1/4` fails with `--shard <count>
-must be a smaller than count of test files`. The eight Vitest boots per E2E run stay, recorded as accepted.
+pinned set carries `lifecycle-exit` (5th) instead of `delivery-position` (2nd). Value it on the runner in use: on
+the mini's two slots an anchor swap moves no job-seconds and can only trim the makespan's tail, and the four legs
+already sit within a 16 s spread there — so this is a cheap correctness fix (the pinned set should match the
+measured ranking), not a wall-clock lever. The ~25 s of per-leg critical path it would recover applies only under
+hosted fallback, where legs run on separate machines. **Folding each leg's anchor and remainder into one
+invocation is not available**: Vitest applies file filters before sharding, so `vitest list --project unit
+classify-change --shard=1/4` fails with `--shard <count> must be a smaller than count of test files`. The eight
+Vitest boots per E2E run stay, recorded as accepted.
 
 ### D6 — Per-tier budgets
 
@@ -390,7 +416,8 @@ fixture sharing carries the real risk — a shared fixture leaking state between
 absolute-path audit and copy-per-test discipline exist to prevent.
 
 **Measurement validity.** D2's mode discipline and multi-run normalization are the correctness mechanism for every
-number this spec commits to. Two conclusions were drawn and retracted during authoring for want of them.
+number this spec commits to. Three conclusions were drawn and retracted during authoring for want of them, and
+three adversarial passes found the same defect class each time — a proxy path standing in for the workload.
 
 **Substrate-bound cost.** The user-notes and sync substrate is interim, composing toward `arc-backend`. Its tests
 are real proofs of a concurrency-sensitive surface: prefer cheap fixture sharing over restructuring, and **never
@@ -418,8 +445,8 @@ owns the integration splits, and the same reading selects the E2E anchors in D5.
 - `test-suite-contention-hardening` — owns the admission lock and load-relative timeouts. D2's headroom and
   slot-wait data are input, and D2's mode discipline depends on the lock's behavior.
 - `e2e-build-coordination` — owns bundle freshness. D4 keeps `dist/` a single file and `dev-check` eager, so the
-  contract is preserved; D3's move of `config-validate` onto the built bundle leans on the integration
-  `globalSetup` build, which is worth confirming with that work unit.
+  contract is preserved; D3's move of `config-validate` into E2E puts it under that tier's `globalSetup` build,
+  which is worth confirming with that work unit.
 - `test-di-migration` — owns the quarantined `unit-mocks` files D3 leaves alone.
 - `arc-backend` / `strategy-storage-evolution` — the substrate-bound cost share is input to that transition.
 
@@ -434,14 +461,16 @@ is not satisfied.
 
 1. **Measurement validity.** Every before/after pair in the completion record names its mode and compares like
    with like, and no lever below ~10% is claimed from a single run. The instrument refuses cross-mode comparison.
-2. **Routine local run (wall clock).** The routine lane exists as one command and completes in at most half its
-   measured pre-work wall clock — 56–58 s across two quiet tier-isolated runs, same projects, same mode — so
-   **≤29 s**, re-baselined by D2 before scoring. Half is derived, not guessed. The lane runs both projects in one
-   pool, so its floors are its longest file (`user.test.ts`, 40–48 s) and its summed time over the workers (~410
-   s over 12, ~34 s). Reaching 29 s needs fixture sharing and the `tsx` move (D3) pulling the summed floor under
-   the bar, splitting (D3) bringing every file under it, and local worker sizing (D5) where a run clears the
-   noise band. D5's tier moves do not move the lane — they move unit-only runs. If D2's re-baseline moves the
-   starting point, the bar moves with it by forward amendment.
+2. **Routine local run (wall clock).** The routine lane exists as one command, and its wall clock falls to a bar
+   derived under the preamble's rule from D2's first lane baseline (condition tier-isolated, project set lane;
+   56–58 s today across two quiet runs) plus rates measured on the changed artifact, landed by forward amendment
+   before the run that scores it. The derivation is fixed here so the amendment cannot pick a number: the lane's
+   wall clock is bounded below by its longest file and by its summed time over the workers in force, so the bar
+   is the larger of those two floors after the work, plus the noise band. Today's arithmetic, as a provisional
+   expectation rather than the bar: summed time ~410–430 s over 12 workers is a ~34 s floor; D3's re-tiering
+   removes ~52 s and its probed fixture savings ~15 s, taking that floor near 30 s; splitting brings every file
+   under it; D5's worker sizing, if it clears the band, lowers the summed floor further. D5's tier moves do not
+   move the lane — they move unit-only runs.
 3. **Selection rule is live.** `DEV-RULES.PROJECT` § Selecting what to run carries the lane rows and no longer
    closes by forbidding a partial Tier 3; `QUICK-REFERENCE` § Quality Gate Commands no longer instructs a whole
    run; and the two shipped framework files no longer assert a whole-suite local attestation.
@@ -449,17 +478,19 @@ is not satisfied.
    (fixture sharing), and no single file exceeds the tier's post-work summed-time floor (splitting) — both
    measured tier-isolated across several runs. Wall clock follows from the second and is scored under SC2, not
    here.
-5. **Per-spawn fixed cost.** Built-artifact CLI startup on a named representative verb falls to **≤0.25 s** warm,
-   tier-isolated, from the recorded 0.36 s baseline — above the 0.21 s probe and below the 0.36 s baseline, so it
-   discriminates rather than restating either.
-6. **The loader penalty is gone.** No integration or E2E test spawns the CLI through `tsx`, and
-   `config-validate`'s clean-stderr assertions and launcher-shim comparison all still run.
+5. **Per-spawn fixed cost.** Built-artifact CLI startup on a named representative verb falls to **≤0.25 s** warm
+   as a standalone probe — the same condition as the recorded 0.36 s baseline — above the 0.21 s probe and below
+   the baseline, so it discriminates rather than restating either.
+6. **The loader penalty is gone and the tiers are honest.** No test at any tier spawns the CLI through `tsx`;
+   every integration file whose cases all spawn the CLI now lives in E2E, with the rule's per-file verdict
+   recorded; and `config-validate`'s clean-stderr assertions and launcher-shim comparison all still run there.
 7. **`dist/` is still one file.** `tsup.config.ts` sets `splitting: false` explicitly and the build emits a single
    `dist/cli.js`.
-8. **CI heavy lane.** Summed E2E shard time and the critical-path shard both fall by at least the derived target;
-   the anchor set matches D2's tier-isolated ranking.
-9. **Budgets exist and are reported.** A wall-clock budget is recorded per tier per mode, the instrument reports
-   local standing, and CI warns on exceedance without failing.
+8. **CI heavy lane.** Summed heavy-lane job-seconds on the mini fall by at least the derived target — the metric
+   the two-slot runner turns into wall time — and the pinned anchor set matches D2's tier-isolated ranking. The
+   per-leg critical-path shard is scored only under hosted fallback, where legs run on separate machines.
+9. **Budgets exist and are reported.** A budget is recorded per tier per mode — wall clock locally, summed job
+   duration on CI — the instrument reports local standing, and CI warns on exceedance without failing.
 10. **No behavior loses its only proof.** Every deletion or case consolidation names the retained test covering
     the behavior, and every consolidation keeps the rubric's timeout headroom and its replaced assertions. D3's
     fixture sharing preserves assertions by construction. Vacuously satisfied if none occur.
@@ -484,7 +515,8 @@ Implementation detail, resolved during the work — none blocks starting.
   which absolute references each must rewrite.
 - Which `describe` seams the four longest integration files split along, and whether the local worker cap clears
   the noise band at 75% or native sizing.
-- Whether `config-validate`'s move onto the built bundle needs any coordination change with
-  `e2e-build-coordination` beyond relying on the existing `globalSetup` build.
+- Whether `config-validate`'s move into E2E needs any coordination with `e2e-build-coordination` beyond that
+  tier's existing `globalSetup` build.
+- What `review-fan-out-lifecycle`'s 2.5 s per case actually is, before any lever is chosen for it.
 
 ---

@@ -15,6 +15,7 @@ as a starting point, not an authority.
 - [Tier baselines](#tier-baselines)
 - [Where the time concentrates](#where-the-time-concentrates)
 - [CLI startup cost](#cli-startup-cost)
+- [CI on the mini](#ci-on-the-mini)
 - [Levers measured](#levers-measured)
 - [Alternatives closed by measurement or source](#alternatives-closed-by-measurement-or-source)
 
@@ -210,6 +211,32 @@ spawns real verbs, never `--version`.
 `tsup` defaults `splitting` to `true` for ESM output and `tsup.config.ts` sets no `splitting` key, so today's
 single-file `dist/` is a consequence of the bundle having no dynamic imports rather than a configured contract.
 Keeping one output file once dynamic imports exist requires setting `splitting: false` explicitly.
+
+## CI on the mini
+
+The self-hosted runner is a Linux guest on an M4 Mac mini with two runner slots at one Vitest worker each; the
+slot decision and its saturation evidence belong to `local-ci-capacity-qualification`. Job durations from the
+heavy-lane run of 2026-09-10 15:55Z (workflow run `34498802526`, routed to `arc-ci-mini`):
+
+| Job                    | Seconds   |
+| ---------------------- | --------- |
+| Classify lane & weight | 7         |
+| Shared setup           | 19        |
+| Lint & Typecheck       | 66        |
+| Unit Tests             | 74        |
+| Integration Tests      | 171       |
+| E2E Tests (1)          | 214       |
+| E2E Tests (2)          | 259       |
+| E2E Tests (3)          | 347       |
+| E2E Tests (4)          | 178       |
+| Portability (linux)    | 22        |
+| ci-ok, merge-ok        | 7         |
+| **Total job-seconds**  | **1,364** |
+
+The capacity work unit's own routed dispatch recorded 1,054 job-seconds for the whole workflow, with E2E legs at
+156–172 s; the run above carries a 347 s leg, so the leg spread is not stable across runs. With two slots, wall
+time is roughly total job-seconds over two plus the serial head, so summed savings anywhere in the heavy lane
+translate to wall time; per-leg balance only trims the makespan's tail.
 
 ## Levers measured
 
