@@ -69,7 +69,10 @@ export {
 
 export {
   analyzeBaseOverlap,
+  analyzeRevisionOverlap,
   type AnalyzeBaseOverlapOptions,
+  type AnalyzeRevisionOverlapOptions,
+  type RevisionOverlapResult,
 } from "./base-overlap.js";
 
 export {

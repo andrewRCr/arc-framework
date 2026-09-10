@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { analyzeBaseOverlap } from "../../../src/lib/git/base-overlap.js";
+import {
+  analyzeBaseOverlap,
+  analyzeRevisionOverlap,
+} from "../../../src/lib/git/base-overlap.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
 const BASE = "b".repeat(40);
@@ -11,14 +14,59 @@ function overlapExec(branch: string, base: string): { exec: GitExec; calls: stri
   const exec: GitExec = async (_cmd, args) => {
     calls.push(args);
     if (args[0] === "merge-base") return { stdout: `${MERGE_BASE}\n` };
-    if (args.at(-1) === `${MERGE_BASE}..HEAD`) return { stdout: branch };
     if (args.at(-1) === `${MERGE_BASE}..${BASE}`) return { stdout: base };
+    if (args.at(-1)?.startsWith(`${MERGE_BASE}..`) === true) return { stdout: branch };
     throw new Error("unexpected invocation");
   };
   return { exec, calls };
 }
 
 describe("base overlap evidence", () => {
+  it("classifies an explicit revision pair with bound treatment context", async () => {
+    const HEAD = "c".repeat(40);
+    const { exec, calls } = overlapExec(
+      ".arc/active/meta-example.md\0.arc/backlog/ROADMAP.md\0src/shared.ts\0",
+      ".arc/active/meta-example.md\0.arc/backlog/ROADMAP.md\0src/shared.ts\0",
+    );
+
+    await expect(analyzeRevisionOverlap({
+      exec,
+      leftRevision: HEAD,
+      rightRevision: BASE,
+      treatmentContext: { workUnit: "example" },
+    })).resolves.toEqual({
+      status: "available",
+      mergeBase: MERGE_BASE,
+      overlap: {
+        status: "available",
+        substantivePaths: ["src/shared.ts"],
+        regenerablePaths: [".arc/backlog/ROADMAP.md"],
+      },
+    });
+    expect(calls).toContainEqual(["merge-base", HEAD, BASE]);
+    expect(calls).toContainEqual([
+      "diff", "--name-only", "-z", "--no-renames", `${MERGE_BASE}..${HEAD}`,
+    ]);
+  });
+
+  it("keeps work-unit paths substantive for an unbound treatment context", async () => {
+    const HEAD = "c".repeat(40);
+    const { exec } = overlapExec(
+      ".arc/active/meta-example.md\0",
+      ".arc/active/meta-example.md\0",
+    );
+
+    await expect(analyzeRevisionOverlap({
+      exec,
+      leftRevision: HEAD,
+      rightRevision: BASE,
+      treatmentContext: {},
+    })).resolves.toMatchObject({
+      status: "available",
+      overlap: { substantivePaths: [".arc/active/meta-example.md"] },
+    });
+  });
+
   it("short-circuits to available empty when either side has no unique commits", async () => {
     const { exec, calls } = overlapExec("", "");
     const result = await analyzeBaseOverlap({

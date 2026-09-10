@@ -261,21 +261,10 @@ currentness and merge authority are re-established.
 - _Goal:_ a delivery member remains eligible when the live target advanced without touching its contribution, while
   recorded predecessor coordinates and every interacting-movement refusal remain authoritative.
 
-    - `[ ]` **3.1.a Classify the bottom member against the observed target**
-        - Extract one provider-neutral exact-revision overlap primitive that accepts two explicit revisions plus
-          explicit WU treatment context (or an unbound context), and returns the merge-base with the D1 overlap or
-          precise no-common-ancestor/unavailable detail. Keep `analyzeBaseOverlap` as its base-drift wrapper; neither
-          primitive reads ambient `HEAD` or infers WU identity.
-        - Add `predecessorRelation(member, observedTip)` with `exact | disjoint-ahead | overlapping-ahead |
-          unrelated` outcomes that retain the exact observed tip, chain base or merge-base, overlap, and detail each
-          arm establishes.
-        - Build `test-first` (one behavior at a time):
-            - an ancestor tip is exact;
-            - empty substantive intersection is disjoint ahead;
-            - any substantive intersection is overlapping ahead; and
-            - no common ancestor is unrelated; and
-            - explicit non-`HEAD` revision pairs and both WU-bound and unbound treatment contexts produce the same
-              deterministic overlap facts through the shared primitive and wrapper.
+    - `[x]` **3.1.a Classify the bottom member against the observed target**
+        - Added an exact-revision overlap primitive with explicit treatment context and a provider-neutral
+          predecessor classifier whose exact, disjoint, overlapping, unrelated, and unavailable arms retain the
+          coordinates and evidence they establish; base drift delegates without changing its public contract.
 
     - `[ ]` **3.1.b Preserve lifecycle contribution across regenerable movement**
         - Extend `compareDeliveryLifecycleContribution` and `compareNormalizedDeliveryTree` so a `disjoint-ahead`
