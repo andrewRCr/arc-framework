@@ -261,6 +261,8 @@ describe("local review preparation request", () => {
         sweep: async () => undefined,
         laneSourceId: "delegated-agent",
         withLocalReviewLock: async <T>(action: () => Promise<T>) => action(),
+        withLaneOperationLock: async <T>(_input: unknown, action: () => Promise<T>) => action(),
+        confirmDispositionSetCurrent: async () => true,
         resolveRepositoryId: async () => "repo-1",
         deriveTarget,
         confirmTarget: async (target: typeof memberTarget) => ({ state: "current" as const, target }),
@@ -1127,6 +1129,8 @@ describe("local review preparation request", () => {
           releaseLock?.();
         }
       },
+      withLaneOperationLock: async <T>(_input: unknown, action: () => Promise<T>) => action(),
+      confirmDispositionSetCurrent: async () => true,
       resolveRepositoryId: async () => target.repositoryId,
       deriveTarget: async () => target,
       confirmTarget: async () => ({ state: "current" as const, target }),
@@ -1255,6 +1259,8 @@ describe("local review preparation request", () => {
         sweep: async () => undefined,
         laneSourceId: "delegated-agent",
         withLocalReviewLock: async <T>(action: () => Promise<T>) => action(),
+        withLaneOperationLock: async <T>(_input: unknown, action: () => Promise<T>) => action(),
+        confirmDispositionSetCurrent: async () => true,
         resolveRepositoryId: async () => target.repositoryId,
         deriveTarget: async () => target,
         confirmTarget: async () => ({ state: "current" as const, target }),

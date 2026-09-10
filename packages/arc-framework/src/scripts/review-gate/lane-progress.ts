@@ -589,6 +589,10 @@ export async function recordHostedRequestAdmission(
       progress: LaneProgressState | null;
       logicalPass: number;
     }): Promise<void>;
+    confirmDispositionSetCurrent?: (
+      producerId: string,
+      dispositionSetId: string,
+    ) => Promise<boolean>;
     now: string;
   },
 ): Promise<HostedRequestAdmissionDecision> {
@@ -666,6 +670,10 @@ export async function recordHostedRequestAdmission(
     const conditionalPassAuthorizationId = input.request.ceilingOverride
       ?.conditionalPassAuthorizationId;
     if (conditionalPassAuthorizationId !== undefined) {
+      const confirmDispositionSetCurrent = input.confirmDispositionSetCurrent;
+      if (confirmDispositionSetCurrent === undefined) {
+        throw new Error("conditional pass authorization disposition reader is unavailable");
+      }
       await consumeConditionalNextPassAuthorization(store, {
         authorizationId: conditionalPassAuthorizationId,
         repositoryId: input.repositoryId,
@@ -675,7 +683,10 @@ export async function recordHostedRequestAdmission(
         nextPass: logicalPass,
         admissionId: admission.admissionId,
         now: input.now,
-      });
+      }, (producerId, dispositionSetId) => confirmDispositionSetCurrent(
+        producerId,
+        dispositionSetId,
+      ));
     }
     const attempt: LaneAttempt = {
       attemptId: admission.admissionId,
@@ -1721,6 +1732,10 @@ export async function consumeConditionalNextPassAuthorization(
     admissionId: string;
     now: string;
   },
+  confirmDispositionSetCurrent: (
+    producerId: string,
+    dispositionSetId: string,
+  ) => Promise<boolean>,
 ): Promise<LaneProgressState> {
   const readOperationSnapshot = (store as Partial<ReviewOperationStateSnapshotIndex>)
     .readOperationSnapshot;
@@ -1751,6 +1766,12 @@ export async function consumeConditionalNextPassAuthorization(
       || !conditionalContinuationLineageMatches(authorization.lineage, input.lineage)
       || authorization.nextPass !== input.nextPass) {
       throw new Error("conditional pass authorization does not match the named admission");
+    }
+    if (!await confirmDispositionSetCurrent(
+      authorization.producerId,
+      authorization.dispositionSetId,
+    )) {
+      throw new Error("conditional pass authorization disposition set is not current");
     }
     if (authorization.status === "pending") {
       throw new Error("conditional pass authorization response is not complete");

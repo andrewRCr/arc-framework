@@ -103,6 +103,22 @@ function isDispositionSuccessorAdvance(
     === canonicalize(expectedHistorical);
 }
 
+/**
+ * Confirm that an approved disposition set remains current for its producing operation.
+ *
+ * @param store - Approved-disposition store for the current repository.
+ * @param producerId - Operation whose approved disposition record owns the set.
+ * @param dispositionSetId - Approved set identity bound into pending authority.
+ * @returns Whether the exact set is still the operation's current approved disposition.
+ */
+export async function confirmCurrentDispositionSet(
+  store: Pick<ApprovedDispositionRecordStore, "readDispositionRecord">,
+  producerId: string,
+  dispositionSetId: string,
+): Promise<boolean> {
+  return (await store.readDispositionRecord(producerId))?.currentDispositionSetId === dispositionSetId;
+}
+
 /** Git-common disposition store with exact replay and one monotonic verified-fix response append. */
 export class LocalApprovedDispositionRecordStore
 implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {

@@ -13,6 +13,7 @@ import {
 import {
   resolveRepositoryIdentity,
   withRepositoryLocalReviewLock,
+  withRepositoryReviewOperationLock,
 } from "../hosts/local/git-common-state.js";
 import { RepositoryLocalReviewSourceStore } from "../hosts/local/source-store.js";
 import {
@@ -53,7 +54,10 @@ import {
 } from "../policy/local-review-policy.js";
 import { RepositoryLocalReviewSourceSweepAdapter } from "../hosts/local/source-sweep.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
-import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
+import {
+  confirmCurrentDispositionSet,
+  LocalApprovedDispositionRecordStore,
+} from "../hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
 import { sweepLocalReviewSources } from "../core/local-source-sweep.js";
@@ -68,6 +72,7 @@ import { createGhChangeRequestResolutionPort } from "../hosts/github/change-requ
 import { resolveChangeRequest } from "../change-request.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
 import { assertEvidenceBoundReviewExecutionAdmission } from "../policy/review-policy-evidence.js";
+import { laneProgressOperationId } from "../lane-progress.js";
 
 const LOCAL_STANDARD_SOURCE = {
   sourceKind: "agent",
@@ -82,6 +87,7 @@ export function createLocalPrepareDependencies(input: {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const operationStore = new LocalReviewOperationStateStore(publisher);
   const sourceStore = new RepositoryLocalReviewSourceStore(publisher);
+  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
   const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
@@ -103,6 +109,18 @@ export function createLocalPrepareDependencies(input: {
     operationStore,
     sourceStore,
     now: () => new Date().toISOString(),
+    withLaneOperationLock: (coordinates, action) => withRepositoryReviewOperationLock(
+      input.exec,
+      input.cwd,
+      laneProgressOperationId(coordinates),
+      10_000,
+      action,
+    ),
+    confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
+      dispositionStore,
+      producerId,
+      dispositionSetId,
+    ),
     withLocalReviewLock: (action) => withRepositoryLocalReviewLock(input.exec, input.cwd, action),
     sweep: async () => {
       const receiptStore = await receipts();
@@ -295,7 +313,7 @@ export function createLocalPrepareDependencies(input: {
         sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
         maxPasses: policy.maxPasses,
         resultReader: createRepositoryReviewResultReader(publisher),
-        dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+        dispositionStore,
         confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
       });
       return resolution.payload.pass;

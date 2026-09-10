@@ -208,6 +208,7 @@ import { resolveHostedAwaitTiming } from "../scripts/review-gate/hosted/await-co
 import {
   acknowledgeHostedRequest,
   hostedLaneAttemptId,
+  laneProgressOperationId,
   readHostedRequestAdmissionReplay,
   readLaneProgress,
   recordHostedRequestAdmission,
@@ -229,8 +230,14 @@ import {
 import { createHostedReservationDischargeReader } from
   "../scripts/review-gate/policy/hosted-reservation-discharge.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
-import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
-import { LocalApprovedDispositionRecordStore } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
+import {
+  resolveRepositoryIdentity,
+  withRepositoryReviewOperationLock,
+} from "../scripts/review-gate/hosts/local/git-common-state.js";
+import {
+  confirmCurrentDispositionSet,
+  LocalApprovedDispositionRecordStore,
+} from "../scripts/review-gate/hosts/local/disposition-record-store.js";
 import { currentApprovedDispositionNode } from "../scripts/review-gate/core/advisory-records.js";
 import { createRepositoryReviewResultReader } from
   "../scripts/review-gate/hosts/local/review-result-reader-composition.js";
@@ -2140,6 +2147,7 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
     resolve: async (request, root) => {
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const operationStore = new LocalReviewOperationStateStore(publisher);
+      const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
       return resolveFrontlineCommand(request, {
         preferences: createLocalFrontlineSourcePreferenceReader({
           cwd: root,
@@ -2148,6 +2156,18 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
         }),
         registry: new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]),
         operationStore,
+        withLaneOperationLock: (operationId, action) => withRepositoryReviewOperationLock(
+          exec,
+          root,
+          operationId,
+          10_000,
+          action,
+        ),
+        confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
+          dispositionStore,
+          producerId,
+          dispositionSetId,
+        ),
         resolveLineage: async (target, vehicle) => {
           const live = await readLocalReviewLiveContext({ exec, cwd: root });
           if (vehicle !== undefined) {
@@ -2859,20 +2879,36 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
         adapters,
         deliveryMemberLookup,
         ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
-        admitRequest: async (admittedRequest, progressVehicle) => recordHostedRequestAdmission(
-          context.store,
-          {
-            repositoryId: context.repositoryId,
-            lineage: context.lineage,
-            request: admittedRequest,
-            ...(progressVehicle === undefined ? {} : { progressVehicle }),
-            reviewTarget: context.reviewTarget,
-            requirement: context.requirement,
-            actorIdentity,
-            authorizeCapacity,
-            now: new Date().toISOString(),
-          },
-        ),
+        admitRequest: async (admittedRequest, progressVehicle) => {
+          const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+          return withRepositoryReviewOperationLock(
+            gitExec,
+            root,
+            laneProgressOperationId({
+              lane: "standard",
+              repositoryId: context.repositoryId,
+              headSha: admittedRequest.target.headSha,
+              lineage: context.lineage,
+            }),
+            10_000,
+            () => recordHostedRequestAdmission(context.store, {
+              repositoryId: context.repositoryId,
+              lineage: context.lineage,
+              request: admittedRequest,
+              ...(progressVehicle === undefined ? {} : { progressVehicle }),
+              reviewTarget: context.reviewTarget,
+              requirement: context.requirement,
+              actorIdentity,
+              authorizeCapacity,
+              confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
+                dispositionStore,
+                producerId,
+                dispositionSetId,
+              ),
+              now: new Date().toISOString(),
+            }),
+          );
+        },
         acknowledgeRequest: async (admission, handle) => {
           await acknowledgeHostedRequest(context.store, {
             admission,

@@ -17,6 +17,7 @@ import type { ReviewOperationStateStore } from "../core/ports.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
 import {
   consumeConditionalNextPassAuthorization,
+  laneProgressOperationId,
   readLaneProgressOwner,
   recordLaneAttempt,
 } from "../lane-progress.js";
@@ -83,6 +84,23 @@ export interface FrontlineCommandResult {
   nextAction: "none" | "bind-source" | "obtain-authorization" | "run-frontline";
 }
 
+interface FrontlineCommandDependencies {
+  preferences: FrontlineSourcePreferenceReader;
+  registry: FrontlineSourceRegistry;
+  operationStore: ReviewOperationStateStore;
+  resolveLineage(
+    target: ReviewTarget,
+    vehicle: FrontlineCommandRequest["vehicle"],
+  ): Promise<LaneSubjectLineage>;
+  withLaneOperationLock<T>(operationId: string, action: () => Promise<T>): Promise<T>;
+  confirmDispositionSetCurrent: (
+    producerId: string,
+    dispositionSetId: string,
+  ) => Promise<boolean>;
+  readMaxPasses(): Promise<number>;
+  now(): string;
+}
+
 /**
  * Resolve explicit change-set facts and one-run intent without preparing or invoking a carrier.
  *
@@ -92,20 +110,23 @@ export interface FrontlineCommandResult {
  */
 export async function resolveFrontlineCommand(
   request: unknown,
-  dependencies: {
-    preferences: FrontlineSourcePreferenceReader;
-    registry: FrontlineSourceRegistry;
-    operationStore: ReviewOperationStateStore;
-    resolveLineage(
-      target: ReviewTarget,
-      vehicle: FrontlineCommandRequest["vehicle"],
-    ): Promise<LaneSubjectLineage>;
-    readMaxPasses(): Promise<number>;
-    now(): string;
-  },
+  dependencies: FrontlineCommandDependencies,
 ): Promise<FrontlineCommandResult> {
   const parsed = FrontlineCommandRequestSchema.parse(request);
   const lineage = await dependencies.resolveLineage(parsed.target, parsed.vehicle);
+  return dependencies.withLaneOperationLock(laneProgressOperationId({
+    lane: "frontline",
+    repositoryId: parsed.target.repositoryId,
+    headSha: parsed.target.headSha,
+    lineage,
+  }), () => resolveFrontlineCommandWithinLock(parsed, lineage, dependencies));
+}
+
+async function resolveFrontlineCommandWithinLock(
+  parsed: FrontlineCommandRequest,
+  lineage: LaneSubjectLineage,
+  dependencies: FrontlineCommandDependencies,
+): Promise<FrontlineCommandResult> {
   let owner = await readLaneProgressOwner(dependencies.operationStore, {
     lane: "frontline",
     repositoryId: parsed.target.repositoryId,
@@ -130,7 +151,10 @@ export async function resolveFrontlineCommand(
         nextPass: pendingAdmission.logicalPass,
         admissionId: pendingAdmission.operationId,
         now: dependencies.now(),
-      });
+      }, (producerId, dispositionSetId) => dependencies.confirmDispositionSetCurrent(
+        producerId,
+        dispositionSetId,
+      ));
     }
     return FrontlineResolveEnvelopeSchema.parse({
       schemaVersion: 1,
@@ -229,7 +253,10 @@ export async function resolveFrontlineCommand(
         nextPass: logicalPass,
         admissionId: admission.operationId,
         now: dependencies.now(),
-      });
+      }, (producerId, dispositionSetId) => dependencies.confirmDispositionSetCurrent(
+        producerId,
+        dispositionSetId,
+      ));
     }
     await recordLaneAttempt(dependencies.operationStore, {
       lane: "frontline",

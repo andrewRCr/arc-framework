@@ -518,11 +518,11 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
         - Resolve the terminal findings response without treating its prospective next-pass override as authority for
           the completed pass, then prove the real composition and public command path.
 
-    - `[ ]` **5.5.R.c Prevent stale conditional authority across successor publication**
+    - `[x]` **5.5.R.c Prevent stale conditional authority across successor publication**
 
-        - Serialize successor publication and pass admission through the existing repository review-operation lock,
-          validate the authorization's disposition set is current at consumption, and prove crash/race replay cannot
-          spend predecessor authority.
+        - Serialized successor publication and local, Frontline, and hosted pass admission through the canonical lane
+          operation lock; consumption now confirms the exact disposition set is still current, preventing crash or
+          race replay from spending predecessor authority.
 
     - `[ ]` **5.5.R.d Add explicit pending-authority withdrawal**
 

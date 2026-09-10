@@ -70,6 +70,7 @@ import type {
   LocalTargetConfirmation,
 } from "../hosts/local/repository-target.js";
 import type { HostedTarget } from "../hosted/request.js";
+import { laneProgressOperationId } from "../lane-progress.js";
 import {
   projectCandidateDeltaVerification,
   recordCandidateVerifiedResponse,
@@ -1233,7 +1234,12 @@ export async function respondToReviewCommand(
     );
   }
   return dependencies.withOperationLock(
-    source.operationId,
+    laneProgressOperationId({
+      lane: source.result.kind === "frontline" ? "frontline" : "standard",
+      repositoryId: source.repositoryId,
+      headSha: source.target.headSha,
+      lineage: source.result.admission.lineage,
+    }),
     () => respondToResolvedReviewCommand(request, source, dependencies),
   );
 }

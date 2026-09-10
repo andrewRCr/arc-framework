@@ -93,6 +93,8 @@ function dependencies(store = operationStore(), maxPasses = 2) {
     registry: registry(),
     operationStore: store,
     resolveLineage: async () => lineage,
+    withLaneOperationLock: async <T>(_operationId: string, action: () => Promise<T>) => action(),
+    confirmDispositionSetCurrent: async () => true,
     readMaxPasses: async () => maxPasses,
     now: () => "2026-09-08T12:01:00Z",
   };

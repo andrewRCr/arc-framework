@@ -458,7 +458,7 @@ describe("lane progress", () => {
       nextPass: 2,
       admissionId: "attempt-2",
       now: "2026-08-15T12:03:00Z",
-    });
+    }, async () => true);
     expect(consumed.attempts[0]?.conditionalPassAuthorization).toMatchObject({
       status: "consumed",
       producedHeadSha: objectId("d"),
@@ -474,7 +474,7 @@ describe("lane progress", () => {
       nextPass: 2,
       admissionId: "attempt-2",
       now: "2026-08-15T12:04:00Z",
-    })).resolves.toEqual(consumed);
+    }, async () => true)).resolves.toEqual(consumed);
     await expect(consumeConditionalNextPassAuthorization(store, {
       authorizationId: settled.attempts[0]?.conditionalPassAuthorization?.authorizationId ?? "missing",
       repositoryId: attempt.repositoryId,
@@ -484,7 +484,7 @@ describe("lane progress", () => {
       nextPass: 2,
       admissionId: "competing-attempt-2",
       now: "2026-08-15T12:04:00Z",
-    })).rejects.toThrow("already consumed by another admission");
+    }, async () => true)).rejects.toThrow("already consumed by another admission");
     await expect(inspectConditionalNextPassInvalidation(store, {
       lane: attempt.lane,
       repositoryId: attempt.repositoryId,
@@ -515,7 +515,7 @@ describe("lane progress", () => {
       nextPass: 2,
       admissionId: "attempt-2",
       now: "2026-08-15T12:05:00Z",
-    })).rejects.toThrow("named pass is already complete");
+    }, async () => true)).rejects.toThrow("named pass is already complete");
   });
 
   it("does not confuse another lineage's terminal pass with the authorized admission", async () => {
@@ -571,11 +571,56 @@ describe("lane progress", () => {
       nextPass: 2,
       admissionId: "authorized-pass-2",
       now: "2026-08-15T12:03:00Z",
-    })).resolves.toMatchObject({
+    }, async () => true)).resolves.toMatchObject({
       attempts: [expect.objectContaining({
         conditionalPassAuthorization: expect.objectContaining({ status: "consumed" }),
       })],
     });
+  });
+
+  it("refuses a bound pass authorization after its disposition set stops being current", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"5".repeat(64)}`,
+    };
+    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const captured = await captureConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    });
+    await settleLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      dispositionSetId,
+      producedHeadSha: attempt.headSha,
+      now: "2026-08-15T12:02:00Z",
+    });
+
+    await expect(consumeConditionalNextPassAuthorization(store, {
+      authorizationId: captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage,
+      producedHeadSha: attempt.headSha,
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:03:00Z",
+    }, async () => false)).rejects.toThrow("disposition set is not current");
   });
 
   it("invalidates a predecessor's pending pass authorization on disposition supersession", async () => {
@@ -842,6 +887,7 @@ describe("hosted await lane recording", () => {
       requirement: hostedRequirement,
       actorIdentity: hostedContext.actorIdentity,
       authorizeCapacity: async () => undefined,
+      confirmDispositionSetCurrent: async () => true,
       now: "2026-08-15T12:02:00Z",
     });
     expect(decision.state).toBe("admitted");

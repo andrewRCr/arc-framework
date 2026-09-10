@@ -46,6 +46,7 @@ import { bindReviewSourceReference } from "../../../../../src/scripts/review-gat
 import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 import { projectHostedFinding } from "../../../../../src/scripts/review-gate/hosted/await.js";
 import { createHostedAdmission } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { laneProgressOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
@@ -1105,6 +1106,53 @@ describe("review response command", () => {
         },
       },
     });
+  });
+
+  it("serializes disposition publication with admission for the same lane owner", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const lockTails = new Map<string, Promise<void>>();
+    deps.withOperationLock = async <T>(operationId: string, action: () => Promise<T>): Promise<T> => {
+      const prior = lockTails.get(operationId) ?? Promise.resolve();
+      let release: (() => void) | undefined;
+      const held = new Promise<void>((resolve) => { release = resolve; });
+      const tail = prior.then(() => held);
+      lockTails.set(operationId, tail);
+      await prior;
+      try {
+        return await action();
+      } finally {
+        release?.();
+        if (lockTails.get(operationId) === tail) lockTails.delete(operationId);
+      }
+    };
+    let responseEntered: (() => void) | undefined;
+    let releaseResponse: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => { responseEntered = resolve; });
+    const held = new Promise<void>((resolve) => { releaseResponse = resolve; });
+    deps.confirmTarget = async (target) => {
+      responseEntered?.();
+      await held;
+      return { state: "current", target };
+    };
+
+    const response = respondToReviewCommand(localRequest(records, "defer"), deps);
+    await entered;
+    let admissionEntered = false;
+    const admission = deps.withOperationLock(laneProgressOperationId({
+      lane: "standard",
+      repositoryId: records.operation.repositoryId,
+      headSha: records.target.headSha,
+      lineage: records.operation.lineage,
+    }), async () => {
+      admissionEntered = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const overlappedPublication = admissionEntered;
+    releaseResponse?.();
+    await Promise.all([response, admission]);
+
+    expect(overlappedPublication).toBe(false);
   });
 
   it("returns typed refusals when correction proposal target preconditions fail", async () => {
