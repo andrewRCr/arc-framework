@@ -1967,7 +1967,12 @@ describe("arc delivery position", () => {
       "### `[x]` **1.1 Close delivery**",
       "",
     ].join("\n"));
-    await git(fixture.repository, ["add", join(".arc", "active", `tasks-${fixture.plan.workUnitId}.md`)]);
+    await writeFile(join(fixture.repository, "reviewed-terminal.txt"), "reviewed terminal contribution\n");
+    await git(fixture.repository, [
+      "add",
+      join(".arc", "active", `tasks-${fixture.plan.workUnitId}.md`),
+      "reviewed-terminal.txt",
+    ]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install closed delivery task"]);
     const reviewedTerminalHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
     const reviewedTerminalTree = await git(fixture.repository, ["rev-parse", "HEAD^{tree}"]);
