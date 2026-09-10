@@ -6,6 +6,8 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
+import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
+import { HostedProviderIdSchema } from "../hosted/request.js";
 import {
   assertStandardReviewExecutionAdmission,
   projectReviewPolicyAttempt,
@@ -295,6 +297,13 @@ function assertHostedPolicyResolution(
   }
 }
 
+function assertHostedCoverageAdmission(provider: string, coverage: "complete" | "incremental"): void {
+  const recognized = HostedProviderIdSchema.safeParse(provider);
+  if (recognized.success && !hostedProviderAdmitsCoverage(recognized.data, coverage)) {
+    throw new Error(`Hosted review source \`${provider}\` cannot carry an exact correction scope.`);
+  }
+}
+
 /** Refuse a hosted request that no longer has exact driver admission at capacity-spend time. */
 export function assertHostedReservationPolicyAdmission(input: {
   readonly reservation: StandardReviewReservationV1;
@@ -303,11 +312,13 @@ export function assertHostedReservationPolicyAdmission(input: {
   readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   readonly vehicle: DeliveryReviewMemberVehicle;
   readonly provider: string;
+  readonly coverage: "complete" | "incremental";
   readonly maxPasses: number;
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
 }): void {
+  assertHostedCoverageAdmission(input.provider, input.coverage);
   const resolution = resolveHostedReservationPolicy(input);
   assertHostedPolicyResolution(resolution, input.provider);
 }
@@ -323,6 +334,7 @@ export async function assertEvidenceBoundHostedReservationPolicyAdmission(
   input: Parameters<typeof assertHostedReservationPolicyAdmission>[0],
   dependencies: HostedReservationEvidenceDependencies,
 ): Promise<void> {
+  assertHostedCoverageAdmission(input.provider, input.coverage);
   assertHostedPolicyResolution(
     await resolveEvidenceBoundHostedReservationPolicy(input, dependencies),
     input.provider,
@@ -352,6 +364,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
 }): void {
+  assertHostedCoverageAdmission(input.provider, input.coverage);
   if (input.discharge.discharged || input.discharge.nextSource === null
     || (input.invocation === undefined && input.discharge.nextSource !== input.provider)) {
     throw new Error("Hosted Candidate request no longer matches the fresh discharge position.");
@@ -422,6 +435,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
   input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
   dependencies: HostedReservationEvidenceDependencies,
 ): Promise<void> {
+  assertHostedCoverageAdmission(input.provider, input.coverage);
   if (input.discharge.discharged || input.discharge.nextSource === null
     || (input.invocation === undefined && input.discharge.nextSource !== input.provider)) {
     throw new Error("Hosted Candidate request no longer matches the fresh discharge position.");

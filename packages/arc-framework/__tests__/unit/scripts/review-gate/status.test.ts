@@ -1336,7 +1336,7 @@ describe("review status", () => {
     });
   });
 
-  it("refuses to broaden explicit incremental coverage through the complete-only local carrier", async () => {
+  it("admits incremental local review only with an exact correction scope", async () => {
     const scopeSelection = {
       mode: "chunked" as const,
       target: hostedAction.target,
@@ -1356,7 +1356,7 @@ describe("review status", () => {
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
         rubricDigest: `sha256:${"e".repeat(64)}`,
-        retrigger: "full-final",
+        retrigger: "incremental",
         count: 1,
       },
       sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
@@ -1398,9 +1398,18 @@ describe("review status", () => {
       },
     });
 
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "hosted/attempt-1",
+      predecessorHeadSha: oid("a"),
+      basisHeadSha: oid("a"),
+      headSha: hostedAction.target.headSha,
+      requiredFindingIds: ["F-material"],
+    };
     expect(composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
-      discharges: [discharge],
+      discharges: [{ ...discharge, correctionScope }],
+      requestCoverage: "incremental",
     })).toMatchObject({
       state: "review-required",
       localAction: {
@@ -1408,7 +1417,51 @@ describe("review status", () => {
         pass: 4,
         ceilingOverride,
         scopeSelection,
+        correctionScope,
       },
+    });
+  });
+
+  it("offers a capable source instead of dispatching an unscoped CodeRabbit correction", async () => {
+    const coderabbit = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The member requires correction review.",
+        nextSource: "coderabbit-pr",
+        requestCoverage: "incremental",
+        requestAdmission: readyAdmission("coderabbit-pr"),
+      })],
+      requestCoverage: "incremental",
+    });
+
+    expect(coderabbit).toMatchObject({
+      state: "blocked",
+      reason: "coverage-unsupported",
+      conjunction: { members: [{ state: "outstanding" }] },
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: coderabbit }))).resolves.toMatchObject({
+      state: "blocked",
+      reason: "coverage-unsupported",
+      remedy: {
+        invariant: "The selected review carrier cannot preserve the admitted correction scope.",
+        text: expect.stringContaining("Select a capable source or complete coverage, then re-run"),
+      },
+    });
+
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The member requires correction review.",
+        nextSource: "codex-pr",
+        requestCoverage: "incremental",
+        requestAdmission: readyAdmission("codex-pr"),
+      })],
+      requestCoverage: "incremental",
+    })).toMatchObject({
+      state: "review-required",
+      action: { provider: "codex-pr", coverage: "incremental" },
     });
   });
 

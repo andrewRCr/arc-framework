@@ -41,7 +41,14 @@ import {
 } from "./earlier-review-applicability.js";
 import type { ReviewResolveEnvelope } from "./review-policy-driver.js";
 import { projectReviewPolicyAttempt } from "./review-policy-driver.js";
-import { resolveEvidenceBoundReviewPolicy } from "./review-policy-evidence.js";
+import {
+  readIncrementalPredecessorResponseEvidence,
+  resolveEvidenceBoundReviewPolicy,
+} from "./review-policy-evidence.js";
+import {
+  IncrementalReviewScopeSchema,
+  type IncrementalReviewScope,
+} from "../core/incremental-review-scope.js";
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
 type EarlierApplicableAttempt = Extract<
@@ -151,6 +158,7 @@ export interface HostedReservationDischarge {
   localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
   requestCoverage?: HostedReviewCoverage;
+  correctionScope?: IncrementalReviewScope;
 }
 
 function oneRequestedCoverage(
@@ -388,6 +396,10 @@ export async function projectHostedReservationDischarge(input: {
   bindCurrentAttemptRef?: (attemptId: string) => string;
   resolveTerminalPolicy: (attempt: ProjectedLaneAttempt) => Promise<ReviewResolveEnvelope>;
   resolveEarlierTerminalPolicy: (attempt: EarlierApplicableAttempt) => Promise<ReviewResolveEnvelope>;
+  resolveIncrementalCorrectionScope?: (
+    attempt: EarlierApplicableAttempt,
+    currentHeadSha: string,
+  ) => Promise<IncrementalReviewScope | null>;
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
   if (reservation === null) {
@@ -547,6 +559,28 @@ export async function projectHostedReservationDischarge(input: {
     }
     return activeEarlierBySource.get(sourceId) ?? null;
   };
+  const correctionContext = async (): Promise<{ correctionScope?: IncrementalReviewScope }> => {
+    if (input.resolveIncrementalCorrectionScope === undefined) return {};
+    await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
+    const candidates = reservation.sources.flatMap((sourceId) => {
+      const earlier = activeEarlierBySource?.get(sourceId);
+      return earlier?.status === "complete"
+        ? earlier.attempts.filter((attempt) => (
+            attempt.effectiveCoverage === "complete"
+            && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
+            && (attempt.applicability === "request-review"
+              || attempt.applicability === "retain-prior-attempt")
+          ))
+        : [];
+    }).sort((left, right) => right.logicalPass - left.logicalPass
+      || right.updatedAt.localeCompare(left.updatedAt)
+      || left.attemptId.localeCompare(right.attemptId));
+    for (const candidate of candidates) {
+      const correctionScope = await input.resolveIncrementalCorrectionScope(candidate, target.headSha);
+      if (correctionScope !== null) return { correctionScope };
+    }
+    return {};
+  };
   const retainedFindingsBeforeRequest = async (): Promise<HostedReservationDischarge | null> => {
     if (input.readEarlierAttemptApplicability === undefined) return null;
     await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
@@ -643,6 +677,7 @@ export async function projectHostedReservationDischarge(input: {
             + "a settled review across the Candidate span.",
           nextSource: sourceId,
           ...requestContext(),
+          ...await correctionContext(),
         };
       }
       if (earlier.status !== "complete" || earlier.attempts.length === 0) {
@@ -692,6 +727,7 @@ export async function projectHostedReservationDischarge(input: {
           detail: `Hosted source \`${sourceId}\` requires a new review by Owner selection.`,
           nextSource: sourceId,
           ...requestContext(),
+          ...await correctionContext(),
         };
       }
       const applicable = standardAttempts.filter(({ applicability }) => applicability === "retain-prior-attempt");
@@ -765,6 +801,7 @@ export async function projectHostedReservationDischarge(input: {
         + "a settled review across the Candidate span.",
       nextSource: sourceId,
       ...requestContext(),
+      ...await correctionContext(),
     };
   }
   return {
@@ -955,6 +992,29 @@ export function createHostedReservationDischargeReader(input: {
         confirmTarget: () => Promise.resolve(terminal.producerTarget),
       });
     };
+    const resolveIncrementalCorrectionScope = async (
+      attempt: EarlierApplicableAttempt,
+      currentHeadSha: string,
+    ): Promise<IncrementalReviewScope | null> => {
+      if (attempt.producerTarget === undefined) return null;
+      const predecessor = await resultReader.readResult(attempt.attemptId).catch(() => null);
+      if (predecessor === null
+        || predecessor.kind === "frontline"
+        || predecessor.admission.effectiveCoverage !== "complete"
+        || predecessor.sourceIdentity !== attempt.sourceId
+        || canonicalize(predecessor.target) !== canonicalize(attempt.producerTarget)) return null;
+      const response = await readIncrementalPredecessorResponseEvidence(predecessor, dispositions)
+        .catch(() => null);
+      if (response?.status !== "performed") return null;
+      return IncrementalReviewScopeSchema.parse({
+        schemaVersion: 1,
+        predecessorProducerId: predecessor.producerId,
+        predecessorHeadSha: predecessor.target.headSha,
+        basisHeadSha: predecessor.target.headSha,
+        headSha: currentHeadSha,
+        requiredFindingIds: [...new Set(response.requiredFindingIds)].sort(),
+      });
+    };
     return projectHostedReservationDischarge({
       reservation,
       span,
@@ -1013,6 +1073,7 @@ export function createHostedReservationDischargeReader(input: {
             : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
         });
       },
+      resolveIncrementalCorrectionScope,
       ...(snapshot === null || changeRequest === null || candidate === undefined || lineage === undefined
         ? {}
         : {

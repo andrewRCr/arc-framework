@@ -2756,6 +2756,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             target: request.target,
             vehicle: deliveryVehicle,
             provider: request.provider,
+            coverage: request.coverage,
             maxPasses: policy.maxPasses,
             ...(discharge.requestAttempts === undefined
               ? {}

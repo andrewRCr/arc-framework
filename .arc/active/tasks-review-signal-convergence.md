@@ -577,38 +577,17 @@ Coverage labels and contribution applicability cannot substitute for evaluator s
   fails closed on broken chains or responses and requires every correction scope to retain transitive material-finding
   instructions; convergence now combines that coverage proof with only the fresh result's verified signal.
 
-### `[ ]` **6.2 Carry exact correction scope through local materialization and adapter admission**
+### `[x]` **6.2 Carry exact correction scope through local materialization and adapter admission**
 
 - _Goal:_ A correction review receives its admitted exact range and material re-examination instructions, or returns
   truthful limits.
 
-- _Note:_ Spec § 5 Coverage and incremental continuation; SC 12, 13, and 17.
-
-- _Approach:_ Extend local review materialization separately from whole-target identity. Preserve existing adapter
-  selection and coverage upgrades; capability labels do not establish exact evaluator scope. Close endpoint pinning,
-  source verification, sweep enumeration, and cleanup together under existing operation lifetime rules.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Local source/payload preparation binds prior/current endpoints and complete required finding instructions.
-
-        - Public status/admission permits incremental local review only when the returned action carries the validated
-          correction scope into materialization; replace its current blanket local-incremental refusal coherently.
-
-        - The current operation pins all required correction endpoints, including a nonancestor prior head. Verify
-          them on prepare/replay/attest; predecessor cleanup cannot release current pins. Extend existing ref ownership
-          and sweep enumeration coherently, with terminal/expiry cleanup and no permanent history-retention mechanism.
-
-        - After predecessor cleanup and Git maintenance, an admitted nonancestor correction remains reproducible.
-          Already-missing objects produce typed scope unavailability, not a claimed complete basis or silent review.
-
-        - Frontline remains whole-target complete; hosted Codex's explicit complete upgrade remains truthful.
-
-        - CodeRabbit's fixed incremental command cannot establish arbitrary correction range/material instructions from
-          its label alone; insufficient scope returns capable-source/coverage selection without silent complete
-          dispatch.
-
-        - An incremental result can be triaged/responded to and counted even when its coverage cannot close the member.
+- _Outcome:_ Exact predecessor, basis, current-head, and material-finding instructions now flow from source-neutral
+  complete producer evidence through public local admission, immutable source identity, materialization, replay, and
+  attestation. Operation-owned refs retain nonancestor endpoints and remain sweep-discoverable across interrupted
+  cleanup; missing objects fail with typed scope unavailability. Codex keeps its explicit complete upgrade, while
+  CodeRabbit's unscoped incremental command is refused before dispatch with capable-source/complete-coverage guidance;
+  inadequate terminal incremental results remain available to response, pass accounting, and later coverage selection.
 
 ### `[ ]` **6.3 Compose adequate incremental signal with member selection and distinct Owner authority**
 

@@ -18,6 +18,8 @@ import {
   type SpineRemedy,
 } from "../integration/spine-refusal.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
+import type { IncrementalReviewScope } from "./core/incremental-review-scope.js";
+import { hostedProviderAdmitsCoverage } from "./hosted/correction-review-capability.js";
 import {
   HostedProviderIdSchema,
   HostedReviewCoverageSchema,
@@ -540,6 +542,7 @@ export function composeDeliveryReviewObligation(input: {
     requestCeilingOverride?: ReviewCeilingOverride;
     requestScopeSelection?: z.infer<typeof DeliveryLocalReviewScopeSelectionSchema>;
     requestCoverage?: HostedReviewCoverage;
+    correctionScope?: IncrementalReviewScope;
     completedPasses: number;
     completePasses: number;
     passCeiling: number;
@@ -682,7 +685,7 @@ export function composeDeliveryReviewObligation(input: {
         detail: "The standard-review driver selected an unsupported local review source.",
       };
     }
-    if (requestCoverage === "incremental") {
+    if (requestCoverage === "incremental" && discharge.correctionScope === undefined) {
       return RoutedReviewObligationSchema.parse({
         state: "blocked",
         reason: "coverage-unsupported",
@@ -710,6 +713,9 @@ export function composeDeliveryReviewObligation(input: {
         ...(discharge.requestScopeSelection === undefined
           ? {}
           : { scopeSelection: discharge.requestScopeSelection }),
+        ...(discharge.correctionScope === undefined
+          ? {}
+          : { correctionScope: discharge.correctionScope }),
       },
     });
   }
@@ -719,6 +725,14 @@ export function composeDeliveryReviewObligation(input: {
       state: "blocked",
       detail: `The next reserved source \`${discharge.nextSource}\` is not a hosted request provider.`,
     };
+  }
+  if (!hostedProviderAdmitsCoverage(provider.data, requestCoverage)) {
+    return RoutedReviewObligationSchema.parse({
+      state: "blocked",
+      reason: "coverage-unsupported",
+      detail: "The selected hosted review carrier cannot preserve the admitted correction scope.",
+      conjunction: { kind: "delivery", status: "outstanding", members },
+    });
   }
   return RoutedReviewObligationSchema.parse({
     state: "review-required",
@@ -1125,8 +1139,8 @@ export async function resolveReviewStatus(
         reason: "coverage-unsupported",
         detail: base.routedObligation.detail,
         remedy: spineRemedy(
-          "The selected local carrier cannot preserve explicit incremental coverage.",
-          "Use a carrier that preserves incremental coverage, then re-run",
+          "The selected review carrier cannot preserve the admitted correction scope.",
+          "Select a capable source or complete coverage, then re-run",
           [
             "arc", "review", "status", "--work-unit", currentMember.vehicle.workUnitId,
             "--coverage", "incremental", "--json",

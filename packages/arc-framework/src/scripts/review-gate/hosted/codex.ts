@@ -30,6 +30,7 @@ export const CODEX_HOSTED_REGISTRATION = {
     complete: COMMAND,
     incremental: COMMAND,
   },
+  correctionReview: "complete-upgrade",
   identities: { appId: APP_ID, botUserId: BOT_USER_ID },
 } as const;
 

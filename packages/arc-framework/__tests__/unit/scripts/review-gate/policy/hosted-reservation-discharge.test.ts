@@ -1882,6 +1882,56 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it("carries a source-neutral complete predecessor into a local correction request", async () => {
+    const priorTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("a"),
+      headTree: oid("2"),
+    });
+    const prior = earlierAttempt({
+      attemptId: "hosted/prior-complete",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      producerTarget: priorTarget,
+      applicability: "request-review" as const,
+    });
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: prior.attemptId,
+      predecessorHeadSha: prior.producerTarget.headSha,
+      basisHeadSha: prior.producerTarget.headSha,
+      headSha: oid("b"),
+      requiredFindingIds: [],
+    };
+
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation("delegated-agent", ["delegated-agent", "codex-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async (sourceId) => sourceId === "codex-pr"
+        ? { status: "complete", attempts: [prior] }
+        : { status: "not-found" },
+      resolveIncrementalCorrectionScope: async (attempt, currentHeadSha) => (
+        attempt.attemptId === prior.attemptId && currentHeadSha === oid("b")
+          ? correctionScope
+          : null
+      ),
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: "delegated-agent",
+      correctionScope,
+    });
+  });
+
   it("does not spend provider capacity for an unresolved or unavailable prior projection", async () => {
     for (const readEarlierAttemptApplicability of [
       async () => ({

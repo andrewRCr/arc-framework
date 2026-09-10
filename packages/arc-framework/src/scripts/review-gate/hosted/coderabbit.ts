@@ -39,6 +39,7 @@ const INCREMENTAL_REPLY = /^[ \t]*Review finished\.[ \t]*$/imu;
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
   commands: COMMANDS,
+  correctionReview: "unscoped-incremental",
   identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID, appId: APP_ID },
 } as const;
 

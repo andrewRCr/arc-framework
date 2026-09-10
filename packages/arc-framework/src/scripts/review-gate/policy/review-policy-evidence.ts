@@ -24,6 +24,7 @@ import {
 import {
   resolveIncrementalCoverageBasis,
   type IncrementalPredecessorApplicability,
+  type IncrementalPredecessorResponseEvidence,
 } from "./incremental-coverage-basis.js";
 
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
@@ -137,6 +138,38 @@ function greaterSeverity(left: ReviewSeverity | null, right: ReviewSeverity): Re
   return left === null || severityRank[right] > severityRank[left] ? right : left;
 }
 
+/** Resolve approved and performed response evidence for one immutable predecessor result. */
+export async function readIncrementalPredecessorResponseEvidence(
+  predecessor: ReviewResult,
+  dispositionStore: ApprovedDispositionRecordStore,
+): Promise<IncrementalPredecessorResponseEvidence> {
+  if (predecessor.originalOutcome === "clean") {
+    return { status: "performed", requiredFindingIds: [] };
+  }
+  const predecessorRecord = await dispositionStore.readDispositionRecord(predecessor.producerId);
+  if (predecessorRecord === null) {
+    return { status: "incomplete", requiredFindingIds: [] };
+  }
+  const approved = validateApprovedDispositionRecordForResult(predecessorRecord, predecessor);
+  const node = currentApprovedDispositionNode(approved);
+  const dispositions = node.approvedDisposition.dispositionSet.findings;
+  const requiredFindingIds = dispositions
+    .filter(({ sourceVerification, verifiedSeverity }) => sourceVerification === "verified"
+      && (verifiedSeverity === "major" || verifiedSeverity === "critical"))
+    .map(({ findingId }) => findingId);
+  const hasFix = dispositions.some(({ disposition }) => disposition === "fix");
+  const fixPerformed = !hasFix
+    || node.deliveryMemberFixResponse !== null
+    || node.errandFixResponse !== null;
+  const hostSettlementPerformed = predecessor.kind !== "hosted"
+    || predecessor.hostSettlementFindingIds.length === 0
+    || predecessor.settled;
+  return {
+    status: fixPerformed && hostSettlementPerformed ? "performed" : "incomplete",
+    requiredFindingIds,
+  };
+}
+
 async function deriveVerifiedTerminalSignal(
   result: ReviewResult,
   operationId: string,
@@ -149,35 +182,10 @@ async function deriveVerifiedTerminalSignal(
     resultReader: dependencies.resultReader,
     confirmApplicability: dependencies.confirmIncrementalApplicability
       ?? (() => Promise.resolve("unavailable")),
-    readResponseEvidence: async (predecessor) => {
-      if (predecessor.originalOutcome === "clean") {
-        return { status: "performed", requiredFindingIds: [] };
-      }
-      const predecessorRecord = await dependencies.dispositionStore.readDispositionRecord(
-        predecessor.producerId,
-      );
-      if (predecessorRecord === null) {
-        return { status: "incomplete", requiredFindingIds: [] };
-      }
-      const approved = validateApprovedDispositionRecordForResult(predecessorRecord, predecessor);
-      const node = currentApprovedDispositionNode(approved);
-      const dispositions = node.approvedDisposition.dispositionSet.findings;
-      const requiredFindingIds = dispositions
-        .filter(({ sourceVerification, verifiedSeverity }) => sourceVerification === "verified"
-          && (verifiedSeverity === "major" || verifiedSeverity === "critical"))
-        .map(({ findingId }) => findingId);
-      const hasFix = dispositions.some(({ disposition }) => disposition === "fix");
-      const fixPerformed = !hasFix
-        || node.deliveryMemberFixResponse !== null
-        || node.errandFixResponse !== null;
-      const hostSettlementPerformed = predecessor.kind !== "hosted"
-        || predecessor.hostSettlementFindingIds.length === 0
-        || predecessor.settled;
-      return {
-        status: fixPerformed && hostSettlementPerformed ? "performed" : "incomplete",
-        requiredFindingIds,
-      };
-    },
+    readResponseEvidence: (predecessor) => readIncrementalPredecessorResponseEvidence(
+      predecessor,
+      dependencies.dispositionStore,
+    ),
   });
   const coverageAdequate = coverage.status === "adequate";
   if (result.originalOutcome === "clean") {

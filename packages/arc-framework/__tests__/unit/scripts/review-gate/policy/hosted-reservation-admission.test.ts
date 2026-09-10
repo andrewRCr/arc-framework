@@ -969,6 +969,7 @@ describe("hosted reservation admission", () => {
       target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
       vehicle: deliveryVehicle,
       provider: "codex-pr",
+      coverage: "complete" as const,
       maxPasses: 1,
     };
 
@@ -982,6 +983,24 @@ describe("hosted reservation admission", () => {
         nextPass: 2,
       },
     })).not.toThrow();
+  });
+
+  it("refuses an unscoped CodeRabbit correction before hosted capacity is spent", () => {
+    expect(() => assertCandidateHostedReservationPolicyAdmission({
+      reservation,
+      discharge: {
+        discharged: false,
+        detail: "The current Candidate head requires correction review.",
+        nextSource: "coderabbit-pr",
+        requestCoverage: "incremental",
+      },
+      progress: null,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD },
+      provider: "coderabbit-pr",
+      coverage: "incremental",
+      maxPasses: 2,
+      logicalPass: 1,
+    })).toThrow(/cannot carry an exact correction scope/u);
   });
 
   it("excludes prior-head terminals when rechecking Candidate capacity at the pass ceiling", () => {
