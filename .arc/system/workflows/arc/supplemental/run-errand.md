@@ -3,6 +3,7 @@ purpose: Execute an out-of-work-unit errand end to end as a re-enterable Launch 
 audience: agent
 arc:
   methods:
+    - assess-evidence-applicability
     - assess-parallel-fit
     - commit-footer
     - frontline-review
@@ -377,14 +378,11 @@ remote base all name the same exact head. Any tracked change continues through t
    hosted await, response, settlement, or reduction. Never reconstruct review state from workflow prose or invent
    WU state: the Errand branch, PR, and public operation references are sufficient continuity.
 
-   After every target movement, make and disclose a **review applicability** judgment from the exact delta. Use
-   targeted verification when prior complete coverage confidently remains applicable to a narrow non-interacting
-   record-only or lifecycle delta; use a focused supplemental check for a bounded interaction. Repeat full review
-   for behavioral, authority, contract, materially interacting, or uncertain change. A confident bounded
-   choice proceeds without a permission stop. An agent-selected supplemental review is disclosed as it runs and
-   enters the same disposition loop. A hosted supplemental request uses `coverage: incremental`; if its adapter
-   reports `effectiveCoverage: complete`, accept the broader review and disclose the upgrade. Stop only for new
-   authority, material cost, or genuine uncertainty.
+   After every target movement, return through the routed review action and dispatch its typed continuation. Do not
+   classify movement or choose review scope from prose. When Step 6 supplies a `supplemental` recommendation, request
+   hosted `coverage: incremental`; when it supplies `fresh`, repeat the complete applicable review. If an adapter
+   reports `effectiveCoverage: complete` for the supplemental request, accept the broader review and disclose the
+   upgrade.
 
    Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and integration
    authority. After the routed review settles, run `arc review planning-lane <base-sha> <head-sha>` over the exact
@@ -398,115 +396,56 @@ remote base all name the same exact head. Any tracked change continues through t
    vehicle is explicitly outside WU composition-product requirements. **Never infer the exemption from absent or
    malformed WU state** · `[invariant]`; a missing or contradictory Errand identity stops.
 
-   Invoke authoritative base freshness:
+   After any fix or request action changes the head, execute the generic push contract, rerun chunking, and return
+   through Step 4's review-applicability route. Compose the final `openedChangeRequest`, require any planning-grooming
+   adapter target to match it, and retain the exact strict Errand identity and selected lane.
 
-   ```bash
-   arc base drift --json
-   ```
+   Invoke `arc review merge-method resolve --json` once and continue only from `validated / use-method`. Retain the
+   returned `method` and `policyFingerprint`; `blocked / stop` stops. Compose one strict `errandMergeRequest` from
+   those returned values plus `schemaVersion: 1`, the strict Errand `slug`, `claimId`, `branch`, and `generation`,
+   the exact `repository`, `pullRequest`, `baseRef`, `headRef`, and `headSha`, and the selected `lane`.
 
-   After any fix, request action, or append-only base reconcile changes the head, execute the generic push contract,
-   rerun chunking, and return through Step 4's review applicability judgment. Use targeted verification only when
-   prior complete coverage confidently remains applicable; otherwise run focused or full review. Repeat until
-   base, head, requirements, and review are settled.
-
-   Compose the final `openedChangeRequest` and retain `openedChangeRequest.headSha` as `{approved-head-sha}`.
-   For a planning-grooming case, require the most recent opened-target adapter target to match this final settled
-   head. A missing or mismatched adapter target returns to Step 4 before the pre-merge extension or integration
-   interlock.
-
-   **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled head and render
-   their results under this label. Otherwise, skip — an inactive extension renders nothing. The extension fires
-   here, before the integration interlock.
-   No review-authored commit or push may occur after this checkpoint.
+   **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled request and render
+   their results under this label. Otherwise, skip — an inactive extension renders nothing. No review-authored commit
+   or push may occur after this checkpoint.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop after the current head is settled and before releasing the exact target and
-> executing its merge action. Surface the exact head, applicable planning-grooming adapter target, review
-> applicability calls and targeted verification, proposed final dispositions, PR checks, required approvals, base
-> freshness, and the resolved lane. State
-> that approval applies final dispositions and channel settlement, ends review, invokes the exact-head release on
-> whichever lane resolves, and authorizes exact-head merge. A redirect may instead select release-only for
-> asynchronous host review or later manual merge.
-> Close with `Approve (or redirect)?`.
+> `integration-interlock`: Stop after the exact Errand merge request and extension report are settled. Surface the
+> request, review applicability, proposed final dispositions, required checks and approvals, and resolved lane. State
+> that approval applies those dispositions and channel settlement, ends review, and authorizes the exact-head merge
+> represented by this request. A redirect may instead select release-only for asynchronous host review or later manual
+> merge. Close with `Approve (or redirect)?`.
 
-After approval, apply the approved final dispositions and channel settlements, then continue to the selected lane
-action.
+After approval, apply the approved final dispositions and channel settlements. An explicit release-only redirect
+invokes `arc merge lock release -` for the exact approved target and stops after `released / proceed` or `no-lock /
+none`; `blocked / stop` renders its typed reason and stops. This separate operation authorizes no merge.
 
-6. Land per lane:
-
-   Immediately before either lane action, invoke `arc base drift --json` once more. Only authoritative `clean`
-   continues; `reconcile` returns to Step 5, while unavailable or malformed output stops.
-
-   An explicit release-only redirect skips both normal lane actions and enters **Release-only redirect** below.
-
-   **Auto-merge-lane** — re-read the PR's exact base SHA and rerun the canonical classifier immediately before
-   arming. Only literal `planning` preserves this lane; `reviewed` returns to Step 5 as reviewed-lane, while command
-   failure or malformed output stops. Invoke the merge-method resolver, release the exact target, and arm native
-   auto-merge:
+6. **Run the approved terminal operation.** For the normal route, pass `errandMergeRequest` unchanged exactly once:
 
    ```bash
-   arc review planning-lane <base-sha> {approved-head-sha}
-   arc review merge-method resolve --json
-   arc merge lock release -
-   gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}
+   arc errand merge <slug> - --json
    ```
 
-   `validated / use-method` supplies the method; `blocked / stop` stops before release. For lock release,
-   `released / proceed` and `no-lock / none` continue, while `blocked / stop` stops. On this lane,
-   `--match-head-commit` is arming-time head validation; native auto-merge remains the host's unattended waiting
-   mechanism after the exact planning classification and release.
+   Render the returned `state`, `nextAction`, `detail`, and its supplied remedy or terminal explanation. Dispatch
+   only on that typed result:
 
-   **Reviewed-lane** — keep the exact PR locked while awaiting required checks:
+   - `merged / complete` enters Complete.
+   - `awaiting-checks / retry`, `host-pending / retry`, and retryable operational or unknown-mutation results stop
+     with the exact continuation intact. A later re-entry invokes only its supplied remedy; never poll or recursively
+     invoke the terminal command.
+   - `reconcile-base / reconcile-base` and `reconcile-regenerable / reconcile-regenerable` invoke only the supplied
+     remedy, run Tier 1 on the resulting head, push through the generic contract, and return through Step 4 before a
+     fresh integration approval.
+   - `invalidated / request-approval` returns through Step 4 and settles a fresh exact request before approval.
+   - `conflict / stop`, `host-refused / stop`, and non-retryable operational results stop on their supplied
+     explanation. Lock recovery and mutation-state classification remain owned by the verb.
 
-   ```bash
-   arc review checks await \
-     --repository <repository> \
-     --pull-request <pr-number> \
-     --head-sha {approved-head-sha} \
-     --json
-   ```
-
-   `green / complete` and `not-required / complete` proceed. `pending / await` retains approval for the same exact
-   head, keeps the lock, surfaces the checks, diagnostic failures, and elapsed wait, and ends the foreground attempt;
-   `unavailable / retry` does the same while also surfacing its typed `cause` and `detail`. A later retry invokes the
-   same command with no second ARC approval while the head remains unchanged. `failed / stop`, `stale-target / stop`,
-   `target-mismatch / stop`, and `blocked / stop` stop with the lock held.
-
-   After checks permit merge, invoke `arc base drift --json` again while the lock remains held. Only authoritative
-   `clean` continues; `reconcile` returns to Step 5, while unavailable or malformed output stops.
-
-   Then rerun the exact-head change-request resolver:
-
-   ```bash
-   arc review change-request resolve --head-ref <branch> --head-sha {approved-head-sha} --json
-   ```
-
-   Continue only from `open / reuse-change-request` for the same `<pr-number>`; that result proves the configured
-   base and exact approved head. Any other state, action, or candidate stops with the lock held.
-
-   Then validate the method, release the exact target, and invoke the direct head-matched merge:
-
-   The release request combines `schemaVersion: 1`, the absolute checkout path as `treeRoot`, the exact approved
-   `{ repository, pullRequest, headSha }` target, and `{ kind: "errand", slug: <slug> }` as `vehicle`.
-
-   ```bash
-   arc review merge-method resolve --json
-   arc merge lock release -
-   gh pr merge <pr-number> <merge-flag> --match-head-commit {approved-head-sha}
-   ```
-
-   The merge-method and lock-release dispatches are the same as the auto-merge lane. Any independently required host
-   approval remains host-enforced; a host refusal stops rather than bypassing it.
-
-   **Release-only redirect** — invoke `arc merge lock release -` for the exact approved target and stop after
-   `released / proceed` or `no-lock / none`; `blocked / stop` stops on its typed reason. Report required-check and
-   approval state, and keep the PR open for asynchronous host review or later manual merge. Do not invoke a merge
-   command: the selection authorizes the unlocked waiting state, not merge.
-
-   Once a lane releases, **every other unapproved exit re-locks first**. The explicitly selected release-only state
-   is the sole exception. A failed or refused auto-merge arm or direct merge, or a later head change before Step 4
-   re-entry, invokes `arc merge lock hold -` for the exact target. Dispatch on its typed action, then surface the
-   originating exit rather than the hold in its place.
+   **Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: Only an
+   `applicability-judgment-required / assess-applicability` result with
+   `applicability.judgmentRequired: true` loads and applies the method to its bounded review residual. Follow its
+   `supplemental | fresh` recommendation through Step 4's review/applicability route, then compose a new request and
+   obtain fresh integration approval before any terminal mutation. A `judgmentRequired: false` result is final, and
+   `merge-safety` never fires the method.
 
 7. **Leave at a terminal session exit or before a genuine blocking-Errand detour.** When the session is ending with
    the merge tail unresolved, or work is moving machines, invoke
@@ -565,6 +504,7 @@ idempotent and may return the next file-ordered execute-bound offer.
 ---
 
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
+[assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
 [finalize-pass]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [drain-inbox]: drain-inbox.md

@@ -411,45 +411,25 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
 - _Outcome:_ the Errand terminal lane now composes the shared evidence policy and host semantics behind one
   exact-effect command whose machine and interactive surfaces preserve the same typed continuation.
 
-### `[ ]` **4.4 Wire typed terminal results and residual judgment through workflows** — D3, D6, D9-D11, D15
+### `[x]` **4.4 Wire typed terminal results and residual judgment through workflows** — D3, D6, D9-D11, D15
 
 - _Goal:_ executing sessions invoke stable verbs and render precomposed outcomes, while the only agent judgment occurs
   at an explicit bounded-residual fire-point.
 
-- **Additional Context:** `notes-evidence-applicability.md` § Terminal integration decisions
+    - `[x]` **4.4.a Ship the residual-judgment method**
+        - Shipped the configurable method through recipe, classification, manifest, reverse-index, inventory, init,
+          reconfigure, and package/project sync surfaces with a bounded `supplemental | fresh` contract.
 
-    - `[ ]` **4.4.a Ship the residual-judgment method**
-        - Add `assess-evidence-applicability.md` to package source and the project mirror; register it in
-          `src/lib/classification.ts`, `init-recipe.json`, the generated `.arc/system/.internal/manifest.json`, and
-          both copies of `strategy-session-operations.md`'s method-trigger reverse index. Update the project-only
-          configurable inventory/count in `strategy-package-project-sync.md`.
-        - Constrain the method to `supplemental | fresh` recommendations over bounded non-base clean divergence or
-          review/verification base-movement overlap, exclude merge safety, and keep every final deterministic row in
-          the TypeScript reducer.
-        - Build `test-first` (one behavior at a time):
-            - classification and recipe membership agree;
-            - init and reconfigure install the method in the applicable modes;
-            - generated-manifest and configurable-inventory expectations include it; and
-            - framework-sync proves every shipped pair that should match.
+    - `[x]` **4.4.b Convert integration and delivery workflows to typed dispatch**
+        - Embedded the shared reducer result in Candidate and review-contribution authority projections; integration
+          and delivery now dispatch typed verbs and fire the method only for their concrete bounded residual fields.
 
-    - `[ ]` **4.4.b Convert integration and delivery workflows to typed dispatch**
-        - Update both copies of `integrate-work-unit.md` and `deliver-stack.md` to invoke the checkpoint, terminal
-          merge, and eligibility verbs once, render their supplied next action, and mark/declare the method only where
-          the post-reconcile integration result or a delivery member-rewrite applicability result carries
-          `judgmentRequired: true`. Mechanical eligibility, review status, and terminal-position classification stay
-          deterministic and never fire the method.
-        - Preserve exact-head integration approval, the native `queue-not-atomic` refusal, and all lifecycle and
-          settlement bindings without comparing provider or movement fields in prose.
+    - `[x]` **4.4.c Convert the Errand workflow to the terminal verb**
+        - Replaced terminal lane mechanics with one `arc errand merge` dispatch and its supplied continuations while
+          retaining advisory drift, fresh approval after judgment, and the separate release-only lock operation.
 
-    - `[ ]` **4.4.c Convert the Errand workflow to the terminal verb**
-        - Update both copies of `run-errand.md` so its advisory drift read stays advisory and its approved terminal
-          step invokes `arc errand merge` once; declare `assess-evidence-applicability` and mark the judgment-required
-          result's fire-point, returning through review/applicability and fresh integration approval before mutation.
-          Remove raw provider merge commands, movement matrices, recursive polling, and lock-recovery mechanics from
-          the prose. Preserve the existing release-only `arc merge lock release` route as the explicit separate
-          operation because it authorizes no merge.
-        - Add workflow pin tests and run method-trigger, section-reference, and package/project sync checks over every
-          edited shipped surface.
+- _Outcome:_ executing workflows now preserve exact authority while rendering code-owned terminal outcomes; agent
+  judgment is isolated to declared, marked, bounded-residual fire-points.
 
 ### `[ ]` **4.5 Align integration authority and concurrent-work doctrine** — D14
 

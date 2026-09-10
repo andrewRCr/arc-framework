@@ -11,6 +11,11 @@ import {
   MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
   MAX_EVIDENCE_APPLICABILITY_PATHS,
 } from "../../../lib/evidence-applicability/schema.js";
+import {
+  composeEvidenceDelta,
+  EvidenceApplicabilityResultSchema,
+  reduceEvidenceApplicability,
+} from "../../../lib/evidence-applicability/index.js";
 import { canonicalDigest } from "../../../lib/kernel/index.js";
 import { isManagedPath } from "../../../lib/kernel/canonical/managed-path.js";
 import {
@@ -78,6 +83,7 @@ export const ReviewContributionApplicabilityResultSchema = z.union([
     state: z.literal("decision-required"),
     nextAction: z.literal("request-authority"),
     verdict: z.enum(["clean-divergence", "interaction"]),
+    applicability: EvidenceApplicabilityResultSchema,
     projection: DeliveryContributionEndpointsSchema,
     paths: BoundedResidualSchema,
     projectionDigest: DigestSchema,
@@ -255,11 +261,17 @@ export function classifyReviewContributionApplicability(
       verdict,
       paths: bounded.data,
     });
+    const applicability = reduceEvidenceApplicability(composeEvidenceDelta({
+      cause: "member-rewrite",
+      endpoints: facts.endpoints,
+      proof: { ...facts.proof, paths: bounded.data },
+    }), "review-clearance");
     return ReviewContributionApplicabilityResultSchema.parse({
       ...base,
       state: "decision-required",
       nextAction: "request-authority",
       verdict,
+      applicability,
       projection: facts.endpoints,
       paths: bounded.data,
       contributionChanged: true,

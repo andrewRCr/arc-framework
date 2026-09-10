@@ -3,6 +3,7 @@ purpose: Execute or resume one canonical delivery stack through exact-head revie
 audience: agent
 arc:
   methods:
+    - assess-evidence-applicability
     - frontline-review
     - standard-review
     - implementation-audit
@@ -97,6 +98,11 @@ Supply the snapshot and complete `gateResults` list to close the same observatio
 ```bash
 arc delivery eligibility close - --json
 ```
+
+Invoke each eligibility verb once for its observation window. Dispatch only on the typed result and render any
+supplied `nextAction` or `recommendedActionText`; a re-prepare action starts a new window rather than replaying either
+verb inside the current one. Mechanical eligibility and terminal-position classification do not fire an evidence-
+applicability method.
 
 ## Validate and publish
 
@@ -238,8 +244,9 @@ The request carries the exact `planId` and current native member subject retaine
 it derives no position facts. The handler revalidates both against canonical plan/state before provider access.
 Only its fresh `unlinked` result continues through the ordinary singleton path below. Every other result renders its
 precomposed guidance and stops without a landing mutation. `blocked` likewise renders `recommendedActionText` and
-stops. A `linked-single` or explicitly selected direct `linked-atomic` result binds `selectedDeliverableId` to its
-first returned member and settles exact member review authority before set-wide preparation.
+stops. `queue-not-atomic` remains this native refusal: render its supplied sequential fallback without synthesizing an
+enqueue route. A `linked-single` or explicitly selected direct `linked-atomic` result binds `selectedDeliverableId`
+to its first returned member and settles exact member review authority before set-wide preparation.
 
 ### Settle exact member review authority
 
@@ -257,8 +264,8 @@ review evidence exists. Resolve its exact open change request and pass the resol
 arc review status --target '{targetRef}' --json
 ```
 
-The default action requests complete coverage. When the exact corrective delta warrants only a focused supplemental
-hosted pass, request it from the same first-outstanding member position instead of editing an action:
+The default action requests complete coverage. When a typed applicability recommendation requires a focused
+supplemental hosted pass, request it from the same first-outstanding member position instead of editing an action:
 
 ```bash
 arc review status --target '{targetRef}' --coverage incremental --json
@@ -350,8 +357,17 @@ finding settlement, execute the returned settlement plan in phase order through:
 arc review hosted settle -
 ```
 
-`resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice, and
-submits the returned `selectionAction` unchanged as `offer` beside that `selection` to:
+`resolve-review-applicability` renders `selectionAction.interactionText` before the Owner's typed choice.
+
+**Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: Only when the typed
+member-rewrite result carries `selectionAction.projection.applicability.judgmentRequired: true`, or a projection in
+`selectionAction.projections` carries the same field, load and apply the method to each such bounded review residual
+and show its `supplemental | fresh` recommendation before selection. A
+`judgmentRequired: false` result is final, `merge-safety` never fires the method, and mechanical eligibility or
+terminal position never substitutes for this result.
+
+Obtain the Owner's typed choice and submit the returned `selectionAction` unchanged as `offer` beside that
+`selection` to:
 
 ```bash
 arc candidate applicability resolve {workUnitId} -
@@ -647,6 +663,7 @@ delivery arm from the current Candidate and retained member bindings, and its ex
 terminal merge. Do not fire a delivery interlock here.
 
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
+[assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md

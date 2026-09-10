@@ -3,6 +3,7 @@ purpose: Integrate a published work unit — push, change request, hosted review
 audience: agent
 arc:
   methods:
+    - assess-evidence-applicability
     - adversarial-review
     - standard-review
     - review-chunking
@@ -357,18 +358,10 @@ While a hosted await is live, speculative drafting of Completion Notes, Release 
 allowed when useful. Do not commit, push, archive, regenerate readiness, or destructively clean from that draft
 before `review-settled`.
 
-After every target movement, make and disclose a **review applicability** judgment from the exact delta:
-
-- use targeted verification when prior complete coverage confidently remains applicable to a narrow,
-  non-interacting record-only or lifecycle delta;
-- run a focused supplemental check when a bounded interaction deserves attention but not a complete pass;
-- repeat the applicable complete review for behavioral, authority, contract, materially interacting, or uncertain
-  change.
-
-These are judgment signals, not an eligibility checklist or proof obligation. A confident bounded choice proceeds
-without asking permission and is retained for the final gate. An agent-selected supplemental review is disclosed
-as it runs and enters the same finding/disposition loop; it does not settle `standardReview` unless it ran that
-contract. For an ordinary singleton, request a hosted supplemental review through its exact target:
+After every target movement, re-enter through `arc review status` and dispatch its typed action. Do not classify
+movement or choose review scope from prose; this pre-reconcile status route does not fire the applicability method.
+When a supplied action requires a hosted supplemental review for an ordinary singleton, request it through its exact
+target:
 
 ```bash
 arc review status --target '{targetRef}' --coverage incremental --json
@@ -539,6 +532,10 @@ Invoke the checkpoint:
 arc integrate checkpoint {name} --json
 ```
 
+Invoke the checkpoint once per entry. Dispatch only on its typed `state` / `nextAction`, render the supplied next
+action and presentation or remedy, and do not reconstruct movement, provider, eligibility, or review policy from its
+payload.
+
 The checkpoint reduces machine-proved `applicable` currentness internally, with no attended step. Follow every
 surfaced Candidate-applicability action exactly:
 
@@ -548,6 +545,12 @@ surfaced Candidate-applicability action exactly:
 - `candidate-applicability / request-authority` renders `payload.selectionOfferText`,
   `payload.recommendedActionText`, and `payload.selectionPromptText` verbatim, then stops for the named authority's
   explicit choice. Do not infer a selection from the recommendation.
+
+**Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: On this post-reconcile
+route only, when `payload.applicability.judgmentRequired: true`, load and apply the method to the supplied bounded
+review or verification residual. Show its `supplemental | fresh` recommendation before the existing authority
+selection; only the recorded selection acts. A `judgmentRequired: false` result is final, and `merge-safety` never
+fires the method.
 
 After an explicit `covered`, `targeted-check`, or `changed` choice, compose the strict input from
 `payload.resolutionSelector`, the selecting actor, and that choice. For `targeted-check`, first complete the bounded
@@ -603,8 +606,9 @@ supplies neither verdict.
 `payload.reconcileInput` unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
 This reuses ordinary delivery reconciliation and adds no new operation.
 
-`blocked / stop` renders its typed reason, movement, feasibility and admission endpoints, diagnostic detail, and
-structured remedy when present, then stops. `ready / request-approval` continues at the ready checkpoint below.
+`blocked / stop` renders its supplied reason, detail, and structured remedy, then stops. The delivery-native
+`queue-not-atomic` refusal remains a stop and follows its supplied action. `ready / request-approval` continues at the
+ready checkpoint below.
 
 `blocked` with `retarget` or `reopen-and-retarget` renders the returned reason and remedy, then stops for explicit
 direction to apply that exact remedy. On direction, invoke `remedy.argv` with `remedy.stdin` unchanged.
@@ -667,6 +671,8 @@ arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json
 end the foreground attempt. Do not re-invoke recursively. A later retry invokes `payload.retry.argv` unchanged; the
 verb revalidates the exact approved target and lifecycle, so the prior approval carries only while both remain
 unchanged. `invalidated / checkpoint` returns to the checkpoint; `blocked / stop` stops.
+Render the merge result's supplied `nextAction` and remedy or terminal explanation on every non-success arm rather
+than deriving a continuation from its evidence fields.
 The integration interlock is the sole merge authority.
 
 **Skip the merge when the PR is already merged** — the resume path's `merged-at-head` arm (Step 1) enters here with the
@@ -756,6 +762,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 ---
 
 [review-chunking]: ../../../methods/review-chunking.md
+[assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
 [review-triage]: ../../../methods/review-triage.md
 [review-response]: ../../../methods/review-response.md
 [commit-footer]: ../../../methods/commit-footer.md
