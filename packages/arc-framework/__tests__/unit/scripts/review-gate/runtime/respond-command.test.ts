@@ -30,7 +30,7 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { LaneSubjectLineageSchema } from
+import { LaneSubjectLineageSchema, type LaneSubjectLineage } from
   "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import { createFixAuthorization } from
   "../../../../../src/scripts/review-gate/core/fix-authorization.js";
@@ -46,7 +46,7 @@ import { bindReviewSourceReference } from "../../../../../src/scripts/review-gat
 import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 import { projectHostedFinding } from "../../../../../src/scripts/review-gate/hosted/await.js";
 import { createHostedAdmission } from "../../../../../src/scripts/review-gate/hosted/request.js";
-import { laneProgressOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { laneContinuationOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
@@ -72,7 +72,14 @@ function activeErrandBinding(claimId = "claim-1") {
   });
 }
 
-function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle, sourceLabel?: string) {
+function fixture(
+  vehicle: LocalReviewState["vehicle"] = workUnitVehicle,
+  sourceLabel?: string,
+  lineage: LaneSubjectLineage = {
+    kind: "candidate",
+    candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+  },
+) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -111,7 +118,7 @@ function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle, sourceL
     requirement,
     authority,
     laneSourceId: "delegated-agent",
-    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    lineage,
     logicalPass: 1,
     retryGeneration: 0,
     policyBindingDigest: digest("binding"),
@@ -1110,7 +1117,12 @@ describe("review response command", () => {
   });
 
   it("serializes disposition publication with admission for the same lane owner", async () => {
-    const records = fixture();
+    const records = fixture(workUnitVehicle, undefined, {
+      kind: "head-bound",
+      vehicleKind: "errand",
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("c"),
+    });
     const deps = dependencies(records);
     const lockTails = new Map<string, Promise<void>>();
     deps.withOperationLock = async <T>(operationId: string, action: () => Promise<T>): Promise<T> => {
@@ -1140,11 +1152,17 @@ describe("review response command", () => {
     const response = respondToReviewCommand(localRequest(records, "defer"), deps);
     await entered;
     let admissionEntered = false;
-    const admission = deps.withOperationLock(laneProgressOperationId({
+    if (records.operation.lineage.kind !== "head-bound") {
+      throw new Error("expected head-bound test lineage");
+    }
+    const admission = deps.withOperationLock(laneContinuationOperationId({
       lane: "standard",
       repositoryId: records.operation.repositoryId,
-      headSha: records.target.headSha,
-      lineage: records.operation.lineage,
+      headSha: objectId("e"),
+      lineage: {
+        ...records.operation.lineage,
+        headSha: objectId("e"),
+      },
     }), async () => {
       admissionEntered = true;
     });

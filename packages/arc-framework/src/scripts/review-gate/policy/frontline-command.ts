@@ -17,7 +17,7 @@ import type { ReviewOperationStateStore } from "../core/ports.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
 import {
   consumeConditionalNextPassAuthorization,
-  laneProgressOperationId,
+  laneContinuationOperationId,
   readLaneProgressOwner,
   recordLaneAttempt,
 } from "../lane-progress.js";
@@ -114,7 +114,7 @@ export async function resolveFrontlineCommand(
 ): Promise<FrontlineCommandResult> {
   const parsed = FrontlineCommandRequestSchema.parse(request);
   const lineage = await dependencies.resolveLineage(parsed.target, parsed.vehicle);
-  return dependencies.withLaneOperationLock(laneProgressOperationId({
+  return dependencies.withLaneOperationLock(laneContinuationOperationId({
     lane: "frontline",
     repositoryId: parsed.target.repositoryId,
     headSha: parsed.target.headSha,

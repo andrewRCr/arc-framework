@@ -44,6 +44,44 @@ import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
+type ConditionalPassAuthorization = NonNullable<
+  LaneAttempt["conditionalPassAuthorizations"]
+>["authorizations"][number];
+
+function currentConditionalPassAuthorization(
+  attempt: LaneAttempt,
+): ConditionalPassAuthorization | undefined {
+  const lineage = attempt.conditionalPassAuthorizations;
+  if (lineage === undefined) return undefined;
+  return lineage.authorizations.find(({ authorizationId }) =>
+    authorizationId === lineage.currentAuthorizationId);
+}
+
+function findConditionalPassAuthorization(
+  attempt: LaneAttempt,
+  authorizationId: string,
+): ConditionalPassAuthorization | undefined {
+  return attempt.conditionalPassAuthorizations?.authorizations.find((authorization) =>
+    authorization.authorizationId === authorizationId);
+}
+
+function replaceConditionalPassAuthorization(
+  attempt: LaneAttempt,
+  authorization: ConditionalPassAuthorization,
+): LaneAttempt {
+  const lineage = attempt.conditionalPassAuthorizations;
+  if (lineage === undefined) {
+    throw new Error("conditional pass authorization lineage is unavailable");
+  }
+  return {
+    ...attempt,
+    conditionalPassAuthorizations: {
+      ...lineage,
+      authorizations: lineage.authorizations.map((current) =>
+        current.authorizationId === authorization.authorizationId ? authorization : current),
+    },
+  };
+}
 
 function conditionalContinuationLineageMatches(
   left: LaneSubjectLineage,
@@ -60,7 +98,7 @@ function bindCompletedConditionalPassAuthorization(
   attempt: LaneAttempt,
   input: { dispositionSetId: string; producedHeadSha: string; now: string },
 ): LaneAttempt {
-  const authorization = attempt.conditionalPassAuthorization;
+  const authorization = currentConditionalPassAuthorization(attempt);
   if (authorization === undefined) return attempt;
   if (authorization.dispositionSetId !== input.dispositionSetId) {
     throw new Error("conditional pass authorization does not match the performed response");
@@ -78,9 +116,7 @@ function bindCompletedConditionalPassAuthorization(
     && authorization.responseHeadSha !== input.producedHeadSha) {
     throw new Error("conditional pass authorization response-head evidence conflicts");
   }
-  return {
-    ...attempt,
-    conditionalPassAuthorization: {
+  return replaceConditionalPassAuthorization(attempt, {
       schemaVersion: authorization.schemaVersion,
       authorizationId: authorization.authorizationId,
       status: "bound",
@@ -96,8 +132,7 @@ function bindCompletedConditionalPassAuthorization(
       capturedAt: authorization.capturedAt,
       producedHeadSha: input.producedHeadSha,
       boundAt: input.now,
-    },
-  };
+  });
 }
 
 function sealedHostedReplayMatches(current: LaneAttempt, proposed: LaneAttempt): boolean {
@@ -378,6 +413,31 @@ export function laneProgressOperationId(input: {
     }))
     .digest("hex");
   return `lane-progress/${digest}`;
+}
+
+/** Resolve the serialization identity for mutations of one head-surviving lane continuation. */
+export function laneContinuationOperationId(input: {
+  lane: LaneProgressState["lane"];
+  repositoryId: string;
+  headSha: string;
+  lineage: LaneSubjectLineage;
+}): string {
+  const subject = input.lineage.kind === "head-bound"
+    ? {
+        kind: input.lineage.kind,
+        vehicleKind: input.lineage.vehicleKind,
+        vehicleIdentity: input.lineage.vehicleIdentity,
+      }
+    : input.lineage;
+  const digest = createHash("sha256")
+    .update(canonicalize({
+      domain: "arc.review.lane-continuation-lock/v1",
+      lane: input.lane,
+      repositoryId: input.repositoryId,
+      subject,
+    }))
+    .digest("hex");
+  return `lane-continuation/${digest}`;
 }
 
 /**
@@ -1280,12 +1340,13 @@ export async function settleHostedAttemptFinding(
     const dispositionHasFix = attempt.hosted.dispositionSetLineage.at(-1)?.findingActions
       .some(({ disposition }) => disposition === "fix") ?? false;
     let producedHeadSha = attempt.headSha;
-    if (dispositionHasFix && attempt.conditionalPassAuthorization !== undefined) {
-      const responseHeadSha = attempt.conditionalPassAuthorization.status === "pending"
-        ? attempt.conditionalPassAuthorization.responseHeadSha
-        : attempt.conditionalPassAuthorization.status === "bound"
-          || attempt.conditionalPassAuthorization.status === "consumed"
-          ? attempt.conditionalPassAuthorization.producedHeadSha
+    const authorization = currentConditionalPassAuthorization(attempt);
+    if (dispositionHasFix && authorization !== undefined) {
+      const responseHeadSha = authorization.status === "pending"
+        ? authorization.responseHeadSha
+        : authorization.status === "bound"
+          || authorization.status === "consumed"
+          ? authorization.producedHeadSha
           : undefined;
       if (responseHeadSha === undefined) {
         throw new Error("hosted fix settlement lacks durable response-head evidence");
@@ -1553,11 +1614,10 @@ export async function captureConditionalNextPassAuthorization(
       nextPass: input.nextPass,
       capturedAt: input.now,
     };
-    if (attempt.conditionalPassAuthorization !== undefined) {
-      const current = attempt.conditionalPassAuthorization;
+    const current = currentConditionalPassAuthorization(attempt);
+    if (current !== undefined && current.authorizationId === authorizationId) {
       const replay = { ...authorization, capturedAt: current.capturedAt };
-      if (current.authorizationId !== authorizationId
-        || current.authorizedBy !== replay.authorizedBy
+      if (current.authorizedBy !== replay.authorizedBy
         || current.repositoryId !== replay.repositoryId
         || current.lane !== replay.lane
         || canonicalize(current.lineage) !== canonicalize(replay.lineage)
@@ -1570,8 +1630,24 @@ export async function captureConditionalNextPassAuthorization(
       }
       return { progress: state, authorizationId };
     }
+    if (current !== undefined) {
+      if (current.status !== "invalidated"
+        || (current.reason === "superseded"
+          && current.successorDispositionSetId !== input.dispositionSetId)) {
+        throw new Error("conditional pass authorization replay conflicts with recorded authority");
+      }
+    }
     const attempts = [...state.attempts];
-    attempts[index] = { ...attempt, conditionalPassAuthorization: authorization };
+    attempts[index] = {
+      ...attempt,
+      conditionalPassAuthorizations: {
+        currentAuthorizationId: authorizationId,
+        authorizations: [
+          ...(attempt.conditionalPassAuthorizations?.authorizations ?? []),
+          authorization,
+        ],
+      },
+    };
     const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
     try {
       await store.publishOperation(progress, version);
@@ -1638,7 +1714,9 @@ export async function withdrawConditionalNextPassAuthorization(
     }
     const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.producerId);
     const attempt = state.attempts[index];
-    const authorization = attempt?.conditionalPassAuthorization;
+    const authorization = attempt === undefined
+      ? undefined
+      : findConditionalPassAuthorization(attempt, input.authorizationId);
     if (attempt === undefined
       || authorization === undefined
       || !attempt.terminalProducer
@@ -1674,9 +1752,7 @@ export async function withdrawConditionalNextPassAuthorization(
       return refuse("stale-current-set", "conditional pass authorization disposition set is not current");
     }
     const attempts = [...state.attempts];
-    attempts[index] = {
-      ...attempt,
-      conditionalPassAuthorization: {
+    attempts[index] = replaceConditionalPassAuthorization(attempt, {
         schemaVersion: authorization.schemaVersion,
         authorizationId: authorization.authorizationId,
         status: "invalidated",
@@ -1693,8 +1769,7 @@ export async function withdrawConditionalNextPassAuthorization(
         reason: "withdrawn",
         withdrawnBy: input.withdrawnBy,
         invalidatedAt: input.now,
-      },
-    };
+    });
     const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
     try {
       await store.publishOperation(progress, version);
@@ -1741,7 +1816,8 @@ export async function invalidateConditionalNextPassAuthorization(
       || canonicalize(state.lineage) !== canonicalize(input.lineage)) return null;
     const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.producerId);
     const attempt = state.attempts[index];
-    const authorization = attempt?.conditionalPassAuthorization;
+    const authorization = attempt?.conditionalPassAuthorizations?.authorizations.find((candidate) =>
+      candidate.dispositionSetId === input.dispositionSetId);
     if (attempt === undefined || authorization === undefined) return state;
     if (authorization.producerId !== input.producerId
       || authorization.dispositionSetId !== input.dispositionSetId) {
@@ -1758,9 +1834,7 @@ export async function invalidateConditionalNextPassAuthorization(
       throw new Error("consumed conditional pass authorization cannot be invalidated");
     }
     const attempts = [...state.attempts];
-    attempts[index] = {
-      ...attempt,
-      conditionalPassAuthorization: {
+    attempts[index] = replaceConditionalPassAuthorization(attempt, {
         schemaVersion: authorization.schemaVersion,
         authorizationId: authorization.authorizationId,
         status: "invalidated",
@@ -1777,8 +1851,7 @@ export async function invalidateConditionalNextPassAuthorization(
         reason: "superseded",
         successorDispositionSetId: input.successorDispositionSetId,
         invalidatedAt: input.now,
-      },
-    };
+    });
     const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
     try {
       await store.publishOperation(progress, version);
@@ -1820,7 +1893,8 @@ export async function inspectConditionalNextPassInvalidation(
     || state.repositoryId !== input.repositoryId
     || canonicalize(state.lineage) !== canonicalize(input.lineage)) return { state: "ready" };
   const attempt = state.attempts.find(({ attemptId }) => attemptId === input.producerId);
-  const authorization = attempt?.conditionalPassAuthorization;
+  const authorization = attempt?.conditionalPassAuthorizations?.authorizations.find((candidate) =>
+    candidate.dispositionSetId === input.dispositionSetId);
   if (attempt === undefined || authorization === undefined) return { state: "ready" };
   if (authorization.producerId !== input.producerId
     || authorization.dispositionSetId !== input.dispositionSetId) {
@@ -1881,7 +1955,7 @@ export async function consumeConditionalNextPassAuthorization(
     const matches = snapshot.records.flatMap((record) => {
       if (record.state.kind !== "lane-progress") return [];
       const attempt = record.state.attempts.find((candidate) =>
-        candidate.conditionalPassAuthorization?.authorizationId === input.authorizationId);
+        findConditionalPassAuthorization(candidate, input.authorizationId) !== undefined);
       return attempt === undefined ? [] : [{ ...record, progress: record.state, attempt }];
     });
     if (matches.length !== 1) {
@@ -1889,7 +1963,7 @@ export async function consumeConditionalNextPassAuthorization(
     }
     const match = matches[0];
     if (match === undefined) throw new Error("conditional pass authorization is unavailable");
-    const authorization = match.attempt.conditionalPassAuthorization;
+    const authorization = findConditionalPassAuthorization(match.attempt, input.authorizationId);
     if (authorization === undefined) throw new Error("conditional pass authorization is unavailable");
     if (authorization.repositoryId !== input.repositoryId
       || authorization.lane !== input.lane
@@ -1897,17 +1971,17 @@ export async function consumeConditionalNextPassAuthorization(
       || authorization.nextPass !== input.nextPass) {
       throw new Error("conditional pass authorization does not match the named admission");
     }
-    if (!await confirmDispositionSetCurrent(
-      authorization.producerId,
-      authorization.dispositionSetId,
-    )) {
-      throw new Error("conditional pass authorization disposition set is not current");
-    }
     if (authorization.status === "pending") {
       throw new Error("conditional pass authorization response is not complete");
     }
     if (authorization.status === "invalidated") {
       throw new Error("conditional pass authorization is invalidated");
+    }
+    if (!await confirmDispositionSetCurrent(
+      authorization.producerId,
+      authorization.dispositionSetId,
+    )) {
+      throw new Error("conditional pass authorization disposition set is not current");
     }
     if (authorization.producedHeadSha !== input.producedHeadSha) {
       throw new Error("conditional pass authorization does not match the produced head");
@@ -1935,15 +2009,12 @@ export async function consumeConditionalNextPassAuthorization(
     const attemptIndex = match.progress.attempts.findIndex((candidate) =>
       candidate.attemptId === match.attempt.attemptId);
     const attempts = [...match.progress.attempts];
-    attempts[attemptIndex] = {
-      ...match.attempt,
-      conditionalPassAuthorization: {
+    attempts[attemptIndex] = replaceConditionalPassAuthorization(match.attempt, {
         ...authorization,
         status: "consumed",
         admissionId: input.admissionId,
         consumedAt: input.now,
-      },
-    };
+    });
     const progress = LaneProgressStateSchema.parse({
       ...match.progress,
       updatedAt: input.now,
@@ -2074,7 +2145,7 @@ export async function settleLaneAttempt(
   let settledAttempt: LaneAttempt = attempt.outcome === "settled-findings"
     ? attempt
     : { ...attempt, outcome: "settled-findings" };
-  const authorization = attempt.conditionalPassAuthorization;
+  const authorization = currentConditionalPassAuthorization(attempt);
   if (authorization !== undefined) {
     if (input.dispositionSetId === undefined || input.producedHeadSha === undefined) {
       throw new Error("conditional pass authorization requires exact response-performance evidence");
@@ -2128,7 +2199,7 @@ export async function recordLaneResponsePerformance(
       || (attempt.outcome !== "findings" && attempt.outcome !== "settled-findings")) {
       throw new Error("lane response performance does not match its findings producer");
     }
-    const authorization = attempt.conditionalPassAuthorization;
+    const authorization = currentConditionalPassAuthorization(attempt);
     let performedAttempt = attempt;
     if (attempt.hosted === undefined) {
       performedAttempt = { ...attempt, outcome: "settled-findings" };
@@ -2159,14 +2230,11 @@ export async function recordLaneResponsePerformance(
           }
           return state;
         }
-        performedAttempt = {
-          ...performedAttempt,
-          conditionalPassAuthorization: {
+        performedAttempt = replaceConditionalPassAuthorization(performedAttempt, {
             ...authorization,
             responseHeadSha: input.producedHeadSha,
             responsePerformedAt: input.now,
-          },
-        };
+        });
       }
     }
     if (canonicalize(performedAttempt) === canonicalize(attempt)) return state;

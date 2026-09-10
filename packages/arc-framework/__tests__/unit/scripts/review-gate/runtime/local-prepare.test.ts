@@ -1037,9 +1037,11 @@ describe("local review preparation request", () => {
           lineage: state.lineage,
         })).resolves.toMatchObject({
           attempts: expect.arrayContaining([expect.objectContaining({
-            conditionalPassAuthorization: expect.objectContaining({
-              status: "consumed",
-              producedHeadSha: state.target.headSha,
+            conditionalPassAuthorizations: expect.objectContaining({
+              authorizations: [expect.objectContaining({
+                status: "consumed",
+                producedHeadSha: state.target.headSha,
+              })],
             }),
           })]),
         });

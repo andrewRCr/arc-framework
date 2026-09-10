@@ -72,7 +72,7 @@ import { createGhChangeRequestResolutionPort } from "../hosts/github/change-requ
 import { resolveChangeRequest } from "../change-request.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
 import { assertEvidenceBoundReviewExecutionAdmission } from "../policy/review-policy-evidence.js";
-import { laneProgressOperationId } from "../lane-progress.js";
+import { laneContinuationOperationId } from "../lane-progress.js";
 
 const LOCAL_STANDARD_SOURCE = {
   sourceKind: "agent",
@@ -112,7 +112,7 @@ export function createLocalPrepareDependencies(input: {
     withLaneOperationLock: (coordinates, action) => withRepositoryReviewOperationLock(
       input.exec,
       input.cwd,
-      laneProgressOperationId(coordinates),
+      laneContinuationOperationId(coordinates),
       10_000,
       action,
     ),

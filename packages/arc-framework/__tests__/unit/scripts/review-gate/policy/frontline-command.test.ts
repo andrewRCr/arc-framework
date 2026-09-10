@@ -250,9 +250,11 @@ describe("frontline workflow command", () => {
       lineage,
     })).resolves.toMatchObject({
       attempts: expect.arrayContaining([expect.objectContaining({
-        conditionalPassAuthorization: expect.objectContaining({
-          status: "consumed",
-          producedHeadSha: target.headSha,
+        conditionalPassAuthorizations: expect.objectContaining({
+          authorizations: [expect.objectContaining({
+            status: "consumed",
+            producedHeadSha: target.headSha,
+          })],
         }),
       })]),
     });

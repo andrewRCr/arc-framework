@@ -312,6 +312,47 @@ export const ConditionalPassAuthorizationSchema = z.union([
 });
 export type ConditionalPassAuthorization = z.infer<typeof ConditionalPassAuthorizationSchema>;
 
+export const ConditionalPassAuthorizationsSchema = z.strictObject({
+  currentAuthorizationId: CanonicalDigestSchema,
+  authorizations: z.array(ConditionalPassAuthorizationSchema).min(1),
+}).superRefine((lineage, context) => {
+  const ids = lineage.authorizations.map(({ authorizationId }) => authorizationId);
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["authorizations"],
+      message: "conditional pass authorization identities must be unique",
+    });
+  }
+  if (lineage.authorizations.at(-1)?.authorizationId !== lineage.currentAuthorizationId) {
+    context.addIssue({
+      code: "custom",
+      path: ["currentAuthorizationId"],
+      message: "current conditional pass authorization must identify the lineage tail",
+    });
+  }
+  lineage.authorizations.slice(0, -1).forEach((authorization, index) => {
+    const successor = lineage.authorizations[index + 1];
+    if (authorization.status !== "invalidated") {
+      context.addIssue({
+        code: "custom",
+        path: ["authorizations", index, "status"],
+        message: "historical conditional pass authorizations must be invalidated",
+      });
+    }
+    if (authorization.status === "invalidated"
+      && authorization.reason === "superseded"
+      && authorization.successorDispositionSetId !== successor?.dispositionSetId) {
+      context.addIssue({
+        code: "custom",
+        path: ["authorizations", index, "successorDispositionSetId"],
+        message: "superseded conditional pass authorization must bind its successor",
+      });
+    }
+  });
+});
+export type ConditionalPassAuthorizations = z.infer<typeof ConditionalPassAuthorizationsSchema>;
+
 export const HostedSealedResultSchema = z.strictObject({
   schemaVersion: z.literal(1),
   outcome: z.enum(["clean", "findings"]),
@@ -583,7 +624,7 @@ const LaneAttemptSchema = z.strictObject({
   terminalProducer: z.boolean(),
   sourceId: LaneSourceIdSchema,
   outcome: LaneAttemptOutcomeSchema,
-  conditionalPassAuthorization: ConditionalPassAuthorizationSchema.optional(),
+  conditionalPassAuthorizations: ConditionalPassAuthorizationsSchema.optional(),
   chunkSeriesComplete: z.boolean().optional(),
   hosted: HostedLaneAttemptBindingSchema.optional(),
   local: LocalLaneAttemptBindingSchema.optional(),
@@ -843,21 +884,22 @@ export const LaneProgressStateSchema = z.strictObject({
     });
   }
   state.attempts.forEach((attempt, index) => {
-    const authorization = attempt.conditionalPassAuthorization;
-    if (authorization !== undefined
-      && (authorization.repositoryId !== state.repositoryId
+    for (const [authorizationIndex, authorization] of
+      (attempt.conditionalPassAuthorizations?.authorizations ?? []).entries()) {
+      if (authorization.repositoryId !== state.repositoryId
         || authorization.lane !== state.lane
         || canonicalize(authorization.lineage) !== canonicalize(state.lineage)
         || authorization.producerId !== attempt.attemptId
         || authorization.originatingHeadSha !== attempt.headSha
         || authorization.exhaustedPassCount !== attempt.logicalPass
         || authorization.nextPass !== attempt.logicalPass + 1
-        || !attempt.terminalProducer)) {
-      context.addIssue({
-        code: "custom",
-        path: ["attempts", index, "conditionalPassAuthorization"],
-        message: "conditional pass authorization must bind its terminal producer and lane owner",
-      });
+        || !attempt.terminalProducer) {
+        context.addIssue({
+          code: "custom",
+          path: ["attempts", index, "conditionalPassAuthorizations", "authorizations", authorizationIndex],
+          message: "conditional pass authorization must bind its terminal producer and lane owner",
+        });
+      }
     }
     if (state.lane === "frontline" && attempt.frontline === undefined) {
       context.addIssue({

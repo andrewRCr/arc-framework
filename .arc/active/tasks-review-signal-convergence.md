@@ -536,18 +536,11 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
           preserves the invalidation as audit evidence, and returns typed success, replay, or refusal without target-head
           movement blocking a legitimate post-fix withdrawal.
 
-    - `[ ]` **5.5.R.e Serialize head-surviving continuation and append successor authority**
+    - `[x]` **5.5.R.e Serialize head-surviving continuation and append successor authority**
 
-        - Use the existing advisory-lock abstraction with one stable continuation-owner key across successor publication,
-          authorization mutation, response-performance binding, and next-pass admission. Replace the singular terminal
-          authorization slot with ordered append-only history plus one current pointer, preserving predecessor
-          invalidation while allowing one distinct successor authorization and repairable exact replay.
-
-        - Build `test-first` (one behavior at a time):
-            - Race an old-head authorization consumer against new-head successor publication for a singleton lineage;
-              prove one stable lock orders both and stale authority cannot dispatch.
-            - Capture a fresh successor authorization after predecessor invalidation, then prove exact replay,
-              conflicting successor refusal, retained history, and no predecessor revival.
+        - Added a stable continuation-owner lock identity across head movement and routed respond plus every production
+          admission through the existing repository advisory lock. Conditional authority now retains ordered history
+          with one current pointer, allowing an exact successor after predecessor invalidation without revival.
 
     - `[ ]` **5.5.R.f Persist response performance independently and join hosted completion**
 

@@ -208,7 +208,7 @@ import { resolveHostedAwaitTiming } from "../scripts/review-gate/hosted/await-co
 import {
   acknowledgeHostedRequest,
   hostedLaneAttemptId,
-  laneProgressOperationId,
+  laneContinuationOperationId,
   readHostedRequestAdmissionReplay,
   readLaneProgress,
   recordHostedRequestAdmission,
@@ -2884,7 +2884,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
           return withRepositoryReviewOperationLock(
             gitExec,
             root,
-            laneProgressOperationId({
+            laneContinuationOperationId({
               lane: "standard",
               repositoryId: context.repositoryId,
               headSha: admittedRequest.target.headSha,
