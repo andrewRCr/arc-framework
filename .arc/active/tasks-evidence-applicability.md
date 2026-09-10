@@ -393,16 +393,10 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
 
 - **Additional Context:** `notes-evidence-applicability.md` § Terminal integration decisions
 
-    - `[ ]` **4.3.a Define the exact Errand merge request and result**
-        - Add an operation module distinct from the existing per-slug storage merge, binding the current Errand
-          identity, approved target, selected lane, head, change request, merge method, and retry authority.
-        - Build `test-first` (one behavior at a time):
-            - the closed result covers `merged`, `awaiting-checks`, `applicability-judgment-required`,
-              `reconcile-base`, `reconcile-regenerable`, `conflict`, `host-pending`, `host-refused`,
-              `invalidated`, `merge-outcome-unknown`, and `operation-failed`, with no native auto-merge arm;
-            - every non-success result carries semantic reason, sanitized detail, decisive coordinates, and structured
-              retry/remedy argv or an explicit terminal explanation; and
-            - a changed target invalidates prior authorization.
+    - `[x]` **4.3.a Define the exact Errand merge request and result**
+        - Added a strict exact-effect request binding Errand generation, branch, approved target, selected lane, and
+          merge policy plus a closed direct-merge result union whose non-success arms retain semantic detail,
+          decisive observations, and either structured retry authority or an explicit terminal explanation.
 
     - `[ ]` **4.3.b Compose the final Errand state machine**
         - Inject current identity, final drift, Git feasibility, host admission, checks, merge method, lock, and
