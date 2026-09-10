@@ -8,10 +8,14 @@ import type { ReviewOperationState } from
   "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from
   "../../../../../src/scripts/review-gate/core/ports.js";
+import type { ReviewOperationStateSnapshotIndex } from
+  "../../../../../src/scripts/review-gate/core/ports.js";
 import {
+  captureConditionalNextPassAuthorization,
   readLaneProgressOwner,
   recordFrontlineAttempt,
   recordLaneAttempt,
+  settleLaneAttempt,
 } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { resolveFrontlineCommand } from "../../../../../src/scripts/review-gate/policy/frontline-command.js";
 import { normalizeFrontlineOutcome } from
@@ -36,10 +40,14 @@ const lineage = {
   candidateId: `sha256:${"1".repeat(64)}`,
 } as const;
 
-function operationStore(): ReviewOperationStateStore {
+function operationStore(): ReviewOperationStateStore & ReviewOperationStateSnapshotIndex {
   const records = new Map<string, { version: number; state: ReviewOperationState }>();
   return {
     readOperation: async (operationId) => records.get(operationId) ?? { version: 0, state: null },
+    readOperationSnapshot: async () => ({
+      status: "complete" as const,
+      records: [...records.values()],
+    }),
     publishOperation: async (state, expectedVersion) => {
       const currentVersion = records.get(state.operationId)?.version ?? 0;
       if (currentVersion !== expectedVersion) throw new Error("version-conflict");
@@ -171,6 +179,80 @@ describe("frontline workflow command", () => {
         expect.objectContaining({ logicalPass: 1, outcome: "clean" }),
         expect.objectContaining({ logicalPass: 2, retryGeneration: 0, outcome: "pending" }),
       ],
+    });
+  });
+
+  it("consumes a response-bound conditional pass before returning frontline work", async () => {
+    const store = operationStore();
+    const producer = completedAdmission(1, 1);
+    await recordLaneAttempt(store, {
+      lane: "frontline",
+      repositoryId: target.repositoryId,
+      changeRequestId: null,
+      headSha: target.headSha,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: producer.operationId,
+      sourceId: source.sourceId,
+      outcome: "findings",
+      consumedPass: true,
+      frontline: { admission: producer, effectiveCoverage: "complete" },
+      now: "2026-09-08T12:00:00Z",
+    });
+    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const captured = await captureConditionalNextPassAuthorization(store, {
+      lane: "frontline",
+      repositoryId: target.repositoryId,
+      headSha: target.headSha,
+      lineage,
+      producerId: producer.operationId,
+      dispositionSetId,
+      authorizedBy: "owner-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-09-08T12:00:30Z",
+    });
+    await settleLaneAttempt(store, {
+      lane: "frontline",
+      repositoryId: target.repositoryId,
+      headSha: target.headSha,
+      lineage,
+      attemptId: producer.operationId,
+      dispositionSetId,
+      producedHeadSha: target.headSha,
+      now: "2026-09-08T12:00:45Z",
+    });
+
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      target,
+      changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" },
+      policyJudgment: {
+        ceilingOverride: {
+          exhaustedPassCount: 1,
+          nextPass: 2,
+          conditionalPassAuthorizationId: captured.authorizationId,
+        },
+      },
+    }, dependencies(store, 1))).resolves.toMatchObject({
+      state: "ready",
+      nextAction: "run-frontline",
+      payload: { pass: 2, maxPasses: 2 },
+    });
+    await expect(readLaneProgressOwner(store, {
+      lane: "frontline",
+      repositoryId: target.repositoryId,
+      headSha: target.headSha,
+      lineage,
+    })).resolves.toMatchObject({
+      attempts: expect.arrayContaining([expect.objectContaining({
+        conditionalPassAuthorization: expect.objectContaining({
+          status: "consumed",
+          producedHeadSha: target.headSha,
+        }),
+      })]),
     });
   });
 

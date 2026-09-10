@@ -281,6 +281,8 @@ resumes the retained attempt and never requests another hosted review. Preserve 
 `approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
 any returned hosted settlement plan through the phase-ordered settlement path below, then re-enter through
 `arc review status`.
+Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
+ceiling override into the named hosted, local, or Frontline admission; never reconstruct the authorization ID.
 
 `delivery-correction-required / continue-delivery-correction` is the delivery-member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
@@ -355,6 +357,8 @@ prior count.
   that `fixTarget`; never reconstruct it from the checkout. A `settlement: not-applicable` finding appears in neither
   phase and remains
   triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
+  Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged for the named
+  next-pass admission.
   On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
   only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host mutation;
   every stop state remains a stop. Feed `findings` back to the driver only after both phases complete.

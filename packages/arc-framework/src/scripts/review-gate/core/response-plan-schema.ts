@@ -14,6 +14,7 @@ import {
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 import { ReviewRoutingDecisionSchema } from "../policy/routing-schema.js";
+import { ReviewPolicyCommandRequestSchema } from "../policy/review-policy-driver.js";
 
 export const ReviewResponseCapabilitySchema = z.enum(["approve", "fix", "persist", "close", "reroute"]);
 export type ReviewResponseCapability = z.infer<typeof ReviewResponseCapabilitySchema>;
@@ -83,6 +84,7 @@ export type HostedFindingsResponsePlan = z.infer<typeof HostedFindingsResponsePl
 export const ReviewResponseSettlementRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   source: ReviewResponseSettlementSourceSchema,
+  policyRequest: ReviewPolicyCommandRequestSchema,
   dispositions: ApprovedDispositionSetSchema,
 });
 export type ReviewResponseSettlementRequest = z.infer<typeof ReviewResponseSettlementRequestSchema>;

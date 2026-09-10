@@ -796,6 +796,8 @@ export const RespondEnvelopeSchema = z.union([
       recordPath: DurableReferenceSchema,
       implementationChanged: z.boolean(),
       dispositionReportText: z.string().trim().min(1),
+      policyRequest: ReviewPolicyCommandRequestSchema,
+      conditionalPassAuthorizationId: CanonicalDigestSchema.optional(),
     }),
   ),
   envelopeVariant(
@@ -808,6 +810,8 @@ export const RespondEnvelopeSchema = z.union([
       recordPath: DurableReferenceSchema,
       implementationChanged: z.boolean(),
       dispositionReportText: z.string().trim().min(1),
+      policyRequest: ReviewPolicyCommandRequestSchema,
+      conditionalPassAuthorizationId: CanonicalDigestSchema.optional(),
     }),
   ),
   envelopeVariant(

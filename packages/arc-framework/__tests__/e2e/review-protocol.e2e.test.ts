@@ -9,6 +9,8 @@ import {
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+
 import {
   cleanupTempDir,
   createTempRepo,
@@ -343,6 +345,7 @@ describe("built review protocol", () => {
     const request = {
       schemaVersion: 1,
       source: responseSource,
+      policyRequest: await responsePolicyRequest(root, responseSource),
       dispositions: await approvedRejection(root, responseSource),
     };
     await expect(invoke(root, ["review", "respond", "-"], request))

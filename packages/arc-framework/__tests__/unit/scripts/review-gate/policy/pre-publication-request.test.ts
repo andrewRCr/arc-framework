@@ -8,6 +8,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
+
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
 import { ApprovedDispositionRecordSchema } from
@@ -289,6 +291,11 @@ function approvedRecord(result: ReviewResult) {
     currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
     approvedDispositionLineage: [{
       approvedDisposition,
+      responsePolicyRequest: responsePolicyRequestFixture({
+        headSha: result.target.headSha,
+        sourceId: result.sourceIdentity,
+        reviewOperationId: result.producerId,
+      }),
       fixAuthorization: null,
       errandFixResponse: null,
       deliveryMemberFixResponse: null,

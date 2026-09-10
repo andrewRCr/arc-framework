@@ -2,6 +2,7 @@
 
 import { readFile } from "node:fs/promises";
 
+import { canonicalize } from "../../../lib/canonical/canonical-json.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import {
   projectTransientInFlightRead,
@@ -35,8 +36,10 @@ import {
   bindHostedAttemptDisposition,
   captureConditionalNextPassAuthorization,
   HostedDispositionSupersessionError,
+  inspectConditionalNextPassInvalidation,
   inspectHostedAttemptDispositionSupersession,
   invalidateConditionalNextPassAuthorization,
+  recordLaneResponsePerformance,
   settleLaneAttempt,
   supersedeHostedAttemptDisposition,
 } from "../lane-progress.js";
@@ -288,13 +291,19 @@ export function createRespondDependencies(input: {
         now: new Date().toISOString(),
       });
     },
+    recordResponsePerformance: async (performance) => {
+      await recordLaneResponsePerformance(prepare.operationStore, {
+        ...performance,
+        now: new Date().toISOString(),
+      });
+    },
     bindHostedDisposition: async (binding) => {
       await bindHostedAttemptDisposition(prepare.operationStore, {
         ...binding,
         now: new Date().toISOString(),
       });
     },
-    resolvePolicy: async (request) => {
+    resolvePolicy: async (request, confirmedProducerTarget) => {
       const configured = await resolveConfiguredLanePolicy({
         lane: request.lane,
         settings: await settings(),
@@ -304,16 +313,19 @@ export function createRespondDependencies(input: {
           readFile: (path) => readFile(path, "utf8"),
         }),
       });
+      const retainedSources = configured.sources.length === 0
+        ? [...new Set(request.attempts.map(({ sourceId }) => sourceId))]
+        : configured.sources;
       return resolveEvidenceBoundReviewPolicy(request, {
         ...configured,
+        sources: retainedSources,
         resultReader: createRepositoryReviewResultReader(publisher),
         dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
-        confirmTarget: async (attemptedTarget) => {
-          const confirmation = await prepare.confirmTarget(attemptedTarget);
-          if (confirmation.state !== "current") {
-            throw new Error("review producer target does not match the current exact target");
+        confirmTarget: (attemptedTarget) => {
+          if (canonicalize(attemptedTarget) !== canonicalize(confirmedProducerTarget)) {
+            throw new Error("review producer target does not match the confirmed response target");
           }
-          return confirmation.target;
+          return Promise.resolve(confirmedProducerTarget);
         },
       });
     },
@@ -330,6 +342,8 @@ export function createRespondDependencies(input: {
         now: new Date().toISOString(),
       });
     },
+    preflightConditionalNextPassInvalidation: async (authorization) =>
+      inspectConditionalNextPassInvalidation(prepare.operationStore, authorization),
     preflightHostedDisposition: async (supersession) => {
       try {
         await inspectHostedAttemptDispositionSupersession(prepare.operationStore, {

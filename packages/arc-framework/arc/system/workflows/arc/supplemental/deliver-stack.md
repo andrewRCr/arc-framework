@@ -322,6 +322,8 @@ resumes the retained attempt and never requests another hosted review. Preserve 
 `approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
 any returned hosted settlement plan through the existing phase-ordered settlement path below, then re-enter through
 `arc review status`.
+Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
+ceiling override into the named hosted, local, or Frontline admission; never reconstruct the authorization ID.
 After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
 `payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
 

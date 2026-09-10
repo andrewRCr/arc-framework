@@ -63,6 +63,7 @@ import {
 import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import {
+  consumeConditionalNextPassAuthorization,
   readLaneProgressOwner,
   readLaneProgressOwnerVersioned,
   recordLocalReceiptConclusion,
@@ -252,6 +253,20 @@ async function replayPendingLocalAdmission(input: {
     || state.retryGeneration !== attempt.retryGeneration
     || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
     throw new LocalPrepareCommandError("local pending admission does not match its operation");
+  }
+  const conditionalPassAuthorizationId = input.request.policyJudgment?.ceilingOverride
+    ?.conditionalPassAuthorizationId;
+  if (conditionalPassAuthorizationId !== undefined) {
+    await consumeConditionalNextPassAuthorization(input.dependencies.operationStore, {
+      authorizationId: conditionalPassAuthorizationId,
+      repositoryId: input.repositoryId,
+      lane: "standard",
+      lineage: input.lineage,
+      producedHeadSha: input.target.headSha,
+      nextPass: attempt.logicalPass,
+      admissionId: attempt.attemptId,
+      now: input.dependencies.now(),
+    });
   }
   const receipts = (await input.dependencies.readReceipts(state.targetId)).receipts
     .filter((receipt) => receipt.requestId === state.requestId);
@@ -681,9 +696,33 @@ export async function prepareLocalReview(
       }
     }
     if (admitted?.state === "prepared") {
+      let pendingOwnerVersion = ownerVersion;
+      const conditionalPassAuthorizationId = request.policyJudgment?.ceilingOverride
+        ?.conditionalPassAuthorizationId;
+      if (conditionalPassAuthorizationId !== undefined) {
+        await consumeConditionalNextPassAuthorization(dependencies.operationStore, {
+          authorizationId: conditionalPassAuthorizationId,
+          repositoryId,
+          lane: "standard",
+          lineage,
+          producedHeadSha: target.headSha,
+          nextPass: admitted.preparation.state.logicalPass,
+          admissionId: admitted.preparation.state.operationId,
+          now: dependencies.now(),
+        });
+        pendingOwnerVersion = (await readLaneProgressOwnerVersioned(
+          dependencies.operationStore,
+          {
+            lane: "standard",
+            repositoryId,
+            headSha: target.headSha,
+            lineage,
+          },
+        )).version;
+      }
       await recordLocalPendingAttempt(dependencies.operationStore, {
         state: admitted.preparation.state,
-        ownerVersion,
+        ownerVersion: pendingOwnerVersion,
         now: dependencies.now(),
       });
     }

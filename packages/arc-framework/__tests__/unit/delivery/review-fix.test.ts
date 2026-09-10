@@ -15,6 +15,7 @@ import type { DeliveryRevisionedRecord } from "../../../src/lib/delivery/ports.j
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
+import { responsePolicyRequestFixture } from "../../fixtures/review-response-policy.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -140,6 +141,11 @@ describe("delivery review-fix routing", () => {
       currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: oldTarget.headSha,
+          sourceId: "codex-pr",
+          reviewOperationId: "operation-member-fix",
+        }),
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
@@ -246,6 +252,10 @@ describe("delivery review-fix routing", () => {
       currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: oldTarget.headSha,
+          reviewOperationId: "local-operation-member-fix",
+        }),
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
         errandFixResponse: null,
         deliveryMemberFixResponse: null,

@@ -16,6 +16,7 @@ import {
 import { createFixAuthorization } from
   "../../../../../src/scripts/review-gate/core/fix-authorization.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
 
 const target = {
   schemaVersion: 2,
@@ -163,6 +164,7 @@ describe("advisory review records", () => {
       currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
         fixAuthorization: null,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
@@ -201,6 +203,7 @@ describe("advisory review records", () => {
       currentDispositionSetId: dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
         fixAuthorization: null,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
@@ -246,6 +249,7 @@ describe("advisory review records", () => {
       currentDispositionSetId: successorId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
         fixAuthorization: null,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
@@ -253,6 +257,7 @@ describe("advisory review records", () => {
         successorDispositionSetId: successorId,
       }, {
         approvedDisposition: successor,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
         fixAuthorization: null,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
@@ -345,6 +350,7 @@ describe("advisory review records", () => {
       currentDispositionSetId: approvedFix.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition: approvedFix,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
         fixAuthorization,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,

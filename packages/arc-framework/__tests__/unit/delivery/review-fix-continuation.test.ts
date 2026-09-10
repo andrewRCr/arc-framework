@@ -32,6 +32,7 @@ import {
 import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
+import { responsePolicyRequestFixture } from "../../fixtures/review-response-policy.js";
 
 const plan = deliveryStackPlanFixture();
 const request = { repository: "owner/repo", remote: "origin" } as const;
@@ -126,6 +127,11 @@ function deliveryDispositionRecord(input: {
     currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
     approvedDispositionLineage: [{
       approvedDisposition,
+      responsePolicyRequest: responsePolicyRequestFixture({
+        headSha: oldTarget.headSha,
+        sourceId: input.source === "attested-local" ? "delegated-agent" : "codex-pr",
+        reviewOperationId: input.operationId,
+      }),
       fixAuthorization,
       errandFixResponse: null,
       deliveryMemberFixResponse: input.settled !== true
@@ -448,6 +454,7 @@ describe("delivery review-fix continuation projection", () => {
         successorDispositionSetId: successorId,
       }, {
         approvedDisposition: successorApprovedDisposition,
+        responsePolicyRequest: predecessorNode.responsePolicyRequest,
         fixAuthorization: null,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
@@ -526,6 +533,7 @@ describe("delivery review-fix continuation projection", () => {
       request: {
         schemaVersion: 1,
         source: responsePlan.source,
+        policyRequest: settledCurrent.responsePolicyRequest,
         dispositions: settledCurrent.approvedDisposition,
         verifiedFix: {
           applicability: response.applicability,

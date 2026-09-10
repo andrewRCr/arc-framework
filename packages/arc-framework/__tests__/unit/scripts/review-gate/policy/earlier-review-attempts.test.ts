@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
+import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delivery/review-vehicle.js";
 import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
@@ -585,6 +586,10 @@ describe("earlier review attempt query", () => {
       currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: oldTarget.headSha,
+          reviewOperationId: "local-review-prior",
+        }),
         fixAuthorization,
         errandFixResponse: null,
         deliveryMemberFixResponse: {

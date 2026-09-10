@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { responsePolicyRequestFixture } from "../../../fixtures/review-response-policy.js";
+
 import {
   executeSettlementPlan,
   type SettlementExecutionDependencies,
@@ -72,6 +74,10 @@ function reviewResponseAction() {
     request: {
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: "local:operation:receipt" },
+      policyRequest: responsePolicyRequestFixture({
+        headSha: originTarget.headSha,
+        reviewOperationId: "settlement-operation",
+      }),
       dispositions,
     },
   });

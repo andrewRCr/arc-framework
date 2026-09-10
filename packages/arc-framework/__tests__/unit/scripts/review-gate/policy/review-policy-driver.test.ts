@@ -23,6 +23,32 @@ const standardReview = {
 };
 
 describe("resolveReviewPolicy", () => {
+  it("retains a response-gated authorization identity with its ceiling override", () => {
+    const conditionalPassAuthorizationId = `sha256:${"c".repeat(64)}`;
+    const parsed = ReviewPolicyCommandRequestSchema.parse({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      completedPasses: 1,
+      attempts: [{
+        sourceId: "codex-pr",
+        outcome: "findings",
+        reviewOperationId: "hosted/attempt-1",
+      }],
+      ceilingOverride: {
+        target,
+        lane: "standard",
+        exhaustedPassCount: 1,
+        nextPass: 2,
+        conditionalPassAuthorizationId,
+      },
+    });
+
+    expect(parsed.ceilingOverride?.conditionalPassAuthorizationId)
+      .toBe(conditionalPassAuthorizationId);
+  });
+
   it("retains the immutable producer when projecting terminal lane progress", () => {
     expect(projectReviewPolicyAttempt({
       attemptId: "hosted/attempt-1",

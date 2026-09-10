@@ -26,6 +26,7 @@ import type {
 import {
   RepositoryLocalReviewSourceStore,
 } from "../../../../../../src/scripts/review-gate/hosts/local/source-store.js";
+import { responsePolicyRequestFixture } from "../../../../../fixtures/review-response-policy.js";
 
 function publisher(raw: string): GitCommonStatePublisher {
   return {
@@ -128,6 +129,7 @@ function errandDispositionRecords() {
     currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
     approvedDispositionLineage: [{
       approvedDisposition,
+      responsePolicyRequest: responsePolicyRequestFixture({ headSha: oldTarget.headSha }),
       fixAuthorization,
       errandFixResponse: null,
       deliveryMemberFixResponse: null,
@@ -237,6 +239,10 @@ function deliveryDispositionRecords() {
     currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
     approvedDispositionLineage: [{
       approvedDisposition,
+      responsePolicyRequest: responsePolicyRequestFixture({
+        headSha: oldTarget.headSha,
+        sourceId: "codex-pr",
+      }),
       fixAuthorization,
       errandFixResponse: null,
       deliveryMemberFixResponse: null,
@@ -309,6 +315,7 @@ function successorRecord(
       successorDispositionSetId: successorId,
     }, {
       approvedDisposition,
+      responsePolicyRequest: current.responsePolicyRequest,
       fixAuthorization: null,
       errandFixResponse: null,
       deliveryMemberFixResponse: null,

@@ -24,6 +24,8 @@ import {
   prepareLocalReview,
 } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
 import {
+  captureConditionalNextPassAuthorization,
+  readLaneProgressOwner,
   recordLaneAttempt,
   settleLaneAttempt,
 } from "../../../../../src/scripts/review-gate/lane-progress.js";
@@ -273,6 +275,10 @@ describe("local review preparation request", () => {
           readOperation: async (operationId: string) => (
             operations.get(operationId) ?? { version: 0, state: null }
           ),
+          readOperationSnapshot: async () => ({
+            status: "complete" as const,
+            records: [...operations.values()],
+          }),
           publishOperation: async (state: ReviewOperationState, expectedVersion: number) => {
             const current = operations.get(state.operationId)?.version ?? 0;
             if (current !== expectedVersion) {
@@ -932,6 +938,94 @@ describe("local review preparation request", () => {
         });
         if (next.state !== "ready") throw new Error("next local pass was not prepared");
         expect(next.payload.operationId).not.toBe(first.payload.operationId);
+      });
+
+      it("consumes a response-bound conditional pass before returning local review work", async () => {
+        const context = fixture();
+        const first = await prepareLocalReview(request, context.dependencies);
+        const state = context.published();
+        const owner = context.laneProgress();
+        if (first.state !== "ready"
+          || state?.kind !== "local-review"
+          || owner?.kind !== "lane-progress"
+          || owner.attempts[0]?.local === undefined) {
+          throw new Error("first local attempt was not admitted");
+        }
+        await recordLaneAttempt(context.dependencies.operationStore, {
+          lane: "standard",
+          repositoryId: state.repositoryId,
+          changeRequestId: null,
+          headSha: state.target.headSha,
+          lineage: state.lineage,
+          logicalPass: state.logicalPass,
+          retryGeneration: state.retryGeneration,
+          attemptId: state.operationId,
+          sourceId: state.laneSourceId,
+          outcome: "findings",
+          consumedPass: true,
+          chunkSeriesComplete: true,
+          advancePendingAttempt: true,
+          local: {
+            ...owner.attempts[0].local,
+            effectiveCoverage: owner.attempts[0].local.requestedCoverage,
+          },
+          now: "2026-08-06T18:00:00Z",
+        });
+        const dispositionSetId = `sha256:${"6".repeat(64)}`;
+        const captured = await captureConditionalNextPassAuthorization(
+          context.dependencies.operationStore,
+          {
+            lane: "standard",
+            repositoryId: state.repositoryId,
+            headSha: state.target.headSha,
+            lineage: state.lineage,
+            producerId: state.operationId,
+            dispositionSetId,
+            authorizedBy: "owner-1",
+            exhaustedPassCount: 1,
+            nextPass: 2,
+            now: "2026-08-06T18:00:30Z",
+          },
+        );
+        await settleLaneAttempt(context.dependencies.operationStore, {
+          lane: "standard",
+          repositoryId: state.repositoryId,
+          headSha: state.target.headSha,
+          lineage: state.lineage,
+          attemptId: state.operationId,
+          dispositionSetId,
+          producedHeadSha: state.target.headSha,
+          now: "2026-08-06T18:01:00Z",
+        });
+        context.validatePolicyAdmission.mockResolvedValueOnce(2);
+
+        await expect(prepareLocalReview({
+          ...request,
+          policyJudgment: {
+            ceilingOverride: {
+              exhaustedPassCount: 1,
+              nextPass: 2,
+              conditionalPassAuthorizationId: captured.authorizationId,
+            },
+          },
+        }, context.dependencies)).resolves.toMatchObject({
+          state: "ready",
+          nextAction: "launch-review",
+          payload: { request: { logicalPass: 2 } },
+        });
+        await expect(readLaneProgressOwner(context.dependencies.operationStore, {
+          lane: "standard",
+          repositoryId: state.repositoryId,
+          headSha: state.target.headSha,
+          lineage: state.lineage,
+        })).resolves.toMatchObject({
+          attempts: expect.arrayContaining([expect.objectContaining({
+            conditionalPassAuthorization: expect.objectContaining({
+              status: "consumed",
+              producedHeadSha: state.target.headSha,
+            }),
+          })]),
+        });
       });
 
       it("holds distinct operation identities for a member and a work unit in one repository", async () => {

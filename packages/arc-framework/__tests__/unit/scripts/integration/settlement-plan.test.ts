@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { responsePolicyRequestFixture } from "../../../fixtures/review-response-policy.js";
+
 import {
   approveDispositionState,
   createDispositionSet,
@@ -67,6 +69,11 @@ function approvedSet(targetId: string, disposition: "fix" | "defer") {
     request: {
       schemaVersion: 1 as const,
       source: { kind: "frontline" as const, outcomeRef: "frontline:operation:outcome" },
+      policyRequest: responsePolicyRequestFixture({
+        headSha: oid("c"),
+        sourceId: "reviewer",
+        reviewOperationId: "settlement-operation",
+      }),
       dispositions: approveDispositionState({
         proposed: proposeDispositionSet(dispositionSet),
         approvedBy: "andrew",

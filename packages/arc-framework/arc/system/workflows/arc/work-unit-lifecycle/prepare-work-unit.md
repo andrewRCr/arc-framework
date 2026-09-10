@@ -142,6 +142,8 @@ Follow only its returned action and use [`review-response`][review-response] to 
 `ready-to-fix` authorization carries `approvedVerification`; preserve it through re-entry and the changed-target
 continuation. The scope does not select fewer checks here. Approved fixes run Tier 1 gates
 ([`quality-gate-commands`][arc-methods-qg]), commit atomically, and produce a new target. Clearance never carries.
+If the response carries `conditionalPassAuthorizationId`, retain its returned `payload.policyRequest` unchanged; the
+next pre-publication admission projects its exact ceiling override into the selected lane request.
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
 § Prepare private delivery candidates when directed before re-invoking pre-publication review.
 

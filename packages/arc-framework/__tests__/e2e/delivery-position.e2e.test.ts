@@ -8,6 +8,8 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
+
 import {
   RepositoryDeliveryPlanStore,
   RepositoryDeliveryStateStore,
@@ -838,6 +840,11 @@ describe("arc delivery position", () => {
         currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
         approvedDispositionLineage: [{
           approvedDisposition,
+          responsePolicyRequest: responsePolicyRequestFixture({
+            headSha: oldTarget.headSha,
+            sourceId: "codex-pr",
+            reviewOperationId: "operation-member-fix",
+          }),
           fixAuthorization,
           errandFixResponse: null,
           deliveryMemberFixResponse: null,
@@ -1180,6 +1187,12 @@ describe("arc delivery position", () => {
         currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
         approvedDispositionLineage: [{
           approvedDisposition,
+          responsePolicyRequest: responsePolicyRequestFixture({
+            headSha: oldTarget.headSha,
+            pullRequest: 401,
+            sourceId: responseLossTerminal.hosted.admission.sourceId,
+            reviewOperationId: responseLossTerminal.attemptId,
+          }),
           fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
           errandFixResponse: null,
           deliveryMemberFixResponse: null,
@@ -1944,6 +1957,10 @@ describe("arc delivery position", () => {
       currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: oldTarget.headSha,
+          reviewOperationId: operation.operationId,
+        }),
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
@@ -2923,6 +2940,12 @@ describe("arc delivery position", () => {
         currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
         approvedDispositionLineage: [{
           approvedDisposition,
+          responsePolicyRequest: responsePolicyRequestFixture({
+            headSha: oldTarget.headSha,
+            pullRequest: 401,
+            sourceId: publishedTerminal.hosted.admission.sourceId,
+            reviewOperationId: publishedTerminal.attemptId,
+          }),
           fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
           errandFixResponse: null,
           deliveryMemberFixResponse: null,
@@ -3447,7 +3470,18 @@ describe("arc delivery position", () => {
       approvedBy: "test-user",
       approvedAt: "2026-08-31T12:10:00Z",
     });
-    const replayOperationId = "lane-progress/response-replay";
+    const replayLineage = {
+      kind: "delivery-member" as const,
+      planId: fixture.plan.planId,
+      deliverableId: selectedDeliverableId,
+      workUnitId: fixture.plan.workUnitId,
+    };
+    const replayOperationId = laneProgressOperationId({
+      lane: "standard",
+      repositoryId,
+      headSha: replayOldTarget.headSha,
+      lineage: replayLineage,
+    });
     const replayTerminal = createHostedTerminalAttemptFixture({
       admission: replayAdmission,
       outcome: "findings",
@@ -3500,6 +3534,12 @@ describe("arc delivery position", () => {
       currentDispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition: replayApprovedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: replayOldTarget.headSha,
+          pullRequest: 401,
+          sourceId: replayTerminal.hosted.admission.sourceId,
+          reviewOperationId: replayAttemptId,
+        }),
         fixAuthorization: createFixAuthorization({
           dispositionState: replayApprovedDisposition,
           oldTarget: replayOldTarget,
@@ -3530,12 +3570,7 @@ describe("arc delivery position", () => {
       kind: "lane-progress",
       lane: "standard",
       repositoryId,
-      lineage: {
-        kind: "delivery-member",
-        planId: fixture.plan.planId,
-        deliverableId: selectedDeliverableId,
-        workUnitId: fixture.plan.workUnitId,
-      },
+      lineage: replayLineage,
       completedPasses: 1,
       attempts: [{
         attemptId: replayAttemptId,

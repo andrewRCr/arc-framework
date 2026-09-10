@@ -39,6 +39,7 @@ import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
 import { SeverityGatingPolicySchema } from "../core/severity-gating-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import { computeConditionalPassAuthorizationId } from "../core/operation-state-schema.js";
 import {
   ReviewTargetSchema,
   type ReviewTarget,
@@ -202,6 +203,15 @@ const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.exten
       message: "conditional next-pass authorization does not match the carried ceiling override",
     });
   }
+  if (request.verifiedFix !== undefined
+    && conditional !== undefined
+    && ceilingOverride?.conditionalPassAuthorizationId === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["policyRequest", "ceilingOverride", "conditionalPassAuthorizationId"],
+      message: "verified fix continuation must carry its captured conditional pass authorization",
+    });
+  }
 });
 
 export const RespondRequestSchema = z.union([
@@ -276,6 +286,17 @@ export interface RespondCommandDependencies {
     headSha: string;
     lineage?: LaneSubjectLineage;
     attemptId: string;
+    dispositionSetId: string;
+    producedHeadSha: string;
+  }): Promise<void>;
+  recordResponsePerformance(input: {
+    lane: "frontline" | "standard";
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    attemptId: string;
+    dispositionSetId: string;
+    producedHeadSha: string;
   }): Promise<void>;
   bindHostedDisposition(input: {
     operationId: string;
@@ -283,7 +304,10 @@ export interface RespondCommandDependencies {
     dispositionSetId: string;
     findingDispositions: readonly HostedDispositionFindingBinding[];
   }): Promise<void>;
-  resolvePolicy(request: ReviewPolicyCommandRequest): Promise<ReviewResolveEnvelope>;
+  resolvePolicy(
+    request: ReviewPolicyCommandRequest,
+    confirmedProducerTarget: ReviewTarget,
+  ): Promise<ReviewResolveEnvelope>;
   captureConditionalNextPass(input: {
     lane: "frontline" | "standard";
     repositoryId: string;
@@ -304,6 +328,18 @@ export interface RespondCommandDependencies {
     dispositionSetId: string;
     successorDispositionSetId: string;
   }): Promise<void>;
+  preflightConditionalNextPassInvalidation(input: {
+    lane: "frontline" | "standard";
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    producerId: string;
+    dispositionSetId: string;
+    successorDispositionSetId: string;
+  }): Promise<
+    | { state: "ready" }
+    | { state: "refused"; reason: "fix-consumed"; detail: string }
+  >;
   preflightHostedDisposition(input: {
     operationId: string;
     attemptId: string;
@@ -367,6 +403,11 @@ interface ResolvedResponseSource {
     hostSettlementFindingIds: readonly string[];
     settled: boolean;
   };
+}
+
+interface PerformedResponseContinuation {
+  policyRequest: ReviewPolicyCommandRequest;
+  conditionalPassAuthorizationId?: string;
 }
 
 type RespondSource = z.infer<typeof ReviewResponseSettlementSourceSchema>;
@@ -642,6 +683,23 @@ function projectApprovedResponse(
       });
 }
 
+async function recordPerformedResponse(
+  source: ResolvedResponseSource,
+  dispositions: ApprovedDispositionSet,
+  producedHeadSha: string,
+  dependencies: RespondCommandDependencies,
+): Promise<void> {
+  await dependencies.recordResponsePerformance({
+    lane: source.frontlineOutcome === undefined ? "standard" : "frontline",
+    repositoryId: source.repositoryId,
+    headSha: source.target.headSha,
+    lineage: source.result.admission.lineage,
+    attemptId: source.hostedAttempt?.attemptId ?? source.operationId,
+    dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+    producedHeadSha,
+  });
+}
+
 /**
  * Append one approved fix's delta-verification evidence to the managed Candidate record.
  *
@@ -655,6 +713,7 @@ async function persistCandidateResponse(
   dispositions: ApprovedDispositionSet,
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
   dispositionReportText: string,
+  continuation: PerformedResponseContinuation,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const lineage = await dependencies.readCandidateLineage(source.target);
@@ -697,6 +756,12 @@ async function persistCandidateResponse(
       throw new RespondCommandError("invalid-input", "Candidate response replay conflicts with the recorded response");
     }
     const { recordPath } = await dependencies.stageCandidateResponse(lineage.workUnit);
+    await recordPerformedResponse(
+      source,
+      dispositions,
+      matching.newTarget.revision,
+      dependencies,
+    );
     return RespondEnvelopeSchema.parse({
       ...header,
       state: "candidate-current",
@@ -707,6 +772,7 @@ async function persistCandidateResponse(
         recordPath,
         implementationChanged: currentness.implementationChanged,
         dispositionReportText,
+        ...continuation,
       },
     });
   }
@@ -741,6 +807,7 @@ async function persistCandidateResponse(
       transitions: [...lineage.record.transitions, response],
     }),
   });
+  await recordPerformedResponse(source, dispositions, response.newTarget.revision, dependencies);
   return RespondEnvelopeSchema.parse({
     ...header,
     state: "candidate-advanced",
@@ -752,6 +819,7 @@ async function persistCandidateResponse(
       recordPath,
       implementationChanged: response.implementationChanged,
       dispositionReportText,
+      ...continuation,
     },
   });
 }
@@ -782,6 +850,7 @@ async function persistErrandResponse(
   newTarget: ReviewTarget,
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
   dispositionReportText: string,
+  continuation: PerformedResponseContinuation,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const [existing, activeErrand] = await Promise.all([
@@ -814,6 +883,7 @@ async function persistErrandResponse(
       throw new RespondCommandError("invalid-input", "Errand response replay conflicts with the recorded response");
     }
     const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(existing);
+    await recordPerformedResponse(source, dispositions, newTarget.headSha, dependencies);
     return RespondEnvelopeSchema.parse({
       ...header,
       state: "errand-current",
@@ -823,6 +893,7 @@ async function persistErrandResponse(
         dispositionRecordRef,
         fixAuthorizationId: current.fixAuthorization.fixAuthorizationId,
         dispositionReportText,
+        ...continuation,
       },
     });
   }
@@ -853,6 +924,7 @@ async function persistErrandResponse(
     )),
   }), source.result);
   const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(record);
+  await recordPerformedResponse(source, dispositions, newTarget.headSha, dependencies);
   return RespondEnvelopeSchema.parse({
     ...header,
     state: "errand-advanced",
@@ -862,6 +934,7 @@ async function persistErrandResponse(
       dispositionRecordRef,
       fixAuthorizationId: fixConsumption.fixAuthorizationId,
       dispositionReportText,
+      ...continuation,
     },
   });
 }
@@ -894,6 +967,7 @@ async function persistDeliveryMemberResponse(
   hostedFixTarget: HostedTarget,
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
   dispositionReportText: string,
+  continuation: PerformedResponseContinuation,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
@@ -937,6 +1011,7 @@ async function persistDeliveryMemberResponse(
       );
     }
     const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(existing);
+    await recordPerformedResponse(source, dispositions, currentTarget.headSha, dependencies);
     if (!hostedAttempt.settled) {
       await dependencies.bindHostedDisposition({
         operationId: hostedAttempt.operationId,
@@ -956,6 +1031,7 @@ async function persistDeliveryMemberResponse(
         currentTarget,
         hostedFixTarget,
         dispositionReportText,
+        ...continuation,
         ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
       },
     });
@@ -988,6 +1064,7 @@ async function persistDeliveryMemberResponse(
     )),
   });
   const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(record);
+  await recordPerformedResponse(source, dispositions, currentTarget.headSha, dependencies);
   return RespondEnvelopeSchema.parse({
     ...header,
     state: "delivery-member-advanced",
@@ -999,6 +1076,7 @@ async function persistDeliveryMemberResponse(
       currentTarget,
       hostedFixTarget,
       dispositionReportText,
+      ...continuation,
       ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
     },
   });
@@ -1328,6 +1406,14 @@ async function respondToResolvedReviewCommand(
     producerFindings: source.findings,
   });
   if (verifiedFix !== undefined && changedTarget !== null) {
+    const conditionalPassAuthorizationId = request.policyRequest.ceilingOverride
+      ?.conditionalPassAuthorizationId;
+    const performedResponseContinuation: PerformedResponseContinuation = {
+      policyRequest: request.policyRequest,
+      ...(conditionalPassAuthorizationId === undefined
+        ? {}
+        : { conditionalPassAuthorizationId }),
+    };
     const settlement = projectApprovedResponse(source, dispositions, {
       candidateTarget: changedTarget,
       verificationEvidenceRefs: verifiedFix.verificationEvidenceRefs,
@@ -1346,6 +1432,7 @@ async function respondToResolvedReviewCommand(
         deliveryMemberFixTarget.hostedFixTarget,
         verifiedFix,
         dispositionReportText,
+        performedResponseContinuation,
         dependencies,
       );
     }
@@ -1356,10 +1443,18 @@ async function respondToResolvedReviewCommand(
         changedTarget,
         verifiedFix,
         dispositionReportText,
+        performedResponseContinuation,
         dependencies,
       );
     }
-    return persistCandidateResponse(source, dispositions, verifiedFix, dispositionReportText, dependencies);
+    return persistCandidateResponse(
+      source,
+      dispositions,
+      verifiedFix,
+      dispositionReportText,
+      performedResponseContinuation,
+      dependencies,
+    );
   }
   const plan = projectApprovedResponse(source, dispositions);
   if (plan.state !== "ready-to-fix" && plan.state !== "ready-to-close") {
@@ -1379,8 +1474,33 @@ async function respondToResolvedReviewCommand(
     ? await dependencies.resolveActiveErrand()
     : null;
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  const expectedConditionalAuthorizationId = conditionalAuthorization === undefined
+    ? undefined
+    : computeConditionalPassAuthorizationId({
+        authorizedBy: conditionalAuthorization.authorizedBy,
+        repositoryId: source.repositoryId,
+        lane: request.policyRequest.lane,
+        lineage: source.result.admission.lineage,
+        producerId: source.operationId,
+        dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+        originatingHeadSha: source.target.headSha,
+        exhaustedPassCount: conditionalAuthorization.exhaustedPassCount,
+        nextPass: conditionalAuthorization.nextPass,
+      });
+  const responsePolicyRequest = expectedConditionalAuthorizationId === undefined
+    ? request.policyRequest
+    : ReviewPolicyCommandRequestSchema.parse({
+        ...request.policyRequest,
+        ceilingOverride: request.policyRequest.ceilingOverride === undefined
+          ? undefined
+          : {
+              ...request.policyRequest.ceilingOverride,
+              conditionalPassAuthorizationId: expectedConditionalAuthorizationId,
+            },
+      });
   const initialNode = {
     approvedDisposition: dispositions,
+    responsePolicyRequest,
     fixAuthorization: plan.fixAuthorization,
     errandFixResponse: null,
     deliveryMemberFixResponse: null,
@@ -1492,6 +1612,28 @@ async function respondToResolvedReviewCommand(
         successorDispositionSetId: dispositions.dispositionSet.dispositionSetId,
         findingDispositions: projectHostedDispositionBindings(source, dispositions),
       };
+  const conditionalSupersessionInput = supersession === undefined
+    ? undefined
+    : {
+        lane: request.policyRequest.lane,
+        repositoryId: source.repositoryId,
+        headSha: source.target.headSha,
+        lineage: source.result.admission.lineage,
+        producerId: source.operationId,
+        dispositionSetId: supersession.predecessorDispositionSetId,
+        successorDispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      };
+  const conditionalPreflight = conditionalSupersessionInput === undefined
+    ? undefined
+    : await dependencies.preflightConditionalNextPassInvalidation(conditionalSupersessionInput);
+  if (supersession !== undefined && conditionalPreflight?.state === "refused") {
+    return supersessionRefusalEnvelope({
+      operationId: source.operationId,
+      predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+      reason: conditionalPreflight.reason,
+      detail: conditionalPreflight.detail,
+    });
+  }
   const hostedPreflight = hostedSupersessionInput === undefined
     ? undefined
     : await dependencies.preflightHostedDisposition(hostedSupersessionInput);
@@ -1504,20 +1646,9 @@ async function respondToResolvedReviewCommand(
     });
   }
   const appended = await dependencies.dispositionStore.appendDispositionRecord(record);
-  const policyContinuation = {
-    policyRequest: request.policyRequest,
-    policy: await dependencies.resolvePolicy(request.policyRequest),
-  };
-  if (supersession !== undefined) {
-    await dependencies.invalidateConditionalNextPass({
-      lane: request.policyRequest.lane,
-      repositoryId: source.repositoryId,
-      headSha: source.target.headSha,
-      lineage: source.result.admission.lineage,
-      producerId: source.operationId,
-      dispositionSetId: supersession.predecessorDispositionSetId,
-      successorDispositionSetId: dispositions.dispositionSet.dispositionSetId,
-    });
+  const policy = await dependencies.resolvePolicy(request.policyRequest, source.target);
+  if (conditionalSupersessionInput !== undefined) {
+    await dependencies.invalidateConditionalNextPass(conditionalSupersessionInput);
   }
   const capturedConditionalAuthorization = conditionalAuthorization === undefined
     ? undefined
@@ -1532,6 +1663,15 @@ async function respondToResolvedReviewCommand(
         exhaustedPassCount: conditionalAuthorization.exhaustedPassCount,
         nextPass: conditionalAuthorization.nextPass,
       });
+  if (capturedConditionalAuthorization !== undefined
+    && capturedConditionalAuthorization.authorizationId !== expectedConditionalAuthorizationId) {
+    throw new RespondCommandError(
+      "corrupt-state",
+      "captured conditional pass authorization does not match the durable response continuation",
+    );
+  }
+  const policyRequest = responsePolicyRequest;
+  const policyContinuation = { policyRequest, policy };
   const hostedSupersessionResolution = hostedSupersessionInput === undefined
     ? undefined
     : await dependencies.supersedeHostedDisposition(hostedSupersessionInput);
@@ -1570,6 +1710,8 @@ async function respondToResolvedReviewCommand(
       headSha: source.target.headSha,
       ...(source.laneLineage === undefined ? {} : { lineage: source.laneLineage }),
       attemptId: source.operationId,
+      dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      producedHeadSha: source.target.headSha,
     });
   }
   const alreadySettled = supersession === undefined ? existing !== null : supersessionReplay;

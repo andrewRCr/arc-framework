@@ -52,6 +52,12 @@ predicts the resulting target. The scope is carried authority, not permission to
 finding actions are settlement evidence, not approval state. The planner does not choose a provider, compose a provider
 command, or infer authority from host state.
 
+When the response captures a conditional next pass, its envelope returns `conditionalPassAuthorizationId` and the
+same identity inside `payload.policyRequest.ceilingOverride`. Retain that policy request unchanged through response
+performance and target rerouting. At the named next-pass admission, carry the exact ceiling override as
+`policyJudgment.ceilingOverride` for local or Frontline work, or as `ceilingOverride` for a hosted request. Never
+reconstruct the identity or treat it as authority for another admission; the lane owner consumes it before dispatch.
+
 When building the disposition set, copy `reportedSeverity` and optional `reportedNit` from the producer while triage
 supplies explicit nullable `verifiedSeverity` and optional `verifiedNit`. Derive gating only from the verified lane plus
 project policy: `critical` and `major` are blocking, a verified nit is record-only, and an ordinary verified `minor`

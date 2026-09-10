@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
+
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
   approveDispositionState,
@@ -307,6 +309,7 @@ describe("review response planning", () => {
       request: {
         schemaVersion: 1,
         source: { kind: "attested-local", receiptRef: "receipt-1" },
+        policyRequest: responsePolicyRequestFixture({ headSha: currentTarget.headSha }),
         dispositions: approved("reject").dispositionState,
       },
     })).toThrow(/target ID/iu);

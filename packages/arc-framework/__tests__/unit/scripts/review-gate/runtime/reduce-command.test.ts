@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
+
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
   ApprovedDispositionRecordSchema,
@@ -254,6 +256,11 @@ function approvedLocal(records: ReturnType<typeof localFixture>): ApprovedDispos
     currentDispositionSetId: disposition.dispositionSet.dispositionSetId,
     approvedDispositionLineage: [{
       approvedDisposition: disposition,
+      responsePolicyRequest: responsePolicyRequestFixture({
+        headSha: records.target.headSha,
+        sourceId: records.operation.laneSourceId,
+        reviewOperationId: records.operation.operationId,
+      }),
       fixAuthorization: null,
       errandFixResponse: null,
       deliveryMemberFixResponse: null,
@@ -661,6 +668,11 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
     currentDispositionSetId: disposition.dispositionSet.dispositionSetId,
     approvedDispositionLineage: [{
       approvedDisposition: disposition,
+      responsePolicyRequest: responsePolicyRequestFixture({
+        headSha: records.target.headSha,
+        sourceId: records.state.sourceIdentity,
+        reviewOperationId: records.state.operationId,
+      }),
       fixAuthorization: null,
       errandFixResponse: null,
       deliveryMemberFixResponse: null,

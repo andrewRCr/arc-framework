@@ -24,6 +24,7 @@ import {
   runArcWithStdin,
 } from "./helpers.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -360,6 +361,7 @@ describe("arc review respond for an Errand", () => {
       await expect(invokeReview(repository, ["review", "respond", "-"], {
         schemaVersion: 1,
         source,
+        policyRequest: await responsePolicyRequest(repository, source),
         dispositions,
       })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
@@ -369,6 +371,7 @@ describe("arc review respond for an Errand", () => {
       const verifiedRequest = {
         schemaVersion: 1,
         source,
+        policyRequest: await responsePolicyRequest(repository, source),
         dispositions,
         verifiedFix: {
           applicability: "focused",

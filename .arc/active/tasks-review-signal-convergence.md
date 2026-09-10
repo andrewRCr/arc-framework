@@ -470,18 +470,10 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   disposition successor. Operational settlement records response performance without becoming clearance, so status and
   checkpoint retain the same first outstanding member and authority boundaries.
 
-### `[ ]` **5.3 Compose policy inside approved respond and preserve response-first continuations**
+### `[x]` **5.3 Compose policy inside approved respond and preserve response-first continuations**
 
 - _Goal:_ An approved response command selects policy internally and returns approved response work before continuation;
   subsequent response completion resumes only current-target action.
-
-- _Note:_ Spec § 7; SC 10, 17, and 18.
-
-- _Approach:_ Keep approved-record append before policy and response performance after it in `respond-command.ts` and
-  existing resolve/status composition. Reuse existing response/fix continuations and preserve human execution gates.
-  Carry caller-owned judgments through the existing prepublication resume context and corresponding lifecycle inputs;
-  do not infer pending context from the source reference or add another session store. Add supersession as a narrow
-  request/result arm of the existing public response verb, not a parallel correction coordinator.
 
     - `[x]` **5.3.a Compose approval, policy, and selected response action**
 
@@ -491,27 +483,15 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
           immutable successor, invalidates predecessor continuation, and carries or reopens attributable hosted work
           under the shared review-operation lock; predictable conflicts return typed refusal envelopes.
 
-    - `[ ]` **5.3.b Resume or reroute after response performance**
+    - `[x]` **5.3.b Resume or reroute after response performance**
 
-        - Build `test-first` (one behavior at a time):
+        - Response completion records the exact produced head, binds and consumes conditional pass authority under the
+          lane owner's version check, and replays durable policy inputs across Candidate, Errand, and delivery paths.
+          Stale, superseded, consumed, or mismatched continuations refuse before dispatch.
 
-            - unchanged-target next-pass/cap handling and changed-target rerouting. Complete, cap, Owner, coverage, and
-              partial-chunk arms keep approved work pending until performed; response replay must not consume another
-              pass or authorize stale clearance.
-
-            - A ceiling override captured with the disposition set binds only after its approved response is
-              performed, against the head that response produces on either target-movement arm, and then admits the
-              named pass. Unfinished fixes or settlement keep it pending, not invalidated. Resolve the produced head
-              from durable response evidence; wrong head/member/count, supersession, and withdrawal cannot bind it.
-
-            - Consume capture with the named admission under the lane owner's version check before dispatch. Concurrent
-              re-entry, lost acknowledgment, and old approval replay cannot grant another pass; retry/fallback retains
-              the same admitted pass. An absent usable capture leaves the existing request path unchanged.
-
-            - Restart between approval, policy, and performance preserves non-default caller judgments, including a
-              pending ceiling-override capture in lane progress. Re-entry on an equivalent head retains applicable
-              decisions; a genuinely invalidated override/terminus is not silently reused. Cover prepublication and
-              public delivery/Errand continuations.
+- _Outcome:_ Approved response is one response-first state machine: immutable approval and its exact policy judgment
+  persist before work, performed settlement or fixes bind their resulting head, and every public continuation resumes
+  from that durable evidence without recreating authority or losing compatible hosted settlement.
 
 ### `[ ]` **5.4 Exercise all-lane convergence, manual aggregates, cap stops, and public response replay**
 

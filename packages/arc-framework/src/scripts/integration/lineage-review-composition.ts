@@ -191,7 +191,8 @@ export function createLineageReviewComposer(input: {
     ));
     const fixTarget = await settledTarget(approvedHead);
     const actions = scoped.map(([, { approved, origin }]) => {
-      const dispositions = currentApprovedDispositionNode(approved).approvedDisposition;
+      const current = currentApprovedDispositionNode(approved);
+      const dispositions = current.approvedDisposition;
       return composeReviewResponseSettlementAction({
         originTarget: origin,
         fixTarget,
@@ -202,6 +203,7 @@ export function createLineageReviewComposer(input: {
             : approved.source.kind === "frontline"
               ? { kind: "frontline", outcomeRef: approved.source.outcomeRef }
               : { kind: "hosted", attemptRef: approved.source.attemptRef },
+          policyRequest: current.responsePolicyRequest,
           dispositions,
         },
       });

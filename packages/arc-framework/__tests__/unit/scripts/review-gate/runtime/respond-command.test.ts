@@ -34,10 +34,12 @@ import { LaneSubjectLineageSchema } from
   "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
-import type {
-  FrontlineRunState,
-  LocalReviewState,
-} from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import {
+  computeConditionalPassAuthorizationId,
+  type FrontlineRunState,
+  type LocalReviewState,
+} from
+  "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 import { projectHostedFinding } from "../../../../../src/scripts/review-gate/hosted/await.js";
@@ -373,6 +375,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
     appendCandidateResponse: () => Promise.reject(new Error("unexpected Candidate append")),
     stageCandidateResponse: () => Promise.reject(new Error("unexpected Candidate stage")),
     settleLaneFindings: async () => undefined,
+    recordResponsePerformance: async () => undefined,
     bindHostedDisposition: async () => undefined,
     resolvePolicy: async (request) => {
       const terminalAttempt = request.attempts.at(-1);
@@ -402,10 +405,14 @@ function dependencies(records: ReturnType<typeof fixture>) {
         },
       };
     },
-    captureConditionalNextPass: async () => ({
-      authorizationId: digest("conditional-pass-authorization"),
+    captureConditionalNextPass: async (input) => ({
+      authorizationId: computeConditionalPassAuthorizationId({
+        ...input,
+        originatingHeadSha: input.headSha,
+      }),
     }),
     invalidateConditionalNextPass: async () => undefined,
+    preflightConditionalNextPassInvalidation: async () => ({ state: "ready" }),
     preflightHostedDisposition: async () => ({ state: "ready" }),
     supersedeHostedDisposition: async () => ({
       state: "advanced",
@@ -1306,6 +1313,64 @@ describe("review response command", () => {
         currentDispositionSetId: successor.dispositionSet.dispositionSetId,
       },
     });
+  });
+
+  it("refuses a consumed conditional authorization before publishing its successor", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const original = localRequest(records);
+    await respondToReviewCommand(original, deps);
+    const supersedes = {
+      predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+      expectedFixPaths: ["src/index.ts"],
+    };
+    const proposed = await respondToReviewCommand({
+      schemaVersion: 1,
+      source: original.source,
+      supersedes,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://consumed-authorization"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          rationale: "The conditional next pass already consumed this authorization.",
+          recommendation: "Preserve the consumed admission and predecessor evidence.",
+          openQuestions: [],
+        }],
+      },
+    }, deps);
+    if (proposed.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    const successor = approveDispositionState({
+      proposed: proposed.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T22:00:00Z",
+    });
+    deps.preflightConditionalNextPassInvalidation = async () => ({
+      state: "refused",
+      reason: "fix-consumed",
+      detail: "consumed conditional pass authorization cannot be superseded",
+    });
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: original.source,
+      policyRequest: original.policyRequest,
+      supersedes,
+      dispositions: successor,
+    }, deps)).resolves.toMatchObject({
+      state: "supersession-refused",
+      nextAction: "stop",
+      payload: { reason: "fix-consumed" },
+    });
+    await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId))
+      .resolves.toMatchObject({
+        currentDispositionSetId: supersedes.predecessorDispositionSetId,
+        approvedDispositionLineage: [{ successorDispositionSetId: null }],
+      });
   });
 
   it("repairs successor publication when predecessor authorization invalidation was interrupted", async () => {
@@ -2247,11 +2312,9 @@ describe("review response command", () => {
   it("returns the persisted conditional next-pass authorization with the response action", async () => {
     const records = fixture();
     const deps = dependencies(records);
-    const authorizationId = digest("approved-next-pass");
-    deps.captureConditionalNextPass = async () => ({ authorizationId });
     const base = policyRequest(records);
 
-    await expect(respondToReviewCommand({
+    const result = await respondToReviewCommand({
       ...localRequest(records, "defer"),
       policyRequest: {
         ...base,
@@ -2267,10 +2330,22 @@ describe("review response command", () => {
         exhaustedPassCount: 1,
         nextPass: 2,
       },
-    }, deps)).resolves.toMatchObject({
+    }, deps);
+    if (result.state !== "settled" || !("conditionalPassAuthorizationId" in result.payload)) {
+      throw new Error("expected a settled response with conditional pass authorization");
+    }
+    const authorizationId = result.payload.conditionalPassAuthorizationId;
+    expect(result).toMatchObject({
       state: "settled",
       nextAction: "reduce",
-      payload: { conditionalPassAuthorizationId: authorizationId },
+      payload: {
+        conditionalPassAuthorizationId: authorizationId,
+        policyRequest: {
+          ceilingOverride: {
+            conditionalPassAuthorizationId: authorizationId,
+          },
+        },
+      },
     });
   });
 
@@ -2691,6 +2766,8 @@ describe("verified-fix Candidate settlement", () => {
       subject: candidateSubject("fixed"),
     });
     const request = verifiedFixRequest(records);
+    const recordResponsePerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordResponsePerformance;
 
     await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
       state: "candidate-advanced",
@@ -2715,6 +2792,54 @@ describe("verified-fix Candidate settlement", () => {
       implementationChanged: true,
       oldTarget: { revision: records.target.headSha },
       newTarget: { revision: objectId("e") },
+    });
+    expect(recordResponsePerformance).toHaveBeenCalledWith({
+      lane: "standard",
+      repositoryId: records.target.repositoryId,
+      headSha: records.target.headSha,
+      lineage: records.operation.lineage,
+      attemptId: records.operation.operationId,
+      dispositionSetId: request.dispositions.dispositionSet.dispositionSetId,
+      producedHeadSha: objectId("e"),
+    });
+  });
+
+  it("carries a captured conditional pass through changed-target response continuation", async () => {
+    const records = fixture();
+    const { deps } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+    const request = verifiedFixRequest(records);
+    const authorizationId = digest("approved-next-pass");
+    const withAuthorization = {
+      ...request,
+      policyRequest: {
+        ...request.policyRequest,
+        ceilingOverride: {
+          target: request.policyRequest.target,
+          lane: "standard" as const,
+          exhaustedPassCount: 1,
+          nextPass: 2,
+          conditionalPassAuthorizationId: authorizationId,
+        },
+      },
+      conditionalNextPassAuthorization: {
+        authorizedBy: records.authority.authorIdentity,
+        exhaustedPassCount: 1,
+        nextPass: 2,
+      },
+    };
+
+    await expect(respondToReviewCommand(withAuthorization, deps)).resolves.toMatchObject({
+      state: "candidate-advanced",
+      nextAction: "continue-review",
+      payload: {
+        conditionalPassAuthorizationId: authorizationId,
+        policyRequest: {
+          ceilingOverride: { conditionalPassAuthorizationId: authorizationId },
+        },
+      },
     });
   });
 

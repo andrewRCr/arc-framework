@@ -15,19 +15,29 @@ import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { ReviewTargetCoordinatesSchema } from "../core/review-target-coordinates.js";
 import type { ReviewOperationStateStore } from "../core/ports.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
-import { readLaneProgressOwner, recordLaneAttempt } from "../lane-progress.js";
+import {
+  consumeConditionalNextPassAuthorization,
+  readLaneProgressOwner,
+  recordLaneAttempt,
+} from "../lane-progress.js";
 import { FrontlineInvocationOverrideSchema } from "./frontline-resolution.js";
 import { resolveFrontlineReview, type FrontlineSemanticRecord } from "./frontline-semantic.js";
 import type {
   FrontlineSourcePreferenceReader,
   FrontlineSourceRegistry,
 } from "./frontline-source.js";
+import { ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
 import { resolveReviewRouting, type ReviewRoutingResolution } from "./routing.js";
+
+const FrontlinePolicyJudgmentSchema = ReviewLaneJudgmentSchema.unwrap()
+  .pick({ ceilingOverride: true })
+  .readonly();
 
 const FrontlineRequestFields = {
   schemaVersion: z.literal(1),
   changeSet: z.unknown(),
   invocation: FrontlineInvocationOverrideSchema,
+  policyJudgment: FrontlinePolicyJudgmentSchema.optional(),
   vehicle: DeliveryReviewMemberVehicleSchema.optional(),
 } as const;
 
@@ -108,6 +118,20 @@ export async function resolveFrontlineCommand(
   if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
   const pendingAdmission = pending[0]?.frontline?.admission;
   if (pendingAdmission !== undefined) {
+    const conditionalPassAuthorizationId = parsed.policyJudgment?.ceilingOverride
+      ?.conditionalPassAuthorizationId;
+    if (conditionalPassAuthorizationId !== undefined) {
+      await consumeConditionalNextPassAuthorization(dependencies.operationStore, {
+        authorizationId: conditionalPassAuthorizationId,
+        repositoryId: parsed.target.repositoryId,
+        lane: "frontline",
+        lineage,
+        producedHeadSha: parsed.target.headSha,
+        nextPass: pendingAdmission.logicalPass,
+        admissionId: pendingAdmission.operationId,
+        now: dependencies.now(),
+      });
+    }
     return FrontlineResolveEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-frontline-resolve",
@@ -124,7 +148,11 @@ export async function resolveFrontlineCommand(
     });
   }
   const routing = resolveReviewRouting(parsed.changeSet);
-  const maxPasses = ReviewPassSchema.parse(await dependencies.readMaxPasses());
+  const configuredMaxPasses = ReviewPassSchema.parse(await dependencies.readMaxPasses());
+  const conditionalCeiling = parsed.policyJudgment?.ceilingOverride;
+  const maxPasses = conditionalCeiling?.conditionalPassAuthorizationId === undefined
+    ? configuredMaxPasses
+    : ReviewPassSchema.parse(Math.max(configuredMaxPasses, conditionalCeiling.nextPass));
   const semantic = await resolveFrontlineReview({
     methodActive: routing.facts.activity.frontlineReview,
     routerAction: routing.decision.frontlineAction,
@@ -190,6 +218,19 @@ export async function resolveFrontlineCommand(
     maxPasses,
   });
   try {
+    const conditionalPassAuthorizationId = conditionalCeiling?.conditionalPassAuthorizationId;
+    if (conditionalPassAuthorizationId !== undefined) {
+      await consumeConditionalNextPassAuthorization(dependencies.operationStore, {
+        authorizationId: conditionalPassAuthorizationId,
+        repositoryId: parsed.target.repositoryId,
+        lane: "frontline",
+        lineage,
+        producedHeadSha: parsed.target.headSha,
+        nextPass: logicalPass,
+        admissionId: admission.operationId,
+        now: dependencies.now(),
+      });
+    }
     await recordLaneAttempt(dependencies.operationStore, {
       lane: "frontline",
       repositoryId: parsed.target.repositoryId,

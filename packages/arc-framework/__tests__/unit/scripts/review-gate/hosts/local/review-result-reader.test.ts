@@ -4,6 +4,7 @@ import {
   createHostedHandleFixture,
   createHostedTerminalAttemptFixture,
 } from "../../../../../fixtures/hosted-review.js";
+import { responsePolicyRequestFixture } from "../../../../../fixtures/review-response-policy.js";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import {
   ApprovedDispositionRecordSchema,
@@ -697,6 +698,11 @@ describe("local review result reader", () => {
       currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: result.target.headSha,
+          sourceId: result.sourceIdentity,
+          reviewOperationId: result.producerId,
+        }),
         fixAuthorization: null,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,

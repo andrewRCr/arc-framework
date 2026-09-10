@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
+
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
   createReviewRequirement,
@@ -696,6 +698,11 @@ describe("local resume command", () => {
       currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: records.operation.target.headSha,
+          sourceId: records.operation.laneSourceId,
+          reviewOperationId: records.operation.operationId,
+        }),
         fixAuthorization: null,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,

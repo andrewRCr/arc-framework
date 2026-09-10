@@ -45,6 +45,61 @@ import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
 
+function conditionalContinuationLineageMatches(
+  left: LaneSubjectLineage,
+  right: LaneSubjectLineage,
+): boolean {
+  return canonicalize(left) === canonicalize(right)
+    || (left.kind === "head-bound"
+      && right.kind === "head-bound"
+      && left.vehicleKind === right.vehicleKind
+      && left.vehicleIdentity === right.vehicleIdentity);
+}
+
+function bindCompletedConditionalPassAuthorization(
+  attempt: LaneAttempt,
+  input: { dispositionSetId: string; producedHeadSha: string; now: string },
+): LaneAttempt {
+  const authorization = attempt.conditionalPassAuthorization;
+  if (authorization === undefined) return attempt;
+  if (authorization.dispositionSetId !== input.dispositionSetId) {
+    throw new Error("conditional pass authorization does not match the performed response");
+  }
+  if (authorization.status === "invalidated") {
+    throw new Error("invalidated conditional pass authorization cannot be bound");
+  }
+  if (authorization.status === "bound" || authorization.status === "consumed") {
+    if (authorization.producedHeadSha !== input.producedHeadSha) {
+      throw new Error("conditional pass authorization response-head replay conflicts");
+    }
+    return attempt;
+  }
+  if (authorization.responseHeadSha !== undefined
+    && authorization.responseHeadSha !== input.producedHeadSha) {
+    throw new Error("conditional pass authorization response-head evidence conflicts");
+  }
+  return {
+    ...attempt,
+    conditionalPassAuthorization: {
+      schemaVersion: authorization.schemaVersion,
+      authorizationId: authorization.authorizationId,
+      status: "bound",
+      authorizedBy: authorization.authorizedBy,
+      repositoryId: authorization.repositoryId,
+      lane: authorization.lane,
+      lineage: authorization.lineage,
+      producerId: authorization.producerId,
+      dispositionSetId: authorization.dispositionSetId,
+      originatingHeadSha: authorization.originatingHeadSha,
+      exhaustedPassCount: authorization.exhaustedPassCount,
+      nextPass: authorization.nextPass,
+      capturedAt: authorization.capturedAt,
+      producedHeadSha: input.producedHeadSha,
+      boundAt: input.now,
+    },
+  };
+}
+
 function sealedHostedReplayMatches(current: LaneAttempt, proposed: LaneAttempt): boolean {
   const currentHosted = current.hosted;
   const proposedHosted = proposed.hosted;
@@ -606,6 +661,20 @@ export async function recordHostedRequestAdmission(
       progress: existing,
       logicalPass,
     });
+    const conditionalPassAuthorizationId = input.request.ceilingOverride
+      ?.conditionalPassAuthorizationId;
+    if (conditionalPassAuthorizationId !== undefined) {
+      await consumeConditionalNextPassAuthorization(store, {
+        authorizationId: conditionalPassAuthorizationId,
+        repositoryId: input.repositoryId,
+        lane: "standard",
+        lineage: input.lineage,
+        producedHeadSha: input.request.target.headSha,
+        nextPass: logicalPass,
+        admissionId: admission.admissionId,
+        now: input.now,
+      });
+    }
     const attempt: LaneAttempt = {
       attemptId: admission.admissionId,
       logicalPass,
@@ -1087,7 +1156,8 @@ export async function bindHostedAttemptDisposition(
       }),
   ];
   const attempts = [...state.attempts];
-  attempts[index] = {
+  const dispositionHasFix = input.findingDispositions.some(({ disposition }) => disposition === "fix");
+  const boundAttempt: LaneAttempt = {
     ...attempt,
     outcome: complete ? "settled-findings" : "findings",
     hosted: {
@@ -1105,6 +1175,13 @@ export async function bindHostedAttemptDisposition(
       settlementEvidence,
     },
   };
+  attempts[index] = complete && !dispositionHasFix
+    ? bindCompletedConditionalPassAuthorization(boundAttempt, {
+        dispositionSetId: input.dispositionSetId,
+        producedHeadSha: attempt.headSha,
+        now: input.now,
+      })
+    : boundAttempt;
   const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(next, version);
   return next;
@@ -1174,7 +1251,7 @@ export async function settleHostedAttemptFinding(
   }
   const settledFindingIds = [...attempt.hosted.settledFindingIds, input.findingId].sort();
   const attempts = [...state.attempts];
-  attempts[index] = {
+  const settledAttempt: LaneAttempt = {
     ...attempt,
     outcome: settledFindingIds.length === attempt.hosted.sealedResult.findings.length
       ? "settled-findings"
@@ -1185,6 +1262,39 @@ export async function settleHostedAttemptFinding(
       settlementEvidence: [...attempt.hosted.settlementEvidence, evidence],
     },
   };
+  if (settledAttempt.outcome === "settled-findings") {
+    const dispositionHasFix = attempt.hosted.dispositionSetLineage.at(-1)?.findingActions
+      .some(({ disposition }) => disposition === "fix") ?? false;
+    let producedHeadSha = attempt.headSha;
+    if (dispositionHasFix && attempt.conditionalPassAuthorization !== undefined) {
+      const responseHeadSha = attempt.conditionalPassAuthorization.status === "pending"
+        ? attempt.conditionalPassAuthorization.responseHeadSha
+        : attempt.conditionalPassAuthorization.status === "bound"
+          || attempt.conditionalPassAuthorization.status === "consumed"
+          ? attempt.conditionalPassAuthorization.producedHeadSha
+          : undefined;
+      if (responseHeadSha === undefined) {
+        throw new Error("hosted fix settlement lacks durable response-head evidence");
+      }
+      const fixHeadShas = [...attempt.hosted.settlementEvidence, evidence]
+        .flatMap((candidate) => candidate.disposition === "fix"
+          && candidate.channelAction === "reply-and-resolve"
+          && candidate.fixTarget !== null
+          ? [candidate.fixTarget.headSha]
+          : []);
+      if (fixHeadShas.length === 0 || fixHeadShas.some((headSha) => headSha !== responseHeadSha)) {
+        throw new Error("hosted fix settlement does not match durable response-head evidence");
+      }
+      producedHeadSha = responseHeadSha;
+    }
+    attempts[index] = bindCompletedConditionalPassAuthorization(settledAttempt, {
+      dispositionSetId: input.dispositionSetId,
+      producedHeadSha,
+      now: input.now,
+    });
+  } else {
+    attempts[index] = settledAttempt;
+  }
   const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(next, version);
   return next;
@@ -1430,8 +1540,18 @@ export async function captureConditionalNextPassAuthorization(
       capturedAt: input.now,
     };
     if (attempt.conditionalPassAuthorization !== undefined) {
-      const replay = { ...authorization, capturedAt: attempt.conditionalPassAuthorization.capturedAt };
-      if (canonicalize(attempt.conditionalPassAuthorization) !== canonicalize(replay)) {
+      const current = attempt.conditionalPassAuthorization;
+      const replay = { ...authorization, capturedAt: current.capturedAt };
+      if (current.authorizationId !== authorizationId
+        || current.authorizedBy !== replay.authorizedBy
+        || current.repositoryId !== replay.repositoryId
+        || current.lane !== replay.lane
+        || canonicalize(current.lineage) !== canonicalize(replay.lineage)
+        || current.producerId !== replay.producerId
+        || current.dispositionSetId !== replay.dispositionSetId
+        || current.originatingHeadSha !== replay.originatingHeadSha
+        || current.exhaustedPassCount !== replay.exhaustedPassCount
+        || current.nextPass !== replay.nextPass) {
         throw new Error("conditional pass authorization replay conflicts with recorded authority");
       }
       return { progress: state, authorizationId };
@@ -1491,12 +1611,26 @@ export async function invalidateConditionalNextPassAuthorization(
       }
       return state;
     }
+    if (authorization.status === "consumed") {
+      throw new Error("consumed conditional pass authorization cannot be invalidated");
+    }
     const attempts = [...state.attempts];
     attempts[index] = {
       ...attempt,
       conditionalPassAuthorization: {
-        ...authorization,
+        schemaVersion: authorization.schemaVersion,
+        authorizationId: authorization.authorizationId,
         status: "invalidated",
+        authorizedBy: authorization.authorizedBy,
+        repositoryId: authorization.repositoryId,
+        lane: authorization.lane,
+        lineage: authorization.lineage,
+        producerId: authorization.producerId,
+        dispositionSetId: authorization.dispositionSetId,
+        originatingHeadSha: authorization.originatingHeadSha,
+        exhaustedPassCount: authorization.exhaustedPassCount,
+        nextPass: authorization.nextPass,
+        capturedAt: authorization.capturedAt,
         reason: "superseded",
         successorDispositionSetId: input.successorDispositionSetId,
         invalidatedAt: input.now,
@@ -1511,6 +1645,164 @@ export async function invalidateConditionalNextPassAuthorization(
     }
   }
   throw new Error("conditional pass authorization invalidation exceeded version-conflict retry attempts");
+}
+
+/**
+ * Inspect whether supersession may invalidate a response-gated pass authorization.
+ *
+ * @param store - Versioned lane-progress owner to inspect.
+ * @param input - Superseded authorization binding and successor disposition identity.
+ * @returns A typed refusal only when the named authorization has already been consumed.
+ */
+export async function inspectConditionalNextPassInvalidation(
+  store: ReviewOperationStateStore,
+  input: {
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    producerId: string;
+    dispositionSetId: string;
+    successorDispositionSetId: string;
+  },
+): Promise<
+  | { state: "ready" }
+  | { state: "refused"; reason: "fix-consumed"; detail: string }
+> {
+  const operationId = laneProgressOperationId(input);
+  const { state } = await store.readOperation(operationId);
+  if (state === null
+    || state.kind !== "lane-progress"
+    || state.lane !== input.lane
+    || state.repositoryId !== input.repositoryId
+    || canonicalize(state.lineage) !== canonicalize(input.lineage)) return { state: "ready" };
+  const attempt = state.attempts.find(({ attemptId }) => attemptId === input.producerId);
+  const authorization = attempt?.conditionalPassAuthorization;
+  if (attempt === undefined || authorization === undefined) return { state: "ready" };
+  if (authorization.producerId !== input.producerId
+    || authorization.dispositionSetId !== input.dispositionSetId) {
+    throw new Error("conditional pass authorization does not match the superseded disposition");
+  }
+  if (authorization.status === "invalidated") {
+    if (authorization.successorDispositionSetId !== input.successorDispositionSetId) {
+      throw new Error("conditional pass authorization invalidation replay conflicts");
+    }
+    return { state: "ready" };
+  }
+  if (authorization.status === "consumed") {
+    return {
+      state: "refused",
+      reason: "fix-consumed",
+      detail: "consumed conditional pass authorization cannot be superseded",
+    };
+  }
+  return { state: "ready" };
+}
+
+/**
+ * Consume one bound response-gated authorization for its named logical pass.
+ *
+ * @param store - Versioned lane-progress store and complete snapshot reader.
+ * @param input - Authorization identity and the exact pass admission it enables.
+ * @returns The updated authorization owner and retained consumption evidence.
+ */
+export async function consumeConditionalNextPassAuthorization(
+  store: ReviewOperationStateStore,
+  input: {
+    authorizationId: string;
+    repositoryId: string;
+    lane: LaneProgressState["lane"];
+    lineage: LaneSubjectLineage;
+    producedHeadSha: string;
+    nextPass: number;
+    admissionId: string;
+    now: string;
+  },
+): Promise<LaneProgressState> {
+  const readOperationSnapshot = (store as Partial<ReviewOperationStateSnapshotIndex>)
+    .readOperationSnapshot;
+  if (typeof readOperationSnapshot !== "function") {
+    throw new Error("conditional pass authorization snapshot reader is unavailable");
+  }
+  for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
+    const snapshot: Awaited<ReturnType<ReviewOperationStateSnapshotIndex["readOperationSnapshot"]>> =
+      await readOperationSnapshot.call(store);
+    if (snapshot.status !== "complete") {
+      throw new Error("conditional pass authorization snapshot is unavailable");
+    }
+    const matches = snapshot.records.flatMap((record) => {
+      if (record.state.kind !== "lane-progress") return [];
+      const attempt = record.state.attempts.find((candidate) =>
+        candidate.conditionalPassAuthorization?.authorizationId === input.authorizationId);
+      return attempt === undefined ? [] : [{ ...record, progress: record.state, attempt }];
+    });
+    if (matches.length !== 1) {
+      throw new Error("conditional pass authorization is unavailable or ambiguous");
+    }
+    const match = matches[0];
+    if (match === undefined) throw new Error("conditional pass authorization is unavailable");
+    const authorization = match.attempt.conditionalPassAuthorization;
+    if (authorization === undefined) throw new Error("conditional pass authorization is unavailable");
+    if (authorization.repositoryId !== input.repositoryId
+      || authorization.lane !== input.lane
+      || !conditionalContinuationLineageMatches(authorization.lineage, input.lineage)
+      || authorization.nextPass !== input.nextPass) {
+      throw new Error("conditional pass authorization does not match the named admission");
+    }
+    if (authorization.status === "pending") {
+      throw new Error("conditional pass authorization response is not complete");
+    }
+    if (authorization.status === "invalidated") {
+      throw new Error("conditional pass authorization is invalidated");
+    }
+    if (authorization.producedHeadSha !== input.producedHeadSha) {
+      throw new Error("conditional pass authorization does not match the produced head");
+    }
+    const terminalAlreadyRecorded = snapshot.records.some(({ state }) => (
+      state.kind === "lane-progress"
+      && state.repositoryId === input.repositoryId
+      && state.lane === input.lane
+      && conditionalContinuationLineageMatches(state.lineage, input.lineage)
+      && state.attempts.some((attempt) => (
+        attempt.headSha === input.producedHeadSha
+        && attempt.logicalPass === input.nextPass
+        && attempt.terminalProducer
+      ))
+    ));
+    if (terminalAlreadyRecorded) {
+      throw new Error("conditional pass authorization named pass is already complete");
+    }
+    if (authorization.status === "consumed") {
+      if (authorization.admissionId !== input.admissionId) {
+        throw new Error("conditional pass authorization was already consumed by another admission");
+      }
+      return match.progress;
+    }
+    const attemptIndex = match.progress.attempts.findIndex((candidate) =>
+      candidate.attemptId === match.attempt.attemptId);
+    const attempts = [...match.progress.attempts];
+    attempts[attemptIndex] = {
+      ...match.attempt,
+      conditionalPassAuthorization: {
+        ...authorization,
+        status: "consumed",
+        admissionId: input.admissionId,
+        consumedAt: input.now,
+      },
+    };
+    const progress = LaneProgressStateSchema.parse({
+      ...match.progress,
+      updatedAt: input.now,
+      attempts,
+    });
+    try {
+      await store.publishOperation(progress, match.version);
+      return progress;
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
+  }
+  throw new Error("conditional pass authorization consumption exceeded version-conflict retry attempts");
 }
 
 /**
@@ -1605,6 +1897,8 @@ export async function settleLaneAttempt(
     headSha: string;
     lineage?: LaneSubjectLineage;
     attemptId: string;
+    dispositionSetId?: string;
+    producedHeadSha?: string;
     now: string;
   },
 ): Promise<LaneProgressState> {
@@ -1620,10 +1914,26 @@ export async function settleLaneAttempt(
   const attempt = state.attempts[index];
   if (attempt === undefined) throw new Error("lane findings attempt is unavailable");
   if (attempt.headSha !== input.headSha) throw new Error("lane findings attempt is unavailable");
-  if (attempt.outcome === "settled-findings") return state;
-  if (attempt.outcome !== "findings") throw new Error("lane attempt does not carry findings");
+  if (attempt.outcome !== "findings" && attempt.outcome !== "settled-findings") {
+    throw new Error("lane attempt does not carry findings");
+  }
+  let settledAttempt: LaneAttempt = attempt.outcome === "settled-findings"
+    ? attempt
+    : { ...attempt, outcome: "settled-findings" };
+  const authorization = attempt.conditionalPassAuthorization;
+  if (authorization !== undefined) {
+    if (input.dispositionSetId === undefined || input.producedHeadSha === undefined) {
+      throw new Error("conditional pass authorization requires exact response-performance evidence");
+    }
+    settledAttempt = bindCompletedConditionalPassAuthorization(settledAttempt, {
+      dispositionSetId: input.dispositionSetId,
+      producedHeadSha: input.producedHeadSha,
+      now: input.now,
+    });
+  }
+  if (canonicalize(settledAttempt) === canonicalize(attempt)) return state;
   const attempts = [...state.attempts];
-  attempts[index] = { ...attempt, outcome: "settled-findings" };
+  attempts[index] = settledAttempt;
   const next = LaneProgressStateSchema.parse({
     ...state,
     updatedAt: input.now,
@@ -1631,6 +1941,92 @@ export async function settleLaneAttempt(
   });
   await store.publishOperation(next, version);
   return next;
+}
+
+/** Record the durable head produced by a fully performed approved response. */
+export async function recordLaneResponsePerformance(
+  store: ReviewOperationStateStore,
+  input: {
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    attemptId: string;
+    dispositionSetId: string;
+    producedHeadSha: string;
+    now: string;
+  },
+): Promise<LaneProgressState> {
+  const operationId = laneProgressOperationId(input);
+  for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
+    const { version, state } = await store.readOperation(operationId);
+    if (state === null
+      || state.kind !== "lane-progress"
+      || state.lane !== input.lane
+      || state.repositoryId !== input.repositoryId
+      || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
+      throw new Error("lane response performance owner is unavailable");
+    }
+    const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.attemptId);
+    const attempt = state.attempts[index];
+    if (attempt === undefined
+      || attempt.headSha !== input.headSha
+      || (attempt.outcome !== "findings" && attempt.outcome !== "settled-findings")) {
+      throw new Error("lane response performance does not match its findings producer");
+    }
+    const authorization = attempt.conditionalPassAuthorization;
+    let performedAttempt = attempt;
+    if (attempt.hosted === undefined) {
+      performedAttempt = { ...attempt, outcome: "settled-findings" };
+    }
+    if (authorization !== undefined) {
+      if (authorization.dispositionSetId !== input.dispositionSetId) {
+        throw new Error("conditional pass authorization does not match the performed response");
+      }
+      if (authorization.status === "invalidated") {
+        throw new Error("invalidated conditional pass authorization cannot record response performance");
+      }
+      if (authorization.status === "consumed") {
+        if (authorization.producedHeadSha !== input.producedHeadSha) {
+          throw new Error("conditional pass authorization response-head replay conflicts");
+        }
+        return state;
+      }
+      if (attempt.hosted === undefined || attempt.outcome === "settled-findings") {
+        performedAttempt = bindCompletedConditionalPassAuthorization(performedAttempt, {
+          dispositionSetId: input.dispositionSetId,
+          producedHeadSha: input.producedHeadSha,
+          now: input.now,
+        });
+      } else if (authorization.status === "pending") {
+        if (authorization.responseHeadSha !== undefined) {
+          if (authorization.responseHeadSha !== input.producedHeadSha) {
+            throw new Error("conditional pass authorization response-head replay conflicts");
+          }
+          return state;
+        }
+        performedAttempt = {
+          ...performedAttempt,
+          conditionalPassAuthorization: {
+            ...authorization,
+            responseHeadSha: input.producedHeadSha,
+            responsePerformedAt: input.now,
+          },
+        };
+      }
+    }
+    if (canonicalize(performedAttempt) === canonicalize(attempt)) return state;
+    const attempts = [...state.attempts];
+    attempts[index] = performedAttempt;
+    const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
+    try {
+      await store.publishOperation(next, version);
+      return next;
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
+  }
+  throw new Error("lane response performance exceeded version-conflict retry attempts");
 }
 
 type LanePolicyLocalBinding = Omit<

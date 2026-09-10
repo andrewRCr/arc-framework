@@ -17,6 +17,7 @@ import {
   type FrontlineExecutionOutcome,
 } from "../policy/frontline-outcome.js";
 import { HostedTargetSchema } from "../hosted/request.js";
+import { ReviewPolicyCommandRequestSchema } from "../policy/review-policy-driver.js";
 import { ApprovedDispositionSetSchema } from "./disposition-records.js";
 import {
   FixAuthorizationConsumptionSchema,
@@ -84,6 +85,7 @@ export type DeliveryMemberReviewFixResponse = z.infer<typeof DeliveryMemberRevie
 
 export const ApprovedDispositionLineageNodeSchema = z.strictObject({
   approvedDisposition: ApprovedDispositionSetSchema,
+  responsePolicyRequest: ReviewPolicyCommandRequestSchema,
   fixAuthorization: FixAuthorizationSchema.nullable(),
   errandFixResponse: ErrandReviewFixResponseSchema.nullable(),
   deliveryMemberFixResponse: DeliveryMemberReviewFixResponseSchema.nullable(),

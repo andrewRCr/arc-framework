@@ -3210,9 +3210,8 @@ async function executeDeliveryCommand(
             result = {
               status: "refused",
               reason: "review-fix-response-replay-failed",
-              ...(error instanceof RespondCommandError
-                ? { detail: error.message, responseError: error.code }
-                : {}),
+              ...(error instanceof Error ? { detail: error.message } : {}),
+              ...(error instanceof RespondCommandError ? { responseError: error.code } : {}),
             };
           }
         } else {

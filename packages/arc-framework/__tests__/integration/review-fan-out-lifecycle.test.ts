@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
+
 import {
   handleCandidateApplicabilityResolve,
 } from "../../src/handlers/candidate.js";
@@ -298,6 +300,12 @@ async function bindApprovedHostedFinding(
       currentDispositionSetId: dispositionSetId,
       approvedDispositionLineage: [{
         approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: input.handle.admission.reviewTarget.headSha,
+          pullRequest: input.handle.target.pullRequest,
+          sourceId: input.handle.provider,
+          reviewOperationId: attemptId,
+        }),
         fixAuthorization: null,
         errandFixResponse: null,
         deliveryMemberFixResponse: null,
@@ -3003,6 +3011,30 @@ describe("hosted review fan-out lifecycle", () => {
     const request = {
       schemaVersion: 1 as const,
       source: { kind: "hosted" as const, attemptRef },
+      policyRequest: {
+        schemaVersion: 1 as const,
+        target: {
+          repository,
+          pullRequest: requested.handle.target.pullRequest,
+          headSha: review.reviewTarget.headSha,
+        },
+        lane: "standard" as const,
+        frontlineActive: false,
+        standardReview: {
+          obligation: review.requirement.obligation,
+          reasons: review.requirement.reasons,
+          rubricVersion: review.requirement.rubricVersion,
+          rubricDigest: review.requirement.rubricDigest,
+          retrigger: review.requirement.retrigger,
+          count: review.requirement.count,
+        },
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings" as const,
+          reviewOperationId: attemptId,
+        }],
+      },
       dispositions,
     };
     await expect(respondThroughHandler(harness, request)).resolves.toMatchObject({

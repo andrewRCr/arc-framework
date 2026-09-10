@@ -62,6 +62,7 @@ export type DurableDeliveryReviewFixResponseReplay =
       readonly request: {
         readonly schemaVersion: 1;
         readonly source: Extract<ReviewResponseSettlementRequest["source"], { readonly kind: "hosted" }>;
+        readonly policyRequest: ApprovedDispositionLineageNode["responsePolicyRequest"];
         readonly dispositions: ApprovedDispositionLineageNode["approvedDisposition"];
         readonly verifiedFix: {
           readonly applicability:
@@ -157,6 +158,7 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
     request: {
       schemaVersion: 1,
       source: { kind: "hosted", attemptRef: selected.source.attemptRef },
+      policyRequest: current.responsePolicyRequest,
       dispositions: current.approvedDisposition,
       verifiedFix: {
         applicability: current.deliveryMemberFixResponse.applicability,

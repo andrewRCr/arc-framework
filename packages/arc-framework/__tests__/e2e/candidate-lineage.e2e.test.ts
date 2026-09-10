@@ -47,7 +47,9 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { bindReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
+import {
+  bindReviewSourceReference,
+} from "../../src/scripts/review-gate/core/review-source-reference.js";
 import { createHostedAdmission } from "../../src/scripts/review-gate/hosted/request.js";
 import {
   LocalReviewOperationStateStore,
@@ -95,6 +97,7 @@ import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/se
 import type { MergeMethodResolveResult } from "../../src/scripts/review-gate/merge-method.js";
 import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
 import { createHostedTerminalAttemptFixture } from "../fixtures/hosted-review.js";
+import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -621,9 +624,11 @@ describe("review-fix Candidate lineage", () => {
 
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
+    const policyRequest = await responsePolicyRequest(root, source);
     await expect(invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
     })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
     await writeFile(
@@ -637,6 +642,7 @@ describe("review-fix Candidate lineage", () => {
     await expect(invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
       verifiedFix: {
         applicability: "focused",
@@ -761,7 +767,10 @@ describe("review-fix Candidate lineage", () => {
 
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    await expect(invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions }))
+    const policyRequest = await responsePolicyRequest(root, source);
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1, source, policyRequest, dispositions,
+    }))
       .resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
@@ -771,6 +780,7 @@ describe("review-fix Candidate lineage", () => {
     const advanced = await invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
       verifiedFix: {
         applicability: "focused",
@@ -822,13 +832,15 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "verification"]);
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+    const policyRequest = await responsePolicyRequest(root, source);
+    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, policyRequest, dispositions });
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
     await invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
     });
@@ -855,6 +867,7 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "verification"]);
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
+    const policyRequest = await responsePolicyRequest(root, source);
 
     const metaPath = join(root, ".arc", "active", "meta-example.md");
     const meta = await readFile(metaPath, "utf8");
@@ -866,6 +879,7 @@ describe("review-fix Candidate lineage", () => {
     await expect(invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
     })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
@@ -889,6 +903,7 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "verification"]);
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
+    const policyRequest = await responsePolicyRequest(root, source);
 
     const metaPath = join(root, ".arc", "active", "meta-example.md");
     const meta = await readFile(metaPath, "utf8");
@@ -898,6 +913,7 @@ describe("review-fix Candidate lineage", () => {
     await expect(invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
     })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
@@ -924,6 +940,7 @@ describe("review-fix Candidate lineage", () => {
     const response = await runArcWithStdin(["review", "respond", "-"], root, `${JSON.stringify({
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
     })}\n`);
@@ -946,6 +963,7 @@ describe("review-fix Candidate lineage", () => {
       `${JSON.stringify({
         schemaVersion: 1,
         source,
+        policyRequest,
         dispositions,
         verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
       })}\n`,
@@ -969,9 +987,11 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "verification"]);
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
+    const policyRequest = await responsePolicyRequest(root, source);
     const responseInput = {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
     };
@@ -979,6 +999,7 @@ describe("review-fix Candidate lineage", () => {
     await expect(invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
     })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
@@ -1089,9 +1110,11 @@ describe("review-fix Candidate lineage", () => {
 
       const source = await reviewToFindings(origin);
       const dispositions = await approvedSet(origin, source);
+      const policyRequest = await responsePolicyRequest(origin, source);
       await expect(invoke(origin, ["review", "respond", "-"], {
         schemaVersion: 1,
         source,
+        policyRequest,
         dispositions,
       })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
       await writeFile(join(origin, "reviewed.txt"), "stationary reviewed fix\n", "utf8");
@@ -1100,6 +1123,7 @@ describe("review-fix Candidate lineage", () => {
       await expect(invoke(origin, ["review", "respond", "-"], {
         schemaVersion: 1,
         source,
+        policyRequest,
         dispositions,
         verifiedFix: {
           applicability: "focused",
@@ -1236,7 +1260,10 @@ describe("review-fix Candidate lineage", () => {
       }),
     };
     const dispositions = await approvedSet(root, source);
-    await expect(invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions }))
+    const policyRequest = await responsePolicyRequest(root, source);
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1, source, policyRequest, dispositions,
+    }))
       .resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
     await writeFile(join(root, "reviewed.txt"), "hosted finding fixed\n", "utf8");
@@ -1262,6 +1289,7 @@ describe("review-fix Candidate lineage", () => {
     await expect(invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
       verifiedFix: {
         applicability: "focused",
@@ -1376,7 +1404,10 @@ describe("review-fix Candidate lineage", () => {
     const { root } = await settledReviewLineage();
     const source = await reviewToFindings(root);
     const deferred = await approvedSet(root, source, "defer");
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions: deferred });
+    const policyRequest = await responsePolicyRequest(root, source);
+    await invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1, source, policyRequest, dispositions: deferred,
+    });
     await git(root, ["commit", "--allow-empty", "-m", "submit transition"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
 
@@ -1405,7 +1436,10 @@ describe("review-fix Candidate lineage", () => {
     const { root } = await settledReviewLineage();
     const source = await reviewToFindings(root);
     const deferred = await approvedSet(root, source, "defer");
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions: deferred });
+    const policyRequest = await responsePolicyRequest(root, source);
+    await invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1, source, policyRequest, dispositions: deferred,
+    });
 
     // No fix means no commit or re-attestation of its own. The approved record remains durable input
     // to the post-approval plan, whose replay settles the channel at this exact head.
@@ -1433,9 +1467,11 @@ describe("review-fix Candidate lineage", () => {
     // A defer-only approval first: it appends nothing to the Candidate lineage but remains checkpoint input.
     const deferSource = await reviewToFindings(root);
     const deferred = await approvedSet(root, deferSource, "defer");
+    const deferPolicyRequest = await responsePolicyRequest(root, deferSource);
     await invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source: deferSource,
+      policyRequest: deferPolicyRequest,
       dispositions: deferred,
     });
     const deferredHead = await git(root, ["rev-parse", "HEAD"]);
@@ -1445,13 +1481,15 @@ describe("review-fix Candidate lineage", () => {
     // Then a fix lands, moving the head the tail span would be measured from.
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+    const policyRequest = await responsePolicyRequest(root, source);
+    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, policyRequest, dispositions });
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
     await expect(invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
     })).resolves.toMatchObject({ state: "candidate-advanced" });
@@ -1478,7 +1516,8 @@ describe("review-fix Candidate lineage", () => {
 
     const source = await reviewToFindings(root);
     const dispositions = await approvedSet(root, source);
-    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+    const policyRequest = await responsePolicyRequest(root, source);
+    await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, policyRequest, dispositions });
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
@@ -1486,6 +1525,7 @@ describe("review-fix Candidate lineage", () => {
     const request = {
       schemaVersion: 1,
       source,
+      policyRequest,
       dispositions,
       verifiedFix: {
         applicability: "targeted",
@@ -1528,7 +1568,8 @@ async function settledReviewLineage(): Promise<{ root: string; approvedHead: str
 
   const source = await reviewToFindings(root);
   const dispositions = await approvedSet(root, source);
-  await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, dispositions });
+  const policyRequest = await responsePolicyRequest(root, source);
+  await invoke(root, ["review", "respond", "-"], { schemaVersion: 1, source, policyRequest, dispositions });
   await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
   await git(root, ["add", "reviewed.txt"]);
   await git(root, ["commit", "-m", "apply approved fix"]);
@@ -1536,6 +1577,7 @@ async function settledReviewLineage(): Promise<{ root: string; approvedHead: str
   await expect(invoke(root, ["review", "respond", "-"], {
     schemaVersion: 1,
     source,
+    policyRequest,
     dispositions,
     verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
   })).resolves.toMatchObject({ state: "candidate-advanced" });

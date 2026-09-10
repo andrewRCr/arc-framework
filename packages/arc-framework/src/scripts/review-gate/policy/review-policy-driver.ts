@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   GitObjectIdSchema,
+  ReviewCanonicalDigestSchema,
   ReviewIdentifierSchema,
 } from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
@@ -210,6 +211,7 @@ export const ReviewCeilingOverrideSchema = z.strictObject({
   lane: z.enum(["frontline", "standard"]),
   exhaustedPassCount: CompletedReviewPassCountSchema,
   nextPass: ReviewPassSchema,
+  conditionalPassAuthorizationId: ReviewCanonicalDigestSchema.optional(),
 }).readonly();
 export type ReviewCeilingOverride = z.infer<typeof ReviewCeilingOverrideSchema>;
 const InvalidOverrideReasonSchema = z.enum([
@@ -280,6 +282,7 @@ export const ReviewLaneJudgmentSchema = z.strictObject({
   ceilingOverride: z.strictObject({
     exhaustedPassCount: CompletedReviewPassCountSchema,
     nextPass: ReviewPassSchema,
+    conditionalPassAuthorizationId: ReviewCanonicalDigestSchema.optional(),
   }).readonly().optional(),
   terminus: OwnerAcceptedReviewTerminusJudgmentSchema.optional(),
 }).readonly();

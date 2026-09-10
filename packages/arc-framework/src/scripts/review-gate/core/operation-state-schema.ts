@@ -251,6 +251,22 @@ export const ConditionalPassAuthorizationSchema = z.discriminatedUnion("status",
   z.strictObject({
     ...ConditionalPassAuthorizationBaseShape,
     status: z.literal("pending"),
+    responseHeadSha: GitObjectIdSchema.optional(),
+    responsePerformedAt: z.iso.datetime({ offset: true }).optional(),
+  }),
+  z.strictObject({
+    ...ConditionalPassAuthorizationBaseShape,
+    status: z.literal("bound"),
+    producedHeadSha: GitObjectIdSchema,
+    boundAt: z.iso.datetime({ offset: true }),
+  }),
+  z.strictObject({
+    ...ConditionalPassAuthorizationBaseShape,
+    status: z.literal("consumed"),
+    producedHeadSha: GitObjectIdSchema,
+    boundAt: z.iso.datetime({ offset: true }),
+    admissionId: IdentifierSchema,
+    consumedAt: z.iso.datetime({ offset: true }),
   }),
   z.strictObject({
     ...ConditionalPassAuthorizationBaseShape,
@@ -260,6 +276,15 @@ export const ConditionalPassAuthorizationSchema = z.discriminatedUnion("status",
     invalidatedAt: z.iso.datetime({ offset: true }),
   }),
 ]).superRefine((authorization, context) => {
+  if (authorization.status === "pending"
+    && ((authorization.responseHeadSha === undefined)
+      !== (authorization.responsePerformedAt === undefined))) {
+    context.addIssue({
+      code: "custom",
+      path: ["responseHeadSha"],
+      message: "conditional response head and performance time must be recorded together",
+    });
+  }
   if (authorization.nextPass !== authorization.exhaustedPassCount + 1) {
     context.addIssue({
       code: "custom",
