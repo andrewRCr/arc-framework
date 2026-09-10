@@ -1,5 +1,7 @@
 /** Publish-first choreography for one immutable local review preparation. */
 
+import { canonicalize } from "../../../lib/kernel/index.js";
+
 import {
   LocalReviewSourceSchema,
   type LocalReviewSource,
@@ -38,7 +40,25 @@ export function createLocalReviewSourcePayload(
     headSha: admission.target.headSha,
     sourceRef: preparation.sourceRef,
     sourceDigest: preparation.sourceDigest,
+    ...(preparation.state.deliveryAdmission?.correctionScope === undefined
+      ? {}
+      : { correctionScope: preparation.state.deliveryAdmission.correctionScope }),
   });
+}
+
+function localReviewerInstructions(
+  guidance: LocalReviewGuidance,
+  source: LocalReviewSource,
+): string {
+  const scope = source.correctionScope;
+  if (scope === undefined) return guidance.reviewerInstructions;
+  const findings = scope.requiredFindingIds.length === 0
+    ? "none"
+    : scope.requiredFindingIds.join(", ");
+  return `${guidance.reviewerInstructions}\n\n`
+    + `Incremental correction scope: review ${scope.predecessorHeadSha}..${scope.headSha}; `
+    + `the complete coverage basis begins at ${scope.basisHeadSha}. Re-examine material finding IDs `
+    + `${findings}, including their original loci when outside the changed lines.`;
 }
 
 /**
@@ -62,12 +82,15 @@ export async function publishLocalReviewPreparation(
   },
 ): Promise<LocalReviewPreparation> {
   const source = LocalReviewSourceSchema.parse(sourceInput);
+  const admittedCorrectionScope = admission.deliveryAdmission?.correctionScope;
   if (source.repositoryId !== admission.target.repositoryId
     || source.targetId !== admission.target.targetId
     || source.diffBaseSha !== admission.target.diffBaseSha
     || source.diffBaseTree !== admission.target.diffBaseTree
     || source.headSha !== admission.target.headSha
-    || source.headTree !== admission.target.headTree) {
+    || source.headTree !== admission.target.headTree
+    || canonicalize(source.correctionScope ?? null)
+      !== canonicalize(admittedCorrectionScope ?? null)) {
     throw new Error("local review source does not match its admission target");
   }
   const { sourceRef } = await dependencies.sourceStore.appendSource(source);
@@ -96,7 +119,7 @@ export async function publishLocalReviewPreparation(
     sourceDigest: source.sourceDigest,
     guidance: dependencies.guidance.projection,
     guidanceDigest: dependencies.guidance.guidanceDigest,
-    reviewerInstructions: dependencies.guidance.reviewerInstructions,
+    reviewerInstructions: localReviewerInstructions(dependencies.guidance, source),
     target: admission.target,
     requirement: admission.requirement,
     request: admission.carrier.request,

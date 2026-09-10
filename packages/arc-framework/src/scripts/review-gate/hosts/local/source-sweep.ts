@@ -9,6 +9,7 @@ import { ReviewIdentifierSchema } from "../../core/gate-contract-v2-schema.js";
 import { withRepositoryLocalReviewLock } from "./git-common-state.js";
 
 const LOCAL_PIN_PREFIX = "refs/arc/review/local/";
+const LOCAL_SCOPE_PIN_PREFIX = "refs/arc/review/local-scope/";
 
 async function git(exec: GitExec, cwd: string, args: string[]): Promise<string> {
   return (await exec("git", args, { cwd })).stdout.trim();
@@ -61,6 +62,16 @@ export class RepositoryLocalReviewSourceSweepAdapter {
       await git(this.exec, this.cwd, ["worktree", "remove", reviewRoot]);
     } else {
       await git(this.exec, this.cwd, ["worktree", "prune"]);
+    }
+    const scopePrefix = `${LOCAL_SCOPE_PIN_PREFIX}${operationId}/`;
+    const scopeRefs = await git(this.exec, this.cwd, [
+      "for-each-ref",
+      "--format=%(refname)",
+      scopePrefix,
+    ]);
+    for (const reference of scopeRefs.split("\n").filter((value) => value !== "")) {
+      if (!reference.startsWith(scopePrefix)) throw new Error("unexpected local review scope pin");
+      await git(this.exec, this.cwd, ["update-ref", "-d", reference]);
     }
     await git(this.exec, this.cwd, ["update-ref", "-d", `${LOCAL_PIN_PREFIX}${operationId}`]);
   }

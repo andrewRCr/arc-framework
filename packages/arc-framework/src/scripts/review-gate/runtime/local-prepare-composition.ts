@@ -344,11 +344,14 @@ export function createLocalPrepareDependencies(input: {
       }
       return reservation.obligation;
     },
-    describeSource: (operationId, target) => createLocalReviewSourceDescriptor({
+    describeSource: (operationId, target, deliveryAdmission) => createLocalReviewSourceDescriptor({
       exec: input.exec,
       cwd: input.cwd,
       operationId,
       target,
+      ...(deliveryAdmission?.correctionScope === undefined
+        ? {}
+        : { correctionScope: deliveryAdmission.correctionScope }),
     }),
     materialize: (source) => ensureLocalReviewSourceMaterialized({ exec: input.exec, source }),
   };

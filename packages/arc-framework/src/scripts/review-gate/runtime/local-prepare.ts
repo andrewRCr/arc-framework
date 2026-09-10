@@ -178,7 +178,11 @@ export interface LocalPrepareDependencies {
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   readReceipts(targetId: string): Promise<ForwardReceiptLedger>;
-  describeSource(operationId: string, target: ReviewTarget): Promise<LocalReviewSource>;
+  describeSource(
+    operationId: string,
+    target: ReviewTarget,
+    deliveryAdmission?: DeliveryLocalReviewAdmission,
+  ): Promise<LocalReviewSource>;
   materialize(source: LocalReviewSource): Promise<{ reviewRoot: string }>;
   now(): string;
 }
@@ -388,6 +392,9 @@ async function replayPendingLocalAdmission(input: {
         headSha: replayState.target.headSha,
         sourceRef: replayState.sourceRef,
         sourceDigest: replayState.sourceDigest,
+        ...(replayState.deliveryAdmission?.correctionScope === undefined
+          ? {}
+          : { correctionScope: replayState.deliveryAdmission.correctionScope }),
         guidance: replayState.guidance,
         guidanceDigest: replayState.guidanceDigest,
         reviewerInstructions: replayState.reviewerInstructions,
@@ -709,7 +716,7 @@ export async function prepareLocalReview(
         break;
       }
       const source = LocalReviewSourceSchema.parse(
-        await dependencies.describeSource(resolution.operationId, target),
+        await dependencies.describeSource(resolution.operationId, target, request.deliveryAdmission),
       );
       try {
         const preparation = await publishLocalReviewPreparation(
@@ -800,7 +807,7 @@ export async function prepareLocalReview(
         ...sourcePayload,
         guidance: assurance.guidance.projection,
         guidanceDigest: assurance.guidance.guidanceDigest,
-        reviewerInstructions: assurance.guidance.reviewerInstructions,
+        reviewerInstructions: preparation.state.reviewerInstructions,
       },
       sourceRef: preparation.sourceRef,
       sourceDigest: preparation.sourceDigest,

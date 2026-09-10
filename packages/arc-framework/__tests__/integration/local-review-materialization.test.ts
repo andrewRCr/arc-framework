@@ -27,7 +27,7 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
   return (await exec("git", args, { cwd })).stdout.trim();
 }
 
-async function fixture() {
+async function fixture(options: { correction?: boolean } = {}) {
   const parent = await mkdtemp(join(tmpdir(), "arc-review-materialization-"));
   roots.push(parent);
   const root = join(parent, "repository");
@@ -39,6 +39,11 @@ async function fixture() {
   await git(root, "commit", "-m", "base");
   const diffBaseSha = await git(root, "rev-parse", "HEAD");
   const diffBaseTree = await git(root, "rev-parse", "HEAD^{tree}");
+  await git(root, "switch", "-c", "prior-review");
+  await writeFile(join(root, "tracked.txt"), "prior review\n", "utf8");
+  await git(root, "commit", "-am", "prior review");
+  const predecessorHeadSha = await git(root, "rev-parse", "HEAD");
+  await git(root, "switch", "main");
   await git(root, "switch", "-c", "feature");
   await writeFile(join(root, "tracked.txt"), "feature\n", "utf8");
   await git(root, "commit", "-am", "feature");
@@ -58,8 +63,20 @@ async function fixture() {
     cwd: root,
     operationId: `local-${"a".repeat(64)}`,
     target,
+    ...(options.correction === true
+      ? {
+          correctionScope: {
+            schemaVersion: 1 as const,
+            predecessorProducerId: "hosted/attempt-1",
+            predecessorHeadSha,
+            basisHeadSha: diffBaseSha,
+            headSha: target.headSha,
+            requiredFindingIds: ["F-1"],
+          },
+        }
+      : {}),
   });
-  return { root, target, source };
+  return { root, target, source, predecessorHeadSha };
 }
 
 describe("immutable local review materialization", () => {
@@ -192,5 +209,71 @@ describe("immutable local review materialization", () => {
     await expect(git(records.root, "show-ref", "--verify", records.source.reachabilityRef)).rejects.toThrow();
     await expect(readFile(join(records.source.materializationRef, "tracked.txt"), "utf8"))
       .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("keeps an interrupted scope cleanup discoverable for a later sweep", async () => {
+    const records = await fixture({ correction: true });
+    await ensureLocalReviewSourceMaterialized({ exec, source: records.source });
+    const operationId = records.source.reachabilityRef.split("/").at(-1);
+    if (operationId === undefined) throw new Error("missing operation identity");
+    const predecessorRef = records.source.predecessorReachabilityRef;
+    if (predecessorRef === undefined) throw new Error("missing predecessor reachability ref");
+    let interruptScopeCleanup = true;
+    const interruptedExec: typeof exec = async (command, args, options) => {
+      if (interruptScopeCleanup
+        && command === "git"
+        && args[0] === "update-ref"
+        && args[1] === "-d"
+        && args[2] === predecessorRef) {
+        interruptScopeCleanup = false;
+        throw new Error("simulated scope cleanup interruption");
+      }
+      return exec(command, args, options);
+    };
+    const interruptedSweep = new RepositoryLocalReviewSourceSweepAdapter(interruptedExec, records.root);
+
+    await expect(interruptedSweep.release(operationId)).rejects.toThrow(/scope cleanup interruption/u);
+    await expect(interruptedSweep.listOperationIds()).resolves.toEqual([operationId]);
+    await new RepositoryLocalReviewSourceSweepAdapter(exec, records.root).release(operationId);
+  });
+
+  it("retains nonancestor correction endpoints until the current operation is released", async () => {
+    const records = await fixture({ correction: true });
+    await ensureLocalReviewSourceMaterialized({ exec, source: records.source });
+    await git(records.root, "branch", "-D", "prior-review");
+    await git(records.root, "reflog", "expire", "--expire=now", "--all");
+    await git(records.root, "gc", "--prune=now");
+
+    expect(await git(records.root, "cat-file", "-e", `${records.predecessorHeadSha}^{commit}`)).toBe("");
+    expect(await git(
+      records.root,
+      "show-ref",
+      "--verify",
+      "--hash",
+      records.source.predecessorReachabilityRef ?? "missing",
+    )).toBe(records.predecessorHeadSha);
+
+    const operationId = records.source.reachabilityRef.split("/").at(-1);
+    if (operationId === undefined) throw new Error("missing operation identity");
+    await new RepositoryLocalReviewSourceSweepAdapter(exec, records.root).release(operationId);
+    await expect(git(
+      records.root,
+      "show-ref",
+      "--verify",
+      records.source.predecessorReachabilityRef ?? "missing",
+    )).rejects.toThrow();
+  });
+
+  it("reports typed scope unavailability when a correction endpoint was already pruned", async () => {
+    const records = await fixture({ correction: true });
+    await git(records.root, "branch", "-D", "prior-review");
+    await git(records.root, "reflog", "expire", "--expire=now", "--all");
+    await git(records.root, "gc", "--prune=now");
+
+    await expect(ensureLocalReviewSourceMaterialized({ exec, source: records.source }))
+      .rejects.toMatchObject({
+        code: "scope-unavailable",
+        reason: `missing-scope-object:${records.predecessorHeadSha}`,
+      });
   });
 });

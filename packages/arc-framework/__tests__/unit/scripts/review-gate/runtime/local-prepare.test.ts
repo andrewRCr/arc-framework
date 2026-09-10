@@ -13,6 +13,8 @@ import type { ReviewReceiptV2 } from "../../../../../src/scripts/review-gate/cor
 import type { ReviewOperationState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type { LocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
+import type { IncrementalReviewScope } from
+  "../../../../../src/scripts/review-gate/core/incremental-review-scope.js";
 import { createHostedAdmission } from "../../../../../src/scripts/review-gate/hosted/request.js";
 import { projectLocalReviewGuidance } from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { DEFAULT_LOCAL_REVIEW_POLICY_BINDING } from "../../../../../src/scripts/review-gate/policy/local-review-policy.js";
@@ -138,7 +140,7 @@ describe("local review preparation request", () => {
     const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
     const PLAN_ID = "123e4567-e89b-42d3-a456-426614174000";
 
-    function deliveryAdmission(head: string) {
+    function deliveryAdmission(head: string, correctionScope?: IncrementalReviewScope) {
       return {
         schemaVersion: 1 as const,
         sourceId: "delegated-agent" as const,
@@ -156,6 +158,7 @@ describe("local review preparation request", () => {
           head,
         },
         pass: 1,
+        ...(correctionScope === undefined ? {} : { correctionScope }),
       };
     }
 
@@ -208,7 +211,11 @@ describe("local review preparation request", () => {
         _repositoryId: string,
         member?: { base: string; head: string },
       ) => (member === undefined ? changeSetTarget : memberTarget));
-      const describeSource = vi.fn(async (operationId: string, target: typeof memberTarget) => (
+      const describeSource = vi.fn(async (
+        operationId: string,
+        target: typeof memberTarget,
+        admission?: ReturnType<typeof deliveryAdmission>,
+      ) => (
         createLocalReviewSource({
           schemaVersion: 1,
           semanticsVersion: "git-object-range/v1",
@@ -219,6 +226,11 @@ describe("local review preparation request", () => {
           diffBaseTree: target.diffBaseTree,
           headSha: target.headSha,
           headTree: target.headTree,
+          ...(admission?.correctionScope === undefined ? {} : {
+            correctionScope: admission.correctionScope,
+            predecessorReachabilityRef: `refs/arc/review/local-scope/${operationId}/predecessor`,
+            basisReachabilityRef: `refs/arc/review/local-scope/${operationId}/basis`,
+          }),
           reachabilityRef: `refs/arc/review/local/${operationId}`,
           materializationRef: "/tmp/review-root",
         })
@@ -350,6 +362,39 @@ describe("local review preparation request", () => {
         targetId: context.memberTarget.targetId,
         target: { kind: "delivery-member" },
       });
+    });
+
+    it("delivers the exact correction range and material finding instructions", async () => {
+      const context = fixture();
+      const correctionScope = {
+        schemaVersion: 1 as const,
+        predecessorProducerId: "hosted/attempt-1",
+        predecessorHeadSha: objectId("a"),
+        basisHeadSha: objectId("9"),
+        headSha: context.memberTarget.headSha,
+        requiredFindingIds: ["F-material"],
+      };
+
+      const prepared = await prepareLocalReview({
+        ...request,
+        deliveryAdmission: deliveryAdmission(context.memberTarget.headSha, correctionScope),
+      }, context.dependencies);
+
+      expect(prepared).toMatchObject({
+        state: "ready",
+        payload: {
+          reviewerPayload: {
+            diffBaseSha: context.memberTarget.diffBaseSha,
+            headSha: context.memberTarget.headSha,
+            correctionScope,
+          },
+        },
+      });
+      if (prepared.state !== "ready") throw new Error("local correction review was not ready");
+      expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain("F-material");
+      expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain(
+        `${correctionScope.predecessorHeadSha}..${correctionScope.headSha}`,
+      );
     });
 
     it("persists the admitted local attempt before returning executable review inputs", async () => {
@@ -608,7 +653,6 @@ describe("local review preparation request", () => {
         context.dependencies,
       );
 
-      expect(context.describeSource).toHaveBeenCalledWith(expect.any(String), context.memberTarget);
       expect(context.materialize).toHaveBeenCalledWith(expect.objectContaining({
         headSha: context.memberTarget.headSha,
         diffBaseSha: context.memberTarget.diffBaseSha,
