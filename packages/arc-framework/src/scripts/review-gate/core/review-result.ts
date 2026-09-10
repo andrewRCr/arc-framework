@@ -58,6 +58,7 @@ export interface FrontlineReviewResult extends ReviewResultBase {
 export interface HostedReviewResult extends ReviewResultBase {
   kind: "hosted";
   laneOperationId: string;
+  actorIdentity: string;
   hostedTarget: HostedTarget;
   requirement: ReviewRequirementV2;
   vehicle?: DeliveryReviewMemberVehicle;

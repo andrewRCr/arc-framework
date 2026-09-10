@@ -332,6 +332,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
         policyVersion: hosted.requirement.policyVersion,
       },
       laneOperationId: state.operationId,
+      actorIdentity: hosted.actorIdentity,
       hostedTarget: hosted.target,
       requirement: hosted.requirement,
       ...(hosted.vehicle === undefined ? {} : { vehicle: hosted.vehicle }),

@@ -755,6 +755,7 @@ function hostedResult(input: ReturnType<typeof hostedResponseFixture>): ReviewRe
       policyVersion: hosted.requirement.policyVersion,
     },
     laneOperationId: input.operation.operationId,
+    actorIdentity: hosted.actorIdentity,
     hostedTarget: hosted.target,
     requirement: hosted.requirement,
     ...(hosted.vehicle === undefined ? {} : { vehicle: hosted.vehicle }),
@@ -1567,6 +1568,7 @@ describe("review response command", () => {
       nextAction: "settle-hosted",
       payload: {
         hostedSettlementPlan: {
+          actorIdentity: "host-actor-1",
           beforeFixFindingIds: [hosted.records.finding.findingId],
           afterFixFindingIds: [],
         },

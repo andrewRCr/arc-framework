@@ -406,6 +406,7 @@ describe("delivery checkpoint composition", () => {
           policyVersion: requirement.policyVersion,
         },
         laneOperationId: `lane-progress-${target.headSha}`,
+        actorIdentity: "reviewer-1",
         hostedTarget: {
           repository: target.repository,
           pullRequest: target.pullRequest,

@@ -393,6 +393,7 @@ interface ResolvedResponseSource {
   hostedAttempt?: {
     operationId: string;
     attemptId: string;
+    actorIdentity: string;
     vehicle?: NonNullable<ApprovedDispositionRecord["deliveryMember"]>;
     target: {
       repository: string;
@@ -594,6 +595,7 @@ async function resolveHostedSource(
     hostedAttempt: {
       operationId: result.laneOperationId,
       attemptId: result.producerId,
+      actorIdentity: result.actorIdentity,
       ...(result.vehicle === undefined ? {} : { vehicle: result.vehicle }),
       target: result.hostedTarget,
       noHostSettlementFindingIds: result.noHostSettlementFindingIds,
@@ -614,6 +616,7 @@ function projectHostedSettlementPlan(
   const findings = dispositions.dispositionSet.findings.filter(({ findingId }) =>
     hostSettlementFindingIds.has(findingId) && !carried.has(findingId));
   const plan = {
+    actorIdentity: source.hostedAttempt.actorIdentity,
     beforeFixFindingIds: findings
       .filter(({ disposition }) => disposition !== "fix")
       .map(({ findingId }) => findingId),

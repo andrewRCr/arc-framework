@@ -94,7 +94,8 @@ review source, persists, or performs adapter-owned closure within this method.
 - **Hosted:** The caller may reply or resolve only when its adapter supplies an authoritative address and declares
   the operation supported. A finding without that capability produces no hosted response; never create a roll-up
   comment. A finding with `settlement: not-applicable` is always in this no-response class: `fix`, `defer`, and
-  `reject` alike produce no reply, resolution, or compensating disposition comment.
+  `reject` alike produce no reply, resolution, or compensating disposition comment. For supported settlement, use the
+  returned plan's canonical `actorIdentity` unchanged; never translate a provider login or infer the provider's ID.
 
 Conversation state remains host-owned. Approval and an agent-authored explanation do not manufacture a host
 capability or satisfy a carrier-native review requirement.

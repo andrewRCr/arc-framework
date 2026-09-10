@@ -320,8 +320,8 @@ arc review respond -
 Follow only its returned action and use [`review-response`][review-response] to perform the approved response. This
 resumes the retained attempt and never requests another hosted review. Preserve the `ready-to-fix` authorization's
 `approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
-any returned hosted settlement plan through the existing phase-ordered settlement path below, then re-enter through
-`arc review status`.
+any returned hosted settlement plan through the existing phase-ordered settlement path below, passing its
+`payload.hostedSettlementPlan.actorIdentity` unchanged, then re-enter through `arc review status`.
 Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
 ceiling override into the named hosted, local, or Frontline admission; never reconstruct the authorization ID.
 After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass

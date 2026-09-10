@@ -225,6 +225,7 @@ function hostedFindingsResult(
       policyVersion: requirement.policyVersion,
     },
     laneOperationId: "lane-progress-standard",
+    actorIdentity: "reviewer-1",
     hostedTarget: {
       repository: "arc-framework/example",
       pullRequest,

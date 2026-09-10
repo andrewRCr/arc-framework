@@ -524,6 +524,7 @@ describe("trusted review-gate workflows", () => {
     for (const path of paths) {
       const workflow = await readRepositoryFile(path);
       expect(workflow).toContain("payload.hostedSettlementPlan");
+      expect(workflow).toContain("payload.hostedSettlementPlan.actorIdentity");
       expect(workflow).toMatch(
         /beforeFixFindingIds[\s\S]*before any\s+approved fix changes the head[\s\S]*afterFixFindingIds/iu,
       );

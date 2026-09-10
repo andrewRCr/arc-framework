@@ -5,7 +5,10 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
+import {
+  responsePolicyRequest,
+  responsePolicyRequestFixture,
+} from "../fixtures/review-response-policy.js";
 
 import {
   handleCandidateApplicabilityResolve,
@@ -17,6 +20,7 @@ import {
   handleReviewHostedSettle,
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
+  handleReviewLocalResume,
   handleReviewRespond,
   handleReviewTerminusAccept,
 } from "../../src/handlers/review.js";
@@ -69,6 +73,7 @@ import { ApprovedDispositionRecordSchema } from
 import {
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
+  LocalResumeEnvelopeSchema,
   RespondEnvelopeSchema,
 } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { LaneSubjectLineageSchema } from
@@ -333,6 +338,7 @@ async function requestThroughHandler(
   outcome: HostedRequestOutcome,
   root: string,
   exec: GitExec,
+  actorIdentity = "andrew",
 ) {
   const publisher = new RepositoryGitCommonStatePublisher(exec, root);
   const store = new LocalReviewOperationStateStore(publisher);
@@ -411,7 +417,7 @@ async function requestThroughHandler(
         ...(progressVehicle === undefined ? {} : { progressVehicle }),
         reviewTarget,
         requirement,
-        actorIdentity: "andrew",
+        actorIdentity,
         authorizeCapacity: async () => undefined,
         now: "2026-09-01T09:59:00.000Z",
       }),
@@ -470,6 +476,10 @@ async function respondThroughHandler(harness: FanOutHarness, request: unknown) {
   const output: string[] = [];
   const exitCodes: number[] = [];
   const dependencies = createRespondDependencies({ cwd: harness.root, exec: harness.exec });
+  dependencies.resolveLocalActors = async () => ({
+    approverIdentity: "andrew",
+    proposerIdentity: "arc-cli/integration-test",
+  });
   dependencies.resolveFrontlineActors = async () => ({
     approverIdentity: "andrew",
     proposerIdentity: "arc-cli/integration-test",
@@ -483,6 +493,19 @@ async function respondThroughHandler(harness: FanOutHarness, request: unknown) {
   });
   expect(exitCodes, output.join("")).toEqual([]);
   return RespondEnvelopeSchema.parse(JSON.parse(output.join("")));
+}
+
+async function resumeLocalThroughHandler(harness: FanOutHarness, request: unknown) {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
+  await handleReviewLocalResume("-", {
+    resolveRoot: () => harness.root,
+    readText: async () => JSON.stringify(request),
+    write: (text) => output.push(text),
+    setExitCode: (code) => exitCodes.push(code),
+  });
+  expect(exitCodes, output.join("")).toEqual([]);
+  return LocalResumeEnvelopeSchema.parse(JSON.parse(output.join("")));
 }
 
 interface FanOutHarness {
@@ -1129,7 +1152,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
 async function completeLocalReviewThroughHandlers(
   harness: FanOutHarness,
   deliveryAdmission: DeliveryLocalReviewAdmission,
-  result: "clean" | "failed" = "clean",
+  result: "clean" | "findings" | "failed" = "clean",
 ) {
   const basePrepare = createLocalPrepareDependencies({ exec: harness.exec, cwd: harness.root });
   const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
@@ -1246,12 +1269,19 @@ async function completeLocalReviewThroughHandlers(
       schemaVersion: 1,
       operationId: prepared.payload.operationId,
       result: {
-        status: result === "clean" ? "complete" : "failed",
-        result: result === "clean" ? "clean" : null,
+        status: result === "failed" ? "failed" : "complete",
+        result: result === "failed" ? null : result,
         evaluatorIdentity: "fresh-reviewer",
         reviewRunId: `run-${prepared.payload.operationId}`,
         applicabilityId: null,
-        findings: [],
+        findings: result === "findings"
+          ? [{
+              findingId: "finding-local-1",
+              severity: "major",
+              locus: "first.txt:1",
+              evidenceUrlOrId: "review:finding-local-1",
+            }]
+          : [],
       },
     }),
     attest: (request) => attestLocalReviewCommand(request, attestDependencies),
@@ -1260,9 +1290,9 @@ async function completeLocalReviewThroughHandlers(
   });
   expect(attestExitCodes).toEqual([]);
   const attested = LocalAttestEnvelopeSchema.parse(JSON.parse(attestOutput.join("")));
-  expect(attested).toMatchObject(result === "clean"
-    ? { state: "attested-current", nextAction: "reduce" }
-    : { state: "not-attestable", nextAction: "rerun-review" });
+  expect(attested).toMatchObject(result === "failed"
+    ? { state: "not-attestable", nextAction: "rerun-review" }
+    : { state: "attested-current", nextAction: "reduce" });
   return { prepared, attested };
 }
 
@@ -2411,6 +2441,132 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
+  it.each([
+    {
+      caseName: "all-refuted",
+      judgment: {
+        sourceVerification: "not-supported" as const,
+        verifiedSeverity: null,
+        disposition: "reject" as const,
+      },
+      expectedCount: 0,
+      expectedMaximum: null,
+    },
+    {
+      caseName: "minors-only",
+      judgment: {
+        sourceVerification: "verified" as const,
+        verifiedSeverity: "minor" as const,
+        disposition: "defer" as const,
+      },
+      expectedCount: 1,
+      expectedMaximum: "minor" as const,
+    },
+  ])("advances a delivery member only after its $caseName local response is recorded", async ({
+    judgment,
+    expectedCount,
+    expectedMaximum,
+  }) => {
+    const harness = await createHarness(["delegated-agent"]);
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    const initial = await statusThroughHandler(harness, statusTarget);
+    if (initial.nextAction !== "review-local-prepare") throw new Error("expected local review admission");
+    await completeLocalReviewThroughHandlers(harness, initial.action, "findings");
+
+    const pendingResume = await statusThroughHandler(harness, statusTarget);
+    expect(pendingResume).toMatchObject({
+      nextAction: "review-local-resume",
+      routedObligation: {
+        conjunction: {
+          members: [{ state: "outstanding" }, { state: "outstanding" }],
+        },
+      },
+    });
+    if (pendingResume.nextAction !== "review-local-resume") {
+      throw new Error("expected local result resumption");
+    }
+    const resumed = await resumeLocalThroughHandler(harness, pendingResume.action);
+    expect(resumed).toMatchObject({
+      state: "respond-to-findings",
+      nextAction: "respond",
+      payload: {
+        responsePlan: {
+          source: { kind: "attested-local" },
+          findings: [{ findingId: "finding-local-1" }],
+        },
+      },
+    });
+    if (resumed.state !== "respond-to-findings") {
+      throw new Error("expected local findings response source");
+    }
+    const responseSource = resumed.payload.responsePlan.source;
+    const proposal = await respondThroughHandler(harness, {
+      schemaVersion: 1,
+      source: responseSource,
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: "finding-local-1",
+          sourceVerification: judgment.sourceVerification,
+          verificationRefs: ["source:first.txt:1"],
+          verifiedSeverity: judgment.verifiedSeverity,
+          disposition: judgment.disposition,
+          rationale: judgment.sourceVerification === "not-supported"
+            ? "The current source does not support the reported concern."
+            : "The current source supports only a non-blocking minor concern.",
+          recommendation: "Record the approved disposition.",
+          openQuestions: [],
+        }],
+      },
+    });
+    if (proposal.state !== "awaiting-approval") throw new Error("expected local disposition proposal");
+    const dispositions = approveDispositionState({
+      proposed: proposal.payload.proposal,
+      approvedBy: "andrew",
+      approvedAt: "2026-09-10T12:00:00.000Z",
+    });
+    const policyRequest = await responsePolicyRequest(
+      harness.root,
+      responseSource,
+      repository,
+    );
+    await expect(respondThroughHandler(harness, {
+      schemaVersion: 1,
+      source: responseSource,
+      policyRequest,
+      dispositions,
+    })).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "reduce",
+      payload: {
+        policy: {
+          state: "pass-complete",
+          nextAction: "none",
+          payload: {
+            verifiedTerminalSignal: {
+              confirmedFindingCount: expectedCount,
+              maxConfirmedSeverity: expectedMaximum,
+            },
+          },
+        },
+      },
+    });
+
+    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
+      nextAction: "review-local-prepare",
+      routedObligation: {
+        conjunction: {
+          members: [{ state: "discharged" }, { state: "outstanding" }],
+        },
+      },
+    });
+  });
+
   it("keeps public hosted admissions separate for sibling members at one head", async () => {
     const harness = await createHarness(["coderabbit-pr"]);
     await bindDeliveryMembersToSharedHead(harness);
@@ -2909,6 +3065,7 @@ describe("hosted review fan-out lifecycle", () => {
 
   it("settles a verified member fix at the current repository-backed delivery target", async () => {
     const harness = await createHarness();
+    const actorIdentity = "44483269";
     const first = member(harness.plan, 0, harness.oldFirst);
     const statusTarget = {
       repository,
@@ -2927,7 +3084,7 @@ describe("hosted review fan-out lifecycle", () => {
         createdAt: "2026-08-24T04:00:00.000Z",
       },
       effectiveCoverage: "complete",
-    }, harness.root, harness.exec);
+    }, harness.root, harness.exec, actorIdentity);
     if (requested.nextAction !== "await") throw new Error("expected hosted review handle");
     const finding = {
       findingId: "finding-member-fix",
@@ -3037,7 +3194,8 @@ describe("hosted review fan-out lifecycle", () => {
       },
       dispositions,
     };
-    await expect(respondThroughHandler(harness, request)).resolves.toMatchObject({
+    const prepared = await respondThroughHandler(harness, request);
+    expect(prepared).toMatchObject({
       state: "delivery-correction-required",
       nextAction: "continue-delivery-correction",
       payload: {
@@ -3047,11 +3205,19 @@ describe("hosted review fan-out lifecycle", () => {
           input: { repository, remote: "origin" },
         },
         hostedSettlementPlan: {
+          actorIdentity,
           beforeFixFindingIds: [],
           afterFixFindingIds: [finding.findingId],
         },
       },
     });
+    if (prepared.state !== "delivery-correction-required"
+      || prepared.payload.hostedSettlementPlan === undefined) {
+      throw new Error("expected public hosted settlement plan");
+    }
+    const returnedSettlementPlan = JSON.parse(JSON.stringify(prepared.payload.hostedSettlementPlan)) as {
+      actorIdentity: string;
+    };
 
     await git(harness.root, ["checkout", "delivery/delivery-plan-record/first"]);
     await writeFile(join(harness.root, "first.txt"), "fixed first contribution\n", "utf8");
@@ -3121,7 +3287,7 @@ describe("hosted review fan-out lifecycle", () => {
       },
       target: status.action.target,
       fixTarget: advanced.payload.hostedFixTarget,
-      actorIdentity: "andrew",
+      actorIdentity: returnedSettlementPlan.actorIdentity,
       finding: { commentId: finding.commentId, threadId: finding.threadId },
       disposition: "fix" as const,
       reply: "Fixed in the current delivery-member head.",
@@ -3133,7 +3299,7 @@ describe("hosted review fan-out lifecycle", () => {
         readText: async () => JSON.stringify(settlementRequest),
         settle: async (input) => {
           const result = await settleHostedFinding(input, { port: {
-            currentActorIdentity: async () => "andrew",
+            currentActorIdentity: async () => actorIdentity,
             readHead: async () => fixedHead,
             readThread: async () => ({
               kind: "present",
@@ -3144,7 +3310,7 @@ describe("hosted review fan-out lifecycle", () => {
             postReply: async (post) => {
               reply = {
                 id: "reply-member-fix",
-                actorIdentity: "andrew",
+                actorIdentity,
                 body: post.body,
                 inReplyToId: post.commentId,
               };

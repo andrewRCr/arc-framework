@@ -493,38 +493,14 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   persist before work, performed settlement or fixes bind their resulting head, and every public continuation resumes
   from that durable evidence without recreating authority or losing compatible hosted settlement.
 
-### `[ ]` **5.4 Exercise all-lane convergence, manual aggregates, cap stops, and public response replay**
+### `[x]` **5.4 Exercise all-lane convergence, manual aggregates, cap stops, and public response replay**
 
 - _Goal:_ Real public paths prove all-lane convergence, response precedence, and count-neutral interrupted re-entry.
 
-- _Note:_ Spec §§ 6–7; SC 8–10, 13, 14, 17, and 18.
-
-- _Approach:_ Extend shared fixtures and the existing fan-out lifecycle; local/hosted paths use actual producer stores.
-  Policy unit tests may receive validated internal facts, but cannot stand in for command-boundary evidence tests.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Each lane's clean, all-refuted, minors-only, and material outcomes produce the correct selected action.
-
-        - Minor/refuted convergence still performs approved work; fixed/deferred/rejected material findings do not
-          auto-clear.
-
-        - At-cap unchanged response stops without another evaluator call; changed-target response preserves work and
-          reroutes. A captured override binds after performance on both arms; unfinished work keeps it pending and
-          unusable, not invalidated. Its absence still reaches the existing request path.
-
-        - Public returned actions survive restart without schema imports or invented IDs/counters; status/checkpoint
-          agree, and complete manual aggregates retain all findings while incomplete evidence refuses.
-
-        - Public supersession scenarios cover unconsumed fix correction, record-only correction, partial hosted
-          settlement, changed-action reopening, interrupted replay, conflicting successor, consumed authorization,
-          ambiguous settlement, and expected-fix dirty-worktree proposal behavior across local, frontline, and hosted
-          bindings. The predecessor's authority never revives.
-
-        - Run status and checkpoint over the same producer-backed multi-member state: completed all-refuted and
-          minors-only responses advance the member, material or unperformed responses keep it outstanding, and missing
-          producer/applicability evidence refuses discharge. Include prior clean evidence across equivalent heads with
-          no extra evaluator invocation or pass consumption, alongside a changed contribution requiring a decision.
+- _Outcome:_ Producer-backed local and hosted paths now prove that approved nonmaterial responses settle before member
+  advancement, while material or unfinished work remains outstanding across restart. Public hosted settlement plans
+  carry the persisted provider actor identity unchanged, so callers replay exact actions without translating logins or
+  inventing identifiers; the accumulated lane, aggregate, cap, supersession, and checkpoint matrix closes the boundary.
 
 ### `[ ]` **5.5 Verify convergence and response precedence** — validate criteria at member scope
 

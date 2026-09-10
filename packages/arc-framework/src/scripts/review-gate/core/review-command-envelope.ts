@@ -666,6 +666,7 @@ export const LocalAttestEnvelopeSchema = z.union([
 ]);
 
 const HostedSettlementPlanSchema = z.strictObject({
+  actorIdentity: IdentifierSchema,
   beforeFixFindingIds: z.array(IdentifierSchema),
   afterFixFindingIds: z.array(IdentifierSchema),
 });

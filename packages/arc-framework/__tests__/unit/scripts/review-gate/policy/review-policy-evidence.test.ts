@@ -91,6 +91,7 @@ function cleanHostedResult(): ReviewResult {
       policyVersion: requirement.policyVersion,
     },
     laneOperationId: "lane-progress-standard",
+    actorIdentity: "reviewer-1",
     hostedTarget: policyTarget,
     requirement,
     hostSettlementFindingIds: [],

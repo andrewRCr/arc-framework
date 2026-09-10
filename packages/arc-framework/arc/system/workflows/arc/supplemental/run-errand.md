@@ -365,7 +365,8 @@ remote base all name the same exact head. Any tracked change continues through t
      approved set through the second `arc review respond -` call, and perform only its returned action through
      [`review-response`][review-response]. When the approved call returns `payload.hostedSettlementPlan` for
      `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for
-     every ID in the active phase. Settle each `beforeFixFindingIds`
+     every ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement
+     actor. Settle each `beforeFixFindingIds`
      entry against the unchanged originating `target` with `fixTarget: null`, and require every result to complete
      before any approved fix changes the head; then apply, verify, commit, and push the approved fixes; then settle
      every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified for the

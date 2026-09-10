@@ -566,6 +566,7 @@ describe("local review result reader", () => {
       laneOperationId: fixture.lane.operationId,
       target: fixture.handle.admission.reviewTarget,
       sourceIdentity: fixture.handle.provider,
+      actorIdentity: fixture.terminal.hosted.actorIdentity,
       originalOutcome: "findings",
       resultDigest: fixture.terminal.hosted.sealedResult?.hostedResultId,
       findings: [
