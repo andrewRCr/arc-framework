@@ -309,17 +309,10 @@ currentness and merge authority are re-established.
 - _Goal:_ review status invalidates an earlier attempt only when fresh base movement overlaps its subject or cannot
   be classified, never because containment alone failed.
 
-    - `[ ]` **3.3.a Compose a direct base-movement observation**
-        - Extend `readBasePosition` in `status-composition.ts` to retain its base fetch and containment read, ensure
-          the exact reviewed head is locally resolvable, and call the shared exact-revision overlap primitive with
-          treatment context derived from the resolved review subject rather than the active checkout.
-        - Adapt the exact repository, change request, head, observed base, and overlap directly to
-          `BaseMovementObservation` without manufacturing a base-drift result, D4 relation, or ambient WU identity.
-        - Build `test-first` (one behavior at a time):
-            - disjoint non-containment reduces to carry;
-            - overlapping non-containment and unavailable overlap retain their exact classification; and
-            - an exact reviewed head absent locally is fetched or returns precise unavailability without substituting
-              another revision.
+    - `[x]` **3.3.a Compose a direct base-movement observation**
+        - `readBasePosition` now fetches the base, materializes the exact reviewed head, retains containment, and
+          emits a direct exact-coordinate `BaseMovementObservation` from shared overlap analysis using the resolved
+          review subject's treatment context, with precise unknown evidence when head or overlap reads fail.
 
     - `[ ]` **3.3.b Project the typed status result**
         - Deterministically return `base-moved / rerun-checkpoint` for overlapping or unknown movement without

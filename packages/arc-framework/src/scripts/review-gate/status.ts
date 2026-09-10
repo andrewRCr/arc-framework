@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import type { BaseMovementObservation } from "../../lib/evidence-applicability/index.js";
+
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import {
   DeliveryReviewMemberVehicleSchema,
@@ -975,6 +977,8 @@ export interface ReviewStatusObservation {
   routedObligation: RoutedReviewObligation;
   currentBaseOid: string | null;
   baseContained: boolean;
+  baseMovement?: BaseMovementObservation | null;
+  baseMovementDetail?: string;
 }
 
 export interface ReviewStatusPort {

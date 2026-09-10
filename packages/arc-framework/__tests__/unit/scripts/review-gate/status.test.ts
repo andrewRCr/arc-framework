@@ -207,6 +207,15 @@ function port(overrides: Partial<ReviewStatusObservation> = {}): ReviewStatusPor
       routedObligation: { state: "settled", detail: "The routed review obligation is settled." },
       currentBaseOid: oid("b"),
       baseContained: true,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
       ...overrides,
     }),
   };
