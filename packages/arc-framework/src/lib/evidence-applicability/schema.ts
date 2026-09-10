@@ -273,6 +273,14 @@ const ApplicableRelationSchema = z.enum([
 ]);
 const ResidualSchema = BoundedEvidenceResidualSchema.nullable();
 
+function carriedRelationHasNoResidual(
+  relation: EvidenceRelation,
+  residual: readonly string[] | null,
+): boolean {
+  return relation !== "equal" && relation !== "mechanical-reapply"
+    || residual === null;
+}
+
 function baseMovementResidualMatchesOverlap(
   overlap: EvidenceOverlap,
   residual: readonly string[] | null,
@@ -341,6 +349,13 @@ const BaseMergeDeltaSchema = z.strictObject({
       message: "host admission coordinates must match the observed post-merge coordinates",
     });
   }
+  if (!carriedRelationHasNoResidual(value.relation, value.residual)) {
+    context.addIssue({
+      code: "custom",
+      path: ["residual"],
+      message: "carried D4 relations cannot retain a divergence residual",
+    });
+  }
 });
 const MemberRewriteDeltaSchema = z.strictObject({
   cause: z.literal("member-rewrite"),
@@ -353,6 +368,14 @@ const MemberRewriteDeltaSchema = z.strictObject({
     endpoints: DeliveryContributionEndpointsSchema,
   }),
   residual: ResidualSchema,
+}).superRefine((value, context) => {
+  if (!carriedRelationHasNoResidual(value.relation, value.residual)) {
+    context.addIssue({
+      code: "custom",
+      path: ["residual"],
+      message: "carried D4 relations cannot retain a divergence residual",
+    });
+  }
 });
 const ApprovedFixDeltaSchema = z.strictObject({
   cause: z.literal("approved-fix"),

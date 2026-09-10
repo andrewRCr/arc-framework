@@ -226,6 +226,23 @@ describe("evidence applicability reducer", () => {
     expect(() => reduceEvidenceApplicability(discontinuous, "verification")).toThrow();
   });
 
+  it("rejects normalized carried D4 evidence that retains a residual", () => {
+    const delta = composeEvidenceDelta({
+      cause: "member-rewrite",
+      endpoints,
+      proof: {
+        status: "refused",
+        reason: "contribution-diverged",
+        paths: ["security.ts"],
+      },
+    });
+    if (delta.cause !== "member-rewrite") throw new Error("expected member rewrite");
+    const inconsistent = { ...delta, relation: "equal" as const };
+
+    expect(EvidenceDeltaSchema.safeParse(inconsistent).success).toBe(false);
+    expect(() => reduceEvidenceApplicability(inconsistent, "verification")).toThrow();
+  });
+
   it("fails closed when overlapping evidence cannot carry a bounded residual", () => {
     const paths = Array.from(
       { length: 201 },

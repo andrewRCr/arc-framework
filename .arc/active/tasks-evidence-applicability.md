@@ -132,13 +132,35 @@ change, and removes the unused predecessor.
 - _Outcome:_ the new applicability substrate is the only live core authority surface, with the obsolete registered
   schema identities removed and the distinct gate receipt identity preserved.
 
-### `[ ]` **1.5 Close the applicability substrate member** — D1-D3 — validate criteria at member scope
+### `[x]` **1.5 Close the applicability substrate member** — D1-D3 — validate criteria at member scope
 
 - _Goal:_ Member 1's criteria are validated against the settled registry, total envelope, reducer, and removal
   evidence before an integration consumer lands on top of them.
 
-- _Note:_ Run `validate-criteria` over `Success Criteria` § Member 1 — `applicability-substrate` and record the
-  member-scope report without changing criterion markers.
+- _Outcome:_ Member 1 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 1 — applicability-substrate`.
+    - _Span:_ bounded diff `6c52c8997..0e2d2bc16`; cumulative reachability `0e2d2bc16` at tree `997d139b2`;
+      boundary-order deviation: none. Incidental transition-oracle repair `8dfc6683c` is inside the chronological
+      range but supplies no criterion evidence.
+    - _Criterion:_ `Success Criteria > Member 1 — applicability-substrate > 1`; _criterion-digest:_
+      `sha256:3c2204c729ae2a91624f2ed356949cffda52ba66b02251dde102d8caef4570e8`; _State:_ `[x]`; _Evidence:_ the shared
+      registry routes Candidate, unstaged-review, base-overlap, status, checkpoint, and merge callers through explicit
+      identity and projection context; caller, relocation, foreign-WU, shipped-content, and raw-distance coverage
+      preserves the three treatments.
+    - _Criterion:_ `Success Criteria > Member 1 — applicability-substrate > 2`; _criterion-digest:_
+      `sha256:ed4dc00227bc7cad568666aefa5155fad1e13ac483afaaf8028042c9ef50545b`; _State:_ `[x]`; _Evidence:_ all five
+      strict producer arms compose total axes, and normalized schemas preserve coordinate, overlap/residual, D4
+      continuity, carried-residual, UTF-8 order, and authority invariants before the closed reducer can return one of
+      the three verdicts.
+    - _Criterion:_ `Success Criteria > Member 1 — applicability-substrate > 3`; _criterion-digest:_
+      `sha256:66f8b347292dca07615686f8865eb84f6dc7316928acd48c55749de8edb37036`; _State:_ `[x]`; _Evidence:_ the obsolete
+      module, registration, inventory identity, canonical-caller entry, and isolated tests are absent, while the
+      distinct gate-contract `applicabilityId` fields and consumers remain.
+    - _Adversarial companion:_ three fresh Heavy passes found five criterion defects, fixed in `c15fed9ff`,
+      `a87f37ada`, `fe3e0ded0`, `cc92a478b`, and `0e2d2bc16`; one Candidate v1 compatibility concern was dropped
+      against the explicit pre-public-release regeneration posture.
+    - _Summary:_ three met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 2:** Base-movement observation and checkpoint planning
 

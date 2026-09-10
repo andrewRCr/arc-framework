@@ -335,4 +335,38 @@ describe("evidence delta composition", () => {
       },
     }).success).toBe(false);
   });
+
+  it("rejects normalized carried D4 relations with divergence residuals", () => {
+    const endpoints = {
+      before: {
+        predecessor: { head: oid("1"), tree: oid("2") },
+        member: { head: oid("3"), tree: oid("4") },
+      },
+      after: {
+        predecessor: { head: oid("5"), tree: oid("6") },
+        member: { head: oid("7"), tree: oid("8") },
+      },
+    };
+    const proof = {
+      status: "refused" as const,
+      reason: "contribution-diverged" as const,
+      paths: ["security.ts"],
+    };
+    const rewrite = composeEvidenceDelta({ cause: "member-rewrite", endpoints, proof });
+    expect(EvidenceDeltaSchema.safeParse({ ...rewrite, relation: "equal" }).success).toBe(false);
+
+    const before = coordinates(oid("a"), oid("b"));
+    const after = coordinates(oid("c"), oid("b"));
+    const merge = composeEvidenceDelta({
+      cause: "base-merge",
+      before,
+      after,
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      projection: { endpoints, proof },
+    });
+    expect(EvidenceDeltaSchema.safeParse({
+      ...merge,
+      relation: "mechanical-reapply",
+    }).success).toBe(false);
+  });
 });
