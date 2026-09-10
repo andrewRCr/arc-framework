@@ -271,6 +271,8 @@ import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/gith
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { LocalApprovedDispositionRecordStore } from
   "../scripts/review-gate/hosts/local/disposition-record-store.js";
+import { currentApprovedDispositionNode } from
+  "../scripts/review-gate/core/advisory-records.js";
 import { LocalReviewOperationStateStore } from
   "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { parseReviewSourceReference } from
@@ -3368,6 +3370,7 @@ async function executeDeliveryCommand(
       const dispositionRecords = await dispositionStore.listDispositionRecords();
       const validateLocalResponse = async (record: (typeof dispositionRecords)[number]) => {
         const responseMember = record.deliveryMember;
+        const current = currentApprovedDispositionNode(record);
         if (record.source.kind !== "attested-local" || responseMember === null) return null;
         let sourceReference;
         try {
@@ -3387,7 +3390,7 @@ async function executeDeliveryCommand(
           || admission === undefined
           || canonicalize(admission.vehicle) !== canonicalize(responseMember)
           || operation.state.target.kind !== "delivery-member"
-          || operation.state.target.targetId !== record.approvedDisposition.dispositionSet.targetId
+          || operation.state.target.targetId !== current.approvedDisposition.dispositionSet.targetId
           || operation.state.target.headSha !== responseMember.head) return null;
         return {
           oldTarget: operation.state.target,
@@ -3441,8 +3444,8 @@ async function executeDeliveryCommand(
         record.deliveryMember?.planId === parsed.planId
         && record.deliveryMember.deliverableId === parsed.selectedDeliverableId
         && record.deliveryMember.workUnitId === workUnitId
-        && record.fixAuthorization !== null
-        && record.deliveryMemberFixResponse === null
+        && currentApprovedDispositionNode(record).fixAuthorization !== null
+        && currentApprovedDispositionNode(record).deliveryMemberFixResponse === null
       ));
       if (matchingResponseRecords.length > 1) {
         return { status: "refused", reason: "review-fix-response-ambiguous" };
@@ -3454,7 +3457,7 @@ async function executeDeliveryCommand(
         }
         const replayRecords = dispositionRecords.filter((record) => (
           record.operationId === durableLocalReplay.operationId
-          && record.deliveryMemberFixResponse !== null
+          && currentApprovedDispositionNode(record).deliveryMemberFixResponse !== null
         ));
         const replayRecord = replayRecords.length === 1 ? replayRecords[0] : undefined;
         const validated = replayRecord === undefined ? null : await validateLocalResponse(replayRecord);

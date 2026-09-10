@@ -52,7 +52,7 @@ import type { DeliveryLocalReviewAdmission } from
   "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { projectLocalReviewGuidance } from
   "../../src/scripts/review-gate/policy/local-review-guidance.js";
-import { ApprovedDispositionRecordSchema } from
+import { ApprovedDispositionRecordSchema, currentApprovedDispositionNode } from
   "../../src/scripts/review-gate/core/advisory-records.js";
 import {
   approveDispositionState,
@@ -833,10 +833,15 @@ describe("arc delivery position", () => {
           attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
           hostedResultId: canonicalDigest({ result: "operation-member-fix" }),
         },
-        approvedDisposition,
-        fixAuthorization,
-        errandFixResponse: null,
-        deliveryMemberFixResponse: null,
+        currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+        approvedDispositionLineage: [{
+          approvedDisposition,
+          fixAuthorization,
+          errandFixResponse: null,
+          deliveryMemberFixResponse: null,
+          predecessorDispositionSetId: null,
+          successorDispositionSetId: null,
+        }],
       }),
     );
 
@@ -1113,6 +1118,11 @@ describe("arc delivery position", () => {
       outcome: "findings",
       findings: [responseLossFinding],
       dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      findingActions: [{
+        findingId: responseLossFinding.findingId,
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
       settledFindingIds: [],
     });
     await new LocalReviewOperationStateStore(publisher).publishOperation({
@@ -1165,10 +1175,15 @@ describe("arc delivery position", () => {
           }),
           hostedResultId: responseLossTerminal.hosted.sealedResult!.hostedResultId,
         },
-        approvedDisposition,
-        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
-        errandFixResponse: null,
-        deliveryMemberFixResponse: null,
+        currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+        approvedDispositionLineage: [{
+          approvedDisposition,
+          fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+          errandFixResponse: null,
+          deliveryMemberFixResponse: null,
+          predecessorDispositionSetId: null,
+          successorDispositionSetId: null,
+        }],
     });
     const historicalResponse = advanceDeliveryReviewFixResponse({
       record: {
@@ -1194,7 +1209,7 @@ describe("arc delivery position", () => {
     expect((await dispositionStore.listDispositionRecords()).filter((record) => (
       record.deliveryMember?.planId === fixture.plan.planId
       && record.deliveryMember.deliverableId === selectedDeliverableId
-      && record.fixAuthorization !== null
+      && currentApprovedDispositionNode(record).fixAuthorization !== null
     ))).toHaveLength(2);
     const discardedSettlement = await runArcWithStdin(
       ["delivery", "refresh", "adopt", "-", "--json"],
@@ -1924,10 +1939,15 @@ describe("arc delivery position", () => {
         }),
         localSourceRef: "git-common:review-gate/local/source.json",
       },
-      approvedDisposition,
-      fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     });
     const advanced = advanceDeliveryReviewFixResponse({
       record: baseRecord,
@@ -2841,6 +2861,11 @@ describe("arc delivery position", () => {
       outcome: "findings",
       findings: [finding],
       dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      findingActions: [{
+        findingId: finding.findingId,
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
       settledFindingIds: [],
     });
     await new LocalReviewOperationStateStore(publisher).publishOperation({
@@ -2893,10 +2918,15 @@ describe("arc delivery position", () => {
           }),
           hostedResultId: publishedTerminal.hosted.sealedResult!.hostedResultId,
         },
-        approvedDisposition,
-        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
-        errandFixResponse: null,
-        deliveryMemberFixResponse: null,
+        currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+        approvedDispositionLineage: [{
+          approvedDisposition,
+          fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+          errandFixResponse: null,
+          deliveryMemberFixResponse: null,
+          predecessorDispositionSetId: null,
+          successorDispositionSetId: null,
+        }],
       }),
     );
 
@@ -3422,6 +3452,11 @@ describe("arc delivery position", () => {
       outcome: "findings",
       findings: [finding],
       dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
+      findingActions: [{
+        findingId: finding.findingId,
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
       settledFindingIds: [],
     });
     const replayAttemptId = replayTerminal.attemptId;
@@ -3461,13 +3496,18 @@ describe("arc delivery position", () => {
         ...replaySource,
         hostedResultId: replayTerminal.hosted.sealedResult!.hostedResultId,
       },
-      approvedDisposition: replayApprovedDisposition,
-      fixAuthorization: createFixAuthorization({
-        dispositionState: replayApprovedDisposition,
-        oldTarget: replayOldTarget,
-      }),
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition: replayApprovedDisposition,
+        fixAuthorization: createFixAuthorization({
+          dispositionState: replayApprovedDisposition,
+          oldTarget: replayOldTarget,
+        }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     });
     const replayResponse = advanceDeliveryReviewFixResponse({
       record: replayPendingRecord,
@@ -3580,6 +3620,14 @@ describe("arc delivery position", () => {
       attemptId: replayAttemptId,
       dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
       findingId: finding.findingId,
+      disposition: "fix",
+      actorIdentity: replayAdmission.actorIdentity,
+      target: replayAdmission.target,
+      fixTarget: { ...replayAdmission.target, headSha: responseMember.coordinates.head },
+      commentId: finding.commentId,
+      threadId: finding.threadId,
+      replyDigest: canonicalDigest({ reply: "Fixed in the current delivery-member head." }),
+      replyId: "reply-response-replay",
       now: "2026-08-31T12:14:00Z",
     });
     const continuedAfterResponseSettlement = await runArcWithStdin(

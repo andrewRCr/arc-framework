@@ -1242,11 +1242,20 @@ describe("review-fix Candidate lineage", () => {
     await writeFile(join(root, "reviewed.txt"), "hosted finding fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply hosted review fix"]);
+    const fixedHead = await git(root, ["rev-parse", "HEAD"]);
     await settleHostedAttemptFinding(operationStore, {
       operationId: operation.operationId,
       attemptId,
       dispositionSetId: dispositions.dispositionSet.dispositionSetId,
       findingId: finding.findingId,
+      disposition: "fix",
+      actorIdentity: admission.actorIdentity,
+      target: hostedTarget,
+      fixTarget: { ...hostedTarget, headSha: fixedHead },
+      commentId: finding.commentId,
+      threadId: finding.threadId,
+      replyDigest: canonicalDigest({ reply: "Hosted finding fixed." }),
+      replyId: "reply-1",
       now: "2026-08-19T12:01:00Z",
     });
 
@@ -1307,14 +1316,18 @@ describe("review-fix Candidate lineage", () => {
     await publisher.update({ root: "review-gate", namespace: "evidence" }, recordName, (raw) => {
       if (raw === null) throw new Error("missing disposition record");
       const record = JSON.parse(raw) as {
-        approvedDisposition: {
-          dispositionSet: { targetId: string };
-          approval: { targetId: string };
-        };
+        approvedDispositionLineage: Array<{
+          approvedDisposition: {
+            dispositionSet: { targetId: string };
+            approval: { targetId: string };
+          };
+        }>;
       };
       const movedTargetId = `sha256:${"f".repeat(64)}`;
-      record.approvedDisposition.dispositionSet.targetId = movedTargetId;
-      record.approvedDisposition.approval.targetId = movedTargetId;
+      const current = record.approvedDispositionLineage.at(-1);
+      if (current === undefined) throw new Error("missing current disposition node");
+      current.approvedDisposition.dispositionSet.targetId = movedTargetId;
+      current.approvedDisposition.approval.targetId = movedTargetId;
       return { kind: "write", content: `${JSON.stringify(record)}\n`, result: undefined };
     });
 
@@ -1337,7 +1350,7 @@ describe("review-fix Candidate lineage", () => {
     });
 
     await expect(composeLineageReview(root, approvedHead))
-      .resolves.toMatchObject({ dispositionIds: [approved.approvedDisposition.dispositionSet.dispositionSetId] });
+      .resolves.toMatchObject({ dispositionIds: [approved.currentDispositionSetId] });
   });
 
   it("ignores malformed disposition residue outside Candidate applicability", async () => {
@@ -1356,7 +1369,7 @@ describe("review-fix Candidate lineage", () => {
     }));
 
     await expect(composeLineageReview(root, approvedHead))
-      .resolves.toMatchObject({ dispositionIds: [approved.approvedDisposition.dispositionSet.dispositionSetId] });
+      .resolves.toMatchObject({ dispositionIds: [approved.currentDispositionSetId] });
   });
 
   it("carries an approved no-fix set into the post-approval settlement plan", async () => {
@@ -1801,7 +1814,20 @@ describe("routed review obligation", () => {
       outcome: "findings",
       findings: [finding],
       dispositionSetId: canonicalDigest({ disposition: 1 }),
+      findingActions: [{
+        findingId: finding.findingId,
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
       settledFindingIds: [finding.findingId],
+      settlementEvidence: [{
+        findingId: finding.findingId,
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        disposition: "reject",
+        channelAction: "record-only",
+        performedAt: "2026-08-16T11:59:00Z",
+        carriedFromDispositionSetId: null,
+      }],
     });
     await recordLaneAttempt(new LocalReviewOperationStateStore(publisher), {
       lane: "standard",

@@ -29,7 +29,7 @@ import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
-import { canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
+import { canonicalDigest, canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
 import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
@@ -229,6 +229,7 @@ import { createHostedReservationDischargeReader } from
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
+import { currentApprovedDispositionNode } from "../scripts/review-gate/core/advisory-records.js";
 import { createRepositoryReviewResultReader } from
   "../scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import {
@@ -3012,10 +3013,12 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
       }
       const dispositionRecord = await new LocalApprovedDispositionRecordStore(publisher)
         .readDispositionRecord(attempt.attemptId);
-      const disposition = dispositionRecord?.approvedDisposition.dispositionSet.findings
+      const currentDisposition = dispositionRecord === null
+        ? null
+        : currentApprovedDispositionNode(dispositionRecord).approvedDisposition;
+      const disposition = currentDisposition?.dispositionSet.findings
         .find(({ findingId }) => findingId === request.response.findingId);
-      if (dispositionRecord?.approvedDisposition.dispositionSet.dispositionSetId
-          !== request.response.dispositionSetId
+      if (currentDisposition?.dispositionSet.dispositionSetId !== request.response.dispositionSetId
         || disposition?.disposition !== request.disposition) {
         throw new Error("Hosted settlement does not match its approved disposition.");
       }
@@ -3026,6 +3029,17 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
           attemptId: reference.durableRef,
           dispositionSetId: request.response.dispositionSetId,
           findingId: request.response.findingId,
+          disposition: request.disposition,
+          actorIdentity: request.actorIdentity,
+          target: request.target,
+          fixTarget: request.fixTarget,
+          commentId: request.finding.commentId,
+          threadId: request.finding.threadId,
+          replyDigest: canonicalDigest({
+            domain: "arc.review.hosted-settlement-reply/v1",
+            body: request.reply,
+          }),
+          replyId: result.replyId,
           now: new Date().toISOString(),
         });
       }

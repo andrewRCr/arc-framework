@@ -26,6 +26,7 @@ import {
   recordHostedRequestAdmission,
   readHostedAwaitReplay,
   resolveHostedAwaitResult,
+  supersedeHostedAttemptDisposition,
 } from "../../src/scripts/review-gate/lane-progress.js";
 import {
   createHostedHandleFixture,
@@ -107,6 +108,48 @@ async function sealedHostedFixture() {
     now: "2026-08-15T12:00:00Z",
   });
   return { ...records, state };
+}
+
+async function boundHostedFindingsFixture() {
+  const records = await acknowledgedHostedFixture();
+  const finding = {
+    findingId: "body-1",
+    origin: "review-body" as const,
+    reviewId: "review-1",
+    fingerprint: "body-fingerprint",
+    settlement: "not-applicable" as const,
+    severity: "minor" as const,
+    locus: "pull-request review body",
+    url: "https://example.invalid/review-1",
+    body: "Body finding",
+    sourceOrdinal: 1,
+  };
+  const sealed = await recordHostedAwaitAttempt(records.store, {
+    repositoryId: records.handle.admission.repositoryId,
+    result: {
+      schemaVersion: 1,
+      mode: "review-hosted-await",
+      handle: records.handle,
+      state: "findings",
+      nextAction: "triage",
+      reviewUrl: "https://example.invalid/review",
+      findings: [finding],
+    },
+    now: "2026-08-15T12:00:00Z",
+  });
+  const dispositionSetId = digest("disposition");
+  const bound = await bindHostedAttemptDisposition(records.store, {
+    operationId: sealed.operationId,
+    attemptId: hostedLaneAttemptId(records.handle),
+    dispositionSetId,
+    findingDispositions: [{
+      findingId: finding.findingId,
+      disposition: "reject",
+      channelAction: "record-only",
+    }],
+    now: "2026-08-15T12:01:00Z",
+  });
+  return { ...records, finding, dispositionSetId, bound };
 }
 
 describe("local review operation state authority", () => {
@@ -237,6 +280,71 @@ describe("local review operation state authority", () => {
     await expect(records.store.readOperation(records.state.operationId)).resolves.toEqual(current);
   });
 
+  it("rejects a schema-valid replacement of an approved hosted disposition lineage", async () => {
+    const records = await boundHostedFindingsFixture();
+    const current = await records.store.readOperation(records.bound.operationId);
+    const attempt = records.bound.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("expected hosted findings attempt");
+    const replacementDispositionSetId = digest("replacement-disposition");
+
+    await expect(records.store.publishOperation({
+      ...records.bound,
+      updatedAt: "2026-08-15T12:02:00Z",
+      attempts: [{
+        ...attempt,
+        hosted: {
+          ...attempt.hosted,
+          dispositionSetId: replacementDispositionSetId,
+          dispositionSetLineage: [{
+            ...attempt.hosted.dispositionSetLineage[0]!,
+            dispositionSetId: replacementDispositionSetId,
+          }],
+          settlementEvidence: attempt.hosted.settlementEvidence.map((evidence) => ({
+            ...evidence,
+            dispositionSetId: replacementDispositionSetId,
+          })),
+        },
+      }],
+    }, current.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.bound.operationId)).resolves.toEqual(current);
+  });
+
+  it("appends one exact hosted successor and rejects later historical settlement rewrites", async () => {
+    const records = await boundHostedFindingsFixture();
+    const successorDispositionSetId = digest("successor-disposition");
+    const superseded = await supersedeHostedAttemptDisposition(records.store, {
+      operationId: records.bound.operationId,
+      attemptId: hostedLaneAttemptId(records.handle),
+      predecessorDispositionSetId: records.dispositionSetId,
+      successorDispositionSetId,
+      findingDispositions: [{
+        findingId: records.finding.findingId,
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-15T12:02:00Z",
+    });
+    expect(superseded.carriedFindingIds).toEqual([records.finding.findingId]);
+    const current = await records.store.readOperation(records.bound.operationId);
+    const attempt = superseded.progress.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("expected superseded hosted findings attempt");
+
+    await expect(records.store.publishOperation({
+      ...superseded.progress,
+      updatedAt: "2026-08-15T12:03:00Z",
+      attempts: [{
+        ...attempt,
+        hosted: {
+          ...attempt.hosted,
+          settlementEvidence: attempt.hosted.settlementEvidence.map((evidence, index) => index === 0
+            ? { ...evidence, performedAt: "2026-08-15T12:02:30Z" }
+            : evidence),
+        },
+      }],
+    }, current.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.bound.operationId)).resolves.toEqual(current);
+  });
+
   it("replays concurrent equal hosted evidence despite different progress timestamps", async () => {
     const records = await acknowledgedHostedFixture();
     const result = {
@@ -302,8 +410,11 @@ describe("local review operation state authority", () => {
       operationId: sealed.operationId,
       attemptId: hostedLaneAttemptId(records.handle),
       dispositionSetId: digest("disposition"),
-      findingIds: [finding.findingId],
-      noHostSettlementFindingIds: [finding.findingId],
+      findingDispositions: [{
+        findingId: finding.findingId,
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
       now: "2026-08-15T12:01:00Z",
     });
 

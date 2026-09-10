@@ -63,6 +63,99 @@ function parseRecord(raw: string, operationId: string): ReviewOperationStoreReco
 }
 
 type LaneAttempt = Extract<ReviewOperationState, { kind: "lane-progress" }>["attempts"][number];
+type HostedLaneAttempt = NonNullable<LaneAttempt["hosted"]>;
+
+function refuseHostedTransition(): never {
+  throw new LocalOperationStateStoreError("immutable-hosted-transition");
+}
+
+function assertSettlementEvidencePrefix(
+  previous: HostedLaneAttempt,
+  next: HostedLaneAttempt,
+): HostedLaneAttempt["settlementEvidence"] {
+  const retained = next.settlementEvidence.slice(0, previous.settlementEvidence.length);
+  if (canonicalize(retained) !== canonicalize(previous.settlementEvidence)) {
+    refuseHostedTransition();
+  }
+  return next.settlementEvidence.slice(previous.settlementEvidence.length);
+}
+
+function settlementReceiptProjection(
+  evidence: HostedLaneAttempt["settlementEvidence"][number],
+): unknown {
+  return Object.fromEntries(Object.entries(evidence).filter(([key]) => (
+    key !== "dispositionSetId" && key !== "carriedFromDispositionSetId"
+  )));
+}
+
+function assertHostedDispositionTransition(
+  previous: HostedLaneAttempt,
+  next: HostedLaneAttempt,
+): void {
+  const previousCurrent = previous.dispositionSetId;
+  const nextCurrent = next.dispositionSetId;
+  if (previousCurrent === null) {
+    if (nextCurrent === null) return;
+    const initialNode = next.dispositionSetLineage[0];
+    if (next.dispositionSetLineage.length !== 1
+      || initialNode?.dispositionSetId !== nextCurrent
+      || initialNode.predecessorDispositionSetId !== null
+      || initialNode.successorDispositionSetId !== null
+      || next.settlementEvidence.some((evidence) => (
+        evidence.dispositionSetId !== nextCurrent
+        || evidence.carriedFromDispositionSetId !== null
+        || evidence.channelAction !== "record-only"
+      ))) {
+      refuseHostedTransition();
+    }
+    return;
+  }
+
+  const appendedEvidence = assertSettlementEvidencePrefix(previous, next);
+  if (nextCurrent === previousCurrent) {
+    if (canonicalize(next.dispositionSetLineage) !== canonicalize(previous.dispositionSetLineage)
+      || appendedEvidence.some((evidence) => (
+        evidence.dispositionSetId !== nextCurrent
+        || evidence.carriedFromDispositionSetId !== null
+        || evidence.channelAction !== "reply-and-resolve"
+      ))) {
+      refuseHostedTransition();
+    }
+    return;
+  }
+
+  const previousTail = previous.dispositionSetLineage.at(-1);
+  const nextPredecessor = next.dispositionSetLineage.at(-2);
+  const nextSuccessor = next.dispositionSetLineage.at(-1);
+  if (previousTail === undefined
+    || nextPredecessor === undefined
+    || nextSuccessor === undefined
+    || next.dispositionSetLineage.length !== previous.dispositionSetLineage.length + 1
+    || canonicalize(next.dispositionSetLineage.slice(0, -2))
+      !== canonicalize(previous.dispositionSetLineage.slice(0, -1))
+    || canonicalize(nextPredecessor) !== canonicalize({
+      ...previousTail,
+      successorDispositionSetId: nextCurrent,
+    })
+    || nextSuccessor.dispositionSetId !== nextCurrent
+    || nextSuccessor.predecessorDispositionSetId !== previousCurrent
+    || nextSuccessor.successorDispositionSetId !== null) {
+    refuseHostedTransition();
+  }
+  for (const evidence of appendedEvidence) {
+    const predecessorEvidence = previous.settlementEvidence.find((candidate) => (
+      candidate.dispositionSetId === previousCurrent
+      && candidate.findingId === evidence.findingId
+    ));
+    if (evidence.dispositionSetId !== nextCurrent
+      || evidence.carriedFromDispositionSetId !== previousCurrent
+      || predecessorEvidence === undefined
+      || canonicalize(settlementReceiptProjection(evidence))
+        !== canonicalize(settlementReceiptProjection(predecessorEvidence))) {
+      refuseHostedTransition();
+    }
+  }
+}
 
 function immutableHostedAttemptProjection(attempt: LaneAttempt): unknown {
   const hosted = attempt.hosted;
@@ -122,6 +215,7 @@ function assertHostedTransitions(
       && canonicalize(previousHosted.sealedResult) !== canonicalize(hosted.sealedResult ?? null)) {
       throw new LocalOperationStateStoreError("immutable-hosted-transition");
     }
+    assertHostedDispositionTransition(previousHosted, hosted);
   }
 }
 

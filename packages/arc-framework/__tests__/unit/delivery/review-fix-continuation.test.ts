@@ -18,7 +18,7 @@ import { projectDeliveryReviewFixVerificationContinuation } from
   "../../../src/lib/delivery/review-fix-verification.js";
 import type { DeliveryReviewFixRouteResult } from "../../../src/lib/delivery/review-fix.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
-import { ApprovedDispositionRecordSchema } from
+import { ApprovedDispositionRecordSchema, currentApprovedDispositionNode } from
   "../../../src/scripts/review-gate/core/advisory-records.js";
 import {
   approveDispositionState,
@@ -123,31 +123,36 @@ function deliveryDispositionRecord(input: {
           attemptRef: `arc-review-source:v1:hosted:lane-progress%2F${input.operationId}:hosted%2F1`,
           hostedResultId: canonicalDigest({ result: input.operationId }),
         },
-    approvedDisposition,
-    fixAuthorization,
-    errandFixResponse: null,
-    deliveryMemberFixResponse: input.settled !== true
-      ? null
-      : {
-          oldTarget,
-          newTarget,
-          applicability: "focused",
-          fixConsumption: consumeFixAuthorization({
-            authorization: fixAuthorization,
+    currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+    approvedDispositionLineage: [{
+      approvedDisposition,
+      fixAuthorization,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: input.settled !== true
+        ? null
+        : {
             oldTarget,
             newTarget,
-            appliedBy: "agent-1",
-            consumedAt: "2026-08-31T13:00:00Z",
-            verificationRefs: ["verification://focused-fix"],
-            priorConsumptions: [],
-          }),
-          hostedTarget: input.source === "attested-local"
-            ? null
-            : { repository: "owner/repo", pullRequest: 42, headSha: oldTarget.headSha },
-          hostedFixTarget: input.source === "attested-local"
-            ? null
-            : { repository: "owner/repo", pullRequest: 42, headSha: newTarget.headSha },
-        },
+            applicability: "focused",
+            fixConsumption: consumeFixAuthorization({
+              authorization: fixAuthorization,
+              oldTarget,
+              newTarget,
+              appliedBy: "agent-1",
+              consumedAt: "2026-08-31T13:00:00Z",
+              verificationRefs: ["verification://focused-fix"],
+              priorConsumptions: [],
+            }),
+            hostedTarget: input.source === "attested-local"
+              ? null
+              : { repository: "owner/repo", pullRequest: 42, headSha: oldTarget.headSha },
+            hostedFixTarget: input.source === "attested-local"
+              ? null
+              : { repository: "owner/repo", pullRequest: 42, headSha: newTarget.headSha },
+          },
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: null,
+    }],
   });
 }
 
@@ -372,6 +377,7 @@ describe("delivery review-fix continuation projection", () => {
 
   it("selects the one exact pending hosted member response and ignores unrelated or settled residue", () => {
     const pending = deliveryDispositionRecord({ operationId: "operation-pending" });
+    const pendingCurrent = currentApprovedDispositionNode(pending);
     expect(selectPendingDeliveryReviewFixAuthority({
       workUnitId: plan.workUnitId,
       records: [
@@ -385,8 +391,8 @@ describe("delivery review-fix continuation projection", () => {
       workUnitId: plan.workUnitId,
       selectedDeliverableId,
       reviewedHead: pending.deliveryMember?.head,
-      fixAuthorizationId: pending.fixAuthorization?.fixAuthorizationId,
-      dispositionSetId: pending.approvedDisposition.dispositionSet.dispositionSetId,
+      fixAuthorizationId: pendingCurrent.fixAuthorization?.fixAuthorizationId,
+      dispositionSetId: pendingCurrent.approvedDisposition.dispositionSet.dispositionSetId,
       authorizedFindingIds: ["finding-1"],
       authorizedFindingLoci: ["src/review.ts:42"],
       approvedVerification: "full",
@@ -415,6 +421,48 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("does not revive a predecessor fix authorization after disposition supersession", () => {
+    const predecessor = deliveryDispositionRecord({ operationId: "operation-superseded" });
+    const predecessorNode = currentApprovedDispositionNode(predecessor);
+    const { dispositionSetId: _predecessorId, ...predecessorFields } =
+      predecessorNode.approvedDisposition.dispositionSet;
+    void _predecessorId;
+    const successorApprovedDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...predecessorFields,
+        findings: predecessorFields.findings.map((finding) => ({
+          ...finding,
+          disposition: "reject" as const,
+          recommendation: "Do not apply the disproved fix.",
+        })),
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-08-31T12:30:00Z",
+    });
+    const successorId = successorApprovedDisposition.dispositionSet.dispositionSetId;
+    const superseded = ApprovedDispositionRecordSchema.parse({
+      ...predecessor,
+      currentDispositionSetId: successorId,
+      approvedDispositionLineage: [{
+        ...predecessorNode,
+        successorDispositionSetId: successorId,
+      }, {
+        approvedDisposition: successorApprovedDisposition,
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId:
+          predecessorNode.approvedDisposition.dispositionSet.dispositionSetId,
+        successorDispositionSetId: null,
+      }],
+    });
+
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [superseded],
+    })).toEqual({ status: "none" });
+  });
+
   it("refuses ambiguous or internally inexact pending hosted member authority", () => {
     const first = deliveryDispositionRecord({ operationId: "operation-first" });
     const second = deliveryDispositionRecord({ operationId: "operation-second" });
@@ -427,16 +475,20 @@ describe("delivery review-fix continuation projection", () => {
       workUnitId: plan.workUnitId,
       records: [{
         ...first,
-        fixAuthorization: first.fixAuthorization === null
-          ? null
-          : { ...first.fixAuthorization, oldHeadSha: "9".repeat(40) },
+        approvedDispositionLineage: first.approvedDispositionLineage.map((node) => ({
+          ...node,
+          fixAuthorization: node.fixAuthorization === null
+            ? null
+            : { ...node.fixAuthorization, oldHeadSha: "9".repeat(40) },
+        })),
       }],
     })).toEqual({ status: "refused", reason: "review-fix-response-invalid" });
   });
 
   it("projects one exact durable member response back into its rediscovered hosted attempt", () => {
     const settled = deliveryDispositionRecord({ operationId: "operation-settled", settled: true });
-    const response = settled.deliveryMemberFixResponse;
+    const settledCurrent = currentApprovedDispositionNode(settled);
+    const response = settledCurrent.deliveryMemberFixResponse;
     if (response === null || settled.source.kind !== "hosted") {
       throw new Error("settled response fixture must retain hosted evidence");
     }
@@ -474,7 +526,7 @@ describe("delivery review-fix continuation projection", () => {
       request: {
         schemaVersion: 1,
         source: responsePlan.source,
-        dispositions: settled.approvedDisposition,
+        dispositions: settledCurrent.approvedDisposition,
         verifiedFix: {
           applicability: response.applicability,
           verificationEvidenceRefs: response.fixConsumption.verificationRefs,
@@ -495,7 +547,7 @@ describe("delivery review-fix continuation projection", () => {
       source: "attested-local",
       settled: true,
     });
-    const response = settled.deliveryMemberFixResponse;
+    const response = currentApprovedDispositionNode(settled).deliveryMemberFixResponse;
     if (response === null) throw new Error("settled local response fixture must retain verification evidence");
     const terminalVerificationTarget = {
       head: response.newTarget.headSha,
@@ -539,10 +591,15 @@ describe("delivery review-fix continuation projection", () => {
 
     const prior = {
       ...settled,
-      deliveryMemberFixResponse: {
-        ...response,
-        newTarget: { ...response.newTarget, headSha: "c".repeat(40) },
-      },
+      approvedDispositionLineage: settled.approvedDispositionLineage.map((node) => ({
+        ...node,
+        deliveryMemberFixResponse: node.deliveryMemberFixResponse === null
+          ? null
+          : {
+              ...node.deliveryMemberFixResponse,
+              newTarget: { ...node.deliveryMemberFixResponse.newTarget, headSha: "c".repeat(40) },
+            },
+      })),
     };
     expect(selectDurableLocalDeliveryReviewFixAcknowledgementReplay({
       workUnitId: plan.workUnitId,

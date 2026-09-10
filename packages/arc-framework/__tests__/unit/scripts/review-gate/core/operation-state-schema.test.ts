@@ -500,7 +500,9 @@ describe("review operation state schemas", () => {
         actorIdentity: "reviewer-1",
         requestFailureReason: null,
         dispositionSetId: null,
+        dispositionSetLineage: [],
         settledFindingIds: [],
+        settlementEvidence: [],
       },
     };
     expect(() => LaneProgressStateSchema.parse({
@@ -545,7 +547,9 @@ describe("review operation state schemas", () => {
       actorIdentity: handle.admission.actorIdentity,
       requestFailureReason: null,
       dispositionSetId: null,
+      dispositionSetLineage: [],
       settledFindingIds: [],
+      settlementEvidence: [],
     };
     const attempt = {
       ...laneProgress.attempts[0],

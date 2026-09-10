@@ -19,6 +19,7 @@ import {
   ApprovedDispositionRecordSchema,
   DeliveryMemberReviewFixResponseSchema,
   ErrandReviewFixResponseSchema,
+  currentApprovedDispositionNode,
   isExactDeliveryMemberBindingAdvance,
   type ApprovedDispositionRecord,
   type ErrandReviewBinding,
@@ -186,6 +187,12 @@ export interface CandidateLineageBinding {
   unstagedReviewablePaths: readonly string[];
 }
 
+interface HostedDispositionFindingBinding {
+  readonly findingId: string;
+  readonly disposition: "fix" | "defer" | "reject";
+  readonly channelAction: "record-only" | "reply-and-resolve";
+}
+
 export interface RespondCommandDependencies {
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
@@ -223,8 +230,7 @@ export interface RespondCommandDependencies {
     operationId: string;
     attemptId: string;
     dispositionSetId: string;
-    findingIds: readonly string[];
-    noHostSettlementFindingIds: readonly string[];
+    findingDispositions: readonly HostedDispositionFindingBinding[];
   }): Promise<void>;
 }
 
@@ -478,6 +484,20 @@ function projectHostedSettlementPlan(
   };
 }
 
+function projectHostedDispositionBindings(
+  source: ResolvedResponseSource,
+  dispositions: ApprovedDispositionSet,
+): readonly HostedDispositionFindingBinding[] {
+  const hostSettlementFindingIds = new Set(source.hostedAttempt?.hostSettlementFindingIds ?? []);
+  return dispositions.dispositionSet.findings.map(({ findingId, disposition }) => ({
+    findingId,
+    disposition,
+    channelAction: hostSettlementFindingIds.has(findingId)
+      ? "reply-and-resolve" as const
+      : "record-only" as const,
+  }));
+}
+
 function projectApprovedResponse(
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
@@ -667,22 +687,24 @@ async function persistErrandResponse(
     dependencies.dispositionStore.readDispositionRecord(source.operationId),
     dependencies.resolveActiveErrand(),
   ]);
+  const current = existing === null ? null : currentApprovedDispositionNode(existing);
   if (existing === null
+    || current === null
     || existing.candidate !== null
     || existing.errand === null
     || activeErrand === null
     || canonicalize(existing.errand) !== canonicalize(activeErrand)
-    || canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)
+    || canonicalize(current.approvedDisposition) !== canonicalize(dispositions)
     || canonicalize(existing.source) !== canonicalize(source.source)
-    || existing.fixAuthorization === null) {
+    || current.fixAuthorization === null) {
     throw new RespondCommandError(
       "invalid-input",
       "a verified fix without Candidate lineage requires the exact approved active Errand response record",
     );
   }
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
-  if (existing.errandFixResponse !== null) {
-    if (!errandResponseMatches(existing.errandFixResponse, {
+  if (current.errandFixResponse !== null) {
+    if (!errandResponseMatches(current.errandFixResponse, {
       source,
       dispositions,
       newTarget,
@@ -698,13 +720,13 @@ async function persistErrandResponse(
       payload: {
         operationId: source.operationId,
         dispositionRecordRef,
-        fixAuthorizationId: existing.fixAuthorization.fixAuthorizationId,
+        fixAuthorizationId: current.fixAuthorization.fixAuthorizationId,
         dispositionReportText,
       },
     });
   }
   const fixConsumption = consumeFixAuthorization({
-    authorization: existing.fixAuthorization,
+    authorization: current.fixAuthorization,
     oldTarget: source.target,
     newTarget,
     appliedBy: dispositions.dispositionSet.proposedBy,
@@ -714,13 +736,20 @@ async function persistErrandResponse(
   });
   const record = validateApprovedDispositionRecordForResult(ApprovedDispositionRecordSchema.parse({
     ...existing,
-    errandFixResponse: {
-      oldTarget: source.target,
-      newTarget,
-      applicability: verifiedFix.applicability,
-      fixConsumption,
-      hostedTarget: source.hostedAttempt?.target ?? null,
-    },
+    approvedDispositionLineage: existing.approvedDispositionLineage.map((node) => (
+      node.approvedDisposition.dispositionSet.dispositionSetId === existing.currentDispositionSetId
+        ? {
+            ...node,
+            errandFixResponse: {
+              oldTarget: source.target,
+              newTarget,
+              applicability: verifiedFix.applicability,
+              fixConsumption,
+              hostedTarget: source.hostedAttempt?.target ?? null,
+            },
+          }
+        : node
+    )),
   }), source.result);
   const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(record);
   return RespondEnvelopeSchema.parse({
@@ -767,6 +796,7 @@ async function persistDeliveryMemberResponse(
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  const current = existing === null ? null : currentApprovedDispositionNode(existing);
   const hostedAttempt = source.hostedAttempt;
   if (hostedAttempt?.vehicle === undefined) {
     throw new RespondCommandError(
@@ -777,13 +807,14 @@ async function persistDeliveryMemberResponse(
   const vehicle = hostedAttempt.vehicle;
   const hostedTarget = hostedAttempt.target;
   if (existing === null
+    || current === null
     || existing.candidate !== null
     || existing.errand !== null
     || existing.deliveryMember === null
     || canonicalize(existing.deliveryMember) !== canonicalize(vehicle)
-    || canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)
+    || canonicalize(current.approvedDisposition) !== canonicalize(dispositions)
     || canonicalize(existing.source) !== canonicalize(source.source)
-    || existing.fixAuthorization === null) {
+    || current.fixAuthorization === null) {
     throw new RespondCommandError(
       "invalid-input",
       "a verified delivery-member fix requires its exact approved hosted response record",
@@ -791,8 +822,8 @@ async function persistDeliveryMemberResponse(
   }
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
   const hostedSettlementPlan = projectHostedSettlementPlan(source, dispositions);
-  if (existing.deliveryMemberFixResponse !== null) {
-    if (!deliveryMemberResponseMatches(existing.deliveryMemberFixResponse, {
+  if (current.deliveryMemberFixResponse !== null) {
+    if (!deliveryMemberResponseMatches(current.deliveryMemberFixResponse, {
       source,
       currentTarget,
       hostedFixTarget,
@@ -807,9 +838,10 @@ async function persistDeliveryMemberResponse(
     const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(existing);
     if (!hostedAttempt.settled) {
       await dependencies.bindHostedDisposition({
-        ...hostedAttempt,
+        operationId: hostedAttempt.operationId,
+        attemptId: hostedAttempt.attemptId,
         dispositionSetId: dispositions.dispositionSet.dispositionSetId,
-        findingIds: dispositions.dispositionSet.findings.map(({ findingId }) => findingId),
+        findingDispositions: projectHostedDispositionBindings(source, dispositions),
       });
     }
     return RespondEnvelopeSchema.parse({
@@ -819,7 +851,7 @@ async function persistDeliveryMemberResponse(
       payload: {
         operationId: source.operationId,
         dispositionRecordRef,
-        fixAuthorizationId: existing.fixAuthorization.fixAuthorizationId,
+        fixAuthorizationId: current.fixAuthorization.fixAuthorizationId,
         currentTarget,
         hostedFixTarget,
         dispositionReportText,
@@ -828,7 +860,7 @@ async function persistDeliveryMemberResponse(
     });
   }
   const fixConsumption = consumeFixAuthorization({
-    authorization: existing.fixAuthorization,
+    authorization: current.fixAuthorization,
     oldTarget: source.target,
     newTarget: currentTarget,
     appliedBy: dispositions.dispositionSet.proposedBy,
@@ -838,14 +870,21 @@ async function persistDeliveryMemberResponse(
   });
   const record = ApprovedDispositionRecordSchema.parse({
     ...existing,
-    deliveryMemberFixResponse: {
-      oldTarget: source.target,
-      newTarget: currentTarget,
-      applicability: verifiedFix.applicability,
-      fixConsumption,
-      hostedTarget,
-      hostedFixTarget,
-    },
+    approvedDispositionLineage: existing.approvedDispositionLineage.map((node) => (
+      node.approvedDisposition.dispositionSet.dispositionSetId === existing.currentDispositionSetId
+        ? {
+            ...node,
+            deliveryMemberFixResponse: {
+              oldTarget: source.target,
+              newTarget: currentTarget,
+              applicability: verifiedFix.applicability,
+              fixConsumption,
+              hostedTarget,
+              hostedFixTarget,
+            },
+          }
+        : node
+    )),
   });
   const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(record);
   return RespondEnvelopeSchema.parse({
@@ -903,7 +942,8 @@ async function settleApprovedReplay(
       payload: { operationId: source.operationId },
     });
   }
-  if (canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)) {
+  if (canonicalize(currentApprovedDispositionNode(existing).approvedDisposition)
+    !== canonicalize(dispositions)) {
     throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
   }
   const appended = await dependencies.dispositionStore.appendDispositionRecord(existing);
@@ -1107,6 +1147,19 @@ export async function respondToReviewCommand(
     ? await dependencies.resolveActiveErrand()
     : null;
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  if (existing !== null
+    && canonicalize(currentApprovedDispositionNode(existing).approvedDisposition)
+      !== canonicalize(dispositions)) {
+    throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
+  }
+  const initialNode = {
+    approvedDisposition: dispositions,
+    fixAuthorization: plan.fixAuthorization,
+    errandFixResponse: null,
+    deliveryMemberFixResponse: null,
+    predecessorDispositionSetId: null,
+    successorDispositionSetId: null,
+  };
   const record = ApprovedDispositionRecordSchema.parse({
     schemaVersion: 1,
     semanticsVersion: "review-advisory/v1",
@@ -1121,10 +1174,8 @@ export async function respondToReviewCommand(
     errand,
     deliveryMember,
     source: source.source,
-    approvedDisposition: dispositions,
-    fixAuthorization: plan.fixAuthorization,
-    errandFixResponse: existing?.errandFixResponse ?? null,
-    deliveryMemberFixResponse: existing?.deliveryMemberFixResponse ?? null,
+    currentDispositionSetId: dispositions.dispositionSet.dispositionSetId,
+    approvedDispositionLineage: existing?.approvedDispositionLineage ?? [initialNode],
   });
   if (existing !== null && canonicalize(existing) !== canonicalize(record)
     && !isExactDeliveryMemberBindingAdvance(existing, record)) {
@@ -1133,9 +1184,10 @@ export async function respondToReviewCommand(
   const appended = await dependencies.dispositionStore.appendDispositionRecord(record);
   if (source.hostedAttempt !== undefined && !source.hostedAttempt.settled) {
     await dependencies.bindHostedDisposition({
-      ...source.hostedAttempt,
+      operationId: source.hostedAttempt.operationId,
+      attemptId: source.hostedAttempt.attemptId,
       dispositionSetId: dispositions.dispositionSet.dispositionSetId,
-      findingIds: dispositions.dispositionSet.findings.map(({ findingId }) => findingId),
+      findingDispositions: projectHostedDispositionBindings(source, dispositions),
     });
   } else if (plan.state === "ready-to-close") {
     await dependencies.settleLaneFindings({

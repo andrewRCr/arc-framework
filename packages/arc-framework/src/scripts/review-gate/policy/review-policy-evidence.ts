@@ -3,6 +3,7 @@
 import { canonicalize } from "../../../lib/kernel/index.js";
 
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
+import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import type {
   ApprovedDispositionRecordStore,
   ReviewResultReader,
@@ -149,9 +150,10 @@ async function deriveVerifiedTerminalSignal(
     throw new Error("terminal findings producer has no approved disposition record");
   }
   const approved = validateApprovedDispositionRecordForResult(record, result);
+  const current = currentApprovedDispositionNode(approved);
   let confirmedFindingCount = 0;
   let maxConfirmedSeverity: ReviewSeverity | null = null;
-  for (const finding of approved.approvedDisposition.dispositionSet.findings) {
+  for (const finding of current.approvedDisposition.dispositionSet.findings) {
     if (finding.sourceVerification !== "verified") continue;
     confirmedFindingCount += 1;
     maxConfirmedSeverity = greaterSeverity(maxConfirmedSeverity, finding.verifiedSeverity);

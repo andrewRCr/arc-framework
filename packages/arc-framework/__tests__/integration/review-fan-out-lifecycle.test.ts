@@ -1445,8 +1445,11 @@ describe("hosted review fan-out lifecycle", () => {
       operationId: progress.operationId,
       attemptId: hostedLaneAttemptId(requested.handle),
       dispositionSetId: canonicalDigest({ disposition: "owner-terminus" }),
-      findingIds: [finding.findingId],
-      noHostSettlementFindingIds: [finding.findingId],
+      findingDispositions: [{
+        findingId: finding.findingId,
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
       now: "2026-09-01T10:02:00.000Z",
     });
     const changedBranch = "changed-delivery";
@@ -1760,8 +1763,11 @@ describe("hosted review fan-out lifecycle", () => {
       operationId: finalProgress.operationId,
       attemptId: hostedLaneAttemptId(finalRequested.handle),
       dispositionSetId: canonicalDigest({ disposition: "final-owner-terminus" }),
-      findingIds: [finding.findingId],
-      noHostSettlementFindingIds: [finding.findingId],
+      findingDispositions: [{
+        findingId: finding.findingId,
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
       now: "2026-09-04T20:04:00.000Z",
     });
 
@@ -3007,6 +3013,17 @@ describe("hosted review fan-out lifecycle", () => {
               attemptId,
               dispositionSetId: dispositions.dispositionSet.dispositionSetId,
               findingId: finding.findingId,
+              disposition: settlementRequest.disposition,
+              actorIdentity: settlementRequest.actorIdentity,
+              target: settlementRequest.target,
+              fixTarget: settlementRequest.fixTarget,
+              commentId: settlementRequest.finding.commentId,
+              threadId: settlementRequest.finding.threadId,
+              replyDigest: canonicalDigest({
+                domain: "arc.review.hosted-settlement-reply/v1",
+                body: settlementRequest.reply,
+              }),
+              replyId: result.replyId,
               now: "2026-08-24T04:03:00.000Z",
             });
           }
@@ -3434,8 +3451,11 @@ describe("hosted review fan-out lifecycle", () => {
       operationId: priorProgress.operationId,
       attemptId: hostedLaneAttemptId(priorSecondRequested.handle),
       dispositionSetId: canonicalDigest({ disposition: "prior" }),
-      findingIds: [priorFinding.findingId],
-      noHostSettlementFindingIds: [priorFinding.findingId],
+      findingDispositions: [{
+        findingId: priorFinding.findingId,
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
       now: "2026-08-24T04:05:30.000Z",
     });
 
@@ -3560,8 +3580,11 @@ describe("hosted review fan-out lifecycle", () => {
       operationId,
       attemptId,
       dispositionSetId,
-      findingIds: [finding.findingId],
-      noHostSettlementFindingIds: [],
+      findingDispositions: [{
+        findingId: finding.findingId,
+        disposition: "defer",
+        channelAction: "reply-and-resolve",
+      }],
       now: "2026-08-24T04:09:00.000Z",
     });
 
@@ -3614,6 +3637,17 @@ describe("hosted review fan-out lifecycle", () => {
       attemptId,
       dispositionSetId,
       findingId: finding.findingId,
+      disposition: "defer",
+      actorIdentity: "andrew",
+      target: currentSecondTarget,
+      fixTarget: null,
+      commentId: finding.commentId,
+      threadId: finding.threadId,
+      replyDigest: canonicalDigest({
+        domain: "arc.review.hosted-settlement-reply/v1",
+        body: "Tracked for follow-up.",
+      }),
+      replyId: "reply-1",
       now: "2026-08-24T04:10:00.000Z",
     });
 

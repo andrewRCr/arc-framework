@@ -11,8 +11,11 @@ import {
 import { canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
 import type { CandidateVerificationApplicability } from
   "../work-unit/candidate-attestation.js";
-import type { ApprovedDispositionRecord } from
-  "../../scripts/review-gate/core/advisory-records.js";
+import {
+  currentApprovedDispositionNode,
+  type ApprovedDispositionLineageNode,
+  type ApprovedDispositionRecord,
+} from "../../scripts/review-gate/core/advisory-records.js";
 import type { HostedFindingsResponsePlan, ReviewResponseSettlementRequest } from
   "../../scripts/review-gate/core/response-plan-schema.js";
 import { validateFixAuthorization } from
@@ -31,7 +34,7 @@ type PendingDeliveryReviewFixAuthority =
       readonly authorizedFindingIds: readonly string[];
       readonly authorizedFindingLoci: readonly string[];
       readonly approvedVerification:
-        NonNullable<ApprovedDispositionRecord["fixAuthorization"]>["approvedVerification"];
+        NonNullable<ApprovedDispositionLineageNode["fixAuthorization"]>["approvedVerification"];
       readonly operationId: string;
       readonly repositoryId: string;
       readonly source: ApprovedDispositionRecord["source"];
@@ -50,16 +53,19 @@ export type DurableDeliveryReviewFixResponseReplay =
       readonly workUnitId: string;
       readonly operationId: string;
       readonly repositoryId: string;
-      readonly currentTarget: NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["newTarget"];
+      readonly currentTarget:
+        NonNullable<ApprovedDispositionLineageNode["deliveryMemberFixResponse"]>["newTarget"];
       readonly hostedFixTarget:
-        NonNullable<NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["hostedFixTarget"]>;
+        NonNullable<NonNullable<
+          ApprovedDispositionLineageNode["deliveryMemberFixResponse"]
+        >["hostedFixTarget"]>;
       readonly request: {
         readonly schemaVersion: 1;
         readonly source: Extract<ReviewResponseSettlementRequest["source"], { readonly kind: "hosted" }>;
-        readonly dispositions: ApprovedDispositionRecord["approvedDisposition"];
+        readonly dispositions: ApprovedDispositionLineageNode["approvedDisposition"];
         readonly verifiedFix: {
           readonly applicability:
-            NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]>["applicability"];
+            NonNullable<ApprovedDispositionLineageNode["deliveryMemberFixResponse"]>["applicability"];
           readonly verificationEvidenceRefs: readonly string[];
         };
       };
@@ -92,16 +98,17 @@ function recordMatchesDurableDeliveryResponseReplay(
   responsePlan: HostedFindingsResponsePlan,
 ): boolean {
   const member = record.deliveryMember;
-  const response = record.deliveryMemberFixResponse;
+  const current = currentApprovedDispositionNode(record);
+  const response = current.deliveryMemberFixResponse;
   if (member === null || response === null || record.source.kind !== "hosted"
     || response.hostedTarget === null || response.hostedFixTarget === null) return false;
   const responseFindingIds = sortByCanonicalBytes(responsePlan.findings.map(({ findingId }) => findingId));
   const dispositionFindingIds = sortByCanonicalBytes(
-    record.approvedDisposition.dispositionSet.findings.map(({ findingId }) => findingId),
+    current.approvedDisposition.dispositionSet.findings.map(({ findingId }) => findingId),
   );
   return record.repositoryId === responsePlan.target.repositoryId
     && record.source.attemptRef === responsePlan.source.attemptRef
-    && record.approvedDisposition.dispositionSet.targetId === responsePlan.target.targetId
+    && current.approvedDisposition.dispositionSet.targetId === responsePlan.target.targetId
     && member.head === responsePlan.target.headSha
     && canonicalize(response.oldTarget) === canonicalize(responsePlan.target)
     && response.hostedTarget.headSha === responsePlan.target.headSha
@@ -122,7 +129,7 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
 }): DurableDeliveryReviewFixResponseReplay {
   const candidates = input.records.filter((record) => (
     record.deliveryMember?.workUnitId === input.workUnitId
-    && record.deliveryMemberFixResponse !== null
+    && currentApprovedDispositionNode(record).deliveryMemberFixResponse !== null
     && record.source.kind === "hosted"
     && record.source.attemptRef === input.responsePlan.source.attemptRef
   ));
@@ -131,9 +138,10 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
   }
   const selected = candidates[0];
   if (selected === undefined) return { status: "none" };
+  const current = currentApprovedDispositionNode(selected);
   if (!recordMatchesDurableDeliveryResponseReplay(selected, input.responsePlan)
-    || selected.deliveryMember === null || selected.deliveryMemberFixResponse === null
-    || selected.deliveryMemberFixResponse.hostedFixTarget === null
+    || selected.deliveryMember === null || current.deliveryMemberFixResponse === null
+    || current.deliveryMemberFixResponse.hostedFixTarget === null
     || selected.source.kind !== "hosted") {
     return { status: "refused", reason: "review-fix-response-replay-invalid" };
   }
@@ -144,15 +152,15 @@ export function selectDurableDeliveryReviewFixResponseReplay(input: {
     workUnitId: selected.deliveryMember.workUnitId,
     operationId: selected.operationId,
     repositoryId: selected.repositoryId,
-    currentTarget: selected.deliveryMemberFixResponse.newTarget,
-    hostedFixTarget: selected.deliveryMemberFixResponse.hostedFixTarget,
+    currentTarget: current.deliveryMemberFixResponse.newTarget,
+    hostedFixTarget: current.deliveryMemberFixResponse.hostedFixTarget,
     request: {
       schemaVersion: 1,
       source: { kind: "hosted", attemptRef: selected.source.attemptRef },
-      dispositions: selected.approvedDisposition,
+      dispositions: current.approvedDisposition,
       verifiedFix: {
-        applicability: selected.deliveryMemberFixResponse.applicability,
-        verificationEvidenceRefs: selected.deliveryMemberFixResponse.fixConsumption.verificationRefs,
+        applicability: current.deliveryMemberFixResponse.applicability,
+        verificationEvidenceRefs: current.deliveryMemberFixResponse.fixConsumption.verificationRefs,
       },
     },
   };
@@ -173,7 +181,7 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
   readonly records: readonly ApprovedDispositionRecord[];
 }): DurableLocalDeliveryReviewFixAcknowledgementReplay {
   const candidates = input.records.filter((record) => {
-    const response = record.deliveryMemberFixResponse;
+    const response = currentApprovedDispositionNode(record).deliveryMemberFixResponse;
     return record.deliveryMember?.workUnitId === input.workUnitId
       && record.deliveryMember.planId === input.planId
       && record.deliveryMember.deliverableId === input.selectedDeliverableId
@@ -188,7 +196,7 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
   }
   const selected = candidates[0];
   if (selected === undefined) return { status: "none" };
-  const response = selected.deliveryMemberFixResponse;
+  const response = currentApprovedDispositionNode(selected).deliveryMemberFixResponse;
   if (response === null || selected.source.kind !== "attested-local"
     || response.hostedTarget !== null || response.hostedFixTarget !== null
     || response.fixConsumption.verificationRefs.length === 0) {
@@ -217,7 +225,8 @@ export function selectDurableLocalDeliveryReviewFixAcknowledgementReplay(input: 
 
 function recordHasExactPendingDeliveryFixAuthority(record: ApprovedDispositionRecord): boolean {
   const member = record.deliveryMember;
-  const authorization = record.fixAuthorization;
+  const current = currentApprovedDispositionNode(record);
+  const authorization = current.fixAuthorization;
   if (member === null || authorization === null || record.source.kind === "frontline") return false;
   try {
     validateFixAuthorization(authorization);
@@ -225,17 +234,17 @@ function recordHasExactPendingDeliveryFixAuthority(record: ApprovedDispositionRe
     return false;
   }
   const authorizedFindingIds = sortByCanonicalBytes(
-    record.approvedDisposition.dispositionSet.findings
+    current.approvedDisposition.dispositionSet.findings
       .filter(({ disposition }) => disposition === "fix")
       .map(({ findingId }) => findingId),
   );
   return authorizedFindingIds.length > 0
     && JSON.stringify(authorization.authorizedFindingIds) === JSON.stringify(authorizedFindingIds)
     && authorization.dispositionSetId
-      === record.approvedDisposition.dispositionSet.dispositionSetId
+      === current.approvedDisposition.dispositionSet.dispositionSetId
     && authorization.approvedVerification
-      === record.approvedDisposition.dispositionSet.proposedVerification
-    && authorization.oldTargetId === record.approvedDisposition.dispositionSet.targetId
+      === current.approvedDisposition.dispositionSet.proposedVerification
+    && authorization.oldTargetId === current.approvedDisposition.dispositionSet.targetId
     && authorization.oldHeadSha === member.head;
 }
 
@@ -250,15 +259,16 @@ export function selectPendingDeliveryReviewFixAuthority(input: {
   readonly records: readonly ApprovedDispositionRecord[];
 }): PendingDeliveryReviewFixAuthority {
   const pending = input.records.filter((record) => record.deliveryMember?.workUnitId === input.workUnitId
-    && record.fixAuthorization !== null
-    && record.deliveryMemberFixResponse === null);
+    && currentApprovedDispositionNode(record).fixAuthorization !== null
+    && currentApprovedDispositionNode(record).deliveryMemberFixResponse === null);
   if (pending.some((record) => !recordHasExactPendingDeliveryFixAuthority(record))) {
     return { status: "refused", reason: "review-fix-response-invalid" };
   }
   if (pending.length > 1) return { status: "refused", reason: "review-fix-response-ambiguous" };
   const selected = pending[0];
   if (selected?.deliveryMember === null || selected?.deliveryMember === undefined) return { status: "none" };
-  if (selected.fixAuthorization === null) {
+  const current = currentApprovedDispositionNode(selected);
+  if (current.fixAuthorization === null) {
     return { status: "refused", reason: "review-fix-response-invalid" };
   }
   return {
@@ -267,13 +277,13 @@ export function selectPendingDeliveryReviewFixAuthority(input: {
     workUnitId: selected.deliveryMember.workUnitId,
     selectedDeliverableId: selected.deliveryMember.deliverableId,
     reviewedHead: selected.deliveryMember.head,
-    fixAuthorizationId: selected.fixAuthorization.fixAuthorizationId,
-    dispositionSetId: selected.fixAuthorization.dispositionSetId,
-    authorizedFindingIds: selected.fixAuthorization.authorizedFindingIds,
-    authorizedFindingLoci: selected.approvedDisposition.dispositionSet.findings
+    fixAuthorizationId: current.fixAuthorization.fixAuthorizationId,
+    dispositionSetId: current.fixAuthorization.dispositionSetId,
+    authorizedFindingIds: current.fixAuthorization.authorizedFindingIds,
+    authorizedFindingLoci: current.approvedDisposition.dispositionSet.findings
       .filter(({ disposition }) => disposition === "fix")
       .map(({ locus }) => locus),
-    approvedVerification: selected.fixAuthorization.approvedVerification,
+    approvedVerification: current.fixAuthorization.approvedVerification,
     operationId: selected.operationId,
     repositoryId: selected.repositoryId,
     source: selected.source,

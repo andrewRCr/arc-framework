@@ -9,7 +9,10 @@ import { candidateReviewResponses } from "../../lib/work-unit/candidate-attestat
 import {
   projectGitCandidateEffectiveTarget,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
-import type { ApprovedDispositionRecord } from "../review-gate/core/advisory-records.js";
+import {
+  currentApprovedDispositionNode,
+  type ApprovedDispositionRecord,
+} from "../review-gate/core/advisory-records.js";
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { composeReviewResponseSettlementAction } from "../review-gate/core/response-plan.js";
 import { parseReviewSourceReference } from "../review-gate/core/review-source-reference.js";
@@ -91,7 +94,8 @@ export function createLineageReviewComposer(input: {
       if (!required) return null;
       throw new Error(`The review operation behind approved dispositions ${record.operationId} is unavailable.`);
     }
-    if (resolved.targetId !== record.approvedDisposition.dispositionSet.targetId) {
+    if (resolved.targetId
+      !== currentApprovedDispositionNode(record).approvedDisposition.dispositionSet.targetId) {
       if (!required) return null;
       throw new Error(`The review operation behind approved dispositions ${record.operationId} moved target.`);
     }
@@ -160,7 +164,7 @@ export function createLineageReviewComposer(input: {
 
     const covered = new Map<string, { approved: ApprovedDispositionRecord; origin: ReviewTarget }>();
     for (const approved of enumerated) {
-      const dispositionId = approved.approvedDisposition.dispositionSet.dispositionSetId;
+      const dispositionId = approved.currentDispositionSetId;
       const required = approved.candidate !== null
         && approved.candidate.workUnit === workUnit
         && approved.candidate.candidateId === record.attestation.candidateId;
@@ -187,7 +191,7 @@ export function createLineageReviewComposer(input: {
     ));
     const fixTarget = await settledTarget(approvedHead);
     const actions = scoped.map(([, { approved, origin }]) => {
-      const dispositions = approved.approvedDisposition;
+      const dispositions = currentApprovedDispositionNode(approved).approvedDisposition;
       return composeReviewResponseSettlementAction({
         originTarget: origin,
         fixTarget,

@@ -16,6 +16,7 @@ import {
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   ApprovedDispositionRecordSchema,
+  currentApprovedDispositionNode,
   createFrontlineOutcomeRecord,
   ErrandReviewBindingSchema,
   type ApprovedDispositionRecord,
@@ -307,16 +308,28 @@ function dependencies(records: ReturnType<typeof fixture>) {
     dispositionStore: {
       readDispositionRecord: async () => disposition,
       appendDispositionRecord: async (record) => {
+        const currentExisting = disposition === null ? null : currentApprovedDispositionNode(disposition);
+        const currentNext = currentApprovedDispositionNode(record);
         const errandAdvance = disposition !== null
-          && disposition.errandFixResponse === null
-          && record.errandFixResponse !== null
-          && canonicalize({ ...disposition, errandFixResponse: null })
-            === canonicalize({ ...record, errandFixResponse: null });
+          && currentExisting?.errandFixResponse === null
+          && currentNext.errandFixResponse !== null
+          && canonicalize(disposition.approvedDispositionLineage.map((node) => ({
+            ...node,
+            errandFixResponse: null,
+          }))) === canonicalize(record.approvedDispositionLineage.map((node) => ({
+            ...node,
+            errandFixResponse: null,
+          })));
         const deliveryAdvance = disposition !== null
-          && disposition.deliveryMemberFixResponse === null
-          && record.deliveryMemberFixResponse !== null
-          && canonicalize({ ...disposition, deliveryMemberFixResponse: null })
-            === canonicalize({ ...record, deliveryMemberFixResponse: null });
+          && currentExisting?.deliveryMemberFixResponse === null
+          && currentNext.deliveryMemberFixResponse !== null
+          && canonicalize(disposition.approvedDispositionLineage.map((node) => ({
+            ...node,
+            deliveryMemberFixResponse: null,
+          }))) === canonicalize(record.approvedDispositionLineage.map((node) => ({
+            ...node,
+            deliveryMemberFixResponse: null,
+          })));
         if (disposition !== null
           && canonicalize(disposition) !== canonicalize(record)
           && !errandAdvance
@@ -990,7 +1003,11 @@ describe("review response command", () => {
     expect(bind).toHaveBeenCalledWith(expect.objectContaining({
       operationId: hosted.operation.operationId,
       attemptId: attempt.attemptId,
-      noHostSettlementFindingIds: [hosted.records.finding.findingId],
+      findingDispositions: [{
+        findingId: hosted.records.finding.findingId,
+        disposition: "defer",
+        channelAction: "record-only",
+      }],
     }));
   });
 
@@ -1119,8 +1136,11 @@ describe("review response command", () => {
       operationId: hosted.operation.operationId,
       attemptId: attempt.attemptId,
       dispositionSetId: dispositions.dispositionSet.dispositionSetId,
-      findingIds: [hosted.records.finding.findingId],
-      noHostSettlementFindingIds: [],
+      findingDispositions: [{
+        findingId: hosted.records.finding.findingId,
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
     }));
   });
 
@@ -2057,7 +2077,10 @@ describe("verified-fix Candidate settlement", () => {
         verificationEvidenceRefs: ["verification://focused-fix"],
       },
     }, deps)).resolves.toMatchObject({ state: "errand-advanced" });
-    expect(appended.at(-1)?.errandFixResponse).toMatchObject({
+    const appendedRecord = appended.at(-1);
+    expect(appendedRecord === undefined
+      ? null
+      : currentApprovedDispositionNode(appendedRecord).errandFixResponse).toMatchObject({
       oldTarget: { targetId: hosted.records.target.targetId },
       newTarget: { targetId: current.targetId },
       hostedTarget: {

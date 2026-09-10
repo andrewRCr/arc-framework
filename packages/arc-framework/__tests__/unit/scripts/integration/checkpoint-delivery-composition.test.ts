@@ -390,7 +390,9 @@ describe("delivery checkpoint composition", () => {
             actorIdentity: "reviewer-1",
             findings: [],
             dispositionSetId: null,
+            dispositionSetLineage: [],
             settledFindingIds: [],
+            settlementEvidence: [],
           },
         }],
       };

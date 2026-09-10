@@ -694,10 +694,15 @@ describe("local review result reader", () => {
         }),
         localSourceRef: result.kind === "attested-local" ? result.localSourceRef : "unreachable",
       },
-      approvedDisposition,
-      fixAuthorization: null,
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     });
 
     expect(validateApprovedDispositionRecordForResult(record, result)).toEqual(record);

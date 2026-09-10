@@ -6,6 +6,7 @@ import {
   FrontlineOutcomeRecordSchema,
   ReviewReductionProjectionSchema,
   createFrontlineOutcomeRecord,
+  currentApprovedDispositionNode,
 } from "../../../../../src/scripts/review-gate/core/advisory-records.js";
 import {
   approveDispositionState,
@@ -159,10 +160,15 @@ describe("advisory review records", () => {
       errand: null,
       deliveryMember: null,
       source,
-      approvedDisposition,
-      fixAuthorization: null,
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     };
     expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
     expect(ApprovedDispositionRecordSchema.safeParse({
@@ -178,6 +184,131 @@ describe("advisory review records", () => {
         claimId: "claim-1",
         branch: "chore/repair-review-state",
       },
+    }).success).toBe(false);
+  });
+
+  it("accepts one immutable approved-set lineage with an explicit current pointer", () => {
+    const dispositionSetId = approvedDisposition.dispositionSet.dispositionSetId;
+    const record = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-advisory/v1" as const,
+      repositoryId: "repo-1",
+      operationId: "operation-1",
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
+      deliveryMember: null,
+      source: { kind: "attested-local" as const, receiptRef: "receipt:1", localSourceRef: "source:1" },
+      currentDispositionSetId: dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
+    };
+
+    expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
+  });
+
+  it("requires an ordered, source-stable lineage whose current pointer identifies the tail", () => {
+    const firstId = approvedDisposition.dispositionSet.dispositionSetId;
+    const { dispositionSetId: _ignored, ...fields } = approvedDisposition.dispositionSet;
+    void _ignored;
+    const successor = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...fields,
+        proposedBy: "agent-2",
+        findings: fields.findings.map((finding) => ({
+          ...finding,
+          sourceVerification: "not-supported" as const,
+          verificationRefs: ["verification://finding-1-refuted"],
+          verifiedSeverity: null,
+          disposition: "reject" as const,
+          rationale: "Focused verification disproved the reported issue.",
+          recommendation: "Take no action.",
+        })),
+      })),
+      approvedBy: "maintainer-2",
+      approvedAt: "2026-07-23T16:00:00Z",
+    });
+    const successorId = successor.dispositionSet.dispositionSetId;
+    const record = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-advisory/v1" as const,
+      repositoryId: "repo-1",
+      operationId: "operation-1",
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
+      deliveryMember: null,
+      source: { kind: "attested-local" as const, receiptRef: "receipt:1", localSourceRef: "source:1" },
+      currentDispositionSetId: successorId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: successorId,
+      }, {
+        approvedDisposition: successor,
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: firstId,
+        successorDispositionSetId: null,
+      }],
+    };
+
+    const parsed = ApprovedDispositionRecordSchema.parse(record);
+    expect(currentApprovedDispositionNode(parsed).approvedDisposition).toEqual(successor);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      currentDispositionSetId: firstId,
+    }).success).toBe(false);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      approvedDispositionLineage: record.approvedDispositionLineage.map((node, index) =>
+        index === 1 ? { ...node, predecessorDispositionSetId: null } : node),
+    }).success).toBe(false);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      approvedDispositionLineage: record.approvedDispositionLineage.map((node, index) =>
+        index === 1
+          ? {
+              ...node,
+              approvedDisposition: {
+                ...successor,
+                dispositionSet: { ...successor.dispositionSet, producerId: "other-producer" },
+              },
+            }
+          : node),
+    }).success).toBe(false);
+    const { dispositionSetId: _successorId, ...successorFields } = successor.dispositionSet;
+    void _successorId;
+    const wrongFindingSuccessor = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...successorFields,
+        proposedBy: "agent-3",
+        findings: successorFields.findings.map((finding) => ({
+          ...finding,
+          findingId: "finding-other",
+        })),
+      })),
+      approvedBy: "maintainer-3",
+      approvedAt: "2026-07-23T16:30:00Z",
+    });
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      currentDispositionSetId: wrongFindingSuccessor.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        ...record.approvedDispositionLineage[0]!,
+        successorDispositionSetId: wrongFindingSuccessor.dispositionSet.dispositionSetId,
+      }, {
+        ...record.approvedDispositionLineage[1]!,
+        approvedDisposition: wrongFindingSuccessor,
+      }],
     }).success).toBe(false);
   });
 
@@ -211,16 +342,24 @@ describe("advisory review records", () => {
       errand: null,
       deliveryMember: null,
       source: { kind: "attested-local" as const, receiptRef: "receipt:1", localSourceRef: "source:1" },
-      approvedDisposition: approvedFix,
-      fixAuthorization,
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedFix.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition: approvedFix,
+        fixAuthorization,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     };
 
     expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
     expect(ApprovedDispositionRecordSchema.safeParse({
       ...record,
-      fixAuthorization: { ...fixAuthorization, approvedVerification: "targeted" },
+      approvedDispositionLineage: record.approvedDispositionLineage.map((node) => ({
+        ...node,
+        fixAuthorization: { ...fixAuthorization, approvedVerification: "targeted" as const },
+      })),
     }).success).toBe(false);
   });
 

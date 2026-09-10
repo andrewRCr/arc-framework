@@ -693,10 +693,15 @@ describe("local resume command", () => {
         receiptRef: receiptRef(records.operation.operationId, "receipts-v2.json#1"),
         localSourceRef: records.operation.sourceRef,
       },
-      approvedDisposition,
-      fixAuthorization: null,
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        fixAuthorization: null,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     });
 
     const exactResultReader = {

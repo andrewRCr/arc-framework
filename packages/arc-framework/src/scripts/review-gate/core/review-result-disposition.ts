@@ -94,7 +94,9 @@ export function validateApprovedDispositionRecordForResult(
   result: ReviewResult,
 ): ApprovedDispositionRecord {
   const record = ApprovedDispositionRecordSchema.parse(recordInput);
-  validateApprovedDispositionSetForResult(record.approvedDisposition, result);
+  for (const node of record.approvedDispositionLineage) {
+    validateApprovedDispositionSetForResult(node.approvedDisposition, result);
+  }
   if (record.operationId !== result.producerId || record.repositoryId !== result.repositoryId) {
     throw new Error("approved disposition record does not name its immutable producer");
   }

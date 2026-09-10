@@ -131,7 +131,10 @@ export function createHostedTerminalAttemptFixture(input: {
   readonly reviewUrl?: string;
   readonly findings?: readonly HostedFinding[];
   readonly dispositionSetId?: string | null;
+  readonly dispositionSetLineage?: HostedAttemptBinding["dispositionSetLineage"];
+  readonly findingActions?: HostedAttemptBinding["dispositionSetLineage"][number]["findingActions"];
   readonly settledFindingIds?: readonly string[];
+  readonly settlementEvidence?: HostedAttemptBinding["settlementEvidence"];
 }): { attemptId: string; hosted: HostedAttemptBinding } {
   const effectiveCoverage = input.effectiveCoverage ?? input.admission.requestedCoverage;
   const handle: HostedRequestHandle = {
@@ -151,6 +154,7 @@ export function createHostedTerminalAttemptFixture(input: {
   };
   const attemptId = hostedLaneAttemptId(handle);
   const findings = [...input.findings ?? []];
+  const dispositionSetId = input.dispositionSetId ?? null;
   const hosted = {
     admission: input.admission,
     handle,
@@ -176,8 +180,17 @@ export function createHostedTerminalAttemptFixture(input: {
       reviewUrl: input.reviewUrl ?? "https://example.invalid/review",
       findings,
     }),
-    dispositionSetId: input.dispositionSetId ?? null,
+    dispositionSetId,
+    dispositionSetLineage: input.dispositionSetLineage ?? (dispositionSetId === null
+      ? []
+      : [{
+          dispositionSetId,
+          predecessorDispositionSetId: null,
+          successorDispositionSetId: null,
+          findingActions: [...input.findingActions ?? []],
+        }]),
     settledFindingIds: [...input.settledFindingIds ?? []],
+    settlementEvidence: [...input.settlementEvidence ?? []],
   };
   return { attemptId, hosted };
 }

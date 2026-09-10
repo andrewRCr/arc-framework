@@ -264,6 +264,11 @@ function approvedRecord(result: ReviewResult) {
       openQuestions: [],
     }],
   });
+  const approvedDisposition = approveDispositionState({
+    proposed: proposeDispositionSet(set),
+    approvedBy: "andrew",
+    approvedAt: "2026-09-09T20:00:00Z",
+  });
   return ApprovedDispositionRecordSchema.parse({
     schemaVersion: 1,
     semanticsVersion: "review-advisory/v1",
@@ -281,14 +286,15 @@ function approvedRecord(result: ReviewResult) {
       }),
       hostedResultId: result.resultDigest,
     },
-    approvedDisposition: approveDispositionState({
-      proposed: proposeDispositionSet(set),
-      approvedBy: "andrew",
-      approvedAt: "2026-09-09T20:00:00Z",
-    }),
-    fixAuthorization: null,
-    errandFixResponse: null,
-    deliveryMemberFixResponse: null,
+    currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+    approvedDispositionLineage: [{
+      approvedDisposition,
+      fixAuthorization: null,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: null,
+    }],
   });
 }
 

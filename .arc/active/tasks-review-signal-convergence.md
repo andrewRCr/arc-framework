@@ -424,17 +424,10 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   exact native results plus complete approved dispositions. Settlement projects back to its original findings producer,
   partial chunks remain nonterminal, and unbased incremental evidence selects coverage while retaining response intent.
 
-### `[ ]` **5.1.R Close live terminal-normalization and approved-correction gaps**
+### `[x]` **5.1.R Close live terminal-normalization and approved-correction gaps**
 
 - _Goal:_ Hosted completion retains every request-bound observation, and a disproved approved judgment has one typed,
   auditable successor path before incompatible response consumption.
-
-- _Note:_ Forward amendments in Spec §§ 4 and 7; SC 20 and 21. Preserve completed Tasks 4.R.a and 5.1 as historical
-  outcomes; this revision closes behavior their executable contracts did not provide.
-
-- _Approach:_ Land the provider normalization and disposition-lineage foundation as separate atomic leaves before their
-  shared policy and response consumers. Reuse the Git-common publisher transaction and shared advisory-lock abstraction;
-  do not add a response-specific lock or a general amendment framework.
 
     - `[x]` **5.1.R.a Preserve CodeRabbit observations across one terminal review sequence**
 
@@ -443,18 +436,18 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
           request window with no attributable terminal result. Handle-less inspection retains its newest-review boundary;
           fixture identity remains independent of production exports.
 
-    - `[ ]` **5.1.R.b Add immutable approved-set lineage and successor publication**
+    - `[x]` **5.1.R.b Add immutable approved-set lineage and successor publication**
 
-        - Build `test-first` (one behavior at a time):
+        - Approved advisory records now retain an ordered, source-stable lineage with one current pointer, and every
+          response/continuation selector resolves only that node. Git-common stores accept exact replay or one current
+          successor, refuse stale/conflicting/consumed advances, and preserve immutable historical evidence.
 
-            - Evolve the shared local/frontline/hosted advisory record into immutable approved-set lineage with one
-              current pointer and explicit predecessor/successor binding. Publish and advance producer/lane bindings
-              coherently through the existing Git-common transaction; exact replay repairs, while stale or conflicting
-              successors refuse.
+        - Hosted bindings retain each approved action plan and exact performed settlement receipt. Successors carry only
+          unchanged disposition/channel actions, reopen changed actions, and reject unattributable or rewritten history.
 
-            - Mark a superseded predecessor non-current and make its unconsumed fix authorization, response continuation,
-              and ceiling capture permanently unusable. Refuse after incompatible fix consumption or ambiguous external
-              settlement. Carry only exact compatible performed settlement; changed channel action reopens the finding.
+- _Outcome:_ Hosted terminal observations and approved corrections now remain complete, replayable evidence instead of
+  mutable lane state. Provider findings survive completion markers, while a disproved judgment advances through one
+  immutable successor without reviving predecessor authority or repeating compatible settlement.
 
 ### `[ ]` **5.2 Close direct policy callers, independent discharge, status, and checkpoint**
 

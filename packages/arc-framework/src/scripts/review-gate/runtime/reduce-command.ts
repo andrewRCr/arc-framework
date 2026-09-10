@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import {
+  currentApprovedDispositionNode,
   FrontlineOutcomeRecordSchema,
   ReviewReductionProjectionSchema,
   type ApprovedDispositionRecord,
@@ -93,7 +94,9 @@ function responsePlan(input: {
       assuranceMode: "terminal-aggregate",
       reasons: ["sensitive-change-set"],
     },
-    dispositionState: input.disposition?.approvedDisposition ?? null,
+    dispositionState: input.disposition === null
+      ? null
+      : currentApprovedDispositionNode(input.disposition).approvedDisposition,
     candidateTarget: null,
     persistedTargetId: null,
     verificationPassed: false,
@@ -365,7 +368,7 @@ async function reduceFrontline(
         frontlineOutcomeRef: outcomeRef,
         frontlineFollowUp: projectFrontlineFollowUpAdvice({
           outcome,
-          dispositionState: disposition.approvedDisposition,
+          dispositionState: currentApprovedDispositionNode(disposition).approvedDisposition,
         }),
       },
     });

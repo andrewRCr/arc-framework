@@ -28,6 +28,7 @@ import {
   recordLaneAttempt,
   settleLaneAttempt,
   settleHostedAttemptFinding,
+  supersedeHostedAttemptDisposition,
 } from "../../../../src/scripts/review-gate/lane-progress.js";
 import {
   createHostedAdmission,
@@ -1100,32 +1101,179 @@ describe("hosted await lane recording", () => {
       operationId: progress.operationId,
       attemptId,
       dispositionSetId: `sha256:${"f".repeat(64)}`,
-      findingIds: findings.map(({ findingId }) => findingId),
-      noHostSettlementFindingIds: ["body-1"],
+      findingDispositions: [{
+        findingId: "thread-1",
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }, {
+        findingId: "body-1",
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
       now: "2026-08-15T12:01:00Z",
     });
     expect(bound.attempts[0]).toMatchObject({
       outcome: "findings",
-      hosted: { sealedResult, settledFindingIds: ["body-1"] },
+      hosted: {
+        sealedResult,
+        dispositionSetLineage: [{
+          dispositionSetId: `sha256:${"f".repeat(64)}`,
+          predecessorDispositionSetId: null,
+          successorDispositionSetId: null,
+        }],
+        settledFindingIds: ["body-1"],
+        settlementEvidence: [{
+          findingId: "body-1",
+          dispositionSetId: `sha256:${"f".repeat(64)}`,
+          disposition: "reject",
+          channelAction: "record-only",
+          performedAt: "2026-08-15T12:01:00Z",
+          carriedFromDispositionSetId: null,
+        }],
+      },
     });
+    await expect(bindHostedAttemptDisposition(store, {
+      operationId: progress.operationId,
+      attemptId,
+      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      findingDispositions: [{
+        findingId: "thread-1",
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+      }, {
+        findingId: "body-1",
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-15T12:01:30Z",
+    })).rejects.toThrow("replay conflicts");
     const settled = await settleHostedAttemptFinding(store, {
       operationId: progress.operationId,
       attemptId,
       dispositionSetId: `sha256:${"f".repeat(64)}`,
       findingId: "thread-1",
+      disposition: "fix",
+      actorIdentity: hostedContext.actorIdentity,
+      target: handle.target,
+      fixTarget: { ...handle.target, headSha: objectId("d") },
+      commentId: "comment-1",
+      threadId: "thread-1",
+      replyDigest: `sha256:${"1".repeat(64)}`,
+      replyId: "reply-1",
       now: "2026-08-15T12:02:00Z",
     });
     expect(settled.attempts[0]).toMatchObject({
       outcome: "settled-findings",
-      hosted: { sealedResult, settledFindingIds: ["body-1", "thread-1"] },
+      hosted: {
+        sealedResult,
+        settledFindingIds: ["body-1", "thread-1"],
+        settlementEvidence: expect.arrayContaining([expect.objectContaining({
+          findingId: "thread-1",
+          dispositionSetId: `sha256:${"f".repeat(64)}`,
+          disposition: "fix",
+          channelAction: "reply-and-resolve",
+          actorIdentity: hostedContext.actorIdentity,
+          target: handle.target,
+          fixTarget: { ...handle.target, headSha: objectId("d") },
+          commentId: "comment-1",
+          threadId: "thread-1",
+          replyDigest: `sha256:${"1".repeat(64)}`,
+          replyId: "reply-1",
+          performedAt: "2026-08-15T12:02:00Z",
+          carriedFromDispositionSetId: null,
+        })]),
+      },
     });
     await expect(settleHostedAttemptFinding(store, {
       operationId: progress.operationId,
       attemptId,
       dispositionSetId: `sha256:${"f".repeat(64)}`,
       findingId: "thread-1",
+      disposition: "fix",
+      actorIdentity: hostedContext.actorIdentity,
+      target: handle.target,
+      fixTarget: { ...handle.target, headSha: objectId("d") },
+      commentId: "comment-1",
+      threadId: "thread-1",
+      replyDigest: `sha256:${"1".repeat(64)}`,
+      replyId: "reply-1",
       now: "2026-08-15T12:03:00Z",
     })).resolves.toEqual(settled);
+
+    const successorSetId = `sha256:${"2".repeat(64)}`;
+    const superseded = await supersedeHostedAttemptDisposition(store, {
+      operationId: progress.operationId,
+      attemptId,
+      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      successorDispositionSetId: successorSetId,
+      findingDispositions: [{
+        findingId: "thread-1",
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+      }, {
+        findingId: "body-1",
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-15T12:04:00Z",
+    });
+    expect(superseded.carriedFindingIds).toEqual(["body-1"]);
+    expect(superseded.reopenedFindingIds).toEqual(["thread-1"]);
+    const successorAttempt = superseded.progress.attempts[0];
+    expect(successorAttempt?.outcome).toBe("findings");
+    expect(successorAttempt?.hosted?.dispositionSetId).toBe(successorSetId);
+    expect(successorAttempt?.hosted?.dispositionSetLineage).toMatchObject([{
+      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: successorSetId,
+    }, {
+      dispositionSetId: successorSetId,
+      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      successorDispositionSetId: null,
+    }]);
+    expect(successorAttempt?.hosted?.settledFindingIds).toEqual(["body-1"]);
+    expect(successorAttempt?.hosted?.settlementEvidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        findingId: "body-1",
+        dispositionSetId: successorSetId,
+        disposition: "reject",
+        channelAction: "record-only",
+        performedAt: "2026-08-15T12:01:00Z",
+        carriedFromDispositionSetId: `sha256:${"f".repeat(64)}`,
+      }),
+    ]));
+    await expect(supersedeHostedAttemptDisposition(store, {
+      operationId: progress.operationId,
+      attemptId,
+      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      successorDispositionSetId: successorSetId,
+      findingDispositions: [{
+        findingId: "thread-1",
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+      }, {
+        findingId: "body-1",
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-15T12:05:00Z",
+    })).resolves.toEqual(superseded);
+    await expect(supersedeHostedAttemptDisposition(store, {
+      operationId: progress.operationId,
+      attemptId,
+      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      successorDispositionSetId: `sha256:${"3".repeat(64)}`,
+      findingDispositions: [{
+        findingId: "thread-1",
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+      }, {
+        findingId: "body-1",
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-15T12:06:00Z",
+    })).rejects.toThrow("does not advance the current predecessor");
   });
 });
 

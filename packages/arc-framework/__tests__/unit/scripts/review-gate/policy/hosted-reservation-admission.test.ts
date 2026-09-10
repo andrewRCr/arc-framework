@@ -170,7 +170,32 @@ function hostedProgressAttempt(input: {
       requestFailureReason: null,
       findings: input.outcome === "settled-findings" ? [finding] : [],
       dispositionSetId: input.outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
+      dispositionSetLineage: input.outcome === "settled-findings" ? [{
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+        findingActions: [{
+          findingId: finding.findingId,
+          disposition: "reject" as const,
+          channelAction: "reply-and-resolve" as const,
+        }],
+      }] : [],
       settledFindingIds: input.outcome === "settled-findings" ? [finding.findingId] : [],
+      settlementEvidence: input.outcome === "settled-findings" ? [{
+        findingId: finding.findingId,
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        disposition: "reject" as const,
+        channelAction: "reply-and-resolve" as const,
+        actorIdentity: admission.actorIdentity,
+        target,
+        fixTarget: null,
+        commentId: finding.commentId,
+        threadId: finding.threadId,
+        replyDigest: canonicalDigest({ reply: 1 }),
+        replyId: "reply-1",
+        performedAt: "2026-08-31T12:01:00Z",
+        carriedFromDispositionSetId: null,
+      }] : [],
     },
   };
 }

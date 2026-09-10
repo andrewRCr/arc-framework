@@ -582,25 +582,30 @@ describe("earlier review attempt query", () => {
         receiptRef: "arc-review-source:v1:attested-local:local-review-prior:receipt%2F1",
         localSourceRef: "git-common:review-gate/local/source.json",
       },
-      approvedDisposition,
-      fixAuthorization,
-      errandFixResponse: null,
-      deliveryMemberFixResponse: {
-        oldTarget,
-        newTarget,
-        applicability: "focused",
-        fixConsumption: consumeFixAuthorization({
-          authorization: fixAuthorization,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        fixAuthorization,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: {
           oldTarget,
           newTarget,
-          appliedBy: "agent-1",
-          consumedAt: "2026-09-03T13:00:00Z",
-          verificationRefs: ["verification://focused-fix"],
-          priorConsumptions: [],
-        }),
-        hostedTarget: null,
-        hostedFixTarget: null,
-      },
+          applicability: "focused",
+          fixConsumption: consumeFixAuthorization({
+            authorization: fixAuthorization,
+            oldTarget,
+            newTarget,
+            appliedBy: "agent-1",
+            consumedAt: "2026-09-03T13:00:00Z",
+            verificationRefs: ["verification://focused-fix"],
+            priorConsumptions: [],
+          }),
+          hostedTarget: null,
+          hostedFixTarget: null,
+        },
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     });
 
     await expect(projectEarlierReviewApplicability({

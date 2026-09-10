@@ -25,6 +25,7 @@ import type { IntegrationBoundaryLocus } from
   "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   ApprovedDispositionRecordSchema,
+  currentApprovedDispositionNode,
   type ApprovedDispositionRecord,
 } from "../../scripts/review-gate/core/advisory-records.js";
 import { consumeFixAuthorization } from
@@ -70,9 +71,11 @@ export function advanceDeliveryReviewFixResponse(input: {
   readonly verifiedAt: string;
 }): DeliveryReviewFixResponseAdvanceResult {
   const record = ApprovedDispositionRecordSchema.safeParse(input.record);
-  if (!record.success || record.data.deliveryMember === null || record.data.fixAuthorization === null
+  if (!record.success) return { status: "refused", reason: "review-fix-response-invalid" };
+  const current = currentApprovedDispositionNode(record.data);
+  if (record.data.deliveryMember === null || current.fixAuthorization === null
     || record.data.source.kind === "frontline" || input.oldTarget.kind !== "delivery-member"
-    || input.oldTarget.targetId !== record.data.approvedDisposition.dispositionSet.targetId
+    || input.oldTarget.targetId !== current.approvedDisposition.dispositionSet.targetId
     || input.oldTarget.headSha !== record.data.deliveryMember.head
     || (record.data.source.kind === "hosted") !== (input.hostedTarget !== null)
     || (input.hostedTarget !== null && input.hostedTarget.headSha !== input.oldTarget.headSha)
@@ -98,7 +101,7 @@ export function advanceDeliveryReviewFixResponse(input: {
   const hostedFixTarget = input.hostedTarget === null
     ? null
     : { ...input.hostedTarget, headSha: input.currentHead };
-  const existing = record.data.deliveryMemberFixResponse;
+  const existing = current.deliveryMemberFixResponse;
   if (existing !== null) {
     return canonicalize({
       oldTarget: existing.oldTarget,
@@ -120,24 +123,31 @@ export function advanceDeliveryReviewFixResponse(input: {
   }
   try {
     const fixConsumption = consumeFixAuthorization({
-      authorization: record.data.fixAuthorization,
+      authorization: current.fixAuthorization,
       oldTarget: input.oldTarget,
       newTarget,
-      appliedBy: record.data.approvedDisposition.dispositionSet.proposedBy,
+      appliedBy: current.approvedDisposition.dispositionSet.proposedBy,
       consumedAt: input.verifiedAt,
       verificationRefs: [...input.verificationEvidenceRefs],
       priorConsumptions: [],
     });
     const advanced = ApprovedDispositionRecordSchema.parse({
       ...record.data,
-      deliveryMemberFixResponse: {
-        oldTarget: input.oldTarget,
-        newTarget,
-        applicability: input.applicability,
-        fixConsumption,
-        hostedTarget: input.hostedTarget,
-        hostedFixTarget,
-      },
+      approvedDispositionLineage: record.data.approvedDispositionLineage.map((node) => (
+        node.approvedDisposition.dispositionSet.dispositionSetId === record.data.currentDispositionSetId
+          ? {
+              ...node,
+              deliveryMemberFixResponse: {
+                oldTarget: input.oldTarget,
+                newTarget,
+                applicability: input.applicability,
+                fixConsumption,
+                hostedTarget: input.hostedTarget,
+                hostedFixTarget,
+              },
+            }
+          : node
+      )),
     });
     return { status: "recorded", record: advanced, newTarget, hostedFixTarget };
   } catch {

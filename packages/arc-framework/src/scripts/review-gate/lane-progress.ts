@@ -29,6 +29,7 @@ import type {
   HostedRequestHandle,
   HostedRequestAdmissionResolution,
   HostedRequestResult,
+  HostedTarget,
 } from "./hosted/request.js";
 import {
   createHostedAdmission,
@@ -119,7 +120,9 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
   }
   if (pendingHosted === undefined || nextHosted === undefined
     || pendingHosted.sealedResult !== undefined || pendingHosted.dispositionSetId !== null
-    || pendingHosted.settledFindingIds.length !== 0) return false;
+    || pendingHosted.dispositionSetLineage.length !== 0
+    || pendingHosted.settledFindingIds.length !== 0
+    || pendingHosted.settlementEvidence.length !== 0) return false;
   return canonicalize({
     attemptId: pending.attemptId,
     logicalPass: pending.logicalPass,
@@ -622,7 +625,9 @@ export async function recordHostedRequestAdmission(
         actorIdentity: admission.actorIdentity,
         requestFailureReason: null,
         dispositionSetId: null,
+        dispositionSetLineage: [],
         settledFindingIds: [],
+        settlementEvidence: [],
       },
     };
     const next = LaneProgressStateSchema.parse(existing === null
@@ -897,7 +902,9 @@ export async function recordHostedAwaitAttempt(
           }
         : {}),
       dispositionSetId: null,
+      dispositionSetLineage: [],
       settledFindingIds: [],
+      settlementEvidence: [],
     },
     now: input.now,
   });
@@ -998,7 +1005,9 @@ export async function recordHostedRequestConclusion(
       actorIdentity: admission.actorIdentity,
       requestFailureReason: result.state === "terminal-failure" ? result.reason : null,
       dispositionSetId: null,
+      dispositionSetLineage: [],
       settledFindingIds: [],
+      settlementEvidence: [],
     },
     now: input.now,
   });
@@ -1011,8 +1020,11 @@ export async function bindHostedAttemptDisposition(
     operationId: string;
     attemptId: string;
     dispositionSetId: string;
-    findingIds: readonly string[];
-    noHostSettlementFindingIds: readonly string[];
+    findingDispositions: readonly {
+      findingId: string;
+      disposition: "fix" | "defer" | "reject";
+      channelAction: "record-only" | "reply-and-resolve";
+    }[];
     now: string;
   },
 ): Promise<LaneProgressState> {
@@ -1026,21 +1038,53 @@ export async function bindHostedAttemptDisposition(
     throw new Error("hosted lane findings attempt is unavailable");
   }
   const recordedFindingIds = attempt.hosted.sealedResult?.findings.map(({ findingId }) => findingId).sort() ?? [];
-  if (canonicalize([...input.findingIds].sort()) !== canonicalize(recordedFindingIds)) {
-    throw new Error("approved dispositions do not cover the hosted finding set");
+  const dispositionFindingIds = input.findingDispositions.map(({ findingId }) => findingId).sort();
+  if (new Set(dispositionFindingIds).size !== dispositionFindingIds.length
+    || canonicalize(dispositionFindingIds)
+    !== canonicalize(recordedFindingIds)) {
+    throw new Error("approved disposition details do not cover the hosted finding set");
   }
+  const dispositionByFindingId = new Map(input.findingDispositions.map((finding) => [finding.findingId, finding]));
+  const noHostSettlementFindingIds = input.findingDispositions
+    .filter(({ channelAction }) => channelAction === "record-only")
+    .map(({ findingId }) => findingId);
   if (attempt.hosted.dispositionSetId !== null
     && attempt.hosted.dispositionSetId !== input.dispositionSetId) {
     throw new Error("hosted lane attempt already binds a different disposition set");
   }
+  if (attempt.hosted.dispositionSetId === input.dispositionSetId) {
+    const currentActions = attempt.hosted.dispositionSetLineage.at(-1)?.findingActions;
+    if (canonicalize(currentActions ?? null) !== canonicalize(input.findingDispositions)) {
+      throw new Error("hosted disposition binding replay conflicts with the recorded action plan");
+    }
+    return state;
+  }
   const settledFindingIds = [...new Set([
     ...attempt.hosted.settledFindingIds,
-    ...input.noHostSettlementFindingIds,
+    ...noHostSettlementFindingIds,
   ])].sort();
   if (settledFindingIds.some((findingId) => !recordedFindingIds.includes(findingId))) {
     throw new Error("hosted settlement references an unknown finding");
   }
   const complete = settledFindingIds.length === recordedFindingIds.length;
+  const settlementEvidence = [
+    ...attempt.hosted.settlementEvidence,
+    ...noHostSettlementFindingIds
+      .filter((findingId) => !attempt.hosted?.settlementEvidence.some((evidence) =>
+        evidence.dispositionSetId === input.dispositionSetId && evidence.findingId === findingId))
+      .map((findingId) => {
+        const finding = dispositionByFindingId.get(findingId);
+        if (finding === undefined) throw new Error("hosted settlement references an unknown disposition");
+        return {
+          findingId,
+          dispositionSetId: input.dispositionSetId,
+          disposition: finding.disposition,
+          channelAction: "record-only" as const,
+          performedAt: input.now,
+          carriedFromDispositionSetId: null,
+        };
+      }),
+  ];
   const attempts = [...state.attempts];
   attempts[index] = {
     ...attempt,
@@ -1048,7 +1092,16 @@ export async function bindHostedAttemptDisposition(
     hosted: {
       ...attempt.hosted,
       dispositionSetId: input.dispositionSetId,
+      dispositionSetLineage: attempt.hosted.dispositionSetId === null
+        ? [{
+            dispositionSetId: input.dispositionSetId,
+            predecessorDispositionSetId: null,
+            successorDispositionSetId: null,
+            findingActions: [...input.findingDispositions],
+          }]
+        : attempt.hosted.dispositionSetLineage,
       settledFindingIds,
+      settlementEvidence,
     },
   };
   const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
@@ -1064,6 +1117,14 @@ export async function settleHostedAttemptFinding(
     attemptId: string;
     dispositionSetId: string;
     findingId: string;
+    disposition: "fix" | "defer" | "reject";
+    actorIdentity: string;
+    target: HostedTarget;
+    fixTarget: HostedTarget | null;
+    commentId: string;
+    threadId: string;
+    replyDigest: string;
+    replyId: string;
     now: string;
   },
 ): Promise<LaneProgressState> {
@@ -1080,7 +1141,36 @@ export async function settleHostedAttemptFinding(
     || !attempt.hosted.sealedResult?.findings.some(({ findingId }) => findingId === input.findingId)) {
     throw new Error("hosted finding settlement does not match the approved lane attempt");
   }
-  if (attempt.hosted.settledFindingIds.includes(input.findingId)) return state;
+  const evidence = {
+    findingId: input.findingId,
+    dispositionSetId: input.dispositionSetId,
+    disposition: input.disposition,
+    channelAction: "reply-and-resolve" as const,
+    actorIdentity: input.actorIdentity,
+    target: input.target,
+    fixTarget: input.fixTarget,
+    commentId: input.commentId,
+    threadId: input.threadId,
+    replyDigest: input.replyDigest,
+    replyId: input.replyId,
+    performedAt: input.now,
+    carriedFromDispositionSetId: null,
+  };
+  const currentEvidence = attempt.hosted.settlementEvidence.find((candidate) =>
+    candidate.dispositionSetId === input.dispositionSetId && candidate.findingId === input.findingId);
+  const currentDisposition = attempt.hosted.dispositionSetLineage.at(-1)?.findingActions
+    .find(({ findingId }) => findingId === input.findingId);
+  if (currentDisposition?.disposition !== input.disposition
+    || currentDisposition.channelAction !== "reply-and-resolve") {
+    throw new Error("hosted finding settlement does not match the approved channel action");
+  }
+  if (currentEvidence !== undefined) {
+    const replayProjection = { ...evidence, performedAt: currentEvidence.performedAt };
+    if (canonicalize(currentEvidence) !== canonicalize(replayProjection)) {
+      throw new Error("hosted finding settlement conflicts with its recorded evidence");
+    }
+    return state;
+  }
   const settledFindingIds = [...attempt.hosted.settledFindingIds, input.findingId].sort();
   const attempts = [...state.attempts];
   attempts[index] = {
@@ -1088,11 +1178,137 @@ export async function settleHostedAttemptFinding(
     outcome: settledFindingIds.length === attempt.hosted.sealedResult.findings.length
       ? "settled-findings"
       : "findings",
-    hosted: { ...attempt.hosted, settledFindingIds },
+    hosted: {
+      ...attempt.hosted,
+      settledFindingIds,
+      settlementEvidence: [...attempt.hosted.settlementEvidence, evidence],
+    },
   };
   const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(next, version);
   return next;
+}
+
+export interface HostedDispositionSupersessionResult {
+  readonly progress: LaneProgressState;
+  readonly carriedFindingIds: readonly string[];
+  readonly reopenedFindingIds: readonly string[];
+}
+
+/** Advance one hosted attempt from an approved disposition set to its exact successor. */
+export async function supersedeHostedAttemptDisposition(
+  store: ReviewOperationStateStore,
+  input: {
+    operationId: string;
+    attemptId: string;
+    predecessorDispositionSetId: string;
+    successorDispositionSetId: string;
+    findingDispositions: readonly {
+      findingId: string;
+      disposition: "fix" | "defer" | "reject";
+      channelAction: "record-only" | "reply-and-resolve";
+    }[];
+    now: string;
+  },
+): Promise<HostedDispositionSupersessionResult> {
+  const { version, state } = await store.readOperation(input.operationId);
+  if (state === null || state.kind !== "lane-progress" || state.lane !== "standard") {
+    throw new Error("hosted lane findings attempt is unavailable");
+  }
+  const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.attemptId);
+  const attempt = state.attempts[index];
+  const hosted = attempt?.hosted;
+  if (attempt === undefined
+    || hosted === undefined
+    || hosted.sealedResult?.outcome !== "findings"
+    || (attempt.outcome !== "findings" && attempt.outcome !== "settled-findings")) {
+    throw new Error("hosted lane findings attempt is unavailable");
+  }
+  const recordedFindingIds = hosted.sealedResult.findings.map(({ findingId }) => findingId).sort();
+  const successorFindingIds = input.findingDispositions.map(({ findingId }) => findingId).sort();
+  if (new Set(successorFindingIds).size !== successorFindingIds.length
+    || canonicalize(successorFindingIds) !== canonicalize(recordedFindingIds)) {
+    throw new Error("successor dispositions do not cover the hosted finding set");
+  }
+  const successorByFindingId = new Map(input.findingDispositions.map((finding) => [finding.findingId, finding]));
+  const predecessorEvidence = hosted.settlementEvidence.filter(({ dispositionSetId }) =>
+    dispositionSetId === input.predecessorDispositionSetId);
+  const predecessorEvidenceByFindingId = new Map(predecessorEvidence.map((evidence) => [evidence.findingId, evidence]));
+  const predecessorSettledFindingIds = hosted.dispositionSetId === input.predecessorDispositionSetId
+    ? hosted.settledFindingIds
+    : predecessorEvidence.map(({ findingId }) => findingId);
+  if (predecessorSettledFindingIds.some((findingId) => !predecessorEvidenceByFindingId.has(findingId))) {
+    throw new Error("hosted predecessor settlement cannot be attributed exactly");
+  }
+  const carriedEvidence = predecessorSettledFindingIds.flatMap((findingId) => {
+    const evidence = predecessorEvidenceByFindingId.get(findingId);
+    const successor = successorByFindingId.get(findingId);
+    if (evidence === undefined || successor === undefined
+      || evidence.disposition !== successor.disposition
+      || evidence.channelAction !== successor.channelAction) {
+      return [];
+    }
+    return [{
+      ...evidence,
+      dispositionSetId: input.successorDispositionSetId,
+      carriedFromDispositionSetId: input.predecessorDispositionSetId,
+    }];
+  });
+  const carriedFindingIds = carriedEvidence.map(({ findingId }) => findingId).sort();
+  const reopenedFindingIds = predecessorSettledFindingIds
+    .filter((findingId) => !carriedFindingIds.includes(findingId))
+    .sort();
+
+  if (hosted.dispositionSetId === input.successorDispositionSetId) {
+    const predecessorNode = hosted.dispositionSetLineage.find(({ dispositionSetId }) =>
+      dispositionSetId === input.predecessorDispositionSetId);
+    const successorNode = hosted.dispositionSetLineage.at(-1);
+    const currentEvidence = hosted.settlementEvidence.filter(({ dispositionSetId }) =>
+      dispositionSetId === input.successorDispositionSetId);
+    if (predecessorNode?.successorDispositionSetId !== input.successorDispositionSetId
+      || successorNode?.predecessorDispositionSetId !== input.predecessorDispositionSetId
+      || canonicalize(successorNode.findingActions) !== canonicalize(input.findingDispositions)
+      || canonicalize(currentEvidence) !== canonicalize(carriedEvidence)
+      || canonicalize([...hosted.settledFindingIds].sort()) !== canonicalize(carriedFindingIds)) {
+      throw new Error("hosted disposition successor replay conflicts with recorded progress");
+    }
+    return { progress: state, carriedFindingIds, reopenedFindingIds };
+  }
+  if (hosted.dispositionSetId !== input.predecessorDispositionSetId) {
+    throw new Error("hosted disposition successor does not advance the current predecessor");
+  }
+  const predecessorNode = hosted.dispositionSetLineage.at(-1);
+  if (predecessorNode?.dispositionSetId !== input.predecessorDispositionSetId
+    || predecessorNode.successorDispositionSetId !== null) {
+    throw new Error("hosted disposition predecessor is stale or already superseded");
+  }
+  const dispositionSetLineage = [
+    ...hosted.dispositionSetLineage.slice(0, -1),
+    { ...predecessorNode, successorDispositionSetId: input.successorDispositionSetId },
+    {
+      dispositionSetId: input.successorDispositionSetId,
+      predecessorDispositionSetId: input.predecessorDispositionSetId,
+      successorDispositionSetId: null,
+      findingActions: [...input.findingDispositions],
+    },
+  ];
+  const attempts = [...state.attempts];
+  attempts[index] = {
+    ...attempt,
+    outcome: carriedFindingIds.length === recordedFindingIds.length
+      ? "settled-findings"
+      : "findings",
+    hosted: {
+      ...hosted,
+      dispositionSetId: input.successorDispositionSetId,
+      dispositionSetLineage,
+      settledFindingIds: carriedFindingIds,
+      settlementEvidence: [...hosted.settlementEvidence, ...carriedEvidence],
+    },
+  };
+  const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
+  await store.publishOperation(progress, version);
+  return { progress, carriedFindingIds, reopenedFindingIds };
 }
 
 /**

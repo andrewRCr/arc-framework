@@ -221,6 +221,64 @@ export const HostedSealedResultSchema = z.strictObject({
 });
 export type HostedSealedResult = z.infer<typeof HostedSealedResultSchema>;
 
+const HostedSettlementEvidenceBaseShape = {
+  findingId: z.string().trim().min(1),
+  dispositionSetId: CanonicalDigestSchema,
+  disposition: z.enum(["fix", "defer", "reject"]),
+  performedAt: z.iso.datetime({ offset: true }),
+  carriedFromDispositionSetId: CanonicalDigestSchema.nullable(),
+};
+
+export const HostedSettlementEvidenceSchema = z.discriminatedUnion("channelAction", [
+  z.strictObject({
+    ...HostedSettlementEvidenceBaseShape,
+    channelAction: z.literal("record-only"),
+  }),
+  z.strictObject({
+    ...HostedSettlementEvidenceBaseShape,
+    channelAction: z.literal("reply-and-resolve"),
+    actorIdentity: IdentifierSchema,
+    target: HostedTargetSchema,
+    fixTarget: HostedTargetSchema.nullable(),
+    commentId: z.string().trim().min(1),
+    threadId: z.string().trim().min(1),
+    replyDigest: CanonicalDigestSchema,
+    replyId: z.string().trim().min(1),
+  }).superRefine((evidence, context) => {
+    if ((evidence.disposition === "fix") !== (evidence.fixTarget !== null)) {
+      context.addIssue({
+        code: "custom",
+        path: ["fixTarget"],
+        message: "hosted fix settlement evidence must retain exactly one changed fix target",
+      });
+    }
+    if (evidence.fixTarget !== null
+      && (canonicalize({
+        ...evidence.fixTarget,
+        headSha: evidence.target.headSha,
+      }) !== canonicalize(evidence.target)
+        || evidence.fixTarget.headSha === evidence.target.headSha)) {
+      context.addIssue({
+        code: "custom",
+        path: ["fixTarget"],
+        message: "hosted fix settlement evidence must match the originating request and changed head",
+      });
+    }
+  }),
+]);
+export type HostedSettlementEvidence = z.infer<typeof HostedSettlementEvidenceSchema>;
+
+const HostedDispositionSetLineageNodeSchema = z.strictObject({
+  dispositionSetId: CanonicalDigestSchema,
+  predecessorDispositionSetId: CanonicalDigestSchema.nullable(),
+  successorDispositionSetId: CanonicalDigestSchema.nullable(),
+  findingActions: z.array(z.strictObject({
+    findingId: z.string().trim().min(1),
+    disposition: z.enum(["fix", "defer", "reject"]),
+    channelAction: z.enum(["record-only", "reply-and-resolve"]),
+  })),
+});
+
 const HostedResultDigestPreimageSchema = z.strictObject({
   attemptId: IdentifierSchema,
   admission: HostedAdmissionSchema,
@@ -272,7 +330,9 @@ const HostedLaneAttemptBindingSchema = z.strictObject({
   requestFailureReason: z.string().trim().min(1).nullable(),
   sealedResult: HostedSealedResultSchema.optional(),
   dispositionSetId: CanonicalDigestSchema.nullable(),
+  dispositionSetLineage: z.array(HostedDispositionSetLineageNodeSchema),
   settledFindingIds: z.array(z.string().trim().min(1)),
+  settlementEvidence: z.array(HostedSettlementEvidenceSchema),
 }).superRefine((hosted, context) => {
   if (hosted.requestedCoverage === "complete"
     && hosted.effectiveCoverage !== null
@@ -282,6 +342,74 @@ const HostedLaneAttemptBindingSchema = z.strictObject({
       path: ["effectiveCoverage"],
       message: "effective coverage must not weaken requested complete coverage",
     });
+  }
+  const evidenceKeys = hosted.settlementEvidence.map((evidence) =>
+    `${evidence.dispositionSetId}\u0000${evidence.findingId}`);
+  if (new Set(evidenceKeys).size !== evidenceKeys.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["settlementEvidence"],
+      message: "hosted settlement evidence must be unique per disposition set and finding",
+    });
+  }
+  const lineageIds = hosted.dispositionSetLineage.map(({ dispositionSetId }) => dispositionSetId);
+  if (new Set(lineageIds).size !== lineageIds.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["dispositionSetLineage"],
+      message: "hosted disposition-set lineage identities must be unique",
+    });
+  }
+  if (hosted.dispositionSetId === null) {
+    if (hosted.dispositionSetLineage.length > 0 || hosted.settlementEvidence.length > 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["dispositionSetLineage"],
+        message: "unbound hosted attempts cannot retain disposition lineage or settlement evidence",
+      });
+    }
+  } else if (lineageIds.at(-1) !== hosted.dispositionSetId) {
+    context.addIssue({
+      code: "custom",
+      path: ["dispositionSetId"],
+      message: "hosted current disposition set must identify the lineage tail",
+    });
+  }
+  hosted.dispositionSetLineage.forEach((node, index) => {
+    const predecessor = hosted.dispositionSetLineage[index - 1];
+    const successor = hosted.dispositionSetLineage[index + 1];
+    if (node.predecessorDispositionSetId !== (predecessor?.dispositionSetId ?? null)
+      || node.successorDispositionSetId !== (successor?.dispositionSetId ?? null)) {
+      context.addIssue({
+        code: "custom",
+        path: ["dispositionSetLineage", index],
+        message: "hosted disposition-set lineage edges must be exact and ordered",
+      });
+    }
+    const findingIds = node.findingActions.map(({ findingId }) => findingId);
+    if (new Set(findingIds).size !== findingIds.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["dispositionSetLineage", index, "findingActions"],
+        message: "hosted disposition-set finding actions must be unique",
+      });
+    }
+  });
+  for (const evidence of hosted.settlementEvidence) {
+    const node = hosted.dispositionSetLineage.find(({ dispositionSetId }) =>
+      dispositionSetId === evidence.dispositionSetId);
+    const action = node?.findingActions.find(({ findingId }) => findingId === evidence.findingId);
+    if (node === undefined
+      || action?.disposition !== evidence.disposition
+      || action.channelAction !== evidence.channelAction
+      || (evidence.carriedFromDispositionSetId !== null
+        && evidence.carriedFromDispositionSetId !== node.predecessorDispositionSetId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["settlementEvidence"],
+        message: "hosted settlement evidence must bind one lineage node and its direct predecessor",
+      });
+    }
   }
 });
 
@@ -526,6 +654,37 @@ const LaneAttemptSchema = z.strictObject({
       code: "custom",
       path: ["hosted", "dispositionSetId"],
       message: "hosted findings cannot settle before an approved disposition set is bound",
+    });
+  }
+  if (attempt.hosted.settlementEvidence.some((evidence) => !findingIds.includes(evidence.findingId))) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "settlementEvidence"],
+      message: "hosted settlement evidence must reference an attempt finding",
+    });
+  }
+  for (const [index, node] of attempt.hosted.dispositionSetLineage.entries()) {
+    const actionFindingIds = node.findingActions.map(({ findingId }) => findingId).sort();
+    if (canonicalize(actionFindingIds) !== canonicalize([...findingIds].sort())) {
+      context.addIssue({
+        code: "custom",
+        path: ["hosted", "dispositionSetLineage", index, "findingActions"],
+        message: "hosted disposition-set actions must exactly cover the attempt findings",
+      });
+    }
+  }
+  const currentEvidenceFindingIds = attempt.hosted.dispositionSetId === null
+    ? []
+    : attempt.hosted.settlementEvidence
+      .filter(({ dispositionSetId }) => dispositionSetId === attempt.hosted?.dispositionSetId)
+      .map(({ findingId }) => findingId)
+      .sort();
+  if (canonicalize(currentEvidenceFindingIds)
+    !== canonicalize([...attempt.hosted.settledFindingIds].sort())) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "settlementEvidence"],
+      message: "current hosted settlement IDs must have exact current-set evidence",
     });
   }
   if ((attempt.outcome === "terminal-failure") !== (attempt.hosted.requestFailureReason !== null)) {

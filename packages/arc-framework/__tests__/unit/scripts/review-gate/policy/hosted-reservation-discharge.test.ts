@@ -179,7 +179,27 @@ function attempt(
         outcome: outcome === "clean" ? "clean" : "findings",
         findings: outcome === "findings" || outcome === "settled-findings" ? [finding] : [],
         dispositionSetId: outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
+        findingActions: outcome === "settled-findings" ? [{
+          findingId: finding.findingId,
+          disposition: "reject",
+          channelAction: "reply-and-resolve",
+        }] : [],
         settledFindingIds: outcome === "settled-findings" ? [finding.findingId] : [],
+        settlementEvidence: outcome === "settled-findings" ? [{
+          findingId: finding.findingId,
+          dispositionSetId: canonicalDigest({ disposition: 1 }),
+          disposition: "reject",
+          channelAction: "reply-and-resolve",
+          actorIdentity: admission.actorIdentity,
+          target: hostedTarget,
+          fixTarget: null,
+          commentId: finding.commentId,
+          threadId: finding.threadId,
+          replyDigest: canonicalDigest({ reply: 1 }),
+          replyId: "reply-1",
+          performedAt: "2026-08-31T12:01:00Z",
+          carriedFromDispositionSetId: null,
+        }] : [],
       })
     : null;
   return {
@@ -218,7 +238,32 @@ function attempt(
       requestFailureReason: null,
       findings: outcome === "findings" || outcome === "settled-findings" ? [finding] : [],
       dispositionSetId: outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
+      dispositionSetLineage: outcome === "settled-findings" ? [{
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+        findingActions: [{
+          findingId: finding.findingId,
+          disposition: "reject" as const,
+          channelAction: "reply-and-resolve" as const,
+        }],
+      }] : [],
       settledFindingIds: outcome === "settled-findings" ? [finding.findingId] : [],
+      settlementEvidence: outcome === "settled-findings" ? [{
+        findingId: finding.findingId,
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+        actorIdentity: admission.actorIdentity,
+        target: hostedTarget,
+        fixTarget: null,
+        commentId: finding.commentId,
+        threadId: finding.threadId,
+        replyDigest: canonicalDigest({ reply: 1 }),
+        replyId: "reply-1",
+        performedAt: "2026-08-31T12:01:00Z",
+        carriedFromDispositionSetId: null,
+      }] : [],
     },
   };
 }

@@ -21,7 +21,11 @@ import {
   reviewApplicabilityConsumerAction,
   type ReviewApplicabilityConsumerAction,
 } from "./review-applicability-authority.js";
-import type { ApprovedDispositionRecord } from "../core/advisory-records.js";
+import {
+  currentApprovedDispositionNode,
+  type ApprovedDispositionLineageNode,
+  type ApprovedDispositionRecord,
+} from "../core/advisory-records.js";
 import type {
   ReviewContributionApplicabilityResult,
 } from "./review-contribution-applicability.js";
@@ -80,19 +84,18 @@ function verifiedDeliveryMemberFixResponse(input: {
   readonly record: ApprovedDispositionRecord | null;
   readonly candidate: EarlierReviewAttemptCandidate;
   readonly query: EarlierReviewAttemptQuery;
-}): NonNullable<ApprovedDispositionRecord["deliveryMemberFixResponse"]> | null {
+}): NonNullable<ApprovedDispositionLineageNode["deliveryMemberFixResponse"]> | null {
   const { record, candidate, query } = input;
   const priorVehicle = candidate.priorVehicle;
   const currentVehicle = query.currentVehicle;
-  const response = record?.deliveryMemberFixResponse;
+  const response = record === null ? null : currentApprovedDispositionNode(record).deliveryMemberFixResponse;
   if (candidate.outcome !== "settled-findings"
     || record?.operationId !== candidate.attemptId
     || record.source.kind === "frontline"
     || record.deliveryMember === null
     || priorVehicle === undefined
     || currentVehicle === undefined
-    || response === null
-    || response === undefined) return null;
+    || response === null) return null;
   let sourceReference;
   try {
     sourceReference = record.source.kind === "hosted"

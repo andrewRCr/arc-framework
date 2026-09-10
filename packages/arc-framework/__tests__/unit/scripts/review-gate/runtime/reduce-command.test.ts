@@ -251,10 +251,15 @@ function approvedLocal(records: ReturnType<typeof localFixture>): ApprovedDispos
       }),
       localSourceRef: records.operation.sourceRef,
     },
-    approvedDisposition: disposition,
-    fixAuthorization: null,
-    errandFixResponse: null,
-    deliveryMemberFixResponse: null,
+    currentDispositionSetId: disposition.dispositionSet.dispositionSetId,
+    approvedDispositionLineage: [{
+      approvedDisposition: disposition,
+      fixAuthorization: null,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: null,
+    }],
   });
 }
 
@@ -521,13 +526,18 @@ describe("review reduction command: attested local", () => {
         openQuestions: [],
       }],
     });
+    const replacement = approveDispositionState({
+      proposed: proposeDispositionSet(dispositionSet),
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T20:00:00Z",
+    });
     const disposition = ApprovedDispositionRecordSchema.parse({
       ...approvedDisposition,
-      approvedDisposition: approveDispositionState({
-        proposed: proposeDispositionSet(dispositionSet),
-        approvedBy: records.authority.authorIdentity,
-        approvedAt: "2026-07-23T20:00:00Z",
-      }),
+      currentDispositionSetId: replacement.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: approvedDisposition.approvedDispositionLineage.map((node) => ({
+        ...node,
+        approvedDisposition: replacement,
+      })),
     });
 
     await expect(reduceReviewCommand({
@@ -648,10 +658,15 @@ function approvedFrontline(records: ReturnType<typeof frontlineFixture>): Approv
         durableRef: durableOutcomeRef,
       }),
     },
-    approvedDisposition: disposition,
-    fixAuthorization: null,
-    errandFixResponse: null,
-    deliveryMemberFixResponse: null,
+    currentDispositionSetId: disposition.dispositionSet.dispositionSetId,
+    approvedDispositionLineage: [{
+      approvedDisposition: disposition,
+      fixAuthorization: null,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: null,
+    }],
   });
 }
 
