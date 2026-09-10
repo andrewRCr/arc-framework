@@ -619,6 +619,7 @@ export function createReviewStatusPort(
     cwd: string;
     exec: GitExec;
     remote?: string;
+    sourceId?: string;
     preparedNativeLanding?: {
       readonly planId: string;
       readonly operationId: string;
@@ -690,11 +691,12 @@ export function createReviewStatusPort(
               resolution.candidate.number,
               memberLookup,
               base.currentBaseOid ?? undefined,
-              ceilingOverride === undefined && coverage === undefined
+              ceilingOverride === undefined && coverage === undefined && input.sourceId === undefined
                 ? undefined
                 : {
                     ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
                     ...(coverage === undefined ? {} : { coverage }),
+                    ...(input.sourceId === undefined ? {} : { sourceId: input.sourceId }),
                   },
               undefined,
               {

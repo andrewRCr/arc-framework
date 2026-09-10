@@ -74,6 +74,21 @@ function resultLane(result: ReviewResult): "frontline" | "standard" {
   return result.kind === "frontline" ? "frontline" : "standard";
 }
 
+function compatibleStandardPolicy(left: ReviewResult, right: ReviewResult): boolean {
+  if (left.kind === "frontline" || right.kind === "frontline") {
+    return left.admission.policyVersion === right.admission.policyVersion;
+  }
+  const project = (result: Exclude<ReviewResult, { kind: "frontline" }>) => ({
+    obligation: result.requirement.obligation,
+    reasons: [...result.requirement.reasons].sort(),
+    rubricVersion: result.requirement.rubricVersion,
+    rubricDigest: result.requirement.rubricDigest,
+    retrigger: result.requirement.retrigger,
+    count: result.requirement.count,
+  });
+  return canonicalize(project(left)) === canonicalize(project(right));
+}
+
 /**
  * Resolve one result to a complete coverage root through immutable producer references.
  *
@@ -139,7 +154,7 @@ export async function resolveIncrementalCoverageBasis(
     if (!sameLineage(predecessor, result)) {
       return inadequate("incompatible-lineage", { producerId: predecessor.producerId });
     }
-    if (predecessor.admission.policyVersion !== result.admission.policyVersion) {
+    if (!compatibleStandardPolicy(predecessor, result)) {
       return inadequate("incompatible-policy", { producerId: predecessor.producerId });
     }
     const applicability = await dependencies.confirmApplicability(predecessor, current)

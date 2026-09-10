@@ -331,18 +331,26 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
   });
 }
 
-/** Derive the local carrier's requested coverage from its admitted requirement. */
+/**
+ * Derive the local carrier's requested coverage from its admitted requirement.
+ *
+ * @param requirement - The standard review requirement admitted for the local operation.
+ * @param admission - Optional delivery admission carrying an exact correction scope.
+ * @returns Incremental coverage for scoped corrections; otherwise the requirement-derived coverage.
+ */
 export function localReviewRequestedCoverage(
   requirement: { readonly retrigger: "none" | "incremental" | "full-final" },
+  admission?: { readonly correctionScope?: unknown },
 ): "incremental" | "complete" {
   if (requirement.retrigger === "none") {
     throw new Error("local review admission requires a reviewable coverage policy");
   }
+  if (admission?.correctionScope !== undefined) return "incremental";
   return requirement.retrigger === "incremental" ? "incremental" : "complete";
 }
 
 function localLaneAttemptMatchesState(attempt: LaneAttempt, state: LocalReviewState): boolean {
-  const requestedCoverage = localReviewRequestedCoverage(state.requirement);
+  const requestedCoverage = localReviewRequestedCoverage(state.requirement, state.deliveryAdmission);
   return attempt.attemptId === state.operationId
     && attempt.logicalPass === state.logicalPass
     && attempt.retryGeneration === state.retryGeneration
@@ -381,7 +389,7 @@ export async function recordLocalReceiptConclusion(
     input.receipt,
   );
   const consumedPass = receipt.result === "clean" || receipt.result === "findings";
-  const requestedCoverage = localReviewRequestedCoverage(state.requirement);
+  const requestedCoverage = localReviewRequestedCoverage(state.requirement, state.deliveryAdmission);
   const outcome = receipt.result === "unavailable"
     ? "transient-unavailable"
     : receipt.result === "failed" ? "terminal-failure" : receipt.result;
@@ -1143,7 +1151,7 @@ export async function recordLocalPendingAttempt(
   },
 ): Promise<LaneProgressState> {
   const { state } = input;
-  const requestedCoverage = localReviewRequestedCoverage(state.requirement);
+  const requestedCoverage = localReviewRequestedCoverage(state.requirement, state.deliveryAdmission);
   return recordLaneAttempt(store, {
     lane: "standard",
     repositoryId: state.repositoryId,

@@ -600,29 +600,14 @@ Coverage labels and contribution applicability cannot substitute for evaluator s
   material settlement remains outstanding; Owner-accepted risk and exact one-pass ceiling authority retain their
   existing distinct status, count, and continuation contracts.
 
-### `[ ]` **6.4 Exercise multi-pass members, insufficient scope, sibling completion, and exact overrides**
+### `[x]` **6.4 Exercise multi-pass members, insufficient scope, sibling completion, and exact overrides**
 
 - _Goal:_ The motivating member sequence and coverage failures are reproducible through returned public actions.
 
-- _Note:_ Spec §§ 3, 5, and 7; SC 12–14 and 17.
-
-- _Approach:_ Extend the existing fan-out and delivery scenarios with predecessor evidence and real correction payloads;
-  keep provider simulation at the external boundary.
-
-    - Build `test-first` (one behavior at a time):
-
-        - The five-pass `6, 7, 5, 2, 3` material sequence remains outstanding, while a one-pass-clean sibling is not
-          re-reviewed.
-
-        - A fresh adequate no-material correction can advance; an incremental-only or unreviewed material locus cannot.
-
-        - Local incremental coverage remains incremental in stored result, history, status, and displayed counts.
-
-        - Interrupted/missing/gapped predecessor state, explicit complete upgrade, and exact cap/Owner paths remain
-          distinct.
-
-        - Returned actions drive hosted-complete → local-incremental review without losing the predecessor. Exercise
-          the A-review/B-fix/C-correction scope and nonancestor endpoint retention, including missing-object refusal.
+- _Outcome:_ Production-path scenarios now replay the five-pass `6, 7, 5, 2, 3` material sequence without re-reviewing
+  its clean sibling and drive a hosted A review through a performed B fix to a nonancestor C local correction. Scoped
+  local corrections retain incremental coverage and one complete-pass basis across source-specific policy carriers;
+  unsupported scopes, missing bases or objects, complete upgrades, pass caps, and Owner authority remain fail-closed.
 
 ### `[ ]` **6.5 Verify incremental coverage and member progression** — validate criteria at member scope
 

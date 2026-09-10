@@ -20,6 +20,7 @@ function result(input: {
   kind?: "attested-local" | "hosted";
   source?: string;
   policy?: string;
+  rubricDigest?: string;
   lineage?: ReviewResult["admission"]["lineage"];
   predecessor?: {
     producerId: string;
@@ -71,7 +72,14 @@ function result(input: {
             },
           }),
     },
-    requirement: {} as never,
+    requirement: {
+      obligation: "required",
+      reasons: ["sensitive-change-set"],
+      rubricVersion: "standard-review/v1",
+      rubricDigest: input.rubricDigest ?? digest("r"),
+      retrigger: "full-final",
+      count: 1,
+    } as never,
   };
   if (input.kind === "attested-local") {
     return {
@@ -123,6 +131,7 @@ describe("incremental coverage basis", () => {
       id: "incremental-2",
       head: oid("c"),
       coverage: "incremental",
+      policy: digest("l"),
       kind: "attested-local",
       source: "delegated-agent",
       predecessor: { producerId: complete.producerId, basisHead: complete.target.headSha },
@@ -169,7 +178,7 @@ describe("incremental coverage basis", () => {
       id: "incompatible",
       head: oid("b"),
       coverage: "complete",
-      policy: digest("q"),
+      rubricDigest: digest("q"),
     });
     const missing = result({
       id: "missing-current",

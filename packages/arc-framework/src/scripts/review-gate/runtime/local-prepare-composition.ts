@@ -333,7 +333,8 @@ export function createLocalPrepareDependencies(input: {
         ...(admission.ceilingOverride === undefined
           ? {}
           : { ceilingOverride: admission.ceilingOverride }),
-      }, createReviewStatusPort(input));
+        ...(admission.correctionScope === undefined ? {} : { coverage: "incremental" }),
+      }, createReviewStatusPort({ ...input, sourceId: admission.sourceId }));
       if (current.nextAction !== "review-local-prepare"
         || canonicalize(current.action) !== canonicalize(admission)) {
         throw new Error("Local delivery-member review no longer has exact driver admission.");

@@ -125,7 +125,7 @@ async function attestLocalReviewWithinLocalReviewLock(
   if (await readAdmittedLocalLaneAttempt(dependencies.operationStore, state) === null) {
     throw new LocalAttestCommandError("corrupt-state", "local review operation is not durably admitted");
   }
-  const requestedCoverage = localReviewRequestedCoverage(state.requirement);
+  const requestedCoverage = localReviewRequestedCoverage(state.requirement, state.deliveryAdmission);
   const result = normalizeLocalReviewResult(request.result, {
     repositoryId: state.repositoryId,
     targetId: state.targetId,

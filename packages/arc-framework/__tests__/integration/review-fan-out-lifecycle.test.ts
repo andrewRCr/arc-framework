@@ -899,6 +899,7 @@ async function statusThroughHandler(
   target: { repository: string; headRef: string; headSha: string },
   ceilingOverride?: ReviewCeilingOverride,
   coverage?: HostedReviewCoverage,
+  sourceId?: "coderabbit-pr" | "codex-pr" | "delegated-agent",
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
@@ -920,12 +921,13 @@ async function statusThroughHandler(
           42,
           new RepositoryDeliveryMemberLookup({ cwd: root, exec: harness.exec }),
           harness.baseHead,
-          admittedOverride === undefined && admittedCoverage === undefined
+          admittedOverride === undefined && admittedCoverage === undefined && sourceId === undefined
             ? undefined
             : {
                 ...(admittedOverride === undefined ? {} : { ceilingOverride: admittedOverride }),
-              ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
-            },
+                ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
+                ...(sourceId === undefined ? {} : { sourceId }),
+              },
           deliveryHost(harness),
         ),
         currentBaseOid: harness.baseHead,
@@ -1187,6 +1189,8 @@ async function completeLocalReviewThroughHandlers(
         harness,
         admission.statusTarget,
         admission.ceilingOverride,
+        admission.correctionScope === undefined ? undefined : "incremental",
+        admission.sourceId,
       );
       if (current.nextAction !== "review-local-prepare"
         || canonicalize(current.action) !== canonicalize(admission)) {
@@ -3010,7 +3014,7 @@ describe("hosted review fan-out lifecycle", () => {
     await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
   });
 
-  it("admits an explicitly incremental first-outstanding action at the production request boundary", async () => {
+  it("blocks unscoped CodeRabbit incremental coverage before the production request boundary", async () => {
     const harness = await createHarness();
     const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
     const status = await statusThroughHandler(harness, {
@@ -3019,28 +3023,16 @@ describe("hosted review fan-out lifecycle", () => {
       headSha: harness.oldFirst,
     }, undefined, "incremental");
     expect(status).toMatchObject({
-      state: "review-required",
-      nextAction: "review-hosted-request",
-      action: {
-        target: { headSha: harness.oldFirst },
-        coverage: "incremental",
-      },
+      state: "blocked",
+      nextAction: "stop",
+      reason: "coverage-unsupported",
     });
-    if (status.nextAction !== "review-hosted-request") throw new Error("expected incremental hosted request");
-
-    const result = await requestThroughProductionHandler(harness, fakeBin, status.action);
-
-    expect(result.exitCodes, JSON.stringify(result.output)).toEqual([]);
-    expect(result.output).toMatchObject({
-      state: "requested",
-      requestedCoverage: "incremental",
-      handle: { effectiveCoverage: "incremental" },
-    });
-    await expect(access(providerCalled)).resolves.toBeUndefined();
+    await expect(access(providerCalled)).rejects.toThrow();
+    await expect(access(fakeBin)).resolves.toBeUndefined();
   });
 
-  it("retains incremental coverage through production hosted fallback", async () => {
-    const harness = await createHarness(["coderabbit-pr", "codex-pr"]);
+  it("records Codex's explicit incremental request as one complete upgraded pass", async () => {
+    const harness = await createHarness(["codex-pr"]);
     const statusTarget = {
       repository,
       headRef: "delivery/delivery-plan-record/first",
@@ -3050,79 +3042,241 @@ describe("hosted review fan-out lifecycle", () => {
     if (initial.nextAction !== "review-hosted-request") {
       throw new Error("expected incremental hosted request");
     }
-    expect(initial.action).toMatchObject({ provider: "coderabbit-pr", coverage: "incremental" });
-    const unavailable = await requestThroughHandler(
+    expect(initial.action).toMatchObject({ provider: "codex-pr", coverage: "incremental" });
+    const requested = await requestThroughHandler(
       initial.action,
-      { kind: "rate-limited" },
+      {
+        kind: "created",
+        artifact: {
+          kind: "pull-request-review",
+          id: "review-codex-complete-upgrade",
+          url: "https://example.test/review-codex-complete-upgrade",
+          createdAt: "2026-09-10T13:00:00.000Z",
+        },
+        effectiveCoverage: "complete",
+      },
       harness.root,
       harness.exec,
     );
-    if (unavailable.nextAction !== "try-next-source") throw new Error("expected hosted fallback");
+    if (requested.nextAction !== "await") throw new Error("expected upgraded hosted review handle");
+    expect(requested).toMatchObject({
+      requestedCoverage: "incremental",
+      handle: { effectiveCoverage: "complete" },
+    });
+    const awaited = await awaitThroughHandler(requested.handle, {
+      kind: "clean",
+      reviewUrl: "https://example.test/review-codex-complete-upgrade",
+    });
+    await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: awaited,
+      now: "2026-09-10T13:01:00.000Z",
+    });
 
     await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
       state: "review-required",
       nextAction: "review-hosted-request",
-      action: { provider: "codex-pr", coverage: "incremental" },
+      routedObligation: {
+        conjunction: {
+          members: [
+            { state: "discharged", progress: { completedPasses: 1, completePasses: 1 } },
+            { state: "outstanding", progress: { completedPasses: 0, completePasses: 0 } },
+          ],
+        },
+      },
     });
   });
 
-  it("retains an incremental clean result while complete coverage still lacks a basis", async () => {
-    const harness = await createHarness();
+  it("refuses local incremental coverage when no complete predecessor basis exists", async () => {
+    const harness = await createHarness(["delegated-agent"]);
     const statusTarget = {
       repository,
       headRef: "delivery/delivery-plan-record/first",
       headSha: harness.oldFirst,
     };
-    const incremental = await statusThroughHandler(harness, statusTarget, undefined, "incremental");
-    if (incremental.nextAction !== "review-hosted-request") {
-      throw new Error("expected incremental hosted request");
-    }
-    const requested = await requestThroughHandler(incremental.action, {
+    await expect(statusThroughHandler(
+      harness,
+      statusTarget,
+      undefined,
+      "incremental",
+      "delegated-agent",
+    )).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "coverage-unsupported",
+      routedObligation: {
+        state: "blocked",
+        detail: "The selected local review carrier cannot preserve explicit incremental coverage.",
+      },
+    });
+  });
+
+  it("keeps a five-pass material member outstanding without re-reviewing its clean sibling", async () => {
+    const harness = await createHarness(["coderabbit-pr"]);
+    const firstStatusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    const firstStatus = await statusThroughHandler(harness, firstStatusTarget);
+    if (firstStatus.nextAction !== "review-hosted-request") throw new Error("expected first member request");
+    const firstRequested = await requestThroughHandler(firstStatus.action, {
       kind: "created",
       artifact: {
         kind: "pull-request-review",
-        id: "review-incremental-clean",
-        url: "https://example.test/review-incremental-clean",
-        createdAt: "2026-08-30T13:00:00.000Z",
+        id: "review-clean-sibling",
+        url: "https://example.test/review-clean-sibling",
+        createdAt: "2026-09-10T14:00:00.000Z",
       },
-      effectiveCoverage: "incremental",
+      effectiveCoverage: "complete",
     }, harness.root, harness.exec);
-    if (requested.nextAction !== "await") throw new Error("expected incremental hosted review handle");
-    const awaited = await awaitThroughHandler(requested.handle, {
+    if (firstRequested.nextAction !== "await") throw new Error("expected first member await");
+    const firstAwaited = await awaitThroughHandler(firstRequested.handle, {
       kind: "clean",
-      reviewUrl: "https://example.test/review-incremental-clean",
+      reviewUrl: "https://example.test/review-clean-sibling",
     });
     await recordHostedAwaitAttempt(harness.store, {
       repositoryId: harness.repositoryId,
-      result: awaited,
-      now: "2026-08-30T13:01:00.000Z",
+      result: firstAwaited,
+      now: "2026-09-10T14:00:30.000Z",
     });
 
-    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
-      state: "blocked",
-      nextAction: "stop",
-      reason: "status-unavailable",
+    const materialCounts = [6, 7, 5, 2, 3] as const;
+    const secondStatusTarget = { repository, headRef: "prior-top", headSha: harness.priorSecond };
+    let nextStatus = await statusThroughHandler(harness, secondStatusTarget);
+    for (const [passIndex, findingCount] of materialCounts.entries()) {
+      const pass = passIndex + 1;
+      if (nextStatus.nextAction === "obtain-ceiling-override") {
+        expect(nextStatus.consequence).toMatchObject({
+          target: { repository, pullRequest: 42, headSha: harness.priorSecond },
+          exhaustedPassCount: pass - 1,
+          nextPass: pass,
+        });
+        nextStatus = await statusThroughHandler(harness, secondStatusTarget, nextStatus.consequence);
+      }
+      expect(nextStatus).toMatchObject({
+        state: "review-required",
+        nextAction: "review-hosted-request",
+        action: {
+          provider: "coderabbit-pr",
+          vehicle: member(harness.plan, 1, harness.priorSecond),
+          ...(pass < 3 ? {} : { ceilingOverride: expect.objectContaining({ nextPass: pass }) }),
+        },
+        routedObligation: {
+          conjunction: {
+            members: [
+              { state: "discharged", progress: { completedPasses: 1, completePasses: 1 } },
+              { state: "outstanding", progress: { completedPasses: pass - 1 } },
+            ],
+          },
+        },
+      });
+      if (nextStatus.nextAction !== "review-hosted-request") {
+        throw new Error(`expected material pass ${String(pass)} request`);
+      }
+      const findings = Array.from({ length: findingCount }, (_, findingIndex) => ({
+        findingId: `material-${String(pass)}-${String(findingIndex + 1)}`,
+        origin: "review-body" as const,
+        reviewId: `review-material-${String(pass)}`,
+        fingerprint: `material-${String(pass)}-${String(findingIndex + 1)}`,
+        settlement: "not-applicable" as const,
+        severity: "major" as const,
+        locus: `second.txt:${String(findingIndex + 1)}`,
+        url: `https://example.test/material-${String(pass)}-${String(findingIndex + 1)}`,
+        body: `Material finding ${String(findingIndex + 1)} in pass ${String(pass)}.`,
+        sourceOrdinal: findingIndex + 1,
+      }));
+      const requested = await requestThroughHandler(nextStatus.action, {
+        kind: "created",
+        artifact: {
+          kind: "pull-request-review",
+          id: `review-material-${String(pass)}`,
+          url: `https://example.test/review-material-${String(pass)}`,
+          createdAt: `2026-09-10T14:${String(pass).padStart(2, "0")}:00.000Z`,
+        },
+        effectiveCoverage: "complete",
+      }, harness.root, harness.exec);
+      if (requested.nextAction !== "await") throw new Error("expected material member await");
+      const awaited = await awaitThroughHandler(requested.handle, {
+        kind: "findings",
+        reviewUrl: `https://example.test/review-material-${String(pass)}`,
+        findings,
+      });
+      await recordHostedAwaitAttempt(harness.store, {
+        repositoryId: harness.repositoryId,
+        result: awaited,
+        now: `2026-09-10T14:${String(pass).padStart(2, "0")}:30.000Z`,
+      });
+      const responseStatus = await statusThroughHandler(harness, secondStatusTarget);
+      expect(responseStatus).toMatchObject({
+        nextAction: "respond-to-findings",
+        responsePlan: { findings: findings.map(({ findingId }) => ({ findingId })) },
+      });
+      if (responseStatus.nextAction !== "respond-to-findings"
+        || responseStatus.responsePlan.source.kind !== "hosted") {
+        throw new Error("expected material findings response action");
+      }
+      const source = responseStatus.responsePlan.source;
+      const proposal = await respondThroughHandler(harness, {
+        schemaVersion: 1,
+        source,
+        proposal: {
+          proposedVerification: "focused",
+          severityGatingPolicy: { minorGating: "record-only" },
+          findings: findings.map((finding) => ({
+            findingId: finding.findingId,
+            sourceVerification: "verified" as const,
+            verificationRefs: [finding.url],
+            verifiedSeverity: "major" as const,
+            disposition: "reject" as const,
+            rationale: "The material signal remains present in the reviewed source.",
+            recommendation: "Retain the material result and continue only through explicit pass authority.",
+            openQuestions: [],
+          })),
+        },
+      });
+      if (proposal.state !== "awaiting-approval") throw new Error("expected material disposition proposal");
+      const dispositions = approveDispositionState({
+        proposed: proposal.payload.proposal,
+        approvedBy: "andrew",
+        approvedAt: `2026-09-10T14:${String(pass).padStart(2, "0")}:45.000Z`,
+      });
+      const policyRequest = await responsePolicyRequest(harness.root, source, repository);
+      await expect(respondThroughHandler(harness, {
+        schemaVersion: 1,
+        source,
+        policyRequest,
+        dispositions,
+      })).resolves.toMatchObject({
+        state: "settled",
+        payload: {
+          policy: {
+            state: "findings",
+            payload: {
+              verifiedTerminalSignal: {
+                confirmedFindingCount: findingCount,
+                maxConfirmedSeverity: "major",
+              },
+            },
+          },
+        },
+      });
+      nextStatus = await statusThroughHandler(harness, secondStatusTarget);
+    }
+
+    expect(nextStatus).toMatchObject({
+      state: "approval-required",
+      nextAction: "obtain-ceiling-override",
+      consequence: { exhaustedPassCount: 5, nextPass: 6 },
       routedObligation: {
-        state: "blocked",
-        detail: "The first outstanding delivery member has no admissible reserved standard-review source.",
+        conjunction: {
+          status: "outstanding",
+          members: [
+            { state: "discharged", progress: { completedPasses: 1, completePasses: 1 } },
+            { state: "outstanding", progress: { completedPasses: 5, completePasses: 5 } },
+          ],
+        },
       },
-    });
-    const snapshot = await harness.store.readOperationSnapshot();
-    expect(snapshot).toMatchObject({
-      status: "complete",
-      records: [expect.objectContaining({
-        state: expect.objectContaining({
-          completedPasses: 1,
-          attempts: [expect.objectContaining({
-            sourceId: "coderabbit-pr",
-            outcome: "clean",
-            hosted: expect.objectContaining({
-              requestedCoverage: "incremental",
-              effectiveCoverage: "incremental",
-            }),
-          })],
-        }),
-      })],
     });
   });
 
@@ -3177,8 +3331,8 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("settles a verified member fix at the current repository-backed delivery target", async () => {
-    const harness = await createHarness();
+  it("settles a verified member fix and advances only after scoped local correction", async () => {
+    const harness = await createHarness(["coderabbit-pr", "delegated-agent"]);
     const actorIdentity = "44483269";
     const first = member(harness.plan, 0, harness.oldFirst);
     const statusTarget = {
@@ -3489,62 +3643,131 @@ describe("hosted review fan-out lifecycle", () => {
       hosted: { settledFindingIds: [finding.findingId] },
     });
 
-    const fixedMemberStatus = await statusThroughHandler(harness, {
+    await git(harness.root, ["checkout", "-b", "delivery/delivery-plan-record/correction-first", harness.baseHead]);
+    await writeFile(
+      join(harness.root, "first.txt"),
+      "fixed first contribution\ncorrection follow-up\n",
+      "utf8",
+    );
+    await git(harness.root, ["add", "first.txt"]);
+    await git(harness.root, ["commit", "-m", "correct fixed first member"]);
+    const correctionHead = await git(harness.root, ["rev-parse", "HEAD"]);
+    const correctionTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
+    await expect(harness.exec("git", ["merge-base", "--is-ancestor", harness.oldFirst, correctionHead], {
+      cwd: harness.root,
+    })).rejects.toThrow();
+    const correctedState: DeliveryStateV1 = {
+      ...harness.state,
+      members: [
+        {
+          ...harness.state.members[0]!,
+          ref: "refs/heads/delivery/delivery-plan-record/correction-first",
+          coordinates: { base: harness.baseHead, head: correctionHead, tree: correctionTree },
+        },
+        harness.state.members[1]!,
+      ],
+    };
+    const correctedPublish = await harness.states.publish(
+      harness.plan.planId,
+      correctedState,
+      harness.stateRevision,
+    );
+    if (correctedPublish.status !== "ok") throw new Error("expected corrected delivery state");
+    harness.state = correctedState;
+    harness.stateRevision = correctedPublish.value.revision;
+    const correctionStatusTarget = {
       repository,
-      headRef: "delivery/delivery-plan-record/first",
-      headSha: fixedHead,
-    });
-    expect(fixedMemberStatus).toMatchObject({
-      nextAction: "review-hosted-request",
+      headRef: "delivery/delivery-plan-record/correction-first",
+      headSha: correctionHead,
+    };
+    await selectReviewRequiredUntilRouted(harness, correctionStatusTarget);
+
+    const correctionStatus = await statusThroughHandler(
+      harness,
+      correctionStatusTarget,
+      undefined,
+      "incremental",
+      "delegated-agent",
+    );
+    expect(correctionStatus).toMatchObject({
+      state: "review-required",
+      nextAction: "review-local-prepare",
       action: {
-        target: { repository, pullRequest: 41, headSha: fixedHead },
-        vehicle: member(harness.plan, 0, fixedHead),
+        sourceId: "delegated-agent",
+        target: { repository, pullRequest: 41, headSha: correctionHead },
+        vehicle: member(harness.plan, 0, correctionHead),
+        pass: 2,
+        correctionScope: {
+          predecessorProducerId: attemptId,
+          predecessorHeadSha: harness.oldFirst,
+          basisHeadSha: harness.oldFirst,
+          headSha: correctionHead,
+          requiredFindingIds: [finding.findingId],
+        },
       },
       routedObligation: {
         conjunction: {
           status: "outstanding",
           members: [
-            { state: "outstanding", progress: { completedPasses: 1 } },
-            { state: "outstanding" },
+            { state: "outstanding", progress: { completedPasses: 1, completePasses: 1 } },
+            { state: "outstanding", progress: { completedPasses: 0 } },
           ],
         },
       },
     });
-    if (fixedMemberStatus.nextAction !== "review-hosted-request") {
-      throw new Error("expected fixed member follow-up request");
+    if (correctionStatus.nextAction !== "review-local-prepare") {
+      throw new Error("expected scoped local correction review");
     }
-    const fixedMemberRequested = await requestThroughHandler(fixedMemberStatus.action, {
-      kind: "created",
-      artifact: {
-        kind: "pull-request-review",
-        id: "review-fixed-member-clean",
-        url: "https://example.test/review-fixed-member-clean",
-        createdAt: "2026-08-24T04:04:00.000Z",
+    const correction = await completeLocalReviewThroughHandlers(harness, correctionStatus.action);
+    expect(correction.prepared).toMatchObject({
+      state: "ready",
+      payload: {
+        reviewerPayload: {
+          correctionScope: correctionStatus.action.correctionScope,
+        },
       },
-      effectiveCoverage: "complete",
-    }, harness.root, harness.exec);
-    if (fixedMemberRequested.nextAction !== "await") throw new Error("expected fixed member review handle");
-    const fixedMemberAwait = await awaitThroughHandler(fixedMemberRequested.handle, {
-      kind: "clean",
-      reviewUrl: "https://example.test/review-fixed-member-clean",
     });
-    await recordHostedAwaitAttempt(harness.store, {
-      repositoryId: harness.repositoryId,
-      result: fixedMemberAwait,
-      now: "2026-08-24T04:05:00.000Z",
+    if (correction.prepared.state !== "ready") throw new Error("expected local correction materialization");
+    expect(correction.prepared.payload.reviewerPayload.reviewerInstructions).toContain(finding.findingId);
+    expect(correction.prepared.payload.reviewerPayload.reviewerInstructions).toContain(
+      `${harness.oldFirst}..${correctionHead}`,
+    );
+    await expect(harness.store.readOperationSnapshot()).resolves.toMatchObject({
+      status: "complete",
+      records: expect.arrayContaining([
+        expect.objectContaining({
+          state: expect.objectContaining({
+            kind: "lane-progress",
+            completedPasses: 2,
+            attempts: expect.arrayContaining([
+              expect.objectContaining({
+                attemptId: correction.prepared.payload.operationId,
+                local: expect.objectContaining({
+                  requestedCoverage: "incremental",
+                  effectiveCoverage: "incremental",
+                }),
+              }),
+            ]),
+          }),
+        }),
+      ]),
     });
-
-    const secondStatus = await statusThroughHandler(harness, {
-      repository,
-      headRef: "delivery/delivery-plan-record/first",
-      headSha: fixedHead,
-    });
+    const secondStatus = await statusThroughHandler(
+      harness,
+      correctionStatusTarget,
+      undefined,
+      undefined,
+      "coderabbit-pr",
+    );
     expect(secondStatus).toMatchObject({
       nextAction: "review-hosted-request",
       routedObligation: {
         conjunction: {
           status: "outstanding",
-          members: [{ state: "discharged" }, { state: "outstanding" }],
+          members: [
+            { state: "discharged", progress: { completedPasses: 2, completePasses: 1 } },
+            { state: "outstanding", progress: { completedPasses: 0 } },
+          ],
         },
       },
     });
@@ -3572,8 +3795,8 @@ describe("hosted review fan-out lifecycle", () => {
 
     await expect(statusThroughHandler(harness, {
       repository,
-      headRef: "delivery/delivery-plan-record/first",
-      headSha: fixedHead,
+      headRef: correctionStatusTarget.headRef,
+      headSha: correctionHead,
     })).resolves.toMatchObject({
       state: "settled",
       nextAction: "continue-reconcile",
