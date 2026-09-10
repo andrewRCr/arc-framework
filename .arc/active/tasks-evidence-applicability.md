@@ -74,7 +74,7 @@ change, and removes the unused predecessor.
 - _Outcome:_ Candidate subjects, unstaged-review gates, and base-overlap reads now share one storage-agnostic path
   treatment contract, with focused caller and classification coverage preserving raw-distance behavior.
 
-### `[ ]` **1.2 Define total evidence-delta producer contracts** — D2
+### `[x]` **1.2 Define total evidence-delta producer contracts** — D2
 
 - _Goal:_ every applicability decision receives one normalized, exact-coordinate description with no missing axis or
   cause-specific default left to a caller.
@@ -82,43 +82,23 @@ change, and removes the unused predecessor.
 - **Additional Context:** `notes-evidence-applicability.md` § Substrate inventory and § Applicability architecture
   and proportionality decisions
 
-    - `[ ]` **1.2.a Define strict producer and normalized schemas**
-        - Add discriminated Zod schemas and inferred types for `base-movement`, `base-merge`, `member-rewrite`,
-          `approved-fix`, and `unexplained` inputs plus a cause-discriminated total `EvidenceDelta` output. Give each
-          cause an exact provider-neutral `observed` variant and fix its inapplicable axes to `not-applicable`.
-        - Reuse the existing 200-path/16,384-byte applicability bound for sorted, unique judgment residuals. Preserve
-          exact over-bound overlap paths for diagnostics but normalize their judgment residual to `null`.
-        - Build `test-first` (one behavior at a time):
-            - every output carries `cause`, `relation`, `overlap`, `hostAdmission`, `approvedScope`, `observed`, and
-              `residual`;
-            - structurally irrelevant axes use explicit `not-applicable`; and
-            - contradictory overlap, admission, scope, relation, or observation combinations, unknown enum values,
-              partial variants, and extra keys fail schema parsing.
+    - `[x]` **1.2.a Define strict producer and normalized schemas**
+        - Added strict cause-specific producer and total-envelope schemas with exact observations, explicit
+          inapplicable axes, shared bounded residuals, and unbounded diagnostic overlap preservation.
 
-    - `[ ]` **1.2.b Normalize existing producer evidence**
-        - Compose authoritative base-drift and base-merge results, both existing delivery D4 projections, Candidate
-          review-response transitions, and unexplained Candidate projections without changing their durable records.
-          Accept the review response through a narrow structural input whose optional `approvedVerification` field
-          can land before D12 extends the durable Candidate schema; never derive approval from its existing
-          primary-owned `applicability` field.
-        - Build `test-first` (one behavior at a time):
-            - `BaseMovementObservation` accepts authoritative-drift and review-status-shaped fixtures while D8 retains
-              ownership of the actual review-status adapter and callsite;
-            - D4 relations and bounded residuals survive normalization unchanged; and
-            - omitted `approvedVerification` becomes `full`, a supplied value wins independently, and a conflicting
-              primary-owned `applicability` value cannot populate `approvedScope`.
+    - `[x]` **1.2.b Normalize existing producer evidence**
+        - Composed base movement, base merge, D4 rewrites, narrow review responses, and unexplained Candidate deltas;
+          approval scope comes only from the optional approver-owned field and omission remains full.
 
-    - `[ ]` **1.2.c Enforce coordinate and authority boundaries**
-        - Admit `HostMergeAdmission` only when repository, change request, base, and head match the normalized
-          observation; preserve provider evidence only as opaque diagnostic detail.
-        - Build `test-first` (one behavior at a time):
-            - exact coordinates retain the semantic host state;
-            - any coordinate mismatch becomes `unresolved`; and
-            - provider payload keys and status codes cannot enter the core schema.
+    - `[x]` **1.2.c Enforce coordinate and authority boundaries**
+        - Bound semantic host admission to exact repository, request, base, and head coordinates, reducing mismatches
+          to unresolved evidence while rejecting provider-specific payload fields.
 
-    - `[ ]` **1.2.d Export one stable applicability surface**
-        - Export the registry, producer contracts, and composer from the new module boundary and add compile-time
-          fixtures that require every producer variant to normalize through `composeEvidenceDelta`.
+    - `[x]` **1.2.d Export one stable applicability surface**
+        - Exported the registry, producer contracts, normalized types, bounds, and composer from one module boundary.
+
+- _Outcome:_ all five producer causes now normalize through one strict, computed-only envelope without changing
+  durable producer records or leaking provider mechanics into core.
 
 ### `[ ]` **1.3 Implement exhaustive evidence-applicability reduction** — D3
 

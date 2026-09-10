@@ -7,7 +7,7 @@ import {
   canonicalDigest,
   sortByCanonicalBytes,
 } from "../canonical/canonical-json.js";
-import { PathTreatmentSchema } from "../evidence-applicability/index.js";
+import { PathTreatmentSchema } from "../evidence-applicability/path-treatment.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { ReviewContributionApplicabilitySelectorSchema } from "./review-applicability-selector.js";
 

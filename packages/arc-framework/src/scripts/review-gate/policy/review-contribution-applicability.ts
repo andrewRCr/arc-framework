@@ -7,6 +7,10 @@ import {
   DeliveryContributionProofResultSchema,
   type DeliveryContributionEndpoints,
 } from "../../../lib/delivery/contribution-proof.js";
+import {
+  MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
+  MAX_EVIDENCE_APPLICABILITY_PATHS,
+} from "../../../lib/evidence-applicability/schema.js";
 import { canonicalDigest } from "../../../lib/kernel/index.js";
 import { isManagedPath } from "../../../lib/kernel/canonical/managed-path.js";
 import {
@@ -24,8 +28,8 @@ const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ApplicabilityPathSchema = z.string().min(1)
   .refine(isManagedPath, "must be a managed repository path");
 
-export const MAX_REVIEW_APPLICABILITY_PATHS = 200;
-export const MAX_REVIEW_APPLICABILITY_PATH_BYTES = 16_384;
+export const MAX_REVIEW_APPLICABILITY_PATHS = MAX_EVIDENCE_APPLICABILITY_PATHS;
+export const MAX_REVIEW_APPLICABILITY_PATH_BYTES = MAX_EVIDENCE_APPLICABILITY_PATH_BYTES;
 
 const BoundedResidualSchema = z.array(ApplicabilityPathSchema)
   .min(1)
