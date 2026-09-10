@@ -1,5 +1,131 @@
 # Notes: Review Signal Convergence
 
+## Member 5 corrected criteria report — 2026-09-10
+
+```yaml
+criteria-slice: "Success Criteria > Member 5 — `evidence-driven-convergence`"
+span:
+  diff: "33df7ac6493cf6e5218ce49733d120826ba642f8..b5c7a80adc46e6cce0a7e7992d66ce0105fb49c0"
+  reachability: >-
+    Repository tree at b5c7a80adc46e6cce0a7e7992d66ce0105fb49c0, including the upstream spec and its forward
+    amendments, every Member 5 implementation and correction commit, Git-common evidence and lane state, all local,
+    Frontline, hosted, Candidate, Errand, delivery, status, and checkpoint consumers, both installed methodology
+    copies, focused unit and real-store command scenarios, and the complete Tier 2 result.
+  boundary-order-deviation: null
+criteria:
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 1"
+    criterion-digest: sha256:30527c7aedda94a87a8a807186d4d81951c510211f6fb9d3055758176d02ac96
+    evidence: >-
+      `LocalReviewResultReader` resolves each lane's native immutable producer, while `bindReviewPolicyEvidence`
+      checks exact target, source, pass, scope, policy, rubric, result content, and current complete disposition set.
+      Exact terminal-scope persistence closes the ordinary local path as well as Frontline and hosted paths. Source,
+      store, command, and real-store tests refuse missing, ambiguous, stale, wrong-pass/source/scope, incomplete,
+      foreign, and caller-authored evidence.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 2"
+    criterion-digest: sha256:95a84466d93d1ca23e6362b2c9263b4c8d6bac262c9a51f6d148505e5e388438
+    evidence: >-
+      The shared verified-signal reducer converges adequately covered all-refuted and record-only-minor results while
+      retaining supported material findings regardless of fix, defer, reject, or settlement. Manual aggregate tests
+      require every finding and reject incomplete, partial-only, or independent-producer unions; public Candidate and
+      delivery scenarios keep material members outstanding until fresh adequate evidence or exact Owner acceptance.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 3"
+    criterion-digest: sha256:f703750477899e20ca683d5b77d608c1e452c6f62e924cced7c60bdd70f103d0
+    evidence: >-
+      `respondToReviewCommand` appends approved immutable evidence and resolves policy inside one stable operation lock,
+      then returns only the selected fix, settlement, reduction, or delivery continuation. Response, Candidate, Errand,
+      delivery, workflow, and public-handler tests cover restart, response-first ordering, Owner and ceiling arms,
+      changed-target rerouting, coverage selection, and preservation of every outstanding approved action.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 4"
+    criterion-digest: sha256:5b286e7602fb54e6f80f7c4014ddcf8bedb864ca56dbe5feda6369fca9b00318
+    evidence: >-
+      Conditional consent is stored beside its exact producer, bound from durable response performance, and consumed
+      once before dispatch. Explicit withdrawal and successor invalidation preserve terminal history. Lane, response,
+      admission, and public-command tests cover pending restart, stale bindings, failed-write repair, concurrent replay,
+      exact withdrawal replay, supersession, single-use admission, and refusal to revive invalidated authority.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 5"
+    criterion-digest: sha256:ea88c98ba5ee7051f8e00844c10cc6f9732a94cddb3ba6050f7aadb819b811dc
+    evidence: >-
+      `laneContinuationOperationId` keys head-bound mutation ordering to repository, lane, and stable vehicle identity
+      while persisted lane operations remain exact-head records. Respond, withdrawal, hosted settlement, and every
+      admission use the existing repository advisory lock. Authorization lineage retains invalidated predecessors and
+      one current tail; focused concurrency, moved-head, successor, replay, and conflict tests exercise the contract.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 6"
+    criterion-digest: sha256:52a4875484818508b8634a6e5d56a9ae213290f6de93c6f82d25405daf857a0d
+    evidence: >-
+      Lane attempts store exact `responsePerformance` independently of optional conditional authority. Hosted
+      completion joins that evidence with all current-set channel actions in either arrival order, and keeps either
+      partial arm as findings. Unit coverage spans consent present/absent and record-only fixes; real-store public
+      delivery coverage observes partial then settled state, and wrong-head host-addressable fixes refuse.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 7"
+    criterion-digest: sha256:3f5d65a8b34bcbb5c34b1c9c4e1606ba9e6385ca20dc08940d0a55d4095a0f58
+    evidence: >-
+      Both installed `review-response` copies specify the canonical proposal and approval calls, fresh complete approval,
+      expected authorized fix dirt, returned carried and reopened hosted work, published versus replayed success, and
+      typed refusal without record edits or Git-common surgery. The methodology contract test requires byte parity and
+      each public choreography element.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 8"
+    criterion-digest: sha256:e8f33a1a6a00e51055aaba77d28f911b22a24d971087c65f2a8e98cf9884c116
+    evidence: >-
+      Candidate, Errand, and delivery continuations persist their produced target and reroute instead of inheriting old
+      clearance. Status and checkpoint use the same first-outstanding reduction, carry validated equivalent-head
+      evidence and judgments, reject absent applicability, preserve exact Owner termini, and request broader coverage
+      for inadequate incremental evidence. Public multi-member and Candidate E2E scenarios exercise those seams.
+    state: "[x]"
+summary: "8 [x], 0 [~], 0 [ ]; no unresolved Member 5 criterion"
+```
+
+### Member 5 fresh-context companion closeout
+
+**Pass 2 of 2 — three confirmed major findings and one confirmed minor finding; non-converged. Stop reason:
+`cap-exhausted`.** Primary source verification confirmed the complete set before mutation, and the approved responses
+were applied without a third evaluator invocation.
+
+```yaml
+findings:
+  - title: "Exact-head locks do not serialize a continuation that survives head movement"
+    severity: major
+    source-verification: >-
+      Confirmed. Response mutation and the next admission could derive different lock identities for one head-bound
+      lineage, allowing both to pass currentness checks concurrently.
+    disposition: fix
+    response: "Applied in 1bd9cea0c (`fix(review): serialize response continuation authority`)."
+  - title: "An invalidated predecessor slot prevents fresh successor conditional authority"
+    severity: major
+    source-verification: >-
+      Confirmed. The singular authorization field retained predecessor evidence but treated every distinct successor
+      capture as a conflict, so fresh human approval could not authorize the corrected next pass.
+    disposition: fix
+    response: "Applied in 1bd9cea0c (`fix(review): serialize response continuation authority`)."
+  - title: "Hosted completion has no independent performed-response evidence"
+    severity: major
+    source-verification: >-
+      Confirmed. Record-only fixes depended on optional conditional authority for their performed head, and mixed hosted
+      sets could not join fix performance with provider settlement in both arrival orders.
+    disposition: fix
+    response: "Applied in 00b6e59fe (`fix(review): persist performed response evidence`)."
+  - title: "Installed response guidance omits approved-disposition correction"
+    severity: minor
+    source-verification: >-
+      Confirmed. The public method described withdrawal but gave callers no canonical supersession proposal, approval,
+      carry/reopen, replay, or refusal choreography.
+    disposition: fix
+    response: "Applied in b5c7a80ad (`fix(review): publish disposition correction flow`)."
+withstood:
+  - >-
+      Immutable producer and disposition binding, verified-signal convergence, response-first policy composition,
+      exact withdrawal, changed-target rerouting, and first-outstanding member reduction held across the inspected paths.
+verdict: >-
+  The second pass exhausted the Heavy-class cap without convergence. Its complete approved finding set is now resolved,
+  and the corrected primary criteria walk above supplies the boundary evidence without claiming another adversarial pass.
+```
+
 ## Member 5 initial criteria report — 2026-09-10
 
 ```yaml

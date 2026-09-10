@@ -552,15 +552,13 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   conflating approval, performance, or settlement. Stable owner locking, append-only successor authority, explicit
   withdrawal, independent response evidence, and public supersession choreography close both adversarial passes.
 
-### `[ ]` **5.5 Verify convergence and response precedence** — validate criteria at member scope
+### `[x]` **5.5 Verify convergence and response precedence** — validate criteria at member scope
 
 - _Goal:_ Every lane/member control path meets the convergence and response-precedence boundary criteria.
 
-- _Note:_ Spec §§ 6–7; SC 8–10, 14, 17, and 18.
-
-- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
-  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
-  markers unchanged; route any corrective work through normal task review, not this verifier.
+- _Outcome:_ The corrected Member 5 report in `notes-review-signal-convergence.md` resolves all eight immutable criteria
+  across the bounded member diff and cumulative tree, with no boundary-order deviation or unresolved criterion. The
+  capped second companion pass remains recorded as non-converged; its complete approved finding set is fully resolved.
 
 ## **Phase 6:** Complete incremental scope evidence and member progression
 
