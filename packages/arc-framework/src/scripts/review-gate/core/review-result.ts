@@ -14,6 +14,7 @@ import type { DeliveryLocalReviewAdmission } from
 import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
 import type { HostedReviewCoverage, HostedTarget } from "../hosted/request.js";
 import type { ReviewScopeMode } from "./review-primitives.js";
+import type { IncrementalReviewScope } from "./incremental-review-scope.js";
 
 /** Admission facts shared by every terminal producer. */
 export interface ReviewResultAdmissionContext {
@@ -24,6 +25,7 @@ export interface ReviewResultAdmissionContext {
   effectiveCoverage: HostedReviewCoverage;
   scopeMode: ReviewScopeMode;
   policyVersion: string;
+  correctionScope?: IncrementalReviewScope;
 }
 
 interface ReviewResultBase {

@@ -567,37 +567,15 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
 _Purpose:_ Use fresh correction evidence with a validated predecessor basis, retaining narrow reviews where supported.
 Coverage labels and contribution applicability cannot substitute for evaluator scope.
 
-### `[ ]` **6.1 Resolve predecessor coverage, current applicability, and material re-examination scope**
+### `[x]` **6.1 Resolve predecessor coverage, current applicability, and material re-examination scope**
 
 - _Goal:_ Incremental convergence has a validated complete predecessor basis and fresh evidence for every required
   correction.
 
-- _Note:_ Spec § 5 Coverage and incremental continuation; SC 8, 12, and 13.
-
-- _Approach:_ Extend existing contribution applicability and native result reads; retain the optional predecessor in
-  source admission. Resolve explicit producers through `ReviewResultReader` against the complete snapshot, separately
-  from source-filtered or settlement-truncated selection history. Memoize traversal without a new history ledger.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Complete basis plus compatible successive corrections validates exact endpoints, lineage, policy/rubric, and
-          applicability.
-
-        - Missing links, cycles, gaps, stale targets, incompatible bindings, and unavailable applicability fail closed.
-
-        - Earlier findings have approved performed responses; supported material loci outside the delta cannot
-          disappear.
-
-        - Reviewed endpoints come from immutable producers, not performed-fix retention projections. Review at A,
-          performed fix at B, and correction review at C must include the unreviewed A→B change in required scope.
-          Preserve equivalent-head applicability and covered-decision carry without treating response completion as
-          coverage.
-
-        - Same-head and cross-source predecessors remain discoverable by explicit identity. Validate each source's
-          admission and shared lane/lineage/policy compatibility; no source-selection filter may hide a valid basis.
-
-        - Fresh verified signal controls convergence rather than a lifetime severity maximum; selecting a prior result
-          never rewrites its target or drops response obligations.
+- _Outcome:_ The source-neutral resolver follows immutable producer identities across local and hosted standard-lane
+  results, validating exact predecessor/root/current endpoints, lineage, policy, and fresh-target applicability. It
+  fails closed on broken chains or responses and requires every correction scope to retain transitive material-finding
+  instructions; convergence now combines that coverage proof with only the fresh result's verified signal.
 
 ### `[ ]` **6.2 Carry exact correction scope through local materialization and adapter admission**
 

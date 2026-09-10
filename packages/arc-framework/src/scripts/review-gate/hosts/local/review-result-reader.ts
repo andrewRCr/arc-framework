@@ -207,6 +207,9 @@ export class LocalReviewResultReader implements ReviewResultReader {
         effectiveCoverage: local.effectiveCoverage,
         scopeMode: state.scopeMode,
         policyVersion: state.policyVersion,
+        ...(state.deliveryAdmission?.correctionScope === undefined
+          ? {}
+          : { correctionScope: state.deliveryAdmission.correctionScope }),
       },
       receiptRef: entry.durableEvidenceRef,
       localSourceRef: state.sourceRef,

@@ -1,0 +1,352 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { ReviewResultReader } from
+  "../../../../../src/scripts/review-gate/core/ports.js";
+import type { ReviewResult } from
+  "../../../../../src/scripts/review-gate/core/review-result.js";
+import {
+  resolveIncrementalCoverageBasis,
+  type IncrementalCoverageBasisDependencies,
+} from
+  "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
+
+const oid = (character: string): string => character.repeat(40);
+const digest = (character: string): string => `sha256:${character.repeat(64)}`;
+
+function result(input: {
+  id: string;
+  head: string;
+  coverage: "complete" | "incremental";
+  kind?: "attested-local" | "hosted";
+  source?: string;
+  policy?: string;
+  lineage?: ReviewResult["admission"]["lineage"];
+  predecessor?: {
+    producerId: string;
+    predecessorHead?: string;
+    basisHead: string;
+    requiredFindingIds?: readonly string[];
+  };
+}): ReviewResult {
+  const common = {
+    producerId: input.id,
+    repositoryId: "repo-1",
+    target: {
+      schemaVersion: 2 as const,
+      semanticsVersion: "review-gate/v2" as const,
+      kind: "delivery-member" as const,
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: input.head,
+      headTree: oid("2"),
+      targetId: digest(input.head[0] ?? "a"),
+    },
+    sourceIdentity: input.source ?? "codex-pr",
+    originalOutcome: "clean" as const,
+    findings: [],
+    resultDigest: digest("f"),
+    admission: {
+      lineage: input.lineage ?? {
+        kind: "candidate",
+        candidateId: digest("c"),
+      },
+      logicalPass: 1,
+      retryGeneration: 0,
+      requestedCoverage: input.coverage,
+      effectiveCoverage: input.coverage,
+      scopeMode: "whole-target" as const,
+      policyVersion: input.policy ?? digest("p"),
+      ...(input.predecessor === undefined
+        ? {}
+        : {
+            correctionScope: {
+              schemaVersion: 1 as const,
+              predecessorProducerId: input.predecessor.producerId,
+              predecessorHeadSha: input.predecessor.predecessorHead ?? input.predecessor.basisHead,
+              basisHeadSha: input.predecessor.basisHead,
+              headSha: input.head,
+              requiredFindingIds: [...(input.predecessor.requiredFindingIds ?? [])],
+            },
+          }),
+    },
+    requirement: {} as never,
+  };
+  if (input.kind === "attested-local") {
+    return {
+      ...common,
+      kind: "attested-local",
+      receiptRef: `refs/arc/review/receipts/${input.id}`,
+      localSourceRef: `refs/arc/review/local/${input.id}`,
+      request: {} as never,
+    };
+  }
+  return {
+    ...common,
+    kind: "hosted",
+    laneOperationId: `lane-${input.id}`,
+    actorIdentity: "reviewer",
+    hostedTarget: {
+      repository: "arc-framework/example",
+      pullRequest: 42,
+      headSha: input.head,
+    },
+    hostSettlementFindingIds: [],
+    noHostSettlementFindingIds: [],
+    settled: false,
+  };
+}
+
+function harness(results: readonly ReviewResult[]) {
+  const byId = new Map(results.map((entry) => [entry.producerId, entry]));
+  const readResult = vi.fn(async (producerId: string) => {
+    const found = byId.get(producerId);
+    if (found === undefined) throw new Error("missing-result");
+    return found;
+  });
+  const resultReader: ReviewResultReader = { readResult };
+  const readResponseEvidence = vi.fn<IncrementalCoverageBasisDependencies["readResponseEvidence"]>(async () => ({
+    status: "performed" as const,
+    requiredFindingIds: [] as string[],
+  }));
+  const confirmApplicability = vi.fn<IncrementalCoverageBasisDependencies["confirmApplicability"]>(
+    async () => "applicable" as const,
+  );
+  return { resultReader, readResult, readResponseEvidence, confirmApplicability };
+}
+
+describe("incremental coverage basis", () => {
+  it("accepts a cross-source incremental result rooted in an exact complete producer", async () => {
+    const complete = result({ id: "complete-1", head: oid("a"), coverage: "complete", source: "codex-pr" });
+    const incremental = result({
+      id: "incremental-2",
+      head: oid("c"),
+      coverage: "incremental",
+      kind: "attested-local",
+      source: "delegated-agent",
+      predecessor: { producerId: complete.producerId, basisHead: complete.target.headSha },
+    });
+    const dependencies = harness([complete]);
+
+    await expect(resolveIncrementalCoverageBasis(incremental, dependencies)).resolves.toEqual({
+      status: "adequate",
+      basisProducerId: complete.producerId,
+      basisHeadSha: complete.target.headSha,
+      producerIds: [complete.producerId, incremental.producerId],
+    });
+    expect(dependencies.confirmApplicability).toHaveBeenCalledWith(complete, incremental);
+  });
+
+  it("accepts an explicitly applicable same-head predecessor", async () => {
+    const complete = result({ id: "complete-1", head: oid("a"), coverage: "complete" });
+    const incremental = result({
+      id: "incremental-2",
+      head: complete.target.headSha,
+      coverage: "incremental",
+      predecessor: { producerId: complete.producerId, basisHead: complete.target.headSha },
+    });
+
+    await expect(resolveIncrementalCoverageBasis(incremental, harness([complete])))
+      .resolves.toMatchObject({
+        status: "adequate",
+        basisProducerId: complete.producerId,
+      });
+  });
+
+  it("rejects an incremental result with no explicit predecessor scope", async () => {
+    const incremental = result({ id: "incremental-1", head: oid("b"), coverage: "incremental" });
+
+    await expect(resolveIncrementalCoverageBasis(incremental, harness([]))).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "missing-correction-scope",
+    });
+  });
+
+  it("rejects missing, cyclic, incompatible, and discontinuous predecessor chains", async () => {
+    const complete = result({ id: "complete", head: oid("a"), coverage: "complete" });
+    const incompatible = result({
+      id: "incompatible",
+      head: oid("b"),
+      coverage: "complete",
+      policy: digest("q"),
+    });
+    const missing = result({
+      id: "missing-current",
+      head: oid("c"),
+      coverage: "incremental",
+      predecessor: { producerId: "absent", basisHead: complete.target.headSha },
+    });
+    const cycleA = result({
+      id: "cycle-a",
+      head: oid("d"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: "cycle-b",
+        predecessorHead: oid("e"),
+        basisHead: complete.target.headSha,
+      },
+    });
+    const cycleB = result({
+      id: "cycle-b",
+      head: oid("e"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: "cycle-a",
+        predecessorHead: oid("d"),
+        basisHead: complete.target.headSha,
+      },
+    });
+    const discontinuous = result({
+      id: "discontinuous",
+      head: oid("f"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: complete.producerId,
+        predecessorHead: complete.target.headSha,
+        basisHead: oid("9"),
+      },
+    });
+    const wrongPredecessorHead = result({
+      id: "wrong-predecessor-head",
+      head: oid("8"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: complete.producerId,
+        predecessorHead: oid("7"),
+        basisHead: complete.target.headSha,
+      },
+    });
+    const wrongPolicy = result({
+      id: "wrong-policy",
+      head: oid("7"),
+      coverage: "incremental",
+      predecessor: { producerId: incompatible.producerId, basisHead: incompatible.target.headSha },
+    });
+
+    await expect(resolveIncrementalCoverageBasis(missing, harness([]))).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "predecessor-unavailable",
+    });
+    await expect(resolveIncrementalCoverageBasis(cycleA, harness([cycleA, cycleB]))).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "cycle",
+    });
+    await expect(resolveIncrementalCoverageBasis(discontinuous, harness([complete]))).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "basis-gap",
+    });
+    await expect(resolveIncrementalCoverageBasis(wrongPredecessorHead, harness([complete])))
+      .resolves.toMatchObject({
+        status: "inadequate",
+        reason: "predecessor-target-mismatch",
+      });
+    await expect(resolveIncrementalCoverageBasis(wrongPolicy, harness([incompatible]))).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "incompatible-policy",
+    });
+  });
+
+  it("requires performed predecessor responses and complete material re-examination", async () => {
+    const predecessor = result({ id: "findings-1", head: oid("a"), coverage: "complete" });
+    const incremental = result({
+      id: "incremental-2",
+      head: oid("c"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: predecessor.producerId,
+        basisHead: predecessor.target.headSha,
+        requiredFindingIds: ["F1"],
+      },
+    });
+    const incomplete = harness([predecessor]);
+    incomplete.readResponseEvidence.mockResolvedValue({
+      status: "incomplete",
+      requiredFindingIds: ["F1"],
+    });
+    await expect(resolveIncrementalCoverageBasis(incremental, incomplete)).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "response-incomplete",
+    });
+
+    const omitted = harness([predecessor]);
+    omitted.readResponseEvidence.mockResolvedValue({
+      status: "performed",
+      requiredFindingIds: ["F1", "F2"],
+    });
+    await expect(resolveIncrementalCoverageBasis(incremental, omitted)).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "material-finding-omitted",
+      findingId: "F2",
+    });
+  });
+
+  it("memoizes an explicitly shared predecessor traversal", async () => {
+    const complete = result({ id: "complete", head: oid("a"), coverage: "complete" });
+    const middle = result({
+      id: "middle",
+      head: oid("b"),
+      coverage: "incremental",
+      predecessor: { producerId: complete.producerId, basisHead: complete.target.headSha },
+    });
+    const current = result({
+      id: "current",
+      head: oid("c"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: middle.producerId,
+        predecessorHead: middle.target.headSha,
+        basisHead: complete.target.headSha,
+        requiredFindingIds: ["F-root"],
+      },
+    });
+    const dependencies = harness([complete, middle]);
+    dependencies.readResponseEvidence.mockImplementation(async (predecessor) => ({
+      status: "performed",
+      requiredFindingIds: predecessor.producerId === complete.producerId ? ["F-root"] : [],
+    }));
+
+    await resolveIncrementalCoverageBasis(current, dependencies);
+
+    expect(dependencies.readResult).toHaveBeenCalledTimes(2);
+    expect(dependencies.readResult).toHaveBeenNthCalledWith(1, middle.producerId);
+    expect(dependencies.readResult).toHaveBeenNthCalledWith(2, complete.producerId);
+    expect(dependencies.confirmApplicability).toHaveBeenNthCalledWith(1, middle, current);
+    expect(dependencies.confirmApplicability).toHaveBeenNthCalledWith(2, complete, current);
+  });
+
+  it("requires the fresh scope to retain material findings from the complete root", async () => {
+    const complete = result({ id: "complete", head: oid("a"), coverage: "complete" });
+    const middle = result({
+      id: "middle",
+      head: oid("b"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: complete.producerId,
+        basisHead: complete.target.headSha,
+        requiredFindingIds: ["F-root"],
+      },
+    });
+    const current = result({
+      id: "current",
+      head: oid("c"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: middle.producerId,
+        predecessorHead: middle.target.headSha,
+        basisHead: complete.target.headSha,
+      },
+    });
+    const dependencies = harness([complete, middle]);
+    dependencies.readResponseEvidence.mockImplementation(async (predecessor) => ({
+      status: "performed",
+      requiredFindingIds: predecessor.producerId === complete.producerId ? ["F-root"] : [],
+    }));
+
+    await expect(resolveIncrementalCoverageBasis(current, dependencies)).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "material-finding-omitted",
+      findingId: "F-root",
+    });
+  });
+});

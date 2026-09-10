@@ -21,6 +21,10 @@ import {
   type ReviewResolveEnvelope,
   type VerifiedTerminalReviewSignal,
 } from "./review-policy-driver.js";
+import {
+  resolveIncrementalCoverageBasis,
+  type IncrementalPredecessorApplicability,
+} from "./incremental-coverage-basis.js";
 
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
 export interface EvidenceBoundReviewPolicyDependencies {
@@ -30,6 +34,10 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly dispositionStore: ApprovedDispositionRecordStore;
   readonly confirmTarget: (attemptedTarget: ReviewResult["target"])
   => Promise<ReviewResult["target"]>;
+  readonly confirmIncrementalApplicability?: (
+    predecessor: ReviewResult,
+    current: ReviewResult,
+  ) => Promise<IncrementalPredecessorApplicability>;
 }
 
 function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "chunked" {
@@ -132,17 +140,55 @@ function greaterSeverity(left: ReviewSeverity | null, right: ReviewSeverity): Re
 async function deriveVerifiedTerminalSignal(
   result: ReviewResult,
   operationId: string,
-  dispositionStore: ApprovedDispositionRecordStore,
+  dependencies: Pick<
+    EvidenceBoundReviewPolicyDependencies,
+    "resultReader" | "dispositionStore" | "confirmIncrementalApplicability"
+  >,
 ): Promise<VerifiedTerminalReviewSignal> {
+  const coverage = await resolveIncrementalCoverageBasis(result, {
+    resultReader: dependencies.resultReader,
+    confirmApplicability: dependencies.confirmIncrementalApplicability
+      ?? (() => Promise.resolve("unavailable")),
+    readResponseEvidence: async (predecessor) => {
+      if (predecessor.originalOutcome === "clean") {
+        return { status: "performed", requiredFindingIds: [] };
+      }
+      const predecessorRecord = await dependencies.dispositionStore.readDispositionRecord(
+        predecessor.producerId,
+      );
+      if (predecessorRecord === null) {
+        return { status: "incomplete", requiredFindingIds: [] };
+      }
+      const approved = validateApprovedDispositionRecordForResult(predecessorRecord, predecessor);
+      const node = currentApprovedDispositionNode(approved);
+      const dispositions = node.approvedDisposition.dispositionSet.findings;
+      const requiredFindingIds = dispositions
+        .filter(({ sourceVerification, verifiedSeverity }) => sourceVerification === "verified"
+          && (verifiedSeverity === "major" || verifiedSeverity === "critical"))
+        .map(({ findingId }) => findingId);
+      const hasFix = dispositions.some(({ disposition }) => disposition === "fix");
+      const fixPerformed = !hasFix
+        || node.deliveryMemberFixResponse !== null
+        || node.errandFixResponse !== null;
+      const hostSettlementPerformed = predecessor.kind !== "hosted"
+        || predecessor.hostSettlementFindingIds.length === 0
+        || predecessor.settled;
+      return {
+        status: fixPerformed && hostSettlementPerformed ? "performed" : "incomplete",
+        requiredFindingIds,
+      };
+    },
+  });
+  const coverageAdequate = coverage.status === "adequate";
   if (result.originalOutcome === "clean") {
     return {
       reviewOperationId: operationId,
       confirmedFindingCount: 0,
       maxConfirmedSeverity: null,
-      coverageAdequate: result.admission.effectiveCoverage === "complete",
+      coverageAdequate,
     };
   }
-  const record = await dispositionStore.readDispositionRecord(operationId);
+  const record = await dependencies.dispositionStore.readDispositionRecord(operationId);
   if (record === null) {
     throw new Error("terminal findings producer has no approved disposition record");
   }
@@ -159,7 +205,7 @@ async function deriveVerifiedTerminalSignal(
     reviewOperationId: operationId,
     confirmedFindingCount,
     maxConfirmedSeverity,
-    coverageAdequate: result.admission.effectiveCoverage === "complete",
+    coverageAdequate,
   };
 }
 
@@ -197,7 +243,7 @@ export async function bindReviewPolicyEvidence(
   const verifiedTerminalSignal = await deriveVerifiedTerminalSignal(
     result,
     lastAttempt.reviewOperationId,
-    dependencies.dispositionStore,
+    dependencies,
   );
   return ReviewPolicyRequestSchema.parse({
     ...request,

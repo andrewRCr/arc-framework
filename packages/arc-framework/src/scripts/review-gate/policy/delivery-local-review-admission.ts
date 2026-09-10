@@ -6,6 +6,8 @@ import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-
 import { ChangeRequestTargetRefSchema } from "../change-request.js";
 import { HostedTargetSchema } from "../hosted/request.js";
 import { ReviewCeilingOverrideSchema } from "./review-policy-driver.js";
+import { IncrementalReviewScopeSchema } from "../core/incremental-review-scope.js";
+import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 
 export const DeliveryLocalReviewScopeSelectionSchema = z.strictObject({
   mode: z.literal("chunked"),
@@ -23,6 +25,7 @@ const DeliveryLocalReviewSelectionShape = {
   pass: z.int().positive(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
   scopeSelection: DeliveryLocalReviewScopeSelectionSchema.optional(),
+  correctionScope: IncrementalReviewScopeSchema.optional(),
 };
 
 function validateSelectionTarget(
@@ -30,6 +33,7 @@ function validateSelectionTarget(
     target: z.infer<typeof HostedTargetSchema>;
     vehicle: z.infer<typeof DeliveryReviewMemberVehicleSchema>;
     scopeSelection?: DeliveryLocalReviewScopeSelection;
+    correctionScope?: IncrementalReviewScope;
   },
   context: z.RefinementCtx,
   label: string,
@@ -50,6 +54,14 @@ function validateSelectionTarget(
       code: "custom",
       path: ["scopeSelection", "target"],
       message: `${label} scope must identify the exact selected target`,
+    });
+  }
+  if (selection.correctionScope !== undefined
+    && selection.correctionScope.headSha !== selection.target.headSha) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionScope", "headSha"],
+      message: `${label} correction scope must end at the exact selected target`,
     });
   }
 }

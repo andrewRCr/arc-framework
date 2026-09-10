@@ -777,6 +777,70 @@ describe("evidence-bound review policy", () => {
     });
   });
 
+  it("derives adequate incremental coverage from an explicit applicable complete predecessor", async () => {
+    const predecessor = cleanHostedResult();
+    const current = cleanHostedResult();
+    if (current.kind !== "hosted") throw new Error("expected hosted result");
+    const incrementalTarget = createReviewTarget({
+      schemaVersion: current.target.schemaVersion,
+      semanticsVersion: current.target.semanticsVersion,
+      kind: current.target.kind,
+      repositoryId: current.target.repositoryId,
+      baseRef: current.target.baseRef,
+      diffBaseSha: current.target.diffBaseSha,
+      diffBaseTree: current.target.diffBaseTree,
+      headSha: objectId("e"),
+      headTree: objectId("f"),
+    });
+    const incrementalRequirement = createReviewRequirement({
+      target: incrementalTarget,
+      projection: standardReview,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    if (incrementalRequirement === null) throw new Error("expected requirement");
+    const incremental: ReviewResult = {
+      ...current,
+      producerId: "hosted/attempt-2",
+      target: incrementalTarget,
+      hostedTarget: { ...current.hostedTarget, headSha: objectId("e") },
+      requirement: incrementalRequirement,
+      admission: {
+        ...current.admission,
+        logicalPass: 2,
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+        correctionScope: {
+          schemaVersion: 1,
+          predecessorProducerId: predecessor.producerId,
+          basisHeadSha: predecessor.target.headSha,
+          predecessorHeadSha: predecessor.target.headSha,
+          headSha: incrementalTarget.headSha,
+          requiredFindingIds: [],
+        },
+      },
+    };
+    const evidence = dependencies(incremental);
+    evidence.resultReader.readResult = vi.fn(async (producerId: string) => (
+      producerId === predecessor.producerId ? predecessor : incremental
+    ));
+
+    await expect(resolveEvidenceBoundReviewPolicy({
+      ...cleanRequest(incremental),
+      target: { ...policyTarget, headSha: incremental.target.headSha },
+      completedPasses: 2,
+    }, {
+      ...evidence,
+      confirmTarget: vi.fn(async () => incremental.target),
+      confirmIncrementalApplicability: vi.fn(async () => "applicable" as const),
+      sources: ["codex-pr"],
+      maxPasses: 3,
+    })).resolves.toMatchObject({
+      state: "pass-complete",
+      payload: { verifiedTerminalSignal: { coverageAdequate: true } },
+    });
+  });
+
   it("refuses missing, unbound, or incomplete approved finding sets", async () => {
     const result = findingsHostedResult(["major", "minor"]);
     await expect(resolveEvidenceBoundReviewPolicy(findingsRequest(result), {

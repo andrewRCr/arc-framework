@@ -1432,6 +1432,24 @@ describe("review status", () => {
     expect(result.success).toBe(false);
   });
 
+  it("refuses a local correction scope that does not end at the selected member", () => {
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      schemaVersion: 1,
+      sourceId: "delegated-agent",
+      target: hostedAction.target,
+      vehicle: memberVehicle,
+      pass: 2,
+      correctionScope: {
+        schemaVersion: 1,
+        predecessorProducerId: "hosted/attempt-1",
+        predecessorHeadSha: oid("a"),
+        basisHeadSha: oid("a"),
+        headSha: oid("d"),
+        requiredFindingIds: [],
+      },
+    }).success).toBe(false);
+  });
+
   it("returns the exact delegated findings operation for local review resumption", async () => {
     const localResumeAction = { schemaVersion: 1 as const, operationId: "local-review-prior" };
     const obligation = composeDeliveryReviewObligation({
