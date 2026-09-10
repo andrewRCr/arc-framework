@@ -200,18 +200,11 @@ and Errand paths.
 - **Additional Context:** `notes-evidence-applicability.md` § Applicability architecture and proportionality
   decisions; § Terminal integration decisions
 
-    - `[ ]` **2.2.a Establish exact-pair Git feasibility**
-        - Add a discriminated typed production boundary beside the existing merge-tree capability helpers that
-          returns `clean | regenerable-conflict | substantive-conflict | unavailable` for one observed base/head
-          pair. Carry the exact base/head on every arm, sorted unique conflict paths on conflict arms, and sanitized
-          detail on unavailable; extract and reuse the merge-tree execution/path parsing now private to delivery
-          contribution proof rather than duplicating it.
-        - Build `test-first` (one behavior at a time):
-            - clean merge-tree composition returns `clean`;
-            - conflicts confined to registry-classified regenerable paths remain distinct;
-            - any wider conflict is substantive; and
-            - unsupported, malformed, or failed merge-tree evidence is unavailable with its coordinates and useful
-              detail.
+    - `[x]` **2.2.a Establish exact-pair Git feasibility**
+        - Added a discriminated, coordinate-carrying Git feasibility observer over a shared byte-preserving
+          merge-tree execution/parser now also used by delivery contribution proof.
+        - Focused coverage proves clean composition, sorted regenerable-only and substantive conflicts, and sanitized
+          unavailable results for unsupported, malformed, or failed merge-tree evidence.
 
     - `[ ]` **2.2.b Define the semantic host-observation port**
         - Place `ChangeRequestMergeObservationPort` beside the existing provider-neutral change-request boundary,

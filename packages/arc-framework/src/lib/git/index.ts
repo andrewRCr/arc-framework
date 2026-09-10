@@ -77,6 +77,18 @@ export {
   composeUnavailableRegister,
 } from "./base-drift-register.js";
 
+export {
+  observeGitMergeFeasibility,
+  type GitMergeFeasibility,
+  type ObserveGitMergeFeasibilityOptions,
+} from "./merge-feasibility.js";
+
+export {
+  readMergeTreeComposition,
+  type MergeTreeCompositionResult,
+  type ReadMergeTreeCompositionOptions,
+} from "./merge-tree.js";
+
 export type {
   BaseDriftCommitInput,
   BaseDriftRegister,
