@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "project-delivery-contribution-coordinates",
+  "claimId": "584d9615253defff39e137a4a2d9b99f",
+  "createdAt": "2026-09-10T00:06:08.206Z",
+  "updatedAt": "2026-09-10T00:06:08.206Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Project delivery records into the strict contribution-proof coordinate shape at both known adapter boundaries.",
+  "branch": "chore/project-delivery-contribution-coordinates",
+  "origin": "inbox",
+  "originEntry": "Project delivery records into strict contribution-proof coordinates",
+  "originEntrySourceDigest": "sha256:572c92c5406a2c9e664a8c335f7c9e4d866b2961e96596bd90fd2696844eab50",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
