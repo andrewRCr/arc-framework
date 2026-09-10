@@ -398,20 +398,10 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
           merge policy plus a closed direct-merge result union whose non-success arms retain semantic detail,
           decisive observations, and either structured retry authority or an explicit terminal explanation.
 
-    - `[ ]` **4.3.b Compose the final Errand state machine**
-        - Inject current identity, final drift, Git feasibility, host admission, checks, merge method, lock, and
-          provider ports; reuse the shared applicability/checkpoint planner for direct exact-head merge and typed
-          base or regenerable reconcile. The regenerable arm consumes D5's exact-parent, determinate-render contract.
-          Return a bounded applicability-judgment arm before mutation, prompt continuations for unsettled checks, and
-          D6's exact confirmation semantics for an ambiguous mutating result.
-        - Build `test-first` (one behavior at a time):
-            - direct merge preserves exact-head authority and no path arms native auto-merge;
-            - pending checks retain approval and lock;
-            - bounded residual judgment returns before mutation and requires a fresh approved plan;
-            - a strict host reconciles only with complete evidence, and a readiness-only conflict returns the
-              regenerable result rather than a generic conflict or base reconcile; and
-            - every definitively unapproved exit after lock release re-holds the exact target, while
-              `merge-outcome-unknown` preserves approval and does not re-lock solely from uncertainty.
+    - `[x]` **4.3.b Compose the final Errand state machine**
+        - Composed strict current-identity and exact-target replay, one-shot checks, the shared applicability and
+          checkpoint planners, both typed reconcile arms, direct pinned merge, exact confirmation, and compensating
+          re-hold semantics; only an indeterminate mutating outcome preserves approval without re-locking.
 
     - `[ ]` **4.3.c Publish `arc errand merge` through the CLI boundary**
         - Add the thin handler, Commander registration, input-policy declarations, JSON formatter, and focused unit/E2E
